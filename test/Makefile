@@ -26,10 +26,9 @@ ERLC_FLAGS = +debug_info -Werror -I ../src -I ../src/toolchain
 CODE_PATH = -pa ../build/toolchain/*/ebin -pa ../build/shared/ebin -pa ../build/nodes/ebin \
 	  -pa ../build/runtime/ebin -pa ../build/shell/ebin -pa ../build/runtime/test
 
-# The suites by area (plan, MVP 2.6, MVP 3.9): each area has a target of
-# its own, which the repository's Makefile runs as `make test-<area>`,
-# alone for a change that touches the area and side by side with the others
-# under `make test-full`.
+# The suites by area: each area has a target of its own, which the
+# repository's Makefile runs as `make test-<area>`, alone for a change that
+# touches the area and side by side with the others under `make test-full`.
 INTEGRATION = ern_integration_tests
 # a launch of its own, which shares no host with the programs' runs
 MEASURE = ern_measure_tests
@@ -95,10 +94,10 @@ NODES_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
 	    ../bin/ern stop --config-dir "$$(dirname "$$pid")" > /dev/null 2>&1; done; \
 	  rm -rf "$$dir"; exit $$status
 
-# The programs' six parts (plan, MVP 3.9). The example programs and the
-# test programs, the signals and the streams, with the programs `measured`
-# builds, the measuring machine's reach over every function, and the
-# bench's comparison of a run with the last and the release's.
+# The programs' six parts. The example programs and the test programs, the
+# signals and the streams, with the programs `measured` builds, the
+# measuring machine's reach over every function, and the bench's comparison
+# of a run with the last and the release's.
 integration: $(BEAMS) prepare measured named
 	@$(call NODES_RUN,integration,$(INTEGRATION))
 	$(call EUNIT,$(MEASURE) $(LAST_RUN_TESTS))
@@ -126,10 +125,10 @@ manual: $(BEAMS) prepare
 install: $(BEAMS) prepare
 	$(call EUNIT,$(INSTALL))
 
-# The bench's parts, in the order `bench` runs them (plan, MVP 3.295), and
-# their harnesses: core's ern_bench, library's ern_measure and each other
-# part's ern_<part>_costs, with the harness the parts share, ern_costs, and
-# the memory of their runs, ern_last_run.
+# The bench's parts, in the order `bench` runs them, and their harnesses:
+# core's ern_bench, library's ern_measure and each other part's
+# ern_<part>_costs, with the harness the parts share, ern_costs, and the
+# memory of their runs, ern_last_run.
 BENCH_PARTS = core library nodes code spawn restarting burst foreign call rules language programs
 BENCH_BEAMS = $(patsubst %,$(EBIN)/%.beam,ern_bench ern_measure ern_costs ern_last_run \
 	  $(patsubst %,ern_%_costs,$(filter-out core library,$(BENCH_PARTS))))
@@ -176,38 +175,36 @@ guide: $(BEAMS) prepare
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 # The site's generator, built by `make` into ../build/tools, run over the
-# fixture's tree under build/site, which starts no node (plan, MVP 4.2
-# item 2).
+# fixture's tree under build/site, which starts no node.
 site: $(BEAMS) prepare
 	$(call EUNIT,$(SITE))
 
 # The blocks the site offers the shell, each pasted into a bare `ern
 # shell` through the pseudo-terminal harness, and site/unrunnable.md held
-# to those it cannot run (plan, MVP 4.2 item 4), under a directory of the
-# run's own for the shells' homes.
+# to those it cannot run, under a directory of the run's own for the
+# shells' homes.
 site-shell: $(BEAMS) prepare pty
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_site_shell_XXXXXX") && \
 	  ERN_TEST_DIR=$$dir $(call EUNIT,$(SITE_SHELL)); \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 # The site's client in a headless Chrome over its DevTools protocol, the
-# fixture's pages served by OTP's httpd and a stub at the shell's path
-# (plan, MVP 4.2 item 4); it says so and stops where no Chrome is found.
+# fixture's pages served by OTP's httpd and a stub at the shell's path;
+# it says so and stops where no Chrome is found.
 browser: $(BEAMS) prepare
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_browser_XXXXXX") && \
 	  ERN_TEST_DIR=$$dir erl -noshell $(CODE_PATH) -pa $(EBIN) \
 	    -eval 'ern_browser_tests:run().'; \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
-# Appendix A read as data, and the programs generated from it (MVP 2.99c
-# item 1), whose seed ERN_SEED gives again.
+# Appendix A read as data, and the programs generated from it, whose seed
+# ERN_SEED gives again.
 grammar: $(BEAMS)
 	$(call EUNIT,$(GRAMMAR))
 
-# Well-typed programs generated, checked, compiled and run in one host
-# (MVP 2.99c item 3), whose seed ERN_SEED gives again. Core dumps are on,
-# so that a fault of the host leaves its core in this directory
-# (docs/plan.md, MVP 4.15's item 23).
+# Well-typed programs generated, checked, compiled and run in one host,
+# whose seed ERN_SEED gives again. Core dumps are on, so that a fault of
+# the host leaves its core in this directory.
 typed: $(BEAMS) named
 	ulimit -c unlimited; $(call EUNIT,$(TYPED))
 
@@ -276,17 +273,16 @@ load: $(EBIN)/ern_load.beam measured named
 service: measured
 	$(call EUNIT,ern_service_tests)
 
-# The benchmark, in parts (plan, MVP 3.295), each run alone by a target
-# of its own, bench-<part>, in this order by `bench`.
+# The benchmark, in parts, each run alone by a target of its own,
+# bench-<part>, in this order by `bench`.
 # core: fixtures/bench/bench.ern built and run as a user runs a program,
 # and its times printed beside the same operations in Erlang by ern_bench,
 # in build/bench/bench.txt, the modules it read and the faults its raises
 # measure reported into build/bench/faults.txt.
 # library: every function of the library measured against the host's by
-# ern_measure (plan MVP 2.99d item 1), its whole table in
-# build/bench/library.txt.
-# nodes and code: the costs between two nodes, ern_nodes_costs, and MVP
-# 3.2's of code that crosses, ern_code_costs, on nodes it starts, in
+# ern_measure, its whole table in build/bench/library.txt.
+# nodes and code: the costs between two nodes, ern_nodes_costs, and those
+# of code that crosses, ern_code_costs, on nodes it starts, in
 # build/bench/nodes.txt and code.txt.
 # spawn: a spawn, a spawnMonitored and a monitor beside the host's, on
 # every scheduler and on one, ern_spawn_costs, in build/bench/spawn.txt,
@@ -310,8 +306,7 @@ service: measured
 # build/bench/language.txt.
 # programs: three programs written twice, in Ernest and in Erlang by hand,
 # ern_programs_costs, in build/bench/programs.txt, the Erlang twins of the
-# three under fixtures/bench/ and compiled into build/bench/twins/ (plan,
-# MVP 3.29).
+# three under fixtures/bench/ and compiled into build/bench/twins/.
 # The memory is kept a table at a time, ern_last_run. As a run begins,
 # each of its tables the run before wrote moves to build/bench/last/, in
 # place of the one there, and the rest of last/ stays; at its end every

@@ -1,13 +1,12 @@
-%% `make bench`'s memory of its runs (docs/development.md; plan, MVP
-%% 3.29, MVP 3.295): a run is compared with two references, the last run's
-%% tables in `last/` and the release's in `release/`, and the memory is
-%% kept a table at a time, so that a run of one part of the bench keeps and
-%% compares that part's tables alone, and a run of the whole every table.
-%% At a run's start each of its tables that the run before wrote is kept in
-%% `last/`, in place of the one there, and the rest of `last/` stays; the
-%% release review keeps the tables in `release/` the same way (`make
-%% bench-release`), and so does a user whose first run on a new machine is
-%% a new reference.
+%% `make bench`'s memory of its runs (docs/development.md): a run is
+%% compared with two references, the last run's tables in `last/` and the
+%% release's in `release/`, and the memory is kept a table at a time, so
+%% that a run of one part of the bench keeps and compares that part's tables
+%% alone, and a run of the whole every table. At a run's start each of its
+%% tables that the run before wrote is kept in `last/`, in place of the one
+%% there, and the rest of `last/` stays; the release review keeps the tables
+%% in `release/` the same way (`make bench-release`), and so does a user
+%% whose first run on a new machine is a new reference.
 %%
 %% At a run's end every row of its tables that moved by more than the
 %% noise against either reference is named with both numbers, under the

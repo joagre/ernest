@@ -1,12 +1,11 @@
 %% `make bench`'s part `spawn` (docs/development.md): what Ernest's spawn,
-%% spawnMonitored and monitor cost beside the host's (report §6.9, §10;
-%% plan, MVP 3.27 items 2 and 3). A spawn asks the reaper, which starts the
-%% process with a monitor of its own, writes its row and answers, and at
-%% the process's end takes the host's `'DOWN'` and lets go of what the
-%% process held. A monitor asks the reaper too. At the end of a process a
-%% monitor stands of, a spawnMonitored's among them, the reaper delivers
-%% each monitor's `wrap(Down)` through a process of its own, which acts
-%% for its recipient.
+%% spawnMonitored and monitor cost beside the host's (report §6.9, §10). A
+%% spawn asks the reaper, which starts the process with a monitor of its
+%% own, writes its row and answers, and at the process's end takes the
+%% host's `'DOWN'` and lets go of what the process held. A monitor asks the
+%% reaper too. At the end of a process a monitor stands of, a
+%% spawnMonitored's among them, the reaper delivers each monitor's
+%% `wrap(Down)` through a process of its own, which acts for its recipient.
 %%
 %% Measured, a file for each operation, spawn.txt, spawn_monitored.txt and
 %% monitor.txt, each with two tables: the host's operation and Ernest's,

@@ -1,11 +1,11 @@
 //
-// What every page of the site is written with (plan, MVP 4.2 item 2): the
-// run, the repository's files and the templates; a page put together
-// through base.html, with the header's room marked and the footer naming
-// its source; a page's sidebar, its previous and next, its title and its
-// description; and the files read and written. Each kind of page is a
-// module of its own, Site.Book, Site.Report, Site.Library and
-// Site.Document, which writes its pages through this one.
+// What every page of the site is written with: the run, the repository's
+// files and the templates; a page put together through base.html, with the
+// header's room marked and the footer naming its source; a page's sidebar,
+// its previous and next, its title and its description; and the files read
+// and written. Each kind of page is a module of its own, Site.Book,
+// Site.Report, Site.Library and Site.Document, which writes its pages
+// through this one.
 //
 
 /// What every page is written with: the repository's files, where the site

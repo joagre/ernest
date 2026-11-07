@@ -1,10 +1,10 @@
-%% A node on a machine (ern_machine), as MVP 3.27's tools make and run one
-%% (plan, MVP 3.27 item 1): its configuration directory made there with
-%% `ern config`, never copied, since a key is made on its machine (report
-%% §8.7, §11.3); its `ernest.conf` read and written there, its `listen` and
-%% its peers, each with its key and the address it is dialed at (Appendix
-%% C); and the node started there, reloaded and stopped, as an operator
-%% does on that machine (§11.2).
+%% A node on a machine (ern_machine), as the tools across machines make and
+%% run one: its configuration directory made there with `ern config`, never
+%% copied, since a key is made on its machine (report §8.7, §11.3); its
+%% `ernest.conf` read and written there, its `listen` and its peers, each
+%% with its key and the address it is dialed at (Appendix C); and the node
+%% started there, reloaded and stopped, as an operator does on that machine
+%% (§11.2).
 -module(ern_machine_node).
 
 -export([configured/4, name/1, machine/1, config_dir/1, carrier_name/1, address/2, listed/2,

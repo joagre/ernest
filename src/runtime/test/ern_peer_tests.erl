@@ -166,8 +166,8 @@ utilizations_test() ->
 %% one, two being drawn at random; and of five equally busy each is taken,
 %% the last in the configuration's order among them. A regression test,
 %% written after the code; the first drawn's two assertions before its
-%% change of 2026-10-20, which they failed. That the draw is uniform is the
-%% host's generator's, and is not measured
+%% change, which they failed. That the draw is uniform is the host's
+%% generator's, and is not measured
 pick_test() ->
     [A, B, C, D, E] = Nodes = ['a@node.ernest', 'b@node.ernest', 'c@node.ernest',
                                'd@node.ernest', 'e@node.ernest'],

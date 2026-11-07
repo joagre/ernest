@@ -4,8 +4,8 @@
 %% the peer, whose frames are messages to an adapted address this node
 %% made: the process the worker keeps for each such address. Each runs in a
 %% program, whose reaper the processes kept are linked to. Real nodes are
-%% test/ern_nodes_tests.erl's. Regression tests, written after the code
-%% (MVP 3.26's item 2b, and the worker across a loss before the tag).
+%% test/ern_nodes_tests.erl's. Regression tests, written after the code,
+%% the worker's across a loss before the tag among them.
 -module(ern_gateway_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -59,8 +59,8 @@ adapted_in_order_test() ->
 %% In the next run, in one host, as `ern test` runs a directory's tests, a
 %% message to the earlier run's address is dropped, no process kept for it
 %% and its function not applied, and a message to an address the next run
-%% made starts another, which applies it. A regression test, written after the code;
-%% the drop since the address holds its run (finding D4), before which the
+%% made starts another, which applies it. A regression test, written after
+%% the code; the drop since the address holds its run, before which the
 %% earlier run's function was applied
 adapted_forgotten_test() ->
     Self = self(),
@@ -211,7 +211,7 @@ quiet() ->
 %% report §12.5, §2.5: the line a node says of a spawn it did not start
 %% writes the site, a peer's text, with its control characters as escapes,
 %% so that a site with a line feed forges no line of the node's. A
-%% regression test (S4), written after the code: the site went in raw
+%% regression test, written after the code: the site went in raw
 not_loaded_site_test() ->
     Self = self(),
     Site = <<"Main.w:1\e[2J\n2026-10-24T00:00:00.000Z the peer x connected">>,

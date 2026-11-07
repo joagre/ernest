@@ -1,10 +1,9 @@
 //
-// The site's token files (plan, MVP 4.2 item 2): a template or a fragment
-// under site/templates/, cut at its tokens once and joined with the values,
-// so that a page reads as its template does, as site/templates/README.md
-// says. There is no templating language: a token is `{{name}}`, a plain
-// token's value is escaped, and a `*_html` token's is the generator's own
-// HTML, lines of it.
+// The site's token files: a template or a fragment under site/templates/,
+// cut at its tokens once and joined with the values, so that a page reads as
+// its template does, as site/templates/README.md says. There is no
+// templating language: a token is `{{name}}`, a plain token's value is
+// escaped, and a `*_html` token's is the generator's own HTML, lines of it.
 //
 
 /// A line of a page: one that a template's indentation reaches, or one of a

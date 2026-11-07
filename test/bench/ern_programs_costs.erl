@@ -1,15 +1,15 @@
 %% `make bench`'s part `programs`, three programs written twice
-%% (docs/development.md; plan, MVP 3.29): the same algorithm in Ernest and
-%% in Erlang by hand, each a ratio of the Ernest program's time over the
-%% Erlang's. The programs are under test/fixtures/bench/, each Ernest module
-%% beside its twin: the ray tracer of ernest-epx's examples, its pure half,
+%% (docs/development.md): the same algorithm in Ernest and in Erlang by
+%% hand, each a ratio of the Ernest program's time over the Erlang's. The
+%% programs are under test/fixtures/bench/, each Ernest module beside its
+%% twin: the ray tracer of ernest-epx's examples, its pure half,
 %% raytracer.ern and ern_raytracer_twin.erl, floats and records; the lexer,
-%% the parser and the evaluator of examples/interpreter.ern over a fixed input,
-%% parser.ern and ern_parser_twin.erl, strings and matching; and the guide's
-%% counter with its callers, counter.ern and ern_counter_twin.erl, processes
-%% and calls. An Ernest module is compiled from source as `ern build`
-%% compiles it; a twin by erlc, into the bench's twins/ directory, as `make
-%% bench` builds them.
+%% the parser and the evaluator of examples/interpreter.ern over a fixed
+%% input, parser.ern and ern_parser_twin.erl, strings and matching; and the
+%% guide's counter with its callers, counter.ern and ern_counter_twin.erl,
+%% processes and calls. An Ernest module is compiled from source as
+%% `ern build` compiles it; a twin by erlc, into the bench's twins/
+%% directory, as `make bench` builds them.
 %%
 %% Measured, in programs.txt: a row for each program, the twin's run and
 %% the Ernest program's, each timed in its own process from the call of the

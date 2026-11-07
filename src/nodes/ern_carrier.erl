@@ -20,9 +20,7 @@
 -include_lib("nodes/include/ern_node.hrl").
 
 %% Report §12.5: the protocol's version, in the cookie, so that two nodes of
-%% different protocols never connect: 4 since MVP 3.95, whose two frames
-%% tell a restart to the nodes that monitor the restarting process and
-%% answer that their watchers have been told (§6.9).
+%% different protocols never connect.
 -define(PROTOCOL, 5).
 
 %% The constant before the host of a node's name on the carrier, whose host

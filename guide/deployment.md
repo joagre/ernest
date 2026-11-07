@@ -14,7 +14,7 @@ A node runs on the Erlang runtime, OTP, which this guide calls the host; the hos
 
 How a program is written to be found, placed and upgraded across nodes is the language guide's chapter 8, [*Programming in Ernest*](language.md), which this guide points at and does not repeat. The rules themselves are [the report's](../report/README.md), Ernest's definition, §8.7, §11 and §12 above all, and every section here names the section that owns what it teaches.
 
-The commands of sections 1, 5.3 and 8 and the shell sessions of sections 5.3, 6 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit and the `kill` lines are shown and not run. The numbers quoted were measured in October 2026, on one machine, eight cores, and across three machines wired on one LAN, and each says which.
+The commands of sections 1, 5.3 and 8 and the shell sessions of sections 5.3, 6 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit and the `kill` lines are shown and not run. The numbers quoted were measured on one machine of eight cores, and across three machines wired on one LAN, and each says which.
 
 ## 1. One node
 

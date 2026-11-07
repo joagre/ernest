@@ -52,8 +52,7 @@ specifiers_together_test() ->
 
 %% report §11.6, §5.7: the parentheses around a pipe's stage, which make no
 %% node, and a foreign type whose parameters share a name stay as written.
-%% Regression tests, of crashes the programs generated from Appendix A
-%% found (MVP 2.99c item 1)
+%% Regression tests, of crashes the programs generated from Appendix A found
 written_whole_test() ->
     fixed(["fn f(x) =", "    x |> (g(1)) |> ((h)(2))"]),
     fixed(["foreign type T(a, a=, a)"]).
@@ -323,12 +322,12 @@ lambda_test() ->
                        " Shell.Complete.Name(text = \":\" <> c.name, kind = Shell.Complete.Value,"
                        " shown = Shell.Command.line(c)))"])).
 
-%% report §11.6: a lambda's body that does not fit whole and ends its
-%% first line in a `then` begins the next line, where a `let`'s stays, so
-%% that the `else` stands under the `if` and not at the lambda's column,
-%% where it read as the call's next argument; one that ends its first line
-%% in a brace stays. A regression test: the `then` rule held for a lambda's
-%% body as for a `let`'s (the release review's N12)
+%% report §11.6: a lambda's body that does not fit whole and ends its first
+%% line in a `then` begins the next line, where a `let`'s stays, so that the
+%% `else` stands under the `if` and not at the lambda's column, where it
+%% read as the call's next argument; one that ends its first line in a brace
+%% stays. A regression test: the `then` rule held for a lambda's body as for
+%% a `let`'s
 lambda_then_test() ->
     ?assertEqual([<<"let total =">>,
                   <<"    List.foldLeft(titles,">>,
@@ -428,8 +427,8 @@ types_test() ->
            "  /// A break.",
            "  | Break"]),
     %% a type of one alternative that does not fit breaks after its `=` too,
-    %% before a bracket of its own parameters or of its fields; a
-    %% regression test: it broke inside its parameters (MVP 2.98)
+    %% before a bracket of its own parameters or of its fields; a regression
+    %% test: it broke inside its parameters
     ?assertEqual([<<"type SetOps(s, a) =">>,
                   <<"    SetOps(empty : s, put : (s, a) -> s, contains : (s, a) -> Bool,"
                     " union : (s, s) -> s)">>],

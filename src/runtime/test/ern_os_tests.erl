@@ -207,11 +207,11 @@ read_times_out_and_the_piece_is_kept_test() ->
 
 %% Appendix E.23, E.0 shape rule 8: a read given no time, 0 or below, has
 %% run out as it begins and answers `Left(Timeout)`, whatever has arrived,
-%% the exit status the runtime holds among it, and takes nothing: the
-%% reads with time after each take what came. A regression test of the
-%% rule of 2026-11-03, before which a read given no time answered what had
-%% arrived; a piece kept for the next read while the program runs is not
-%% covered apart, its read taking the same first clause
+%% the exit status the runtime holds among it, and takes nothing: the reads
+%% with time after each take what came. A regression test: before the rule,
+%% a read given no time answered what had arrived; a piece kept for the next
+%% read while the program runs is not covered apart, its read taking the
+%% same first clause
 read_given_no_time_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -232,9 +232,9 @@ read_given_no_time_test() ->
 %% run out as it begins, answers `Left(Timeout)` and gives the program
 %% nothing: `cat` writes back the one write that had time, and once it has
 %% exited a write given no time answers `Left(Timeout)` still, where one
-%% with time answers `Left(Closed)`. A regression test of the rule of
-%% 2026-11-03, before which the bytes went to the program and the write
-%% answered whichever came first, its time or the program's taking them
+%% with time answers `Left(Closed)`. A regression test: before the rule, the
+%% bytes went to the program and the write answered whichever came first,
+%% its time or the program's taking them
 write_given_no_time_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -430,13 +430,12 @@ terminal_size_out_of_range_test() ->
 
 %% report Appendix E.23: a resize's answers in their order: a program
 %% `start` started answers `Left(NotATerminal)` whatever the size and once
-%% it has exited, then a size the host cannot take answers
-%% `Left(Invalid)`, then a terminal hung up or a program exited answers
-%% `Left(Closed)`, as a write does. The program hung up ignores the
-%% hangup, which its `sleep` inherits, so that it runs on after it. A
-%% regression test of the rule of 2026-11-03, before which a resize after
-%% the hangup or the exit answered `Right(Unit)`; a resize once the helper
-%% has failed is not covered
+%% it has exited, then a size the host cannot take answers `Left(Invalid)`,
+%% then a terminal hung up or a program exited answers `Left(Closed)`, as a
+%% write does. The program hung up ignores the hangup, which its `sleep`
+%% inherits, so that it runs on after it. A regression test: before the
+%% rule, a resize after the hangup or the exit answered `Right(Unit)`; a
+%% resize once the helper has failed is not covered
 resize_answers_in_order_test() ->
     Self = self(),
     Wrong = {'Size', 65536, 80},
@@ -615,10 +614,9 @@ exited_program_leaves_no_group() ->
 %% answers it again, a write `Left(Closed)`, a resize `Left(Closed)` too,
 %% and `closeInput` does nothing; a monitor sees its end only at its kill,
 %% after which a resize faults as `Address.callForever` does on an ended
-%% process. A regression test of the rule of 2026-11-02, before which the
-%% process ended once a read had answered `Exited`, and of 2026-11-03's,
-%% before which the resize answered `Right(Unit)`; a give after the exit,
-%% and the owner's death then, are not covered
+%% process. A regression test: before the rules, the process ended once a
+%% read had answered `Exited`, and the resize answered `Right(Unit)`; a give
+%% after the exit, and the owner's death then, are not covered
 exited_program_lives_on_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -642,14 +640,13 @@ exited_program_lives_on_test() ->
     ?assertEqual({ern, killed}, wait(ended)),
     ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, wait(later)).
 
-%% report Appendix E.23: a read whose caller has ended before it is
-%% answered is dropped, and what it would have taken is the next read's:
-%% the piece `cat` writes after a reader was killed in its read, and the
-%% exit status after a second was. A regression test of the rule of
-%% 2026-11-02, before which the read took the piece for its ended caller,
-%% and an `Exited` so taken ended the process; a caller that ends while
-%% the piece is on its way, before the process has its `DOWN`, is not
-%% covered
+%% report Appendix E.23: a read whose caller has ended before it is answered
+%% is dropped, and what it would have taken is the next read's: the piece
+%% `cat` writes after a reader was killed in its read, and the exit status
+%% after a second was. A regression test: before the rule, the read took the
+%% piece for its ended caller, and an `Exited` so taken ended the process; a
+%% caller that ends while the piece is on its way, before the process has
+%% its `DOWN`, is not covered
 read_of_an_ended_caller_dropped_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -666,16 +663,15 @@ read_of_an_ended_caller_dropped_test() ->
     ?assertEqual({{'Right', {'Stdout', <<"x\n">>}}, {'Right', {'Exited', 0}}}, wait(reads)).
 
 %% report Appendix E.23: a piece that comes for a read whose caller has
-%% ended, before the program's process has the caller's `DOWN`, is kept
-%% for the next read, the host asked whether the caller lives before the
-%% piece is answered. The window is made here: the program's process is
-%% held still while the test gives it the frame the helper would send,
-%% `o` and the bytes, and the reader is killed once the frame stands in
-%% the process's mailbox, so that the `DOWN`, which the kill causes, comes
-%% behind it whatever the senders. A regression test of the rule of
-%% 2026-11-02, before which the piece went to the ended reader and the
-%% next read timed out; a caller that ends with its answer in its mailbox
-%% is every call's, and not covered
+%% ended, before the program's process has the caller's `DOWN`, is kept for
+%% the next read, the host asked whether the caller lives before the piece
+%% is answered. The window is made here: the program's process is held still
+%% while the test gives it the frame the helper would send, `o` and the
+%% bytes, and the reader is killed once the frame stands in the process's
+%% mailbox, so that the `DOWN`, which the kill causes, comes behind it
+%% whatever the senders. A regression test: before the rule, the piece went
+%% to the ended reader and the next read timed out; a caller that ends with
+%% its answer in its mailbox is every call's, and not covered
 piece_ahead_of_the_down_kept_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -835,10 +831,10 @@ wait(Tag) ->
 %% that holds it is refused, nothing sent, where others than its owner may
 %% write the file, since another could then have written its number. The
 %% number is this host's, which the signal 0 asks after. A regression
-%% test, written after the code (S1, S3): the file was made 0666 under the
-%% mask, group-writable under Ubuntu's 002, and a link was followed; a
-%% file another user owns, which a test run as one user cannot make, is
-%% not covered
+%% test, written after the code: the file was made 0666 under the mask,
+%% group-writable under Ubuntu's 002, and a link was followed; a file
+%% another user owns, which a test run as one user cannot make, is not
+%% covered
 node_file_test() ->
     Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
                         "ern_os_node_" ++ os:getpid()),
@@ -869,9 +865,8 @@ node_file_test() ->
 %% report §12.5: a node's ernest.pid that an earlier node left, which others
 %% may write, as one made under the mask 002 before 0.9.0 is, is made its
 %% owner's alone to write once the node holds its lock, its other bits as
-%% they were, and is then signaled as the node's. A regression test of the
-%% rule of 2026-11-03, before which the node took the file as it found it
-%% and `ern stop` refused it
+%% they were, and is then signaled as the node's. A regression test: before
+%% the rule, the node took the file as it found it and `ern stop` refused it
 found_node_file_test() ->
     Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
                         "ern_os_found_" ++ os:getpid()),

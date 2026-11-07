@@ -1,6 +1,6 @@
 # Installing the Emacs mode
 
-`ernest-mode` edits `.ern` files, and needs Emacs 29 or later. [`docs/design/emacs_mode.md`](../../docs/design/emacs_mode.md) says what it does.
+`ernest-mode` edits `.ern` files, and needs Emacs 29 or later. It colors Ernest's syntax, indents its code, lays out a buffer with `ern format`, and has `M-x compile` lead to the compiler's errors.
 
 `make install` puts `ernest-mode.el` in `share/emacs/site-lisp` under its prefix, which an Emacs built for that prefix has on its `load-path`. Another Emacs is given that directory, `PREFIX/share/emacs/site-lisp`, here for the default prefix, `/usr/local`:
 

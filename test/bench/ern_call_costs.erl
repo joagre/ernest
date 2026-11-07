@@ -1,11 +1,10 @@
-%% `make bench`'s part `call` (docs/development.md; plan, MVP 3.29):
-%% what each piece of `Address.call` adds to the host's call of the same
-%% shape (report §6.6, §6.9, §8.6), with one caller and one callee, with
-%% eight callers over eight callees at once, with eight callers over one
-%% callee, and with those two again at a caller on each of the host's
-%% schedulers. The host's call is gen:do_call/4's: a monitor that is the
-%% reply's alias, the request sent, a receive with an `after`, the monitor
-%% dropped.
+%% `make bench`'s part `call` (docs/development.md): what each piece of
+%% `Address.call` adds to the host's call of the same shape (report §6.6,
+%% §6.9, §8.6), with one caller and one callee, with eight callers over
+%% eight callees at once, with eight callers over one callee, and with those
+%% two again at a caller on each of the host's schedulers. The host's call
+%% is gen:do_call/4's: a monitor that is the reply's alias, the request
+%% sent, a receive with an `after`, the monitor dropped.
 %%
 %% ern_rt's call/4 reads the callee through the address and sends the
 %% request by its way (line_guard/1, process_of/1, adapted_way/2), so that

@@ -124,9 +124,7 @@ is_run(Block) ->
 %% Appendix E, Appendix G, report §11.5, §3.9: every listed function's type
 %% is the type its module's interface prints, its inferred restrictions
 %% marked and the module's own types written without its namespace, so that
-%% the report states each function's whole contract. A test of the full
-%% review's K20 (2026-10-04), whose first run found every difference to be a
-%% mark or a namespace, no signature drifted
+%% the report states each function's whole contract
 listings_are_the_interfaces_test() ->
     Printed = maps:from_list(
                 [{ern_namespace:text(QualifiedName),
@@ -216,9 +214,9 @@ since(File) ->
 %% tag's. Between releases VERSION names the next minor, which `make
 %% version` sets once the last release is tagged, and nothing is compared.
 %% A tag's are read from its source's lines, since the code of
-%% today need not read it, and today's the same way. Written after the code
-%% (findings H5, H10); it compares the listings' lines and not what they
-%% mean, and a patch that moves a listing's comment alone fails it
+%% today need not read it, and today's the same way. Written after the code;
+%% it compares the listings' lines and not what they mean, and a patch that
+%% moves a listing's comment alone fails it
 patch_floor_test() ->
     {ok, VersionText} = file:read_file("VERSION"),
     [Major, Minor, Patch] = version(VersionText),

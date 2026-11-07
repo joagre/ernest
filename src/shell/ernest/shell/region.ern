@@ -709,8 +709,7 @@ let unendedHeld =
             Test.Failed(Int.toString(String.size(region.writing)))
     })
 
-// Report §11.2. Written before the local half wrote it (the plan's MVP
-// 4.0 item 8)
+// Report §11.2. Written before the local half wrote it
 let endsUnderThePrompt =
     Test.Case(name = "the region ends under its prompt, what was typed taken away",
               run = fn() = Test.equal(ending(typed("a\nbc", 4)), "\r\u{1b}[1A\u{1b}[2C\u{1b}[J\n"))

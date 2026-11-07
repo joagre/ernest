@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 7 November 2026.
+For Ernest 0.10.0.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 

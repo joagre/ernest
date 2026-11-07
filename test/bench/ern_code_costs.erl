@@ -1,21 +1,20 @@
-%% `make bench`'s part `code` (docs/development.md) measures MVP 3.2's
-%% costs on nodes of this machine (plan MVP 3.2 item 7). It measures what
-%% a spawn and a compute cost whose code crosses to a peer that lacks it, a
-%% bare node's first among them, with what that first does in a fresh
-%% host, and the share of each of the exchange's steps on both nodes
-%% (report §12.7, §10). It measures what a fix's callers cost, crossed with
-%% it to a node of the old build, and what an arrival, a `Code.load` and a
+%% `make bench`'s part `code` (docs/development.md) measures the costs of
+%% code that crosses between nodes, on nodes of this machine. It measures
+%% what a spawn and a compute cost whose code crosses to a peer that lacks
+%% it, a bare node's first among them, with what that first does in a fresh
+%% host, and the share of each of the exchange's steps on both nodes (report
+%% §12.7, §10). It measures what a fix's callers cost, crossed with it to a
+%% node of the old build, and what an arrival, a `Code.load` and a
 %% development day's spawns add to the host's four counts, against their
 %% limits (§11.2).
 %%
-%% The part measures beside them what a utilization costs, and a compute
-%% on a peer the node picks by the utilizations its peers told it beside
-%% one on a peer named, the pick alone and the read of the utilizations,
-%% and what connected nodes exchange idle, the tellings among it (§8.7,
-%% Appendix E.27, plan MVP 3.2 item 8). It measures the sizes of the
-%% standard library's `.erc` files and of a code frame, and what reading a
-%% module's forms costs (§11.1). Every number is a median of seven runs or
-%% more, with their range.
+%% The part measures beside them what a utilization costs, and a compute on
+%% a peer the node picks by the utilizations its peers told it beside one on
+%% a peer named, the pick alone and the read of the utilizations, and what
+%% connected nodes exchange idle, the tellings among it (§8.7, Appendix
+%% E.27). It measures the sizes of the standard library's `.erc` files and
+%% of a code frame, and what reading a module's forms costs (§11.1). Every
+%% number is a median of seven runs or more, with their range.
 %%
 %% The measuring program, the reaches it spawns, the builds of the fixed
 %% module and the modules `Code.load` loads are written here, built, and
@@ -24,8 +23,7 @@
 %% which lists them all. `make bench` starts them all on this machine;
 %% `make bench-machines` the eight over the machines after this one of
 %% test/machines/machines.txt in turn, so that q1 and q2 stand on two
-%% machines where there are two, and the measuring node here (plan, MVP
-%% 3.27 item 1).
+%% machines where there are two, and the measuring node here.
 %%
 %% The nodes show their work through `fixtures/bench/ern_code_probe.erl`,
 %% on each one's load path, whose functions the measuring program runs on
@@ -93,7 +91,7 @@ costs(Dir, Local, Placing) ->
                                      Local, Placing),
     Lines = measured(Base, New, Probe, Nodes),
     %% each run's own lines kept beside the nodes, so that a wide range
-    %% can be read node by node (plan, MVP 3.27 item 2)
+    %% can be read node by node
     ok = file:write_file(filename:join(Base, "lines.txt"),
                          [[lists:join(" ", Line), "\n"] || Line <- Lines]),
     stopped(Nodes),

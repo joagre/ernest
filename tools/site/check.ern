@@ -1,12 +1,12 @@
 //
-// The site's check of its own links (plan, MVP 4.2 item 5): every page
-// written under the site's directory is read back, and each internal link
-// in it, made by the generator or written in a template, its `href` or its
-// `src`, leads to a file the site holds and, with a fragment, to an anchor
-// that file holds, an `id` of a page or a symbol of the icons' file, as
-// docs/design/site.md's *Links* says. A link with a scheme
-// leads off the site and is not read. A site with a link that leads nowhere
-// is refused, each such link named with its page.
+// The site's check of its own links: every page written under the site's
+// directory is read back, and each internal link in it, made by the
+// generator or written in a template, its `href` or its `src`, leads to a
+// file the site holds and, with a fragment, to an anchor that file holds, an
+// `id` of a page or a symbol of the icons' file, as docs/design/site.md's
+// *Links* says. A link with a scheme leads off the site and is not read. A
+// site with a link that leads nowhere is refused, each such link named with
+// its page.
 //
 
 // A page of the site as the check reads it: its path under the site's

@@ -281,8 +281,7 @@ let knownWeekdays =
                              List.map([Monday, Thursday, Saturday, Sunday, Wednesday, Thursday],
                                       Some)))
 
-// report Appendix G.10: written with the code on the decision of the
-// release review's E4-19 (2026-11-03).
+// report Appendix G.10: written with the code.
 let weekdayOfACivil =
     Test.Case(name = "the day of the week is its date's, whatever the time of day", run = fn() = {
         let leapDay = date(2024, 2, 29);
@@ -292,8 +291,7 @@ let weekdayOfACivil =
                    #(Some(Thursday), Some(Thursday), Some(Friday)))
     })
 
-// report Appendix G.10: written with the code on the decision of the
-// release review's E4-19 (2026-11-03).
+// report Appendix G.10: written with the code.
 let weekdayOfNoDate =
     Test.Case(name = "a date the calendar has not has no day of the week",
               run = fn() =

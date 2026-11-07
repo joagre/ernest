@@ -11,8 +11,8 @@
 %% beyond, the exponent's sign only when negative. `Io.debug` and the shell
 %% print a Float the same way (ern_show), so the layout is written once,
 %% here: the same layout in Ernest over the host's shortest form measured
-%% 0.93 times this one, both near eight times the host's alone (the
-%% principles review's P58, 2026-10-09).
+%% 0.93 times this one, both near eight times the host's alone
+%% (the log's *The Principles Review of 2026-10-09, the Judgments*).
 -spec to_string(float()) -> binary().
 to_string(Float) -> list_to_binary(text(Float)).
 

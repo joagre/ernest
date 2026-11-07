@@ -89,12 +89,12 @@ $(EXEC): src/runtime/c_src/ern_exec.c
 
 # The standard library written in Ernest: src/stdlib/ compiled by ern build
 # into build/stdlib, where the checker reads its interfaces and a run loads
-# its modules (report §11.1, plan MVP 2.5). ern build recompiles what a
+# its modules (report §11.1). ern build recompiles what a
 # changed compiler changes (report §11.1).
 stdlib:
 	@bin/ern build --verbose --build-root build/stdlib src/stdlib
 
-# The libraries (plan, MVP 3.2): each src/libs/<name>/ is a source root of
+# The libraries: each src/libs/<name>/ is a source root of
 # its own, compiled into build/libs/<name>, which ends every job's load path
 # (report §11.1, §11.2), each after the standard library and beside the
 # others, but libs/markdown, which writes its styles with libs/ansi (report
@@ -122,7 +122,7 @@ lib-http: lib-time
 $(filter-out lib-markdown lib-http,$(LIB_BUILDS)): lib-%: stdlib
 	@bin/ern build --verbose --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
 
-# The shell, written in Ernest (report §11.2, plan MVP 2.6): src/shell/
+# The shell, written in Ernest (report §11.2): src/shell/
 # compiled by ern build into build/shell, where `ern shell` loads it by
 # namespace, with libs/ansi and libs/markdown, which it renders and styles
 # documentation with, and libs/ets, whose `owned` it says an input's
@@ -211,9 +211,7 @@ man: all
 	  printf -- '- [The libraries under `src/libs/`](libs/README.md)\n'; \
 	  printf -- '- [`ern`, the toolchain and its shell](../../report/toolchain.md#11-toolchain), '; \
 	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n\n'; \
-	  printf 'The pages `ern doc` wrote from `main` when `make man` last ran, the release '; \
-	  printf '`main` then worked toward being Ernest %s; a module or a declaration that ' "$$v"; \
-	  printf 'no release holds yet ends its doc block with the release that brings it.\n'; \
+	  printf 'The pages `ern doc` writes for Ernest %s.\n' "$$v"; \
 	} > docs/man/README.md
 
 # The installation (docs/design/install.md): the toolchain's tree under
@@ -304,11 +302,11 @@ unicode:
 	@test -n "$(UC_SPEC)" || { echo "UC_SPEC=dir is required"; exit 1; }
 	@escript tools/unicode_width.escript $(UC_SPEC)
 
-# The tests by area (plan, MVP 2.6), in two runs (MVP 3.9). `make test` is
+# The tests by area, in two runs. `make test` is
 # the light run, for every commit: the applications' unit tests, the
 # library's examples, the tests of the documents and the style, and the
 # site's generator over its fixture. `make test-full` is every area, for
-# the commit that closes a plan item and for a release. The light run and
+# the commit that closes an item and for a release. The light run and
 # the full run's first phase run their jobs side by side, as many at once
 # as the host has cores, each job's output together as it ends. One make
 # runs each phase, since a make started with a -j of its own runs apart
@@ -321,7 +319,7 @@ unicode:
 # another, each whatever the one before it ended with: each runs its own
 # tests side by side, as many at once as the host has schedulers
 # (test/Makefile), which is what the host carries, and the areas run side
-# by side, six of them on 2026-10-13, ran six times as many, at a load of
+# by side, six of them, ran six times as many, at a load of
 # about 117 on eight cores, where tests ran past their limits. In the full
 # run the modules under test/ are compiled first, once, so that no two parts
 # compile one module at once; one make runs the roots' tests, each waiting on
@@ -481,14 +479,14 @@ service: all
 bench: all
 	@$(MAKE) -C test bench
 
-# Each part of the benchmark alone, its tables alone compared (plan, MVP
-# 3.295): bench-core, bench-library and the rest, as test/Makefile's
-# BENCH_PARTS names them. bench-machines runs the bench's two node parts
-# across the machines of test/machines/machines.txt (the log's *The
-# Machines*), and bench-pick the push's experiment across them (the log's
-# *The Numbers Across Machines*), with MEASURING, PEERS, INTERVALS, RUNS
-# and UTILIZATION as test/Makefile says, each machine checked against this
-# checkout first; both are run by hand, on the user's machines.
+# Each part of the benchmark alone, its tables alone compared: bench-core,
+# bench-library and the rest, as test/Makefile's BENCH_PARTS names them.
+# bench-machines runs the bench's two node parts across the machines of
+# test/machines/machines.txt (the log's *The Machines*), and bench-pick the
+# push's experiment across them (the log's *The Numbers Across Machines*),
+# with MEASURING, PEERS, INTERVALS, RUNS and UTILIZATION as test/Makefile
+# says, each machine checked against this checkout first; both are run by
+# hand, on the user's machines.
 bench-%: all
 	@$(MAKE) -C test $@
 
@@ -634,9 +632,11 @@ format: all
 
 # Report sections no test cites (every test function carries a `%% report §x.y` line,
 # and a library's Ernest tests a `// report Appendix G.n` one): every numbered section
-# and every appendix, a chapter cited through its sections.
+# and every appendix, a chapter cited through its sections, and none whose heading says
+# it is unused, a number kept for a section that went.
 sections:
-	@grep -ohE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-Z](\.[0-9]+)?\.)' report/*.md | \
+	@grep -hE '^#{2,3} ' report/*.md | grep -v ' Unused$$' | \
+	  grep -oE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-Z](\.[0-9]+)?\.)' | \
 	  sed -E 's/^#+ //; s/\.? $$//; s/\.$$//; s/^([0-9])/§\1/' | \
 	  while read -r s; do p=$$(printf '%s' "$$s" | sed 's/\./\\./g'); \
 	    grep -ohE "(guide )?$$p\b" $(UNIT_TEST_SOURCES) test/*.erl src/stdlib/*.ern \

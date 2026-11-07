@@ -1,21 +1,23 @@
 %% The machines' tools of test/machines/ (docs/development.md) on this
-%% machine, which every checkout has: the tracked list of machines read, a
-%% command run in the plain shell and the machine's load read, nodes made,
-%% listed, started and stopped there as `make bench-machines` makes and
-%% runs them on every machine, and `make bench-pick`'s measuring program
-%% run on such nodes. Regression tests, written after the tools. What they
-%% leave out runs only by hand, on the user's machines, in `make
-%% bench-machines`, `make bench-pick` and test/machines/nodes.sh: ssh and
-%% its held connection, scp, another machine's clone and floor, the
-%% calibration, the stream, and the bench's tables.
+%% machine, which every checkout has: the tracked example of the list of
+%% machines read, a command run in the plain shell and the machine's load
+%% read, nodes made, listed, started and stopped there as `make
+%% bench-machines` makes and runs them on every machine, and `make
+%% bench-pick`'s measuring program run on such nodes. Regression tests,
+%% written after the tools. What they leave out runs only by hand, on the
+%% user's machines, in `make bench-machines`, `make bench-pick` and
+%% test/machines/nodes.sh: ssh and its held connection, scp, another
+%% machine's clone and floor, the calibration, the stream, and the bench's
+%% tables.
 -module(ern_machine_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% docs/development.md "test/machines/": the tracked machines.txt reads,
-%% naming this machine once and another beside it
+%% docs/development.md "test/machines/": the tracked machines.example.txt,
+%% the form of each user's machines.txt, reads, naming this machine once and
+%% another beside it
 machines_file_test() ->
-    Machines = ern_machines:machines("machines/machines.txt"),
+    Machines = ern_machines:machines("machines/machines.example.txt"),
     ?assertMatch([_], [Machine || Machine <- Machines, ern_machine:is_local(Machine)]),
     ?assertNotEqual([], ern_machines:remote(Machines)).
 

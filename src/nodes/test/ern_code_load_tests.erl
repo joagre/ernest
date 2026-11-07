@@ -618,9 +618,9 @@ load_under_a_running_wrap_test() ->
 %% where the monitor was made by a process the load's evaluation started,
 %% is that process's, as if it had spawned it itself, and a refused load
 %% kills it with that process, so that the program is left with the entry
-%% process alone. A regression test, written after the code (finding D1):
-%% the wrap's delivery had no row, so the process it spawned headed a chain
-%% of its own and lived on
+%% process alone. A regression test, written after the code: the wrap's
+%% delivery had no row, so the process it spawned headed a chain of its own
+%% and lived on
 load_kills_what_a_wrap_spawned_test() ->
     Dir = tmp(),
     Lib = filename:join(Dir, "lib"),
@@ -660,8 +660,8 @@ load_kills_what_a_wrap_spawned_test() ->
 %% process it delivers to had called it: a refusal names the binding that
 %% faulted, and kills every process the evaluation started, so that the
 %% program is left with the entry process alone. A regression test,
-%% written after the code (finding D1): the delivery had no row to mark,
-%% so the refusal killed nothing, and named no binding
+%% written after the code: the delivery had no row to mark, so the
+%% refusal killed nothing, and named no binding
 load_in_a_wrap_test() ->
     Dir = tmp(),
     Lib = library(Dir),
@@ -851,8 +851,8 @@ hashes_test() ->
 %% declarations whose forms are one term are one definition (Appendix H),
 %% so idle differs from waiter. A process in a receive with an `after` is
 %% listed, and a process in such a receive written in a lambda is not: a
-%% regression test of MVP 4.15's item 2, before which a receive with an `after`
-%% in a function's tail was no frame of the function's
+%% regression test: a receive with an `after` in a function's tail was no
+%% frame of the function's
 running_test() ->
     Dir = tmp(),
     Main = write(Dir, "main.ern", running_program()),

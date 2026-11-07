@@ -1,5 +1,5 @@
-%% Plan, MVP 2.7, "Memory, read for what only grows": the load programs
-%% under fixtures/load/, each run by `ern run` in a node of its own, as `make load`
+%% The memory checks (docs/memory_checks.md): the load programs under
+%% fixtures/load/, each run by `ern run` in a node of its own, as `make load`
 %% does, and the shell under a long session. A load does the same work
 %% round after round and calls `mark(round)` after each, which collects
 %% every process's garbage and samples the node. After the warm-up rounds
@@ -127,10 +127,10 @@ sample(Round) ->
     %% or run half a time slice more, and tells nothing when it has, so no
     %% event shows it. This wait lets the schedulers go idle, nothing else
     %% running while the load's caller waits for the sampler, and its time
-    %% is the least the host's timer waits, its one millisecond. Measured on
-    %% 2026-10-21: the shell's load varied by 2.2 MB from round to round
-    %% without the wait, and by about 30 KB with it, as with the 100 ms it
-    %% waited before (the log's *The Tests Wait on What They Mean*).
+    %% is the least the host's timer waits, its one millisecond. Measured:
+    %% the shell's load varied by 2.2 MB from round to round without the
+    %% wait, and by about 30 KB with it, as with the 100 ms it waited before
+    %% (the log's *The Tests Wait on What They Mean*).
     receive after 1 -> ok end,
     ReaperMemory = reaper_memory(),
     Unused = lists:sum([unused(Pid) || Pid <- Others]),

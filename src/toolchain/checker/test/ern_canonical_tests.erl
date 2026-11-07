@@ -151,10 +151,9 @@ type_form_test() ->
 
 %% report Appendix H, §3.5, §3.10: a derived compare is hashed as the
 %% written one Appendix H states, its fields compared by the prelude's
-%% `compare` at their types: the two forms are one term. A regression test
-%% of the release review's C1-C9, written after the change; before it, a
-%% field was compared by a node of the derived compare's own, which no
-%% written compare had
+%% `compare` at their types: the two forms are one term. A regression test,
+%% written after the change; before it, a field was compared by a node of
+%% the derived compare's own, which no written compare had
 derived_compare_form_test() ->
     Type = "type Shape = Dot | Rect(w : Int, h : Int)",
     Written = Type ++ "\n"
@@ -264,13 +263,12 @@ same_definition_same_hash_test() ->
 %% a `let`'s and a `<-`'s; and an annotation that gives a value another
 %% type than it has without it gives another definition.
 %%
-%% Written with the change (the plan's MVP 3.27, the release review's
-%% KP30): the form held each annotation as written, so `fn f(x : Int) : Int`
-%% and `fn f(x) : Int` were two hashes. The lambdas no call fixes, whose
-%% effect variable an annotation fixes to none or nothing fixes, a
-%% regression test written after the fix of the full review before 0.5.0:
-%% the form wrote that variable where the scheme held none; it does not
-%% cover a lambda a block `let` binds that receives what its parameter's
+%% Written with the change: the form held each annotation as written, so
+%% `fn f(x : Int) : Int` and `fn f(x) : Int` were two hashes. The lambdas no
+%% call fixes, whose effect variable an annotation fixes to none or nothing
+%% fixes, a regression test written after the fix of the full review before
+%% 0.5.0: the form wrote that variable where the scheme held none; it does
+%% not cover a lambda a block `let` binds that receives what its parameter's
 %% function receives
 annotation_left_out_test() ->
     Same = fun(Name, Annotated, Bare) ->
@@ -300,11 +298,11 @@ annotation_left_out_test() ->
     ?assertNotEqual(hash(Empty("Int"), e), hash(Empty("String"), e)).
 
 %% report Appendix H, §4.9: a function's requirement is its scheme's, its
-%% members in the order its `needs` clause names them, the order its
-%% members are taken in, so two clauses that name them in two orders are
-%% two definitions. Written with the change that took the `needs` clause
-%% out of the form (the plan's MVP 3.27): it stood there beside the
-%% scheme's requirement, which held the same
+%% members in the order its `needs` clause names them, the order its members
+%% are taken in, so two clauses that name them in two orders are two
+%% definitions. Written with the change that took the `needs` clause out of
+%% the form: it stood there beside the scheme's requirement, which held the
+%% same
 requirement_in_scheme_test() ->
     Needs = fun(Members) -> "fn f(x : a, y : a) : Bool needs " ++ Members ++ " = x < y\n" end,
     {function, {scheme, _, _, [{1, compare}, {1, show}]}, _, _} =
@@ -315,8 +313,7 @@ requirement_in_scheme_test() ->
 %% it, its mailbox type among it, so that a spawned lambda whose mailbox
 %% type its annotation alone fixes, its body receiving nothing, keeps that
 %% type: two that differ in it alone are two definitions, as the addresses
-%% they answer are of two types. Written with the change (the plan's MVP
-%% 3.27, KP30)
+%% they answer are of two types. Written with the change
 lambda_mailbox_type_test() ->
     Spawned = fun(Mailbox) ->
                   "fn s() : Unit = {\n"
@@ -414,8 +411,8 @@ renamed_type_test() ->
 %% `let` at the prompt bound, whatever holder holds it, and a foreign
 %% function an input declares, so that a function over them typed at two
 %% counts is one definition with one reach. A regression test, written
-%% after the fix (finding V11): the form held the input's namespace, and
-%% then a binding's and a foreign function's held their own
+%% after the fix: the form held the input's namespace, and then a binding's
+%% and a foreign function's held their own
 session_namespace_test() ->
     Text = "type Msg = A(Int)\nlet k : Peer.Service(Msg) = Peer.service(\"k\")\n"
            "foreign fn now() : Int = \"erlang:system_time/0\"\n"
@@ -455,8 +452,8 @@ session_namespace_test() ->
 %% holds the view its site has: two builds that differ only in whether the
 %% type is abstract hold one type and two functions that show it, which
 %% print `<abstract>` and the representation. The last a regression test,
-%% written after the fix (finding H1): the form held the shown type alone,
-%% and the two functions one hash
+%% written after the fix: the form held the shown type alone, and the two
+%% functions one hash
 type_flags_test() ->
     Plain = hash("type T = A(Int)", 'T'),
     ?assertNotEqual(Plain, hash("type T = A(Int) derives compare", 'T')),
@@ -651,10 +648,10 @@ local_requirement_test() ->
 
 %% report Appendix H, §8.7: a service's message type stands in the form of
 %% the definition that makes the service as `{service, Type}`, so that a
-%% change to the type changes that definition's hash; the type's hash,
-%% which the service carries, is that of `{ernest_type, 2, Type}`, a declared type of the
-%% program by its hash and a built-in one by its name. A regression test,
-%% written after the code (MVP 3.1's item 4)
+%% change to the type changes that definition's hash; the type's hash, which
+%% the service carries, is that of `{ernest_type, 2, Type}`, a declared type
+%% of the program by its hash and a built-in one by its name. A regression
+%% test, written after the code
 service_type_hash_test() ->
     Text = fun(Msg) ->
                "type Msg = " ++ Msg ++ "\n"
@@ -677,14 +674,14 @@ service_type_hash_test() ->
                     maps:get({tcon, ['T', 'Msg'], []}, Changed)).
 
 %% report §8.7, §11.1: a function's reach names each binding and each
-%% foreign declaration of a program it references, through every function
-%% it calls, its own module's and another's, whose interface holds it; a
+%% foreign declaration of a program it references, through every function it
+%% calls, its own module's and another's, whose interface holds it; a
 %% group's members share one, a binding of the group among it, as a type's
 %% compare that reads a binding makes one, so that a function that orders
-%% the type reaches the binding; a lambda's and a local function's are
-%% their own, with their identities' positions, by their spans. A
-%% regression test, written after the code (MVP 3.1's item 4), the group's
-%% binding written after the fix: a group's binding was in no reach
+%% the type reaches the binding; a lambda's and a local function's are their
+%% own, with their identities' positions, by their spans. A regression test,
+%% written after the code, the group's binding written after the fix: a
+%% group's binding was in no reach
 reach_test() ->
     {_, Interface} = canonical(['A'], "let note : Int = 1\n"
                                       "foreign fn now() : Int = \"erlang:monotonic_time/0\"\n"

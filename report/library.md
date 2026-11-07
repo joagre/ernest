@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 7 November 2026.
+For Ernest 0.10.0.
 
 This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -705,9 +705,7 @@ Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connectio
 Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection's near end
 ```
 
-### Appendix E.19. `Erl`, folded into E.12
-
-The module `Erl` is folded into Appendix E.12, its one function `Foreign.atom`. The number is kept, as every section's is.
+### Appendix E.19. Unused
 
 ### Appendix E.20. `bytes.ern` (namespace `Bytes`)
 
@@ -1115,9 +1113,7 @@ Utilization.memory : () -> Optional(Float)
 Utilization.disk : () -> Optional(Float)
 ```
 
-### Appendix G.5. `libs/placement` (namespace `Placement`)
-
-Removed on 2026-10-13. The library asked every peer its utilization at the moment of a pick and answered the least busy; a node now holds its peers' utilizations from their tellings and `Peer.compute` draws a peer by them (§8.7, Appendix E.27), and a rule of a program's own is written over `Peer.utilizations()`. The number is kept, as every section's is.
+### Appendix G.5. Unused
 
 ### Appendix G.6. `libs/json` (namespace `Json`)
 

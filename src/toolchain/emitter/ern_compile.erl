@@ -211,15 +211,15 @@ compiled(Forms, Chunks) ->
         {error, Errors, _} -> compiled_without_type_pass(Forms, Options, Errors)
     end.
 
-%% A workaround of a defect of OTP's compiler, decided on 2026-10-05,
-%% docs/otp_bugs.md's report 3, the compiler's validator refusing what its
-%% type pass made through rem. OTP 29's compiler 10.0.5 narrows a recursive function's
-%% parameter to a range its call's argument breaks, a `rem` whose divisor's
-%% range holds 0 among them, and its own validator then refuses valid
-%% Erlang. A module the validator refuses so is compiled again with that
-%% type pass off, `no_type_opt`, its code then a little slower, and no other
-%% module is. The workaround goes when an OTP that Ernest requires has the
-%% fix; another refusal is the emitter's defect, as before.
+%% A workaround of a defect of OTP's compiler, docs/otp_bugs.md's report 3,
+%% the compiler's validator refusing what its type pass made through rem.
+%% OTP 29's compiler 10.0.5 narrows a recursive function's parameter to a
+%% range its call's argument breaks, a `rem` whose divisor's range holds 0
+%% among them, and its own validator then refuses valid Erlang. A module the
+%% validator refuses so is compiled again with that type pass off,
+%% `no_type_opt`, its code then a little slower, and no other module is. The
+%% workaround goes when an OTP that Ernest requires has the fix; another
+%% refusal is the emitter's defect, as before.
 compiled_without_type_pass(Forms, Options, Errors) ->
     Refused = case refused_by_validator(Errors) of
                   true -> compile:noenv_forms(Forms, [no_type_opt | Options]);

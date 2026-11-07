@@ -71,7 +71,7 @@ unended_paste() ->
 %% report §12.1, Appendix E.16: where standard input is not a terminal a
 %% subscription is refused, and the program goes on to say so; where
 %% standard output is not one, the size is `Left(NotATerminal)`, a
-%% regression test of the rule of 2026-10-01, before which it was `None`
+%% regression test of the rule, before which it was `None`
 not_a_terminal_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun not_a_terminal/0).
 

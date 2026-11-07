@@ -15,11 +15,10 @@
 
 %% Appendix E.18, E.0 shape rule 8: a read given no time, 0 or below, has
 %% run out as it begins and answers `Left(Timeout)`, whatever has arrived,
-%% and takes nothing: the far end's bytes go to the read with time after
-%% it, and its close to the next, and once the connection has closed a
-%% read given no time answers `Left(Timeout)` still. A regression test of
-%% the rule of 2026-11-03, before which a read given no time answered the
-%% bytes that had arrived
+%% and takes nothing: the far end's bytes go to the read with time after it,
+%% and its close to the next, and once the connection has closed a read
+%% given no time answers `Left(Timeout)` still. A regression test: before
+%% the rule, a read given no time answered the bytes that had arrived
 read_given_no_time_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -44,11 +43,10 @@ read_given_no_time_test() ->
                  wait(reads)).
 
 %% Appendix E.18, E.0 shape rule 8: a write given no time, 0 or below, has
-%% run out as it begins, answers `Left(Timeout)` and gives the host
-%% nothing: the far end reads the one write that had time, and nothing
-%% before it. A regression test of the rule of 2026-11-03, before which the
-%% bytes went to the host and the write answered whichever came first, its
-%% time or the host's taking them
+%% run out as it begins, answers `Left(Timeout)` and gives the host nothing:
+%% the far end reads the one write that had time, and nothing before it. A
+%% regression test: before the rule, the bytes went to the host and the
+%% write answered whichever came first, its time or the host's taking them
 write_given_no_time_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -71,9 +69,9 @@ write_given_no_time_test() ->
 
 %% Appendix E.18, E.0 shape rule 8: an accept given no time has run out as
 %% it begins, answers `Left(Timeout)` and takes nothing, a connection the
-%% host holds among it: the accept with time after it takes that
-%% connection. A regression test of the rule of 2026-11-03, before which
-%% the host's own accept given no time took a connection it held
+%% host holds among it: the accept with time after it takes that connection.
+%% A regression test: before the rule, the host's own accept given no time
+%% took a connection it held
 accept_given_no_time_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -91,11 +89,11 @@ accept_given_no_time_test() ->
     ?assertEqual({[Timeout, Timeout], 'Right'}, wait(accepts)).
 
 %% Appendix E.18, E.0 shape rule 8: a connect given no time, over TCP and
-%% over TLS, has run out as it begins and answers `Left(Timeout)`, to a
-%% port where a listener waits; one with time then connects. Written with
-%% the rule of 2026-11-03: before it the host was given the connect with
-%% no time, and answered `Timeout` here as well, so the test holds the
-%% answer and not that the host is asked nothing
+%% over TLS, has run out as it begins and answers `Left(Timeout)`, to a port
+%% where a listener waits; one with time then connects. Written with the
+%% rule: before it the host was given the connect with no time, and answered
+%% `Timeout` here as well, so the test holds the answer and not that the
+%% host is asked nothing
 connect_given_no_time_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Listen),
@@ -181,7 +179,7 @@ closed_listener_exit_term_test() ->
            end, <<"main">>, quiet()),
     ?assertEqual({ern, closed}, wait(ended)).
 
-%% Appendix E.18 (L3): a socket lives until it is closed: after the far end
+%% Appendix E.18: a socket lives until it is closed: after the far end
 %% closes, what came before is read, then each read, `remote` and `local`
 %% answer `Left(Closed)`; a read after `Tcp.close` faults the reader, as a
 %% callForever on an ended process does: `callee was closed` where the
@@ -307,13 +305,12 @@ killed_socket_test() ->
     ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% Appendix E.18, report §8.6: a read whose caller has ended before it is
-%% answered is dropped as one that times out is, the bytes that arrive
-%% after it the next read's, and its count as a source ends with it, so
-%% that the program is found deadlocked after. A regression test of the
-%% rule of 2026-11-02, before which the read took the bytes for its ended
-%% caller; a read that waits for a handshake, dropped the same way, and a
-%% caller that ends while the bytes are on their way, before the socket has
-%% its `DOWN`, are not covered
+%% answered is dropped as one that times out is, the bytes that arrive after
+%% it the next read's, and its count as a source ends with it, so that the
+%% program is found deadlocked after. A regression test: before the rule,
+%% the read took the bytes for its ended caller; a read that waits for a
+%% handshake, dropped the same way, and a caller that ends while the bytes
+%% are on their way, before the socket has its `DOWN`, are not covered
 read_of_an_ended_caller_dropped_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -345,15 +342,15 @@ read_of_an_ended_caller_dropped_test() ->
     ?assertEqual({'Right', <<"x">>}, wait(read)),
     ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
-%% Appendix E.18: bytes that come for a read whose caller has ended,
-%% before the socket's process has the caller's `DOWN`, wait for the next
-%% read, the host asked whether the caller lives before they are answered.
-%% The window is made here: the socket's process is held still while the
-%% test gives it the message the host's socket would send, and the reader
-%% is killed, so that the bytes come before the `DOWN`. A regression test
-%% of the rule of 2026-11-02, before which the bytes went to the ended
-%% reader and the next read timed out; a caller that ends with its answer
-%% in its mailbox is every call's, and not covered
+%% Appendix E.18: bytes that come for a read whose caller has ended, before
+%% the socket's process has the caller's `DOWN`, wait for the next read, the
+%% host asked whether the caller lives before they are answered. The window
+%% is made here: the socket's process is held still while the test gives it
+%% the message the host's socket would send, and the reader is killed, so
+%% that the bytes come before the `DOWN`. A regression test: before the
+%% rule, the bytes went to the ended reader and the next read timed out; a
+%% caller that ends with its answer in its mailbox is every call's, and not
+%% covered
 bytes_ahead_of_the_down_kept_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -400,9 +397,7 @@ port_out_of_range_test() ->
     ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% Appendix E.18: a connect to a port where nothing listens, which the far
-%% end refuses, answers `Refused`. A regression test of the principles
-%% review's K13 (2026-10-09), which stated the answer at `Tcp.connect`;
-%% the code gave it already
+%% end refuses, answers `Refused`. A regression test, written after the code
 connect_refused_test() ->
     {ok, Held} = gen_tcp:listen(0, [{ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Held),
@@ -706,9 +701,9 @@ listener_ends_with_its_owner_test() ->
 %% nothing lets go of its host's socket once 5 seconds pass with nothing
 %% taken, and a write it holds at its close answers `Left(Closed)`. A
 %% regression test: the host's socket stayed open, with its descriptor and
-%% its bytes, for as long as the far end took nothing,
-%% and a write held at the close had whatever answer the writer gave before
-%% the exit took it (C108). The 3 minutes' bound is not reached here
+%% its bytes, for as long as the far end took nothing, and a write held at
+%% the close had whatever answer the writer gave before the exit took it.
+%% The 3 minutes' bound is not reached here
 lingering_socket_closes_test_() ->
     {timeout, 60, fun lingering_socket_closes/0}.
 
@@ -866,11 +861,11 @@ side({Side, _}) -> Side.
 quiet() ->
     #{stdout => fun(_) -> ok end}.
 
-%% report Appendix E.21, E.18: a socket's memory counts its writer's, which holds
-%% the bytes it wrote until it runs again, where the socket's own process has let
-%% them go and no line of `:processes` would show them otherwise. A regression
-%% test, written after the code: MVP 4.15's item 3. It does not cover a socket
-%% over TLS, whose writer is the same process.
+%% report Appendix E.21, E.18: a socket's memory counts its writer's, which
+%% holds the bytes it wrote until it runs again, where the socket's own
+%% process has let them go and no line of `:processes` would show them
+%% otherwise. A regression test, written after the code. It does not cover a
+%% socket over TLS, whose writer is the same process.
 socket_memory_counts_its_writer_test() ->
     Size = 1 bsl 20,
     Self = self(),
@@ -905,11 +900,11 @@ socket_memory_counts_its_writer_test() ->
     ?assertEqual({[], true}, wait(counted)).
 
 %% report Appendix E.18, §10: the host's process of a connection over TLS
-%% hibernates after a millisecond's wait, and so holds no bytes a write brought.
-%% The socket's process and its writer are the runtime's, and hold them until
-%% they run again. A regression test of MVP 4.15's item 2, written after the
-%% code; it does not cover a client's connection, which `connectTls` opens with
-%% the same option.
+%% hibernates after a millisecond's wait, and so holds no bytes a write
+%% brought. The socket's process and its writer are the runtime's, and hold
+%% them until they run again. A regression test, written after the code; it
+%% does not cover a client's connection, which `connectTls` opens with the
+%% same option.
 tls_connection_hibernates_test() ->
     #{server := Server} = pki(),
     Size = 1 bsl 20,
@@ -1305,14 +1300,13 @@ tls_slow_handshake_test() ->
 %% `not one key` for a file with no key in it and `no certificate` for one
 %% with no certificate; and `Left(Invalid)` for a path that holds U+0000.
 %%
-%% A regression test: the host's term stood in `Other(text)`,
-%% pretty-printed over two lines, and a missing file was not `NotFound`,
-%% and a directory was the host's words (K2); and of feedback 222, written
-%% after the code, where a file it could not read answered `Fs`'s answer
-%% bare, as a port refused answers, naming no file. It does not cover a
-%% key that does not match its certificate, which the host takes as it
-%% listens and refuses at each handshake, nor a key of a kind the host
-%% does not take, `not a key`
+%% A regression test: the host's term stood in `Other(text)`, pretty-printed
+%% over two lines, and a missing file was not `NotFound`, and a directory
+%% was the host's words; and, written after the code, a file it could not
+%% read answered `Fs`'s answer bare, as a port refused answers, naming no
+%% file. It does not cover a key that does not match its certificate, which
+%% the host takes as it listens and refuses at each handshake, nor a key of
+%% a kind the host does not take, `not a key`
 listen_tls_refused_test() ->
     #{dir := Dir, server := {Certificate, Key}} = pki(),
     Unreadable = filename:join(Dir, "unreadable.key"),
@@ -1346,17 +1340,17 @@ listen_tls_refused_test() ->
                  wait(listened)).
 
 %% report Appendix E.17, E.18: `connectTls` to a port where nothing listens
-%% answers `Left(Refused)`, as `connect` does; to one whose far end does
-%% not shake hands within its milliseconds `Left(Timeout)`; a file of
+%% answers `Left(Refused)`, as `connect` does; to one whose far end does not
+%% shake hands within its milliseconds `Left(Timeout)`; a file of
 %% certificates whose path holds U+0000 `Left(Invalid)`; and one that is
 %% missing, a directory and one that holds no certificate
 %% `Left(Other(text))`, as `listenTls`'s files answer, `NotFound`,
 %% `NotAFile` and `no certificate` after the file's name, read before the
-%% dial, so that each answers so towards the port where nothing listens
-%% too. Written after the code, a regression test; the file read before
-%% the dial, and its directory and its want of a certificate, after the
-%% code too (K1, K2): the file was the host's to read as it shook hands, so
-%% a closed port answered `Refused`; and the file named, feedback 222
+%% dial, so that each answers so towards the port where nothing listens too.
+%% Written after the code, a regression test; the file read before the dial,
+%% its directory, its want of a certificate and its name in the answer,
+%% after the code too: the file was the host's to read as it shook hands, so
+%% a closed port answered `Refused`
 connect_tls_refused_test() ->
     #{ca := Ca, dir := Dir} = pki(),
     NoCertificate = filename:join(Dir, "no_certificate.pem"),

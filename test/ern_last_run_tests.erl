@@ -235,7 +235,7 @@ release_test() ->
 %% the row above it, and a table none of whose rows match is named once,
 %% here a ratio printed `5.0` and then `9.00x`, which turns its table from
 %% its numbers to its ratios; a row that compares no number is not named.
-%% Written 2026-10-24 with the fix, after the comparison had said that no
+%% Written with the fix, after the comparison had said that no
 %% row moved where no row matched; the tables the parts write are not read
 unmatched_test() ->
     Renamed = string:replace(?RATIOS_NOW, "  callForever", "  callForeverAgain"),
@@ -251,7 +251,7 @@ unmatched_test() ->
 
 %% test/bench/ern_last_run.erl: the comparison says that no row moved only where
 %% every row matched, and names the rows on either side that match none
-%% of the other's under its reference. Written 2026-10-24 with the fix
+%% of the other's under its reference. Written with the fix
 unmatched_comparison_test() ->
     in_directory(
       fun(Directory) ->

@@ -10,6 +10,8 @@
 
 *The Importance of Being Ernest, a Trivial Comedy for Serious People*
 
+The home of Ernest is [ernest-lang.org](https://ernest-lang.org).
+
 Ernest is a small BEAM language built around code that travels. It takes Unison's code known by the hash of its definition, Gleam's kind of types and Erlang's processes, and adds what none of them has. A process started on another node brings its code along, each function crossing by its hash, and nothing is installed there first. A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches. And two nodes are two configuration files over one TLS connection, with no cluster to join.
 
 A counter, whose mailbox type, `CounterMsg`, is in the type of the loop it runs:
@@ -85,7 +87,7 @@ Young: the [releases page](https://github.com/joagre/ernest/releases) names the 
 
 ## Installing
 
-On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages `make` and `gcc`, and OTP 29 is installed as below, since their own `erlang` package is older. macOS is expected to work the same way, and is not yet verified:
+On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages `make` and `gcc`, and OTP 29 is installed as below, since their own `erlang` package is older. Ernest is tested on Linux; on macOS the same steps are expected to work:
 
 ```
 git clone https://github.com/joagre/ernest.git
@@ -101,7 +103,7 @@ man Ernest.List             # a module
 
 OTP 29 is built from its source at [erlang.org/downloads](https://www.erlang.org/downloads), or installed by a version manager such as kerl, where a distribution's own packages hold an older release.
 
-Or from a release: download `ern-<version>.tar.gz` from the [releases page](https://github.com/joagre/ernest/releases), and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
+Or from a release: download `ern-<version>.tar.gz` and its checksum, `ern-<version>.tar.gz.sha256`, from the [releases page](https://github.com/joagre/ernest/releases), check the archive with `sha256sum -c ern-<version>.tar.gz.sha256`, and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
 
 Two nodes on one machine take four more commands: `ern config --config-dir` makes each node's directory with its key, `ern config --peer-dir` lists one node in the other's file, `ern run --config-dir` starts a node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
 

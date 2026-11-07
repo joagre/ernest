@@ -179,6 +179,47 @@ comment_ceiling_test() ->
     Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/comments.sh 150"), "\n"),
     ?assertEqual([], Listed).
 
+%% CLAUDE.md's *Writing*: a comment cites no step or item of the plan or
+%% finding of a review, and no date, in every tracked file of code but a
+%% borrowed one and a fixture, which is data. A comment is what follows
+%% the marker its language writes. A log entry's title is a citation the
+%% rule asks for, and a date with a time after it is a value, as in a doc
+%% block's example. Written with the sweep that made it hold (the log's
+%% *The Release Cleanup Built*); a comment that names the plan in other
+%% words escapes it
+timeline_comment_test() ->
+    Kinds = [{[".erl", ".hrl", ".escript"], "%+"},
+             {[".ern", ".c", ".h", ".js"], "//+|/\\*|^\\s*\\*"},
+             {[".sh", ".py", ".mk", ""], "#+"}, {[".el"], ";+"}],
+    Borrowed = borrowed(),
+    Files = [{File, Marker}
+             || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
+                not lists:prefix("test/fixtures/", File),
+                not lists:member(File, Borrowed),
+                filename:basename(File) =/= "getopt.erl",
+                filelib:is_regular(filename:join(?ROOT, File)),
+                {Extensions, Marker} <- Kinds,
+                lists:member(filename:extension(File), Extensions),
+                filename:extension(File) =/= "" orelse is_script(File)],
+    ?assert(length(Files) > 250),
+    Timeline = "\\bMVP\\b|\\b[Mm]ilestones?\\b|\\bplan item|\\(plan\\b|\\bplan, |plan's item"
+               "|docs/plan\\.md|review's [A-Z]+(-[A-Z]+)?-?[0-9]|\\bfindings? [A-Z]{1,2}-?[0-9]"
+               "|\\(([A-Z]{1,2}[0-9]+(, | and |\\)))+|findings\\.md|\\bfeedback (line )?[0-9]"
+               "|\\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\\b(?!T)",
+    ?assertEqual([], [{File, Number}
+                      || {File, Marker} <- Files,
+                         {Number, Line} <- text_lines(File),
+                         {match, [Comment]} <- [re:run(Line, "(?:" ++ Marker ++ ")(.*)$",
+                                                       [{capture, all_but_first, binary}])],
+                         re:run(re:replace(Comment, "the log's \\*[^*]*(\\*|$)", "", [global]),
+                                Timeline) =/= nomatch]).
+
+%% Whether a file of no extension is a script or a Makefile, which writes
+%% its comments after `#`.
+is_script(File) ->
+    filename:basename(File) =:= "Makefile" orelse
+        binary:longest_common_prefix([ern_repository:read(File), <<"#!">>]) =:= 2.
+
 %% docs/code_style.md: the spelling is American English, in every tracked file
 %% of text but a proposal, the licenses and a borrowed file. A word is
 %% matched whole, whatever its case, and a name is read as the words it
@@ -264,8 +305,8 @@ words(Line, HostNames, Word) ->
 %% and a `-spec` on every exported function, in the toolchain's modules and
 %% in the tests' and their harnesses'; the vendored getopt keeps its
 %% upstream form. Written after the rule, when six modules had fallen out
-%% of order and one had lost its specs; the tests' modules were read from
-%% 2026-10-24, when the nodes harness's exports had none
+%% of order and one had lost its specs; the tests' modules were read once
+%% the nodes harness's exports were found to have none
 exports_test() ->
     Files = [File || File <- ern_repository:modules()
                                  ++ ern_repository:files(["test/*.erl", "test/bench/*.erl",

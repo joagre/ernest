@@ -23,7 +23,7 @@
 %% make it runs and once more for the rest of its work, since none of its
 %% makes does more than the first part's, which builds, stages and
 %% installs, and none of the parts runs more of the toolchain than the
-%% first part runs. Written on 2026-10-16, after the test took 190 to 350 s
+%% first part runs. Written after the test took 190 to 350 s
 %% under the full run's load against its one limit of 300 s.
 installation_test_() ->
     {setup, fun timed_install/0, fun(_) -> ok end, fun parts/1}.
@@ -63,18 +63,18 @@ parts({Base, Ms}) ->
 %% repository.
 %%
 %% That the directories of the installation's own go with it is a
-%% regression test too, written on 2026-10-04 after the report's directory
+%% regression test too, written after the report's directory
 %% was found left behind, and the documents' with it; and so is that no
 %% module compiled from an application's tests is installed, written after
 %% the runtime's test helper `ern_waits` was found shipped; and so is that
-%% no source of the standard library is installed, written on 2026-10-15
-%% when the log's *The Layout Completed* stopped installing it.
+%% no source of the standard library is installed, written when the log's
+%% *The Layout Completed* stopped installing it.
 %%
 %% Another regression test is that every `.md` under report/, guide/ and
 %% tour/ is installed where it stands, and nothing else of the checkout's
 %% documents but the README's, ACKNOWLEDGMENTS.md and CHANGES.md, and that the link
 %% check reads each document at its depth from its own directory, the
-%% deployment guide's among them: written on 2026-10-16, after
+%% deployment guide's among them: written after
 %% guide/deployment.md was found not installed, and the check found reading
 %% the top directory alone since the report and the guide moved below it. A
 %% document of tour/, which the checkout does not hold yet, and one two
@@ -82,7 +82,7 @@ parts({Base, Ms}) ->
 %%
 %% Another is that the installed standard library is one file for each of
 %% its modules, its `.erc`, and the shell's build one for each of the
-%% shell's: written on 2026-10-17, when the copies of each under its Erlang
+%% shell's: written when the copies of each under its Erlang
 %% name, which the host's loader read from the code path, went, and `ern`
 %% came to load each module from its `.erc`; it does not cover a library's
 %% build under build/libs.
@@ -93,7 +93,7 @@ parts({Base, Ms}) ->
 %% the guide's to either stays the one the guide writes and names a file
 %% installed, as no link to them into the repository remains; and that the
 %% installed examples build with the installed `ern` and its libraries:
-%% written on 2026-10-17, after the code that installs them, when the guide
+%% written after the code that installs them, when the guide
 %% was found linking seven programs and the note that turns the Emacs mode
 %% on that no installation held. The examples are built as one directory,
 %% not each as its first comment builds it, and none is run here; nor is a
@@ -301,6 +301,18 @@ release() ->
                       VersionText =:= iolist_to_binary(["ern ", string:trim(Version), Mark, "\n"])],
     ?assertMatch({[_], _}, {Made, VersionText}),
     [Ref] = Made,
+    %% report §11.4: each module page's footer names the version text of
+    %% the ern that wrote it, the release's, a hyphen escaped as roff
+    %% writes one. A regression test: the archive's pages had named the
+    %% checkout's build, `-dev`
+    "ern " ++ Text = string:trim(binary_to_list(VersionText)),
+    Footer = iolist_to_binary(["\"3ern\" \"\" \"Ernest ",
+                               string:replace(Text, "-", "\\-", all), "\""]),
+    Pages = filelib:wildcard(Base ++ "/p/share/man/man3/*.3ern"),
+    ?assert(length(Pages) > 25),
+    ?assertEqual([], [Page || Page <- Pages,
+                              {ok, Bytes} <- [file:read_file(Page)],
+                              binary:match(Bytes, Footer) =:= nomatch]),
     ?assert(links_to(Documents ++ "guide/language.md",
                      "/blob/" ++ Ref ++ "/docs/module_doc_template.md")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
@@ -349,8 +361,7 @@ tracked() ->
 %% leads to either in the repository. The checkout's guide is the
 %% documents git tracks there, so that an editor's files beside them, a
 %% lock that names no file among them, are not read: a regression test,
-%% written on 2026-10-25, when an editor's lock of guide/language.md
-%% failed the reading.
+%% written when an editor's lock of guide/language.md failed the reading.
 kept_links(Documents) ->
     Kept = [{Guide, Target} || Guide <- tracked(), filename:dirname(Guide) =:= "guide",
                                filename:extension(Guide) =:= ".md",
@@ -378,10 +389,9 @@ kept_links(Documents) ->
 %% a scheme and an anchor of the document's own aside; a target with a
 %% slash after it names a directory, and any other a file. Each is given
 %% by the document's path under the directory. The `srcset` is read since
-%% 2026-10-16, when the logo's files were renamed: a regression test, which
-%% reads a `srcset` of one address and no other. A directory is read since
-%% 2026-10-17, when the installation came to hold examples/README.md, which
-%% links `upgrade/`.
+%% the logo's files were renamed: a regression test, which reads a `srcset`
+%% of one address and no other. A directory is read since the installation
+%% came to hold examples/README.md, which links `upgrade/`.
 dead_links(Directory) ->
     [{lists:nthtail(length(Directory), Document), Target}
      || Document <- filelib:wildcard(Directory ++ "**/*.md"),
@@ -425,7 +435,7 @@ runs_echo() ->
 %% Report §12.7: the compiled Ernest modules under a directory that lack
 %% their canonical forms, ErnC, which a node ships to a peer that lacks a
 %% definition and which the strip must keep. A regression test, written
-%% after the strip dropped them (2026-10-17).
+%% after the strip dropped them.
 forms_missing(Dir) ->
     [File || File <- filelib:wildcard(Dir ++ "/**/*.erc"),
              begin

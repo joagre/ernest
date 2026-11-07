@@ -20,4 +20,6 @@ erl_crash.dump
 /test/build/
 /test/fixtures/emitted/*.new
 /test/fixtures/emitted/**/*.new
+# each user's own machines for the bench across them (machines.example.txt)
+/test/machines/machines.txt
 .ernest/

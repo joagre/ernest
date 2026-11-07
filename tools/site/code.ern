@@ -1,11 +1,10 @@
 //
-// A code block's HTML (plan, MVP 4.2 item 2): Ernest colored as the
-// toolchain's own lexer reads it, each qualified name of the library in it
-// a link to its declaration, a console as written, a transcript with each
-// input marked, and the buttons each block of a document gets beside Copy,
-// decided by the guide tests' own grouping of its blocks
-// (test/ern_guide_tests.erl), so that a block offered to the shell is one
-// those tests run in a bare shell.
+// A code block's HTML: Ernest colored as the toolchain's own lexer reads it,
+// each qualified name of the library in it a link to its declaration, a
+// console as written, a transcript with each input marked, and the buttons
+// each block of a document gets beside Copy, decided by the guide tests' own
+// grouping of its blocks (test/ern_guide_tests.erl), so that a block offered
+// to the shell is one those tests run in a bare shell.
 //
 
 /// The buttons a code block gets beside Copy, which every block but a

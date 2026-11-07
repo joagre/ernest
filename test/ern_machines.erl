@@ -1,13 +1,12 @@
-%% The machines of test/machines/machines.txt (plan, MVP 3.27 item 1),
-%% read, reached and checked before any node starts on them, and the steps
-%% of test/machines/nodes.sh over them: `check`, each machine's commit,
-%% `ern --version` and floor against this checkout's; `pull`, each clone
-%% pulled and built, the only writes to a clone; `start`, a bare node on
-%% each machine listening on 8654, every node listing every other and a
-%% shell's directory on this machine that lists them all; `stop`; and
-%% `status`. `make bench-machines` reads the machines here too
-%% (ern_nodes_costs, ern_code_costs). Each step says what failed, naming the
-%% machine, and ends with status 1.
+%% The machines of test/machines/machines.txt, read, reached and checked
+%% before any node starts on them, and the steps of test/machines/nodes.sh
+%% over them: `check`, each machine's commit, `ern --version` and floor
+%% against this checkout's; `pull`, each clone pulled and built, the only
+%% writes to a clone; `start`, a bare node on each machine listening on
+%% 8654, every node listing every other and a shell's directory on this
+%% machine that lists them all; `stop`; and `status`. `make bench-machines`
+%% reads the machines here too (ern_nodes_costs, ern_code_costs). Each step
+%% says what failed, naming the machine, and ends with status 1.
 -module(ern_machines).
 
 -export([main/1, reported/1, ready/1, machines/1, local/1, remote/1, closed/1]).
@@ -79,6 +78,10 @@ reached(File) ->
 machines(File) ->
     Text = case file:read_file(File) of
                {ok, Bytes} -> unicode:characters_to_list(Bytes);
+               {error, enoent} ->
+                   Example = filename:join(filename:dirname(File), "machines.example.txt"),
+                   ern_machine:fail(File ++ " is missing: it is each user's own, untracked, and "
+                                    ++ Example ++ " shows its form");
                {error, Error} ->
                    ern_machine:fail(File ++ ": " ++ file:format_error(Error))
            end,

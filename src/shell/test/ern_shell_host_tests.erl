@@ -19,10 +19,9 @@ segment_test() ->
 %% effect, and Never where it stands as a type argument; one a value
 %% position holds, or a `receive` that takes anything makes process-only,
 %% is still refused, and a lambda that sleeps receives nothing (Appendix
-%% E.15). A regression test of the
-%% release review's B-S1, written after the fix:
-%% the prompt refused a pair of one lambda's type as undetermined, where a
-%% module's top-level `let` closes it
+%% E.15). A regression test, written after the fix: the prompt refused a
+%% pair of one lambda's type as undetermined, where a module's top-level
+%% `let` closes it
 input_type_closed_as_a_top_level_let_test() ->
     ern_shell:loaded(#loaded{}),
     Self = self(),
@@ -69,8 +68,7 @@ input_type_closed_as_a_top_level_let_test() ->
 %% written after the fix (the log's *A Line-Mode Input's Cost*): the check
 %% built the environment at every input, and the record held it, 52,592
 %% words. It does not cover what the record holds beside, the session's
-%% interfaces, which grow as the session declares (the plan's MVP 4.0, item
-%% 12)
+%% interfaces, which grow as the session declares
 input_checked_against_the_prelude_built_once_test() ->
     ern_shell:loaded(#loaded{}),
     Self = self(),

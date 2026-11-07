@@ -30,7 +30,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | how one takes part before 1.0: no contribution, a defect to the repository's issues |
 | [`SECURITY.md`](SECURITY.md) | where to report a security hole |
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
-| [`CHANGES.md`](CHANGES.md) | each release's note, newest first: what the release is, and one line a change naming where it is read, restating nothing. The release step writes it and copies it to the release on GitHub |
+| [`CHANGES.md`](CHANGES.md) | each release's note, newest first: what the release is, what a program written for the release before must change, and one line a change naming the section where it is read, restating nothing. The date stands in the heading alone. The release step writes it and copies it to the release on GitHub |
 | [`site/templates/README.md`](site/templates/README.md) | the site's templates and fragments, which a test holds each file to |
 | [`site/projects.md`](site/projects.md) | the projects written in Ernest in repositories of their own, a line each, which a test holds to its form |
 
@@ -110,7 +110,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 ## Defects and gaps
 
 - **No warts.** Never leave an approximation, a silent deviation from the report, or an unstated semantic choice in the code.
-- **Fix a known defect when found.** A gap too large to fix now, or a defect not yet diagnosed, goes in the plan with a date and the shape of its fix, never in a comment. A refusal made for a later MVP's sake names that MVP in its error text, and `docs/development.md`'s table lists it, which a test checks.
+- **Fix a known defect when found.** A gap too large to fix now, or a defect not yet diagnosed, goes in the plan with a date and the shape of its fix, never in a comment. A refusal made for a later MVP's sake says `… is not implemented` in its error text and names no MVP, and `docs/development.md`'s table lists it with the MVP that lifts it, which a test checks.
 - **Memory that no collection reclaims is a defect, fixed at its cause**, in the runtime, the toolchain, the shell and Ernest code alike. Never fix it by capping a list, a table or a cache. Add a cache only with an argument for what it holds and when it lets go. How memory is checked is [`docs/memory_checks.md`](docs/memory_checks.md)'s.
 - **Nothing routes around a defect or a gap**, in the standard library, the shell, `examples/`, the guide, the report's examples or the tests. Code that meets a toolchain bug, a missing function, module or feature, or a command that cannot show something does not work around it, and does not hide it by choosing another example. Stop and say so: the gap goes to the report, Appendix E or the plan first, and what needed it says that it waits.
 - **A refusal is a decision, and a workaround in prose is a gap.** A refusal the report states is weighed on the principles in its log entry. One whose only reason is how the code was built was never decided, and is weighed when found. A sentence that teaches a way around the tool, "the shortest way to", "write it as ... instead", is a gap with its workaround beside it, and goes as the rule above says.
@@ -131,6 +131,8 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 ## Writing
 
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating. Clear before short: plain sentences, one rule per sentence, its exception and its example in sentences of their own. Cut a sentence for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
+- **User-facing text has no project timeline.** The report, the guide, the tour, the manual pages and every text `ern` and the shell print name no MVP, no milestone and no date of the project's history. They say what Ernest is at the release they ship with. The one exception is a manual page's `since` line, the release a part arrived in. The history is `CHANGES.md`'s, the log's and the plan's, and a test holds the rule.
+- **A comment names no MVP, milestone, plan item, review finding or date**, in the code and in a test, since each points into a document that deletes it. It cites the report's section, a design note's, and the log entry by its title where the history matters. A regression test still says it is one.
 - **Every other document is plain and short**, the plan, the log, a proposal, a commit message and this file among them. One point to a sentence, in the order a reader needs it, without chains of clauses.
 - **A paragraph is one turn of the text**, in every document, in a comment of the code and in a message to the user. It says one thing, with that thing's exception and example, and a new paragraph begins where the text turns. A break is made where it helps the reader take the next thing in, and nowhere else: never at a count of words, never to shorten, and never later than the turn.
 
@@ -138,8 +140,8 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 - **A proposal and its reasons say what Ernest does, and why.** What was tried and set aside, and what Ernest does not do, stays in the experiment or goes to the log, not into the paragraph that states the rule.
 - **An edit to a set a document names reads the whole page first**, a list, a count or the sections that restate it, and changes every place that enumerates the set, the README's and the plan's among them, in the same commit.
 - **A shell session shown in the tour or the guide is cut where the lesson turns**, a sentence between the parts saying what the next lines show. A chapter's program stays one block, which a test holds equal to its file.
-- **A report edit updates the revision date** in line 3 of each file it changes.
-- **The report's section numbers never change**, since the documents, the tests and the code cite them. Never renumber, remove or insert a section between two others. A new rule goes into the section it belongs to; where none can hold it, a new section goes at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
+- **Each report file's third line names the release it describes**, `For Ernest x.y.z.`, and changes only with `VERSION`, by `make version`.
+- **The report's section numbers never change**, since the documents, the tests and the code cite them. Never renumber, remove or insert a section between two others. A new rule goes into the section it belongs to; where none can hold it, a new section goes at the end of its chapter or appendix. A section that goes keeps its heading, titled `Unused`, and nothing else. The guide's numbers change only where a section cannot be placed otherwise.
 - **Compiler behavior goes to §11.**
 - **The spelling is American English**, in every document, name and message; `guide/style.md` states the rule and `docs/code_style.md`'s *Every language* the test's scope.
 - **No document or message names who proposed an idea**, or that person's role; it states the argument. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) and the report's dedication with its epigraph name people and argue nothing.
@@ -154,9 +156,9 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 
 **Closing an item.** Each line names a rule of this file; none adds one.
 
-1. The report changed first, with its revision date, and the soundness paragraph of a rule it changed (*Before code*, *Writing*).
+1. The report changed first, and the soundness paragraph of a rule it changed (*Before code*).
 2. Every question decided, and every gap and needed decision in the plan with its log entry (*Before code*, *Defects and gaps*).
-3. A refusal for a later MVP named in its text and listed in `docs/development.md`'s table (*Defects and gaps*).
+3. A refusal for a later MVP saying it is not implemented, and listed in `docs/development.md`'s table (*Defects and gaps*).
 4. What writing Ernest felt against a principle in `docs/language_feedback.md` (*Defects and gaps*).
 5. Every report section the item built cited by a test, and a test written after the code called a regression test (*Tests*).
 6. A new name in the glossary, and a new term in Appendix F (*Style*).

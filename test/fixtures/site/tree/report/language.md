@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 3 November 2026.
+For Ernest 9.9.9.
 
 *A dedication, a paragraph the description passes over.*
 

@@ -1,15 +1,15 @@
 %% `make bench`'s part `foreign` (docs/development.md): what each piece of a
-%% program's foreign call adds to the host's call (report §8.4, §8.6, §12.3;
-%% plan, MVP 3.28, 3.29). The emitter writes a `foreign fn` as a function of
-%% the unit that calls the implementation in a try whose handler makes a
-%% raise a fault (`ern_boundary:raised/6`, §12.3), and checks the return
-%% against the declared result type: a word's in place, the prelude's
-%% `Unit` taking the host's `ok`, any other through `ern_boundary` with its
-%% descriptor (§8.4; ern_emitter's foreign_body/6, foreign_call/6 and
-%% check_form/5). The call writes nothing for the deadlock look, which
-%% reads the process's top frame; a function given to foreign code keeps
-%% the look's key while foreign code calls it, in the wrapper that checks
-%% its arguments (ern_emitter's called/2, §8.6).
+%% program's foreign call adds to the host's call (report §8.4, §8.6,
+%% §12.3). The emitter writes a `foreign fn` as a function of the unit that
+%% calls the implementation in a try whose handler makes a raise a fault
+%% (`ern_boundary:raised/6`, §12.3), and checks the return against the
+%% declared result type: a word's in place, the prelude's `Unit` taking the
+%% host's `ok`, any other through `ern_boundary` with its descriptor (§8.4;
+%% ern_emitter's foreign_body/6, foreign_call/6 and check_form/5). The call
+%% writes nothing for the deadlock look, which reads the process's top
+%% frame; a function given to foreign code keeps the look's key while
+%% foreign code calls it, in the wrapper that checks its arguments
+%% (ern_emitter's called/2, §8.6).
 %%
 %% Measured, in foreign.txt: the host's call of `erlang:abs/1` and a foreign
 %% fn of it; the host's call of a function of this module's that answers at

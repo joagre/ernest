@@ -50,9 +50,9 @@
                         "src/nodes/ern_exchange.erl"]).
 
 %% report §11, docs/development.md "Building": `make xref`
-%% A regression test for the possessive, `the guide's §x.y`, read as a
-%% bare `§x.y`, the report's, until 2026-10-13, and for `the deployment
-%% guide's §x.y`, read as the language guide's until 2026-10-25; it does
+%% A regression test for the possessive, `the guide's §x.y`, once read as
+%% a bare `§x.y`, the report's, and for `the deployment guide's §x.y`, once
+%% read as the language guide's; it does
 %% not read a curly apostrophe, which no document writes before a `§`, nor
 %% a citation whose words a line break parts. The site's fixture stands as
 %% the guide where the site's generator renders it (ern_site_tests), so its
@@ -63,9 +63,9 @@ citations_resolve_test() ->
     Sections = #{report => section_numbers(report()), guide => section_numbers(Guide),
                  deployment => section_numbers(ern_repository:read("guide/deployment.md")),
                  fixture => section_numbers(Fixture)},
-    %% a review's findings, `findings.md` beside the plan while they are
-    %% open, cite each document as their readers did, the guide's sections
-    %% bare beside the report's, and the list goes when its plan item is done
+    %% a review's findings, beside the plan while they are open, cite each
+    %% document as their readers did, the guide's sections bare beside the
+    %% report's, and the list goes when its items are decided
     Live = (documents() -- ["docs/findings.md", ?SITE_FIXTURE])
         ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
     Dangling =
@@ -123,7 +123,7 @@ parts(Lines) ->
             [Part | parts(After)]
     end.
 
-%% tour/README.md, plan MVP 3.3, report §11.6: each `ernest` block of the
+%% tour/README.md, report §11.6: each `ernest` block of the
 %% tour under a chapter's heading, `## 5. Per key`, is that chapter's
 %% program as tour/5/ holds it, so that the tour shows what its tests run.
 %% A block is one of the chapter's files, or the file with some of its
@@ -277,7 +277,7 @@ anchored(Heads) ->
 %% their readers read, so every other document is checked. A regression
 %% test for the paths a document writes from its own directory, which went
 %% unchecked once src/shell/ and docs/proposals/ left the top of the
-%% repository on 2026-10-15
+%% repository
 document_paths_test() ->
     Missing = [{File, Path} || File <- described(), Path <- paths(File),
                                not exists(Path),
@@ -291,7 +291,7 @@ document_paths_test() ->
 %% run writes, and a path with a wildcard or a metavariable. A regression
 %% test for the comments that cited documents a step had removed, a
 %% proposal's outline and a review's findings among them, which no test
-%% read (the full review of 2026-10-24); it does not read a comment that
+%% read; it does not read a comment that
 %% follows code on its line, nor a path written from another directory.
 comment_paths_test() ->
     Missing = [{File, Path} || File <- toolchain(), Path <- comment_paths(File),
@@ -360,7 +360,7 @@ line_matches(Text, Pattern) ->
 %% reader read in parts being a session each; and the readers the release
 %% review names are the full review's. A regression test: the full review
 %% counted twelve readers and nineteen sessions where it listed fifteen in
-%% twenty-two parts (the full review of 2026-10-24).
+%% twenty-two parts.
 readers_counted_test() ->
     Reviews = [ern_repository:read(File)
                || File <- ["docs/reviews/full.md", "docs/reviews/principles.md"]],
@@ -479,8 +479,8 @@ loads_listed_test() ->
 %% (ern_guide_tests), and the README's by ern_tour_tests; the tour's two
 %% were held by nothing. A regression test, written after the tour; the
 %% attached shell's line was added with the guides over the attached shell,
-%% MVP 4.0's item 4, the session's number with the log's *Sites, Sessions
-%% and Their Names*, and one line for both shells with *One Word to Leave*
+%% the session's number with the log's *Sites, Sessions and Their Names*,
+%% and one line for both shells with *One Word to Leave*
 start_lines_test() ->
     Expected = start_line(string:trim(ern_repository:read("VERSION"))),
     Found = [{File, Line} || File <- start_line_documents(),
@@ -494,16 +494,16 @@ start_lines_test() ->
 %% writes from main, so the change of VERSION writes them again, as `make
 %% version` does; a page names the version text of the ern that wrote it on
 %% its last line, the repository's build's, which marks it as no release
-%% (report §11.4, ern_release), docs/man/README.md the release main works
-%% toward, and every page and index but docs/man/README.md is linked from
-%% one index, a directory's README.md
+%% (report §11.4, ern_release), docs/man/README.md the release they are
+%% written for, and every page and index but docs/man/README.md is linked
+%% from one index, a directory's README.md
 pages_test() ->
     Version = string:trim(ern_repository:read("VERSION")),
     Files = ern_repository:files(["docs/man/**/*.md"]),
     Indexes = [File || File <- Files, filename:basename(File) =:= "README.md"],
     Pages = Files -- Indexes,
     ?assert(length(Pages) > 25),
-    Release = <<"the release `main` then worked toward being Ernest ", Version/binary, ";">>,
+    Release = <<"The pages `ern doc` writes for Ernest ", Version/binary, ".">>,
     ?assertNotEqual(nomatch, binary:match(ern_repository:read("docs/man/README.md"), Release)),
     Written = iolist_to_binary(["Generated by ern ", ern_release:version_text(), " from "]),
     ?assertEqual([], [Page || Page <- Pages,
@@ -515,8 +515,9 @@ pages_test() ->
 %% docs/reviews/release.md, step 5, report §11.2: `make version V=x.y.z`'s
 %% script, tools/version.sh, run over a copy of the files it rewrites, sets
 %% VERSION and the lines the tests hold to it, the documents' start lines
-%% (start_lines_test) and the session fixtures', each the version text of
-%% a build that is no release (ern_release), and changes no other line; run
+%% (start_lines_test), the report's third lines (report_versions_test) and
+%% the session fixtures', each the version text of a build that is no
+%% release (ern_release), and changes no other line; run
 %% back to VERSION's own, it leaves every file as it was. A regression test,
 %% written after the script, which the 0.7.0 release step's lines found by
 %% hand asked for; the pages `make version` writes after the script, by
@@ -542,8 +543,13 @@ version_test() ->
                       {Was, Is} <- lists:zip(lines(ern_repository:read(File)),
                                              lines(read_under(Dir, File))),
                       Was =/= Is],
+        {Named, Other} = lists:partition(fun({File, _, _}) -> lists:member(File, ?REPORT) end,
+                                         Changed),
+        ?assertEqual([{File, report_version(Version), report_version("9.8.7")}
+                      || File <- lists:sort(?REPORT)],
+                     lists:sort(Named)),
         {Held, Moved} = lists:partition(fun({File, _, _}) -> lists:member(File, Documents) end,
-                                        Changed),
+                                        Other),
         Fixture = fun(Text) ->
                           iolist_to_binary(["Ernest ", Text, "-dev, session 1. :help for help."])
                   end,
@@ -562,6 +568,43 @@ version_test() ->
     after
         file:del_dir_r(Dir)
     end.
+
+%% report/README.md: each file of the report names, on its third line,
+%% the release of Ernest it describes, VERSION's, which `make version`
+%% writes (tools/version.sh). Written with the line, which was a date
+%% before (the log's *The Release Cleanup*)
+report_versions_test() ->
+    Version = string:trim(ern_repository:read("VERSION")),
+    ?assertEqual([{File, report_version(Version)} || File <- ?REPORT],
+                 [{File, lists:nth(3, lines(ern_repository:read(File)))} || File <- ?REPORT]).
+
+%% CLAUDE.md's *Writing*: what a user reads names no step of the plan:
+%% the report, the guides and the tour, the doc blocks the manual pages are
+%% written from, and the strings of the toolchain's Erlang and the shell's
+%% Ernest, which hold what `ern` and the shell print. A date is left to a
+%% reader, since the documents' examples hold dates as data. Written with
+%% the rule, when none was found (the log's *The Release Cleanup*); a text
+%% that names the plan in other words escapes it
+user_text_timeline_test() ->
+    Timeline = "\\bMVP ?[0-9]|\\b[Mm]ilestones?\\b",
+    Documents = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT
+                                                       ++ " ls-files report guide tour"), "\n"),
+                         filelib:is_regular(filename:join(?ROOT, File))],
+    ?assert(length(Documents) > 20),
+    Read = fun(Files, Pattern) ->
+               [{File, Number}
+                || File <- Files,
+                   {Number, Line} <- lists:enumerate(lines(ern_repository:read(File))),
+                   re:run(Line, Pattern) =/= nomatch]
+           end,
+    ?assertEqual([], Read(Documents, Timeline)),
+    ?assertEqual([], Read(stdlib(), "^\\s*///.*(" ++ Timeline ++ ")")),
+    ?assertEqual([], Read(ern_repository:modules() ++ shell(),
+                          "\"[^\"]*(" ++ Timeline ++ ")[^\"]*\"")).
+
+%% The third line of a file of the report, naming Version.
+report_version(Version) ->
+    iolist_to_binary(["For Ernest ", Version, "."]).
 
 %% The tracked documents a shell's start line is held in, the log, which is
 %% history, and the proposals aside, as tools/version.sh reads them.
@@ -628,8 +671,12 @@ subdirectories(Dir) ->
     {ok, Names} = file:list_dir(filename:join(?ROOT, Dir)),
     [Name || Name <- Names, filelib:is_dir(filename:join([?ROOT, Dir, Name]))].
 
+%% Whether a path is there, or is one git ignores, which a fresh clone does
+%% not hold: a user's own file, test/machines/machines.txt, or a build's.
 exists(Relative) ->
-    filelib:is_file(filename:join(?ROOT, Relative)).
+    filelib:is_file(filename:join(?ROOT, Relative)) orelse
+        os:cmd("git -C " ++ ?ROOT ++ " check-ignore -q -- '" ++ Relative ++ "' && echo ignored")
+            =:= "ignored\n".
 
 %% THIRD_PARTY_LICENSES: every tracked file that
 %% carries an upstream author's copyright, and every file that holds a

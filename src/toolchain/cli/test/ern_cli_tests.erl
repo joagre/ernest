@@ -5,9 +5,9 @@
 
 %% EUnit's captured output, asked of the test's group leader, which is
 %% EUnit's. EUnit's own ?capturedOutput first asks whether it is by the
-%% function it is running, which under load it can sample while that
-%% process runs another module's code, and then answers "" (MVP 2.95's
-%% intermittent failure of the diagnostics' examples).
+%% function it is running, which under load it can sample while that process
+%% runs another module's code, and then answers "", which failed the
+%% diagnostics' examples at times.
 -define(capturedOutput, captured_output()).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -66,10 +66,9 @@ stdlib_build_sets_its_copy_aside() ->
 %% and in the latest its dependencies allow, each module as late as the
 %% modules that use it let it come, gives the same units.
 %%
-%% A regression test for a defect MVP 3.2's item 4 found, which the order a
-%% build took met by chance; the library names, today, no module it does
-%% not depend on, so the test holds the order's not mattering, not a module
-%% reached by name alone
+%% A regression test for a defect the order a build took met by chance; the
+%% library names no module it does not depend on, so the test holds the
+%% order's not mattering, not a module reached by name alone
 stdlib_order_test_() ->
     {timeout, 120, fun stdlib_order/0}.
 
@@ -370,10 +369,10 @@ cannot_read_or_make_test() ->
 
 %% report §11, §11.5: a file written whole is written by a rename beside
 %% it, so a directory that takes no new file is the refusal's, named with
-%% the file, and not the file, which may be writable. A regression test
-%% (T6), written after the code: `ern format` named a writable file, and
-%% `ern build` a `.erc` that did not exist; it assumes a user the
-%% directory's mode binds, which root is not
+%% the file, and not the file, which may be writable. A regression test,
+%% written after the code: `ern format` named a writable file, and `ern
+%% build` a `.erc` that did not exist; it assumes a user the directory's
+%% mode binds, which root is not
 read_only_directory_test() ->
     Dir = tmp(),
     Closed = filename:join(Dir, "closed"),
@@ -398,10 +397,9 @@ read_only_directory_test() ->
 
 %% report §11, §11.7: a missing file is refused in one form, `path: no such
 %% file`, and an option that names a directory refuses a file, `path: not a
-%% directory`. A regression test (T28), written after the code: `ern
-%% format` and `ern build` wrote `no such file or directory`, `ern run` `no
-%% such file path`, and a file given to --load-path was refused as no
-%% directory
+%% directory`. A regression test, written after the code: `ern format` and
+%% `ern build` wrote `no such file or directory`, `ern run` `no such file
+%% path`, and a file given to --load-path was refused as no directory
 missing_paths_test() ->
     Dir = tmp(),
     File = write(Dir, "a.erc", "not a module"),
@@ -420,7 +418,7 @@ missing_paths_test() ->
 
 %% report §11.1, §4.1: a single file's build that uses a module not yet
 %% compiled whose source uses it back reports the cycle, as a directory's
-%% build does, and not a module to compile first. A regression test (T9),
+%% build does, and not a module to compile first. A regression test,
 %% written after the code: each file's build said to compile the other
 %% first
 single_file_cycle_test() ->
@@ -436,9 +434,9 @@ single_file_cycle_test() ->
 %% report §11.1, §11.5: a single file's build given no source root, whose
 %% module therefore takes the working directory's, helps an unknown
 %% qualified name with the source root nearer the file under which its
-%% module's source is; given one, it does not. A regression test (T22),
-%% written after the code: the error had no help, and only --verbose said
-%% the source root
+%% module's source is; given one, it does not. A regression test, written
+%% after the code: the error had no help, and only --verbose said the
+%% source root
 nearer_source_root_test() ->
     Dir = pair(tmp()),
     in_directory(Dir, fun() ->
@@ -452,8 +450,8 @@ nearer_source_root_test() ->
 
 %% report §11.2: a `.erc` opened as a module keeps §11.1's path shape, which
 %% is checked before its path is held to its namespace, and refused as
-%% `ern build` refuses a source's. A regression test (T14), written after
-%% the code: `ern run Hello.erc` said the file was not at the path of its
+%% `ern build` refuses a source's. A regression test, written after the
+%% code: `ern run Hello.erc` said the file was not at the path of its
 %% namespace
 run_path_shape_test() ->
     Dir = tmp(),
@@ -1297,8 +1295,8 @@ type_member_across_modules_test() ->
 %% report §4.4, Appendix E.1, §4.9: outside its module an abstract value is
 %% shown as `<abstract>`, and no generic function shows it by its
 %% representation, `Io.show` at a type variable no requirement names being a
-%% type error. A regression test of the rule of 2026-10-01: through a type
-%% variable its constructor was shown
+%% type error. A regression test: before the rule, through a type variable
+%% its constructor was shown
 abstract_shown_outside_its_module_test() ->
     Dir = tmp(),
     Stack = "export abstract type Stack(a) = Stack(List(a))\n"
@@ -1321,7 +1319,7 @@ abstract_shown_outside_its_module_test() ->
 %% report Appendix E.1, §3.8: a value of a foreign type is shown as
 %% `<foreign>`, `Foreign.Term` and a type a module declares alike, inside
 %% another value too. A regression test: it was shown by its representation
-%% after the rule of 2026-10-01 had said otherwise
+%% after the rule had said otherwise
 foreign_shown_as_foreign_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
@@ -1911,7 +1909,7 @@ test_runner_unicode_test() ->
 %% report §8.6, §11.2, Appendix E.23: under `ern test` a program is told of
 %% its end as one `ern run` runs is: a subscriber a test spawned is told
 %% once the tests have run, and the run ends once it has answered. Written
-%% after the code (MVP 3.1's item 6)
+%% after the code
 test_told_of_the_end_test() ->
     Dir = tmp(),
     File = write(Dir, "told.ern",
@@ -1982,15 +1980,14 @@ test_runner_test() ->
 
 %% report §11.2, §11.8, Appendix E.24: under `ern test` a service binding
 %% starts its service as under `ern run`, which a test calls; a fault of a
-%% process the initializers started, the service's own after it restarts,
-%% is reported as `ern run` reports it, and the job exits with status 1
-%% though every case passed, and so does a fault of a process a case
-%% started once its case has ended; a fault a process `Test.faults` started
-%% meets, or one a case started, directly or through a process it started,
-%% while the case runs, fails nothing. A regression test of the release
-%% review's N22, written after the code (the log's *Reload, Services and
-%% Tests*, *Refined at the build*): four faults of a service left the status
-%% 0
+%% process the initializers started, the service's own after it restarts, is
+%% reported as `ern run` reports it, and the job exits with status 1 though
+%% every case passed, and so does a fault of a process a case started once
+%% its case has ended; a fault a process `Test.faults` started meets, or one
+%% a case started, directly or through a process it started, while the case
+%% runs, fails nothing. A regression test, written after the code (the log's
+%% *Reload, Services and Tests*, *Refined at the build*): four faults of a
+%% service left the status 0
 test_fault_fails_the_run_test() ->
     Dir = tmp(),
     Service = "export type HouseMsg = Ask(Reply(Int)) | Boom\n"
@@ -3146,9 +3143,9 @@ test_faults_test() ->
 %% the call's at the site where `Test.faults` calls `Process.run`, and the
 %% judge's at `Process.run`'s own. The second test monitors each it finds
 %% and waits for their ends, which a process left waiting would turn into
-%% that test's own deadlock. A regression test (E2), written after the
-%% code: both processes outlived the caller. It does not cover a caller the
-%% interrupt ends in the shell.
+%% that test's own deadlock. A regression test, written after the code: both
+%% processes outlived the caller. It does not cover a caller the interrupt
+%% ends in the shell.
 test_faults_caller_ends_first_test() ->
     Dir = tmp(),
     File = write(Dir, "outlived.ern",
@@ -3656,9 +3653,8 @@ stdlib_namespace_test() ->
     write(Dir, "src/foreign.ern", "export fn atom(s : String) : String = s\n"),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
-%% report §4.2, Appendix E.19: `Erl` went into `Foreign`, and its namespace
-%% is no longer taken, so `erl.ern` at a source root is a program's own. A
-%% regression test of the principles review's P49 (2026-10-09)
+%% report §4.2: no standard module is named `Erl`, so `erl.ern` at a source
+%% root is a program's own. A regression test
 erl_namespace_free_test() ->
     Dir = tmp(),
     write(Dir, "src/erl.ern", "export fn atom(s : String) : String = s\n"),
@@ -4064,7 +4060,7 @@ emit_erl_test() ->
     {ok, Source} = file:read_file(Dir ++ "/build/net/http.erl"),
     ?assertMatch({_, _}, binary:match(Source, <<"-module(ern@net@http).">>)),
     %% report §11.5: its first line names the source as a path from the
-    %% working directory; a regression test (T38) of the name alone
+    %% working directory; a regression test of the name alone
     Header = iolist_to_binary(["%% Generated by ern build from ",
                                ern_build:shown(Dir ++ "/src/net/http.ern"), "\n"]),
     ?assertMatch({0, _}, binary:match(Source, Header)),
@@ -4266,10 +4262,10 @@ compile_error_test() ->
                  iolist_to_binary(?capturedOutput)),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).
 
-%% report §11.5, §11.7: a diagnostic's first line, `file:line:column:
-%% message`, is the one a tool reads, and no line after it begins with the
-%% path; the build takes no option for a short form. Written as the option
-%% went (the full review's T30)
+%% report §11.5, §11.7: a diagnostic's first line,
+%% `file:line:column: message`, is the one a tool reads, and no line after
+%% it begins with the path; the build takes no option for a short form.
+%% Written as the option went
 error_first_line_test() ->
     Dir = tmp(),
     File = write(Dir, "bad.ern", "export fn main() : Unit = Io.println(1)\n"),
@@ -4433,12 +4429,11 @@ fault_stack_test() ->
 %% report §12.3, §11.2, Appendix E.21: a foreign function's return that does
 %% not match its declared type faults with a cause that names the host's
 %% function as a raise's cause does, and the trace is as for any fault the
-%% runtime raises: the function has returned when its return is checked,
-%% so no frame of it is in the trace, the runtime's frame that raises is
-%% left out, and the trace is main's frame. A regression test, written
-%% after the code, its runtime's frame taken out 2026-10-23 with the rule;
-%% it does not cover a return checked in place, a word's, whose trace
-%% raise_has_line_test reads
+%% runtime raises: the function has returned when its return is checked, so
+%% no frame of it is in the trace, the runtime's frame that raises is left
+%% out, and the trace is main's frame. A regression test, written after the
+%% code, its runtime's frame taken out with the rule; it does not cover a
+%% return checked in place, a word's, whose trace raise_has_line_test reads
 foreign_return_cause_test() ->
     Dir = tmp(),
     File = write(Dir, "abs.ern",
@@ -4679,9 +4674,9 @@ doc_sweeps_pages_test() ->
 %% of a module whose source is gone whichever kind it writes, a run of
 %% `--man` rewrites index.md where it is there so that it lists no module
 %% gone, and `--verbose` says each module compiled or read and each
-%% document or page written or removed. A regression test (T8, T20),
-%% written after the code: each run swept its own kind alone, the index
-%% kept the module, and `ern doc` took no --verbose
+%% document or page written or removed. A regression test, written after
+%% the code: each run swept its own kind alone, the index kept the
+%% module, and `ern doc` took no --verbose
 doc_sweeps_both_kinds_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
@@ -4752,7 +4747,7 @@ doc_writes_outdated_pages_test() ->
     Document(),
     ?assertEqual([Ahead, Ahead, Ahead, Ahead], [modified(File) || File <- Http ++ Main]),
     %% the index's text is the same, so it is left as it is; this line
-    %% written 2026-10-16, after the code, a regression test
+    %% written after the code, a regression test
     ?assertEqual(Ahead, modified(Index)),
     %% the module's source newer than its pages
     set_modified(filename:join(SourceRoot, "net/http.ern"), Ahead + 1),
@@ -4768,10 +4763,9 @@ doc_writes_outdated_pages_test() ->
     ?assertEqual([Ahead + 1, Ahead + 1], [modified(File) || File <- Http]).
 
 %% report §11.4: index.md is written where its text would differ from the
-%% one there: a module added changes it, and a link at its place is no
-%% index and is replaced. A regression test, written 2026-10-16, after the
-%% code; not covered: an index its owner may not write, which is refused
-%% as a page is
+%% one there: a module added changes it, and a link at its place is no index
+%% and is replaced. A regression test, written after the code; not covered:
+%% an index its owner may not write, which is refused as a page is
 doc_writes_index_where_it_differs_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
@@ -4797,10 +4791,10 @@ doc_writes_index_where_it_differs_test() ->
 
 %% report §11.4: a module whose .erc in build-root is as new as its source
 %% is read from the .erc and not compiled again, and one whose source is
-%% newer is compiled. The source is changed under a .erc given a later
-%% time, so that a page made from the .erc and one made from the source
-%% differ. A regression test, written 2026-10-16, after the code; a
-%% manual page is read from the .erc by the same code, and is not covered
+%% newer is compiled. The source is changed under a .erc given a later time,
+%% so that a page made from the .erc and one made from the source differ. A
+%% regression test, written after the code; a manual page is read from the
+%% .erc by the same code, and is not covered
 doc_reads_current_erc_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
@@ -4823,10 +4817,10 @@ doc_reads_current_erc_test() ->
     ?assert(Said()).
 
 %% report §11.4: where every document or page is as new as what it is made
-%% from, nothing is compiled: a source that no longer parses, older than
-%% its page and its .erc, is not read, and the job succeeds with every
-%% page left as it is. Once its page is older than it, it is compiled and
-%% the job fails. A regression test, written 2026-10-16, after the code
+%% from, nothing is compiled: a source that no longer parses, older than its
+%% page and its .erc, is not read, and the job succeeds with every page left
+%% as it is. Once its page is older than it, it is compiled and the job
+%% fails. A regression test, written after the code
 doc_compiles_nothing_where_current_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
@@ -4851,11 +4845,11 @@ doc_compiles_nothing_where_current_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"main.ern:1:">>)).
 
 %% report §11.4, §11.1: a .erc at a module's place that is not the module's,
-%% compiled from another source or holding another module, is not read
-%% for its page, which is made from the module compiled. A regression
-%% test, written 2026-10-16, after the code; it covers a .erc compiled from
-%% another source, and not one holding another module or one this
-%% toolchain does not read, which the same check refuses
+%% compiled from another source or holding another module, is not read for
+%% its page, which is made from the module compiled. A regression test,
+%% written after the code; it covers a .erc compiled from another source,
+%% and not one holding another module or one this toolchain does not read,
+%% which the same check refuses
 doc_reads_only_the_modules_erc_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
@@ -5060,14 +5054,14 @@ without_footer(Doc) ->
     hd(binary:split(Doc, <<"\n---\n\nGenerated by ern ">>)).
 
 %% docs/development.md, "What the toolchain accepts": every text in the
-%% toolchain's Erlang or in the shell's own Ernest source that names an MVP, an
-%% error's or an option's help, appears in that document's table, by its
-%% first forty characters, so the table cannot drift from what the code
-%% refuses. A regression test: only "in MVP n" was found, and
-%% `--config-dir`'s "read from MVP 3.0" passed
-mvp_refusals_listed_test() ->
+%% toolchain's Erlang or in the shell's own Ernest source that says what
+%% it refuses is not implemented, an error's or an option's help, appears
+%% in that document's table, by its first forty characters, so the table
+%% cannot drift from what the code refuses. A regression test; a refusal
+%% worded otherwise escapes it
+unimplemented_listed_test() ->
     {ok, Listed} = file:read_file("docs/development.md"),
-    Pattern = "\"([^\"\n]*\\bMVP [0-9][^\"\n]*)\"",
+    Pattern = "\"([^\"\n]*\\bis not implemented\\b[^\"\n]*)\"",
     Find = fun(Text) ->
                case re:run(Text, Pattern, [global, {capture, all_but_first, binary}]) of
                    {match, Matches} -> [Match || [Match] <- Matches];
@@ -5076,8 +5070,8 @@ mvp_refusals_listed_test() ->
            end,
     %% the scan itself, on a sample, since every refusal may be lifted and
     %% a pattern that finds nothing would otherwise pass
-    ?assertEqual([<<"x is not here yet; it arrives in MVP 9">>],
-                 Find("fail(\"x is not here yet; it arrives in MVP 9\")")),
+    ?assertEqual([<<"x across nodes is not implemented">>],
+                 Find("fail(\"x across nodes is not implemented\")")),
     Sources = [Source || Source <- filelib:wildcard("src/**/*.erl"),
                          not lists:member("test", filename:split(Source))]
         ++ filelib:wildcard("src/shell/**/*.ern"),
@@ -5119,9 +5113,9 @@ options_test() ->
 %% option parser's refusals are written in the usage's words, an option
 %% given no value with its metavariable, one the job does not take with
 %% the jobs that take it, and words the job does not take counted. A
-%% regression test (T26, T27), written after the code: `ern build --help
-%% x.ern` printed the help, and the refusals were the vendored parser's
-%% own, `missing option argument: --build-root <build_root>`
+%% regression test, written after the code: `ern build --help x.ern`
+%% printed the help, and the refusals were the vendored parser's own,
+%% `missing option argument: --build-root <build_root>`
 job_words_test() ->
     Alone = <<"ern build: --help stands alone: ern build --help\n">>,
     Refused = [{["build", "--help", "x.ern"], Alone},
@@ -5211,7 +5205,7 @@ shell_main_without_file_test() ->
 %% report §11.2 *The attached shell*: `--attach` takes no file, `--main`,
 %% `--load-path` or `--libs-dir`, each refused naming the option, and needs
 %% `--config-dir`, each refused before a node starts. A regression test,
-%% written after the code: MVP 4.0's item 5
+%% written after the code
 shell_attach_refused_test() ->
     Dir = tmp(),
     Attach = ["shell", "--config-dir", Dir, "--attach", "b"],
@@ -5320,7 +5314,7 @@ option_spellings_test() ->
 
 %% report §11.1: a module outside the source root is read from its .erc
 %% under build-root, and the sweep keeps it. A regression test: only the
-%% --load-path roots were searched, and the use was an unknown name (T2)
+%% --load-path roots were searched, and the use was an unknown name
 module_under_build_root_test() ->
     Dir = tmp(),
     write(Dir, "lib/util/math.ern", "export fn twice(n : Int) : Int = n * 2\n"),
@@ -5336,7 +5330,7 @@ module_under_build_root_test() ->
 
 %% report §11.2: `ern run` refuses a module compiled against another
 %% interface of a module it uses, where it had run and faulted where the two
-%% differ. A regression test (T3); it does not cover the standard library's
+%% differ. A regression test; it does not cover the standard library's
 %% hash, which only another build of `ern` changes
 stale_dependent_refused_test() ->
     Dir = tmp(),
@@ -5394,9 +5388,9 @@ another_build_refused_test() ->
 %% the build was given none and the file's removal where it was; a build
 %% that uses a module whose .erc holds another names that, and not the
 %% source the other was compiled from; and `ern run` refuses a file that
-%% holds another module than its path names. A regression test (T4): the
-%% build replaced it, and the run failed in the host's loader; and (T5,
-%% after the code) the build named a source of the other module's as gone,
+%% holds another module than its path names. A regression test: the build
+%% replaced it, and the run failed in the host's loader; and one written
+%% after the code: the build named a source of the other module's as gone,
 %% and named --source-root where it was given
 other_namespace_test() ->
     Dir = tmp(),
@@ -5658,9 +5652,9 @@ node_run_test() ->
 %% report §11.3: `ern config` requires --config-dir, as `ern reload` and
 %% `ern stop` do, with `--peer-dir` and without, and makes nothing without
 %% it; and it creates the one directory it names, refusing a parent that
-%% is not there. A regression test (T3, T13, K18), written after the code:
-%% it created ./.ernest, wrote into it with `--peer-dir`, and created every
-%% missing parent
+%% is not there. A regression test, written after the code: it created
+%% ./.ernest, wrote into it with `--peer-dir`, and created every missing
+%% parent
 config_dir_required_test() ->
     Dir = tmp(),
     Peer = filename:join(tmp(), "foo"),
@@ -5678,13 +5672,13 @@ config_dir_required_test() ->
                  <<"ern config: no/such: no such directory\n">>]],
     ?assertEqual(2, length(binary:matches(Said, <<"--config-dir is required">>))).
 
-%% report §11.3, Appendix C: the configuration directory with no peer and
-%% no service, a private key readable only by its owner and a certificate,
+%% report §11.3, Appendix C: the configuration directory with no peer and no
+%% service, a private key readable only by its owner and a certificate,
 %% created where --config-dir names it, its public key printed, and no
 %% `listen` where `--listen` gives none, a node that only dials; a second
-%% creation fails. The `listen` left out is a regression test of the
-%% release review's K26, written after the code (the log's *The Shell's
-%% Own Node*): `0.0.0.0:8654` was written for every directory
+%% creation fails. The `listen` left out is a regression test, written after
+%% the code (the log's *The Shell's Own Node*): `0.0.0.0:8654` was written
+%% for every directory
 create_config_dir_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),

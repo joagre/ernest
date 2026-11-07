@@ -14,7 +14,7 @@
 %% loads are the host's work, waits on its file server and code server,
 %% whose functions the reaper reads on top of the process's stack as the
 %% host's work; a wait the reaper did not read so found a deadlock in
-%% fs_test under load (2026-10-18).
+%% fs_test under load.
 -spec function(module(), atom() | [atom()]) -> function().
 function(Unit, Name) ->
     _ = ern_rt:stdlib_modules(),

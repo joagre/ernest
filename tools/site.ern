@@ -1,16 +1,15 @@
 //
-// The website's generator (plan, MVP 4.2 item 2): it reads the
-// repository's documents and the site's own files, site/templates/ and
-// site/root/, fills the templates, writes the site as static files, checks
-// every link of it, and ends, as docs/design/site.md's *The
-// generation* says. It writes the root's assets, the icons gathered into
-// one file, and the three logos the site shows; each kind of page through
-// the module that knows it, the guide and the tour (Site.Book), the report
-// (Site.Report), the library (Site.Library) and the documents of a page
-// each (Site.Document); and the site's own pages, the homepage, the shell's
-// and the 404 page. Every page's qualified names link to the library's
-// declarations, and its citations of the log to the log's entries, so the
-// two are read first; and the site's links are checked last
+// The website's generator: it reads the repository's documents and the
+// site's own files, site/templates/ and site/root/, fills the templates,
+// writes the site as static files, checks every link of it, and ends, as
+// docs/design/site.md's *The generation* says. It writes the root's assets,
+// the icons gathered into one file, and the three logos the site shows; each
+// kind of page through the module that knows it, the guide and the tour
+// (Site.Book), the report (Site.Report), the library (Site.Library) and the
+// documents of a page each (Site.Document); and the site's own pages, the
+// homepage, the shell's and the 404 page. Every page's qualified names link
+// to the library's declarations, and its citations of the log to the log's
+// entries, so the two are read first; and the site's links are checked last
 // (Site.Check), so that a site with one that leads nowhere is refused.
 //
 // `ern run site.erc root out version tag config`: `root` holds the

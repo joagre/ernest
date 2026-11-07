@@ -37,11 +37,10 @@ values_test() ->
 
 %% report §9.4, §9.5, §9.6, §3.9, §11.5: each type §9 lists is the type the
 %% compiler prints, its inferred restrictions marked, as the shell's `:type`
-%% prints it. A regression test of the principles review's K2 (2026-10-09):
-%% `send`, `spawn`, `answer`, `Address.call`, `Address.callForever`, `kill`,
-%% `restarting` and `Io.debug` were listed without the `+` the compiler
-%% prints. §6.2 and §6.6 point at §9 and list none (report §6.2, §6.6),
-%% so that §9's is the one copy
+%% prints it. A regression test: `send`, `spawn`, `answer`, `Address.call`,
+%% `Address.callForever`, `kill`, `restarting` and `Io.debug` were listed
+%% without the `+` the compiler prints. §6.2 and §6.6 point at §9 and list
+%% none (report §6.2, §6.6), so that §9's is the one copy
 marked_prelude_test() ->
     Lines = code_lines(section("### 9.4", "### 9.7")),
     ?assertEqual([], code_lines(section("### 6.2", "### 6.3"))
@@ -474,17 +473,13 @@ namespaces([Heading | Lines]) ->
     end.
 
 %% Appendix G's sections, each with its library's directory and namespace
-%% from the heading; a section whose library was removed, which keeps its
-%% number and says so first (report Appendix G.5), names no library.
+%% from the heading; an unused section's heading names no library.
 libraries([]) -> [];
 libraries([Heading | Lines]) ->
     case captures(Heading, "^### Appendix G\\.\\d+\\. `libs/(\\w+)` \\(namespace `(\\w+)`\\)") of
         [Library, Namespace] ->
             {Body, Rest} = lists:splitwith(fun(Line) -> not lists:prefix("### ", Line) end, Lines),
-            case [Line || Line <- Body, Line =/= ""] of
-                ["Removed on " ++ _ | _] -> libraries(Rest);
-                _ -> [{Library, [list_to_atom(Namespace)], Body} | libraries(Rest)]
-            end;
+            [{Library, [list_to_atom(Namespace)], Body} | libraries(Rest)];
         _ -> libraries(Lines)
     end.
 

@@ -46,7 +46,7 @@ The site's files as served.
 - A report page is one of the report's files, whole. A citation's first number or letter names its page.
 - A chapter is addressed by its number, as a citation names it.
 - Every contents page is generated: a book's from its headings, the report's with its opening from `report/README.md`, and the library's from the READMEs `make man` writes under `docs/man/`. There is no symlink, and no page at two addresses.
-- The `/man/` pages are rendered from `docs/man/`'s Markdown, which `make man` writes. The site calls them Library. A module's page shows its `since` line as its metadata under its heading, as a report file shows its revision.
+- The `/man/` pages are rendered from `docs/man/`'s Markdown, which `make man` writes. The site calls them Library. A module's page shows its `since` line as its metadata under its heading, as a report file shows its version line.
 - `/man/` lists the standard library's modules and the libraries in two groups, a module a line, its name and the purpose its own page opens with, and ends with the toolchain's §11. `/man/stdlib/` and `/man/libs/` hold the same lists' halves, so a page's address trimmed to its directory finds a page.
 - `site/root/` holds the assets, laid out as served, and no page is written by hand. The templates and their README stand beside it, in `site/templates/`.
 - A link names a directory by its own form, `/guide/`, never `/guide/index.html`.

@@ -1,13 +1,12 @@
 //
-// A page's links (plan, MVP 4.2 item 2): a citation in the text made a link
-// to the section it names, and a link the source writes for GitHub led to
-// the page the site shows its target on, as
-// docs/design/site.md's *Anchors* and *Links* say. A citation
-// is a form the documents' test reads (test/ern_docs_tests.erl): `§x.y`,
-// alone or after the report, the guide or the deployment guide, an
+// A page's links: a citation in the text made a link to the section it
+// names, and a link the source writes for GitHub led to the page the site
+// shows its target on, as docs/design/site.md's *Anchors* and *Links* say. A
+// citation is a form the documents' test reads (test/ern_docs_tests.erl):
+// `§x.y`, alone or after the report, the guide or the deployment guide, an
 // appendix or one of its sections, and `E.n`; and beside them the log's
-// *Title*, which links to the log's entry on GitHub, and a qualified name
-// of the library in backticks, which links to its declaration. A section's
+// *Title*, which links to the log's entry on GitHub, and a qualified name of
+// the library in backticks, which links to its declaration. A section's
 // anchor is its number, `#6.5`, `#E.17`; a heading of a document that
 // numbers none has its GitHub anchor.
 //

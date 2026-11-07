@@ -1,9 +1,9 @@
-%% `make bench`'s measuring machine, ern_measure (plan MVP 2.99d item 1):
-%% every exported function of the standard library and the libraries is
-%% measured, by arguments drawn from its type or by a scenario, or listed
-%% with the reason it cannot be, and every call the machine makes runs.
-%% Written with the machine; it times nothing, so what the machine reports
-%% is not checked here, only that it can report on every function.
+%% `make bench`'s measuring machine, ern_measure: every exported function of
+%% the standard library and the libraries is measured, by arguments drawn
+%% from its type or by a scenario, or listed with the reason it cannot be,
+%% and every call the machine makes runs. Written with the machine; it times
+%% nothing, so what the machine reports is not checked here, only that it
+%% can report on every function.
 -module(ern_measure_tests).
 
 -include_lib("eunit/include/eunit.hrl").

@@ -37,7 +37,7 @@ A list's item takes its look from a fragment under `fragments/`, one file an ite
 | `module-list.html` | a list of modules, a group's or a library's | `rows_html` |
 | `module.html` | a module of a list, with the purpose its page opens with | `href`, `name`, `purpose_html` |
 | `toolchain.html` | the library's line naming the toolchain's section | `line_html` |
-| `revision.html` | a report file's revision, above its text | `revision_html` |
+| `version.html` | a report file's version line, or a module's `since` line, above its text | `version_html` |
 | `margin-line.html` | the guide's sections that cite a report section, under its heading | `links_html` |
 | `project-list.html` | Projects' list of projects | `rows_html` |
 | `project.html` | a project of the list: its icon, its name, in the text's face since it names a repository and no module, linked to its repository, and its purpose | `icon`, `href`, `name`, `purpose_html` |

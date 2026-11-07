@@ -195,9 +195,9 @@ export foreign fn encode(value : Value) : String =
 // the host showed of the edges it does not state.
 //
 
-// report Appendix G.6: a regression test of the principles review's P47
-// (2026-10-09): the first was kept, where every `fromList` keeps the last;
-// the three members show that the last wins wherever the others stand.
+// report Appendix G.6: a regression test: the first was kept, where every
+// `fromList` keeps the last; the three members show that the last wins
+// wherever the others stand.
 let duplicateName =
     Test.Case(name = "a member named twice keeps the last, as Map.fromList does",
               run = fn() =
@@ -268,10 +268,9 @@ let tooLong =
                              #(sequence(1), sequence(1300006)))
               })
 
-// report Appendix G.6: a regression test of the release review's C2-1 and
-// E4-1 (2026-11-02): the digits were looked for at every byte outside a
-// string, and found inside the real, at its fraction or after its first
-// digit.
+// report Appendix G.6: a regression test: the digits were looked for at
+// every byte outside a string, and found inside the real, at its fraction
+// or after its first digit.
 let tooLongAfterReal =
     Test.Case(name = "a too-long integer is found past a real holding its digits", run = fn() = {
         let digits = String.repeat("9", 1300000);
@@ -282,11 +281,10 @@ let tooLongAfterReal =
                    #(sequence(1300006), sequence(1300014)))
     })
 
-// report Appendix G.6: a regression test of the release review's C2-1
-// (2026-11-02): the digits were compared at every byte of the real, each
-// comparison running to the real's end, and the parse took 31 seconds;
-// read once, the text takes a tenth of a second, most of it the column
-// counted.
+// report Appendix G.6: a regression test: the digits were compared at every
+// byte of the real, each comparison running to the real's end, and the
+// parse took 31 seconds; read once, the text takes a tenth of a second,
+// most of it the column counted.
 let tooLongReadOnce =
     Test.Case(name = "a too-long integer after a real one digit shorter is found reading once",
               run = fn() = {
@@ -296,10 +294,9 @@ let tooLongReadOnce =
                                                      at = Position(line = 1, column = 1300005))))
               })
 
-// report Appendix G.6: a regression test of the release review's E4-2
-// (2026-11-02): the host answered the end of the text where few bytes
-// followed the literal's first, and the byte after its first where more
-// did.
+// report Appendix G.6: a regression test: the host answered the end of
+// the text where few bytes followed the literal's first, and the byte after
+// its first where more did.
 let brokenLiteral =
     Test.Case(name = "a literal broken off is the first byte that differs from it", run = fn() = {
         let byte =
@@ -325,10 +322,9 @@ let brokenLiteral =
                     Left(UnexpectedEnd)])
     })
 
-// report Appendix G.6: a regression test of the release review's round
-// (2026-11-03): the host answered the end of the text where fewer than four
-// bytes followed the escape's `u`, and its six bytes from the backslash,
-// past the string's end, where more did.
+// report Appendix G.6: a regression test: the host answered the end of
+// the text where fewer than four bytes followed the escape's `u`, and its
+// six bytes from the backslash, past the string's end, where more did.
 let brokenEscape =
     Test.Case(name = "an escape broken off is written up to the byte that breaks it", run = fn() = {
         let sequence =

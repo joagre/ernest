@@ -377,8 +377,7 @@ type HeadReading(a) =
 // costs a parse a line, not a parse a read.
 //
 // Each parse reads the lines before it again, so a head of many lines that
-// comes a line at a time costs the square of its lines, which MVP 4.15's
-// item 8 ends with the head's loop read in Ernest.
+// comes a line at a time costs the square of its lines.
 fn readHead(reading : HeadReading(a), bytes : Bytes) : Either(ReadError, #(a, Bytes)) =
     match reading.parse(bytes) {
         Right(Parsed(=head, =rest)) -> Right(#(head, rest))
@@ -1313,8 +1312,7 @@ let malformed =
                    #(List.repeat(Left(Malformed), List.size(texts) + 1), Left(Malformed)))
     })
 
-// report Appendix G.11: written with the code on the decision of the
-// release review's E4-10 (2026-11-03).
+// report Appendix G.11: written with the code.
 let emptyLineSkipped =
     Test.Case(name = "one empty line before a request line is skipped, on a socket too",
               run = fn() =
@@ -1330,8 +1328,8 @@ let emptyLineSkipped =
                                                      fn(#(request, _)) = request.target))),
                              #(Some("/a"), Right(Right("/b")))))
 
-// report Appendix G.11: a regression test of the release review's C2-7
-// and E4-7 (2026-11-03), which the host read as 20, 2000 and 200.
+// report Appendix G.11: a regression test; the host read these as 20, 2000
+// and 200.
 let threeDigits = Test.Case(name = "a status line's status is three digits", run = fn() = {
     let read = fn(text) = parseResponse(String.toUtf8(text), testLimits);
     Test.equal(List.map(["HTTP/1.1 20 OK\r\n\r\n",
@@ -1346,8 +1344,7 @@ let threeDigits = Test.Case(name = "a status line's status is three digits", run
                              rest = <<>>))])
 })
 
-// report Appendix G.11: written with the code on the decision of the
-// release review's E4-6 (2026-11-03).
+// report Appendix G.11: written with the code.
 let responseFolds =
     Test.Case(name = "a response's header folded over lines is read with each fold one space",
               run = fn() = {
@@ -1455,8 +1452,7 @@ let rendered =
                               Some("PUT / HTTP/1.1\r\nContent-Length: 1\r\n\r\nx")])
               })
 
-// report Appendix G.11: written with the code on the decision of the
-// release review's E4-8 and K19 (2026-11-03).
+// report Appendix G.11: written with the code.
 let renderFaults =
     Test.Case(name = "a head that would not read back as written faults its writer", run = fn() = {
         let request = Request(method = "GET", target = "/", version = testVersion, headers = []);
@@ -1627,9 +1623,9 @@ let twoDigitYears =
                              #(Some(january(current + 50)), Some(january(current - 49))))
               })
 
-// report Appendix G.11: a regression test of the release review's E4-12
-// (2026-11-03): the year was decided by the year alone, so on 2026-11-02
-// `31-Dec-76`, 50 years and two months ahead, was read as 2076.
+// report Appendix G.11: a regression test: the year was decided by the year
+// alone, so on the test's day `31-Dec-76`, 50 years and two months ahead,
+// was read as 2076.
 let fiftyYearsAhead =
     Test.Case(name = "RFC 850's year is in the past where its moment is more than 50 years ahead",
               run = fn() = {
@@ -1805,11 +1801,11 @@ let endlessHead =
                       Test.Failed(Io.show(error))
               })
 
-// report Appendix G.11: written with the code on the decision of the
-// release review's E4-3 (2026-11-03), which parses a head again only where
-// the new bytes hold a line feed or pass a limit: each limit is found at
-// the bytes that pass it with no line feed after them, a folded header's
-// from its first line, and a line under way that passes none is read on.
+// report Appendix G.11: written with the code, which parses a head again
+// only where the new bytes hold a line feed or pass a limit: each limit is
+// found at the bytes that pass it with no line feed after them, a folded
+// header's from its first line, and a line under way that passes none is
+// read on.
 let limitsWithoutFeed =
     Test.Case(name = "a limit passed inside a line is found though no line feed comes",
               run = fn() = {
@@ -2021,10 +2017,10 @@ let malformedBody =
                    Right(List.repeat(Left(Protocol(Malformed)), 10)))
     })
 
-// report Appendix G.11, RFC 9112, section 6.1: a regression test of the
-// release review's E4-5 (2026-11-03): the chunked coding was read and the
-// bytes after it answered as the next request's, so a client and a server
-// that read the length could disagree on where the next request begins.
+// report Appendix G.11, RFC 9112, section 6.1: a regression test: the
+// chunked coding was read and the bytes after it answered as the next
+// request's, so a client and a server that read the length could disagree
+// on where the next request begins.
 let framedTwice =
     Test.Case(name = "Transfer-Encoding beside Content-Length, or chunked twice, is malformed",
               run = fn() = {
@@ -2045,8 +2041,7 @@ let framedTwice =
                              Right(List.repeat(Left(Protocol(Malformed)), 5)))
               })
 
-// report Appendix G.11, RFC 9112, section 6.3: written with the code on the
-// decision of the release review's E4-6 (2026-11-03).
+// report Appendix G.11, RFC 9112, section 6.3: written with the code.
 let unchunkedResponse =
     Test.Case(name = "a response whose last coding is not chunked runs to the close", run = fn() = {
         let response = answered([Header(name = "Transfer-Encoding", value = "chunked, gzip")]);

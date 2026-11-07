@@ -1,11 +1,11 @@
-%% Well-typed programs generated (plan, MVP 2.99c item 3): programs built by
-%% type, so that each type-checks by construction, then checked, compiled,
-%% loaded and run in this host through the runtime's entry, as the shell
-%% runs its own. Four oracles: the checker accepts the program; the Erlang it
-%% becomes compiles and loads; the run ends by returning, or by a cause of
-%% report §7.4, or by a deadlock; and what it prints is what an interpreter
-%% of the same program, written here in Erlang from the report's rules,
-%% computes, so that a program compiled to the wrong value is a finding too.
+%% Well-typed programs generated: programs built by type, so that each
+%% type-checks by construction, then checked, compiled, loaded and run in
+%% this host through the runtime's entry, as the shell runs its own. Four
+%% oracles: the checker accepts the program; the Erlang it becomes compiles
+%% and loads; the run ends by returning, or by a cause of report §7.4, or by
+%% a deadlock; and what it prints is what an interpreter of the same
+%% program, written here in Erlang from the report's rules, computes, so
+%% that a program compiled to the wrong value is a finding too.
 %%
 %% Two rounds. The pure programs: `let`, `if`, `match` over every pattern
 %% form, constructors positional and named, records with selection and

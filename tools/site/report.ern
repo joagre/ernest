@@ -1,7 +1,7 @@
 //
-// The report's pages (plan, MVP 4.2 item 2): each of its three files whole,
+// The report's pages: each of its three files whole,
 // a page each, as docs/design/site.md's *The root* says, under
-// the report's name with the file's revision; its chapters and sections
+// the report's name with the file's version line; its chapters and sections
 // anchored by their numbers or their appendices' letters, a sidebar two
 // levels deep, previous and next in the order language, toolchain,
 // library, and under each section the guide cites the guide's sections
@@ -12,13 +12,13 @@
 
 // A file of the report: its path and its page's address; the report's
 // name and the file's title, `Ernest Report` and `The Language` of `Ernest
-// Report: The Language`; its revision; and its blocks after them.
+// Report: The Language`; its version line; and its blocks after them.
 type File =
     File(source : String,
          address : String,
          report : String,
          title : List(Markdown.Inline),
-         revision : List(Markdown.Inline),
+         version : List(Markdown.Inline),
          blocks : List(Markdown.Block))
 
 /// The report's three pages and its contents page, each section the guide
@@ -34,7 +34,7 @@ export fn report(run : Site.Run.Run, taught : Site.Book.Taught) : Either(String,
 }
 
 // A file of the report read: its title split at its `: `, and its
-// revision, the paragraph after the title, which each file has.
+// version line, the paragraph after the title, which each file has.
 fn fileRead(run : Site.Run.Run, source : String) : Either(String, File) = {
     let document <- Site.Run.documentOf(run.root, source);
     let #(heading, rest) <- Site.Run.titleOf(source, document);
@@ -44,26 +44,26 @@ fn fileRead(run : Site.Run.Run, source : String) : Either(String, File) = {
     let address <-
         Either.fromOptional(Site.Links.address(source), source <> " has no page of the site");
     match rest {
-        Markdown.Paragraph(revision) :: blocks when isRevision(revision) ->
+        Markdown.Paragraph(version) :: blocks when isVersion(version) ->
             Right(File(=source,
                        =address,
                        =report,
                        title = [Markdown.Text(title)],
-                       =revision,
+                       =version,
                        blocks = Site.Run.withoutContents(blocks)))
       | _ ->
-            Left(source <> ": the line after the title is the file's revision")
+            Left(source <> ": the line after the title is its version line, `For Ernest x.y.z.`")
     }
 }
 
-fn isRevision(inlines : List(Markdown.Inline)) : Bool =
+fn isVersion(inlines : List(Markdown.Inline)) : Bool =
     match inlines {
-        Markdown.Text(first) :: _ -> String.startsWith(first, "Revision of ")
+        Markdown.Text(first) :: _ -> String.startsWith(first, "For Ernest ")
       | _ -> false
     }
 
 // A file's page: the sidebar of its chapters with their sections, the
-// report's name above its title, its revision, its text with each margin
+// report's name above its title, its version line, its text with each margin
 // line, and the files before and after it.
 fn fileWritten(run : Site.Run.Run,
                taught : Site.Book.Taught,
@@ -80,10 +80,10 @@ fn fileWritten(run : Site.Run.Run,
                         "fragments/book.html",
                         [#("href", Site.Template.Plain("/report/")),
                          #("book", Site.Template.Plain(file.report))]);
-    let revision <-
+    let version <-
         Site.Run.filled(run,
-                        "fragments/revision.html",
-                        [#("revision_html", Site.Run.inlined(file.revision))]);
+                        "fragments/version.html",
+                        [#("version_html", Site.Run.inlined(file.version))]);
     let navigation <-
         Site.Run.pageNavigation(run,
                                 "Report",
@@ -97,7 +97,7 @@ fn fileWritten(run : Site.Run.Run,
                          #("book_html", Site.Template.Markup(titled)),
                          #("heading_html", Site.Run.headingHtml(file.title, None)),
                          #("body_html",
-                           Site.Template.Markup(revision <> List.flatMap(lines, fn(each) = each))),
+                           Site.Template.Markup(version <> List.flatMap(lines, fn(each) = each))),
                          #("page_nav_html", Site.Template.Markup(navigation))]);
     let description <- Site.Run.described(file.source, file.blocks);
     Site.Run.pageWritten(run,

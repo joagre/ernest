@@ -1,6 +1,6 @@
 #!/bin/sh
-# Nodes across the machines of test/machines/machines.txt (plan, MVP 3.27
-# item 1, docs/development.md): `check`, each machine's commit, version and
+# Nodes across the machines of test/machines/machines.txt
+# (docs/development.md): `check`, each machine's commit, version and
 # floor against this checkout's; `pull`, each other clone pulled and built
 # by make; `start`, a bare node on each machine listening on 8654, every
 # node listing every other, and a shell's directory here that lists them

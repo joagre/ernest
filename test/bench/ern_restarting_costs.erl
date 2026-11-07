@@ -1,11 +1,11 @@
 %% `make bench`'s part `restarting` (docs/development.md), beside
 %% ern_spawn_costs: what entering `restarting` costs beside the host's try
-%% (report §6.9, Appendix E.22, §10; plan, MVP 3.27 item 3). The function
-%% `restarting` answers runs `f()` in a try, which catches a fault and runs
-%% `f()` again within the limit; before it, the process is made one a
-%% supervisor can ask to restart, by an alias it keeps with its start cause
-%% in its own dictionary; and once `f` returns, the alias goes, with a
-%% request to restart that came as `f` returned.
+%% (report §6.9, Appendix E.22, §10). The function `restarting` answers runs
+%% `f()` in a try, which catches a fault and runs `f()` again within the
+%% limit; before it, the process is made one a supervisor can ask to
+%% restart, by an alias it keeps with its start cause in its own dictionary;
+%% and once `f` returns, the alias goes, with a request to restart that came
+%% as `f` returned.
 %%
 %% Measured, in restarting.txt: the host's try and Ernest's `restarting`
 %% entered and returning, through the runtime in a launch, as the bench's

@@ -1,6 +1,6 @@
-%% Plan, MVP 2.99b's item 10: the program of test/fixtures/service run under
-%% the host's service manager, as the deployment guide's section 1.5 says a
-%% node is run, by a systemd unit on Linux and a launchd agent on macOS.
+%% The program of test/fixtures/service run under the host's service
+%% manager, as the deployment guide's section 1.5 says a node is run, by a
+%% systemd unit on Linux and a launchd agent on macOS.
 %% The manager starts it, stops it, and starts it again after it ends with
 %% a status that is not 0; a stop asked for ends it by its signal (report
 %% §8.6, §11.8); and a fault's line carries one time, the journal's under
@@ -137,9 +137,8 @@ journal(Unit, Test) ->
              " --lines all", Test).
 
 %%
-%% launchd. Written with the unit and not yet run: the release of MVP
-%% 2.99c runs these checks on a Mac, or its notes say that the agent has not
-%% been checked (plan, MVP 2.99c's item 7).
+%% launchd. Written with the unit and not yet run, since these checks run
+%% only on a Mac.
 %%
 
 %% report §8.6, §11.8, §11.2: under a launchd agent the program starts; its

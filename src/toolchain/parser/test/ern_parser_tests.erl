@@ -862,7 +862,7 @@ several_declarations_test() ->
 
 %% report Appendix A: two fns of one name in a row are two declarations,
 %% which the checker refuses (report §4.5); a regression test of the
-%% parser's reading, since it refused them itself until MVP 2.99c item 1
+%% parser's reading, since it once refused them itself
 two_clause_function_test() ->
     [#fn_declaration{name = f}, #fn_declaration{name = f}] =
         declarations("fn f(0) = 1\nfn f(n) = n"),
@@ -1147,9 +1147,9 @@ ast_coverage_test() ->
                                        {ok, Declarations} = ern_parser:parse_string(Source),
                                        tags(Declarations, Acc)
                                    end, [], ernest_files())),
-    %% Bytes, written with the bit syntax since MVP 2.65, gives a bitstring
-    %% with segments and a bitstring pattern their first use outside the
-    %% parser's own tests
+    %% Bytes, written with the bit syntax, gives a bitstring with segments
+    %% and a bitstring pattern their first use outside the parser's own
+    %% tests
     ?assertEqual([], Declared -- Used).
 
 tags(Node, Acc) when is_tuple(Node), is_atom(element(1, Node)) ->
@@ -1346,8 +1346,7 @@ member_test() ->
 
 %% report Appendix A, §4.9: a declaration with a requirement that binds a
 %% name that is one of its type variables parses, as any binding does; a
-%% regression test of the parser's reading, since it refused it itself
-%% until MVP 2.99c item 1
+%% regression test of the parser's reading, since it once refused it itself
 requirement_binding_parses_test() ->
     #fn_declaration{} = declaration("fn f(a : a) : a needs a.compare = a"),
     #fn_declaration{} = declaration("fn f(x : a) : a needs a.compare = { let a = x; a }").

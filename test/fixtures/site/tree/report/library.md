@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 3 November 2026.
+For Ernest 9.9.9.
 
 This file holds the fixture's library, the last of the report's three pages.
 

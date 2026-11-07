@@ -32,7 +32,6 @@ list_test() ->
     ?assertEqual([1, 2], List(dropLast)([1, 2], -1)),
     %% report Appendix E.2, E.0 rule 2: takeLast beside dropLast, the last n,
     %% all where there are fewer, none for a count below 0. A regression test
-    %% of the principles review's P62 (2026-10-09)
     ?assertEqual([2, 3], List(takeLast)([1, 2, 3], 2)),
     ?assertEqual([1, 2, 3], List(takeLast)([1, 2, 3], 5)),
     ?assertEqual([], List(takeLast)([1, 2, 3], -1)),
@@ -67,8 +66,7 @@ list_test() ->
     Bounded = fun(A, X) when A + X > 2 -> {'Left', big}; (A, X) -> {'Right', A + X} end,
     ?assertEqual({'Left', big}, List(tryFold)([1, 2, 3], 0, Bounded)),
     %% report Appendix E.2: foldRight's step takes the accumulator first, as
-    %% foldLeft's does. A regression test of the principles review's P51
-    %% (2026-10-09), the element came first
+    %% foldLeft's does. A regression test: the element came first
     ?assertEqual(<<"ab">>, List(foldRight)([<<"a">>, <<"b">>], <<>>,
                                           fun(Acc, X) -> <<X/binary, Acc/binary>> end)),
     ?assertEqual([1, 2, 3], List(sort)([3, 1, 2], ern_named:function('ern@int', compare))),
@@ -81,8 +79,7 @@ list_test() ->
     ?assertEqual(lists:sort(Many), List(sort)(Many, ern_named:function('ern@int', compare))),
     %% report Appendix E.2, E.0 rule 2: removeAt takes the index get takes,
     %% and leaves the list as it was where there is no element there. A
-    %% regression test of the principles review's P45 (2026-10-09), it took
-    %% an element and removed its first occurrence
+    %% regression test: it took an element and removed its first occurrence
     ?assertEqual([1, 3, 2], List(removeAt)([1, 2, 3, 2], 1)),
     ?assertEqual([2, 3], List(removeAt)([1, 2, 3], 0)),
     ?assertEqual([1, 2], List(removeAt)([1, 2, 3], 2)),
@@ -654,8 +651,7 @@ bytes_text_test() ->
     ?assertEqual('None', Bytes(fromHex)(<<"0">>)),
     ?assertEqual('None', Bytes(fromHex)(<<"0g">>)).
 
-%% report Appendix E.12: `Foreign.atom`, `Erl.atom` until Appendix E.19
-%% went into E.12
+%% report Appendix E.12: `Foreign.atom`
 foreign_atom_test() ->
     ?assertEqual(ready, (ern_named:function('ern@foreign', atom))(<<"ready">>)).
 
@@ -758,8 +754,7 @@ float_operations() ->
                  fault_cause(fun() -> Float('*')(1.0e308, 10.0) end)),
     %% report Appendix E.9, E.0 rule 2: div is `/` answered as an Optional,
     %% None where `/` faults, a zero divisor or a quotient past the range,
-    %% and no negative zero (§3.1). A regression test of the principles
-    %% review's P50 (2026-10-09)
+    %% and no negative zero (§3.1). A regression test
     ?assertEqual({'Some', 0.25}, Float('div')(1.0, 4.0)),
     ?assertEqual({'Some', -2.0}, Float('div')(1.0, -0.5)),
     ?assertEqual('None', Float('div')(1.0, 0.0)),
@@ -1233,9 +1228,9 @@ fs_list_dangling_link_test() ->
 %% report Appendix E.17: a link made to a path is read back as it was
 %% written; `stat` follows it and `list` does not; `remove` takes the link
 %% and leaves what it leads to; a link where something is is answered
-%% `Exists`, and a read of what is no link with None. Written with the code
-%% (language feedback 65); a link's target that is not UTF-8 is not
-%% covered, since a test cannot make one where the host's names are UTF-8
+%% `Exists`, and a read of what is no link with None. Written with the code;
+%% a link's target that is not UTF-8 is not covered, since a test cannot
+%% make one where the host's names are UTF-8
 fs_links_test() ->
     Self = self(),
     Dir = scratch("ern_links_"),

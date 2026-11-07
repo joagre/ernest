@@ -38,14 +38,13 @@ reserved_words_test() ->
                         "if then else fn let export")).
 
 %% report §2.4: `with`, the mark's word before `receiving`, is an identifier
-%% (a regression test, 2026-10-16; it covers the lexer alone)
+%% (a regression test; it covers the lexer alone)
 with_is_an_identifier_test() ->
     ?assertEqual([{ident, with}], tokens("with")).
 
 %% report §2.4: `needs`, `derives`, `compare`, `negate` and `show` are
 %% identifiers, which the parser reads as Appendix A's words where they
-%% stand (the full review's P17, 2026-10-04; the principles review's K11,
-%% 2026-10-09, which named the last three in §2.4)
+%% stand
 words_read_by_position_test() ->
     ?assertEqual([{ident, needs}, {ident, derives}, {ident, compare}, {ident, negate},
                   {ident, show}],

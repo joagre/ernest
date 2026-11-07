@@ -33,7 +33,7 @@
 %% which is no node, its find answering NotListed); remote_counter is
 %% a regression test written with it
 %% Each program is compiled and run apart from the others, so they run in
-%% parallel (plan, MVP 2.6).
+%% parallel.
 programs_test_() ->
     {inparallel,
      [{Name, ern_nodes_tests:counted_test({waits, 2},
@@ -48,11 +48,11 @@ program(Build, Name) ->
     {0, Output} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
     ?assertEqual(expected(Name), unstamped(lines(Output))).
 
-%% Plan, MVP 2.5: the examples that the doors of step 4 opened. snake
-%% waits for a terminal, so it is only compiled here and ern_terminal_tests
-%% plays it under a pseudo-terminal; fetch reaches a host on the network, so
-%% it is only compiled; the others run below. The echo measurement, kept for
-%% the tests, prints timings, so it is compiled alone.
+%% The examples compiled here: snake waits for a terminal, so it is only
+%% compiled here and ern_terminal_tests plays it under a pseudo-terminal;
+%% fetch reaches a host on the network, so it is only compiled; the others
+%% run below. The echo measurement, kept for the tests, prints timings, so
+%% it is compiled alone.
 -define(COMPILES, ["fetch", "file_sync", "interpreter", "snake", "web_server"]).
 
 compiles_test_() ->
@@ -199,10 +199,10 @@ upgrade_example() ->
     ?assertEqual(lists:sort([<<"here: 1 moved">>, <<"inc 3">>, <<"total: Some(5)">>]),
                  unstamped(lines(Output))).
 
-%% Paper program 4 (plan, MVP 2.5): the interpreter reads stdin and ends at
-%% end of input, so its run is bounded by its input. The last two lines are
-%% the point of the program: an expression that does not terminate is killed
-%% after two seconds, and the next expression still works.
+%% Paper program 4: the interpreter reads stdin and ends at end of input, so
+%% its run is bounded by its input. The last two lines are the point of the
+%% program: an expression that does not terminate is killed after two
+%% seconds, and the next expression still works.
 %% report §6.9 (monitor), §8.2 (Io's stdin), Appendix E.1 (Io.readLine)
 interpreter_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun interpreter/0).
@@ -212,10 +212,10 @@ interpreter() ->
     {0, Output} = sh("../bin/ern run build/interpreter.erc < fixtures/input/interpreter.in"),
     ?assertEqual(expected("interpreter"), lines(Output)).
 
-%% Paper program 2 (plan, MVP 2.5): the syncer runs until it is
-%% stopped, so the harness gives it two prepared directories, lets it run,
-%% stops it, and reads the directories back. One file on each side crosses,
-%% and the pair that differs leaves a conflict beside the newer copy.
+%% Paper program 2: the syncer runs until it is stopped, so the harness
+%% gives it two prepared directories, lets it run, stops it, and reads the
+%% directories back. One file on each side crosses, and the pair that
+%% differs leaves a conflict beside the newer copy.
 %% report §8.2 (Fs's reference), §6.6 (Address.call), Appendix E.17 (Fs.list)
 %% Its steps: the build, its own tests' run, run_for/4's wait and the end.
 file_sync_test_() ->
@@ -276,11 +276,11 @@ file_sync() ->
 
 %% file_sync: a file from the peer is checked against the file here as it
 %% stands when the file arrives, before the first listing too. A regression
-%% test, written after the fix (plan, MVP 2.99b's item 1): b's listing,
-%% slowed by fifty files more, came after a's older notes.txt, which then
-%% replaced b's newer copy with no conflict. It does not reach a file
-%% changed here between two listings, which the same reading covers. Its
-%% steps: the build, run_for/4's wait and the end.
+%% test, written after the fix: b's listing, slowed by fifty files more,
+%% came after a's older notes.txt, which then replaced b's newer copy with
+%% no conflict. It does not reach a file changed here between two listings,
+%% which the same reading covers. Its steps: the build, run_for/4's wait and
+%% the end.
 file_sync_first_listing_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun file_sync_first_listing/0).
 
@@ -344,9 +344,9 @@ opened(Path) ->
     end.
 
 %% del/1 removes a tree that holds a read-only directory with a file in it,
-%% as a test that ran out of time leaves one. A regression test, written on
-%% 2026-10-16 after the install test's `closed` stopped the next run's
-%% cleanup with `eexist`; a directory another user owns is not covered.
+%% as a test that ran out of time leaves one. A regression test, written
+%% after the install test's `closed` stopped the next run's cleanup with
+%% `eexist`; a directory another user owns is not covered.
 del_read_only_test() ->
     Dir = filename:absname("build/del_read_only"),
     ok = del(Dir),
@@ -529,10 +529,10 @@ interrupt() ->
     _ = os:cmd("kill -INT " ++ integer_to_list(OsPid)),
     ?assertEqual({130, <<>>}, finished(Program)).
 
-%% Paper program 1 (plan, MVP 2.5): the server serves until it is
-%% stopped, so the harness starts it, makes two requests over one session,
-%% and stops it. The second request carries the cookie the first set, and
-%% the visit count proves the session store kept it between connections.
+%% Paper program 1: the server serves until it is stopped, so the harness
+%% starts it, makes two requests over one session, and stops it. The second
+%% request carries the cookie the first set, and the visit count proves the
+%% session store kept it between connections.
 %% report §8.2 (Tcp's reference), Appendix E.18 (Tcp), §6.6 (the store's request-reply)
 %% Its steps: the build, the wait for the server's line, and each request's
 %% connection and answer.
@@ -645,10 +645,10 @@ cookie_of(Answer) ->
     [SessionId | _] = binary:split(After, <<";">>),
     SessionId.
 
-%% report Appendix G, G.5: a library's build is on every job's load path,
-%% and `make` removes the build of a library whose directory is gone, the
-%% placement library's among them (Appendix G.5), so that build/libs holds
-%% a build for each library under src/libs and for no other. The libraries'
+%% report Appendix G: a library's build is on every job's load path, and
+%% `make` removes the build of a library whose directory is gone, so that
+%% build/libs holds a build for each library under src/libs and for no
+%% other. The libraries'
 %% own tests and doc examples are `make test-library`'s, which runs them
 %% once and fails where a case's process faulted; which modules `ern test`
 %% names over a directory is ern_cli_tests'. A regression test, written
@@ -756,8 +756,8 @@ stdin() ->
 %% refuses an argument that is not UTF-8 by its position, and a job one of
 %% its own words that is not UTF-8 by its text (§11), the environment
 %% answers a value asked for, None for a name it has not, and faults the
-%% asker of a value that is not UTF-8 (a regression test of the rule of
-%% 2026-10-01, which left the value out), and ern run exits with the status
+%% asker of a value that is not UTF-8 (a regression test of the rule,
+%% before which the value was left out), and ern run exits with the status
 %% Os.exit gives. A regression test, written after the code; where the host
 %% has no C.UTF-8 locale both runs read bytes, and a name the environment
 %% gives twice is not covered, since a shell cannot give one. Its steps:
@@ -1399,14 +1399,13 @@ stamped() ->
 
 %% report §8.6, §11.2: the host's termination and hangup end `ern run` by the
 %% signal itself once its output is flushed, so that the process that started
-%% it sees a signal's end, as a service manager counts a stop it asked for.
-%% A regression test, written after the code: it exited with 128 plus the
+%% it sees a signal's end, as a service manager counts a stop it asked for. A
+%% regression test, written after the code: it exited with 128 plus the
 %% signal's number, which a shell reads the same and a service manager as a
 %% failure. Each signal is sent once the program has said it runs, since a
-%% signal that comes as the host itself starts is dropped (plan, Standing
-%% gaps); sent two seconds after the start, it came then under load. Its
-%% steps: the build, and for each signal the wait for the program's line
-%% and its end.
+%% signal that comes as the host itself starts is dropped; sent two seconds
+%% after the start, it came then under load. Its steps: the build, and for
+%% each signal the wait for the program's line and its end.
 signal_end_test_() ->
     ern_nodes_tests:counted_test({waits, 5}, fun signal_end/0).
 
@@ -1938,8 +1937,8 @@ format_input() ->
 
 %% report §11.6, §11.5: what the toolchain writes is UTF-8 whatever the
 %% host's locale. A regression test: under the C locale a laid-out module
-%% and a diagnostic's source line came out as Latin-1 and escapes
-%%; the ports of MVP 2.95 had fixed it unseen
+%% and a diagnostic's source line came out as Latin-1 and escapes, which an
+%% earlier change to the ports had fixed unseen
 locale_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun locale/0).
 

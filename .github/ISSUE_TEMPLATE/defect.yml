@@ -1,0 +1,49 @@
+name: Defect
+description: Ernest breaks a rule its report states, or fails where it should not.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: ern --version
+      description: What `ern --version` prints.
+      placeholder: ern 0.10.0
+    validations:
+      required: true
+  - type: input
+    id: otp
+    attributes:
+      label: Erlang/OTP
+      description: The OTP release Ernest runs on.
+      placeholder: "29"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: The operating system and its release.
+      placeholder: Debian 13
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: The program
+      description: The smallest program, or the commands, that show the defect.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What Ernest did, with what it wrote.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What was expected
+      description: What you expected, and the report's section that states the rule, where one does.
+    validations:
+      required: true

@@ -1,17 +1,17 @@
-%% Nodes on one machine (report §8.7, MVP 3.0): each node an `ern run
-%% --config-dir` of its own, started as a person starts one, its lines read
-%% from its standard error. The carrier's tests dial through a `foreign fn`
-%% of the host's, which reaches the carrier and nothing of a program's; the
-%% frame a gateway cannot read is sent by a host module on the program's
-%% load path; a host that holds a peer's key and names itself as it likes
-%% is a bare `erl` with the host's TLS distribution and the key's files.
+%% Nodes on one machine (report §8.7): each node an `ern run --config-dir`
+%% of its own, started as a person starts one, its lines read from its
+%% standard error. The carrier's tests dial through a `foreign fn` of the
+%% host's, which reaches the carrier and nothing of a program's; the frame a
+%% gateway cannot read is sent by a host module on the program's load path;
+%% a host that holds a peer's key and names itself as it likes is a bare
+%% `erl` with the host's TLS distribution and the key's files.
 %%
 %% `Peer`'s tests run the programs of `test/fixtures/peers/`, one build
-%% whose store and desk are two nodes; the tests of two builds (MVP 3.1)
-%% write a program and build it twice, one function and one type changed. A
-%% test that provokes a line the deployment guide quotes holds it to the
-%% guide's (ern_deployment_tests:cataloged/4), and the harness is exported
-%% for ern_deployment_tests, which runs the guide's commands on nodes.
+%% whose store and desk are two nodes; the tests of two builds write a
+%% program and build it twice, one function and one type changed. A test
+%% that provokes a line the deployment guide quotes holds it to the guide's
+%% (ern_deployment_tests:cataloged/4), and the harness is exported for
+%% ern_deployment_tests, which runs the guide's commands on nodes.
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -1021,8 +1021,8 @@ listening(Holder, Acc) ->
     end.
 
 %% report §12.5: two nodes of different builds connect, the cookie being
-%% the floor's digest and holding nothing of the build. A regression test
-%% of MVP 3.0's fingerprint, which refused them
+%% the floor's digest and holding nothing of the build. A regression test:
+%% a fingerprint once refused them
 other_build_test_() ->
     nodes_test({waits, 7}, fun other_build/1).
 
@@ -1080,10 +1080,9 @@ other_floor(Base) ->
 %% first's connection, which the peer says each time. Its limit is the sum
 %% of its eight steps, its program's build, a line of b's, of a's and of
 %% b's again, three nodes' ends and what b said, each bounded by the
-%% harness's time for one wait: written on 2026-10-16, after its limit of
-%% 60 s, a number of its own, ran out under the full run's load on
-%% 2026-10-13, its builds counted on 2026-10-21, and its host modules'
-%% compiles, which are no step, left out on 2026-10-25
+%% harness's time for one wait: written after its limit of 60 s, a number
+%% of its own, ran out under the full run's load; its builds are counted,
+%% and its host modules' compiles, which are no step, are not
 replaced_test_() ->
     nodes_test({waits, 8}, fun replaced/1).
 
@@ -1893,12 +1892,12 @@ refused_after_start(Base) ->
 %% and the line §12.5 states, which names the listen address in use, `ern
 %% run:` for a program's node and `ern shell:` for a shell's own, with no
 %% fault's line and nothing of the host's reports on its standard output. A
-%% regression test of the principles review (the log's *The Principles
-%% Review of 2026-10-09*), which stated the cause in §7.4: the fault was
-%% reported under the last initializer's site, `Terminal.widths`, and the
-%% host's crash report of its distribution was written on standard output;
-%% and of the release review's K26 (the log's *The Shell's Own Node*): the
-%% node's end was its entry process's fault, a shell's status 70
+%% regression test (the log's *The Principles Review of 2026-10-09*,
+%% which stated the cause in §7.4): the fault was reported under the last
+%% initializer's site, `Terminal.widths`, and the host's crash report of its
+%% distribution was written on standard output; and (the log's *The Shell's
+%% Own Node*) the node's end was its entry process's fault, a shell's
+%% status 70
 carrier_not_started_test_() ->
     nodes_test({waits, 3}, fun carrier_not_started/1).
 
@@ -2032,7 +2031,7 @@ peers(Base) ->
 %% wrote them in place, are a regression test; and report §8.7: the dial's
 %% time the carrier gives the host, which the shell asks it, is the
 %% report's (ern_carrier:dial_ms/0), a regression test of the one place
-%% the toolchain states it, the release review before 0.7.0 (C13)
+%% the toolchain states it
 fixtures_times_test() ->
     ?assertEqual(?DIAL_MS, ern_carrier:dial_ms()),
     {ok, Text} = file:read_file("fixtures/peers/harness.ern"),
@@ -2372,7 +2371,7 @@ fn held() : Unit receiving Unit = receive { _ -> held() }
 %% no peer's is NotListed. A function that names a binding with no value on
 %% the store is NotLoaded, which the store says, and nothing is initialized
 %% for it; a function that names no binding spawns though its module's
-%% binding has no value there, MVP 3.1 having lifted the rule by module.
+%% binding has no value there.
 %%
 %% A top-level binding in spawned code is the peer's. A monitored spawn is
 %% monitored from its start. A spawn given no time answers Timeout. A find
@@ -2406,14 +2405,13 @@ spawn_on_peer(Base) ->
 %% report §8.7, §6.7, Appendix E.27, §11.2, E.21: work on a peer is a
 %% function run there for its value, answered within the time or a failure.
 %% A value comes back; a name that is no peer's answers NotListed; a
-%% function whose binding has no value on the store answers NotLoaded,
-%% which the store says. A fault in the function is the caller's, with the
-%% function's cause, which the caller's node reports once, with the
-%% caller's site and `, on the peer store` after the cause, its subscriber
-%% of faults told of it with the peer, the trace that crossed with it
-%% beneath, then the caller's frame, a cause of §7.4's as a raise's (§7.3,
-%% a regression test of 2026-10-20), and the store reports nothing, its
-%% subscriber told nothing.
+%% function whose binding has no value on the store answers NotLoaded, which
+%% the store says. A fault in the function is the caller's, with the
+%% function's cause, which the caller's node reports once, with the caller's
+%% site and `, on the peer store` after the cause, its subscriber of faults
+%% told of it with the peer, the trace that crossed with it beneath, then
+%% the caller's frame, a cause of §7.4's as a raise's (§7.3, a regression
+%% test), and the store reports nothing, its subscriber told nothing.
 %%
 %% A process killed before it answers answers Other with its Reason. A
 %% process whose caller ends while it waits, one whose function kills its
@@ -2422,7 +2420,7 @@ spawn_on_peer(Base) ->
 %% time runs out, are killed on the store, whose watcher, monitoring each,
 %% says so; and a process that ends with the store's program answers Other
 %% with ProgramEnd. A regression test, written after the code, the kill
-%% from the store's after the kill frame's (MVP 3.29); it reads no row of
+%% from the store's after the kill frame's; it reads no row of
 %% either node's, which ern_rt_tests and ern_peer_tests read; it does not
 %% cover a second note that comes before the compute's process could start,
 %% which the store's gateway reads first, nor a loss while the caller
@@ -2541,13 +2539,12 @@ utilization_of_peer(Base) ->
 %%
 %% A regression test: the runtime hands each to the host, and this holds
 %% that it does; and the new start applied the function of an adapted
-%% address its earlier start made. The silent port is a regression test
-%% too, written on 2026-10-16: the closed port refused the dial at once, so
-%% a send that waited behind the dial passed unseen, and the send's bound
-%% was a chosen 1000 ms, which failed under load. Not covered: a value
-%% crossing in pieces with other senders' messages between them, a send
-%% that waits at a full buffer, and a silence, which the detector finds in
-%% a minute
+%% address its earlier start made. The silent port is a regression test too:
+%% the closed port refused the dial at once, so a send that waited behind
+%% the dial passed unseen, and the send's bound was a chosen 1000 ms, which
+%% failed under load. Not covered: a value crossing in pieces with other
+%% senders' messages between them, a send that waits at a full buffer, and a
+%% silence, which the detector finds in a minute
 across_test_() ->
     nodes_test({waits, 12, ?DIAL_MS}, fun across/1).
 
@@ -2965,7 +2962,7 @@ undecodable(Pem) ->
     <<Head/binary, "\nAAAAAAAAAAAA", (binary:part(Body, 12, byte_size(Body) - 12))/binary>>.
 
 %%
-%% Two builds (report §8.7, MVP 3.1)
+%% Two builds (report §8.7)
 %%
 
 %% A program of four modules, written in Dir and built there, as one build
@@ -3107,15 +3104,14 @@ twins(Dir, Changed) ->
 %% `OtherType` where the type's constructors differ, its hash another. A
 %% spawn of a function both builds hold runs on the server, and one of a
 %% function whose body differs crosses with its spawn, the server compiling
-%% it and running the asker's body (MVP 3.2's item 4).
+%% it and running the asker's body.
 %%
 %% A function that names a binding the server's program never ran answers
 %% NotLoaded, and so does one whose reach calls a host module the server
 %% lacks, the server saying which. A function that names no binding of a
-%% module whose binding the server never ran spawns, MVP 3.0's rule by
-%% module gone. A lambda and a local fn spawn by identity with what they
-%% captured, and `restarting(limit, f)` spawns. Written with the code,
-%% after it: a regression test
+%% module whose binding the server never ran spawns. A lambda and a local fn
+%% spawn by identity with what they captured, and `restarting(limit, f)`
+%% spawns. Written with the code, after it: a regression test
 two_builds_test_() ->
     nodes_test({waits, 8}, fun two_builds/1).
 
@@ -3337,11 +3333,10 @@ exchanged(Base) ->
 %% waits for the sender, and the test's limit is the sum of its eighteen
 %% steps, the two builds, a line of the receiver's, the sender's end, ten
 %% lines and one more of the receiver's, its end and what each node said,
-%% each bounded by the harness's time for one wait: written on 2026-10-16,
-%% after a spawn's 5000 ms, a number of its own, ran out under the full
-%% run's load on 2026-10-13 and its answer's line was missing, its builds
-%% counted on 2026-10-21, and its host module's compile, which is no step,
-%% left out on 2026-10-25
+%% each bounded by the harness's time for one wait: written after a
+%% spawn's 5000 ms, a number of its own, ran out under the full run's load
+%% and its answer's line was missing; its builds are counted, and its host
+%% module's compile, which is no step, is not
 exchange_test_() ->
     nodes_test({waits, 18}, fun exchange/1).
 
@@ -3580,12 +3575,11 @@ line_of(Text, Part) ->
 %% regression test written after the code, but a constant, which has its
 %% value wherever its form is (§4.6, the log's *The Review's Decisions*). A
 %% fault in received code is reported there at the spawn's site, the
-%% sender's, with the peer that spawned it. A function that crossed with
-%% the first lambda's enclosing definition is spawned twice and faults
-%% twice, the traces of both its faults naming its frame by its name and
-%% the sender's line (Appendix E.21), which since 2026-10-20 names no unit,
-%% so that it shipped nothing at its own spawns is ern_exchange_tests'
-%% alone.
+%% sender's, with the peer that spawned it. A function that crossed with the
+%% first lambda's enclosing definition is spawned twice and faults twice,
+%% the traces of both its faults naming its frame by its name and the
+%% sender's line (Appendix E.21), which names no unit, so that it shipped
+%% nothing at its own spawns is ern_exchange_tests' alone.
 %%
 %% The entry process is among its live processes, under the site `bare
 %% node`; `ern stop` ends it by termination, with nothing said of its entry
@@ -3790,7 +3784,7 @@ attach_beside_a_program_shell(Base) ->
 %% `:quit` ends the shell with status 0 and leaves that process running on
 %% the node, which a second session lists. Written after the code, a
 %% regression test of the attach; the tests after it hold the rest of an
-%% attached session, written with MVP 4.0's item 5.
+%% attached session.
 attached_shell_test_() ->
     nodes_test({waits, 17}, fun attached_shell/1).
 
@@ -3867,11 +3861,10 @@ attached_shell(Base) ->
 %% 1; in line mode the prompt the screen last wrote is ended first, so that
 %% the line stands on a row of its own, as a detach leaves it. Standard
 %% error holds that line alone: the shell's own node says nothing of its
-%% session's node's end or loss. Written before the fixes (the plan's MVP
-%% 4.0 items 8 and 10), which the line sharing the prompt's row failed, and
-%% the shell's own node's `the peer node ended` before it, in one run of
-%% sixteen. Each line is held to the deployment guide's section 6, which
-%% quotes it, since MVP 4.0's item 5.
+%% session's node's end or loss. Written before the fixes, which the line
+%% sharing the prompt's row failed, and the shell's own node's `the peer
+%% node ended` before it, in one run of sixteen. Each line is held to the
+%% deployment guide's section 6, which quotes it.
 attached_shell_ends_test_() ->
     nodes_test({waits, 10}, fun attached_shell_ends/1).
 
@@ -3903,8 +3896,8 @@ attached_shell_ends(Base) ->
 %% to, which lists no other peer, `Peer.utilizations()` holds no row for it
 %% and a compute that names no node answers `Left(Unreachable)` and runs on
 %% it never; a compute that names it runs there, answering the shell's own
-%% node's peers. Written before the fix (the plan's MVP 4.0 item 9), which
-%% the row for `ops` and the compute that ran on it failed.
+%% node's peers. Written before the fix, which the row for `ops` and the
+%% compute that ran on it failed.
 attached_utilization_test_() ->
     nodes_test({waits, 6}, fun attached_utilization/1).
 
@@ -3934,8 +3927,8 @@ attached_utilization(Base) ->
 %% the node's address moved to a port that takes a connection and never
 %% answers, and the node is then ended outright. The end's drain asks
 %% nothing of the screen, which went with the session, so that the host
-%% dials no lost node to reach it. Written before the fix, the release
-%% review before 0.7.0 (C5), the shell ending a dial late.
+%% dials no lost node to reach it. Written before the fix, the shell
+%% ending a dial late.
 attached_lost_unanswered_test_() ->
     nodes_test({waits, 7, ?DIAL_MS}, fun attached_lost_unanswered/1).
 
@@ -3962,16 +3955,15 @@ attached_lost_unanswered(Base) ->
     has(Err, "the node node is lost\n").
 
 %% report §11.2 *The attached shell*, *Editing*, §11.8: the same at a
-%% terminal, through the pseudo-terminal's harness: the region is taken
-%% away where the screen last painted it, what was typed after the prompt
-%% with it, and the line stands on a row of its own under the prompt. The
-%% node's program ends its node once the test opens a named pipe it reads,
-%% by returning, or, told `lost`, by ending its own host outright, so that
-%% the end comes while the shell waits at its prompt. No row holds the
-%% shell's own node's line of its peer's end or loss, which the shell's
-%% line says. Written before the fixes (the plan's MVP 4.0 items 8 and 10),
-%% the second red in eight runs of eight with `the peer node ended` on a
-%% row of the screen.
+%% terminal, through the pseudo-terminal's harness: the region is taken away
+%% where the screen last painted it, what was typed after the prompt with
+%% it, and the line stands on a row of its own under the prompt. The node's
+%% program ends its node once the test opens a named pipe it reads, by
+%% returning, or, told `lost`, by ending its own host outright, so that the
+%% end comes while the shell waits at its prompt. No row holds the shell's
+%% own node's line of its peer's end or loss, which the shell's line says.
+%% Written before the fixes, the second red in eight runs of eight with
+%% `the peer node ended` on a row of the screen.
 attached_terminal_ends_test_() ->
     nodes_test({waits, 13}, fun attached_terminal_ends/1).
 
@@ -4061,9 +4053,9 @@ lost(Dir, Wait) ->
 %% nothing answers over it, since the attach waits twice a dial's time; and
 %% one to a peer the shell's own node does not list that it is not listed,
 %% each line as the deployment guide's section 6 quotes it. Written after
-%% the code, a regression test of the refusal, the dial that waits with the
-%% release review's K27 (the log's *The Shell's Own Node*), whose answer
-%% was a race between the two
+%% the code, a regression test of the refusal, and of the dial that waits
+%% (the log's *The Shell's Own Node*), whose answer was a race between the
+%% two
 attach_refused_test_() ->
     nodes_test({waits, 6, ?DIAL_MS}, fun attach_refused/1).
 
@@ -4095,7 +4087,7 @@ attach_refused(Base) ->
 %% deployment guide's section 6 quotes it. The node's program
 %% suspends its gateway, the process that answers a peer's frames, a
 %% spawn's among them, so that the connection stands and the spawn waits.
-%% Written after the code, a regression test: MVP 4.0's item 5
+%% Written after the code, a regression test
 attach_unanswered_test_() ->
     nodes_test({waits, 5, 2 * ?DIAL_MS}, fun attach_unanswered/1).
 
@@ -4153,9 +4145,9 @@ stall() ->
 %% so that the node's own shell units have run before the third's attach,
 %% which an exchange of its code would then have let run.
 %%
-%% Written after the code, a regression test: MVP 4.0's item 5, and the
-%% third build with the release review's F3 (the log's *The Shell's Own
-%% Node*), refused only where the reach named a binding without a value
+%% Written after the code, a regression test, and of the third build (the
+%% log's *The Shell's Own Node*), refused only where the reach named a
+%% binding without a value
 attach_other_build_test_() ->
     nodes_test({waits, 12}, fun attach_other_build/1).
 
@@ -4285,9 +4277,9 @@ released(Dir, Shell) ->
 %% elsewhere, so that the load names the file from the operator's working
 %% directory, where its local half reads it; on one machine the test cannot
 %% show that the node never opens the file itself. Written after the code,
-%% a regression test: MVP 4.0's item 5; the sites, the start line, the
-%% reload said and the evaluators' end a regression test of the release
-%% review's P1, P5 and N2 (the log's *Sites, Sessions and Their Names*)
+%% a regression test; the sites, the start line, the reload said and the
+%% evaluators' end a regression test (the log's *Sites, Sessions and Their
+%% Names*)
 attached_sessions_test_() ->
     nodes_test({waits, 22}, fun attached_sessions/1).
 
@@ -4402,7 +4394,7 @@ detached({Port, Wait}, Ops) ->
 %%
 %% A process that holds a function of a detached session's unit, and runs
 %% none of its code, is attached_functions'. Written after the code, a
-%% regression test: MVP 4.0's item 5
+%% regression test
 attached_service_test_() ->
     nodes_test({waits, 9}, fun attached_service/1).
 
@@ -4509,7 +4501,7 @@ serve() ->
 %% `x`, the unit of `x + 1`, which holds `it`, and the input that listed
 %% them are let go, as §11.2 *Inputs* lets one go. The input that hands
 %% `tripled` builds no function value of its own, and went when the
-%% call's answer took `it`. Written before the code: MVP 4.0's item 13
+%% call's answer took `it`. Written before the code
 attached_functions_test_() ->
     nodes_test({waits, 12}, fun attached_functions/1).
 
@@ -4597,9 +4589,9 @@ attached_functions(Base) ->
 %% start, and not as the files on its load path hold them now: the node's
 %% program is built again under it with `App.g` answering a `String` in
 %% place of an `Int`, and `App.g(1)` at an attached prompt is the `Int` the
-%% running code answers. Written before the fix, the release review before
-%% 0.7.0 (C1), the first session having read the rebuilt files, the value
-%% typed `String`, which faulted the session as it printed it.
+%% running code answers. Written before the fix, the first session having
+%% read the rebuilt files, the value typed `String`, which faulted the
+%% session as it printed it.
 attached_checks_the_loaded_code_test_() ->
     nodes_test({waits, 7}, fun attached_checks_the_loaded_code/1).
 
@@ -4637,8 +4629,7 @@ attached_checks_the_loaded_code(Base) ->
 %% configuration directory's startup file, named from the operator's
 %% working directory, `ops/startup`, its second input refused, which the
 %% node, run from another directory, finds no file at. Written before the
-%% fix, the release review before 0.7.0 (C4), the diagnostic quoting no
-%% line of the file.
+%% fix, the diagnostic quoting no line of the file.
 attached_startup_diagnostic_test_() ->
     nodes_test({waits, 5}, fun attached_startup_diagnostic/1).
 
@@ -4731,9 +4722,9 @@ attached_code_load(Base) ->
 %% asks the local half itself, through a foreign function that finds its
 %% address, is answered a file of the source root, refused one outside it,
 %% refused an append anywhere but to the path `:output` took, and answered
-%% one there. Written before the fix, the release review before 0.7.0 (S1),
-%% the local half answering for any path, a hardening within the trust
-%% model, a listed peer being trusted whole.
+%% one there. Written before the fix, the local half answering for any
+%% path, a hardening within the trust model, a listed peer being trusted
+%% whole.
 attached_local_files_test_() ->
     nodes_test({waits, 6}, fun attached_local_files/1).
 
@@ -4779,9 +4770,8 @@ attached_local_files(Base) ->
 %% shell's own: status 70 and the session's fault on standard error. A
 %% second session lists the units again, and none of the first session's
 %% is there, since none declares a function or builds a function value.
-%% Written before the fix, the release review before 0.7.0 (C2, E1),
-%% which a session that faulted failed, leaving its units, its rows and
-%% its processes for the node's life.
+%% Written before the fix: a session that faulted failed, leaving its
+%% units, its rows and its processes for the node's life.
 attached_fault_detaches_test_() ->
     nodes_test({waits, 9}, fun attached_fault_detaches/1).
 
@@ -4955,7 +4945,7 @@ is_session(_) -> false.
 %% once, without the time its stream stamps (§11.2), and the file holds no
 %% process's memory, a count that differs from run to run (E.21). A process at
 %% `:processes` is spawned some inputs before, so that it waits by then.
-%% Written after the code, a regression test: MVP 4.0's item 5
+%% Written after the code, a regression test
 attached_session_test_() ->
     nodes_test({waits, 4}, fun attached_session/1).
 
@@ -4995,7 +4985,7 @@ unstamped(Text) ->
 %% prompt is drawn again under them with the part typed, which the rest of
 %% the input finishes and runs. `:quit` ends the shell with status 0 and
 %% leaves the node running, its own report of the fault on its standard
-%% error. Written after the code, a regression test: MVP 4.0's item 5
+%% error. Written after the code, a regression test
 attached_terminal_test_() ->
     nodes_test({waits, 11}, fun attached_terminal/1).
 
@@ -5043,9 +5033,9 @@ attached_terminal(Base) ->
 %% rows, attached to a node whose standard output is a file, answers
 %% `Left(NotATerminal)`; a session in line mode, attached to the same node
 %% started under a terminal of 30 rows and 100 columns, answers that size.
-%% A regression test of the release review's K8, written after the report
-%% said it (the log's *Sites, Sessions and Their Names*): the code read the
-%% node's standard output already
+%% A regression test, written after the report said it (the log's *Sites,
+%% Sessions and Their Names*): the code read the node's standard output
+%% already
 attached_terminal_size_test_() ->
     nodes_test({waits, 8}, fun attached_terminal_size/1).
 
@@ -5248,11 +5238,11 @@ verbose_node_start(Base) ->
 %% naming the binding and the module, the second by the declaration the
 %% unit recorded as the code arrived.
 %%
-%% A regression test, written with the fix: MVP 3.2's item 5 found each
-%% such lambda's spawn answered `Other`, the binding refused and the
-%% foreign function undeclared, and then the held definition's line naming
-%% the foreign function and not its module. The test does not cover a
-%% module that is here without the function, which ern_exchange_tests'
+%% A regression test, written with the fix: each such lambda's spawn
+%% answered `Other`, the binding refused and the foreign function
+%% undeclared, and then the held definition's line naming the foreign
+%% function and not its module. The test does not cover a module that is
+%% here without the function, which ern_exchange_tests'
 %% not_loaded_from_reach_test covers before code crosses
 beyond_reach_test_() ->
     nodes_test({waits, 10}, fun beyond_reach/1).
@@ -5339,10 +5329,10 @@ beyond_reach(Base) ->
 %% Then a spawn from a of the function that calls the foreign function,
 %% which each node holds by then, runs on c1, through the function c1 made
 %% of b's declaration, and is NotLoaded on b and on c2, each naming the
-%% module. A regression test, written with the fix (MVP 3.2's item 5); it
-%% does not cover a group relayed whole, nor a node asked for the reach of
-%% a lacked foreign function spawned by its name, which it answers none as
-%% it holds nothing it could run
+%% module. A regression test, written with the fix; it does not cover a
+%% group relayed whole, nor a node asked for the reach of a lacked foreign
+%% function spawned by its name, which it answers none as it holds nothing
+%% it could run
 relay_test_() ->
     nodes_test({waits, 17}, fun relay/1).
 
@@ -5648,8 +5638,8 @@ caught_up(Node) ->
 %% trace naming its frame by its name and the sender's line (Appendix
 %% E.21): the exchanges that broke or ran out of time made nothing that
 %% runs, and the next made it whole. A regression test, written after the
-%% code; that the node made one unit, which a trace named until 2026-10-20
-%% and names no more, is not observed, the exchange's state after a loss is
+%% code; that the node made one unit, which a trace once named and names
+%% no more, is not observed, the exchange's state after a loss is
 %% ern_exchange_tests' loss_test's, and the late spawn's process, killed as
 %% its answer arrives, is not observed
 broken_exchange_test_() ->
@@ -5794,14 +5784,13 @@ shell_service(Base) ->
 %% lines; a local the lambda captures crosses with it, and b's own function
 %% runs on b over b's value.
 %%
-%% A regression test of the release review's C7 and S3, written after the
-%% code (the log's *Sites, Sessions and Their Names*): a's value was read,
-%% the two sessions' declarations being one identity. The test it replaces,
-%% written for the holder of what a `let` binds counted as evaluated so
-%% that a peer's spawn found it (the log's *MVP 3.1 Read*), named a binding
-%% of another node's session, which no peer can now. The captured local's
-%% compute was added with the log's *The Input's Process*, which states
-%% the rule the code kept.
+%% A regression test, written after the code (the log's *Sites, Sessions and
+%% Their Names*): a's value was read, the two sessions' declarations being
+%% one identity. The test it replaces, written for the holder of what a
+%% `let` binds counted as evaluated so that a peer's spawn found it
+%% (the log's *MVP 3.1 Read*), named a binding of another node's session,
+%% which no peer can now. The captured local's compute was added with the
+%% log's *The Input's Process*, which states the rule the code kept.
 shell_binding_spawned_test_() ->
     nodes_test({waits, 7}, fun shell_binding_spawned/1).
 
@@ -5843,7 +5832,7 @@ shell_binding_spawned(Base) ->
 %% alone, the desk answering the reach from the forms it keeps beside the
 %% input's code and sending them, and the peer, having verified them,
 %% compiles and runs them, answering their values, which the shell prints
-%% at their type (MVP 3.2's items 3 and 4).
+%% at their type.
 %%
 %% A type the desk declares crosses with a function spawned on the worker,
 %% whose check's cause names it as the session writes it, bare (§11.5), and
@@ -5991,9 +5980,8 @@ shell_peer_fault(Base) ->
 %% hash, the value of the binding its reach names found, as on a node that
 %% runs a program; a function typed at the shell has a hash and no peer
 %% holds it, so a spawn of it carries its form to the peer, which compiles
-%% it and starts it (MVP 3.2's items 3 and 4). Written after the code (MVP
-%% 3.1's item 5): a peer found no value of a binding the shell's load had
-%% evaluated
+%% it and starts it. Written after the code: a peer found no value of a
+%% binding the shell's load had evaluated
 shell_node_test_() ->
     nodes_test({waits, 9}, fun shell_node/1).
 
@@ -6462,7 +6450,7 @@ peers_built(Base) ->
 %% the node's subscriber, which the node says it waits for; while it
 %% waits, a peer finds the node's service and calls it; the node ends once
 %% the subscriber has answered, by the signal, and says the answer. Written
-%% after the code (MVP 3.1's item 8)
+%% after the code
 end_told_on_a_node_test_() ->
     nodes_test({waits, 8}, fun end_told_on_a_node/1).
 
@@ -6491,7 +6479,7 @@ end_told_on_a_node(Base) ->
 
 %% report §8.6, §11.2: a second termination ends the node at once, past a
 %% subscriber that does not answer, which the node says. Written after the
-%% code (MVP 3.1's item 8), the line after that
+%% code, the line after that
 second_termination_test_() ->
     nodes_test({waits, 5}, fun second_termination/1).
 
@@ -6514,8 +6502,7 @@ second_termination(Base) ->
 %% node that offers it once the first is stopped. An add sent through it
 %% while the node is stopped is dropped, and not delivered once the node is
 %% back: the counter started again counts from 0, and answers 0. Written
-%% after the code (MVP 3.1's item 8), the add a regression test written
-%% after that
+%% after the code, the add a regression test written after that
 proxy_finds_again_test_() ->
     nodes_test({waits, 13}, fun proxy_finds_again/1).
 
@@ -7319,11 +7306,10 @@ upgraded_builds(Base) ->
 %% same spawn then runs.
 %%
 %% Written after the code; the service through the adapted address a
-%% regression test of MVP 3.2's item 7, written after the code, and the
-%% tool's add and then its call through that one address, from another
-%% node, answering the total after the add, one of MVP 3.26's item 2b
-%% (§6.4, §6.5): the counter's node applied each message in a process of
-%% its own, and the call passed the add
+%% regression test, written after the code, and the tool's add and then its
+%% call through that one address, from another node, answering the total
+%% after the add, another (§6.4, §6.5): the counter's node applied each
+%% message in a process of its own, and the call passed the add
 code_upgrade_test_() ->
     nodes_test({waits, 13}, fun code_upgrade/1).
 

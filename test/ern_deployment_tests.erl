@@ -1,13 +1,13 @@
-%% The deployment guide, guide/deployment.md, run as its reader runs it
-%% (plan, MVP 3.2's item 9): its section 8, a deployment end to end, on
-%% real nodes, each command as its consoles write it, run from the
-%% directory their paths are relative to; the commands of its sections
-%% 1.1, 1.3 and 5.3 and the session of its section 6, the harness's paths
-%% in place of the guide's; section 1.4's statuses; and the lines its
-%% sections 7 and 4.3 quote, and those its section 6 quotes of an attached
-%% shell's end and of an attach refused, each held to the line a node or a
-%% shell writes where a test provokes it, here or in ern_nodes_tests, by
-%% cataloged/4, which catalog_test sees every quoted line has.
+%% The deployment guide, guide/deployment.md, run as its reader runs it:
+%% its section 8, a deployment end to end, on real nodes, each command as
+%% its consoles write it, run from the directory their paths are relative
+%% to; the commands of its sections 1.1, 1.3 and 5.3 and the session of
+%% its section 6, the harness's paths in place of the guide's; section
+%% 1.4's statuses; and the lines its sections 7 and 4.3 quote, and those
+%% its section 6 quotes of an attached shell's end and of an attach
+%% refused, each held to the line a node or a shell writes where a test
+%% provokes it, here or in ern_nodes_tests, by cataloged/4, which
+%% catalog_test sees every quoted line has.
 %%
 %% The nodes are started by ern_nodes_tests' harness, which reads each
 %% node's streams through a watcher of its own and kills every node still
@@ -58,7 +58,7 @@
 %% jobs, two ports that answer, six lines, the session's two prompts, four
 %% ends, the tool's, the two nodes' and the shell's, and what the tool, the
 %% two nodes and the shell said. The session is a regression test, attached
-%% with the guides over the attached shell, MVP 4.0's item 4.
+%% with the guides over the attached shell.
 runbook_test_() ->
     ern_nodes_tests:nodes_test({waits, 28}, fun runbook/1).
 
@@ -138,8 +138,8 @@ runbook(Base) ->
 %% directory another user owns or may write. Its limit is the sum of its
 %% twenty waits, each bounded by the harness's time for one wait: thirteen
 %% jobs, two ports that answer, two lines, two nodes' ends and what the
-%% first said; written on 2026-10-16, after its limit of 120 s, a number of
-%% its own, ran out under the full run's load on 2026-10-13.
+%% first said; written after its limit of 120 s, a number of its own, ran
+%% out under the full run's load.
 one_node_test_() ->
     ern_nodes_tests:nodes_test({waits, 20}, fun one_node/1).
 
@@ -278,7 +278,7 @@ statuses(Base) ->
 %% builds, a port that answers, the session's four prompts, the ends of the
 %% shell, of the tool and of b, and what the shell and the tool said. The
 %% session is a regression test, attached with the guides over the attached
-%% shell, MVP 4.0's item 4.
+%% shell.
 upgrade_test_() ->
     ern_nodes_tests:nodes_test({waits, 12}, fun upgrade/1).
 
@@ -329,7 +329,7 @@ upgrade(Base) ->
 %% limit is the sum of its thirteen waits, each bounded by the harness's
 %% time for one wait: the build, a port that answers, the session's six
 %% prompts, the shell's end and what it said, b's two lines and b's end. A
-%% regression test, written after the guide and the shell: MVP 4.0's item 5.
+%% regression test, written after the guide and the shell.
 looking_in_test_() ->
     ern_nodes_tests:nodes_test({waits, 12}, fun looking_in/1).
 

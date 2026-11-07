@@ -1,0 +1,14 @@
+# The form of test/machines/machines.txt, the machines `make
+# bench-machines`, `make bench-pick` and test/machines/nodes.sh start nodes
+# on. That file is each user's own and git does not track it: copy this one
+# to it and name your machines there. A line each: the machine's name,
+# which its node is listed under; the host ssh and scp take and its peers
+# dial; and the clone of the repository there and the directory its nodes'
+# configuration directories, programs and output go in, outside the clone,
+# both absolute, or `local` for this machine, whose commands run in the
+# plain shell from this checkout and whose nodes go under test/build.
+# A host is given as an address: ssh knows the others by theirs, and a
+# dial to an address times the carrier without a name's resolution.
+
+laptop  192.0.2.10  local
+desk    192.0.2.11  /home/user/src/ernest  /home/user/ernest-bench

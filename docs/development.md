@@ -78,7 +78,8 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    and bench/, input/, layout/,
                    load/, peers/, pty/, service/,
                    session/, stdin/ and terminal/, the programs and inputs tests run
-test/machines/     machines.txt, the user's machines that make bench-machines, make
+test/machines/     machines.example.txt, the form of machines.txt, which is each user's
+                   own and untracked: the machines that make bench-machines, make
                    bench-pick and nodes.sh start nodes on, a line each: its name, the
                    host ssh takes and its peers dial, and its clone of the repository
                    and the directory its nodes go in, outside the clone, or local for
@@ -109,6 +110,8 @@ src/shell/         the shell as Ernest source under ernest/, its host half
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
 release/           the release archive's own files, Makefile and README.md, which
                    tools/install.sh fills with the version
+.github/           ISSUE_TEMPLATE/, the form a defect is reported by, and the chooser
+                   that sends a security hole to private reporting, as SECURITY.md does
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; site.ern, with site/ beside it, which holds
                    its helper ern_site.erl over the toolchain's lexer, writes every page of
@@ -313,7 +316,7 @@ make bench-pick   the push's experiment, the log's *The Numbers Across Machines*
                   the stream and at rest; by default the measuring node here and bare
                   nodes, one on each other machine, then as many as its processors, the
                   stream again at utilization-interval 1000 and 500; MEASURING=name puts
-                  the measuring node on that machine, PEERS=bee:2,xena:4 names the
+                  the measuring node on that machine, PEERS=desk:2,lab:4 names the
                   peers, INTERVALS=1000,500 the intervals the last arrangement's
                   stream runs again at, RUNS=7,3 the bursts and streams,
                   UTILIZATION=schedulers how every node measures its utilization,
@@ -437,4 +440,4 @@ The shell's `:help` lists its commands; the language guide §9.3 teaches the she
 
 The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs: no construct waits for a later milestone today. Where one does, it stands here as a row of a table, what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
 
-Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.
+Every refusal the toolchain makes for a later milestone's sake says `… is not implemented` in its error text and names no milestone, which the row here names, and `unimplemented_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

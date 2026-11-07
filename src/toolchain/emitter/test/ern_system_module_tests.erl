@@ -133,12 +133,12 @@ os_run_dies_with_its_caller_test() ->
     ok = file:del_dir_r(filename:dirname(Mark)),
     ?assertNot(Marked).
 
-%% Appendix E.23: run kills the program's process once it has read the
-%% exit status, so that it leaves no process behind: what the caller owns
-%% after it, if anything, is the process the kill is still ending. A
-%% regression test of the rule of 2026-11-02, the process living on after
-%% its exit; a run that times out kills it as before, which
-%% os_run_timeout_kills_test reads of the program
+%% Appendix E.23: run kills the program's process once it has read the exit
+%% status, so that it leaves no process behind: what the caller owns after
+%% it, if anything, is the process the kill is still ending. A regression
+%% test: before the rule, the process lived on after its exit; a run that
+%% times out kills it as before, which os_run_timeout_kills_test reads of
+%% the program
 os_run_leaves_no_process_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ended(Down)\n"
@@ -326,8 +326,7 @@ os_program_is_a_process_test() ->
 
 %% Appendix E.23, E.0 shape rule 8: a read whose milliseconds pass answers
 %% Timeout and the program runs on, the next read taking what it wrote. A
-%% regression test of the rule of 2026-10-01, before which the start's time
-%% killed the program
+%% regression test: before the rule, the start's time killed the program
 os_read_time_limit_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "export fn main() : Unit = match Os.start(Os.Command(program = \"sh\",\n"
@@ -593,8 +592,8 @@ fs_path_with_nul_test() ->
 
 %% Appendix E.17, §12.1: a name in a directory that is not UTF-8 makes
 %% Fs.list answer NotUtf8 with its bytes; a regression test for the host's
-%% warning printed in its place, and of the rule of 2026-10-01, before which
-%% the name was left out
+%% warning printed in its place, and of the rule, before which the name was
+%% left out
 fs_list_names_a_name_not_utf8_test() ->
     Dir = ern_emitter_tests:scratch(),
     ok = file:write_file(<<(list_to_binary(Dir))/binary, "/caf", 16#e9>>, <<>>),
@@ -677,7 +676,7 @@ socket_owner_test() ->
 %% `NotFound`, as `Fs` answers the path, and a `connectTls` where nothing
 %% listens `Left(Refused)`. Written after the code, a regression test of the
 %% requests the module sends TCP's process, the file named after the code
-%% too, feedback 222; the cases of the runtime's own are ern_tcp_tests'
+%% too; the cases of the runtime's own are ern_tcp_tests'
 tcp_tls_test() ->
     #{dir := Dir, ca := Ca, server := {Certificate, Key}} = ern_tcp_tests:pki(),
     {ok, Output} = ern_emitter_tests:run(

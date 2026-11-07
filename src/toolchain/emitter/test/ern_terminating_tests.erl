@@ -1,11 +1,11 @@
 %% Report §8.6 and Appendix E.23: the program's end told to the subscribers
 %% of Os.termination, in programs run as the runner runs them
 %% (ern_emitter_tests:run/3). A termination is the runtime's own word of
-%% one, ern_rt:signal/1, which the signal handler calls (ern_signals),
-%% asked by the program through a foreign function. Regression tests,
-%% written after the code (MVP 3.1's item 6); a node's end, a peer finding
-%% and calling a node whose subscribers are being told, and the interrupt,
-%% which the host takes, are the real nodes' (test/ern_nodes_tests.erl).
+%% one, ern_rt:signal/1, which the signal handler calls (ern_signals), asked
+%% by the program through a foreign function. Regression tests, written
+%% after the code; a node's end, a peer finding and calling a node whose
+%% subscribers are being told, and the interrupt, which the host takes, are
+%% the real nodes' (test/ern_nodes_tests.erl).
 -module(ern_terminating_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -59,9 +59,9 @@ told_at_the_entry_process_end_test() ->
 %% reply to a function spawned on a peer keeps its copy, so where the spawn
 %% fails it answers the end itself, and the end ends with its answer, which
 %% the runtime says as any answer. Here the spawn fails with NotListed, in a
-%% program that is no node. A regression test, written after the code (MVP
-%% 3.26's item 2a); a subscriber that does not answer holds the end while it
-%% lives, as any does, which no test here waits on
+%% program that is no node. A regression test, written after the code; a
+%% subscriber that does not answer holds the end while it lives, as any
+%% does, which no test here waits on
 subscriber_whose_spawn_failed_test() ->
     {Result, Output} = kept("{ match Peer.spawn(\"nobody\", fn() = answer(reply, Unit), 1000) {"
                             " Left(_) -> { Io.println(\"spawn failed\"); answer(reply, Unit) }"

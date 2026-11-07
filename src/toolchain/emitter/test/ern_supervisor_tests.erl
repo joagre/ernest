@@ -325,9 +325,9 @@ child_of_ended_supervisor_test() ->
 %% Appendix E.22: a child's function run where a restarting function already
 %% runs in its process faults, inside another child's as inside a plain
 %% `restarting`, since it would read that function's start cause in place of
-%% its own. Regression tests, written after the code (MVP 3.1's item 7): the
-%% inner function read the outer's cause, and its group counted a fault that
-%% had not happened, or none that had
+%% its own. Regression tests, written after the code: the inner function
+%% read the outer's cause, and its group counted a fault that had not
+%% happened, or none that had
 child_inside_a_child_faults_test() ->
     ?assertEqual(<<"a child's function runs in no restarting function\n">>,
                  first_fault_cause("Supervisor.child(sup, fn() ="

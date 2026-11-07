@@ -215,10 +215,10 @@ validator_refusal_compiled_again_test() ->
 
 %% report §8.6, Appendix E.0 rule 1: a function the standard library is
 %% given runs as Ernest code, not as foreign code, so that a deadlock in it
-%% is found, the host's frames of the library's primitive beneath it. Written
-%% with the rule that has the library stand on the host (MVP 2.99d's item
-%% 12): such a primitive was counted, and a callback waiting for what no
-%% one sends hid the deadlock, the program never ending
+%% is found, the host's frames of the library's primitive beneath it.
+%% Written with the rule that has the library stand on the host: such a
+%% primitive was counted, and a callback waiting for what no one sends hid
+%% the deadlock, the program never ending
 standard_shim_callback_deadlock_test_() ->
     {timeout, 30, fun standard_shim_callback_deadlock/0}.
 
@@ -423,8 +423,9 @@ counter_golden_test() ->
     ?assertEqual(target_forms("counter.erl"), example_forms("counter")).
 
 %%
-%% Golden files: the Erlang source of every MVP 1 example, as --emit-erl
-%% writes it, kept under test/fixtures/emitted and regenerated with make golden
+%% Golden files: the Erlang source of each example golden_names/0 lists, as
+%% --emit-erl writes it, kept under test/fixtures/emitted and regenerated
+%% with make golden
 %%
 
 -define(GOLDEN, "test/fixtures/emitted/").
@@ -797,8 +798,8 @@ raise_has_line_test() ->
 %% the frame that called the shim, as a host function's raise keeps it:
 %% `Float.exp` called at line 2, and `Float.pow`, whose own call of its
 %% shim keeps its line in float.ern above the caller's. Written before the
-%% fix, the release review before 0.7.0 (P3), each frame having lost its
-%% line where the boundary passed the fault on
+%% fix, each frame having lost its line where the boundary passed the
+%% fault on
 shim_fault_keeps_line_test() ->
     {{fault, <<"float arithmetic error">>, Exp}, _} =
         run("export fn main() : Unit = {\n"
@@ -817,13 +818,12 @@ shim_fault_keeps_line_test() ->
 %% report §11.1, §12.7, §11.5: the `.erc` records beside each definition's
 %% form the lines of its source, the locals' names left out, its name where
 %% its sites write another, and what prints a type in a cause as its module
-%% writes it, and the module's bindings' order: read back,
-%% each form with its lines is its form once they are taken out; a module of
-%% a shell's session records its lines as the session counts them and its
+%% writes it, and the module's bindings' order: read back, each form with
+%% its lines is its form once they are taken out; a module of a shell's
+%% session records its lines as the session counts them and its
 %% declaration's name as its sites write it, under the session's namespace
-%% (§11.2 *Faults*). Written with the code (MVP 3.2's item 4); the
-%% namespace in the name a regression test (the log's *Sites, Sessions and
-%% Their Names*)
+%% (§11.2 *Faults*). Written with the code; the namespace in the name a
+%% regression test (the log's *Sites, Sessions and Their Names*)
 recorded_source_test() ->
     Text = "export fn twice(n : Int) : Int = {\n"
            "    let doubled = n * 2;\n"
@@ -949,12 +949,12 @@ local_names(_) ->
     [].
 
 %% Appendix E.21, E.28, report §10: a fault's trace is the innermost twelve
-%% frames of the host's stack, which the runtime keeps 64 of from its
-%% start (E.28), the host eight unless told, the innermost first: under a
-%% recursion twenty deep, the host's raise above the program's frames,
-%% then the foreign function's and the recursion's. A regression test of a
-%% defect MVP 3.2's item 6 found, a trace of eight lines under a deeper
-%% stack, written in Ernest since the trace ends with the program's frames
+%% frames of the host's stack, which the runtime keeps 64 of from its start
+%% (E.28), the host eight unless told, the innermost first: under a
+%% recursion twenty deep, the host's raise above the program's frames, then
+%% the foreign function's and the recursion's. A regression test of a
+%% defect, a trace of eight lines under a deeper stack, written in Ernest
+%% since the trace ends with the program's frames
 trace_twelve_frames_test() ->
     Text = "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
            "fn nested(count : Int, text : String) : Int =\n"
@@ -999,15 +999,15 @@ trace_leaves_the_runtime_out_test() ->
                               "    receive { Died(_) -> Unit };\n" ++ Called)).
 
 %% Appendix E.21, report §7.3: a process that waits in a receive shows one
-%% line. A receive without an `after` is the host's, whose frame names the last
-%% call before the wait or its function's head, and a fault in a clause's body
-%% shows no line of the receive's. One with an `after` is a fun, whose frame
-%% names the receive's line whether or not it is the last thing its function
-%% does, and a fault in a clause's body stands above the receive it is in, a
-%% frame of the host's stack. A fault taken at the wait names the receive's
-%% line, with an `after` and without. A regression test of MVP 4.15's item 2,
-%% written after the code: a timed receive's frame was taken for a helper's and
-%% its line lost before it, and a fault at a wait had no line
+%% line. A receive without an `after` is the host's, whose frame names the
+%% last call before the wait or its function's head, and a fault in a
+%% clause's body shows no line of the receive's. One with an `after` is a
+%% fun, whose frame names the receive's line whether or not it is the last
+%% thing its function does, and a fault in a clause's body stands above the
+%% receive it is in, a frame of the host's stack. A fault taken at the wait
+%% names the receive's line, with an `after` and without. A regression test,
+%% written after the code: a timed receive's frame was taken for a helper's
+%% and its line lost before it, and a fault at a wait had no line
 trace_through_a_wait_test() ->
     Types = "type Msg = Msg\n",
     Deadlock = fun(Body) ->
@@ -1080,17 +1080,16 @@ poke(Address) ->
     'Unit'.
 
 %% Appendix E.21, report §7.4, §12.3: a fault whose cause names a host error
-%% keeps the runtime's frames above the program's outermost frame. A
-%% foreign function whose host code is the runtime's own, given what it
-%% cannot take, raises inside it, by the path every library function's
-%% foreign call takes, and the trace shows the host's frame and the
-%% runtime's where the raise was met. A failure in the runtime named by
-%% the host's class and reason, a spawn past the host's limit of
-%% processes, no program can meet at a cost a test can pay, so that fault
-%% is made from a unit's own stack with a frame of the runtime's laid above
-%% it, beside a fault the runtime raises by design over the same stack,
-%% which leaves that frame out. A regression test, written after the code
-%% (the decision of 2026-10-23 on the two kinds)
+%% keeps the runtime's frames above the program's outermost frame. A foreign
+%% function whose host code is the runtime's own, given what it cannot take,
+%% raises inside it, by the path every library function's foreign call
+%% takes, and the trace shows the host's frame and the runtime's where the
+%% raise was met. A failure in the runtime named by the host's class and
+%% reason, a spawn past the host's limit of processes, no program can meet
+%% at a cost a test can pay, so that fault is made from a unit's own stack
+%% with a frame of the runtime's laid above it, beside a fault the runtime
+%% raises by design over the same stack, which leaves that frame out. A
+%% regression test, written after the code
 trace_keeps_the_runtime_of_a_failure_test() ->
     {{fault, Raised, Trace}, _} =
         run("foreign fn systemProcess(name : Int) : Int = \"ern_rt:system_process/1\"\n"
@@ -1123,12 +1122,11 @@ stack_here() ->
     ern_stack_here ! {stack_here, Stack},
     0.
 
-%% report Appendix H, §6.9, §11.2: two definitions whose forms are one
-%% term are one definition: a reference to either within their module is
-%% to the first declared, so a call of the second runs the first's
-%% function, which a fault's trace names and whose spawn site the process
-%% it spawns carries. Written after the code (MVP 3.2's item 4, whose first
-%% half decided it)
+%% report Appendix H, §6.9, §11.2: two definitions whose forms are one term
+%% are one definition: a reference to either within their module is to the
+%% first declared, so a call of the second runs the first's function, which
+%% a fault's trace names and whose spawn site the process it spawns carries.
+%% Written after the code
 one_form_two_definitions_test() ->
     Watched = "    let _ = spawnMonitored(fn() = Unit, fn(d : Down) = d);\n"
               "    receive { d -> d.site }\n"
@@ -1233,7 +1231,7 @@ docs_chunk_keys_and_types_test() ->
 %% signature, the member applied to its parameters' names, a pattern's as
 %% `_`, its result and its requirement after them, and keeps its type and
 %% its name beside its parameters, by which a page orders it; a function
-%% keeps its head. Written with the form (the release review's E4)
+%% keeps its head. Written with the form
 docs_chunk_member_form_test() ->
     Namespace = ['Stacks'],
     Source = <<"export type Stack(a) = Stack(items : List(a))\n"
@@ -1745,9 +1743,9 @@ show_test() ->
 %% yet as it keeps any value, in a list, in a map and captured by a lambda
 %% in a list, and answers each once it holds all three; a second answer is
 %% dropped, and a reply prints as `<reply>`. A regression test written after
-%% the code, 2026-10-16, when the reply's obligation went, which refused
-%% the map, the lambda and the second answer; it does not cover an answer
-%% that comes after its caller's deadline
+%% the code, when the reply's obligation went, which refused the map, the
+%% lambda and the second answer; it does not cover an answer that comes
+%% after its caller's deadline
 replies_kept_as_values_test() ->
     {ok, Output} = run(
         "type Request = Ask(n : Int, reply : Reply(Int))\n"
@@ -1883,16 +1881,15 @@ long_time_test() ->
         "}\n"),
     ?assertEqual(<<"ping\nSome(7)\nread\n">>, Output).
 
-%% report §6.6, §7.4: a call ends at once when its callee faults, is
-%% killed, returns, or had ended, before it answers: Address.call answers
-%% None, and callForever faults the caller with the callee's cause, or
-%% says how it ended; a restart ends the calls waiting on the process the
-%% same way. A regression test of the rule's first build: a callForever to
-%% a dead callee waited for a deadlock, and a call for its time; the cause
-%% the callee's alone since the release review's P8 (2026-10-25), the site
-%% left to the trace, which this test does not read. Each callee ends once
-%% the request has come: it faults, returns, or tells the process that
-%% kills it, and waits for nothing more
+%% report §6.6, §7.4: a call ends at once when its callee faults, is killed,
+%% returns, or had ended, before it answers: Address.call answers None, and
+%% callForever faults the caller with the callee's cause, or says how it
+%% ended; a restart ends the calls waiting on the process the same way. A
+%% regression test of the rule's first build: a callForever to a dead callee
+%% waited for a deadlock, and a call for its time; the cause the callee's
+%% alone, the site left to the trace, which this test does not read. Each
+%% callee ends once the request has come: it faults, returns, or tells the
+%% process that kills it, and waits for nothing more
 call_ends_with_callee_test_() ->
     {timeout, 30, fun call_ends_with_callee/0}.
 
@@ -2649,7 +2646,7 @@ foreign_result_names_a_variable_twice_test() ->
 
 %% report §3.8, §3.10: two `Foreign` values are equal where foreign code
 %% made them as the same term, the runtime's exact equality. A regression
-%% test of the rule of 2026-10-01, which the checker refused
+%% test: before the rule, the checker refused it
 foreign_exact_equality_test() ->
     {ok, Output} = run("export fn main() : Unit = {\n"
                        "    Io.println(Io.show(Foreign.term(1) == Foreign.term(1)));\n"
@@ -3222,14 +3219,14 @@ standard_library_unchecked_test() ->
     ?assertEqual(return_cause("erlang:node/0", "Int"), cause_of(outcome(Text))).
 
 %% report §6.6, §6.5: a request that makes a call of its own, as printing
-%% does, and an adapted address's function that prints, each applied in
-%% the caller, leave no call noted once the calls are over. A regression
-%% test, 2026-10-16, written after the fix: once a function that receives
-%% nothing could print, the request was made after its call was noted, and
-%% the call it made took the caller's row, so that the outer call's stayed
-%% in the table of callees. The calls held are the callees' rows and the
-%% caller's CALL key (report §8.6). It does not cover a call that a
-%% monitor's wrap makes, whose process is its own.
+%% does, and an adapted address's function that prints, each applied in the
+%% caller, leave no call noted once the calls are over. A regression test,
+%% written after the fix: once a function that receives nothing could print,
+%% the request was made after its call was noted, and the call it made took
+%% the caller's row, so that the outer call's stayed in the table of
+%% callees. The calls held are the callees' rows and the caller's CALL key
+%% (report §8.6). It does not cover a call that a monitor's wrap makes,
+%% whose process is its own.
 nested_call_is_settled_test() ->
     {ok, Output} = run(
         "type Msg = Get(Reply(Int))\n"
@@ -3317,8 +3314,7 @@ bif_names_test() ->
 %% the one it reads; where nothing hides it, and for a type, a constructor
 %% or a member, which no binding hides, the qualified name is refused. A
 %% regression test: each was a remote call, undefined for a private
-%% function, and the `let` was not seen as a dependency; the refusals are
-%% the full review's P7 (2026-10-04)
+%% function, and the `let` was not seen as a dependency
 qualified_own_name_test() ->
     {ok, Output} = run(
         "let total = { let base = 0; M.base * 2 + base }\n"
@@ -4089,10 +4085,10 @@ foreign_casts_and_callbacks_test() ->
 %% raises alike, as a foreign function's.
 %%
 %% A regression test, written after the code, but for the lambda inside a
-%% tuple, written with each initializer's function of its own (MVP 3.96's
-%% item 7), before which it kept the host's name; it does not cover a
-%% function foreign code gave and was given back that no binding holds,
-%% which is named by the wrapper the boundary made
+%% tuple, written with each initializer's function of its own, before which
+%% it kept the host's name; it does not cover a function foreign code gave
+%% and was given back that no binding holds, which is named by the wrapper
+%% the boundary made
 function_named_in_cause_test() ->
     Each = "foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) = \"lists:map/2\"\n"
            "foreign fn strings(f : (Int) -> String, xs : List(String)) : List(String) =\n"
@@ -4227,11 +4223,11 @@ never_given_address_test() ->
                      "                             == Process.fromAddress(self())))\n")).
 
 %% report §8.4, §6.9: a foreign message that does not match takes its place
-%% in the receiver's mailbox as a fault, which lands at the wait that reaches
-%% it, in a `receive` or for a call's answer, as a fault of the receiver's
-%% own, so that `restarting` restarts it until its limit. A regression test
-%% of the full review's C104 (2026-10-04): the fault came as an exit signal,
-%% which ended the process whatever wrapped it, at its first run
+%% in the receiver's mailbox as a fault, which lands at the wait that
+%% reaches it, in a `receive` or for a call's answer, as a fault of the
+%% receiver's own, so that `restarting` restarts it until its limit. A
+%% regression test: the fault came as an exit signal, which ended the
+%% process whatever wrapped it, at its first run
 foreign_fault_restarts_test() ->
     Common = "type Msg = Ended(Down)\n"
              "type Hold = Hold(reply : Reply(Int))\n"
@@ -4333,7 +4329,7 @@ taken() ->
 
 %% report Appendix E.1: Io.writeError writes its bytes to standard error as
 %% they are, a byte that is not UTF-8 among them, and nothing to standard
-%% output. Written with the code, of 2026-10-01
+%% output. Written with the code
 io_write_error_test() ->
     Self = self(),
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
@@ -4579,8 +4575,8 @@ requirement_supplied_test() ->
 %% report §9.4, §4.9, Appendix E.1: under `needs a.show`, Io.show writes a
 %% type built from `a`, its descriptor composed of the one passed in for
 %% `a`; a recursive type stands in the place of `a` inside a recursive type,
-%% each descriptor's mu binding its own refs. A regression test of the full
-%% review's P4 (2026-10-04): a type built from a variable was refused
+%% each descriptor's mu binding its own refs. A regression test: a type
+%% built from a variable was refused
 show_composed_test() ->
     {ok, Output} = run(
         "type Tree(a) = Leaf | Node(left : Tree(a), item : a, right : Tree(a))\n"
@@ -4603,11 +4599,9 @@ show_composed_test() ->
 %% report §2.4, §4.9, §3.5: `needs`, `derives`, `compare`, `negate` and
 %% `show` are words only where they stand, and identifiers elsewhere, a
 %% field, a binding, a parameter and a function among them, beside a
-%% requirement and a derived compare. A regression test of the full
-%% review's P17 and N20 (2026-10-04): `needs` and `derives` were reserved,
-%% and a task's field `needs` was refused; the last three added with the
-%% principles review's K11 (2026-10-09), which named them in §2.4, and
-%% passed at once
+%% requirement and a derived compare. A regression test: `needs` and
+%% `derives` were reserved, and a task's field `needs` was refused; the last
+%% three added when §2.4 named them, and passed at once
 words_by_position_test() ->
     {ok, Output} = run(
         "type Task = Task(name : String, needs : List(String))\n"
@@ -4630,12 +4624,12 @@ words_by_position_test() ->
 
 %% report §3.5, §4.9: a derived compare orders by constructor in declaration
 %% order, then field by field from the left, its parameters' members
-%% supplied where it is used, each field by the prelude's `compare`, which
-%% a module's own `compare` does not hide from it (§4.2). Written after the
+%% supplied where it is used, each field by the prelude's `compare`, which a
+%% module's own `compare` does not hide from it (§4.2). Written after the
 %% code, it found a defect: the member an operator resolves to supplied its
 %% own requirement as the operator's, Int's compare as the runtime's own
-%% operation, and so none; the module's own `compare` is a regression test
-%% of the release review's C1-C9, written after the change
+%% operation, and so none; the module's own `compare` is a regression test,
+%% written after the change
 derived_compare_test() ->
     {ok, Hidden} =
         run("type Pair = Pair(first : Int, second : String) derives compare\n"

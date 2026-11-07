@@ -1,12 +1,11 @@
 %% The tour, tour/README.md with its programs tour/1/ to tour/8/, run as its
-%% reader runs it (plan, MVP 3.3): chapter 1's shell
-%% over the first chapter's program; and one shell that is the node `a`,
-%% in a working directory into which each later chapter's files are
-%% copied in turn, `:load Counter` once and `:reload` at each chapter,
-%% beside the two bare nodes `foo` and `bar`, which chapter 2's commands
-%% make and the nodes' harness starts (ern_nodes_tests), with chapter 5's
-%% build and test run in that directory, and chapter 8's shell attached to
-%% `foo` and its stops.
+%% reader runs it: chapter 1's shell over the first chapter's program; and
+%% one shell that is the node `a`, in a working directory into which each
+%% later chapter's files are copied in turn, `:load Counter` once and
+%% `:reload` at each chapter, beside the two bare nodes `foo` and `bar`,
+%% which chapter 2's commands make and the nodes' harness starts
+%% (ern_nodes_tests), with chapter 5's build and test run in that directory,
+%% and chapter 8's shell attached to `foo` and its stops.
 %%
 %% An input is typed once the shell has printed all that the one before it
 %% prints, and what it prints is held to the lines tour/README.md shows, each
@@ -281,7 +280,7 @@ inputs([<<"> ", Input/binary>> | Rest]) ->
 %% answer, two shells' starts, 62 inputs, two nodes' first lines, two of
 %% foo's lines of the attach, two lines of a node's end, four ends and what
 %% four said. Chapter 8's attach was written with the guides over the
-%% attached shell, MVP 4.0's item 4.
+%% attached shell.
 tour_test_() ->
     ern_nodes_tests:nodes_test({waits, 95}, fun tour/1).
 

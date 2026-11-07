@@ -1,15 +1,15 @@
-%% `make bench-pick` (docs/development.md): the push's experiment (the
-%% log's *The Numbers Across Machines*) across the machines of
-%% test/machines/machines.txt (plan, MVP 3.27 item 2). From a measuring
-%% node, a burst of a hundred computes of a hundred milliseconds' work, sent
-%% as fast as the node can, then a steady stream, one every fifty
-%% milliseconds for a minute; how they fall over the peers under
-%% `Peer.compute`'s pick, two drawn at random and the less busy taken
-%% (report Appendix E.27), and under the least busy of them all, a rule of
-%% the program's own over `Peer.utilizations()` (the guide's §8.1); and
-%% beside them, the packets each of the measuring node's connections carried
-%% a second, the time each node's schedulers were busy, and the time each
-%% machine's processors were idle, over the stream and at rest.
+%% `make bench-pick` (docs/development.md): the push's experiment (the log's
+%% *The Numbers Across Machines*) across the machines of
+%% test/machines/machines.txt. From a measuring node, a burst of a hundred
+%% computes of a hundred milliseconds' work, sent as fast as the node can,
+%% then a steady stream, one every fifty milliseconds for a minute; how they
+%% fall over the peers under `Peer.compute`'s pick, two drawn at random and
+%% the less busy taken (report Appendix E.27), and under the least busy of
+%% them all, a rule of the program's own over `Peer.utilizations()` (the
+%% guide's §8.1); and beside them, the packets each of the measuring node's
+%% connections carried a second, the time each node's schedulers were busy,
+%% and the time each machine's processors were idle, over the stream and at
+%% rest.
 %%
 %% The measuring program is test/fixtures/bench/pick.ern, its probe
 %% test/fixtures/bench/ern_pick_probe.erl, on each node's load path. The
@@ -49,8 +49,8 @@
 %% the intervals of the knee the experiment looked for.
 -define(INTERVAL, 5000).
 -define(KNEE, [1000, 500]).
-%% Each rule's bursts and streams at an arrangement's first interval;
-%% a stream lasts a minute, and three are enough (plan, MVP 3.27 item 2).
+%% Each rule's bursts and streams at an arrangement's first interval; a
+%% stream lasts a minute, and three are enough.
 -define(BURSTS, 7).
 -define(STREAMS, 3).
 %% A burst's computes.

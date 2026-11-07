@@ -6,7 +6,7 @@ What a release runs to be ready, and nothing else. Between releases an item that
 2. **Five machines**, over the commit the review starts on; once the findings are made, `make sections` and `make bench` run again over the release's commit, `make load` where the round changed the runtime and `make sanitize` where it changed the helper; dialyzer runs in the clone's full run:
    - `make sanitize`, the helper in C under Clang's analyzer and the sanitizers;
    - `make load`, the loads of [`memory_checks.md`](../memory_checks.md);
-   - `make service`, a program started, stopped and started again by the host's service manager, whose launchd checks, written for macOS in MVP 2.99b's item 10, run on the first Mac at hand and until then the release's notes say they have not;
+   - `make service`, a program started, stopped and started again by the host's service manager, whose launchd checks run only on a Mac, and on the first one at hand;
    - `make sections`, which names a section of the report no test cites, and names only a section of a milestone not yet built, which that milestone's item names;
    - `make test-browser`, the site's client in a headless Chrome, on the machine with Chrome; and the panel against a real shell by hand on a server of the site's, a session started, a block pasted and loaded, a transcript's input pasted, Stop, Restart and the warning, since the test's socket is a stub;
    - and `make bench`, three runs with the machine idle, the median of each row's ratio to Erlang's no worse than the rows the log last recorded, which the log's entry for this review then holds; then, over the release's commit, `make bench-release`, which keeps the last of its three as the release's run, the second reference every later run is compared with; it lives in the build directory, under bench/release, on the machine that ran it, goes with `make clean`, and a machine without one runs `make bench-release` over its own first run.
@@ -27,16 +27,16 @@ What a release runs to be ready, and nothing else. Between releases an item that
    - every module of `src/stdlib/` and `src/libs/` that appeared since the last release, and every exported declaration that did, ending its doc block with its own `since` (Appendix E.0 shape rule 6, whose shape and versions `make test` holds);
    - the pages `make man` writes into `docs/man/`, committed with the release;
    - the About text of the repository on GitHub, which follows the opening of `README.md`, and which no test holds;
-   - the release's section of `CHANGES.md`, first in the file, committed before the tag, which is the release's note: the release step copies it as the notes of the release on GitHub, so that the note is written once (the log's *A Release Carries No History*, sharpened 2026-10-30);
-   - the tag, then the archive `make release` writes at it, `ern-VERSION.tar.gz`, published beside it, since an archive made before the tag says its commit (§11.7);
+   - the release's section of `CHANGES.md`, first in the file, committed before the tag, which is the release's note: the release step copies it as the notes of the release on GitHub, so that the note is written once (the log's *A Release Carries No History* and *The Release Cleanup*);
+   - the tag, signed, `git tag -s vVERSION`, with the SSH key the pushes use, so that GitHub marks it verified;
+   - then the archive `make release` writes at the tag, `ern-VERSION.tar.gz`, and its checksum, `ern-VERSION.tar.gz.sha256`, both published beside the tag, since an archive made before the tag says its commit (§11.7);
    - and once the tag is made, `make version V=<next minor>.0`, committed at once, so that `VERSION` names the release the checkout works toward and a development build says `0.8.0-dev` while 0.7.0 is the latest release.
 
-   The section restates no change. It says:
-   - what the release is, in words, with the plan's row for it linked and no milestone named, since a reader of the notes is a user and a milestone's name is the plan's;
+   The section restates no change, and its date stands in its heading and nowhere else. It says:
+   - what the release is, in words, naming no milestone, review or log entry, since a reader of the notes is a user;
    - what a program written for the previous release changes, which is the reader's next step and no history;
-   - that until 1.0 a release may refuse a program the previous release accepted, as the plan says, and that the release's report is what holds;
-   - what changed, one line a change naming where it is read, the report section, the Appendix E entry or the log entry, and beneath them the report's diff between the last release's tag and this one's, `git diff v0.2.0 v0.3.0 -- report/` for 0.3.0, and why, the log's entries since the last release;
-   - what the review did not run;
-   - and the newcomer's program.
+   - that until 1.0 a release may refuse a program the previous release accepted, and that the release's report is what holds;
+   - the report's diff between the last release's tag and this one's, `git diff v0.2.0 v0.3.0 -- report/` for 0.3.0;
+   - and what changed, one line a change naming the report's section or Appendix E's entry where it is read, and nothing else.
 
 **The models.** The readers run as [`full.md`](full.md)'s *The models* says, each on the stronger model, and the machines need none. Of the findings, a design question or a sentence of the report takes a design session, and a named fix and the release itself an item session.

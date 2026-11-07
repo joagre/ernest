@@ -1,7 +1,7 @@
-%% Report Appendix A generated against (plan, MVP 2.99c item 1): programs
-%% derived at random from the grammar as the report states it, read through
-%% ern_grammar, so that the parser is held to the grammar rather than to the
-%% programs someone thought to write. Three oracles:
+%% Report Appendix A generated against: programs derived at random from the
+%% grammar as the report states it, read through ern_grammar, so that the
+%% parser is held to the grammar rather than to the programs someone thought
+%% to write. Three oracles:
 %%
 %% - every program derived parses, and the programs together reach every
 %%   alternative of every rule, every optional part taken and left, and every

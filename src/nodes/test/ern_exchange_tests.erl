@@ -3,7 +3,7 @@
 %% every frame to, and for the peer, whose frames it sends the exchange as
 %% a gateway hands them on. Each runs in a program, whose standard error
 %% takes the node's lines. Real nodes are test/ern_nodes_tests.erl's.
-%% Regression tests, written after the code (MVP 3.2's items 3 and 4).
+%% Regression tests, written after the code.
 -module(ern_exchange_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -36,11 +36,11 @@
 %% the forms the unit's `.erc` holds: the hashes of the definitions it
 %% reaches from the definition it is or is in, code and types, a group's
 %% members among them and the constants it reads, whose forms cross (report
-%% §4.6, the full review's K14), the bindings its reach names that are no
-%% constants and its foreign declarations with the host's module and
-%% function and the declared type and where it is written; a foreign
-%% function's by its name, its declaration alone. A function or a
-%% definition it holds nowhere is a reach of none.
+%% §4.6), the bindings its reach names that are no constants and its foreign
+%% declarations with the host's module and function and the declared type
+%% and where it is written; a foreign function's by its name, its
+%% declaration alone. A function or a definition it holds nowhere is a reach
+%% of none.
 %%
 %% The spawner's node answers the lacks with a code frame for each, a group
 %% in one, dependencies first, each the bytes its hashes are taken of, with
@@ -365,10 +365,10 @@ received_linked_test() ->
 %% module and the function as text, as a foreign function spawned by its
 %% name crosses.
 %%
-%% A regression test, written with the fix (MVP 3.2's item 5 found the
-%% reach's foreign declarations alone declared, the binding refused, then
-%% the lacked declaration recorded nowhere, and then the reach by its name
-%% answered none); it does not cover a lacked function's module that is
+%% A regression test, written with the fix: the reach's foreign
+%% declarations alone were declared, the binding refused, then the lacked
+%% declaration recorded nowhere, and then the reach by its name answered
+%% none. It does not cover a lacked function's module that is
 %% here and lacks the function, which ern_peer:foreign_lacked/1 answers as
 %% not_loaded_from_reach_test's third case shows, nor the nodes, a third
 %% node's check of what it is sent among them, which
@@ -677,9 +677,8 @@ not_loaded_from_reach_test() ->
 %% The exchange asked of the peer goes with its forms, a later frame of it
 %% passed over, and the spawn the peer asked for with it, none waiting on
 %% it now. The cases of the declarations are regression tests, written with
-%% them (MVP 3.2's item 5, and the declaration's place with MVP 3.9's
-%% carrying of it), and the place before the first line after the code:
-%% the arrival's compile failed on it
+%% them, the declaration's place with its carrying, and the place before
+%% the first line after the code: the arrival's compile failed on it
 faulty_frame_test() ->
     {_, _, Defined} = compiled(['Exfaulty'], ?FAULTY),
     #definition{hash = Hash, form = Form} = maps:get(['Exfaulty', held], Defined),

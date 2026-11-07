@@ -260,8 +260,8 @@ let whole = Test.Case(name = "a whole name selects its command", run = fn() = ma
 })
 
 // Report §11.2 *Commands*: `:quit` leaves every shell and `:detach` is no
-// command, so `:d` selects `:doc`. A regression test of the release
-// review's P4 and P7, written after the code.
+// command, so `:d` selects `:doc`. A regression test, written after the
+// code.
 let oneWordToLeave =
     Test.Case(name = "d selects doc, and detach is no command",
               run = fn() = match #(pick("d"), pick("detach")) {

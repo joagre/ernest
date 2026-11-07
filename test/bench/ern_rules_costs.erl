@@ -1,8 +1,8 @@
-%% `make bench`'s part `rules`, the cost rules (docs/development.md; plan,
-%% MVP 3.29; CLAUDE.md's *Design*): a row for each promise the rules make
-%% that no other part measures, each against the host's own operation. A
-%% top-level `let` whose initializer is a ground term is read as its value,
-%% which the host keeps in its literal area, and one computed through
+%% `make bench`'s part `rules`, the cost rules (docs/development.md;
+%% CLAUDE.md's *Design*): a row for each promise the rules make that no
+%% other part measures, each against the host's own operation. A top-level
+%% `let` whose initializer is a ground term is read as its value, which the
+%% host keeps in its literal area, and one computed through
 %% ern_rt:binding/1, a persistent term by a tuple key (report §8.5, §11.1).
 %%
 %% A receive with an `after` takes its time as a deadline, waits in slices

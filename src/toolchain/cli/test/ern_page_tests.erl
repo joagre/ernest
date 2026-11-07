@@ -39,10 +39,10 @@ since_line_test() ->
 %% code block's line is the form a program writes at its type, its
 %% parameters named without their types, its result and its requirement
 %% after them; the members follow the module's other declarations, each
-%% type's together, the types in the order of their first members, a
-%% type's `compare` first, then its infix operators by their text, then
-%% its `negate`; and `:doc` shows a member alone in the same form. Written
-%% with the layout (the release review's E4)
+%% type's together, the types in the order of their first members, a type's
+%% `compare` first, then its infix operators by their text, then its
+%% `negate`; and `:doc` shows a member alone in the same form. Written with
+%% the layout
 member_page_test() ->
     Source = "export type Stack(a) = Stack(items : List(a))\n\n"
              "export fn Stack.<>(stack : Stack(a), other : Stack(a)) : Stack(a) =\n"
@@ -77,8 +77,8 @@ member_page_test() ->
 
 %% report §11.4: a prelude type's module declares the type's members
 %% unprefixed or under the type's name, `Int`'s `compare` and `Int.+`, and
-%% its page lists them after its functions in their order, each in its
-%% form. Written with the layout (the release review's E4)
+%% its page lists them after its functions in their order, each in its form.
+%% Written with the layout
 prelude_type_members_test() ->
     {ok, Beam} = file:read_file(filename:join(ern_prelude:stdlib_directory(), "int.erc")),
     Page = unicode:characters_to_binary(ern_page:page(Beam, "int.ern")),

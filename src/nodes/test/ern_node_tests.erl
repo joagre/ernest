@@ -54,7 +54,7 @@ ends(Message, Suffix) ->
 %% the node signs itself, its name a constant and its validity the longest,
 %% and `ernest.conf` with the key's public half, no peer and no service, the
 %% two readable by all and writable by their owner alone, 0644 whatever the
-%% umask (the full review's S3); it answers the public key
+%% umask; it answers the public key
 create_test() ->
     Dir = filename:join(tmp(), "node"),
     Public = ern_node:create(Dir, "0.0.0.0:8654"),
@@ -417,13 +417,12 @@ unreadable_directory_test() ->
 
 %% report §12.5: a node refuses a configuration directory, or a file of it
 %% that it reads, that anyone but its owner may write, its group as much as
-%% the world (the full review's S3), as the shell's startup files are
-%% refused, and a key any but its owner may read
-%% or write; a file it needs that is not there is named with the command
-%% that makes a directory, and one it cannot read with the host's reason, a
-%% regression: such a file made `ern` fail with an internal error. Not
-%% covered: a directory or a file of another user, which a test run as one
-%% user cannot make
+%% the world, as the shell's startup files are refused, and a key any but
+%% its owner may read or write; a file it needs that is not there is named
+%% with the command that makes a directory, and one it cannot read with the
+%% host's reason, a regression: such a file made `ern` fail with an internal
+%% error. Not covered: a directory or a file of another user, which a test
+%% run as one user cannot make
 permissions_test() ->
     Dir = made(),
     Refused = fun(Path, Mode) ->
@@ -460,8 +459,8 @@ permissions_test() ->
 %% node holds refuses the start, and one no node holds is overwritten,
 %% whatever number it names, a living process's among them; a file another
 %% wrote meanwhile is not removed. A regression test of the lock, written
-%% after the code (finding E4): a file that named a living process refused
-%% the start, the process another than a node
+%% after the code: a file that named a living process refused the start,
+%% the process another than a node
 pid_test() ->
     Dir = made(),
     Pid = filename:join(Dir, "ernest.pid"),
@@ -487,9 +486,9 @@ pid_test() ->
 %% report §11.2, §12.5: `ern reload` and `ern stop` signal only the node that
 %% holds ernest.pid, and fail where there is no file or no node holds it,
 %% a living process the file names among the ways, which is sent nothing.
-%% A regression test, written after the code (finding E4): the file's
-%% number was signaled where it named a living process, a node or not; it
-%% does not cover the wait for the node's end, which the nodes' tests do
+%% A regression test, written after the code: the file's number was signaled
+%% where it named a living process, a node or not; it does not cover the wait
+%% for the node's end, which the nodes' tests do
 signaled_test() ->
     Dir = made(),
     Pid = filename:join(Dir, "ernest.pid"),

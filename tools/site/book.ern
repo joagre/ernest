@@ -1,13 +1,13 @@
 //
-// The site's books (plan, MVP 4.2 item 2): the guide, guide/language.md,
-// and the tour, tour/README.md, each a contents page and a page for each
-// chapter, a second-level heading of its source, as
-// docs/design/site.md's *The generation* says. The guide's
-// contents list each chapter's sections; the tour's, each chapter with its
-// own line, as its opening lists them. The guide's blocks get the buttons
-// the guide tests' grouping gives them; the tour's Copy alone, since its
-// programs are the reader's files, which its sessions load, or run on
-// nodes, as ern_tour_tests runs them (site.md *The live shell*).
+// The site's books: the guide, guide/language.md, and the tour,
+// tour/README.md, each a contents page and a page for each chapter, a
+// second-level heading of its source, as docs/design/site.md's
+// *The generation* says. The guide's contents list each chapter's sections;
+// the tour's, each chapter with its own line, as its opening lists them. The
+// guide's blocks get the buttons the guide tests' grouping gives them; the
+// tour's Copy alone, since its programs are the reader's files, which its
+// sessions load, or run on nodes, as ern_tour_tests runs them
+// (site.md *The live shell*).
 //
 
 /// The report's sections the guide's sections cite, each by its anchor,

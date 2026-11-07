@@ -52,8 +52,8 @@ type_refuses_a_let() ->
 %% takes no input's number, so that it makes no name of the host's: the
 %% declaring input after three of them is the session's second module,
 %% `ern@$input1_2`, the first being the foreign function's that asks.
-%% Written before the fix, the release review before 0.7.0 (C6, E2), each
-%% `:type` having taken a number and made its module's name
+%% Written before the fix, each `:type` having taken a number and made
+%% its module's name
 type_takes_no_number_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun type_takes_no_number/0).
 
@@ -332,12 +332,11 @@ startup() ->
 %% and line, as its diagnostic is, and so is the spawn site of a process it
 %% starts, under the session's namespace (*Faults*); a file that is not
 %% UTF-8 is said and not run. A regression test: each was printed bare, and
-%% the file was read as empty; the release review found `:type`'s
-%% diagnostic named as though typed at the prompt, and `:load`'s refusal
-%% bare, and `:type`'s excerpt now places its argument after the command;
-%% the startup file is a node's, whose `:load` is any shell's. The site a
-%% regression test of the release review's P1 (the log's *Sites, Sessions
-%% and Their Names*)
+%% the file was read as empty; `:type`'s diagnostic was named as though
+%% typed at the prompt, and `:load`'s refusal bare, and `:type`'s excerpt
+%% now places its argument after the command; the startup file is a
+%% node's, whose `:load` is any shell's. The site a regression test (the
+%% log's *Sites, Sessions and Their Names*)
 startup_failures_named_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun startup_failures_named/0).
 
@@ -502,8 +501,7 @@ prelude_shown() ->
                  <<"\nIo.show(value : a) : String needs a.show\n">>,
                  <<"\nIo.debug(value : a) : a needs a.show\n">>,
                  %% report §11.4, §11.2: a member is listed under its type
-                 %% after the functions, in the form a program writes, as
-                 %% the release review's E4 and N4 asked (2026-10-25)
+                 %% after the functions, in the form a program writes
                  <<"\nString\n    compare(left, right) : Ordering\n    left <> right : String\n">>,
                  <<"\nInt\n    compare(left, right) : Ordering\n    dividend % divisor : Int\n">>,
                  <<"    dividend / divisor : Int\n    -int : Int\n">>]],
@@ -626,9 +624,9 @@ load_and_reload_dependents() ->
 %% records as it was loaded, never its file again: the shell over a built
 %% program, `Main` using `Shape` and `Other`, `other.erc` taken away once
 %% the shell has started and `Shape`'s source changed, reloads `Shape` and
-%% `Main`, which uses it, and the session goes on. Written before the fix, the release
-%% review before 0.7.0 (C3): the reload read every loaded module's chunk
-%% from its file, and the file gone ended the shell, status 70
+%% `Main`, which uses it, and the session goes on. Written before the fix:
+%% the reload read every loaded module's chunk from its file, and the file
+%% gone ended the shell, status 70
 reload_reads_no_file_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun reload_reads_no_file/0).
 
@@ -1005,9 +1003,9 @@ end_fault_on_a_line_of_its_own() ->
 %%
 %% Report §11.2, Appendix E.21: `:faults` stamps the fault with the time it
 %% was met, the report's, at or before the moment the test learned of its
-%% Down, though the line that takes it comes later. A regression test of
-%% the release review's E3 (2026-10-25): the stamp was the time the
-%% session took the report, in line mode the moment the next line came
+%% Down, though the line that takes it comes later. A regression test: the
+%% stamp was the time the session took the report, in line mode the moment
+%% the next line came
 faults_while_reading_listed_test_() ->
     ern_nodes_tests:counted_test({waits, 6}, fun faults_while_reading_listed/0).
 
@@ -1288,7 +1286,7 @@ fault_while_typing() ->
 %% not already show, and the 300 ms went; and each session's bound on a
 %% failure was 10 seconds, which a shell started under load outlasted
 %% before its first prompt, and each of its waits is one wait's now
-%% (ern_pty:run/3), both written 2026-10-11
+%% (ern_pty:run/3)
 reader_and_screen_ends_test_() ->
     ern_nodes_tests:counted_test({waits, 10}, fun reader_and_screen_ends/0).
 
@@ -1905,7 +1903,7 @@ load_completion_of_two_words() ->
 %% prompt, which the screen paints only with the listing under it, and not
 %% for the listing alone, which an earlier paint without the prompt holds.
 %% A regression test for a run under load, where the prompt came after the
-%% keys of the next line and its listing, written 2026-10-11
+%% keys of the next line and its listing
 command_argument_test_() ->
     ern_nodes_tests:counted_test({waits, 16}, fun command_argument/0).
 
@@ -2308,17 +2306,16 @@ load_failed_dependency() ->
 %% going on; the type stays private to names, and an input that writes it
 %% or its constructor is refused as private.
 %%
-%% A regression test: the binding faulted the shell, which ended with
-%% status 70, since the interface carried nothing of the type for its
-%% descriptor, and the next input faulted the checker on the type the
-%% session's scope named; and an input that wrote the type was refused as
-%% `unknown type Plain.Msg`, which the last assertion, written 2026-10-16
-%% after the code, holds to §11.5's text; and its constructor was refused
-%% as unknown, which the assertion before it, written 2026-10-23 after the
-%% code, holds to §11.5's text for a constructor of a type a module keeps
-%% private (the log's *What the Skeptics Found*). It does not cover a
-%% message checked at such an address, which the integration tests'
-%% exposed program does
+%% A regression test: the binding faulted the shell, which ended with status
+%% 70, since the interface carried nothing of the type for its descriptor,
+%% and the next input faulted the checker on the type the session's scope
+%% named; and an input that wrote the type was refused as
+%% `unknown type Plain.Msg`, which the last assertion, written after the
+%% code, holds to §11.5's text; and its constructor was refused as unknown,
+%% which the assertion before it, written after the code, holds to §11.5's
+%% text for a constructor of a type a module keeps private (the log's *What
+%% the Skeptics Found*). It does not cover a message checked at such an
+%% address, which the integration tests' exposed program does
 private_mailbox_type_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun private_mailbox_type/0).
 
@@ -2343,12 +2340,12 @@ private_mailbox_type() ->
                                                 "  |                 ^^^^^^^^^\n">>)).
 
 %% report §11.5, §11.2, §11.1: a function or a binding a module keeps
-%% private is refused as private at the prompt, `a function` or `a
-%% binding`, of a module `:load` compiled and of one the shell's runner
-%% loaded from its compiled form alike, and a name nothing declares stays
-%% unknown. A regression test of the release review's N12, written after
-%% the code (the log's *The Claims, the README and the Tour*): the
-%% attached prompt said `unknown name Auction.house`
+%% private is refused as private at the prompt, `a function` or `a binding`,
+%% of a module `:load` compiled and of one the shell's runner loaded from
+%% its compiled form alike, and a name nothing declares stays unknown. A
+%% regression test, written after the code (the log's *The Claims, the
+%% README and the Tour*): the attached prompt said
+%% `unknown name Auction.house`
 private_value_at_the_prompt_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun private_value_at_the_prompt/0).
 
@@ -2452,9 +2449,8 @@ input_numbers_reused() ->
 %% three more expressions, two reading the `it` before them, it lists the same
 %% two numbers: the earlier units let go, their numbers given again, an
 %% expression's unit needing no unit its code read once its answer is in,
-%% and no holder of `it` stands among them. Written before the change (the
-%% plan's MVP 4.0 item 11), which a holder of `it` beside each expression's
-%% unit failed.
+%% and no holder of `it` stands among them. Written before the change,
+%% which a holder of `it` beside each expression's unit failed.
 expression_holds_it_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun expression_holds_it/0).
 
@@ -2483,9 +2479,8 @@ expression_holds_it() ->
 %% unit compiled, loaded, run and let go, is the same in both, and what may
 %% grow with the session is the collection's walk of its names and units,
 %% a fraction of that work; twice leaves room for a machine whose load
-%% changes between the halves. Written before the change (the plan's MVP
-%% 4.0 item 12), which took 3.5 times as long. The session's 1,400 inputs
-%% are two steps of the harness.
+%% changes between the halves. Written before the change, which took 3.5
+%% times as long. The session's 1,400 inputs are two steps of the harness.
 input_cost_flat_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun input_cost_flat/0).
 
@@ -2628,8 +2623,8 @@ expressions_again_leave_no_code() ->
 %% session runs: a function declared after it still calls it, a binding
 %% holding its function or a value of its type works, and a process
 %% running its code runs on. Written with the code that let it go once
-%% nothing reached it, which an input that declares no longer is (the
-%% log's *MVP 3.1 Read*).
+%% nothing reached it, which an input that declares no longer is
+%% (the log's *MVP 3.1 Read*).
 declarations_kept_while_reached_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun declarations_kept_while_reached/0).
 
@@ -2937,8 +2932,8 @@ input_reads_line() ->
 
 %% report §6.6, §11.2: an input whose value holds a reply is printed, and a
 %% `let` of one binds, as any other input. A regression test written after
-%% the code, 2026-10-16: the shell refused both while a reply was an
-%% obligation; it does not cover a reply that reaches the prompt unanswered
+%% the code: the shell refused both while a reply was an obligation; it does
+%% not cover a reply that reaches the prompt unanswered
 reply_input_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reply_input/0).
 
@@ -2981,15 +2976,15 @@ pattern_let() ->
 
 %% report §11.2 *Inputs*, Appendix E.21, G.1, G.7: where a later input or
 %% `:forget` ends the process of an input that bound a name, the session
-%% says each listener, socket, running program, table and process started
-%% to end with it that the process owned, by its site alone, with the names
-%% the input bound: a listener another name still holds ends as its input's
-%% name is bound again, a table at `:forget`, and at `:forget *` the
-%% process `Proxy.start` started, a table, a running program, a socket and
-%% its listener; a name still in scope keeps its input's process. Written
-%% with the code, after the release review's P2 (the log's *The Input's
-%% Process*); it does not cover the shell at a terminal, which says a line
-%% as line mode does, nor a session's end, which says nothing of what ends
+%% says each listener, socket, running program, table and process started to
+%% end with it that the process owned, by its site alone, with the names the
+%% input bound: a listener another name still holds ends as its input's name
+%% is bound again, a table at `:forget`, and at `:forget *` the process
+%% `Proxy.start` started, a table, a running program, a socket and its
+%% listener; a name still in scope keeps its input's process. Written with
+%% the code (the log's *The Input's Process*); it does not cover the shell
+%% at a terminal, which says a line as line mode does, nor a session's end,
+%% which says nothing of what ends
 owned_said_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun owned_said/0).
 
@@ -3048,10 +3043,10 @@ owned_said() ->
 %% written with `<-`.
 %%
 %% A regression test written after the code, and `it` after a `Left`
-%% after the release review's P12 (the log's *The Input's Process*); it
-%% does not cover the shell at a terminal, which shows a result as line
-%% mode does, nor a `Left` that a spawn on a peer answers, which the tour's
-%% chapter 2 meets only as a `Right`
+%% (the log's *The Input's Process*); it does not cover the shell at a
+%% terminal, which shows a result as line mode does, nor a `Left` that a
+%% spawn on a peer answers, which the tour's chapter 2 meets only as a
+%% `Right`
 arrow_let_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun arrow_let/0).
 
@@ -3159,7 +3154,7 @@ unsettled_binding() ->
 %% report §4.6, §11.2: a lambda bound by `let` at the prompt is generalized
 %% as in a block, its restrictions with it, and another value bound by `let`
 %% is not, so an open variable in its type is refused. A regression test of
-%% the rule of 2026-10-01: the shell refused the lambda as undetermined
+%% the rule, before which the shell refused the lambda as undetermined
 lambda_let_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun lambda_let/0).
 
@@ -3200,10 +3195,10 @@ library_file() ->
 %% and Os.exit faults the input that calls it, and a process an input
 %% started through one it started, and ends neither the input after it nor
 %% the shell; its environment is the host's. A regression test, written
-%% after the code, the started process's with the release review's E5 (the
-%% log's *The Library's Lines*); the shell's own processes ending the shell
-%% by Os.exit are ern_nodes_tests' attached shell's ends, attach_refused
-%% and attached_shell_ends among them.
+%% after the code, the started process's later (the log's *The Library's
+%% Lines*); the shell's own processes ending the shell by Os.exit are
+%% ern_nodes_tests' attached shell's ends, attach_refused and
+%% attached_shell_ends among them.
 shell_os_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun shell_os/0).
 
@@ -3270,9 +3265,9 @@ holders_freed() ->
 %% through two further reloads of its module, reachable through the
 %% addresses of its version, and nothing faults; `:processes` tells the
 %% three versions' processes apart, a site of a reload's version carrying
-%% its number. A regression test: until MVP 3.1 the second reload ended
-%% the first version's process with `its code was unloaded`; and the sites,
-%% written after the fix (the log's *MVP 3.1 Read*): the three shared one site
+%% its number. A regression test: the second reload once ended the first
+%% version's process with `its code was unloaded`; and the sites, written
+%% after the fix (the log's *MVP 3.1 Read*): the three shared one site
 reload_keeps_previous_versions_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload_keeps_previous_versions/0).
 
@@ -3358,11 +3353,11 @@ reload_reaches_session_declarations() ->
 %% report §11.2, §6.9, §8.6: a spawn site of a reload's version carries the
 %% version's number, as its unit is named, so that `:processes` and the
 %% end's lines tell two versions' processes apart; the first version's
-%% site is the module's. A regression test, written after the fix (the
-%% log's *MVP 3.1 Read*): the two shared one site. Each version's service
-%% is called before the end, since a spawned process subscribes after its
-%% spawn returns and the end counts the subscribers it finds (the release
-%% review before 0.6.0 found the second not yet subscribed under load).
+%% site is the module's. A regression test, written after the fix
+%% (the log's *MVP 3.1 Read*): the two shared one site. Each version's
+%% service is called before the end, since a spawned process subscribes
+%% after its spawn returns and the end counts the subscribers it finds
+%% (under load the second was once found not yet subscribed).
 reload_version_sites_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload_version_sites/0).
 
@@ -3416,12 +3411,12 @@ listing(Output) ->
 %% current version, and a reload that changes no type leaves the binding's
 %% type alone.
 %%
-%% A regression test: until MVP 3.1 the reload forgot every such binding,
-%% and before that `send(c, Counter.Reset)` to an address of the previous
+%% A regression test: the reload once forgot every such binding, and
+%% before that `send(c, Counter.Reset)` to an address of the previous
 %% version was accepted, and `Reset` sat in the old process's mailbox
-%% unmatched; the session type's new version written after the fix (the
-%% log's *MVP 3.1 Read*), where it stayed over the previous version and
-%% refused the new version's address
+%% unmatched; the session type's new version written after the fix
+%% (the log's *MVP 3.1 Read*), where it stayed over the previous version
+%% and refused the new version's address
 reload_keeps_the_type_checked_under_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload_keeps_the_type_checked_under/0).
 
@@ -3539,9 +3534,9 @@ previous_type_went() ->
 %% message is taken by the first version's process, which reads it as its
 %% own, and nothing names `Counter$1` or says a reload replaced it; a
 %% binding made under the second is now of the second version's type,
-%% `Counter$2.Msg`. A regression test, written after the fix (the log's
-%% *MVP 3.1 Read*): the binding kept `Counter$1.Msg`, and the send was refused with a
-%% help that had become false
+%% `Counter$2.Msg`. A regression test, written after the fix
+%% (the log's *MVP 3.1 Read*): the binding kept `Counter$1.Msg`, and the
+%% send was refused with a help that had become false
 reload_brings_a_type_back_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload_brings_a_type_back/0).
 
@@ -3878,14 +3873,13 @@ held_another() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> ", Refusal/binary>>)),
     ?assertEqual(nomatch, binary:match(Output, <<"double">>)).
 
-%% report §11.2, §11.4, §4.5: `:doc` of a member of a module's type shows
-%% it as the module's page shows it, in the form a program writes, its
-%% parameters named. A regression test, written after the code: the
-%% member's parameters were sought in the compiled module of
-%% `Shape.Point`, which is none, and its declaration was shown by its type
-%% alone; and of the release review's E4 (2026-10-25), the member was shown
-%% as a call of its qualified name, which the language refuses. It does not
-%% cover `Shift-Tab`, which reads the same page
+%% report §11.2, §11.4, §4.5: `:doc` of a member of a module's type shows it
+%% as the module's page shows it, in the form a program writes, its
+%% parameters named. A regression test, written after the code: the member's
+%% parameters were sought in the compiled module of `Shape.Point`, which is
+%% none, and its declaration was shown by its type alone; and the member was
+%% shown as a call of its qualified name, which the language refuses. It
+%% does not cover `Shift-Tab`, which reads the same page
 member_doc_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun member_doc/0).
 
@@ -3963,8 +3957,8 @@ shown_bytes() ->
 %% in its type's module. A regression test: the prelude had none, and `:doc
 %% monitor` said "no documentation". Report §11.4: a member's page shows it
 %% in the form a program writes, under its qualified name; a regression
-%% test of the release review's E4 (2026-10-25), the page showed a call of
-%% `Int.compare`, which the language refuses
+%% test: the page showed a call of `Int.compare`, which the language
+%% refuses
 prelude_doc_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun prelude_doc/0).
 
@@ -4177,8 +4171,8 @@ load_help() ->
 %% `:load` that puts it in scope; a function typed at it is the shell's own,
 %% which a peer the node does not list answers NotListed; and a service at
 %% a type the session declares, among a type's arguments too, is made. A
-%% regression test of MVP 3.0's refusals, lifted in MVP 3.1; NotLoaded on a
-%% peer, and a service at a session type that names it by its hash, so
+%% regression test of the refusals the shell once made of them; NotLoaded
+%% on a peer, and a service at a session type that names it by its hash, so
 %% that another shell node finds it, are the real nodes'
 %% (test/ern_nodes_tests.erl, shell_node and shell_service)
 node_shell_test_() ->
@@ -4337,8 +4331,8 @@ typing_ahead() ->
 %% process still running it and a binding holding a function of it keep,
 %% through every later reload. The session rewrites the source itself, with
 %% `Fs.write`, so the test needs no second process. A regression test of
-%% the purging reload, which until MVP 3.1 named what held the previous
-%% version and ended it at the next
+%% the purging reload, which once named what held the previous version and
+%% ended it at the next
 reload_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload/0).
 
@@ -4533,8 +4527,8 @@ refused_load_links_a_replaced_library() ->
 %% so does one that captures it or calls it, through every later reload,
 %% since a reload unloads nothing. A regression test: a closure capturing a
 %% function of the module, and one calling such a binding, faulted with the
-%% host's `badfun` once the version was purged, and until MVP 3.1 the
-%% reload that purged a version forgot them
+%% host's `badfun` once the version was purged, and the reload that
+%% purged a version once forgot them
 reload_bindings_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun reload_bindings/0).
 
@@ -4805,10 +4799,9 @@ refused_load_kills_holder() ->
 %% report §11.2, §6.10: a function of a previous version that a process
 %% holds in its state, and not in its code, keeps running that version
 %% through further reloads, since a reload unloads nothing. A regression
-%% test of the experiment of 2026-10-07 (the log's *The Nodes' Reasons,
-%% Kept*), where the host's check of a process's code did not see such a
-%% function, and the reload that purged its version left it to fail at its
-%% next call
+%% test of the experiment (the log's *The Nodes' Reasons, Kept*), where the
+%% host's check of a process's code did not see such a function, and the
+%% reload that purged its version left it to fail at its next call
 held_function_keeps_its_version_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun held_function_keeps_its_version/0).
 
@@ -4869,8 +4862,8 @@ reload_refused_by_a_new_module() ->
 %% from its compiled form's forms, `ern@greet$2`, and runs the code it
 %% compiled to, the lines of its source the compiled form records giving a
 %% process it spawns its site, the module's own; one that holds the same
-%% code is the node's own unit. Written after the code, 2026-10-12, which
-%% lifted the refusal the shell's reload by hash had made of the first
+%% code is the node's own unit. Written after the code, which lifted the
+%% refusal the shell's reload by hash had made of the first
 compiled_beside_another_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun compiled_beside_another/0).
 
@@ -4923,7 +4916,7 @@ compiled_beside_another() ->
 %% report §11.2: in a shell that is no node, a module loaded from its
 %% compiled form whose unit the session holds with other code, a module of
 %% the shell's own, is made a unit of its own from its forms, as on a node.
-%% Written after the code, 2026-10-12, which lifted the refusal
+%% Written after the code, which lifted the refusal
 compiled_beside_the_shells_own_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun compiled_beside_the_shells_own/0).
 
@@ -4949,8 +4942,8 @@ compiled_beside_the_shells_own() ->
 %% current compiled form it takes, which compiles nothing. Hello's source
 %% is given a comment after its build, which changes its digest and not its
 %% code, so that it is compiled. Written after the code (the log's *The
-%% Shell's Reload by Hash, Built*); the taken form's half on 2026-10-16,
-%% after the code, a regression test
+%% Shell's Reload by Hash, Built*); the taken form's half a regression
+%% test, written after the code
 node_takes_its_build_unit_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun node_takes_its_build_unit/0).
 
@@ -4987,9 +4980,9 @@ node_takes_its_build_unit() ->
 %% source: with a deployed build on the load path, whose greet.erc is newer
 %% than the source root's greet.ern but was compiled from the build's own,
 %% the source root's is compiled; and a form on the load path compiled from
-%% the source root's source, other.erc, is taken, whatever the times. A regression test for the
-%% other source, written 2026-10-16, after the code: the sentence first
-%% written would have loaded the deployed greet.erc
+%% the source root's source, other.erc, is taken, whatever the times. A
+%% regression test for the other source, written after the code: the
+%% sentence first written would have loaded the deployed greet.erc
 load_takes_no_form_of_another_source_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun load_takes_no_form_of_another_source/0).
 
@@ -5027,8 +5020,7 @@ load_takes_no_form_of_another_source() ->
 %% and M, whose form beside its source is compiled from it and against
 %% D's interface, is compiled, so that it reads D's binding from D's second
 %% version, as the session does; the form would read the first's. A
-%% regression test for the reloaded module, written 2026-10-16, after the
-%% code
+%% regression test for the reloaded module, written after the code
 load_takes_no_form_calling_a_reloaded_module_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun load_takes_no_form_calling_a_reloaded_module/0).
 
@@ -5058,9 +5050,9 @@ load_takes_no_form_calling_a_reloaded_module() ->
 %% is that of the source the session reads, whatever the two files' times:
 %% Same's source, touched after its build and unchanged, is taken from its
 %% form, and Changed's, changed and given a time before its build's, is
-%% compiled, its new value read. Written before the fix, the release
-%% review before 0.7.0 (K20, C10), which compared the times, of files that
-%% an attached shell's two machines may keep by two clocks
+%% compiled, its new value read. Written before the fix: `:load` compared
+%% the times, of files that an attached shell's two machines may keep by
+%% two clocks
 load_judges_by_digest_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun load_judges_by_digest/0).
 
@@ -5085,14 +5077,14 @@ load_judges_by_digest() ->
                                                 "\n> 2 : Int\n">>)).
 
 %% report §11.2: `:load` takes no compiled form another build of `ern`
-%% wrote: greet.erc, beside its source and compiled from it,
-%% its chunk naming another build of this version, is compiled afresh, and
-%% other.erc, as this build wrote it, is taken. A regression test, written
-%% 2026-10-16 after the code: the shell compared the source, the
-%% interfaces and the standard library but not the build, and a form an
-%% older build wrote kept alive a defect this build had fixed, until the
-%% file was deleted. It does not cover a compiled form with no source,
-%% which `:load` loads as `ern run` does
+%% wrote: greet.erc, beside its source and compiled from it, its chunk
+%% naming another build of this version, is compiled afresh, and other.erc,
+%% as this build wrote it, is taken. A regression test, written after the
+%% code: the shell compared the source, the interfaces and the standard
+%% library but not the build, and a form an older build wrote kept alive a
+%% defect this build had fixed, until the file was deleted. It does not
+%% cover a compiled form with no source, which `:load` loads as `ern run`
+%% does
 load_takes_no_form_of_another_build_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun load_takes_no_form_of_another_build/0).
 
@@ -5316,9 +5308,7 @@ load_loaded() ->
 
 %% report §8.5, §11.2: `:reload` evaluates the changed modules' bindings in
 %% dependency order. A regression test: it took them in the order of their
-%% names, so a module read the value its dependency's previous version gave.
-%% B is compiled on the load path, since a module `:load` loaded cannot yet
-%% be another's dependency (MVP 2.98)
+%% names, so a module read the value its dependency's previous version gave
 reload_in_dependency_order_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun reload_in_dependency_order/0).
 

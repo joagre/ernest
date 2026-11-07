@@ -140,11 +140,11 @@ process_status_test() ->
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
-%% report Appendix E.21, §10: a process's memory is the host's count with the
-%% binaries it references, in its mailbox as in its heap, each whole however
-%% small the part it uses and for each reference, and a process that waits
-%% still counts what it dropped, until it is collected. A regression test,
-%% written after the code: MVP 4.15's item 3.
+%% report Appendix E.21, §10: a process's memory is the host's count with
+%% the binaries it references, in its mailbox as in its heap, each whole
+%% however small the part it uses and for each reference, and a process that
+%% waits still counts what it dropped, until it is collected. A regression
+%% test, written after the code.
 process_memory_test() ->
     Size = 1 bsl 20,
     Bytes = binary:copy(<<0>>, Size),
@@ -404,12 +404,12 @@ exiting_subscriber_is_not_waited_for_test() ->
 %% report §8.6, §11.2: a termination once the end has begun cuts its wait
 %% short, whoever began the end: here an Os.exit began it and a subscriber
 %% holds its reply, and one termination ends the program with the exit's
-%% status, the runtime saying whom the wait left unanswered. The
-%% termination comes as the end says it waits, as the host's signal
-%% handler would send it then. A regression test of the rule of
-%% 2026-11-03, before which a first termination after an Os.exit was
-%% counted and only a second cut the wait short; an end that main's return
-%% began, which a termination cuts short the same way, is not covered
+%% status, the runtime saying whom the wait left unanswered. The termination
+%% comes as the end says it waits, as the host's signal handler would send
+%% it then. A regression test: before the rule, a first termination after an
+%% Os.exit was counted and only a second cut the wait short; an end that
+%% main's return began, which a termination cuts short the same way, is not
+%% covered
 termination_cuts_an_exit_short_test() ->
     Self = self(),
     Say = fun(Line) ->
@@ -533,10 +533,10 @@ evaluator_owns_its_proxy_test() ->
 %% ran `Os.run`, which kills the program it ran, ends once that program's
 %% process has ended, the kill being asynchronous, and so does one whose
 %% binding closed a listener: none of 200 loads of each leaves its
-%% evaluator. A regression test of the rule of 2026-11-02: the evaluator
-%% read what it owned once, as its last binding got its value, found the
-%% process still ending, and lived on for good, in 200 loads of 200 for
-%% `Os.run` and 199 for the listener
+%% evaluator. A regression test: before the rule, the evaluator read what it
+%% owned once, as its last binding got its value, found the process still
+%% ending, and lived on for good, in 200 loads of 200 for `Os.run` and 199
+%% for the listener
 evaluators_outlive_no_ending_process_test_() ->
     {timeout, 60, fun evaluators_outlive_no_ending_process/0}.
 
@@ -575,13 +575,12 @@ is_ended(Evaluator, Deadline) ->
         false
     end.
 
-%% report Appendix E.28, E.18, E.23: a load's evaluator that owns a
-%% listener a binding opened lives on until each process it owns has
-%% ended: a running program given to it meanwhile is found once the
-%% listener is closed, and it ends normally once that program is killed.
-%% A regression test of the rule of 2026-11-02, before which it lived on
-%% until the program's end; a socket given away from it, which it watches
-%% still, is not covered
+%% report Appendix E.28, E.18, E.23: a load's evaluator that owns a listener
+%% a binding opened lives on until each process it owns has ended: a running
+%% program given to it meanwhile is found once the listener is closed, and
+%% it ends normally once that program is killed. A regression test: before
+%% the rule, it lived on until the program's end; a socket given away from
+%% it, which it watches still, is not covered
 evaluator_ends_with_what_it_owns_test() ->
     Self = self(),
     Units = [unit_calling('ern@zz_listener_kept', kept_listener)],
@@ -616,11 +615,11 @@ evaluator_ends_with_what_it_owns_test() ->
 %% closed, owns nothing that keeps it alive, and ends; each then ends as
 %% what an owner that died owned. The bindings start `true` and read its
 %% `Exited`, and connect to a far end that accepts and closes and read
-%% `Left(Closed)`. A regression test of the rule of 2026-11-03, before
-%% which the evaluator and what it owned kept each other alive until the
-%% program's end, a pair for each load; what it owns that is spent once it
-%% lives on, which the same word wakes, is not covered. 5 seconds from the
-%% first wait bound a failure, within the run's own limit
+%% `Left(Closed)`. A regression test: before the rule, the evaluator and
+%% what it owned kept each other alive until the program's end, a pair for
+%% each load; what it owns that is spent once it lives on, which the same
+%% word wakes, is not covered. 5 seconds from the first wait bound a
+%% failure, within the run's own limit
 evaluator_ends_once_what_it_owns_is_spent_test_() ->
     {timeout, 60, fun evaluator_ends_once_what_it_owns_is_spent/0}.
 
@@ -825,9 +824,9 @@ end_takes_late_spawns() ->
 %% FaultReport, a restart among them, and the runtime's reporter as it
 %% happens; a second subscription replaces the first; a kill is no fault;
 %% the report of a process no peer spawned names no peer, a regression
-%% test of `peer`, written after the code (finding N12); report §7.3,
-%% Appendix E.21: the report carries its trace, empty here, where the
-%% processes run no frame of a program's
+%% test of `peer`, written after the code; report §7.3, Appendix E.21:
+%% the report carries its trace, empty here, where the processes run no
+%% frame of a program's
 fault_reports_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -866,12 +865,12 @@ fault_reports_test() ->
 flush() ->
     receive Message -> [Message | flush()] after 0 -> [] end.
 
-%% report Appendix E.24, E.21, §11.2: a process whose function
-%% `Test.faults` gives it, ern_rt:expected/1's, is marked in its row as it
-%% begins, and its fault, a restart's among them, reaches neither a
-%% subscriber nor the runtime's reporter, whatever its site says, while a
-%% fault of a process beside it reaches both. Written with the mark (the
-%% full review's E23), which took the place of a match on the site's text
+%% report Appendix E.24, E.21, §11.2: a process whose function `Test.faults`
+%% gives it, ern_rt:expected/1's, is marked in its row as it begins, and its
+%% fault, a restart's among them, reaches neither a subscriber nor the
+%% runtime's reporter, whatever its site says, while a fault of a process
+%% beside it reaches both. Written with the mark, which took the place of a
+%% match on the site's text
 expected_fault_told_to_no_one_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -1570,14 +1569,14 @@ service_monitor_canceled_test() ->
 %% held suspended while the delivery asks, the restart waiting on it, so
 %% that the reaper has the monitor before it is asked.
 %%
-%% A regression test, written after the fix of the full review's C4-C5b,
-%% which it does not guard: the race was a delivery the clock started after
-%% the reaper had taken the restart, which no test places there, the
-%% clock's order of its messages being its own, and under the old order
-%% this test passes too, the reaper ending the delivery as it took the
-%% restart. It does not cover the terminal's delivery, which takes the
-%% restart beside the clock, nor a delivery of an end's teller, which no
-%% restart asks and which teller_after_the_restart_test covers
+%% A regression test, written after the fix, which it does not guard: the
+%% race was a delivery the clock started after the reaper had taken the
+%% restart, which no test places there, the clock's order of its messages
+%% being its own, and under the old order this test passes too, the reaper
+%% ending the delivery as it took the restart. It does not cover the
+%% terminal's delivery, which takes the restart beside the clock, nor a
+%% delivery of an end's teller, which no restart asks and which
+%% teller_after_the_restart_test covers
 monitor_asked_as_restart_waits_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -2121,11 +2120,11 @@ adapted_fault_test() ->
 %% the message's place in the target's mailbox, and a restarting target
 %% faults at its wait, is reported restarted with the cause, and its new
 %% run takes the next message; the sender goes on. A regression test,
-%% written after the fix (finding W3): the fault killed the target by an
-%% exit signal, which the restart never saw, so the target ended without a
-%% restart and the next message was lost. The sender waits for what the
-%% worker took before it ends the program, since the program's end would
-%% kill the worker with the message still in its mailbox
+%% written after the fix: the fault killed the target by an exit signal,
+%% which the restart never saw, so the target ended without a restart and
+%% the next message was lost. The sender waits for what the worker took
+%% before it ends the program, since the program's end would kill the
+%% worker with the message still in its mailbox
 adapted_fault_restarts_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
@@ -2387,9 +2386,8 @@ deliveries_to_an_ended_caller() ->
 %% report §6.9, §6.6: a delivery ended with its recipient while its wrap
 %% waits in a call ends the call with it: the callee's row goes, as a
 %% killed process's goes (ern_rt:killed/2). A regression test, written
-%% after the code, found by the read-back of finding D1's build: a delivery
-%% has no row, so its end left the call's rows for as long as the callee
-%% lived
+%% after the code, found by a read-back: a delivery has no row, so its end
+%% left the call's rows for as long as the callee lived
 delivery_ends_its_call_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -2558,10 +2556,10 @@ kill_out_of_reach_vanishes_test() ->
 %% it monitors, and lives on once the wrap has returned and its delivery
 %% has ended, and ends with that process; and a process the wrap spawns,
 %% and the socket, are started by that process's root. A regression test,
-%% written after the code (finding D1): the socket was the delivery's and
-%% ended with it, the process headed a chain of its own, and
-%% Process.current answered the delivery. Os.start, which takes its owner
-%% as Tcp.connect does, is not run here
+%% written after the code: the socket was the delivery's and ended with
+%% it, the process headed a chain of its own, and Process.current answered
+%% the delivery. Os.start, which takes its owner as Tcp.connect does, is
+%% not run here
 wrap_acts_for_its_recipient_test() ->
     Self = self(),
     Tcp = ern_named:functions('ern@tcp'),
@@ -2606,9 +2604,9 @@ wrap_acts_for_its_recipient_test() ->
 %% address's target where the target is on this node, as a wrap acts for
 %% its recipient: Process.current there is the target. The gateway's
 %% worker is stood in for, as adapted_from_peer_test stands in for it. A
-%% regression test, written after the code (finding D1): it answered the
-%% kept process; a target on another node, for which the process acts for
-%% none, is test/ern_nodes_tests.erl's to reach and is not covered
+%% regression test, written after the code: it answered the kept process;
+%% a target on another node, for which the process acts for none, is
+%% test/ern_nodes_tests.erl's to reach and is not covered
 kept_acts_for_its_target_test() ->
     Self = self(),
     Process = ern_named:functions('ern@process'),
@@ -2794,9 +2792,8 @@ kept_self_is_its_target_test() ->
 %% run makes is applied, sent here and kept for alike. The gateway's worker
 %% is stood in for, as adapted_from_peer_test stands in for it, and the
 %% whole frame's way is src/nodes/test/ern_gateway_tests.erl's
-%% adapted_forgotten_test. A regression test, written after the code
-%% (finding D4): the address's maker was of the node's start, and its
-%% function was applied
+%% adapted_forgotten_test. A regression test, written after the code: the
+%% address's maker was of the node's start, and its function was applied
 earlier_run_address_test() ->
     Self = self(),
     Applying = fun(N) -> {applied, N} end,
@@ -2829,11 +2826,11 @@ applied() ->
 %% nothing and is no source: the clock forgets it at the process's end, its
 %% function, which would never finish, does not run, and the deadlock the
 %% entry process then makes is found at once, the alarm an hour ahead and
-%% no clock moved. A regression test, written after the code (finding D2):
-%% the alarm held the deadlock off until it fired, and the test moved the
-%% clock past it to see the deadlock at all; an alarm that fires as its
-%% process ends, which counted_link/2 still ends before it starts, is not
-%% covered, since nothing here orders the two
+%% no clock moved. A regression test, written after the code: the alarm
+%% held the deadlock off until it fired, and the test moved the clock past
+%% it to see the deadlock at all; an alarm that fires as its process ends,
+%% which counted_link/2 still ends before it starts, is not covered, since
+%% nothing here orders the two
 alarm_after_its_process_ended_test_() ->
     {timeout, 30, fun alarm_after_its_process_ended/0}.
 
@@ -2865,9 +2862,8 @@ alarm_after_its_process_ended() ->
 %% is told and answers, and the runtime says that the end no longer waits
 %% for the first, whose answer could reach no one. A regression test,
 %% written after the code: the teller, which applied the wrap until the
-%% wrap had a delivery of its own (finding C27), was linked to the runner,
-%% which traps no exit, so the kill ended the runner, the caller of
-%% run_main
+%% wrap had a delivery of its own, was linked to the runner, which traps
+%% no exit, so the kill ended the runner, the caller of run_main
 killed_teller_test() ->
     Self = self(),
     Killer = spawn(fun() -> receive {teller, Teller} -> exit(Teller, kill) end end),
@@ -2945,13 +2941,13 @@ spinning_wrap_ends_with_its_subscriber_test() ->
 %% after the restart's in the reaper's mailbox, and the delivery's row is
 %% written after the reaper has read the deliveries to the subscriber.
 %%
-%% Written with the fix (MVP 3.95's item 12): under the old code the
-%% delivery applied the wrap in the new run, which held the reply and did
-%% not answer, and the end waited for it until the test's timeout. Whether
-%% the teller's word comes from its delivery or from the restart's end of
-%% the calls waiting on the subscriber is the host's scheduling, and the
-%% test holds either; a delivery the reaper's read finds is the old order's,
-%% which monitor_asked_as_restart_waits_test covers for the clock
+%% Written with the fix: under the old code the delivery applied the wrap in
+%% the new run, which held the reply and did not answer, and the end waited
+%% for it until the test's timeout. Whether the teller's word comes from its
+%% delivery or from the restart's end of the calls waiting on the subscriber
+%% is the host's scheduling, and the test holds either; a delivery the
+%% reaper's read finds is the old order's, which
+%% monitor_asked_as_restart_waits_test covers for the clock
 teller_after_the_restart_test() ->
     Self = self(),
     Holder = spawn(fun() -> held_restart(Self) end),
@@ -3083,7 +3079,7 @@ spin() ->
 %% through one that has since ended, is started by it, and so is a
 %% listener, a socket or a running program one of them opens; a process the
 %% entry process spawns is the entry process's, and not the root's. Written
-%% after the code (findings V4, V1)
+%% after the code
 started_by_test() ->
     Self = self(),
     ok = ern_rt:run_main(

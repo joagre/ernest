@@ -1,7 +1,7 @@
-%% A machine that MVP 3.27's tools start nodes on (plan, MVP 3.27 item 1),
-%% and what is done there: a command run and its output read, a
-%% directory's files copied to it, and a command that runs on, a node or a
-%% host, whose output a reader of its own keeps until it is waited for.
+%% A machine that the tools across machines start nodes on, and what is
+%% done there: a command run and its output read, a directory's files
+%% copied to it, and a command that runs on, a node or a host, whose
+%% output a reader of its own keeps until it is waited for.
 %% This machine's commands run in the plain shell; another's over ssh,
 %% through one ssh connection held for the run, since an ssh connection's
 %% own handshake costs 0.5 to 1.5 seconds to the user's machines, and a

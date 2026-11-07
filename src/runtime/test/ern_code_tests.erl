@@ -298,10 +298,10 @@ binding_value_test() ->
 %% binding then without its value. The first is a node's build's, loaded at
 %% its start and never evaluated, beside a unit the shell's load brought;
 %% then both evaluated, as a reload leaves them. A regression test, written
-%% after the fix (findings S2, N1, N5): the first unit loaded answered, so
-%% a peer's spawn of a function the shell's load had evaluated was refused,
-%% the binding said to have no value here, and after a reload a peer found
-%% the previous version's value
+%% after the fix: the first unit loaded answered, so a peer's spawn of a
+%% function the shell's load had evaluated was refused, the binding said to
+%% have no value here, and after a reload a peer found the previous
+%% version's value
 versions_answer_the_evaluated_unit_test() ->
     Namespace = ['Tableversions'],
     Text = "export let answer : Int = 6 * 7\nexport fn same(n : Int) : Int = n * 3\n",
@@ -363,7 +363,7 @@ compiled(Namespace, Text, Interfaces, Units) ->
 %% never evaluated either, though a second version of the greeter, which
 %% holds the binding under one identity, has been; the caller compiled
 %% again against the second version reads the second's. A regression test,
-%% written after the fix (finding S2's read-back): the binding was found by
+%% written after the fix, found by a read-back: the binding was found by
 %% its identity alone, in the second version, and the build's caller then
 %% ran and read the build's greeter, which had no value
 reach_read_where_the_code_reads_test() ->

@@ -1,15 +1,14 @@
-%% The guide's examples, checked as the standard library's are (plan, MVP
-%% 2.61 step 1), and the report's by the same marks. A block marked
-%% `ernest` is a complete module and compiles; one whose first line names
-%% a file, `// net/http.ern`, is placed there, and such blocks under one
-%% heading compile together as a source tree; blocks that name the same
-%% file are its parts, in order, and one headed `// words.ern, continued`
-%% adds to the file as it stood before, however many headings back. A
-%% tree takes beside its own files each file an earlier heading wrote whose
-%% module its files name, `Gather.` of `gather.ern`, as the file stood. An
-%% `erlang` block that begins `-module(name).` joins them as `name.erl`,
-%% compiled with `erlc` beside the compiled modules, where report §11.2 has
-%% `ern` find it.
+%% The guide's examples, checked as the standard library's are, and the
+%% report's by the same marks. A block marked `ernest` is a complete module
+%% and compiles; one whose first line names a file, `// net/http.ern`, is
+%% placed there, and such blocks under one heading compile together as a
+%% source tree; blocks that name the same file are its parts, in order, and
+%% one headed `// words.ern, continued` adds to the file as it stood
+%% before, however many headings back. A tree takes beside its own files
+%% each file an earlier heading wrote whose module its files name,
+%% `Gather.` of `gather.ern`, as the file stood. An `erlang` block that
+%% begins `-module(name).` joins them as `name.erl`, compiled with `erlc`
+%% beside the compiled modules, where report §11.2 has `ern` find it.
 %%
 %% When the next fenced block is a `console` block, the program its `$ ern`
 %% line names is run, with the options the line gives, and its output
@@ -46,8 +45,8 @@
 %% EUnit's captured output, asked of the test's group leader, which is
 %% EUnit's. EUnit's own ?capturedOutput first asks whether it is by the
 %% function it is running, which under load it can sample while that
-%% process runs another module's code, and then answers "" (MVP 2.95's
-%% intermittent failure of the diagnostics' examples).
+%% process runs another module's code, and then answers "", which once
+%% failed the diagnostics' examples intermittently.
 -define(capturedOutput, captured_output()).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -76,8 +75,8 @@
 %% after it; the lines it is given on standard input; and what it shows.
 -record(launch, {invocation, compiled_file, words, inputs = [], shown}).
 
-%% guide/language.md, plan MVP 2.61: the guide marks enough of its examples
-%% for the check to hold something
+%% guide/language.md: the guide marks enough of its examples for the check
+%% to hold something
 guide_has_checked_examples_test() ->
     {Modules, Rejected} = lists:partition(fun({Kind, _}) -> Kind =/= rejected end, units(?GUIDE)),
     ?assert(length(Modules) >= 15),
@@ -136,8 +135,7 @@ uncommented(Line) ->
 %% of its kind, as many at once as this host has schedulers: a shell session
 %% or a program given standard input, each a host of its own, and a program
 %% that is refused, built in this node. The rest compile and run in this
-%% node, one after another, since two of them may share a module's name
-%% (plan, MVP 2.6).
+%% node, one after another, since two of them may share a module's name.
 guide_examples_test_() ->
     examples(?GUIDE, "guide").
 

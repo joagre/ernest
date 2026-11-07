@@ -1,15 +1,14 @@
-%% `make bench`'s part `burst` (docs/development.md), beside
-%% ern_spawn_costs and ern_restarting_costs: what each element of a burst
-%% costs against the burst's size (report §6.9, §10, Appendix E.15; plan,
-%% MVP 3.27 item 3). What the runtime adds to an operation grows with
-%% nothing but the operation's own input (§10), so an element of a burst
-%% costs what it costs alone, however many stand beside it: an end reads
-%% the monitors of the process that ended, and a caller's end its own,
-%% each by its key (ern_rt's monitored/6, down/3); a delivery is noted by
-%% its recipient (counted_link/2); and the clock forgets an alarm that
-%% fired by its timer alone (fired/2). The reaper's and the clock's
-%% bookkeeping grew with the burst until MVP 3.27 item 3 (the log's *The
-%% Rows That Grew*), and nothing had measured a burst against its size.
+%% `make bench`'s part `burst` (docs/development.md), beside ern_spawn_costs
+%% and ern_restarting_costs: what each element of a burst costs against the
+%% burst's size (report §6.9, §10, Appendix E.15). What the runtime adds to
+%% an operation grows with nothing but the operation's own input (§10), so
+%% an element of a burst costs what it costs alone, however many stand
+%% beside it: an end reads the monitors of the process that ended, and a
+%% caller's end its own, each by its key (ern_rt's monitored/6, down/3); a
+%% delivery is noted by its recipient (counted_link/2); and the clock
+%% forgets an alarm that fired by its timer alone (fired/2). The reaper's
+%% and the clock's bookkeeping once grew with the burst (the log's *The Rows
+%% That Grew*), and nothing had measured a burst against its size.
 %%
 %% Measured, in burst.txt, each burst at three sizes, in nanoseconds an
 %% element, beside the smallest size's as a ratio, so that a cost that

@@ -1,11 +1,11 @@
 //
-// The HTML of a document's tree (plan, MVP 4.2 item 2): `html`, one clause
-// for each of libs/markdown's blocks, and `inline`, one for each of its
-// inlines, written to be read as site/templates/README.md says. A block
-// element stands on a line of its own, indented four spaces a level, and its
-// inline content on its line; a `<pre>`'s body is written from the line's
-// start. Text is escaped whole, so an entity or a tag that a source writes
-// in its text shows as written.
+// The HTML of a document's tree: `html`, one clause for each of
+// libs/markdown's blocks, and `inline`, one for each of its inlines, written
+// to be read as site/templates/README.md says. A block element stands on a
+// line of its own, indented four spaces a level, and its inline content on
+// its line; a `<pre>`'s body is written from the line's start. Text is
+// escaped whole, so an entity or a tag that a source writes in its text
+// shows as written.
 //
 
 /// A heading's anchor: the fragment a link reaches it by, `1.4`, and the

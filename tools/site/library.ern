@@ -1,17 +1,15 @@
 //
-// The library's pages (plan, MVP 4.2 item 2): each module's page of
-// docs/man/, which `make man` writes, at its path under /man/, the
-// declarations every page's qualified names link to, and the contents
-// pages, as docs/design/site.md's *The root* says:
-// /man/ lists the standard library's modules and the libraries in two
-// groups, a module a line, its name and the purpose its own page opens
-// with, and ends with the toolchain's §11; /man/stdlib/ and /man/libs/
-// hold the two groups, and /man/libs/<name>/ a library's modules. A
-// module's page anchors each declaration by its qualified name as its
-// heading writes it, `#List.size`, lists the declarations by their short
-// names under the module's, gives a signature no tools and an example
-// Paste, and names the module's source in its footer, since docs/man/ is
-// itself generated.
+// The library's pages: each module's page of docs/man/, which `make man`
+// writes, at its path under /man/, the declarations every page's qualified
+// names link to, and the contents pages, as docs/design/site.md's *The root*
+// says: /man/ lists the standard library's modules and the libraries in two
+// groups, a module a line, its name and the purpose its own page opens with,
+// and ends with the toolchain's §11; /man/stdlib/ and /man/libs/ hold the
+// two groups, and /man/libs/<name>/ a library's modules. A module's page
+// anchors each declaration by its qualified name as its heading writes it,
+// `#List.size`, lists the declarations by their short names under the
+// module's, gives a signature no tools and an example Paste, and names the
+// module's source in its footer, since docs/man/ is itself generated.
 //
 
 /// The library as docs/man/ holds it: /man/'s opening, its groups with
@@ -163,7 +161,7 @@ fn moduleOf(root : Path, index : String, item : List(Markdown.Block)) : Either(S
 
 // A page's `since` line, the paragraph after its title that is emphasis
 // whole and begins `Since`, taken out of its text: the page shows it as its
-// metadata under the heading, as a report file shows its revision, so that
+// metadata under the heading, as a report file shows its version line, so that
 // the module's purpose is the first sentence read.
 fn sinceOf(blocks : List(Markdown.Block)) : #(List(Markdown.Inline), List(Markdown.Block)) =
     match blocks {
@@ -202,8 +200,8 @@ fn moduleWritten(run : Site.Run.Run, module : Module) : Either(String, Row) = {
         Right([])
     else
         Site.Run.filled(run,
-                        "fragments/revision.html",
-                        [#("revision_html", Site.Run.inlined(since))]);
+                        "fragments/version.html",
+                        [#("version_html", Site.Run.inlined(since))]);
     let body =
         sinceLine
             <> Site.Html.body(List.map(shown, fn(#(each, _, _)) = each),

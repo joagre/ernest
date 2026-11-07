@@ -1,11 +1,9 @@
-%% The site's generator, tools/site.ern (plan, MVP 4.2 items 2 and 5), run
-%% over a tree of its own: the documents under fixtures/site/tree/, each
-%% standing at the path of the document it plays, the guide, the tour, the
-%% report, the library's pages, Why, the questions, the deployment guide,
-%% the README, the release notes, the log and the projects' list, beside
-%% the site's files,
-%% ../site/, and the logos, with fixtures/site/config.json as the server's
-%% configuration.
+%% The site's generator, tools/site.ern, run over a tree of its own: the
+%% documents under fixtures/site/tree/, each standing at the path of the
+%% document it plays, the guide, the tour, the report, the library's pages,
+%% Why, the questions, the deployment guide, the README, the release notes,
+%% the log and the projects' list, beside the site's files, ../site/, and
+%% the logos, with fixtures/site/config.json as the server's configuration.
 %%
 %% The pages it writes are held to the expected ones under fixtures/site/expected/,
 %% their assets' digests aside, so that the look and the generation never
@@ -59,7 +57,7 @@ generated_test_() ->
 %%
 %% The books' contents pages and
 %% chapters, the guide's with its sections, the tour's with each chapter's
-%% line; the report's three files whole, with their revisions, their
+%% line; the report's three files whole, with their version lines, their
 %% sections' margin lines and their contents page; each module's page with
 %% its declarations anchored by name, its signatures and its examples, and
 %% the library's contents pages; Why, the questions, Install, Releases and
@@ -198,9 +196,8 @@ is_described(Page) ->
     Text = re:replace(Main, "<[^>]*>", "", [global, {return, binary}]),
     binary:match(Text, string:trim(Description, trailing, ".")) =/= nomatch.
 
-%% plan MVP 4.2 item 2: the generator writes the site into a directory of
-%% its own, so that no page whose source is gone stays, and refuses one
-%% that is there already.
+%% The generator writes the site into a directory of its own, so that no
+%% page whose source is gone stays, and refuses one that is there already.
 refused() ->
     {Status, Output} = ern_integration_tests:sh(generate(?OUT, ?CONFIG)),
     ?assertEqual(1, Status),

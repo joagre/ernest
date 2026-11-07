@@ -191,14 +191,16 @@ uninstall() {
 # The release archive: a staged tree without the helper, whose C source
 # it carries instead with the Makefile of release/, the README it
 # installs with the logo that README shows, and this script, packed as
-# ern-VERSION. Its version text says what it was made from (report
+# ern-VERSION.tar.gz beside its checksum, ern-VERSION.tar.gz.sha256, which
+# `sha256sum -c` reads. Its version text says what it was made from (report
 # §11.7, §12.5): VERSION's alone where the checkout stands at the
 # release's tag with no uncommitted change, which marks it a release, and
 # else VERSION's, `+` and the commit, `.dirty` after it where the tree had
 # uncommitted changes; a document's links into the repository go to the
 # same tag or commit. ern_release is compiled again into it with the mark
 # given and without the repository's DEVELOPMENT, and stripped as the
-# stage strips it.
+# stage strips it, and its module pages are written again with it before
+# the helper goes.
 release() {
     dir=$1
     version=$2
@@ -212,18 +214,48 @@ release() {
         mark=+$commit && ref=$commit
     fi
     stage "$dir/$name"
-    rm "$dir/$name/lib/ernest/build/runtime/priv/ern_exec"
     cd "$repo"
     erlc -Werror -DVERSION="\"$version\"" -DMARK="\"$mark\"" \
         -o "$dir/$name/lib/ernest/build/toolchain/cli/ebin" src/toolchain/cli/ern_release.erl
     escript tools/strip.escript "$dir/$name/lib/ernest/build/toolchain/cli/ebin"
+    pages "$dir/$name"
+    rm "$dir/$name/lib/ernest/build/runtime/priv/ern_exec"
     cp src/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
     cp "$dir/$name/share/doc/ernest/README.md" "$dir/$name/README.md"
     cp -R "$dir/$name/share/doc/ernest/assets" "$dir/$name/assets"
     sed "s/@VERSION@/$version/g" release/Makefile > "$dir/$name/Makefile"
     chmod -R u=rwX,go=rX "$dir/$name"
-    rm -f "$dir/$name.tar.gz"
-    (cd "$dir" && tar -czf "$name.tar.gz" "$name")
+    rm -f "$dir/$name.tar.gz" "$dir/$name.tar.gz.sha256"
+    (cd "$dir" && tar -czf "$name.tar.gz" "$name" &&
+         sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
+}
+
+# The module pages of the archive at $1 written again by its own ern, so
+# that each names the release's version text on its last line and in its
+# title's source, as the toolchain that wrote it (report §11.4). That ern
+# takes src/stdlib in its own tree for the standard library's source root,
+# so the sources are copied there and the pages written from that tree, as
+# make writes them from the checkout's, each into a copy of its build root
+# under $1.pages, since `ern doc` reads a current .erc beside the pages it
+# writes. The sources and the copies go after.
+pages() {
+    own=$(cd "$1/lib/ernest" && pwd -P)
+    copies=$(cd "$1/.." && pwd -P)/$(basename "$1").pages
+    rm -rf "$copies" "$own/src"
+    mkdir -p "$own/src"
+    cp -Rp src/stdlib src/libs "$own/src/"
+    for root in build/stdlib build/libs/*; do
+        mkdir -p "$copies/$root"
+        cp -Rp "$root/." "$copies/$root"
+        rm -f "$copies/$root"/*.3ern
+        source=src/${root#build/}
+        (cd "$own" && bin/ern doc --man --source-root "$source" \
+             --build-root "$copies/$root" "$source" > /dev/null)
+    done
+    for f in "$copies"/build/stdlib/*.3ern "$copies"/build/libs/*/*.3ern; do
+        cp "$f" "$1/share/man/man3/$(basename "$f")"
+    done
+    rm -rf "$copies" "$own/src"
 }
 
 case $job in

@@ -156,7 +156,7 @@ operations(Server) ->
                       spawn(fun() -> ok end),
                       Iteration
                   end},
-      %% report §9.4 to §9.6, MVP 2.99d's item 2: the rest of the prelude
+      %% report §9.4 to §9.6: the rest of the prelude
       "self" => {"self", fun(Iteration) -> _ = self(), Iteration end},
       "spawn_monitored" => {"spawnMonitored, its Down received",
                             fun(Iteration) ->

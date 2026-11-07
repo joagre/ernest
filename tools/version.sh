@@ -2,9 +2,10 @@
 # VERSION, the release the checkout works toward, set to the one given,
 # x.y.z, with every line a test holds to it (docs/reviews/release.md, step
 # 5): a shell's start line in a tracked document, the log and the proposals
-# aside, `Ernest x.y.z, session 1. :help for help.`, and the session
-# fixtures' start line, which names the version text of a build that is no
-# release, `x.y.z-dev` (ern_release). Each line is matched whole, so that
+# aside, `Ernest x.y.z, session 1. :help for help.`, the third line of each
+# of the report's files, `For Ernest x.y.z.`, and the session fixtures'
+# start line, which names the version text of a build that is no release,
+# `x.y.z-dev` (ern_release). Each line is matched whole, so that
 # a `since` line and a sentence naming a release stay as they are. The
 # pages make man writes name the version text too, and make version writes
 # them after this script.
@@ -45,6 +46,9 @@ documents=$(git -C "$repo" ls-files -- '*.md' ':!docs/log/' ':!docs/proposals/')
 held=$(cd "$dir" && grep -l "^Ernest $was$start" $documents) || [ $? -eq 1 ]
 for file in $held; do
     rewrite "$file" "s/^Ernest $was$start/Ernest $new$rest/"
+done
+for file in report/language.md report/toolchain.md report/library.md; do
+    rewrite "$file" "3s/^For Ernest $was\\.$/For Ernest $new./"
 done
 for file in test/fixtures/session/basic.out test/fixtures/session/attached.out; do
     rewrite "$file" "s/^Ernest $was-dev$start/Ernest $new-dev$rest/"

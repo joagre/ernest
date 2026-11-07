@@ -1,8 +1,8 @@
 %% `make bench`'s part `language`, the language against the host
-%% (docs/development.md; plan, MVP 3.29): each construct the compiler writes
-%% code for, in the code it writes, beside the plain Erlang a programmer
-%% writes for the same thing. test/fixtures/bench/language.ern holds a loop
-%% of each construct, compiled from source as `ern build` compiles it, and
+%% (docs/development.md): each construct the compiler writes code for, in
+%% the code it writes, beside the plain Erlang a programmer writes for the
+%% same thing. test/fixtures/bench/language.ern holds a loop of each
+%% construct, compiled from source as `ern build` compiles it, and
 %% test/fixtures/bench/ern_language_twin.erl the same loops as Erlang writes
 %% them, which `make bench` compiles with erlc into the bench's twins/
 %% directory.

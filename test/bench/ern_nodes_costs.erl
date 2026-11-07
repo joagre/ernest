@@ -12,9 +12,8 @@
 %% Two plain nodes of the host's, on the same two machines, time its ping
 %% over TCP, which TLS is set beside. `make bench` starts both nodes on
 %% this machine; `make bench-machines` the store on the first machine after
-%% this one of test/machines/machines.txt and the desk here (plan, MVP 3.27
-%% item 1). The part measures and asserts nothing, so it is not part of
-%% `make test-full`.
+%% this one of test/machines/machines.txt and the desk here. The part
+%% measures and asserts nothing, so it is not part of `make test-full`.
 -module(ern_nodes_costs).
 
 -export([main/1]).
