@@ -1340,6 +1340,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **arity** — the number of arguments a function takes; part of its type. §3.4.
 - **`as`** — `p as x`, a pattern that binds `x` to the whole value `p` matches. §5.10.
 - **attached shell** — a shell whose session runs on a listed peer, the shell's own node being its terminal and its files. §11.2.
+- **authority** — the part of a URI reference between `//` and its path, `userinfo@host:port`, the host alone or with its port. Appendix G.12.
 - **bare node** — a node started with no `.erc`, which holds no definition of a program's and runs what its peers spawn and compute on it. §8.7, §11.2.
 - **binding** — a `let` in a block, `let p = e` or `let p <- e`. §4.6, §5.5.
 - **bitstring** — a bit-level value or pattern `<<...>>` that produces or matches a `Bytes` value. §5.11.
@@ -1431,6 +1432,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **owner** — the process that opened a resource or was given it, or that made a table or started a proxy, with which the resource ends. §6.9, Appendix E.18, G.1, G.7.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.
+- **percent-encoding** — a `%` and two hexadecimal digits standing for one octet in a URI reference, which `Uri.decode` undoes. Appendix G.12.
 - **pipe** — the `|>` operator, `x |> f` = `f(x)`. §5.7.
 - **positional field** — a field on a constructor identified by position, not name. §3.5.
 - **precedence** — the binding tightness of a binary operator. §2.6.
@@ -1502,6 +1504,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **unfixed** — a type variable nothing has fixed by the end of its definition, held by no parameter's type and not the definition's own mailbox type; a spawned function's mailbox type that is one is `Never`. §3.11, §6.2.
 - **`Unit`** — the type with the single value `Unit`. §3.1, §9.3.
 - **unit** — a compiled module of the host's that holds definitions: one per source module in a build, one for the definitions one exchange brought, one per load; held for the node's life but for what §11.2's *What a node holds* lets go; nothing in a program names one. §10, §11.1, §11.2.
+- **URI reference** — a URI or a relative reference, RFC 3986's, read into its scheme, authority, path, query and fragment. Appendix G.12.
 - **utilization** — how busy a node is, on one scale: 1.0 every scheduler busy, below it room, above it work waiting; measured as the node's `ernest.conf` says, and answered to a peer by `Peer.utilization`. §8.7, §12.8, Appendix E.27.
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
 - **version text** — the toolchain's version as `ern --version` writes it, `0.4.0`, and `0.4.0-dev` or `0.4.0+1a2b3c4d` for a build that is no release. §11.7.

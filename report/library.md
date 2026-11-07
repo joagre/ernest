@@ -1188,7 +1188,7 @@ Time.weekday : (Civil) -> Optional(Weekday) // the day of the week of the civil 
 
 ### Appendix G.11. `libs/http` (namespace `Http`)
 
-HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, and a head and a body written. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language since the host answers names of its own for the headers it knows (E.0 rule 1); the rest is Ernest.
+HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, a head and a body written, a request's target read in its form, and RFC 6265's `Cookie` header read. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language since the host answers names of its own for the headers it knows (E.0 rule 1); the rest is Ernest.
 
 A `Request` is its method, its target as the client wrote it, its version and its headers, in their order and with their names as written; a `Response` is its version, its status and its headers, the status line's phrase being the status's. A body stands beside either as `Bytes`: `renderResponse` and `renderRequest` take one, and a reader of a head answers the bytes after it. `http11` is HTTP/1.1, `Version(major = 1, minor = 1)`.
 
@@ -1198,7 +1198,11 @@ A `Request` is its method, its target as the client wrote it, its version and it
 
 A request line is three words parted at runs of spaces and tabs, the third `HTTP/`, a digit, `.` and a digit and nothing more; one of more than three words, one whose third word is no version, a target with a byte outside U+0021 to U+007E, the visible ASCII characters RFC 3986 writes a target in, or two empty lines before it is `Malformed`, one being skipped as RFC 9112 has a server skip it, within `limits.line`, and so is a header line with no name, one the host cannot read, or a value holding U+0000 or bytes that are not UTF-8.
 
+`target(request)` reads the request's target as a URI reference (G.12) in the form RFC 9112 has a server read it, by the method: a `CONNECT` request's target is an authority alone, read as a reference with that authority and an empty path; an `OPTIONS` request's `*` is the path `*`; a target beginning with `/` is origin form, with no scheme and no authority; any other is absolute form, which carries a scheme. It is `None` for a target of no form, one with a fragment among them. Whether the scheme and the `Host` header fit the server is the server's.
+
 A value is read without the white space before and after it. A limit counts a line's ending, a line that passes it is refused before its line feed comes, and a limit below 1 lets no line in. `defaultLimits` is `Limits(line = 8192, headers = 65536)`. `header(headers, name)` is the first value under the name, compared in any case, and `headers(headers, name)` every value under it, in order.
+
+`cookies(headers)` is the pairs of every `Cookie` header, RFC 6265's, in order: each value parted at `;`, each part trimmed of the white space around it and parted at its first `=`, a part with no `=` dropped, and a value kept as written, its quotes among them. `cookie(headers, name)` is the first value under the name, compared exactly.
 
 `readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends.
 
@@ -1209,6 +1213,8 @@ A value is read without the white space before and after it. A limit counts a li
 `renderResponse(response, body)` and `renderRequest(request, body)` write the head and the body: the first line, with the value's version, each header as `name: value`, `Content-Length` of the body's size where the headers carry none and no `Transfer-Encoding`, the status is no 1xx, 204 or 304, and, for a request, the body is not empty, an empty line, and the body.
 
 A header whose name holds anything but a token's characters or whose value holds a carriage return, a line feed or U+0000, a method that is empty or is no token, a target that is empty or holds a byte outside U+0021 to U+007E, which `parseRequest` refuses, a status that is not three digits, from 100 to 999, which a status line's reader refuses as `Malformed`, and a body that is not empty with a status of 1xx, 204 or 304 fault the caller, a request this section refuses which the program alone could have kept (§7.4), the cause naming the header or the word; otherwise a value is written as given. A response's status line carries the phrase `reason(status)` gives, RFC 9110's for a status it names and `""` for another.
+
+`chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds, since no other chunk is empty. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
 
 `date(time)` writes a time as RFC 9110's `IMF-fixdate`, `Sun, 06 Nov 1994 08:49:37 GMT`, over `libs/time`; `parseDate(text)` reads that form and the two obsolete ones the RFC has a reader accept, RFC 850's `Sunday, 06-Nov-94 08:49:37 GMT` and asctime's `Sun Nov  6 08:49:37 1994`, each in its own case and spacing with the day of the week the date's, RFC 850's two-digit year read against the clock as the year with those digits that puts the date not more than fifty years after now; it answers `None` for any other text.
 
@@ -1236,4 +1242,27 @@ Http.renderRequest : (Request, Bytes) -> Bytes // the head and the body
 Http.reason : (Int) -> String // RFC 9110's phrase; "" for a status it does not name
 Http.date : (Int) -> String // IMF-fixdate, in UTC
 Http.parseDate : (String) -> Optional(Int) // IMF-fixdate, RFC 850's or asctime's form; None for another
+Http.target : (Request) -> Optional(Uri.Reference) // the target read in its form, by the method; None for one of no form
+Http.cookies : (List(Header)) -> List(#(String, String)) // every Cookie header's pairs, in order
+Http.cookie : (List(Header), String) -> Optional(String) // the first cookie under the name
+Http.chunk : (Bytes) -> Bytes // one chunk of the chunked coding; empty bytes the last chunk
+```
+
+### Appendix G.12. `libs/uri` (namespace `Uri`)
+
+RFC 3986's URI reference read into its components, and percent-decoding. `parse(text)` reads a URI reference, a URI or a relative reference, into its scheme, its authority, its path, its query and its fragment, each as written and still percent-encoded. It answers `None` where the text is not one: a character outside those the RFC writes a reference in, a space, a `|`, a control character and one outside ASCII among them; a second `#`; a `%` not followed by two hexadecimal digits; a port that is not digits alone; and an IPvFuture literal or RFC 6874's zone id in an IP literal, which this library does not read. It is a primitive over the host's `uri_string:parse`, written in the host's language since the host answers a term no Ernest type describes (E.0 rule 1), the check of each `%` being Ernest around it.
+
+An authority's `host` is a registered name, an IPv4 address or an IPv6 literal, the literal without its brackets, as `Tcp.connect` takes a host (E.18), and may be empty. `port` is its digits' number, of any size, and `None` where the port is absent or empty, `host:`, since RFC 3986 gives both the scheme's default, which is the program's. A component is read as written: a scheme's or a host's case is kept, and no `.` or `..` segment is removed, since normalization, RFC 3986 §6, and resolving a relative reference, §5, are not this library's.
+
+`parseAuthority(text)` reads an authority alone, `host`, `host:port` or either with `userinfo@` before it, as RFC 9112's `CONNECT` target and RFC 9110's `Host` header write one, and answers `None` for another text. It is Ernest over `parse`, the relative reference `//` and the text, refused where it has a path, a query or a fragment.
+
+`decode(text)` is the octets the text percent-encodes: each `%` and two hexadecimal digits, in either case, the octet they write, and every other character its UTF-8 bytes; `None` for a `%` not followed by two hexadecimal digits. It is Ernest alone, since the host's `percent_decode` refuses octets that are not UTF-8 and lets a broken `%` stand. A component is decoded after it is parted at its delimiters, as RFC 3986 §2.4 orders it: a path is parted at `/` and each segment decoded, in which `%2F` is the octet `/`, and a segment's text is `String.fromUtf8` of its octets (E.5).
+
+```
+type Reference = Reference(scheme : Optional(String), authority : Optional(Authority), path : String,
+  query : Optional(String), fragment : Optional(String))
+type Authority = Authority(userinfo : Optional(String), host : String, port : Optional(Int))
+Uri.parse : (String) -> Optional(Reference) // the components as written; None for a text that is no URI reference
+Uri.parseAuthority : (String) -> Optional(Authority) // host, host:port, or either after userinfo@; None for another text
+Uri.decode : (String) -> Optional(Bytes) // the percent-encoded octets; None for a % without two hexadecimal digits
 ```

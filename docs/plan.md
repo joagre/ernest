@@ -120,10 +120,16 @@ reader S reads of its live shell. The release note's line on the installed layou
     `Http.http11` and `Http.defaultLimits` stand, and the sites are written with them. ernest-httpd
     writes them in `smoke.ern`, `hosts.ern`, `static.ern` and `shell.ern` when its floor is 0.10,
     by its own session, told at the milestone's end.
-11. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and
-    percent-decoding as a library, the published specification being a library's work, with
-    `libs/http`'s target decoding and a cookie header's reading beside it, so that
-    `examples/fetch.ern` and `web_server.ern` parse neither by hand.
+11. **`libs/uri`**, feedback 210, decided with the user 2026-11-07 (G.12, G.11; the log's
+    *`libs/uri`*): RFC 3986's URI reference read into its components, and percent-decoding, the
+    published specification being a library's work; `Uri.parse` a thin primitive over the host's
+    `uri_string:parse`, as `Json.parse` is, `Uri.parseAuthority` and `Uri.decode` Ernest. In G.11,
+    `Http.target` reads the four forms of RFC 9112 §3.2 by the method, `Http.cookies` and
+    `Http.cookie` read every `Cookie` header, and `Http.chunk` writes one chunk. `examples/fetch.ern`
+    and `web_server.ern` are written over them; ernest-httpd's `static.ern`, `hosts.ern`,
+    `config.ern` and `shell.ern` when its floor is 0.10, by its own session, told at the
+    milestone's end. The manual page is `docs/man/libs/uri/uri.md`, `libs/http` is compiled after
+    `libs/uri`, and a test cites G.12.
 12. **A process owns what it opens**, feedback 208: `examples/fetch.ern` closes its socket only
     on success, so it runs each fetch under `Process.run`, whose end closes what it opened
     (§8.7); no form of the language closes on every way out of a block. The guide's §8.7 says
