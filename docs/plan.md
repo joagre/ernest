@@ -125,10 +125,9 @@ reader S reads of its live shell. The release note's line on the installed layou
     `Http.cookie` and `Http.chunk`; `examples/fetch.ern` and `web_server.ern` are written with them.
     ernest-httpd writes them in `static.ern`, `hosts.ern`, `config.ern` and `shell.ern` when its
     floor is 0.10, by its own session, told at the milestone's end.
-12. **A process owns what it opens**, feedback 208: `examples/fetch.ern` closes its socket only
-    on success, so it runs each fetch under `Process.run`, whose end closes what it opened
-    (§8.7); no form of the language closes on every way out of a block. The guide's §8.7 says
-    so in a sentence, written by item 8.
+12. **A process owns what it opens**, done 2026-11-07 (E.18, E.21; the log's *A Process Owns What
+    It Opens*). `examples/fetch.ern` runs its fetch under `Process.run`, whose end closes the
+    socket on every way out, and no form of the language closes on leaving a block.
 13. **An error across a library**, feedback 185: a block's `<-` takes one error type, so a
     library whose error wraps the host's makes a program lift every `Tcp` call. A proposal, to be written under
     `docs/proposals/errors_across_libraries/`, argues the three ways, the library answering

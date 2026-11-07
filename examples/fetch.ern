@@ -36,6 +36,9 @@
 //   `<-` gives up at the first `Left` (report §5.5, §7.1); `Os.arguments`
 //   is the command line, and `Os.exit` ends the program with a status
 //   (report Appendix E.23).
+// - `Process.run` runs the fetch in a process of its own, which owns the
+//   socket it opens, so the socket closes as the process ends, at a `Left`
+//   that gives up as on success (report Appendix E.18, E.21).
 //
 // Run it from this directory, with the machine's certificates:
 //
@@ -48,9 +51,10 @@ type Target = Target(host : String, port : Int, authority : String, path : Strin
 export fn main() : Unit =
     match Os.arguments {
         [url, caFile] ->
-            match fetch(url, Path(caFile)) {
-                Right(#(response, body)) -> report(response, body)
-              | Left(cause) -> fail(cause)
+            match Process.run(fn() = fetch(url, Path(caFile))) {
+                Right(Right(#(response, body))) -> report(response, body)
+              | Right(Left(cause)) -> fail(cause)
+              | Left(reason) -> fail("the fetch ended, " <> Io.show(reason))
             }
       | _ -> {
             Io.printlnError("usage: fetch URL CAFILE");
@@ -68,7 +72,9 @@ fn fail(cause : String) : Unit = {
 // The request and the response
 //
 
-// The response to a GET of the URL, and its body.
+// The response to a GET of the URL, and its body. Nothing here closes the
+// socket: it is the process's that opened it, which `main` starts for the
+// fetch alone, and closes as that process ends (report Appendix E.18).
 fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) = {
     let target <- targetOf(url);
     let socket <-
@@ -92,7 +98,6 @@ fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) 
     let #(body, _) <-
         Either.mapLeft(Http.readResponseBody(socket, carried, response, bodyLimit, 30000),
                        fn(error) = "cannot read the response's body: " <> readErrorText(error));
-    Tcp.close(socket);
     Right(#(response, body))
 }
 
