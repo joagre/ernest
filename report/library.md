@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 6 November 2026.
+Revision of 7 November 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 
@@ -652,6 +652,8 @@ A socket `accept` answers on such a listener is accepted before its handshake, w
 `connectTls` answers once its handshake is done, within its milliseconds, or the `Left` the handshake failed with, `Other(text)`; a file of certificates it cannot read or refuses answers as `listenTls`'s files do, read before the dial, so that its answer comes whatever the far end does.
 
 With `Verified(caFile)` the far end's certificate is checked against the certificates in the file, which is in PEM, passing where its chain leads to a certificate the file holds or where the file holds the far end's own certificate, self-signed or not, and for naming `host`, a name the certificate gives by a wildcard among them, as a browser matches one, or an address the certificate gives where `host` is an address, and the handshake fails where either check does; with `Unverified` it is not checked. A name is sent to the far end as the server name; an address is not. The versions and the ciphers are the host's own, TLS 1.2 and 1.3.
+
+The host's process of a connection over TLS hibernates after a millisecond's wait, by the host's own `hibernate_after`.
 
 The site of a listener is `Tcp.listen` or `Tcp.listenTls`, and of a socket `Tcp.accept`, `Tcp.connect` or `Tcp.connectTls`, the function that opened it (§6.9), with no line. It is owned by the process that opened it, the caller of `listen`, `listenTls`, `accept`, `connect` or `connectTls`, and `give(socket, process)` makes another a socket's owner. It lives until `Tcp.close`, until it is killed, until its owner dies, which kills it as a running program's is killed (Appendix E.23), or until the program ends; a socket given to a process that has ended is killed at once, and a restart is no death (§6.9). After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`, and so do `remote` and `local`.
 

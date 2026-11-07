@@ -83,14 +83,14 @@ reader S reads of its live shell. The release note's line on the installed layou
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
 
-2. **The host's collection at the wait**, built 2026-11-06 and reopened the same day (§10; the log's
-   *A Wait Collects*). A wait first waits the host's shortest timer and collects as it ends, rather
-   than counting before it waits, which cost three times a wait and missed a call's wait, a socket
-   and its writer. A receive that waits costs a timer more: the counter program's ratio to Erlang
-   went from 1.26x to 1.68x. A decision for the user, in a design session: what gates the
-   collection, since an idle connection still holds a response under the host's threshold, and a
-   value kept across a wait stays after its drop. The tests of the `Os`, checker, gateway and
-   exchange loops wait for that decision.
+2. **Nothing at the wait**, decided 2026-11-07 (§10, E.18; the log's *Nothing at the Wait*, after
+   *A Wait Collects*). A process that waits holds what it dropped until it runs again, as the host's
+   does; the collection at a wait, built 2026-11-06 and reopened the same day, goes whole: `collect/0`,
+   its dictionary key, the timer and the `after` clauses in the runtime's loops, the design note's
+   paragraph, `docs/memory_checks.md`'s lines on it and the tests of the rule. The host's process of
+   a connection over TLS keeps its `hibernate_after`, now E.18's sentence. The two defect fixes made
+   with it stay with their regression tests; whether a compiled receive stays a fun is read then.
+   `make bench` shows the counter program back near 1.26x against Erlang.
 3. **Memory shown.** `Process.status` and `:processes` show each process's memory, the host's
    count with its binaries (E.21, §11.2), read against E.0's rules first, so that an operator
    sees what an idle connection holds.
