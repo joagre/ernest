@@ -91,8 +91,8 @@ reader S reads of its live shell. The release note's line on the installed layou
 3. **Memory shown**, done 2026-11-07 (E.21, §11.2; the log's *Memory Shown*). `Process.status` has
    a `memory` field, and `:processes` writes it. A binary is counted whole for each reference, so
    the lines can add up to more than the node holds, and a socket's counts its writer's.
-4. **The deployment guide says what a waiting process holds**, one sentence in its section 7,
-   pointing at §10.
+4. **The deployment guide says what a waiting process holds**, done 2026-11-07, its section 7's
+   last sentence (the log's *Memory Shown*).
 5. **`kill` takes a `Process`**, feedback 213, as `monitor` does, so that a function of an
    address passes it through `Process.fromAddress` once for both; Appendix E.21 first.
 6. **Text from bytes that are not all UTF-8**, feedback 206, decided 2026-11-02, the policy

@@ -378,6 +378,8 @@ The first column is the line as it is written, with the peer's name from `ernest
 
 Lines that begin with a site and `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
 
+No line says how much memory a process holds: one that waits keeps what it dropped until it runs again or ends, so a server's idle connections can hold their last responses, and `:processes` shows each process's bytes (section 6, report §10).
+
 ## 8. A deployment, end to end
 
 Three nodes on one machine, a counter served on two of them and a tool that moves both to new code while they run, all from the two builds of section 5.3's example, `upgrade/v1`, whose `serve` is the counter's old loop, and `upgrade/v2`, whose `main` is the tool. Every step is run from `examples/` and shows the command and what each node says; the move when a step fails is in section 7.
