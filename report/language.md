@@ -1025,7 +1025,9 @@ What one process sends another arrives in the order it was sent, whichever addre
 
 **A spawn.** `Peer.spawn(name, f, ms)` asks the peer named `name` to start a process and run `f()` in it, the values `f` captured (§3.11) crossing as they cross in a message, a reply among them answered by the spawned process as §6.6 says of `spawn`, and for `restarting(limit, g)` the limit and `g`; the peer records the spawn's site (§6.9) for the process as it records a local spawn's, and answers its address; what the spawn answers, and within what time, is Appendix E.27's.
 
-A function spawned on a peer runs there once the peer's code table holds its identity and every identity its reach names, which cross to a peer that lacks them (**The exchange**), and only where every top-level binding its reach names, found by its identity, has its value there, a constant (§4.6) having it wherever its form is, made from the form and evaluated nowhere (§8.5), and the module every foreign declaration its reach names calls is on the peer; otherwise the peer starts nothing, the spawn fails with `NotLoaded`, and the peer says on its standard error what it lacked, the binding or the module. Nothing is initialized because a peer asked, but for the toolchain's own units, which §12.7 evaluates where it loads them. A function spawns whatever its module holds beside it: a binding outside its reach keeps it from no peer.
+A function spawned on a peer runs there once the peer's code table holds its identity and every identity its reach names, which cross to a peer that lacks them (**The exchange**), and only where every top-level binding its reach names, found by its identity, has its value there, a constant (§4.6) having it wherever its form is, made from the form and evaluated nowhere (§8.5), and the module every foreign declaration its reach names calls is on the peer; otherwise the peer starts nothing, the spawn fails with `NotLoaded`, and the peer says on its standard error what it lacked, the binding or the module.
+
+Nothing is initialized because a peer asked, but for the toolchain's own units: what the peer lacks of them, the spawned function or the value of a binding its reach names, it supplies by a load of the unit from its own tree (§12.7). A function spawns whatever its module holds beside it: a binding outside its reach keeps it from no peer.
 
 In the spawned function a top-level `let` and a declaration's name are the peer's, a value it captured is the spawner's, and the system processes are the peer's (§8.2).
 
@@ -1495,7 +1497,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **telling** — the frame a node sends each peer every `utilization-interval` with how busy it is, which the peer holds to draw a peer for `Peer.compute`. §8.7, Appendix E.27.
 - **termination** — the host's signal `SIGTERM`, which ends the Ernest program as a return of `main` does, its subscribers told; sent to a running program by `Os.signal`. §8.6, Appendix E.23.
 - **tick** — a sign of life the host sends a peer where nothing else was sent for 15 seconds. §12.6.
-- **toolchain's own units** — the units of the toolchain, the shell's among them, which a node loads from its own tree where a spawn names one it lacks, and which cross to no peer. §8.7, §12.7.
+- **toolchain's own units** — the units of the toolchain, the shell's among them, which a node loads from its own tree where a spawn's function, or a binding its reach names, lacks its value there, and which cross to no peer. §8.7, §12.7.
 - **top-level binding** — a value bound at file scope by a `let`. §4.6, §8.5.
 - **trace** — the host's stack where a fault was met, at the moment it was, as text, a frame a line as Appendix E.21 writes it; a fault's report shows it and `Down` leaves it out. §7.3, §11.2, Appendix E.21.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`. §3.2.

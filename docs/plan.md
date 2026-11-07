@@ -148,11 +148,20 @@ reader S reads of its live shell. The release note's line on the installed layou
     and `Http`'s heads are Ernest around a primitive, and a head is read on from the line under
     way, so its lines are not read again. `roff` stays in `libs/markdown`, since `ern doc --man`
     lays its pages out with it as §11.4 says, beside `tools/manual.ern` (principle 2).
-15. **What a lambda's reach finds on a peer**, feedback 217, a named decision for the user: a
-    lambda naming `Ansi.clearScreen`, spawned on a bare node whose tree holds `libs/ansi`,
-    answers `Left(Io.NotLoaded)`, since a reach crosses as forms and §12.7 loads a
-    toolchain-owned unit only where the spawned function's own unit is the toolchain's;
-    discussed with the user against principle 1 before §8.7 or §12.7 changes.
+15. **What a lambda's reach finds on a peer**, feedback 217, decided 2026-11-07 (§8.7, §12.7;
+    the log's *What a Lambda's Reach Finds on a Peer*): a binding of the toolchain's own units
+    that a spawned function's reach names, `Ansi.clearScreen` among them, is given its value on
+    the peer by the load of its unit from the peer's own tree, as a spawned function of theirs
+    is, so the lambda serves where it answered `Left(Io.NotLoaded)`. The report says it.
+
+    Built by an item session: a nodes test before the code, a program's lambda naming
+    `Ansi.clearScreen` spawned and computed on a bare node answering `Right` with no `was not
+    loaded` line on the peer, and a second spawn through a function the node then holds naming
+    `Ansi.clearBelow`, which covers the held path; one function, called where the exchange
+    reads the reach and where a held function is started, that finds the lacking binding's
+    unit among the node's own and runs the own-unit load, then reads the frame again; the
+    nodes' and the code's design notes and the deployment guide's lines on a binding without a
+    value follow the code; `make test-nodes`, then `make test-full`.
 16. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
     writer's own namespace outward, as a relative path resolves from its directory, so that
     `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
