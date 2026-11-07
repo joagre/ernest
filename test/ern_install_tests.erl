@@ -433,10 +433,12 @@ forms_missing(Dir) ->
                  not lists:keymember("ErnC", 1, Chunks)
              end].
 
-%% The `.erc` each module of a source root compiles to, by its path.
+%% The `.erc` each module of a source root compiles to, by its path, an
+%% editor's file left out.
 compiled(SourceRoot) ->
     lists:sort([filename:rootname(Source) ++ ".erc"
-                || Source <- filelib:wildcard("**/*.ern", SourceRoot)]).
+                || Source <- filelib:wildcard("**/*.ern", SourceRoot),
+                   not ern_repository:is_editors(Source)]).
 
 %% Every file under a directory, by its path.
 installed(Dir) ->
