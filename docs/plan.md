@@ -110,17 +110,16 @@ reader S reads of its live shell. The release note's line on the installed layou
    stand, `Test.faults` is written over `run`, and the sites are written with it.
    ernest-httpd's lines 20 and 21 wait for its session.
 
-9. **A program's environment and working directory**, feedback 207, decided 2026-11-03: `Os.Command`
-   gains what the host's `exec` takes, an environment and a working directory, so that an editor
-   under a terminal gets its `TERM` and a program its directory without `env` or `sh -c 'cd'`
-   in the arguments; the form, which every program that starts a program writes, decided here
-   first, since `Command(program, arguments, input)` stands at ten sites of the standard library
-   alone (feedback 184). Beside it, feedback 233, ernest-httpd's 25, found 2026-11-04: `Os` sends
-   a program it started no signal but the terminal's hangup, so a test of a server's orderly
-   end starts it through `sh -c 'echo $$; exec ...'` and runs the host's `kill`. One reading
-   against E.0's rules decides whether `Os` ends a program by the termination signal, as
-   `Os.terminate(program)` or by a signal named, and E.23 then says what the program's
-   process answers.
+9. **A program's environment, and a signal named**, feedback 207 and 233, ernest-httpd's 25,
+   decided 2026-11-07 (E.23; the log's *A Program's Environment, and a Signal Named*).
+   `Os.Command` has `environment`, each variable set over the inherited environment, and
+   `workingDirectory`, which every site writes, the inheriting one as `Os.workingDirectory`;
+   184's verdict holds. `Os.signal(program, signal)` sends the program alone `Termination`,
+   `Hangup` or `Interrupt`, the three §8.6 names, and answers `Left(Closed)` once it has
+   exited. The build: the helper takes the environment and the directory before `exec` and a
+   signal frame, `ern_os`, `os.ern`, the thirteen sites, the guide's `Os` sentences,
+   `docs/design/runtime.md`'s line on the helper's frames, and the tests citing E.23.
+   ernest-httpd's `smoke.ern` and `session.ern` are its session's, told at the milestone's end.
 10. **`libs/http`'s values**, feedback 186: a value for its ordinary limits and one for HTTP/1.1,
     named by the guide's style, the examples and the pages using them.
 11. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and

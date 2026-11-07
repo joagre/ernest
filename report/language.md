@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 4 November 2026.
+Revision of 7 November 2026.
 
 *Dedicated to the memory of Joe Armstrong, 1950–2019.*
 
@@ -1397,11 +1397,12 @@ Every technical term this report introduces, with a gloss and the section that d
 - **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
 - **guard expression** — the form of a `receive` guard. §6.3.
 - **handshake** — the opening of a connection, in which each node proves its key and the floor before anything passes. §12.5.
-- **hangup** — the host's signal `SIGHUP`: to the Ernest program, a reload on a node and a termination elsewhere; to a program under a pseudo-terminal, sent when the terminal is closed, as `Os.closeInput` sends it. §8.6, §12.5, Appendix E.23.
+- **hangup** — the host's signal `SIGHUP`: to the Ernest program, a reload on a node and a termination elsewhere; to a program under a pseudo-terminal, sent when the terminal is closed, as `Os.closeInput` sends it, and to a running program, sent by `Os.signal`. §8.6, §12.5, Appendix E.23.
 - **hash** — the SHA-256 of a definition's canonical form, its identity on every node, or of a type's, which a service carries. §8.7, §11.1, Appendix H.
 - **Hindley-Milner** — the type system Ernest uses; inference asks for an annotation only where §3.9 says. §3.9.
 - **identity** — what a reference to a definition names: a function's or a type's hash, a binding's qualified name with its definition's hash. §8.7.
 - **inferred restriction** — the equality constraint or process-only, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
+- **interrupt** — the host's signal `SIGINT`, which ends the Ernest program at once; sent to a running program by `Os.signal`. §8.6, Appendix E.23.
 - **irrefutable pattern** — a pattern that cannot fail. §5.10.
 - **key** — a node's own key, the key pair by which it is identified. §8.3, §8.7, §11.3.
 - **`kill`** — `kill(p)`, ends the process `p` with the reason `Killed`. §6.9, §9.5, Appendix E.21.
@@ -1490,6 +1491,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **tail position** — a function's body, and the branches, clause bodies, last block expressions, right operands of `&&` and `||`, and pipes' calls within it. §10.
 - **taken namespace** — a namespace of the prelude, of the standard library or of the toolchain's own `Ernest`, which no other module may provide or stand under. §4.2.
 - **telling** — the frame a node sends each peer every `utilization-interval` with how busy it is, which the peer holds to draw a peer for `Peer.compute`. §8.7, Appendix E.27.
+- **termination** — the host's signal `SIGTERM`, which ends the Ernest program as a return of `main` does, its subscribers told; sent to a running program by `Os.signal`. §8.6, Appendix E.23.
 - **tick** — a sign of life the host sends a peer where nothing else was sent for 15 seconds. §12.6.
 - **toolchain's own units** — the units of the toolchain, the shell's among them, which a node loads from its own tree where a spawn names one it lacks, and which cross to no peer. §8.7, §12.7.
 - **top-level binding** — a value bound at file scope by a `let`. §4.6, §8.5.
