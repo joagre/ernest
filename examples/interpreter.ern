@@ -10,9 +10,10 @@
 // - The lexer, the parser and the evaluator are pure functions, and each
 //   answers its errors as a value, an `Either`, which the loop turns into a
 //   line of output (report §7.1).
-// - Each expression is evaluated in a process of its own, watched with
-//   `spawnMonitored`; one that does not end within two seconds is killed
-//   with `kill`, and the loop goes on (report §6.9).
+// - Each expression is evaluated in a process of its own by `Process.run`,
+//   which a helper waits on and answers to a call; one that does not end
+//   within two seconds is killed with its helper, and the loop goes on
+//   (report §6.6, §6.9, Appendix E.21).
 //
 // Run it from this directory, and type an expression a line:
 //
@@ -55,95 +56,75 @@ type EvalError = Unbound(String) | DivisionByZero | NotAFunction | NotANumber
 
 type TryError = Eval(EvalError) | Crashed | Timeout
 
-type InterpreterMsg =
-    Answered(serial : Int, result : Either(EvalError, Value))
-  | Died(serial : Int, down : Down)
+type HelperMsg = Evaluate(Reply(Either(Reason, Either(EvalError, Value))))
 
 //
 // Program
 //
 
-export fn main() : Unit receiving InterpreterMsg =
-    interpret(Map.empty, 0)
+export fn main() : Unit =
+    interpret(Map.empty)
 
 //
 // Processes
 //
 
-fn interpret(env : Map(String, Value), serial : Int) : Unit receiving InterpreterMsg =
+fn interpret(env : Map(String, Value)) : Unit =
     match Io.readLine() {
-        None ->
-            Unit // end of input
-      | Some(text) -> {
-            let #(env, serial) = evaluateLine(env, serial, text);
-            interpret(env, serial)
-        }
+        None -> Unit // end of input
+      | Some(text) -> interpret(evaluateLine(env, text))
     }
 
 // A line read: its tokens, its expression, and the value it came to,
-// shown; then the environment, which a `let` adds its name to, and the
-// serial of the last expression tried.
-fn evaluateLine(env : Map(String, Value),
-                serial : Int,
-                text : String) : #(Map(String, Value), Int) receiving InterpreterMsg =
+// shown; then the environment, which a `let` adds its name to.
+fn evaluateLine(env : Map(String, Value), text : String) : Map(String, Value) =
     match tokenize(text) {
         Left(BadChar(=char, =index)) -> {
             Io.println("illegal character "
                            <> Char.toString(char)
                            <> " at "
                            <> Int.toString(index));
-            #(env, serial)
+            env
         }
       // a line with nothing on it answers nothing
       | Right([]) ->
-            #(env, serial)
+            env
       | Right(tokens) ->
             match parse(tokens) {
                 Left(error) -> {
                     Io.println(parseErrorText(error));
-                    #(env, serial)
+                    env
                 }
               | Right(expression) -> {
-                    let result = try(env, expression, serial + 1);
+                    let result = try(env, expression);
                     show(result);
                     match #(expression, result) {
-                        #(Let(=name), Right(value)) -> #(Map.put(env, name, value), serial + 1)
-                      | _ -> #(env, serial + 1)
+                        #(Let(=name), Right(value)) -> Map.put(env, name, value)
+                      | _ -> env
                     }
                 }
             }
     }
 
-// try as a process: evaluate in a child, wait at most two seconds,
-// kill the child if it does not answer.
-fn try(env : Map(String, Value),
-       expression : Expression,
-       serial : Int) : Either(TryError, Value) receiving InterpreterMsg = {
-    let me = self(); // not self() inside the lambda: that is the child's
-    let child =
-        spawnMonitored(fn() = send(me, Answered(=serial, result = eval(env, expression))),
-                       fn(down) = Died(=serial, =down));
-    await(child, serial)
-}
-
-// Every monitor reports a death, a normal return included, and it arrives
-// after the answer; a child killed on a timeout reports later still.
-// A `Down` names no process, and the child's `Process` (report Appendix
-// E.21) exists only after the spawn its wrap is made for, so the serial
-// in the message is what tells this child's news from an earlier child's.
-fn await(child : Address(Never), serial : Int) : Either(TryError, Value) receiving InterpreterMsg =
-    receive {
-        Answered(serial = carried, =result) when carried == serial ->
+// try as a process: evaluate in a child that `Process.run` starts, and
+// wait at most two seconds for the helper that waits on it to answer. A
+// helper killed on a timeout takes its child with it, and its late answer
+// never reaches this process (report §6.6, Appendix E.21).
+fn try(env : Map(String, Value), expression : Expression) : Either(TryError, Value) = {
+    let helper = spawn(fn() = receive {
+        Evaluate(reply) -> answer(reply, Process.run(fn() = eval(env, expression)))
+    });
+    match Address.call(helper, Evaluate, 2000) {
+        Some(Right(result)) ->
             Either.mapLeft(result, Eval)
-      | Died(serial = carried) when carried == serial ->
+      | Some(Left(_)) ->
             Left(Crashed) // a fault in the child
-      | Answered() or Died() ->
-            await(child, serial) // an earlier expression's child
-      | after 2000 -> {
-            kill(Process.fromAddress(child));
+      | None -> {
+            kill(Process.fromAddress(helper));
             Left(Timeout)
         }
     }
+}
 
 fn show(result : Either(TryError, Value)) : Unit =
     Io.println(match result {

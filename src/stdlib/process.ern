@@ -11,6 +11,10 @@
 /// changed by the time it is read, and the runtime keeps nothing of a process
 /// that has ended (report Appendix E.21).
 ///
+/// `run` runs a function in a process of its own and answers its value or how
+/// the process ended, for a worker whose end the caller reads as data: a fault
+/// in it ends the worker and not the caller.
+///
 /// ## Examples
 ///
 /// The caller is among the processes the runtime runs:
@@ -107,6 +111,12 @@ export type FaultReport =
                 peer : Optional(String),
                 time : Int)
 
+// What the process that judges a call of `run` takes: the call for its
+// answer, the value `f` returned, the end of the process `f` runs in, and
+// the end or restart of the caller. The judge is a process of its own,
+// since `run` receives nothing in its caller's process.
+type JudgeMsg(a) = Run(Reply(Either(Reason, a))) | Finished(a) | Ended(Down) | CallerEnded(Down)
+
 /// The process behind the address, through every adapted address. Two addresses of one
 /// process give equal processes, though addresses have no equality.
 ///
@@ -199,3 +209,87 @@ export fn faults(wrap : (FaultReport) -> m) : Unit receiving m =
 
 foreign fn subscribe(address : Address(FaultReport)) : Unit =
     "ern_rt:faults/1"
+
+/// Runs `f()` in a process of its own and answers `Right` of the value `f`
+/// returned, or `Left` of the reason the process ended with before it
+/// returned: `Fault(cause)` where `f` faulted, `Killed` where a `kill` ended
+/// it.
+///
+/// The caller waits for the process's end however long it takes, as a
+/// direct call of `f` would, and receives nothing. The process's site is
+/// where `run` is written, as a spawn's is, and it owns what `f` opens, which
+/// its end closes (report §6.9). Where the caller ends or restarts first, the
+/// process is killed, though `owned` does not list it among the caller's; a
+/// process `f` spawns lives on after it.
+///
+/// A fault in `f` is the process's own and is reported as any fault is; the
+/// caller reads it in the answer. `run` runs `f` on the caller's node, where
+/// `Peer.compute` runs it on a peer within a time and faults the caller with
+/// `f`'s fault (report Appendix E.21).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.run(fn() = 6 * 7)
+/// // => Right(42)
+/// ```
+///
+/// ```ernest
+/// Process.run(fn() = kill(Process.current()))
+/// // => Left(Killed)
+/// ```
+///
+/// ### See also
+///
+/// `spawnMonitored`, for a process the caller watches while it lives.
+///
+/// since 0.10.0
+export fn run(f : () -> a receiving m) : Either(Reason, a) = {
+    let site = callerSite();
+    let caller = current();
+    let judge = spawn(fn() = {
+        monitorService(caller, CallerEnded);
+        receive {
+            Run(reply) -> {
+                let home = self();
+                judged(reply, spawnMonitoredAt(fn() = send(home, Finished(f())), Ended, site))
+            }
+          | CallerEnded(_) ->
+                Unit
+        }
+    });
+    Address.callForever(judge, Run)
+}
+
+// The judge's wait for the end of the process `running`, which runs `f`:
+// the answer its end gives, the value `f` returned where the process
+// returned and the reason it ended with otherwise; or the process's kill
+// where the caller ends or restarts first, whose call no one answers then.
+// A `Down` keeps no order with the messages its process sent (report §6.9),
+// so an end that says the process returned waits for the value it sent
+// before it did.
+fn judged(reply : Reply(Either(Reason, a)), running : Address(m)) : Unit receiving JudgeMsg(a) =
+    receive {
+        Ended(down) ->
+            match down.reason {
+                Returned ->
+                    receive {
+                        Finished(value) -> answer(reply, Right(value))
+                    }
+              | reason ->
+                    answer(reply, Left(reason))
+            }
+      | CallerEnded(_) ->
+            kill(fromAddress(running))
+    }
+
+// Report §6.9: `spawnMonitored` at the site given, `run`'s caller's.
+foreign fn spawnMonitoredAt(f : () -> Unit receiving m,
+                            wrap : (Down) -> n,
+                            site : String) : Address(m) receiving n =
+    "ern_rt:spawn_monitored/3"
+
+// Report §6.9: where the call of `run` is written, which the compiler
+// passes `run` as it passes `spawn` its site, and reads here in its place.
+foreign fn callerSite() : String =
+    "ern_rt:caller_site/0"

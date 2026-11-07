@@ -1132,6 +1132,24 @@ expected_fault_not_reported() ->
                                                 "> no process has faulted\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"faulted:">>)).
 
+%% report §11.2, §6.9, Appendix E.21: the process `Process.run` starts in
+%% a session's input has the input's site, as a spawn there has, where
+%% `run` is called and where it is named as a value. A regression test,
+%% written after the code
+run_site_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun run_site/0).
+
+run_site() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "fn site() : String = Optional.withDefault(Optional.map("
+                                    "Process.status(Process.current()), fn(s) = s.site), \"\")\n"
+                                    "Process.run(site)\n"
+                                    "List.map([site], Process.run)\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Right(\"$Session1.input 2:1\")">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> [Right(\"$Session1.input 3:1\")]">>)).
+
 %% report §11.2, Appendix E.17: the history's directory is its owner's
 %% alone, made so before the history is written, and one an earlier
 %% version left open to others is closed before the history is read, even

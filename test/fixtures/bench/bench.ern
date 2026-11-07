@@ -110,6 +110,12 @@ export fn main() : Unit receiving Msg = {
         restarting(Unlimited, fn() = Unit)();
         index
     });
+    // Appendix E.21: a function run in a process of its own, its value
+    // answered once the process has ended.
+    measure("process_run", 200000, fn(index) = match Process.run(fn() = index) {
+        Right(value) -> value
+      | Left(_) -> 0
+    });
     raises([8, 12, 64]);
     let _ = systemFlag(backtraceDepth, 64);
     Unit

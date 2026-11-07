@@ -128,12 +128,12 @@ naming the cause expected and what came instead: another cause, a return,
 or the reason the process ended with as `Io.show` writes it, `expected the
 fault division by zero, got Killed`.
 
-`run` runs in a process of its own, monitored, whose end gives the answer
-(report §6.9). `faults` waits for that end however long it takes, as a
-direct call of `run` would. Where the caller ends first, the process is
-killed; a process `run` spawns lives on after it. No job reports a fault of
-a process `faults` started, since the test's answer carries it (report
-§11.2).
+`run` runs in a process of its own, as `Process.run` runs a function, whose
+end gives the answer (report §6.9). `faults` waits for that end however
+long it takes, as a direct call of `run` would. Where the caller ends or
+restarts first, the process is killed; a process `run` spawns lives on
+after it. No job reports a fault of a process `faults` started, since the
+test's answer carries it (report §11.2).
 
 ### Examples
 

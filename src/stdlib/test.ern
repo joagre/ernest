@@ -69,12 +69,6 @@ export type Result = Passed | Failed(String)
 /// since 0.10.0
 export type Captured = Captured(stdout : Bytes, stderr : Bytes)
 
-// What the process that judges a call of `faults` takes: the request for its
-// verdict, the end of the process the call ran in, and the end of the caller.
-// The judge is a process of its own, since `faults` receives nothing in its
-// caller's process.
-type JudgeMsg = Judge(Reply(Result)) | Ended(Down) | CallerEnded(Down)
-
 // A capture that runs, its collector the runtime's.
 type Writes = Writes(Foreign.Term)
 
@@ -130,12 +124,12 @@ fn partsAt(wanted : List(String), got : List(String), at : Int) : Optional(Int) 
 /// or the reason the process ended with as `Io.show` writes it, `expected the
 /// fault division by zero, got Killed`.
 ///
-/// `run` runs in a process of its own, monitored, whose end gives the answer
-/// (report §6.9). `faults` waits for that end however long it takes, as a
-/// direct call of `run` would. Where the caller ends first, the process is
-/// killed; a process `run` spawns lives on after it. No job reports a fault of
-/// a process `faults` started, since the test's answer carries it (report
-/// §11.2).
+/// `run` runs in a process of its own, as `Process.run` runs a function, whose
+/// end gives the answer (report §6.9). `faults` waits for that end however
+/// long it takes, as a direct call of `run` would. Where the caller ends or
+/// restarts first, the process is killed; a process `run` spawns lives on
+/// after it. No job reports a fault of a process `faults` started, since the
+/// test's answer carries it (report §11.2).
 ///
 /// ### Examples
 ///
@@ -155,49 +149,27 @@ fn partsAt(wanted : List(String), got : List(String), at : Int) : Optional(Int) 
 /// ```
 ///
 /// since 0.5.0
-export fn faults(run : () -> a receiving m, cause : String) : Result = {
-    let call = expected(fn() = {
-        let _ = run();
-        Unit
-    });
-    let caller = Process.current();
-    let judge = spawn(expected(fn() = {
-        monitor(caller, CallerEnded);
-        receive {
-            Judge(reply) -> judged(reply, spawnMonitored(call, Ended), cause)
-          | CallerEnded(_) -> Unit
-        }
-    }));
-    Address.callForever(judge, Judge)
-}
+export fn faults(run : () -> a receiving m, cause : String) : Result =
+    verdict(Process.run(expected(run)), cause)
 
 // Report Appendix E.24, §11.2: the function a process `faults` starts,
 // which marks the process in its row as it begins and then runs `f`, so
 // that the process's fault reaches no job's report and no subscriber of
 // `Process.faults`.
-foreign fn expected(f : () -> Unit receiving m) : () -> Unit receiving m =
+foreign fn expected(f : () -> a receiving m) : () -> a receiving m =
     "ern_rt:expected/1"
 
-// The judge's wait on the process `running`, which runs the call: the
-// verdict on its end, or its kill where the caller ends first, whose call
-// no one answers then (report §6.9).
-fn judged(reply : Reply(Result), running : Address(m), cause : String) : Unit receiving JudgeMsg =
-    receive {
-        Ended(down) -> answer(reply, verdict(down.reason, cause))
-      | CallerEnded(_) -> kill(Process.fromAddress(running))
-    }
-
-// The verdict on a process that was to fault with `cause` and ended with
-// `reason`.
-fn verdict(reason : Reason, cause : String) : Result = {
+// The verdict on a call that was to fault with `cause` and whose process
+// answered `ran`.
+fn verdict(ran : Either(Reason, a), cause : String) : Result = {
     let expected = "expected the fault " <> cause <> ", got ";
-    match reason {
-        Fault(faulted) ->
+    match ran {
+        Left(Fault(faulted)) ->
             if faulted == cause then Passed else Failed(expected <> "the fault " <> faulted)
-      | Returned ->
-            Failed(expected <> "a return")
-      | _ ->
+      | Left(reason) ->
             Failed(expected <> Io.show(reason))
+      | Right(_) ->
+            Failed(expected <> "a return")
     }
 }
 

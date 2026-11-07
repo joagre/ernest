@@ -104,25 +104,10 @@ reader S reads of its live shell. The release note's line on the installed layou
    `String.stripSuffix` stand, and the sites are written with them. `String.drop` reverses the
    refusal of 2026-09-26. Feedback 215 is dropped: no search by code points stands beside
    E.5's, since `toList` reads them.
-8. **A worker's value or its end**, feedback 209: a function that runs a function monitored and
-   answers its value or its end, written by hand at five sites, and wrong at a sixth,
-   `examples/interpreter.ern`'s `await`. Decided with the user on 2026-11-07, in its design
-   session: `Process.run(f) : Either(Reason, a)` (E.21), a wait without a limit as `Test.faults`
-   waits, the fault as data, and no delivering form, by the argument that took out the ask (the
-   log's *A Worker's Value or Its End*).
-
-   The build, an item session's: `Process.run` in
-   `process.ern`, with the emitter passing its site as it does `spawn`'s; `Test.faults` written
-   over it, its judge going; the six sites and the guide's §4.4, §5.2, §5.6 and §6.4 written
-   with it, the gathering sites through a helper that sends `Process.run`'s answer home; the
-   interpreter's deadline a helper and an `Address.call`; `make bench`'s row for it; and item
-   12's guide sentence naming it as the form that closes what a fetch opened.
-
-   The rest of the item was built or decided on 2026-11-07. Feedback 211 brought
-   `Fs.makeTempDir` (E.17) and a `Test.equal` failure that says where two values differ (E.24,
-   §11.2). Feedback 224, ernest-httpd's 20, brought `Json.encode` (G.6). All three are argued in
-   the log's *A Test's Scratch, and JSON on One Line*, where 226 and 228 are dropped. Feedback
-   225, ernest-httpd's 21, brought `Test.capture` (E.24; the log's *A Case's Standard Error*).
+8. **A worker's value or its end**, done 2026-11-07 (E.21, E.24; the log's *A Worker's Value or
+   Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A
+   Case's Standard Error*). `Process.run`, `Fs.makeTempDir`, `Json.encode` and `Test.capture`
+   stand, `Test.faults` is written over `run`, and the sites are written with it.
    ernest-httpd's lines 20 and 21 wait for its session.
 
 9. **A program's environment and working directory**, feedback 207, decided 2026-11-03: `Os.Command`
@@ -143,9 +128,9 @@ reader S reads of its live shell. The release note's line on the installed layou
     `libs/http`'s target decoding and a cookie header's reading beside it, so that
     `examples/fetch.ern` and `web_server.ern` parse neither by hand.
 12. **A process owns what it opens**, feedback 208: `examples/fetch.ern` closes its socket only
-    on success, so it spawns a process for each fetch, whose end closes what it opened (§8.7),
-    and the guide's section on sockets says so in a sentence; no form of the language closes
-    on every way out of a block.
+    on success, so it runs each fetch under `Process.run`, whose end closes what it opened
+    (§8.7); no form of the language closes on every way out of a block. The guide's §8.7 says
+    so in a sentence, written by item 8.
 13. **An error across a library**, feedback 185: a block's `<-` takes one error type, so a
     library whose error wraps the host's makes a program lift every `Tcp` call. A proposal, to be written under
     `docs/proposals/errors_across_libraries/`, argues the three ways, the library answering

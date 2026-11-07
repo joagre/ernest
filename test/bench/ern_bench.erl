@@ -214,7 +214,14 @@ operations(Server) ->
                        fun(Iteration) ->
                            try ok catch _:_ -> ok end,
                            Iteration
-                       end}}.
+                       end},
+      %% Appendix E.21: the host's one message for a value or an end, a
+      %% monitored process whose exit carries its value
+      "process_run" => {"Process.run, a spawn_monitor whose exit is the value",
+                        fun(Iteration) ->
+                            {_, MonitorRef} = spawn_monitor(fun() -> exit({value, Iteration}) end),
+                            receive {'DOWN', MonitorRef, _, _, {value, Value}} -> Value end
+                        end}}.
 
 %% The order of two terms, as a `compare` answers it.
 ordering(Left, Right) when Left < Right -> 'Less';

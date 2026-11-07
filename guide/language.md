@@ -1016,44 +1016,39 @@ A `Put` answers the first caller waiting, and a `Take` answers at once or keeps 
 
 A kept reply outlives a caller that ends. `Reply.process(reply)` is the caller's `Process`, the identity of a process, which §5.2 teaches, and which the server may monitor to drop the reply of a caller that has ended (report §6.6).
 
-**A library that waits.** A function that receives is tied to the mailbox type of the process it runs in, so a function that must wait on messages of its own, from whatever process calls it, is a process and a call. The library spawns a process whose mailbox is its own, and the caller gets the result by a call, which leaves the caller's mailbox as it was. `gathered` runs `f` on each number in a process of its own and collects the pieces as they come, in any process. It uses `spawnMonitored` and `Down`, which §5.2 teaches: a process started and watched, whose end comes back as a message:
+**A library that waits.** A function that receives is tied to the mailbox type of the process it runs in, so a function that must wait on messages of its own, from whatever process calls it, is a process and a call. The library spawns a process whose mailbox is its own, and the caller gets the result by a call, which leaves the caller's mailbox as it was. `gathered` runs `f` on each number in a process of its own and collects the pieces as they come, in any process. It uses `Process.run`, which §5.2 teaches: a function run in a process of its own, answered by its value or by how the process ended:
 
 ```ernest
 // gather.ern
 export type Piece(a) = Piece(n : Int, value : a)
 
-type GatherMsg(a) = Collect(Reply(List(Piece(a)))) | Computed(Piece(a)) | Ended(Down)
+type GatherMsg(a) = Collect(Reply(List(Piece(a)))) | Ran(n : Int, outcome : Either(Reason, a))
 
 export fn gathered(numbers : List(Int), f : (Int) -> a receiving e) : List(Piece(a)) = {
-    let gatherer = spawn(fn() = run(numbers, f));
+    let gatherer = spawn(fn() = collecting(numbers, f));
     Address.callForever(gatherer, Collect)
 }
 
-fn run(numbers : List(Int), f : (Int) -> a receiving e) : Unit receiving GatherMsg(a) =
+fn collecting(numbers : List(Int), f : (Int) -> a receiving e) : Unit receiving GatherMsg(a) =
     receive {
         Collect(reply) -> {
             let me = self();
             List.forEach(numbers, fn(n) = {
-                let _ = spawnMonitored(fn() = send(me, Computed(Piece(=n, value = f(n)))), Ended);
+                let _ = spawn(fn() = send(me, Ran(=n, outcome = Process.run(fn() = f(n)))));
                 Unit
             });
-            answer(reply, gather(List.size(numbers), 0, []))
+            answer(reply, gather(List.size(numbers), []))
         }
     }
 
-// A helper that returned has sent its piece, and its Down keeps no order with
-// that message, so the gather ends once every helper has ended and each one
-// that returned has been heard from. owed counts the helpers that returned
-// and whose piece has not come; it is below 0 while a piece is ahead of its end.
-fn gather(running : Int,
-          owed : Int,
-          pieces : List(Piece(a))) : List(Piece(a)) receiving GatherMsg(a) =
-    if running == 0 && owed == 0 then
+// Each helper sends one message, its number's value or the end that took its
+// place, so the gather ends once every helper has been heard from.
+fn gather(running : Int, pieces : List(Piece(a))) : List(Piece(a)) receiving GatherMsg(a) =
+    if running == 0 then
         pieces
     else receive {
-        Computed(piece) -> gather(running, owed - 1, piece :: pieces)
-      | Ended(Down(reason = Returned)) -> gather(running - 1, owed + 1, pieces)
-      | Ended(_) -> gather(running - 1, owed, pieces)
+        Ran(=n, outcome = Right(value)) -> gather(running - 1, Piece(=n, =value) :: pieces)
+      | Ran(outcome = Left(_)) -> gather(running - 1, pieces)
     }
 ```
 
@@ -1073,7 +1068,7 @@ $ ern run collect.erc
 3: 9
 ```
 
-`GatherMsg` is the library's own and stays private: the caller sees `gathered`'s signature and nothing of how it waits. `Collect` is a constructor, and a constructor is a function, so it stands where `Address.callForever` wants the function that builds the request. `gather` ends on what it waits for, each helper's end and each piece, and needs no deadline of its own. The helper whose `f` faults sends no piece, and its `Down` says so.
+`GatherMsg` is the library's own and stays private: the caller sees `gathered`'s signature and nothing of how it waits. `Collect` is a constructor, and a constructor is a function, so it stands where `Address.callForever` wants the function that builds the request. `gather` ends on what it waits for, one message from each helper, and needs no deadline of its own. A helper whose `f` faults sends the `Left` that says so, and no piece is gathered for its number.
 
 **Pacing.** A mailbox has no limit. A process that sends faster than its receiver takes messages fills the receiver's mailbox, and the node's memory with it. A call paces its caller, since the caller waits for each answer before it asks again. A stream of messages is paced by a window of credits: the receiver grants a number of messages, and the sender waits for the next grant when it has sent them.
 
@@ -1376,39 +1371,28 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown | Unreach
 
 `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
-A process that monitors a worker while waiting for its result gets two messages, the result and the death. A `Down` comes from the runtime and not from the process that ended, so the report gives it no order with that process's own messages (§5.1, report §6.4, report §6.9). Whichever comes second is still in the mailbox when the next worker is monitored. The `Down` names the process it is about, and the worker names itself in its result, so the wait takes what is about the worker it waits for:
+A process that monitors a worker while waiting for its result gets two messages, the result and the death. A `Down` comes from the runtime and not from the process that ended, so the report gives it no order with that process's own messages (§5.1, report §6.4, report §6.9). Whichever comes second is still in the mailbox when the next worker is monitored.
+
+A worker whose whole job is to compute a value is run by `Process.run(f)` instead. It runs `f` in a process of its own, waits for the process's end, and answers once: `Right(v)` with the value `f` returned, or `Left(reason)` with the reason the process ended with:
+
+```console
+> :type Process.run
+Process.run : (() -> a receiving m) -> Either(Reason, a)
+```
 
 ```ernest
-type MainMsg = Result(from : Process, value : Int) | Died(Down)
-
 fn work(job : Int) : Int =
     job * job
 
-fn worker(parent : Address(MainMsg), job : Int) : Unit =
-    send(parent, Result(from = Process.current(), value = work(job)))
-
-fn runWorker(job : Int) : Optional(Int) receiving MainMsg = {
-    let me = self();
-    let child = spawnMonitored(fn() = worker(me, job), Died);
-    waitFor(Process.fromAddress(child))
-}
-
-fn waitFor(child : Process) : Optional(Int) receiving MainMsg =
-    receive {
-        Result(from = sender, =value) when sender == child -> Some(value)
-      // the Down came before the result; a worker that returned has sent it, so go on waiting
-      | Died(Down(=process, reason = Returned)) when process == child -> waitFor(child)
-      | Died(Down(=process)) when process == child -> None
-      | _ -> waitFor(child)
+fn report(job : Int) : Unit =
+    match Process.run(fn() = work(job)) {
+        Right(value) ->
+            Io.println("job " <> Int.toString(job) <> ": " <> Int.toString(value))
+      | Left(reason) ->
+            Io.println("job " <> Int.toString(job) <> ": the worker ended, " <> Io.show(reason))
     }
 
-fn report(job : Int) : Unit receiving MainMsg =
-    match runWorker(job) {
-        Some(value) -> Io.println("job " <> Int.toString(job) <> ": " <> Int.toString(value))
-      | None -> Io.println("job " <> Int.toString(job) <> ": the worker died")
-    }
-
-export fn main() : Unit receiving MainMsg = {
+export fn main() : Unit = {
     report(1);
     report(2)
 }
@@ -1420,11 +1404,9 @@ job 1: 1
 job 2: 4
 ```
 
-Anything else is an earlier worker's death, and `waitFor` takes it and passes over it, so that it does not stay in the mailbox.
+`report` receives nothing: the answer reaches it as a call's does (§4.4), and it waits as long as a direct call of `work` would. A fault in `work` ends the worker and not `report`, and `ern run` reports it under the line where `Process.run` is written, as it reports a spawned process's fault (report Appendix E.21). `monitor` and `spawnMonitored` stay for a process that lives on beside its watcher, whose end is news and not an answer.
 
-Where the `Down` comes first, `waitFor` reads its reason. A worker that `Returned` sent its result before it did, so the wait goes on until the result comes. Any other reason, a fault or a kill, ended the worker before it sent one, and the wait answers `None`. Where the result is the worker's answer to a call (§4.4), no such care is needed: a call's answer is never overtaken by the callee's end.
-
-A test that asks a server what it did with a `Down` has the same gap and nothing in it to wait on: the `Down` has no order with the test's own request, so the server may answer before it has seen the death. `Test.until(fn() = Test.equal(Address.call(server, Count, 1000), Some(1)), 1000)` runs the test again until it passes or the milliseconds end, and answers the last outcome (report Appendix E.24): the test waits for the effect it means, and the milliseconds only bound the wait.
+A test that asks a server what it did with a `Down` has nothing to wait on: the `Down` has no order with the test's own request, so the server may answer before it has seen the death. `Test.until(fn() = Test.equal(Address.call(server, Count, 1000), Some(1)), 1000)` runs the test again until it passes or the milliseconds end, and answers the last outcome (report Appendix E.24): the test waits for the effect it means, and the milliseconds only bound the wait.
 
 `Process.live()` lists the live processes, `Process.status(process)` tells where one was spawned, how many messages wait for it, whether it runs and the bytes it holds, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
@@ -1588,7 +1570,7 @@ Several texts are counted at once, by a worker each, and the tally totals them. 
 
 ```ernest
 // words.ern, continued
-type MainMsg = Counted(Map(String, Int)) | Died(Down)
+type MainMsg = Counted(Either(Reason, Map(String, Int)))
 
 export fn main() : Unit receiving MainMsg = {
     let totals = spawn(fn() = tally(Map.empty));
@@ -1602,7 +1584,7 @@ export fn main() : Unit receiving MainMsg = {
 fn countAll(totals : Address(TallyMsg), texts : List(String)) : Unit receiving MainMsg = {
     let me = self();
     List.forEach(texts, fn(text) = {
-        let _ = spawnMonitored(fn() = send(me, Counted(count(text))), Died);
+        let _ = spawn(fn() = send(me, Counted(Process.run(fn() = count(text)))));
         Unit
     });
     collect(totals, List.size(texts))
@@ -1612,16 +1594,14 @@ fn collect(totals : Address(TallyMsg), left : Int) : Unit receiving MainMsg =
     if left == 0 then
         Unit
     else receive {
-        Counted(counts) -> {
+        Counted(Right(counts)) -> {
             send(totals, Add(counts));
             collect(totals, left - 1)
         }
-      | Died(Down(reason = Fault(cause))) -> {
-            Io.println("a worker faulted: " <> cause);
+      | Counted(Left(reason)) -> {
+            Io.println("a worker ended: " <> Io.show(reason));
             collect(totals, left - 1)
         }
-      | Died(_) ->
-            collect(totals, left)
     }
 ```
 
@@ -1633,13 +1613,13 @@ and 2
 cat 2
 ```
 
-Each worker counts one text and sends the map to `main`, not to the tally. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. `main` monitors every worker, so one that faults is counted as done and reported. A worker that returned is counted by its `Counted`, so `collect` passes over its `Down`, whichever of the two arrives first (§5.2).
+Each worker counts one text, and the map goes to `main`, not to the tally. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. `main` cannot wait in `Process.run` for one text while the others count, so a helper process waits for each and sends `main` its answer, the map or how the worker ended (§5.2). One message comes for each text, and `collect` counts them; a worker that faults is counted as done and reported.
 
 ### 5.7 Exercises
 
 **(a)** The ping-pong program prints `ping 3`, `pong 3`, `ping 2`, and so on (§5.1). Move pong's `Io.println` below its `answer`. Is the alternation still guaranteed?
 
-**(b)** Take the clause for `Returned` out of §5.2's `waitFor`. Which lines can `jobs.erc` then print for job 1?
+**(b)** Write §5.2's `report` with `spawnMonitored` and a `receive` in place of `Process.run`. Which clauses does the wait need, and what can `jobs.erc` print for job 1 without the one that reads a `Down`'s reason?
 
 ## 6. Handle failure
 
@@ -1769,54 +1749,44 @@ A process that is killed, or that ends with the program, has not faulted. A dead
 
 ### 6.4 Let it crash
 
-A worker need not guard against what it did not expect. It faults, and the process that watches it decides what follows: it tries again, gives up, or ends too. The recovery is written once, in the watcher, and the worker's code is only its work. The watcher supervises the worker, and it is spawn, monitor, and receive:
+A worker need not guard against what it did not expect. It faults, and the process that watches it decides what follows: it tries again, gives up, or ends too. The recovery is written once, in the watcher, and the worker's code is only its work. The watcher supervises the worker, and it runs each job by `Process.run` and reads the answer (§5.2):
 
 ```ernest
-type SupervisorMsg = Result(Int) | Ended(Down)
-
-fn supervise(jobs : List(Int)) : Unit receiving SupervisorMsg =
+fn supervise(jobs : List(Int)) : Unit =
     match jobs {
         [] ->
             Io.println("all jobs done")
       | job :: rest -> {
-            let me = self();
-            let _ = spawnMonitored(fn() = send(me, Result(100 / job)), Ended);
-            Io.println(Int.toString(job) <> ": " <> outcome());
+            Io.println(Int.toString(job) <> ": " <> outcome(Process.run(fn() = 100 / job)));
             supervise(rest)
         }
     }
 
-// The worker's answer, or how it ended. A worker that returned has sent its
-// answer, so after its end the answer is taken too, whichever arrived first,
-// and neither is left for the next worker; one that ended otherwise sent none.
-fn outcome() : String receiving SupervisorMsg =
-    receive {
-        Ended(Down(reason = Returned)) ->
-            receive {
-                Result(value) -> Int.toString(value)
-            }
-      | Ended(Down(reason = Fault(cause))) ->
-            "failed, " <> cause
-      | Ended(Down(=reason)) ->
-            "ended, " <> Io.show(reason)
+// The worker's answer, or how it ended.
+fn outcome(ran : Either(Reason, Int)) : String =
+    match ran {
+        Right(value) -> Int.toString(value)
+      | Left(Fault(cause)) -> "failed, " <> cause
+      | Left(reason) -> "ended, " <> Io.show(reason)
     }
 
-export fn main() : Unit receiving SupervisorMsg =
+export fn main() : Unit =
     supervise([4, 0, 5])
 ```
 
 ```console
 $ ern run tasks.erc
 4: 25
-Tasks.supervise:9 faulted: division by zero
+Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
-    Tasks.supervise:9
+    Tasks.supervise:6
+    Process.run:255
 0: failed, division by zero
 5: 20
 all jobs done
 ```
 
-A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints, so what became of each job is said in one place; the second line, with the trace beneath it, is `ern run`'s report of the fault, on standard error. A worker reports by a message to its supervisor, which knows the job and decides what follows.
+A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints, so what became of each job is said in one place; the second line, with the trace beneath it, is `ern run`'s report of the fault, on standard error. Its last frame is `Process.run`'s, which called the job's function in the worker. The worker's answer comes back to its supervisor, which knows the job and decides what follows.
 
 What must survive a fault lives in the process that does not fault: here the list of jobs is the watcher's. A long-lived process restarts in place instead, which §6.5 shows, and a group of them restarts together under the standard library's `Supervisor`, which §6.6 shows. A process that must not outlive another monitors it and returns when it dies.
 
@@ -3119,6 +3089,8 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session 
 
 A socket lives until `Tcp.close`, so the session closes it when its reader finds the connection gone. It is owned by the process that accepted it and is killed when its owner dies, so the loop that accepts gives each socket to its session, `Tcp.give`, and a session that faults takes its connection with it. Its process, and the listener's, are the program's: `Process.live` lists them, and a fault in one is reported under the function that opened it, `Tcp.listen` for the listener and `Tcp.accept` for a socket (report Appendix E.18).
 
+A socket `Tcp.connect` opens is owned the same way, by the process that connected. So a function that connects and may give up before it closes, as a block's `<-` gives up at a `Left`, runs under `Process.run` (§5.2): its process ends as the function returns, and closes what it opened.
+
 `Tcp.listenTls` and `Tcp.connectTls` open a listener and a socket over TLS, which the same functions accept, read, write, give and close. A listener takes connections of its address's family alone, so a server for IPv4 and IPv6 opens `"0.0.0.0"` and `"::"` on one port (report Appendix E.18).
 
 ### 8.8 Prediction exercise
@@ -3332,7 +3304,7 @@ Several of these tell the compiler nothing it could not work out for itself. Wha
 
 **§5.7.** (a) No. As written, pong prints before it answers, and `Io.println` returns once standard output has taken the line (report §12.1), so ping, which waits for the answer, cannot print its next line first. With the print below the `answer`, ping is free to print `ping 2` while pong has still to print `pong 3`. The two are two senders to standard output, and nothing orders them: the call did, and it has returned.
 
-(b) `job 1: 1` or `job 1: the worker died`. The result comes from the worker and the `Down` from the runtime, two senders, so either may be received first (§5.1). Where the `Down` comes first, the wait answers `None` though the worker did its work, and the result arrives afterwards, for the next wait to pass over. The clause tells the two ends apart by the `Down`'s reason. A run seldom shows the second line; the report promises no order, so the clause stays.
+(b) `report` then receives, so it has a mailbox type of the result and the `Down`, and its wait has three clauses: the result; a `Down` with `Returned`, after which it waits on, since a worker that returned sent its result before it did; and any other `Down`, which says the worker died. Without the second, job 1 may print `job 1: 1` or that the worker died. The result comes from the worker and the `Down` from the runtime, two senders, so either may be received first (§5.1). Where the `Down` comes first, the wait answers though the worker did its work, and the result arrives afterwards, for the next wait to take. A run seldom shows it; the report promises no order. `Process.run` makes that wait once, and answers with one value.
 
 **§6.7.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 

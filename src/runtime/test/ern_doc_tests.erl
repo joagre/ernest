@@ -463,14 +463,15 @@ fences(Doc) ->
 
 %% Appendix E, report §4.9, §11.1: every value a compiled standard library interface
 %% declares is exported by its module with the arity of its type and its
-%% requirement (report §4.9), as the function of the number the interface
-%% gives it (report §11.1)
+%% requirement (report §4.9), and the site of a caller-sited one (report
+%% §6.9, Appendix E.21), as the function of the number the interface gives
+%% it (report §11.1)
 stdlib_targets_test() ->
     Missing = [{QualifiedName, Arity}
                || #interface{namespace = Namespace, values = Values,
                              positions = Positions} <- ern_prelude:stdlib_interfaces(),
                   {QualifiedName, Scheme} <- maps:to_list(Values),
-                  Arity <- [arity(Scheme)],
+                  Arity <- [arity(Scheme) + site_arity(QualifiedName)],
                   ErlangModule <- [ern_namespace:erlang_module(Namespace)],
                   ern_code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
                       orelse not is_map_key(QualifiedName, Positions)
@@ -486,3 +487,11 @@ stdlib_targets_test() ->
 arity(#scheme{type = {tfn, Params, _, _}, requirement = Requirement}) ->
     length(Params) + length(Requirement);
 arity(_) -> 0.
+
+%% Report §6.9, Appendix E.21: the site a caller-sited declaration takes
+%% after its parameters (ern_emitter:caller_sited/1).
+site_arity(QualifiedName) ->
+    case ern_emitter:caller_sited(QualifiedName) of
+        true -> 1;
+        false -> 0
+    end.

@@ -39,8 +39,8 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([unit/1, source/1, ground_terms/2, function_name/1, held_position/1, raiseless/0,
-         site_name/2]).
+-export([unit/1, source/1, ground_terms/2, function_name/1, held_position/1, caller_sited/1,
+         raiseless/0, site_name/2]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
@@ -80,11 +80,13 @@
 %% (function_value/2), which the shell reads to keep an input (§11.2).
 %% guard: whether the expression being compiled is a clause's Erlang
 %% guard, where a selection reads its field in place (select/4).
+%% caller_site: in the body of a declaration its caller's site is passed to
+%% (caller_sited/1), the Erlang variable of that site, and else none.
 -record(emit_context, {unit, own, definition, declaration, printing, restrictions = #{},
                        variables = #{}, counter = 0, locals = #{}, lifted = [],
                        descriptors = #{}, pattern_guards = [], members = #{}, outer,
                        let_lambdas = #{}, entries = #{}, builds_functions = false,
-                       guard = false, in_lambda = false}).
+                       guard = false, in_lambda = false, caller_site = none}).
 %% The unit's own (report §11.1, Appendix H): forms, each definition's
 %% position => {its #definition{}, its form prepared (prepared/2)}; hashes,
 %% each definition's hash => the position of the first with it, two
@@ -504,11 +506,12 @@ definition_functions({Position, #definition{kind = function} = Definition},
     {Source, {function, Scheme, Params, Body}} = sourced(Form),
     Context1 = entering(Position, Definition, Form, Context),
     {Head, Context2} = head_patterns(Params, Scheme, Context1),
-    {BodyForms, Context3} = body(Body, Context2),
-    Clause = at(Source, erl_syntax:clause(Head, none, BodyForms)),
+    {SiteHead, Context3} = caller_site_taken(Definition, Context2),
+    {BodyForms, Context4} = body(Body, Context3),
+    Clause = at(Source, erl_syntax:clause(Head ++ SiteHead, none, BodyForms)),
     Function = at(Source, erl_syntax:function(erl_syntax:atom(function_name(Position)), [Clause])),
     {[commented(Function, Definition)],
-     Context3#emit_context{variables = #{}, members = #{}}};
+     Context4#emit_context{variables = #{}, members = #{}, caller_site = none}};
 definition_functions({Position, #definition{kind = binding} = Definition},
                      #emit_context{own = #own{forms = Forms}} = Context) ->
     {Source, _} = sourced(element(2, maps:get(Position, Forms))),
@@ -599,6 +602,28 @@ head_patterns(Params, {scheme, _, _, Requirement}, Context) ->
     {Patterns, Context1} = lists:mapfoldl(fun pattern/2, Context, Params),
     {Members, Context2} = members_taken(Requirement, Context1),
     {Patterns ++ Members, Context2}.
+
+%% Report §6.9, Appendix E.21: whether a declaration of the standard
+%% library's runs a function in a process whose site is where the
+%% declaration's call is written, as a spawn's is: `Process.run`. Its
+%% function takes that site as its last parameter, which the program does
+%% not write and every call and value of it passes (caller_site/3), and its
+%% body reads by `Process.callerSite`. Appendix H names it by its qualified
+%% name wherever it is referenced.
+-spec caller_sited([atom() | binary()]) -> boolean().
+caller_sited(QualifiedName) ->
+    QualifiedName =:= ['Process', run].
+
+%% The site parameter of a caller-sited definition, after its members, and
+%% none for any other.
+caller_site_taken(#definition{qualified_name = QualifiedName}, Context) ->
+    case caller_sited(QualifiedName) of
+        true ->
+            {[Site], Context1} = fresh_variables(1, "Site", Context),
+            {[erl_syntax:variable(Site)], Context1#emit_context{caller_site = Site}};
+        false ->
+            {[], Context}
+    end.
 
 %% Report §4.9, Appendix H: the members a requirement names, each a
 %% parameter after the written ones, in the order the requirement names
@@ -872,18 +897,24 @@ nameable(QualifiedName) ->
 %% the node holds it with its value; a binding never crosses.
 exports(Placed, ForeignPlaced, #emit_context{unit = #unit{exported = Exported},
                                                  own = #own{forms = Forms}}) ->
-    [{function_name(Position), arity(element(2, maps:get(Position, Forms)))}
+    [{function_name(Position), arity(maps:get(Position, Forms))}
      || {Position, #definition{kind = Kind, qualified_name = QualifiedName}} <- Placed,
         Kind =:= binding orelse (Kind =:= function andalso lists:member(QualifiedName, Exported))]
         ++ [{function_name(Position), foreign_arity(ForeignFunction)}
             || {Position, #foreign_function{export = true} = ForeignFunction} <- ForeignPlaced].
 
-%% The arity of a definition's function: a function's parameters and its
-%% requirement's members (report §4.9), and a binding's getter none.
-arity(Form) ->
+%% The arity of a definition's function, given the definition and its form:
+%% a function's parameters, its requirement's members (report §4.9) and a
+%% caller-sited declaration's site (caller_sited/1), and a binding's getter
+%% none.
+arity({#definition{qualified_name = QualifiedName}, Form}) ->
     case sourced(Form) of
         {_, {function, {scheme, _, _, Requirement}, Params, _}} ->
-            length(Params) + length(Requirement);
+            Site = case caller_sited(QualifiedName) of
+                       true -> 1;
+                       false -> 0
+                   end,
+            length(Params) + length(Requirement) + Site;
         {_, {binding, _, _}} -> 0
     end.
 
@@ -915,7 +946,7 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 code(Placed, ForeignPlaced, Entries,
      #emit_context{unit = #unit{reaches = Reaches} = Unit,
                    own = #own{forms = Forms, grounds = Grounds}} = Context) ->
-    [definition_code(Position, Definition, element(2, maps:get(Position, Forms)), Context)
+    [definition_code(Position, Definition, maps:get(Position, Forms), Context)
      || {Position, Definition} <- Placed]
         ++ [{form_name(QualifiedName, Unit), {term, Hash, function_name(Position), Term}}
             || {Position, #definition{qualified_name = QualifiedName, hash = Hash}} <- Placed,
@@ -935,9 +966,9 @@ code(Placed, ForeignPlaced, Entries,
                                  position = Position} <- Entries]).
 
 definition_code(Position, #definition{kind = function, qualified_name = QualifiedName, hash = Hash},
-                Form, #emit_context{unit = #unit{reaches = Reaches} = Unit}) ->
+                Prepared, #emit_context{unit = #unit{reaches = Reaches} = Unit}) ->
     {form_name(QualifiedName, Unit),
-     {function, Hash, function_name(Position), arity(Form), maps:get(QualifiedName, Reaches)}};
+     {function, Hash, function_name(Position), arity(Prepared), maps:get(QualifiedName, Reaches)}};
 definition_code(Position, #definition{kind = binding, qualified_name = QualifiedName, hash = Hash},
                 _, #emit_context{unit = #unit{name = ErlangModule} = Unit}) ->
     {form_name(QualifiedName, Unit), {binding, Hash, {ErlangModule, function_name(Position)}}};
@@ -955,7 +986,7 @@ spawned_function(Placed, ForeignPlaced, Entries, #emit_context{own = #own{forms 
     Clauses = [spawned_clause(function_name(Position), 0)
                || {Position, #definition{kind = function, qualified_name = QualifiedName}}
                       <- Placed,
-                  arity(element(2, maps:get(Position, Forms))) =:= 0, nameable(QualifiedName)]
+                  arity(maps:get(Position, Forms)) =:= 0, nameable(QualifiedName)]
         ++ [spawned_clause(function_name(Position), 0)
             || {Position, #foreign_function{qualified_name = QualifiedName} = ForeignFunction}
                    <- ForeignPlaced,
@@ -1408,9 +1439,11 @@ name_form(_, {named, [compare]}, [Supply], _, Context) ->
     {Form, Context1} = supply_form(Supply, Context),
     {Form, function_value(Form, Context1)};
 name_form(Source, {named, QualifiedName} = Reference, [], Extra, Context) ->
-    case is_own(Reference, Context) orelse not is_primitive(QualifiedName) of
-        true -> {declared_value(Reference, Context), Context};
-        false -> prelude_value(Source, QualifiedName, Extra, Context)
+    case {caller_sited(QualifiedName), is_own(Reference, Context) orelse
+                                           not is_primitive(QualifiedName)} of
+        {true, _} -> caller_sited_value(Source, Reference, Context);
+        {false, true} -> {declared_value(Reference, Context), Context};
+        {false, false} -> prelude_value(Source, QualifiedName, Extra, Context)
     end;
 name_form(_, Reference, [], _, Context) ->
     {declared_value(Reference, Context), Context};
@@ -1424,6 +1457,15 @@ name_form(Source, Reference, Supplies, Extra, Context) ->
                    erl_syntax:application(FunctionVariable, Args ++ SupplyVariables)
            end,
     supplied_lambda(Arity, [{"Function", Function} | supplied(SupplyForms)], Call, Context2).
+
+%% Report §6.9, Appendix E.21: a caller-sited declaration as a value, a
+%% closure that passes it the site where it is named, as `spawn` as a
+%% value does (prelude_value/4).
+caller_sited_value(Source, Reference, Context) ->
+    {Params, Context1} = fresh_variables(value_arity(Reference, Context) - 1, "Argument",
+                                         Context),
+    ArgForms = [erl_syntax:variable(Param) || Param <- Params] ++ [site(Source, Context)],
+    {lambda(Params, placed_call(Reference, ArgForms, Context1)), Context1}.
 
 %% A local as a value: the variable it is bound to, or a local fn's
 %% closure over what it closes over.
@@ -1489,12 +1531,12 @@ declared_value(Reference, #emit_context{own = #own{grounds = Grounds}} = Context
 placed(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign}} = Context) ->
     case own_position(Reference, Context) of
         {ok, Position} when is_map_key(Position, Forms) ->
-            {_, Form} = maps:get(Position, Forms),
+            {_, Form} = Prepared = maps:get(Position, Forms),
             Kind = case sourced(Form) of
                        {_, {binding, _, _}} -> value;
                        _ -> function
                    end,
-            {own, Position, Kind, arity(Form)};
+            {own, Position, Kind, arity(Prepared)};
         {ok, Position} ->
             {_, ForeignFunction} = lists:keyfind(Position, 1, maps:values(Foreign)),
             {own, Position, function, foreign_arity(ForeignFunction)};
@@ -1636,6 +1678,11 @@ callee(Source, {var, {named, ['Peer', Name]}, _}, _, [PeerName, Spawned | Rest],
 callee(_, {var, {named, ['Code', running]}, _}, _, [Named], Context) ->
     {call_remote(ern_code, running, [erl_syntax:abstract(running_hash(Named, Context))]),
      Context};
+%% Appendix E.21, report §6.9: Process.callerSite in the body of a
+%% caller-sited declaration, the site its caller passed it (caller_sited/1)
+callee(_, {var, {named, ['Process', callerSite]}, _}, _, [],
+       #emit_context{caller_site = Site} = Context) when Site =/= none ->
+    {erl_syntax:variable(Site), Context};
 callee(Source, {var, {named, QualifiedName} = Reference, []} = Node, _, Args, Context) ->
     case is_own(Reference, Context) orelse not is_primitive(QualifiedName) of
         true ->
@@ -1663,16 +1710,28 @@ callee(_, _, Callee, Args, Context) ->
 
 %% Report §4.6: a call of a declaration, a `let` through what its getter
 %% answers and a `fn` the call itself, a requirement's members after the
-%% arguments written; report §11.1: a foreign function of the standard
-%% library's the host's function it names, called at Source.
+%% arguments written, and a caller-sited declaration's site last; report
+%% §11.1: a foreign function of the standard library's the host's function
+%% it names, called at Source.
 declared_call(Source, Reference, Supplies, Args, Context) ->
     {WrittenForms, Context1} = exprs(Args, Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
-    ArgForms = WrittenForms ++ SupplyForms,
+    ArgForms = WrittenForms ++ SupplyForms ++ caller_site(Source, Reference, Context2),
     case shim(Reference, Context2) of
         none -> {placed_call(Reference, ArgForms, Context2), Context2};
         Host -> shim_call(Source, Host, ArgForms, Context2)
     end.
+
+%% Report §6.9, Appendix E.21: the site a call of a caller-sited
+%% declaration (caller_sited/1) passes it, where the call is written at
+%% Source, as a spawn's; none for any other declaration.
+caller_site(Source, {named, QualifiedName}, Context) ->
+    case caller_sited(QualifiedName) of
+        true -> [site(Source, Context)];
+        false -> []
+    end;
+caller_site(_, _, _) ->
+    [].
 
 placed_call(Reference, ArgForms, Context) ->
     case placed(Reference, Context) of

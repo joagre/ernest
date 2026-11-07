@@ -41,7 +41,7 @@
 -module(ern_rt).
 
 -export([send/2, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3, is_never_given/1,
-         is_started/1, is_address/1, spawn/2, spawn_monitored/3, spawn_root/2,
+         is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3, spawn_root/2,
          spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/4, answer/2,
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
@@ -603,6 +603,13 @@ is_address(_) -> false.
 -spec spawn(fun(() -> term()), binary()) -> address().
 spawn(Function, Site) ->
     spawn_with_monitors(Function, Site, [], chained).
+
+%% Appendix E.21: the site of a call of Process.run, which the compiler
+%% passes Process.run and reads in place of this function in its body
+%% (ern_emitter:caller_sited/1), so that it is never called.
+-spec caller_site() -> no_return().
+caller_site() ->
+    erlang:error(caller_site_outside_run).
 
 %% Report §6.2, §6.9: a process monitored by the caller from its start, the
 %% wait made with the spawn, so that no end comes before it; the caller is
@@ -2548,8 +2555,9 @@ died(Pid, Site, Peer, Expected, ExitReason, Fault) ->
 ended_fault(#fault{} = Fault, _) -> Fault;
 ended_fault(none, Cause) -> #fault{cause = Cause, trace = <<>>, time = now()}.
 
-%% Report Appendix E.24: the function a process `Test.faults` starts runs,
-%% which marks the process's row expected before it runs Function, so
+%% Report Appendix E.24: the function `Test.faults` hands `Process.run`,
+%% which marks the row of the process it runs in expected before it runs
+%% Function, so
 %% that its fault reaches no job's report and no subscriber (died/6): the
 %% mark the runtime's, set as the process begins, and no text of its site.
 -spec expected(fun(() -> term())) -> fun(() -> term()).

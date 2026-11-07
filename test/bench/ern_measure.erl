@@ -848,6 +848,7 @@ process_scenarios() ->
     ProcessLive = Process(live),
     ProcessFaults = Process(faults),
     ProcessOwned = Process(owned),
+    ProcessRun = Process(run),
     Me = ProcessFromAddress(ern_rt:self()),
     Waiting = fun() -> receive _ -> ok end end,
     [{<<"Process.fromAddress">>,
@@ -865,7 +866,16 @@ process_scenarios() ->
      %% what watches the process, the host's own part of the read
      {<<"Process.owned">>, {fun() -> ProcessOwned(Me) end,
                             fun() -> erlang:process_info(erlang:self(), monitored_by) end}},
-     {<<"Process.faults">>, {fun() -> ProcessFaults(fun(Report) -> Report end) end, none}}].
+     {<<"Process.faults">>, {fun() -> ProcessFaults(fun(Report) -> Report end) end, none}},
+     %% the site the compiler passes as the last argument (E.21); the
+     %% host's one message for a value or an end, a monitored process whose
+     %% exit carries its value
+     {<<"Process.run">>,
+      {fun() -> ProcessRun(fun() -> 'Unit' end, <<"ern_measure:run">>) end,
+       fun() ->
+               {_, Ref} = spawn_monitor(fun() -> exit({value, 'Unit'}) end),
+               receive {'DOWN', Ref, _, _, {value, Value}} -> Value end
+       end}}].
 
 supervisor_scenarios() ->
     Supervisor = ern_named:functions('ern@supervisor'),

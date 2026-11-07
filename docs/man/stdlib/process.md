@@ -15,6 +15,10 @@ watches itself. What they say of a live process is a snapshot, which may have
 changed by the time it is read, and the runtime keeps nothing of a process
 that has ended (report Appendix E.21).
 
+`run` runs a function in a process of its own and answers its value or how
+the process ended, for a worker whose end the caller reads as data: a fault
+in it ends the worker and not the caller.
+
 ## Examples
 
 The caller is among the processes the runtime runs:
@@ -237,6 +241,47 @@ used from then on. A subscription ends when its process dies or restarts
 Process.faults(fn(report) = report)
 // => Unit
 ```
+
+## Process.run
+
+```ernest
+Process.run(f : () -> a receiving m) : Either(Reason, a)
+```
+
+*Since 0.10.0.*
+
+Runs `f()` in a process of its own and answers `Right` of the value `f`
+returned, or `Left` of the reason the process ended with before it
+returned: `Fault(cause)` where `f` faulted, `Killed` where a `kill` ended
+it.
+
+The caller waits for the process's end however long it takes, as a
+direct call of `f` would, and receives nothing. The process's site is
+where `run` is written, as a spawn's is, and it owns what `f` opens, which
+its end closes (report §6.9). Where the caller ends or restarts first, the
+process is killed, though `owned` does not list it among the caller's; a
+process `f` spawns lives on after it.
+
+A fault in `f` is the process's own and is reported as any fault is; the
+caller reads it in the answer. `run` runs `f` on the caller's node, where
+`Peer.compute` runs it on a peer within a time and faults the caller with
+`f`'s fault (report Appendix E.21).
+
+### Examples
+
+```ernest
+Process.run(fn() = 6 * 7)
+// => Right(42)
+```
+
+```ernest
+Process.run(fn() = kill(Process.current()))
+// => Left(Killed)
+```
+
+### See also
+
+`spawnMonitored`, for a process the caller watches while it lives.
 
 ---
 

@@ -605,6 +605,108 @@ owned_test() ->
                    "[\"Os.start\", \"Tcp.listen\"]\n"
                    "#([], None)\n">>, Output).
 
+%% Appendix E.21, report §6.9, §7.3: `Process.run` answers the value its
+%% function returned, or the reason its process ended with before it
+%% returned, a fault and a kill. The fault is the process's own, reported
+%% under the site where `run` is written, as a spawn's is, and the
+%% process's site is that one, where `run` is called and where it is named
+%% as a value. A process its function spawns lives on; what it opens ends
+%% with it, the listener's end found by its monitor. A regression test,
+%% written after the code; a site passed in a session's input is
+%% ern_shell_tests' run_site_test_'s
+process_run_test() ->
+    Self = self(),
+    Faults = fun({'FaultReport', _, Site, Cause, _, _, _, _, _, _}, _) ->
+                     Self ! {fault, Site, Cause}
+             end,
+    {ok, Output} = ern_emitter_tests:run(['M'],
+        "type Msg = Ended(Down)\n"
+        "type Waits = Waits\n"
+        "fn waits() : Unit receiving Waits = receive { Waits -> Unit }\n"
+        "fn site() : Optional(String) =\n"
+        "    Optional.map(Process.status(Process.current()), fn(status) = status.site)\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    Io.println(Io.show(Process.run(fn() = 6 * 7)));\n"
+        "    Io.println(Io.show(Process.run(fn() : Int = fault(\"boom\"))));\n"
+        "    Io.println(Io.show(Process.run(fn() = kill(Process.current()))));\n"
+        "    Io.println(Io.show(Process.run(site)));\n"
+        "    Io.println(Io.show(List.map([site], Process.run)));\n"
+        "    match Process.run(fn() = Process.fromAddress(spawn(waits))) {\n"
+        "        Right(spawned) -> {\n"
+        "            Io.println(Io.show(Optional.isSome(Process.status(spawned))));\n"
+        "            kill(spawned)\n"
+        "        }\n"
+        "      | Left(reason) -> Io.println(Io.show(reason))\n"
+        "    };\n"
+        "    match Process.run(fn() = Tcp.listen(\"127.0.0.1\", 0)) {\n"
+        "        Right(Right(listener)) -> {\n"
+        "            monitor(Process.fromAddress(listener), Ended);\n"
+        "            receive { Ended(_) -> Io.println(\"ended\") }\n"
+        "        }\n"
+        "      | _ -> Io.println(\"no listener\")\n"
+        "    }\n"
+        "}\n",
+        #{faults => Faults, stderr => fun(_) -> ok end}),
+    ?assertEqual(<<"Right(42)\n"
+                   "Left(Fault(\"boom\"))\n"
+                   "Left(Killed)\n"
+                   "Right(Some(\"M.main:10\"))\n"
+                   "[Right(Some(\"M.main:11\"))]\n"
+                   "true\n"
+                   "ended\n">>, Output),
+    ?assertEqual([{<<"M.main:8">>, <<"boom">>}],
+                 [receive {fault, Site, Cause} -> {Site, Cause} after 0 -> none end]).
+
+%% Appendix E.21, report §6.9: the process `Process.run` started is killed
+%% where its caller ends while it waits, and where its caller restarts,
+%% here at its sibling's fault under OneForAll (Appendix E.22), which a
+%% plain monitor is not told of; `Process.owned` does not list it among the
+%% caller's. A regression test, written after the code
+process_run_caller_ends_test() ->
+    {ok, Output} = ern_emitter_tests:run(['M'],
+        "type Msg = Started(Process) | Ended(Down)\n"
+        "type ChildMsg = Go(Address(Msg)) | Boom\n"
+        "type Waits = Waits\n"
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,\n"
+        "    RestartLimit(restarts = 3, within = 5000)))\n"
+        "let a : Address(ChildMsg) = spawn(Supervisor.child(sup, runs))\n"
+        "let b : Address(ChildMsg) = spawn(Supervisor.child(sup, runs))\n"
+        "fn waits() : Unit receiving Waits = receive { Waits -> Unit }\n"
+        "fn started(main : Address(Msg)) : Unit receiving Waits = {\n"
+        "    send(main, Started(Process.current()));\n"
+        "    waits()\n"
+        "}\n"
+        "fn runs() : Unit receiving ChildMsg = receive {\n"
+        "    Go(main) -> {\n"
+        "        let _ = Process.run(fn() = started(main));\n"
+        "        Unit\n"
+        "    }\n"
+        "  | Boom -> fault(\"boom\")\n"
+        "}\n"
+        "fn ended(worker : Process) : Unit receiving Msg = {\n"
+        "    monitor(worker, Ended);\n"
+        "    receive { Ended(down) -> Io.println(Io.show(down.reason)) | Started(_) -> Unit }\n"
+        "}\n"
+        "fn worker() : Process receiving Msg =\n"
+        "    receive { Started(process) -> process | Ended(_) -> worker() }\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let main = self();\n"
+        "    let caller = spawn(fn() = {\n"
+        "        let _ = Process.run(fn() = started(main));\n"
+        "        Unit\n"
+        "    });\n"
+        "    let killed = worker();\n"
+        "    Io.println(Io.show(Process.owned(Process.fromAddress(caller))));\n"
+        "    kill(Process.fromAddress(caller));\n"
+        "    ended(killed);\n"
+        "    send(a, Go(main));\n"
+        "    let restarted = worker();\n"
+        "    send(b, Boom);\n"
+        "    ended(restarted)\n"
+        "}\n",
+        #{stderr => fun(_) -> ok end}),
+    ?assertEqual(<<"[]\nKilled\nKilled\n">>, Output).
+
 %% Appendix E.18: a write answers Right(Unit) once the socket has taken the
 %% bytes, and Left(Closed) once the connection has closed; the far end's
 %% close is learned here by a read, so that the answer does not depend on

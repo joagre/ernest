@@ -3139,14 +3139,16 @@ test_faults_test() ->
                  binary:split(unicode:characters_to_binary(Errors), <<"\n">>, [global])),
     ?assertEqual(nomatch, binary:match(unicode:characters_to_binary(Errors), <<"Test.faults">>)).
 
-%% report Appendix E.24, §6.9, §8.6: where the caller of `Test.faults` ends
-%% before the call's process, here faulted by the deadlock its wait makes,
-%% the call's process is killed and the process that judged it ends, so
-%% that the next test finds each process `Test.faults` started ending. The
-%% second test monitors each it finds and waits for their ends, which a
-%% process left waiting would turn into that test's own deadlock. A
-%% regression test (E2), written after the code: both processes outlived
-%% the caller. It does not cover a caller the interrupt ends in the shell.
+%% report Appendix E.24, E.21, §6.9, §8.6: where the caller of `Test.faults`
+%% ends before the call's process, here faulted by the deadlock its wait
+%% makes, the call's process is killed and the process that judged it ends,
+%% so that the next test finds each process `Test.faults` started ending:
+%% the call's at the site where `Test.faults` calls `Process.run`, and the
+%% judge's at `Process.run`'s own. The second test monitors each it finds
+%% and waits for their ends, which a process left waiting would turn into
+%% that test's own deadlock. A regression test (E2), written after the
+%% code: both processes outlived the caller. It does not cover a caller the
+%% interrupt ends in the shell.
 test_faults_caller_ends_first_test() ->
     Dir = tmp(),
     File = write(Dir, "outlived.ern",
@@ -3158,7 +3160,8 @@ test_faults_caller_ends_first_test() ->
                  "let second = Test.Case(name = \"second\", run = fn() = {\n"
                  "    let started = List.filter(Process.live(), fn(process) =\n"
                  "        match Process.status(process) {\n"
-                 "            Some(status) -> String.startsWith(status.site, \"Test.faults\")\n"
+                 "            Some(status) -> String.startsWith(status.site, \"Test.faults\")"
+                 " || String.startsWith(status.site, \"Process.run\")\n"
                  "          | None -> false\n"
                  "        });\n"
                  "    List.forEach(started, fn(process) = monitor(process, Ended));\n"

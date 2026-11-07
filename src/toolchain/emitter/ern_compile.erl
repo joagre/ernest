@@ -579,7 +579,8 @@ linked(Reference, Named, {_, _, Env, Units}) ->
                        true -> value;
                        false -> function
                    end,
-            [#linked{unit = Unit, function = Function, arity = scheme_arity(Scheme, Kind),
+            [#linked{unit = Unit, function = Function,
+                     arity = scheme_arity(Scheme, Kind) + site_arity(QualifiedName),
                      kind = Kind, identity = identity(Reference, QualifiedName, Env),
                      term = ern_typecheck:ground_term(QualifiedName, Env),
                      shim = ern_typecheck:shim(QualifiedName, Env)}]
@@ -591,6 +592,14 @@ scheme_arity(_, value) -> 0;
 scheme_arity(#scheme{type = {tfn, Params, _, _}, requirement = Requirement}, function) ->
     length(Params) + length(Requirement);
 scheme_arity(#scheme{}, function) -> 0.
+
+%% Report §6.9, Appendix E.21: the site a caller-sited declaration's
+%% function takes after its other parameters (ern_emitter:caller_sited/1).
+site_arity(QualifiedName) ->
+    case ern_emitter:caller_sited(QualifiedName) of
+        true -> 1;
+        false -> 0
+    end.
 
 identity({hash, Hash}, _, _) -> Hash;
 identity({binding, _, Hash}, _, _) -> Hash;
