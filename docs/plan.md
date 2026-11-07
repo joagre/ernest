@@ -112,8 +112,10 @@ reader S reads of its live shell. The release note's line on the installed layou
 9. **A program's environment, and a signal named**, done 2026-11-07 (E.23; the log's *A
    Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named
    Built*). `Os.Command`'s `environment` and `workingDirectory` and `Os.signal` stand, and the
-   sites are written with them. ernest-httpd's `smoke.ern` and `session.ern` are its
-   session's, told at the milestone's end.
+   sites are written with them. The other repositories write the two fields when their floor
+   is 0.10, each by its own session, told at the milestone's end: ernest-template's
+   `tools/docs.ern` and its copies in ernest-epx and ernest-httpd, and ernest-httpd's
+   `ernest_httpd.ern`, `smoke.ern` and `session.ern`.
 10. **`libs/http`'s values**, feedback 186: a value for its ordinary limits and one for HTTP/1.1,
     named by the guide's style, the examples and the pages using them.
 11. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and
