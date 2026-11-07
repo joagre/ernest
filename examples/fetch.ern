@@ -116,7 +116,7 @@ fn targetOf(url : String) : Either(String, Target) =
             };
             let end = authorityEnd(located);
             let authority = String.slice(located, 0, end);
-            let written = String.slice(located, end, String.size(located));
+            let written = String.drop(located, end);
             let path = if String.startsWith(written, "/") then written else "/" <> written;
             let #(host, port) <- hostAndPort(authority);
             Right(Target(=host, =port, =authority, =path))
@@ -146,7 +146,7 @@ fn authorityEnd(located : String) : Int =
 fn hostAndPort(authority : String) : Either(String, #(String, Int)) = {
     let #(host, port) = match String.splitOnce(authority, "]") {
         Some(#(bracketed, portText)) when String.startsWith(bracketed, "[") ->
-            #(String.slice(bracketed, 1, String.size(bracketed)), portAfter(portText))
+            #(String.drop(bracketed, 1), portAfter(portText))
       | _ ->
             match String.splitOnce(authority, ":") {
                 Some(#(name, digits)) -> #(name, String.toInt(digits))
@@ -163,11 +163,10 @@ fn hostAndPort(authority : String) : Either(String, #(String, Int)) = {
 // The port after an IPv6 address's `]`, `:` and its digits, or 443 where
 // none is written.
 fn portAfter(portText : String) : Optional(Int) =
-    match String.splitOnce(portText, ":") {
-        Some(#("", digits)) -> String.toInt(digits)
-      | Some(_) -> None
-      | None -> if portText == "" then Some(443) else None
-    }
+    if portText == "" then
+        Some(443)
+    else
+        Optional.andThen(String.stripPrefix(portText, ":"), String.toInt)
 
 //
 // The report

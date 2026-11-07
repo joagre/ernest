@@ -336,7 +336,7 @@ fn indent(line : String) : Int = {
 
 fn unindented(line : String) : String = {
     let expanded = spacedPrefix(line);
-    String.slice(expanded, indent(line), String.size(expanded))
+    String.drop(expanded, indent(line))
 }
 
 // A line without the first `count` columns of its indentation, or all of
@@ -464,7 +464,7 @@ fn indented(lines : List(String), acc : List(String)) : #(Block, List(String)) =
 fn quoted(lines : List(String), acc : List(String)) : #(Block, List(String)) =
     match lines {
         line :: rest when indent(line) < 4 && String.startsWith(unindented(line), ">") -> {
-            let inside = String.slice(unindented(line), 1, String.size(unindented(line)));
+            let inside = String.drop(unindented(line), 1);
             quoted(rest,
                    (if String.startsWith(inside, " ") then dedented(inside, 1) else inside) :: acc)
         }
@@ -513,8 +513,7 @@ fn interrupts(line : String) : Bool =
 fn markerInterrupts(line : String) : Bool =
     match markerOf(line) {
         Some(Marker(=start, =width)) ->
-            !isBlank(String.slice(line, width, String.size(line)))
-                && (start == None || start == Some(1))
+            !isBlank(String.drop(line, width)) && (start == None || start == Some(1))
       | None ->
             false
     }
@@ -566,7 +565,7 @@ fn listed(lines : List(String),
                 Some(Marker(=width) as marker) when indent(line) < 4 && sameKind(marker, first) -> {
                     let column = indent(line) + width;
                     let expanded = spacedPrefix(line);
-                    let text = String.slice(expanded, column, String.size(expanded));
+                    let text = String.drop(expanded, column);
                     let #(body, later) = itemLines(rest, column, [text]);
                     let more = items <> [blocks(body)];
                     match later {

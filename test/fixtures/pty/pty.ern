@@ -352,14 +352,14 @@ fn shown(screen : Screen, bytes : Bytes) : Screen = {
     Screen(..screen,
            seen = screen.seen <> bytes,
            plain = screen.plain <> uncolored(Bytes.slice(chunk, 0, cut)),
-           partial = Bytes.slice(chunk, cut, Bytes.size(chunk)))
+           partial = Bytes.drop(chunk, cut))
 }
 
 // Where a sequence the chunk ends inside begins, its last escape, alone or
 // with `[` and parameters after it; else the chunk's end.
 fn cutAt(chunk : Bytes) : Int =
     match Bytes.lastIndexOf(chunk, escape) {
-        Some(index) when isCut(Bytes.slice(chunk, index + 1, Bytes.size(chunk))) -> index
+        Some(index) when isCut(Bytes.drop(chunk, index + 1)) -> index
       | _ -> Bytes.size(chunk)
     }
 
@@ -400,7 +400,7 @@ fn parametersOf(bytes : Bytes) : Parameters = {
       | [first] -> #(first, None)
       | [] -> #(None, None)
     };
-    Parameters(=first, =second, rest = Bytes.slice(bytes, size, Bytes.size(bytes)))
+    Parameters(=first, =second, rest = Bytes.drop(bytes, size))
 }
 
 // How many bytes the parameters take, digits and `;`s.
@@ -419,7 +419,7 @@ fn numberOf(digits : Bytes) : Optional(Int) =
 // The screen with its cursor past the text's first occurrence after the
 // cursor; None where the text has not shown there yet.
 fn found(screen : Screen, text : Bytes) : Optional(Screen) = {
-    let rest = Bytes.slice(screen.plain, screen.cursor, Bytes.size(screen.plain));
+    let rest = Bytes.drop(screen.plain, screen.cursor);
     Optional.map(Bytes.indexOf(rest, text),
                  fn(index) = Screen(..screen, cursor = screen.cursor + index + Bytes.size(text)))
 }

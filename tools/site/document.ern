@@ -228,8 +228,8 @@ export fn projects(run : Site.Run.Run) : Either(String, Unit) = {
 fn projectOf(source : String, item : List(Markdown.Block)) : Either(String, Project) = {
     let found = match item {
         [Markdown.Paragraph(Markdown.Link(=text, =url) :: Markdown.Text(following) :: rest)] ->
-            match String.splitOnce(following, ": ") {
-                Some(#("", first)) ->
+            match String.stripPrefix(following, ": ") {
+                Some(first) ->
                     Some(Project(name = Site.Html.plain(text),
                                  repository = url,
                                  purpose = Markdown.Text(first) :: rest))

@@ -72,13 +72,11 @@ fn shown(path : String) : Optional(Shown) =
 
 // A module's page of docs/man/, `/man/stdlib/list.html` for
 // docs/man/stdlib/list.md, at its path there (site.md *The root*).
-fn manualPage(path : String) : Optional(String) =
-    match stripped(path, "docs/man/") {
-        Some(rest) when String.endsWith(rest, ".md") ->
-            Some("/man/" <> String.slice(rest, 0, String.size(rest) - 3) <> ".html")
-      | _ ->
-            None
-    }
+fn manualPage(path : String) : Optional(String) = {
+    let rest <- String.stripPrefix(path, "docs/man/");
+    let page <- String.stripSuffix(rest, ".md");
+    Some("/man/" <> page <> ".html")
+}
 
 /// The address of the site's page of a document of the repository, by its
 /// path, `/guide/` for guide/language.md and `/man/stdlib/list.html` for
@@ -171,7 +169,7 @@ fn numberKey(found : String) : String = {
 
 // The digits a GitHub anchor begins with, as numberKey gives a heading's.
 fn fragmentKey(fragment : String) : String =
-    match stripped(fragment, "appendix-") {
+    match String.stripPrefix(fragment, "appendix-") {
         Some(rest) -> {
             let #(run, _) = List.span(String.toList(rest), isAsciiLetterOrDigit);
             "appendix-" <> String.fromList(run)
@@ -189,7 +187,7 @@ fn isAsciiLetterOrDigit(char : Char) : Bool =
 /// shell`, `1` of `1. Run a program`, `E.17` of `Appendix E.17. ...` and `A`
 /// of `Appendix A. Grammar`; none for a heading that is not numbered.
 export fn number(text : String) : Optional(String) =
-    match stripped(text, "Appendix ") {
+    match String.stripPrefix(text, "Appendix ") {
         Some(rest) -> appendixNumber(String.toList(rest))
       | None -> sectionNumber(String.toList(text))
     }
@@ -330,7 +328,7 @@ export fn headingLinked(text : List(Markdown.Inline),
                         page : Page) : Either(String, List(Markdown.Inline)) =
     match #(text, number(Site.Html.plain(text))) {
         #(Markdown.Text(first) :: rest, Some(found)) ->
-            match stripped(first, "Appendix " <> found) {
+            match String.stripPrefix(first, "Appendix " <> found) {
                 Some(following) ->
                     Either.map(inlinesLinked(Markdown.Text(following) :: rest, page),
                                fn(linked) = Markdown.Text("Appendix " <> found) :: linked)
@@ -824,10 +822,3 @@ fn isBoundary(beside : List(Char)) : Bool =
       | [] ->
             true
     }
-
-// The text after `prefix`, where the text begins with it.
-fn stripped(text : String, prefix : String) : Optional(String) =
-    if String.startsWith(text, prefix) then
-        Optional.map(String.splitOnce(text, prefix), fn(#(_, rest)) = rest)
-    else
-        None

@@ -89,10 +89,10 @@ fn said(file : String, link : String) : String =
 fn targetOf(file : String, path : String) : String = {
     let walked = if path == "" then
         file
-    else if String.startsWith(path, "/") then
-        String.slice(path, 1, String.size(path))
-    else
-        String.join(List.dropLast(String.split(file, "/"), 1) <> [path], "/");
+    else match String.stripPrefix(path, "/") {
+        Some(rooted) -> rooted
+      | None -> String.join(List.dropLast(String.split(file, "/"), 1) <> [path], "/")
+    };
     let segments =
         List.foldLeft(String.split(walked, "/"), [], fn(acc, segment) = match #(segment, acc) {
             #("..", _ :: above) -> above
@@ -108,10 +108,10 @@ fn targetOf(file : String, path : String) : String = {
 fn addressOf(file : String) : String =
     if file == "index.html" then
         "/"
-    else if String.endsWith(file, "/index.html") then
-        "/" <> String.slice(file, 0, String.size(file) - String.size("index.html"))
-    else
-        "/" <> file
+    else match String.stripSuffix(file, "/index.html") {
+        Some(directory) -> "/" <> directory <> "/"
+      | None -> "/" <> file
+    }
 
 // Each value of the attribute in a file's UTF-8, as the file writes it:
 // the generator escapes every `"` of a text and of a value, so the

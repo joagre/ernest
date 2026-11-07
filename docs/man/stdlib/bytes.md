@@ -93,6 +93,24 @@ is the size, and an `end` at or below `index` gives no bytes.
 // => #(<<2>>, <<2, 3>>, <<1>>)
 ```
 
+## Bytes.drop
+
+```ernest
+Bytes.drop(bytes : Bytes, count : Int) : Bytes
+```
+
+*Since 0.10.0.*
+
+`bytes` after its first `count` octets. A `count` below 0 is 0, and one past
+the size leaves nothing.
+
+### Examples
+
+```ernest
+#(Bytes.drop(<<1, 2, 3>>, 1), Bytes.drop(<<1, 2>>, -1), Bytes.drop(<<1, 2>>, 5))
+// => #(<<2, 3>>, <<1, 2>>, <<>>)
+```
+
 ## Bytes.toList
 
 ```ernest

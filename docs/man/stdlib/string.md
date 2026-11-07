@@ -120,6 +120,14 @@ String.contains("e\u{301}", "e")
 // => false
 ```
 
+A carriage return and a line feed are one grapheme, and a code point is found
+through `toList`:
+
+```ernest
+#(String.contains("\r\n", "\r"), List.contains(String.toList("\r\n"), '\r'))
+// => #(false, true)
+```
+
 ## String.indexOf
 
 ```ernest
@@ -177,6 +185,42 @@ String.endsWith(text : String, suffix : String) : Bool
 `true` when `text` ends with `suffix`, as whole graphemes. Every string ends
 with the empty string.
 
+## String.stripPrefix
+
+```ernest
+String.stripPrefix(text : String, prefix : String) : Optional(String)
+```
+
+*Since 0.10.0.*
+
+The text after `prefix`, or `None` where `text` does not begin with it, as
+whole graphemes. Every string begins with the empty string.
+
+### Examples
+
+```ernest
+#(String.stripPrefix("key=value", "key="), String.stripPrefix("value", "key="))
+// => #(Some("value"), None)
+```
+
+## String.stripSuffix
+
+```ernest
+String.stripSuffix(text : String, suffix : String) : Optional(String)
+```
+
+*Since 0.10.0.*
+
+The text before `suffix`, or `None` where `text` does not end with it, as
+whole graphemes. Every string ends with the empty string.
+
+### Examples
+
+```ernest
+#(String.stripSuffix("page.md", ".md"), String.stripSuffix("page", ".md"))
+// => #(Some("page"), None)
+```
+
 ## String.replace
 
 ```ernest
@@ -210,6 +254,24 @@ string.
 ```ernest
 #(String.slice("hello", 1, 3), String.slice("hello", -1, 3), String.slice("hello", 3, 9))
 // => #("el", "hel", "lo")
+```
+
+## String.drop
+
+```ernest
+String.drop(text : String, count : Int) : String
+```
+
+*Since 0.10.0.*
+
+`text` after its first `count` graphemes, walking only those. A `count`
+below 0 is 0, and one past the text's size leaves nothing.
+
+### Examples
+
+```ernest
+#(String.drop("hello", 2), String.drop("hello", -1), String.drop("hello", 9))
+// => #("llo", "hello", "")
 ```
 
 ## String.padStart

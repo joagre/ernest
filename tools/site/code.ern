@@ -212,7 +212,8 @@ let declaring : List(String) = ["type", "abstract", "foreign", "export"]
 // A first line that places its block in a file, `// net/http.ern`, the
 // file's path lowercase words, digits and `_` between `/`s (report §11.1).
 fn namesFile(line : String) : Bool =
-    match Optional.andThen(stripped(line, "// "), fn(rest) = String.splitOnce(rest, ".ern")) {
+    match Optional.andThen(String.stripPrefix(line, "// "),
+                           fn(rest) = String.splitOnce(rest, ".ern")) {
         Some(#(path, _)) ->
             path != ""
                 && List.all(String.toList(path),
@@ -245,7 +246,7 @@ fn beginsWithInput(lines : List(String)) : Bool =
 
 // A session's inputs are its `> ` lines.
 fn inputs(lines : List(String)) : List(String) =
-    List.filterMap(lines, fn(line) = stripped(line, "> "))
+    List.filterMap(lines, fn(line) = String.stripPrefix(line, "> "))
 
 // The block's language, the first word of its info string.
 fn language(info : String) : String =
@@ -404,7 +405,7 @@ fn transcript(lines : List(String)) : String =
     String.join(List.map(lines, transcriptLine), "\n")
 
 fn transcriptLine(line : String) : String =
-    match stripped(line, "> ") {
+    match String.stripPrefix(line, "> ") {
         Some(input) ->
             "<span class=\"input\"><span class=\"prompt\">&gt; </span>"
                 <> Site.Template.escaped(input)
@@ -520,13 +521,10 @@ fn tokenHtml(token : Token) : String =
     written(token.before) <> spanned(token.kind, token.text)
 
 fn spanned(kind : Kind, text : String) : String =
-    match class(kind) {
-        Some(name) when String.endsWith(text, "\n") ->
-            span(name, String.slice(text, 0, String.size(text) - 1)) <> "\n"
-      | Some(name) ->
-            span(name, text)
-      | None ->
-            written(text)
+    match #(class(kind), String.stripSuffix(text, "\n")) {
+        #(Some(name), Some(line)) -> span(name, line) <> "\n"
+      | #(Some(name), None) -> span(name, text)
+      | #(None, _) -> written(text)
     }
 
 fn span(class : String, text : String) : String =
@@ -557,10 +555,3 @@ fn class(kind : Kind) : Optional(String) =
 // lexer is the toolchain's, which the helper reaches (tools/site/ern_site.erl).
 foreign fn lexed(code : String) : Optional(List(Lexeme)) =
     "ern_site:lexed/1"
-
-// The text after `prefix`, where the text begins with it.
-fn stripped(text : String, prefix : String) : Optional(String) =
-    if String.startsWith(text, prefix) then
-        Optional.map(String.splitOnce(text, prefix), fn(#(_, rest)) = rest)
-    else
-        None

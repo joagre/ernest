@@ -155,7 +155,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap` and `tryFold` for a step that can fail.
 
-   Text adds `startsWith`, `endsWith`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`.
+   Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`.
 
    A set adds `union`, `intersection`, `difference`, and `isSubset`. A map adds `keys`, `values`, `update`, `merge` and `mergeWith`.
 
@@ -360,11 +360,11 @@ Set.isSubset : (Set(a=), Set(a=)) -> Bool // every element of the first is in th
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is a container read through `toList`: of the container operations it provides `size`, `isEmpty`, `contains`, `fromList`, and `toList`, and the rest go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter, and `graphemes` gives them in order. A pad that begins no grapheme, a combining mark, joins the grapheme beside it, so `padStart` and `padEnd` then leave the string shorter than asked. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes.
+A `String` is a container read through `toList`: of the container operations it provides `size`, `isEmpty`, `contains`, `fromList`, and `toList`, and the rest go through `toList`. `size`, `slice`, `drop`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter, and `graphemes` gives them in order. A pad that begins no grapheme, a combining mark, joins the grapheme beside it, so `padStart` and `padEnd` then leave the string shorter than asked. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes.
 
-A search for a second string, `contains`, `indexOf`, `lastIndexOf`, `startsWith`, `endsWith`, `replace`, `split` and `splitOnce`, finds it only where its graphemes are whole graphemes of the first: `"/"` is not in `"/\u{301}"`, whose one grapheme is the separator with the combining mark, `String.contains("e\u{301}", "e")` is `false`, and `String.split("a\r\nb", "\n")` is `["a\r\nb"]`, a carriage return and a line feed being one grapheme. Text a protocol frames by bytes is searched as `Bytes` (E.20).
+A search for a second string, `contains`, `indexOf`, `lastIndexOf`, `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `replace`, `split` and `splitOnce`, finds it only where its graphemes are whole graphemes of the first: `"/"` is not in `"/\u{301}"`, whose one grapheme is the separator with the combining mark, `String.contains("e\u{301}", "e")` is `false`, and `String.split("a\r\nb", "\n")` is `["a\r\nb"]`, a carriage return and a line feed being one grapheme. Text a protocol frames by bytes is searched as `Bytes` (E.20), and a code point is found through `toList`: `List.contains(String.toList("\r\n"), '\r')` is `true`.
 
-The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `toLower` and `toUpper`, which need Unicode's tables, the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`, and functions of the host's beneath `repeat`, `join`, and `toIntBase`. Four that need Unicode's tables are private to the module: the slice `slice` makes once it has clipped its two indexes, the string after a count of graphemes, beneath `trimStart`, the last grapheme `trimEnd` takes off, found from the string's end, and `around`, the string before a part's first occurrence and the string after it. So is `decoded`, what the host's decoder finds in bytes, beneath the two conversions that read bytes that may not all be UTF-8 (E.0 rule 1). The rest is Ernest over them.
+The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `drop`, `toLower` and `toUpper`, which need Unicode's tables, the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`, and functions of the host's beneath `repeat`, `join`, and `toIntBase`. Three that need Unicode's tables are private to the module: the slice `slice` makes once it has clipped its two indexes, the last grapheme `trimEnd` takes off, found from the string's end, and `around`, the string before a part's first occurrence and the string after it. So is `decoded`, what the host's decoder finds in bytes, beneath the two conversions that read bytes that may not all be UTF-8 (E.0 rule 1). The rest is Ernest over them.
 
 Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
@@ -383,8 +383,11 @@ String.indexOf : (String, String) -> Optional(Int) // where the second begins, N
 String.lastIndexOf : (String, String) -> Optional(Int) // where the second begins last, None where it is not there; an empty second is the first's size
 String.startsWith : (String, String) -> Bool // true for an empty second
 String.endsWith : (String, String) -> Bool // true for an empty second
+String.stripPrefix : (String, String) -> Optional(String) // the text after the prefix, None where it does not begin with it
+String.stripSuffix : (String, String) -> Optional(String) // the text before the suffix, None where it does not end with it
 String.replace : (String, String, String) -> String // every occurrence of the second by the third; an empty second changes nothing
 String.slice : (String, Int, Int) -> String // the graphemes from the first index up to the second, not including it, clipped to the string: an index below 0 is 0, one past the size is the size, and a second at or below the first gives ""
+String.drop : (String, Int) -> String // all but the first n graphemes; n below 0 is 0
 String.padStart : (String, Int, String) -> String // the third's copies in front until the size is the second, the last cut to fit; an empty third adds none
 String.padEnd : (String, Int, String) -> String // the third's copies at the end, as padStart puts them in front
 String.repeat : (String, Int) -> String // n times; n below 0 is 0
@@ -714,6 +717,7 @@ Bytes.size : (Bytes) -> Int // octets
 Bytes.isEmpty : (Bytes) -> Bool
 Bytes.get : (Bytes, Int) -> Optional(Int) // the octet at the index from 0
 Bytes.slice : (Bytes, Int, Int) -> Bytes // the octets from the first index up to the second, not including it, clipped: an index below 0 is 0, one past the size is the size, and a second at or below the first gives none
+Bytes.drop : (Bytes, Int) -> Bytes // all but the first n octets; n below 0 is 0
 Bytes.toList : (Bytes) -> List(Int)
 Bytes.fromList : (List(Int)) -> Optional(Bytes) // None when a value is outside 0 to 255
 Bytes.contains : (Bytes, Bytes) -> Bool // an empty second is always there

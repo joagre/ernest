@@ -386,10 +386,8 @@ fn column(region : Region) : Int =
 fn headRows(region : Region) : List(String) = {
     let before = String.slice(region.typed, 0, region.cursor);
     let head = match String.lastIndexOf(before, "\n") {
-        None ->
-            region.prompt <> pictured(before)
-      | Some(index) ->
-            continuation <> pictured(String.slice(before, index + 1, String.size(before)))
+        None -> region.prompt <> pictured(before)
+      | Some(index) -> continuation <> pictured(String.drop(before, index + 1))
     };
     onScreen(head, region.size.columns)
 }

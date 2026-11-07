@@ -393,7 +393,7 @@ fn readOn(reading : HeadReading(a),
           bytes : Bytes,
           passing : Int) : Either(ReadError, #(a, Bytes)) = {
     let more <- received(reading.socket, bytes, reading.deadline);
-    let read = Bytes.slice(more, Bytes.size(bytes), Bytes.size(more));
+    let read = Bytes.drop(more, Bytes.size(bytes));
     if Bytes.contains(read, <<'\n':utf8>>) || Bytes.size(more) >= passing then
         readHead(reading, more)
     else
@@ -413,7 +413,7 @@ fn passingSize(bytes : Bytes, limits : Limits) : Int = {
         1
     else
         0;
-    match Bytes.indexOf(Bytes.slice(bytes, skipped, Bytes.size(bytes)), <<'\n':utf8>>) {
+    match Bytes.indexOf(Bytes.drop(bytes, skipped), <<'\n':utf8>>) {
         None ->
             skipped + limits.line
       | Some(index) -> {
@@ -430,7 +430,7 @@ fn passingSize(bytes : Bytes, limits : Limits) : Int = {
 // the line it ends is taken as under way, which costs at most a parse
 // more.
 fn lineStart(bytes : Bytes, firstEnd : Int) : Int =
-    match Bytes.lastIndexOf(Bytes.slice(bytes, firstEnd, Bytes.size(bytes)), <<'\n':utf8>>) {
+    match Bytes.lastIndexOf(Bytes.drop(bytes, firstEnd), <<'\n':utf8>>) {
         None ->
             firstEnd
       | Some(index) -> {
@@ -681,7 +681,7 @@ fn line(reading : Reading,
             if consumed + index + 1 > reading.limit then
                 Left(Protocol(BodyTooLarge))
             else {
-                let rest = Bytes.slice(bytes, index + 1, Bytes.size(bytes));
+                let rest = Bytes.drop(bytes, index + 1);
                 Right(#(withoutReturn(Bytes.slice(bytes, 0, index)), rest, consumed + index + 1))
             }
       | None ->
@@ -704,7 +704,7 @@ fn withoutReturn(content : Bytes) : Bytes =
 // until there are as many.
 fn taken(reading : Reading, bytes : Bytes, count : Int) : Either(ReadError, #(Bytes, Bytes)) =
     if Bytes.size(bytes) >= count then
-        Right(#(Bytes.slice(bytes, 0, count), Bytes.slice(bytes, count, Bytes.size(bytes))))
+        Right(#(Bytes.slice(bytes, 0, count), Bytes.drop(bytes, count)))
     else {
         let more <- received(reading.socket, bytes, reading.deadline);
         taken(reading, more, count)

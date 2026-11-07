@@ -88,6 +88,20 @@ export fn slice(bytes : Bytes, index : Int, end : Int) : Bytes = {
     }
 }
 
+/// `bytes` after its first `count` octets. A `count` below 0 is 0, and one past
+/// the size leaves nothing.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.drop(<<1, 2, 3>>, 1), Bytes.drop(<<1, 2>>, -1), Bytes.drop(<<1, 2>>, 5))
+/// // => #(<<2, 3>>, <<1, 2>>, <<>>)
+/// ```
+///
+/// since 0.10.0
+export fn drop(bytes : Bytes, count : Int) : Bytes =
+    slice(bytes, count, size(bytes))
+
 /// The bytes in order, each an `Int` from 0 to 255.
 export foreign fn toList(bytes : Bytes) : List(Int) =
     "erlang:binary_to_list/1"
@@ -186,7 +200,7 @@ export fn startsWith(bytes : Bytes, prefix : Bytes) : Bool =
 /// ```
 export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool = {
     let count = size(suffix);
-    size(bytes) >= count && slice(bytes, size(bytes) - count, size(bytes)) == suffix
+    size(bytes) >= count && drop(bytes, size(bytes) - count) == suffix
 }
 
 /// The parts of `bytes` between the occurrences of `separator`, empty parts

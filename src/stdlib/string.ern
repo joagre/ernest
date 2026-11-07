@@ -121,6 +121,14 @@ export fn compare(left : String, right : String) : Ordering =
 /// String.contains("e\u{301}", "e")
 /// // => false
 /// ```
+///
+/// A carriage return and a line feed are one grapheme, and a code point is found
+/// through `toList`:
+///
+/// ```ernest
+/// #(String.contains("\r\n", "\r"), List.contains(String.toList("\r\n"), '\r'))
+/// // => #(false, true)
+/// ```
 export fn contains(text : String, part : String) : Bool =
     Optional.isSome(indexOf(text, part))
 
@@ -164,8 +172,36 @@ export fn startsWith(text : String, prefix : String) : Bool =
 /// with the empty string.
 export fn endsWith(text : String, suffix : String) : Bool = {
     let count = size(suffix);
-    size(text) >= count && slice(text, size(text) - count, size(text)) == suffix
+    size(text) >= count && drop(text, size(text) - count) == suffix
 }
+
+/// The text after `prefix`, or `None` where `text` does not begin with it, as
+/// whole graphemes. Every string begins with the empty string.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.stripPrefix("key=value", "key="), String.stripPrefix("value", "key="))
+/// // => #(Some("value"), None)
+/// ```
+///
+/// since 0.10.0
+export fn stripPrefix(text : String, prefix : String) : Optional(String) =
+    if startsWith(text, prefix) then Some(drop(text, size(prefix))) else None
+
+/// The text before `suffix`, or `None` where `text` does not end with it, as
+/// whole graphemes. Every string ends with the empty string.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.stripSuffix("page.md", ".md"), String.stripSuffix("page", ".md"))
+/// // => #(Some("page"), None)
+/// ```
+///
+/// since 0.10.0
+export fn stripSuffix(text : String, suffix : String) : Optional(String) =
+    if endsWith(text, suffix) then Some(slice(text, 0, size(text) - size(suffix))) else None
 
 /// `text` with each occurrence of `old` replaced by `new`. Occurrences are
 /// found from the left and do not overlap, so `replace("aaa", "aa", "b")` is
@@ -198,6 +234,20 @@ export fn slice(text : String, index : Int, end : Int) : String = {
 
 foreign fn sliced(text : String, index : Int, count : Int) : String =
     "ern_string:slice/3"
+
+/// `text` after its first `count` graphemes, walking only those. A `count`
+/// below 0 is 0, and one past the text's size leaves nothing.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.drop("hello", 2), String.drop("hello", -1), String.drop("hello", 9))
+/// // => #("llo", "hello", "")
+/// ```
+///
+/// since 0.10.0
+export foreign fn drop(text : String, count : Int) : String =
+    "ern_string:drop/2"
 
 /// `text` with copies of `pad` put in front until it has `count` graphemes, the
 /// last copy cut to fit. A text that already has `count` or more is answered as
@@ -411,11 +461,6 @@ export fn splitOnce(text : String, separator : String) : Optional(#(String, Stri
 // primitive since graphemes are the host's, beneath `split` and `splitOnce`.
 foreign fn around(text : String, part : String) : Optional(#(String, String)) =
     "ern_string:around/2"
-
-// Report Appendix E.5: the string after that many graphemes, walking only
-// those, a primitive since graphemes are the host's.
-foreign fn drop(text : String, count : Int) : String =
-    "ern_string:drop/2"
 
 /// The strings of `parts` joined, with `separator` between each two.
 ///

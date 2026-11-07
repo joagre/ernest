@@ -512,6 +512,7 @@ hosts() ->
                            end,
       <<"String.contains">> => fun(Text, Part) -> string:find(Text, Part) =/= nomatch end,
       <<"String.startsWith">> => fun(Text, Prefix) -> string:prefix(Text, Prefix) =/= nomatch end,
+      <<"String.stripPrefix">> => fun string:prefix/2,
       <<"String.replace">> => fun(Text, Old, New) -> string:replace(Text, Old, New, all) end,
       <<"String.toList">> => fun(Text) -> unicode:characters_to_list(Text) end,
       <<"String.graphemes">> => fun(Text) -> string:to_graphemes(Text) end,
@@ -546,6 +547,10 @@ hosts() ->
                                    To = min(End, byte_size(Bytes)),
                                    binary:part(Bytes, From, max(To - From, 0))
                            end,
+      <<"Bytes.drop">> => fun(Bytes, Count) ->
+                                  From = min(max(Count, 0), byte_size(Bytes)),
+                                  binary:part(Bytes, From, byte_size(Bytes) - From)
+                          end,
       <<"Bytes.split">> => fun(Bytes, Separator) -> binary:split(Bytes, Separator, [global]) end,
       <<"Bytes.contains">> => fun(Bytes, Part) -> binary:match(Bytes, Part) =/= nomatch end,
       <<"Bytes.join">> => fun(Parts, Separator) -> iolist_to_binary(lists:join(Separator, Parts))

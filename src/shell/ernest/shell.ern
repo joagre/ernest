@@ -1092,7 +1092,7 @@ fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next =
 // command's word and the spaces after it.
 fn argumentColumn(input : String) : Int = {
     let end = Ernest.Shell.Command.wordEnd(input);
-    let rest = String.slice(input, end, String.size(input));
+    let rest = String.drop(input, end);
     end + String.size(rest) - String.size(String.trimStart(rest)) + 1
 }
 
@@ -1701,7 +1701,7 @@ fn rowBefore(input : String, cursor : Int) : String = {
     let before = String.slice(input, 0, cursor);
     match String.lastIndexOf(before, "\n") {
         None -> before
-      | Some(index) -> String.slice(before, index + 1, String.size(before))
+      | Some(index) -> String.drop(before, index + 1)
     }
 }
 

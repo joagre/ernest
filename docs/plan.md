@@ -99,17 +99,11 @@ reader S reads of its live shell. The release note's line on the installed layou
 6. **Text from bytes that are not all UTF-8**, done 2026-11-07 (E.5, §11.2; the log's *Text from
    Bytes*). `String.fromUtf8Lossy` and `String.fromUtf8Piece` stand, and the shell's and the
    harness's own decoding went.
-7. **A text after its prefix, and a slice to the end**, feedback 214 and 220, decided
-   2026-11-03: `String.slice(x, i, String.size(x))` and `Bytes.slice` to the end stand at 23
-   sites, and the text after a prefix is taken three ways at seven sites, counted 2026-11-04:
-   two private `stripped` helpers, `String.splitOnce` matched against an empty first part, and
-   `String.startsWith` with a slice. One reading against E.0's rules decides both, the
-   functions admitted named by the guide's style, and every site written with them (the
-   log's *The Generator's First Stage*). The same reading decides feedback 215: `String.contains(x, "\r")`
-   finds no carriage return in `"\r\n"`, since E.5 searches by graphemes, and whether a
-   search by code points stands beside it. And feedback 227, a text without its suffix,
-   written as a slice after `String.endsWith` at three sites of the site's generator, the
-   dual of 220.
+7. **A text after its prefix, and a slice to the end**, done 2026-11-07 (E.0 rule 2, E.5, E.20;
+   the log's *A Text after Its Prefix*). `String.drop`, `Bytes.drop`, `String.stripPrefix` and
+   `String.stripSuffix` stand, and the sites are written with them. `String.drop` reverses the
+   refusal of 2026-09-26. Feedback 215 is dropped: no search by code points stands beside
+   E.5's, since `toList` reads them.
 8. **A worker's value or its end, and a test's scratch**, feedback 209 and 211: one reading
    against E.0's rules of a `Process` function that runs a function monitored and answers its
    value or its end, written by hand at five sites, of a temporary directory from `Fs`, and

@@ -94,7 +94,7 @@ export fn pageWritten(run : Run, output : Output) : Either(String, Unit) = {
         output.address <> "index.html"
     else
         output.address;
-    let path = run.out <> Path(String.slice(file, 1, String.size(file)));
+    let path = run.out <> Path(String.drop(file, 1));
     let _ <- made(Optional.withDefault(Path.parent(path), run.out));
     fileWritten(path, String.toUtf8(Site.Template.text(lines)))
 }

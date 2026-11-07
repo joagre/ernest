@@ -461,7 +461,7 @@ fn killForwardTo(state : Editing, index : Int) : Editing = {
 }
 
 fn suffix(text : String, index : Int) : String =
-    String.slice(text, index, String.size(text))
+    String.drop(text, index)
 
 // report §11.2: the start of the word before the cursor, over what is not
 // in a word and then over the word itself; `inWord` says what a word is,

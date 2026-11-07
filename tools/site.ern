@@ -167,10 +167,7 @@ fn claimsOf(source : String,
                 [Markdown.Paragraph(Markdown.Strong(name) :: Markdown.Text(following) :: rest)] -> {
                     let named = Site.Html.plain(name);
                     let sentence = Markdown.Text(String.trimStart(following)) :: rest;
-                    Right(#(if String.endsWith(named, ".") then
-                                String.slice(named, 0, String.size(named) - 1)
-                            else
-                                named,
+                    Right(#(Optional.withDefault(String.stripSuffix(named, "."), named),
                             Site.Run.firstSentence(sentence)))
                 }
               | _ ->
@@ -299,14 +296,8 @@ fn integer(named : String, object : Json.Value, name : String) : Either(String, 
 // writes them.
 fn memoryOf(named : String, command : List(String)) : Either(String, Int) = {
     let given = match List.span(command, fn(word) = word != "--memory") {
-        #(_, _ :: value :: _) ->
-            Some(value)
-      | _ ->
-            List.get(List.filterMap(command, fn(word) = match String.splitOnce(word, "--memory=") {
-                         Some(#("", value)) -> Some(value)
-                       | _ -> None
-                     }),
-                     0)
+        #(_, _ :: value :: _) -> Some(value)
+      | _ -> List.get(List.filterMap(command, fn(word) = String.stripPrefix(word, "--memory=")), 0)
     };
     match Optional.andThen(given, megabytes) {
         Some(found) ->
@@ -504,9 +495,9 @@ fn symbolOf(named : String, id : String, text : String) : Either(String, List(St
 // symbol neither keeps nor leaves to another is refused.
 fn attributeOf(named : String, line : String) : Either(String, #(String, String)) = {
     let found = match String.splitOnce(String.trim(line), "=\"") {
-        Some(#(name, rest)) when String.endsWith(rest, "\"") ->
-            Some(#(name, String.slice(rest, 0, String.size(rest) - 1)))
-      | _ ->
+        Some(#(name, rest)) ->
+            Optional.map(String.stripSuffix(rest, "\""), fn(value) = #(name, value))
+      | None ->
             None
     };
     match found {

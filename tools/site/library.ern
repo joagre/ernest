@@ -242,11 +242,12 @@ fn generated(path : String,
              blocks : List(Markdown.Block)) : #(List(Markdown.Block), Optional(String)) =
     match List.reverse(blocks) {
         Markdown.Paragraph(last) :: Markdown.Rule :: kept when isGenerated(last) -> {
-            let named = match String.splitOnce(Site.Html.plain(last), " from ") {
-                Some(#(_, rest)) when String.endsWith(rest, ".ern.") ->
-                    String.slice(rest, 0, String.size(rest) - 1)
-              | _ ->
-                    path
+            let stem =
+                Optional.andThen(String.splitOnce(Site.Html.plain(last), " from "),
+                                 fn(#(_, rest)) = String.stripSuffix(rest, ".ern."));
+            let named = match stem {
+                Some(name) -> name <> ".ern"
+              | None -> path
             };
             #(List.reverse(kept), Some(named))
         }
@@ -320,10 +321,7 @@ fn declarationOf(each : Site.Code.Placed,
 // A declaration's name without its module's, `size` of `List.size`; a
 // prelude name, which no module's name heads, as it is.
 fn shortName(name : String, qualified : String) : String =
-    if String.startsWith(qualified, name <> ".") then
-        String.slice(qualified, String.size(name) + 1, String.size(qualified))
-    else
-        qualified
+    Optional.withDefault(String.stripPrefix(qualified, name <> "."), qualified)
 
 //
 // The contents pages

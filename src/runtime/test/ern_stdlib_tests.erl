@@ -344,6 +344,52 @@ string_split_once_test() ->
      || Text <- [<<>>, <<"a">>, <<"a,b">>, <<",a,,b,">>, <<"a\r\nb">>, Composed],
         Separator <- [<<",">>, <<"\n">>, <<>>, <<"a,">>]].
 
+%% report Appendix E.5: `drop` is a slice to the end, in graphemes, and walks
+%% only what it drops, so that a scan by it costs what the text's size does
+string_drop_test() ->
+    String = ern_named:functions('ern@string'),
+    Drop = String(drop),
+    ?assertEqual(<<"llo">>, Drop(<<"hello">>, 2)),
+    ?assertEqual(<<"hello">>, Drop(<<"hello">>, 0)),
+    ?assertEqual(<<"hello">>, Drop(<<"hello">>, -1)),
+    ?assertEqual(<<>>, Drop(<<"hello">>, 5)),
+    ?assertEqual(<<>>, Drop(<<"hello">>, 9)),
+    ?assertEqual(<<>>, Drop(<<>>, 1)),
+    ?assertEqual(<<"x">>, Drop(<<"e\x{301}x"/utf8>>, 1)),
+    ?assertEqual(<<"x">>, Drop(<<"\r\nx">>, 1)),
+    [?assertEqual(String(slice)(Text, Index, String(size)(Text)), Drop(Text, Index))
+     || Text <- [<<"héllo"/utf8>>, <<"e\x{301}\r\n😀x"/utf8>>, <<>>],
+        Index <- lists:seq(-1, 7)].
+
+%% report Appendix E.5: the text after a prefix and before a suffix, each
+%% found as whole graphemes, as `startsWith` and `endsWith` find it
+string_strip_test() ->
+    String = ern_named:functions('ern@string'),
+    Prefix = String(stripPrefix),
+    Suffix = String(stripSuffix),
+    ?assertEqual({'Some', <<"value">>}, Prefix(<<"key=value">>, <<"key=">>)),
+    ?assertEqual('None', Prefix(<<"value">>, <<"key=">>)),
+    ?assertEqual({'Some', <<>>}, Prefix(<<"key">>, <<"key">>)),
+    ?assertEqual({'Some', <<"key">>}, Prefix(<<"key">>, <<>>)),
+    ?assertEqual('None', Prefix(<<"ke">>, <<"key">>)),
+    ?assertEqual('None', Prefix(<<"e\x{301}x"/utf8>>, <<"e">>)),
+    ?assertEqual({'Some', <<"x">>}, Prefix(<<"e\x{301}x"/utf8>>, <<"e\x{301}"/utf8>>)),
+    ?assertEqual({'Some', <<"page">>}, Suffix(<<"page.md">>, <<".md">>)),
+    ?assertEqual('None', Suffix(<<"page">>, <<".md">>)),
+    ?assertEqual({'Some', <<>>}, Suffix(<<"key">>, <<"key">>)),
+    ?assertEqual({'Some', <<"key">>}, Suffix(<<"key">>, <<>>)),
+    ?assertEqual('None', Suffix(<<"ey">>, <<"key">>)),
+    ?assertEqual('None', Suffix(<<"xe\x{301}"/utf8>>, <<"\x{301}"/utf8>>)),
+    ?assertEqual('None', Suffix(<<"a\r\n">>, <<"\n">>)).
+
+%% report Appendix E.5: a search finds no carriage return in a carriage
+%% return and a line feed, and a code point is found through `toList`
+string_code_point_test() ->
+    String = ern_named:functions('ern@string'),
+    List = ern_named:functions('ern@list'),
+    ?assertEqual(false, String(contains)(<<"\r\n">>, <<"\r">>)),
+    ?assertEqual(true, List(contains)(String(toList)(<<"\r\n">>), $\r)).
+
 %% report Appendix E.5: each byte that begins no character is one U+FFFD,
 %% and a cut character shows byte by byte where nothing can finish it
 from_utf8_lossy_test() ->
@@ -561,6 +607,11 @@ bytes_test() ->
     ?assertEqual({'Some', 8}, Bytes(get)(<<7, 8>>, 1)),
     ?assertEqual('None', Bytes(get)(<<7, 8>>, 2)),
     ?assertEqual('None', Bytes(get)(<<7, 8>>, -1)),
+    %% report Appendix E.20: all but the first n octets
+    ?assertEqual(<<2, 3>>, Bytes(drop)(<<1, 2, 3>>, 1)),
+    ?assertEqual(<<1, 2>>, Bytes(drop)(<<1, 2>>, -1)),
+    ?assertEqual(<<>>, Bytes(drop)(<<1, 2>>, 2)),
+    ?assertEqual(<<>>, Bytes(drop)(<<1, 2>>, 5)),
     %% report Appendix E.20: an end index, not a count
     ?assertEqual(<<2>>, Bytes(slice)(<<1, 2, 3>>, 1, 2)),
     ?assertEqual(<<2, 3>>, Bytes(slice)(<<1, 2, 3>>, 1, 5)),

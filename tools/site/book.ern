@@ -129,8 +129,8 @@ fn chapterLine(numbers : List(String),
                item : List(Markdown.Block)) : Optional(#(String, List(Markdown.Inline))) =
     match item {
         [Markdown.Paragraph(Markdown.Link(=text, =url) :: Markdown.Text(following) :: rest)] ->
-            match #(Site.Links.number(Site.Html.plain(text)), String.splitOnce(following, ": ")) {
-                #(Some(found), Some(#("", line))) when String.startsWith(url, "#")
+            match #(Site.Links.number(Site.Html.plain(text)), String.stripPrefix(following, ": ")) {
+                #(Some(found), Some(line)) when String.startsWith(url, "#")
                     && List.contains(numbers, found) -> Some(#(found, Markdown.Text(line) :: rest))
               | _ -> None
             }

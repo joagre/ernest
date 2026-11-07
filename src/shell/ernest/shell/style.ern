@@ -41,9 +41,7 @@ export fn named(text : String, color : Markdown.Output) : String = {
             let before = String.slice(text, 0, end);
             let name = Optional.withDefault(List.last(String.words(before)), "");
             let start = end - String.size(name);
-            String.slice(text, 0, start)
-                <> paint(color, Ansi.Bold, name)
-                <> String.slice(text, end, String.size(text))
+            String.slice(text, 0, start) <> paint(color, Ansi.Bold, name) <> String.drop(text, end)
         }
     }
 }

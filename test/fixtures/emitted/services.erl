@@ -80,7 +80,7 @@
         {'Some', Line_16} ->
             case '$16'(Line_16) of
                 {'Some', Command_17} ->
-                    '$13'(Command_17, ern@string:'$14'(Line_16));
+                    '$13'(Command_17, ern@string:'$16'(Line_16));
                 'None' ->
                     ern@io:'$8'(<<"commands: add KEY COUNT, take KEY COUNT, "
                                   "count KEY, audit">>)
@@ -143,7 +143,7 @@
 
 %% Services.parsed
 '$16'(Line_38) ->
-    case ern@string:'$19'(Line_38) of
+    case ern@string:'$21'(Line_38) of
         [<<"add">>, Key_39, Count_40] ->
             ern@optional:'$5'('$17'(Count_40),
                               fun (N_41) -> {'Add', Key_39, N_41} end);
@@ -169,7 +169,7 @@
                         end,
                         fun ern@char:'$1'/1)
         of
-        true -> ern@string:'$26'(Text_46);
+        true -> ern@string:'$28'(Text_46);
         false -> 'None'
     end.
 
@@ -191,7 +191,7 @@
 '$19'(Entries_55) ->
     case ern@list:'$3'(Entries_55) of
         true -> <<"none">>;
-        false -> ern@string:'$25'(Entries_55, <<", ">>)
+        false -> ern@string:'$27'(Entries_55, <<", ">>)
     end.
 
 '$init'() ->
