@@ -134,7 +134,7 @@ Where messages of type `m` are sent: a process, or a process seen through
 a function with `adapted`. Holding an address is the permission to send to
 the process. Addresses have no equality; the process behind one has,
 `Process.fromAddress(a)`, the identity a monitor watches and
-`Process.kill` ends (report §6.5).
+`kill` ends (report §6.5).
 
 ### Examples
 
@@ -179,7 +179,7 @@ receives nothing, and nothing can be sent to its address.
 ```ernest
 {
     let silent : Address(Never) = spawn(fn() = Io.println("hello"));
-    kill(silent)
+    kill(Process.fromAddress(silent))
 }
 ```
 
@@ -740,21 +740,20 @@ On a process the caller does not watch it does nothing.
 ## kill
 
 ```ernest
-kill(address : Address(a)) : Unit
+kill(process : Process) : Unit
 ```
 
-Ends the process at `address`. Its monitors see the reason `Killed`.
+Ends the process. Its monitors see the reason `Killed`.
 
 `kill` returns at once, and the process may run a little before it stops.
 Killing a process that has ended does nothing (report §6.9).
-`Process.kill` ends a process by its identity.
 
 ### Examples
 
 ```ernest
 {
     let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
-    kill(worker)
+    kill(Process.fromAddress(worker))
 }
 ```
 

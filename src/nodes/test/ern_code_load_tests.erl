@@ -203,7 +203,7 @@ load_caller_ends_test() ->
           "    match List.filter(Process.live(), isTarget) {\n"
           "        [] -> Unit\n"
           "      | targets -> {\n"
-          "            List.forEach(targets, Process.kill);\n"
+          "            List.forEach(targets, kill);\n"
           "            Address.callForever(spawn(silent), Ask)\n"
           "        }\n"
           "    }\n"),
@@ -307,7 +307,7 @@ load_caller_restarts_test() ->
           "    match List.filter(Process.live(), isSignal) {\n"
           "        [] -> Unit\n"
           "      | signals -> {\n"
-          "            List.forEach(signals, Process.kill);\n"
+          "            List.forEach(signals, kill);\n"
           "            Address.callForever(spawn(silent), Ask)\n"
           "        }\n"
           "    }\n"),
@@ -448,7 +448,7 @@ load_evaluator_lives_on_test() ->
                  "            Io.println(Io.show(Optional.isSome(open)));\n"
                  "            Io.println(Int.toString(List.size(Process.live())));\n"
                  "            monitor(Process.fromAddress(listener), Closed);\n"
-                 "            kill(evaluator);\n"
+                 "            kill(Process.fromAddress(evaluator));\n"
                  "            receive {\n"
                  "                Closed(_) -> Io.println(\"closed\")\n"
                  "            }\n"

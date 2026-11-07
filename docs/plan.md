@@ -93,8 +93,9 @@ reader S reads of its live shell. The release note's line on the installed layou
    the lines can add up to more than the node holds, and a socket's counts its writer's.
 4. **The deployment guide says what a waiting process holds**, done 2026-11-07, its section 7's
    last sentence (the log's *Memory Shown*).
-5. **`kill` takes a `Process`**, feedback 213, as `monitor` does, so that a function of an
-   address passes it through `Process.fromAddress` once for both; Appendix E.21 first.
+5. **`kill` takes a `Process`**, done 2026-11-07 (§6.5, §6.9, §9.5, E.21; the log's *`kill` Takes a
+   `Process`*). `Process.kill` went, and a site that holds an address writes
+   `kill(Process.fromAddress(worker))`. ernest-httpd meets it at its floor's rise.
 6. **Text from bytes that are not all UTF-8**, feedback 206, decided 2026-11-02, the policy
    §11.2 and §11.5 state for the shell's region and a diagnostic's source line: each byte that
    begins no character shows as U+FFFD. Two functions, `String.fromUtf8Lossy`, the bytes as

@@ -1912,7 +1912,8 @@ call_ends_with_callee() ->
         "    Ask(reply = _) -> { send(killer, Arrived(self())); receive { Stop -> Unit } }\n"
         "  | Stop -> Unit\n"
         "}\n"
-        "fn killer() : Unit receiving KillerMsg = receive { Arrived(callee) -> kill(callee) }\n"
+        "fn killer() : Unit receiving KillerMsg = receive { Arrived(callee) ->"
+        " kill(Process.fromAddress(callee)) }\n"
         "export fn main() : Unit receiving MainMsg = {\n" ++ Setup ++
         "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
         "}\n"
@@ -2029,7 +2030,7 @@ reply_process_test() ->
         "    Io.println(\"itself: \" <> Io.show(asker == Process.current()));\n"
         "    let caller = spawn(fn() = Address.callForever(server, Hold));\n"
         "    receive {\n"
-        "        Holding -> kill(caller)\n"
+        "        Holding -> kill(Process.fromAddress(caller))\n"
         "      | Told(_) -> Unit\n"
         "    };\n"
         "    receive {\n"
@@ -3061,7 +3062,7 @@ cancel_test() ->
         "    let alarm = receive { Armed(alarm) -> alarm };\n"
         "    send(s, Crash);\n"
         "    receive { Began -> Io.println(Bool.toString(Clock.cancel(alarm))) };\n"
-        "    kill(s)\n"
+        "    kill(Process.fromAddress(s))\n"
         "}\n"),
     ?assertEqual(<<"false\n">>, Restarted).
 
@@ -3769,7 +3770,7 @@ down_site_test() ->
         "// monitored while it waits, then killed\n"
         "fn watched(idler : Address(Unit)) : Unit receiving Msg = {\n"
         "    monitor(Process.fromAddress(idler), Died);\n"
-        "    kill(idler);\n"
+        "    kill(Process.fromAddress(idler));\n"
         "    report()\n"
         "}\n"
         "export fn main() : Unit receiving Msg = outer()\n"),
@@ -3933,7 +3934,7 @@ process_functions_test() ->
         "export fn main() : Unit receiving Msg = {\n"
         "    let w = spawn(fn() = idle());\n"
         "    monitor(Process.fromAddress(w), Died);\n"
-        "    kill(w);\n"
+        "    kill(Process.fromAddress(w));\n"
         "    receive {\n"
         "        Died(Down(reason = Killed, site = _)) -> Io.println(\"killed\")\n"
         "      | _ -> Io.println(\"other\")\n"
@@ -3952,7 +3953,7 @@ process_functions_test() ->
 
 %% report §6.9, §6.5, §4.5: a wrap may call a function written `: T`
 %% that calls `self` or `monitor` without showing the address, and what it
-%% asks of the runtime is the process it delivers to: `kill(self())` kills
+%% asks of the runtime is the process it delivers to: `kill(Process.fromAddress(self()))` kills
 %% that process, whose monitor sees Killed, and a monitor made there
 %% delivers to that process, whose wrap's fault is the process's own at its
 %% next wait, after the delivery that made the monitor has ended. A
@@ -3963,7 +3964,7 @@ wrap_asks_for_its_recipient_test() ->
     {ok, Output} = run(
         "type Msg = Died(Down) | Ready\n"
         "type Ward = Wrapped\n"
-        "fn stop() : Unit = kill(self())\n"
+        "fn stop() : Unit = kill(Process.fromAddress(self()))\n"
         "fn watch(p : Process) : Unit = monitor(p, fn(d) = fault(\"seen\"))\n"
         "fn idle() : Unit receiving Unit = receive { _ -> Unit }\n"
         "fn short() : Process = Process.fromAddress(spawn(fn() = Unit))\n"
@@ -3980,7 +3981,7 @@ wrap_asks_for_its_recipient_test() ->
         "        receive { Wrapped -> send(me, Ready) };\n"
         "        receive { Wrapped -> Unit }\n"
         "    }, Died);\n"
-        "    receive { Ready -> kill(watched) };\n"
+        "    receive { Ready -> kill(Process.fromAddress(watched)) };\n"
         "    receive { Died(d) -> Io.println(Io.show(d.reason)) }\n"
         "}\n"),
     ?assertEqual(<<"Killed\nFault(\"seen\")\n">>, Output).
@@ -4026,7 +4027,7 @@ work_makes_no_atoms() ->
         "fn work() : Unit receiving Msg = {\n"
         "    let w = spawn(fn() : Unit receiving Int = receive { _ -> Unit });\n"
         "    monitor(Process.fromAddress(w), Ended);\n"
-        "    kill(w);\n"
+        "    kill(Process.fromAddress(w));\n"
         "    receive { Ended(_) -> Unit };\n"
         "    let _ = Clock.alarm(1, Tick);\n"
         "    receive { Tick(_) -> Unit };\n"
@@ -4430,7 +4431,7 @@ preemption_and_precision_test() ->
         "    let w = spawn(fn() = { let _ = spin(0); Unit });\n"
         "    let _ = running(Process.fromAddress(w));\n"
         "    Io.println(Int.toString(power(2, 100)));\n"
-        "    kill(w)\n"
+        "    kill(Process.fromAddress(w))\n"
         "}\n"),
     ?assertEqual(<<"1267650600228229401496703205376\n">>, Output).
 
@@ -4447,7 +4448,7 @@ kill_dead_test() ->
         "    let w = spawn(fn() = { let _ = 1 / z; Unit });\n"
         "    monitor(Process.fromAddress(w), Died);\n"
         "    receive { Died(_) -> Unit };\n"
-        "    kill(w);\n"
+        "    kill(Process.fromAddress(w));\n"
         "    monitor(Process.fromAddress(w), Died);\n"
         "    receive {\n"
         "        Died(Down(process = p, reason = r, site = s)) ->\n"
@@ -4456,21 +4457,20 @@ kill_dead_test() ->
         "}\n"),
     ?assertEqual(<<"#(true, Unknown, \"\")\n">>, Output).
 
-%% Appendix E.21, report §6.5, §6.9: `Process.kill` ends a process by its
-%% identity, as `kill` ends one by its address: its monitor sees `Killed`, a
-%% second kill of the ended process does nothing, and the caller goes on. A
-%% regression test, written after the code; the kill of a process of another
-%% node is `kill`'s, which ern_rt_tests and ern_peer_tests cover
-process_kill_test() ->
+%% Appendix E.21, report §6.5, §6.9: `kill` ends a process by its identity: its
+%% monitor sees `Killed`, a second kill of the ended process does nothing, and
+%% the caller goes on. A regression test, written after the code; the kill of a
+%% process of another node is ern_rt_tests' and ern_peer_tests'
+kill_by_identity_test() ->
     {ok, Output} = run(
         "type Msg = Died(Down)\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let w : Address(Int) = spawn(fn() = receive { _ -> Unit });\n"
         "    let p = Process.fromAddress(w);\n"
         "    monitor(p, Died);\n"
-        "    Process.kill(p);\n"
+        "    kill(p);\n"
         "    let reason = receive { Died(d) -> d.reason };\n"
-        "    Process.kill(p);\n"
+        "    kill(p);\n"
         "    Io.println(Io.show(#(reason, Process.status(p))))\n"
         "}\n"),
     ?assertEqual(<<"#(Killed, None)\n">>, Output).

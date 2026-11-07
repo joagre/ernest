@@ -24,7 +24,7 @@
 /// faults itself. A supervisor that is itself a child of another group then
 /// restarts in place, and asks each of its own children to restart.
 ///
-/// **Stopping a group.** `kill(supervisor)` stops the group: when a supervisor
+/// **Stopping a group.** `kill(Process.fromAddress(supervisor))` stops the group: when a supervisor
 /// dies, its children are killed after it, the last spawned first, each once
 /// the one before has ended. A child that must finish its work first is sent a
 /// message of its own protocol before, since a killed process runs nothing
@@ -45,7 +45,7 @@
 ///         reply -> answer(reply, 42)
 ///     }));
 ///     let answered = Address.callForever(echo, fn(reply) = reply);
-///     kill(supervisor);
+///     kill(Process.fromAddress(supervisor));
 ///     answered
 /// }
 /// // => 42
@@ -92,7 +92,7 @@ export type Strategy = OneForOne | OneForAll | RestForOne
 ///     let supervisor : Address(Supervisor.GroupMsg) =
 ///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
-///     kill(supervisor)
+///     kill(Process.fromAddress(supervisor))
 /// }
 /// // => Unit
 /// ```
@@ -435,7 +435,7 @@ export fn child(supervisor : Address(GroupMsg),
             fault("a child runs on its supervisor's node");
         let address = self();
         let process = Process.fromAddress(address);
-        let watcher = join(supervisor, process, fn() = kill(address));
+        let watcher = join(supervisor, process, fn() = kill(Process.fromAddress(address)));
         // the group's limit decides when a child stops, so its own is none
         restarting(Unlimited, fn() = match startCause() {
             First ->
@@ -461,7 +461,7 @@ fn runAgain(supervisor : Address(GroupMsg),
             f : () -> Unit receiving m) : Unit receiving m =
     match Process.status(Process.fromAddress(supervisor)) {
         None ->
-            kill(self())
+            kill(Process.current())
       | Some(_) -> {
             if Address.callForever(watcher, fn(reply) = Report(=process, =reply)) then
                 Address.callForever(watcher, Hold)

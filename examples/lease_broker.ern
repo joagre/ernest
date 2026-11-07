@@ -198,7 +198,7 @@ fn play() : Unit receiving MainMsg = {
     // Dan waits, and cid is killed: the broker takes his lease back and
     // lends it to dan (report §6.9).
     send(dan, Take);
-    kill(cid);
+    kill(Process.fromAddress(cid));
     Io.println(heard());
     printLedger(broker);
     // Ann gives back her two leases, and the broker watches her no more.

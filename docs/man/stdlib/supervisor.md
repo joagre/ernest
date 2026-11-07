@@ -28,7 +28,7 @@ mailbox is emptied, as every restart empties it (report §6.9).
 faults itself. A supervisor that is itself a child of another group then
 restarts in place, and asks each of its own children to restart.
 
-**Stopping a group.** `kill(supervisor)` stops the group: when a supervisor
+**Stopping a group.** `kill(Process.fromAddress(supervisor))` stops the group: when a supervisor
 dies, its children are killed after it, the last spawned first, each once
 the one before has ended. A child that must finish its work first is sent a
 message of its own protocol before, since a killed process runs nothing
@@ -49,7 +49,7 @@ mailbox takes a bare `Reply(Int)`, so the call makes its message with
         reply -> answer(reply, 42)
     }));
     let answered = Address.callForever(echo, fn(reply) = reply);
-    kill(supervisor);
+    kill(Process.fromAddress(supervisor));
     answered
 }
 // => 42
@@ -97,7 +97,7 @@ them.
     let supervisor : Address(Supervisor.GroupMsg) =
         spawn(Supervisor.group(Supervisor.OneForOne,
                                RestartLimit(restarts = 3, within = 5000)));
-    kill(supervisor)
+    kill(Process.fromAddress(supervisor))
 }
 // => Unit
 ```

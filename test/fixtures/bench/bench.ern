@@ -88,7 +88,7 @@ export fn main() : Unit receiving Msg = {
         }
     });
     measure("kill", 5000000, fn(index) = {
-        kill(ended);
+        kill(Process.fromAddress(ended));
         index
     });
     measure("list_append", 2000000, fn(index) = List.size(tail <> tail) + index);

@@ -215,7 +215,7 @@ The counter of chapter 3 keeps the loop it was started with, so `kill` ends it f
 ```console
 > :reload
 Counter, compiled again
-> kill(counter)
+> kill(Process.fromAddress(counter))
 > let counter = spawn(fn() = Counter.count(0))
 counter : Address(Counter.CounterMsg)
 > Counter.apply(counter, "inc -1")
@@ -363,7 +363,7 @@ input 21:1:15: the argument does not fit Counter.apply: expected Address(Counter
   | ------------- Counter.apply : (Address(Counter.CounterMsg), String) -> String
   |               ^^^
   | = help: the types differ at Counter.CounterMsg and Counter$3.CounterMsg; Counter$3.CounterMsg is of a previous version of Counter, which a reload replaced
-> kill(far)
+> kill(Process.fromAddress(far))
 ```
 
 `:reload` brings `Tally` in from the build and compiles `Counter` again, and this time a type changed. Each reload makes a *version* of the module, counted from the first load, `Counter$3` now the previous one. A type of the current version prints plain, and a number names a previous one. `CounterMsg` did not change from the first version to the third, so the three share it, and it is named by the newest that held it, `Counter$3.CounterMsg` (report §11.2). A process keeps its mailbox type for life, so the two counters spawned under the old type, chapter 4's ended one and `far`, spawned in chapter 2 under the first version, are of `Counter$3.CounterMsg`, and the compiler refuses them the new protocol, the new mailbox type, with the reason (the guide's §9.3).
@@ -444,7 +444,7 @@ input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg
 1 | Peer.spawn("foo", fn() = Counter.count(Tally.empty()), 5000)
   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: start it on the peer from `Peer.computeAt`, whose function spawns it and answers an adapted address of a type that crosses, or keep a function on this node and send the process values that cross (report §3.11)
-> kill(counter)
+> kill(Process.fromAddress(counter))
 > let counter = Counter.start()
 counter : Address(Counter.ClientMsg)
 > let far <- Peer.computeAt("foo", fn() = Counter.start(), 5000)
@@ -579,7 +579,7 @@ Counter, compiled again
 
 That is the first claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
 
-The fix is a new loop beside the old for the reason chapter 6 gave: a fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash, and `Code.running(count)` would find none of the counters. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `Process.kill` (the guide's §8.9).
+The fix is a new loop beside the old for the reason chapter 6 gave: a fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash, and `Code.running(count)` would find none of the counters. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `kill` (the guide's §8.9).
 
 Then on `foo`, which never had `countGuarded` or `move`, from a shell *attached* to it: its inputs run on `foo`, and the terminal and the files stay with the node it starts from, `ops`, which `foo` lists without an address, since the shell dials in (the deployment guide's §6). In your own terminal, `ops` made with no `--listen`, since it only dials:
 

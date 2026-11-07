@@ -35,7 +35,7 @@ fn once() : Unit = {
     let _ = Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")), 5000);
     let _ = Os.run(Os.Command(program = "no-such-program-ern", arguments = [], input = <<>>), 5000);
     match Os.start(Os.Command(program = "sleep", arguments = ["10"], input = <<>>)) {
-        Right(process) -> kill(process)
+        Right(process) -> kill(Process.fromAddress(process))
       | Left(_) -> Unit
     };
     let _ = Os.run(Os.Command(program = "sleep", arguments = ["10"], input = <<>>), 1);

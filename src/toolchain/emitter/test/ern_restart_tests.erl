@@ -111,7 +111,7 @@ service_monitor_test() ->
         "    send(s, Crash);\n"
         "    told();\n"
         "    told();\n"
-        "    kill(s);\n"
+        "    kill(Process.fromAddress(s));\n"
         "    told();\n"
         "    told();\n"
         "    told()\n"
@@ -158,7 +158,7 @@ service_monitor_told_before_the_new_run_test() ->
         "    };\n"
         "    monitorService(Process.fromAddress(h), Told);\n"
         "    Io.println(Int.toString(crashes(h, 50, 0)) <> \" out of order\");\n"
-        "    kill(h)\n"
+        "    kill(Process.fromAddress(h))\n"
         "}\n"),
     ?assertEqual(<<"0 out of order\n">>, Output).
 
@@ -198,7 +198,7 @@ restarted_watcher_reaches_the_new_run_test() ->
         "    let h = spawn(restarting(Unlimited, fn() = holder(1)));\n"
         "    monitorService(Process.fromAddress(h), Told);\n"
         "    Io.println(Int.toString(crashes(h, 50, 0)) <> \" not answered by the new run\");\n"
-        "    kill(h)\n"
+        "    kill(Process.fromAddress(h))\n"
         "}\n"),
     ?assertEqual(<<"0 not answered by the new run\n">>, Output).
 
@@ -307,7 +307,8 @@ restart_cancels_what_it_asked_for() ->
     ?assertEqual({ok, <<"0\n">>},
                  ern_emitter_tests:run(
                      Program("monitor(Process.fromAddress(other), fn(_) = Heard)",
-                             "monitor(Process.fromAddress(other), Gone); kill(other);"
+                             "monitor(Process.fromAddress(other), Gone);"
+                             " kill(Process.fromAddress(other));"
                              " receive { Gone(_) -> Unit }"))),
     %% a subscription to faults, and a fault after the restart
     ?assertEqual({ok, <<"0\n">>},
@@ -330,7 +331,7 @@ restart_only_on_fault_test() ->
         "    send(a, Stop);\n"
         "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
         "    let b = spawnMonitored(restarting(limit, waits), Died);\n"
-        "    kill(b);\n"
+        "    kill(Process.fromAddress(b));\n"
         "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
         "    Unit\n"
         "}\n"),

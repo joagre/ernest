@@ -147,7 +147,7 @@ foreign fn expected(f : () -> Unit receiving m) : () -> Unit receiving m =
 fn judged(reply : Reply(Result), running : Address(m), cause : String) : Unit receiving JudgeMsg =
     receive {
         Ended(down) -> answer(reply, verdict(down.reason, cause))
-      | CallerEnded(_) -> kill(running)
+      | CallerEnded(_) -> kill(Process.fromAddress(running))
     }
 
 // The verdict on a process that was to fault with `cause` and ended with

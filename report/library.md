@@ -643,7 +643,7 @@ Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, 
 
 Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process (E.0 rule 1); the rest are Ernest over the prelude's sends and calls to the process of the listener or the socket they are given.
 
-A socket is a process: its address can be sent and killed like any other, and its process monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.faults` include them.
+A socket is a process: its address can be sent like any other, and its process killed and monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.faults` include them.
 
 `listenTls` and `connectTls` open a listener and a socket over TLS, by the host's `ssl`, and answer the addresses `listen` and `connect` answer: one set of functions accepts, reads, writes, gives and closes, over TLS or not. `listenTls` takes the server's certificate and its key, each a file in PEM, the certificate's file holding its chain after it, and answers for a file it cannot read or refuses `Left(Other(text))`, the file's name and what is wrong on one line: for one it cannot read, the answer `Fs` gives for the path (E.17), `cert.pem: NotFound`, `cert.pem: Denied` or `cert.pem: NotAFile`, and for one it refuses, `cert.pem: no certificate`, `key.pem: not one key`, `key.pem: not a key`; a key that is not the certificate's is not refused there, and fails each handshake.
 
@@ -725,9 +725,9 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 ### Appendix E.21. `process.ern` (namespace `Process`)
 
-`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, `kill`, the runtime's end of a process (§6.9), and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
+`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, and a private one beneath `faults`, which reaches the runtime's report of faults (E.0 rule 1).
 
-A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` takes one (§6.9). Across nodes a `Process` names its node.
+A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` and `kill` take one (§6.9). Across nodes a `Process` names its node.
 
 `status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28).
 
@@ -754,7 +754,6 @@ type Status = Status(site : String, queued : Int, activity : Activity, memory : 
 type Activity = Running | Receiving | Calling // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's or a load's answer (E.28)
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
-Process.kill : (Process) -> Unit // ends the process with the reason Killed, as kill does (§6.9); nothing for one that has ended
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
 Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, or waits for a call's answer, and the bytes it holds; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
@@ -772,7 +771,7 @@ A child joins the group when it starts, before `f` runs, and waits until the sup
 
 The strategy says what else a child's fault restarts: `OneForOne` nothing, `OneForAll` every other child, and `RestForOne` the children spawned after it, in the order the runtime spawned their processes, whatever order they joined in. Those are restarted as §6.9 says of a restart a supervisor asks for. A child that has not yet begun its first run of `f` is not asked, and one that faults before it takes the restart has restarted by its fault. The child whose fault restarts them runs `f` again once each of them has restarted or ended; a call to it after its fault is answered by the group restarted whole. A sibling that computes without waiting takes no restart until it waits (§6.9), and the child waits with it.
 
-When the children's faults pass `limit`, counted as `restarting` counts them, the supervisor faults with `Fault("supervisor restart limit reached")`. A child's own `restarting` restarts it at each of its faults, the one at which the group gives up among them, after which it waits as above, and each is reported `faulted, restarted` (E.21). The group's verdict is the group's own line, this fault where the limit is reached (§11.2). A supervisor that is itself a child restarts in place, after its own fault or when its parent asks, and asks each of its children to restart; they keep their order. When a supervisor dies, killed, faulted, or of a defect of its own, a process the module spawns beside it kills its children in the reverse of the order they were spawned, each once the one before has ended, and `kill(sup)` stops a group.
+When the children's faults pass `limit`, counted as `restarting` counts them, the supervisor faults with `Fault("supervisor restart limit reached")`. A child's own `restarting` restarts it at each of its faults, the one at which the group gives up among them, after which it waits as above, and each is reported `faulted, restarted` (E.21). The group's verdict is the group's own line, this fault where the limit is reached (§11.2). A supervisor that is itself a child restarts in place, after its own fault or when its parent asks, and asks each of its children to restart; they keep their order. When a supervisor dies, killed, faulted, or of a defect of its own, a process the module spawns beside it kills its children in the reverse of the order they were spawned, each once the one before has ended, and `kill(Process.fromAddress(sup))` stops a group.
 
 ```
 type Strategy = OneForOne | OneForAll | RestForOne

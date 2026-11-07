@@ -1175,7 +1175,8 @@ code_running_test() ->
                  peer_refusal("fn g() : Int receiving Int = receive { n -> n }\n" ++ Listing("g"))),
     ?assertEqual(ok, peer_ok("fn g() : Unit = Io.println(\"g\")\n" ++ Listing("g"))),
     ?assertEqual(ok, peer_ok("fn g() : Unit = Unit\n"
-                             "fn f() : Unit = List.forEach(Code.running(g), kill)\n")),
+                             "fn f() : Unit = List.forEach(Code.running(g),"
+                             " fn(p) = kill(Process.fromAddress(p)))\n")),
     ?assertEqual("Code.running lists the processes that run g, whose mailbox type Msg(a) holds"
                  " a type variable",
                  peer_refusal("type Msg(a) = Msg(a)\n"
@@ -1206,7 +1207,7 @@ code_running_never_test() ->
               ?assertEqual(ok, peer_ok(Function ++ "fn f() : List(Address(Never)) = "
                                        ++ Listed ++ "\n")),
               ?assertEqual(ok, peer_ok(Function ++ "fn f() : Unit = List.forEach(" ++ Listed
-                                       ++ ", kill)\n")),
+                                       ++ ", fn(p) = kill(Process.fromAddress(p)))\n")),
               ?assertEqual("the argument does not fit send: expected Never, found Int",
                            peer_refusal(Function ++ "fn f() : Unit = match " ++ Listed
                                         ++ " {\n    [p] -> send(p, 42)\n  | _ -> Unit\n}\n")),
@@ -1830,7 +1831,8 @@ effects_test() ->
     ?assertEqual("() -> Address(a) receiving a", type_of("export fn me() = self()", me)),
     ?assertEqual("(Address(a), a) -> Unit", type_of("export fn wrap(a, v) = send(a, v)", wrap)),
     ?assertEqual("(Address(Int)) -> Unit",
-                 type_of("export fn mark(a) = { kill(spawn(fn() = Unit)); send(a, 1) }", mark)),
+                 type_of("export fn mark(a) = { kill(Process.fromAddress(spawn(fn() = Unit)));"
+                         " send(a, 1) }", mark)),
     %% an effect used nowhere else is none
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn inc(xs) = List.map(xs, fn(x) = x + 1)", inc)),
@@ -1940,12 +1942,12 @@ receive_fixing_no_type_test() ->
 %%
 %% A regression test of the sweep's finding (2026-10-24), written after the
 %% code: `self` and `monitor` made their function process-only, `fn f() =
-%% kill(self())` printing `receiving e+`; the runtime's tests run such a
+%% kill(Process.fromAddress(self()))` printing `receiving e+`; the runtime's tests run such a
 %% function in a wrap and in an adapted address's function on arrival. The
 %% sleep's case is the log's *The Pun's Opening Round* and *A `receive`
 %% Always Receives*, written after the code too
 process_only_marks_a_receive_of_anything_test() ->
-    Kill = "fn f() = kill(self())\n",
+    Kill = "fn f() = kill(Process.fromAddress(self()))\n",
     ?assertEqual("() -> Unit", type_of("export " ++ Kill, f)),
     ?assertEqual("(Process) -> Unit",
                  type_of("export fn watch(p) = monitor(p, fn(d) = fault(\"down\"))", watch)),
@@ -1954,9 +1956,11 @@ process_only_marks_a_receive_of_anything_test() ->
                         "fn k() : Address(Int) receiving Int ="
                         " adapted(self(), fn(n : Int) = { f(); n })\n")),
     ?assertEqual("() -> Unit",
-                 type_of("export fn f() = { kill(self()); Clock.sleep(1) }", f)),
+                 type_of("export fn f() = { kill(Process.fromAddress(self())); Clock.sleep(1)"
+                         " }", f)),
     ?assertEqual("() -> Unit receiving e+",
-                 type_of("export fn f() = { kill(self()); receive { _ -> Unit } }", f)),
+                 type_of("export fn f() = { kill(Process.fromAddress(self())); receive { _ ->"
+                         " Unit } }", f)),
     ?assertEqual("() -> Unit receiving e+",
                  type_of("fn w() = receive { x -> x }\n"
                          "export fn f() = { let _ = w(); Unit }\n", f)).
@@ -1981,7 +1985,8 @@ process_only_marks_a_receive_of_anything_test() ->
 %% nor the shell's prompt, whose inputs are typed as a block's statements
 %% are
 standing_over_a_body_that_calls_self_test() ->
-    ?assertEqual("() -> Unit", type_of("export fn k() : Unit = kill(self())", k)),
+    ?assertEqual("() -> Unit", type_of("export fn k() : Unit ="
+                                       " kill(Process.fromAddress(self()))", k)),
     ?assertEqual("() -> Unit",
                  type_of("fn me() = self()\nexport fn k() : Unit = { let _ = me(); Unit }\n",
                          k)),
@@ -1989,17 +1994,20 @@ standing_over_a_body_that_calls_self_test() ->
                  type_of("export fn watch(p : Process) : Unit ="
                          " monitor(p, fn(d) = fault(\"down\"))", watch)),
     ?assertEqual("() -> Unit",
-                 type_of("export fn f() : Unit = { fn g() = self(); kill(g()) }", f)),
+                 type_of("export fn f() : Unit = { fn g() = self();"
+                         " kill(Process.fromAddress(g())) }", f)),
     ?assertEqual("() -> Unit",
-                 type_of("export fn f() : Unit = (fn() = kill(self()))()", f)),
+                 type_of("export fn f() : Unit = (fn() = kill(Process.fromAddress(self())))()", f)),
     ?assertEqual("() -> () -> Unit",
-                 type_of("export fn f() : (() -> Unit) = { let a = self(); fn() = kill(a) }",
+                 type_of("export fn f() : (() -> Unit) = { let a = self(); fn() ="
+                         " kill(Process.fromAddress(a)) }",
                          f)),
     %% a spawned function's mailbox type nothing fixed is Never after the
     %% variable is read, as it is without the annotation
     ?assertEqual("() -> Unit",
                  type_of("export fn f() : Unit = {"
-                         " let p = spawn(fn() = Unit); kill(if true then p else self()) }", f)),
+                         " let p = spawn(fn() = Unit); kill(Process.fromAddress(if true then p"
+                         " else self())) }", f)),
     Refused = "self needs a mailbox, and f receives nothing",
     ?assertEqual(Refused, refusal("fn f(x) : Unit = send(self(), x)")),
     ?assertEqual(Refused, refusal("fn f(t) : Unit = match t { #(x, _) -> send(self(), x) }")),
@@ -2024,21 +2032,25 @@ standing_over_a_body_that_calls_self_test() ->
                  Late#diagnostic.labels),
     ?assertEqual("give f its mailbox type, `receiving Int`", Late#diagnostic.help),
     ?assertEqual("`receive` needs a mailbox, and f receives nothing",
-                 refusal("fn f() : Unit = { kill(self()); receive { _ -> Unit } }")),
+                 refusal("fn f() : Unit = { kill(Process.fromAddress(self())); receive { _ ->"
+                         " Unit } }")),
     ?assertEqual("() -> Unit",
-                 type_of("export fn f() : Unit = { kill(self()); Clock.sleep(1) }",
+                 type_of("export fn f() : Unit = { kill(Process.fromAddress(self()));"
+                         " Clock.sleep(1) }",
                          f)),
     ?assertEqual("w needs a mailbox, and f receives nothing",
                  refusal("fn w() = receive { x -> x }\nfn f() : Unit = { let _ = w(); Unit }")),
     ?assertEqual("((a) -> Int, a) -> Int", type_of("export fn apply(f, x) : Int = f(x)", apply)),
     %% a lambda's `: T` stands over its body as a `fn`'s does, and is read
     %% as the lambda ends; a guard is no function's
-    ?assertEqual("() -> Unit", type_of("export fn f() = (fn() : Unit = kill(self()))()", f)),
+    ?assertEqual("() -> Unit", type_of("export fn f() = (fn() : Unit ="
+                                       " kill(Process.fromAddress(self())))()", f)),
     ?assertEqual("self needs a mailbox, and the lambda receives nothing",
                  refusal("fn f() = (fn() : Unit = send(self(), 5))()")),
     ?assertEqual("self needs a mailbox, and a guard receives nothing",
                  refusal("fn f(n : Int) : Int receiving Int ="
-                         " match n { k when kill(self()) == Unit -> k | _ -> 0 }")).
+                         " match n { k when kill(Process.fromAddress(self())) == Unit -> k | _"
+                         " -> 0 }")).
 
 %% report §4.5, §3.9: a lambda whose body calls `self` or `monitor` without
 %% the address standing in a value position of its type receives nothing
@@ -2056,18 +2068,22 @@ standing_over_a_body_that_calls_self_test() ->
 %% `fn` or a `let`-bound lambda was accepted; it does not cover the prompt
 lambda_calling_self_receives_nothing_test() ->
     Run = "fn run(f : () -> Unit) : Unit = f()\n",
-    ?assertEqual("() -> Unit", type_of(Run ++ "export fn g() : Unit = run(fn() = kill(self()))",
+    ?assertEqual("() -> Unit", type_of(Run ++ "export fn g() : Unit = run(fn() ="
+                                              " kill(Process.fromAddress(self())))",
                                        g)),
     ?assertEqual(ok, ok("export type Job = Job(run : () -> Unit)\n"
-                        "export fn job() : Job = Job(run = fn() = kill(self()))\n")),
+                        "export fn job() : Job = Job(run = fn() ="
+                        " kill(Process.fromAddress(self())))\n")),
     Id = "fn id(x : a) : a = x\n",
-    ?assertEqual("() -> Unit", type_of(Id ++ "export let k = id(fn() = kill(self()))", k)),
+    ?assertEqual("() -> Unit", type_of(Id ++ "export let k = id(fn() ="
+                                             " kill(Process.fromAddress(self())))", k)),
     ?assertEqual("() -> Unit",
-                 type_of(Id ++ "export let k : () -> Unit = id(fn() = kill(self()))", k)),
+                 type_of(Id ++ "export let k : () -> Unit = id(fn() ="
+                               " kill(Process.fromAddress(self())))", k)),
     ?assertEqual("(Process) -> Unit receiving M.Msg",
                  type_of("export type Msg = Done\n"
                          "export fn lambda(p : Process) : Unit receiving Msg = {\n"
-                         "    monitor(p, fn(d) = { kill(self()); Done });\n"
+                         "    monitor(p, fn(d) = { kill(Process.fromAddress(self())); Done });\n"
                          "    receive { Done -> Unit }\n"
                          "}\n", lambda)),
     Refused = "the argument does not fit run: a function that receives where one that"
@@ -2076,9 +2092,10 @@ lambda_calling_self_receives_nothing_test() ->
     ?assertEqual(Refused, refusal(Run ++ "fn f() : Unit = { let me = self();"
                                   " run(fn() = send(me, self())) }")),
     ?assertEqual(Refused, refusal(Run ++ "fn f() : Unit ="
-                                  " run(fn() = { kill(self()); receive { _ -> Unit } })")),
+                                  " run(fn() = { kill(Process.fromAddress(self())); receive { _"
+                                  " -> Unit } })")),
     ?assertEqual(ok, ok(Run ++ "fn f() : Unit ="
-                        " run(fn() = { kill(self()); Clock.sleep(1) })")),
+                        " run(fn() = { kill(Process.fromAddress(self())); Clock.sleep(1) })")),
     ?assertEqual(Refused, refusal("fn run(f : () -> Address(m)) : Unit = { let _ = f(); Unit }\n"
                                   "fn f() : Unit = run(fn() = self())")),
     ?assertEqual("the argument does not fit run: expected () -> Unit, found () -> Unit receiving"
@@ -2104,7 +2121,7 @@ lambda_calling_self_receives_nothing_test() ->
 %% to the next; within one start of the host the test cannot show that
 %% order, only each order of declaration
 group_member_written_none_test() ->
-    A = "export fn a(n : Int) = { kill(self()); b(n) }\n",
+    A = "export fn a(n : Int) = { kill(Process.fromAddress(self())); b(n) }\n",
     B = "fn b(n : Int) : Unit = a(n)\n",
     ?assertEqual("(Int) -> Unit", type_of(A ++ B, a)),
     ?assertEqual("(Int) -> Unit", type_of(B ++ A, a)),
@@ -4014,18 +4031,21 @@ needless_effect_test() ->
                  refusal("fn tell(a : Address(Int)) : Unit receiving m = send(a, 1)\n")),
     ?assertEqual({"f receives nothing, and `receiving m` names no parameter's mailbox type",
                   "write f's type without `receiving`"},
-                 refusal_and_help("fn f() : Unit receiving m = kill(self())")),
+                 refusal_and_help("fn f() : Unit receiving m = kill(Process.fromAddress(self()))")),
     ?assertEqual("w receives nothing, and `receiving m` names no parameter's mailbox type",
                  refusal("fn w(p : Process) : Unit receiving m ="
                          " monitor(p, fn(d) = fault(\"down\"))")),
-    ?assertEqual("() -> Unit", type_of("export fn f() : Unit = kill(self())", f)),
-    ?assertEqual("() -> Unit", type_of("export fn f() = kill(self())", f)),
+    ?assertEqual("() -> Unit", type_of("export fn f() : Unit ="
+                                       " kill(Process.fromAddress(self()))", f)),
+    ?assertEqual("() -> Unit", type_of("export fn f() = kill(Process.fromAddress(self()))", f)),
     ?assertEqual("inner receives nothing, and `receiving m` names no parameter's mailbox type",
-                 refusal("fn f() : Int = { fn inner() : Unit receiving m = kill(self());"
+                 refusal("fn f() : Int = { fn inner() : Unit receiving m ="
+                         " kill(Process.fromAddress(self()));"
                          " inner(); 5 }")),
     ?assertEqual("() -> Address(m) receiving m",
                  type_of("export fn f() : Address(m) receiving m ="
-                         " { fn inner() : Unit receiving m = kill(self()); inner(); self() }",
+                         " { fn inner() : Unit receiving m = kill(Process.fromAddress(self()));"
+                         " inner(); self() }",
                          f)),
     ?assertEqual({"the lambda receives nothing, and `receiving m` names no parameter's"
                   " mailbox type", "write the lambda's type without `receiving`"},
@@ -4033,10 +4053,12 @@ needless_effect_test() ->
     ?assertEqual("the lambda receives nothing, and `receiving m` names no parameter's"
                  " mailbox type",
                  refusal("fn f() : Unit ="
-                         " { let k = fn() : Unit receiving m = kill(self()); k() }")),
+                         " { let k = fn() : Unit receiving m ="
+                         " kill(Process.fromAddress(self())); k() }")),
     ?assertEqual("() -> Address(m) receiving m",
                  type_of("export fn f() : Address(m) receiving m ="
-                         " { let k = fn() : Unit receiving m = kill(self()); k(); self() }", f)),
+                         " { let k = fn() : Unit receiving m ="
+                         " kill(Process.fromAddress(self())); k(); self() }", f)),
     ?assertEqual("() -> Address(m) receiving m",
                  type_of("export let me = fn() : Address(m) receiving m = self()", me)),
     ?assertEqual(ok, ok("fn apply(f : () -> Unit receiving m) : Unit receiving m = f()\n"

@@ -106,7 +106,7 @@ builtin_types() ->
       a function with `adapted`. Holding an address is the permission to send to
       the process. Addresses have no equality; the process behind one has,
       `Process.fromAddress(a)`, the identity a monitor watches and
-      `Process.kill` ends (report §6.5).
+      `kill` ends (report §6.5).
 
       ### Examples
 
@@ -143,7 +143,7 @@ builtin_types() ->
       ```ernest
       {
           let silent : Address(Never) = spawn(fn() = Io.println("hello"));
-          kill(silent)
+          kill(Process.fromAddress(silent))
       }
       ```
       """/utf8>>},
@@ -604,20 +604,19 @@ values() ->
 
       since 0.5.0
       """/utf8>>},
-     {[kill], "(Address(a)) -> Unit",
+     {[kill], "(Process) -> Unit",
       <<"""
-      Ends the process at `address`. Its monitors see the reason `Killed`.
+      Ends the process. Its monitors see the reason `Killed`.
 
       `kill` returns at once, and the process may run a little before it stops.
       Killing a process that has ended does nothing (report §6.9).
-      `Process.kill` ends a process by its identity.
 
       ### Examples
 
       ```ernest
       {
           let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
-          kill(worker)
+          kill(Process.fromAddress(worker))
       }
       ```
       """/utf8>>},
@@ -718,7 +717,7 @@ parameters([restarting]) -> [limit, f];
 parameters([monitor]) -> [process, wrap];
 parameters([monitorService]) -> [process, wrap];
 parameters([demonitor]) -> [process];
-parameters([kill]) -> [address];
+parameters([kill]) -> [process];
 parameters([fault]) -> [cause];
 parameters([compare]) -> [left, right];
 parameters(_) -> none.

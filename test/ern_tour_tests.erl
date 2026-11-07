@@ -390,7 +390,7 @@ fault(#tour{shell = Shell} = Tour) ->
     Tour#tour{shell = session(
         Shell,
         [{":reload", ["Counter, compiled again"]},
-         {"kill(counter)", []},
+         {"kill(Process.fromAddress(counter))", []},
          {"let counter = spawn(fn() = Counter.count(0))",
           ["counter : Address(Counter.CounterMsg)"]},
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
@@ -440,7 +440,7 @@ per_key(#tour{base = Base, shell = Shell} = Tour) ->
            "  |               ^^^",
            "  | = help: the types differ at Counter.CounterMsg and Counter$3.CounterMsg;"
            " Counter$3.CounterMsg is of a previous version of Counter, which a reload replaced"]},
-         {"kill(far)", []},
+         {"kill(Process.fromAddress(far))", []},
          {"let counter = spawn(fn() = Counter.count(Tally.empty()))",
           ["counter : Address(Counter.CounterMsg)"]},
          {"Counter.apply(counter, \"inc apples 2\")", [?SENT]},
@@ -469,7 +469,7 @@ door(#tour{shell = Shell} = Tour) ->
            "  | = help: start it on the peer from `Peer.computeAt`, whose function spawns it"
            " and answers an adapted address of a type that crosses, or keep a function on this"
            " node and send the process values that cross (report §3.11)"]},
-         {"kill(counter)", []},
+         {"kill(Process.fromAddress(counter))", []},
          {"let counter = Counter.start()", ["counter : Address(Counter.ClientMsg)"]},
          {"let far <- Peer.computeAt(\"foo\", fn() = Counter.start(), 5000)",
           ["far : Address(Counter.ClientMsg)"]},

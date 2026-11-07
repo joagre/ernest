@@ -32,13 +32,23 @@ prints a process by the number the runtime gives it.
 ## Process.Status
 
 ```ernest
-type Status = Status(site : String, queued : Int, activity : Activity)
+type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 ```
 
 *Since 0.4.0.*
 
 What the runtime knows of a live process: where it was spawned, as `Down`'s
-site names it, how many messages wait in its mailbox, and what it is doing.
+site names it, how many messages wait in its mailbox, what it is doing, and
+the bytes it holds.
+
+`memory` is what the host counts for the process: its stack, its heap, its
+mailbox and each binary it references, whole, however small the part it uses.
+A binary is counted for each reference and in each process that holds one, so
+the memories of a node's processes can add up to more than the node holds. A
+process that waits still counts what it dropped (report §10). A binary that
+code holds, a constant's or a shell's binding's, is not counted. A socket's
+counts the process that does its writes too (report Appendix E.18), and not
+the host's processes of a connection over TLS.
 
 ### Examples
 
@@ -128,34 +138,6 @@ process give equal processes, though addresses have no equality.
 ```ernest
 Process.fromAddress(self()) == Process.fromAddress(adapted(self(), fn(x) = x))
 // => true
-```
-
-## Process.kill
-
-```ernest
-Process.kill(process : Process) : Unit
-```
-
-*Since 0.7.0.*
-
-Ends the process with the reason `Killed`, as `kill` ends the process at an
-address (report §6.9). It returns at once, and the process may run a little
-before it stops. Killing a process that has ended does nothing.
-
-An address is the permission to send to a process, and a `Process` its
-identity, which a `Down` carries and `live` lists, so a process found so is
-ended without its address (report §6.5).
-
-### Examples
-
-```ernest
-{
-    let worker : Address(Int) = spawn(fn() = receive {
-        _ -> Unit
-    });
-    Process.kill(Process.fromAddress(worker))
-}
-// => Unit
 ```
 
 ## Process.current

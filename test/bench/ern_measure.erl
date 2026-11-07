@@ -821,7 +821,6 @@ process_scenarios() ->
     ProcessStatus = Process(status),
     ProcessLive = Process(live),
     ProcessFaults = Process(faults),
-    ProcessKill = Process(kill),
     ProcessOwned = Process(owned),
     Me = ProcessFromAddress(ern_rt:self()),
     Waiting = fun() -> receive _ -> ok end end,
@@ -835,8 +834,8 @@ process_scenarios() ->
      {<<"Process.live">>, {fun() -> ProcessLive() end, fun() -> erlang:processes() end}},
      %% each side kills a process of the host's spawned for it, whose spawn
      %% both pay
-     {<<"Process.kill">>, {fun() -> ProcessKill(spawn(Waiting)) end,
-                           fun() -> exit(spawn(Waiting), kill) end}},
+     {<<"kill">>, {fun() -> ern_rt:kill(spawn(Waiting)) end,
+                   fun() -> exit(spawn(Waiting), kill) end}},
      %% what watches the process, the host's own part of the read
      {<<"Process.owned">>, {fun() -> ProcessOwned(Me) end,
                             fun() -> erlang:process_info(erlang:self(), monitored_by) end}},
@@ -1110,7 +1109,7 @@ proxy_scenarios() ->
     ProxyStart = Proxy(start),
     Service = {'Service', <<"measured">>, <<0:256>>},
     [{<<"Proxy.start">>,
-      {fun() -> ern_rt:kill(ProxyStart(Service, 1000)) end,
+      {fun() -> ern_rt:kill(ern_rt:process_of(ProxyStart(Service, 1000))) end,
        fun() -> exit(spawn(fun() -> receive _ -> ok end end), kill) end}}].
 
 ets_scenarios() ->

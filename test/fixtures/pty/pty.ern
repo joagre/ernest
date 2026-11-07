@@ -179,8 +179,8 @@ fn drive(options : Options, ms : Int) : Unit receiving HarnessMsg = {
                 Some(status) ->
                     Int.toString(status)
               | None -> {
-                    kill(reader);
-                    kill(program);
+                    kill(Process.fromAddress(reader));
+                    kill(Process.fromAddress(program));
                     "timeout"
                 }
             };
@@ -270,13 +270,13 @@ fn awaitPut(run : Run, putter : Address(Never)) : Stepped receiving HarnessMsg =
       | Wrote(bytes) ->
             awaitPut(Run(..run, screen = shown(run.screen, bytes)), putter)
       | Ended(status) -> {
-            kill(putter);
+            kill(Process.fromAddress(putter));
             Unmet(Run(..run, status = Some(status)))
         }
       | Unread(error) ->
             failRead(error)
       | after remaining(run) -> {
-            kill(putter);
+            kill(Process.fromAddress(putter));
             Unmet(run)
         }
     }

@@ -850,7 +850,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
-**What receives.** A function whose type has `receiving M` involves the mailbox of the process it runs in, whose type is `M`: it takes a message in a `receive`; it answers the process's own address, as `self` does, an `Address(M)`; it asks for a message to be delivered into the mailbox, as `monitor` does; or it calls a function that does one of these (report §6.1). A function that calls `self` and keeps the address to itself receives nothing: `fn stop() = kill(self())` is a `() -> Unit` (report §3.9).
+**What receives.** A function whose type has `receiving M` involves the mailbox of the process it runs in, whose type is `M`: it takes a message in a `receive`; it answers the process's own address, as `self` does, an `Address(M)`; it asks for a message to be delivered into the mailbox, as `monitor` does; or it calls a function that does one of these (report §6.1). A function that calls `self` and keeps the address to itself receives nothing: `fn stop() = kill(Process.fromAddress(self()))` is a `() -> Unit` (report §3.9).
 
 An effect variable that also appears inside `Address`, the type of an address to a process whose mailbox is `m`, as in `self : () -> Address(m) receiving m`, stands for a mailbox type only, since an address needs one (§3.5). The `Address(m)` shows it, and a printed type marks nothing more.
 
@@ -1436,12 +1436,10 @@ A fault in one process does not affect another, apart from the cases §6.3 lists
 $ ern shell
 Ernest 0.10.0, session 1. :help for help.
 > :type kill
-kill : (Address(a)) -> Unit
-> :type Process.kill
-Process.kill : (Process) -> Unit
+kill : (Process) -> Unit
 ```
 
-`kill(address)` ends the process at `address`, and its monitors receive `Down(reason = Killed, ...)`. `Process.kill(process)` ends the process a `Process` identifies the same way, one kept by its identity or found by `Process.live()` (report §6.9). The process may run a little before it stops. The interpreter of [`examples/interpreter.ern`](../examples/interpreter.ern) kills an evaluation that runs too long.
+`kill(process)` ends the process, and its monitors receive `Down(reason = Killed, ...)`. It takes a process's identity, as `monitor` does: `kill(Process.fromAddress(worker))` for one at an address, and one kept by its identity or found by `Process.live()` as it stands (report §6.9). The process may run a little before it stops. The interpreter of [`examples/interpreter.ern`](../examples/interpreter.ern) kills an evaluation that runs too long.
 
 ### 5.4 Deadlock
 
@@ -1545,7 +1543,7 @@ fn talk() : Unit receiving ChatMsg =
 
 **One process behind them all.** Addresses have no equality, since an adapted address holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, the same one through every adapted address, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `kill` takes any of a process's addresses and acts on the process behind it.
 
-An address is the permission to send to a process. A `Process` is its identity, which `Process.live()` lists, a `Down` carries, a monitor watches and `Process.kill` ends, and which `Process.status` and `Tcp.give` (§8.7) take (report §6.5).
+An address is the permission to send to a process. A `Process` is its identity, which `Process.live()` lists, a `Down` carries, a monitor watches and `kill` ends, and which `Process.status` and `Tcp.give` (§8.7) take (report §6.5).
 
 ```ernest
 type CountMsg = Counted(Int)
@@ -1905,7 +1903,7 @@ export fn main() : Unit receiving MainMsg = {
     send(holder, Hold(lease = 2));
     send(holder, Use(lease = 3));
     takeBack([1, 2]);
-    kill(holder);
+    kill(Process.fromAddress(holder));
     takeBack([])
 }
 ```
@@ -1985,7 +1983,7 @@ A call to the child that faulted, made after its fault, is answered by the group
 
 **A tree of groups.** A supervisor is a child like any other, `spawn(Supervisor.child(parent, Supervisor.group(...)))`, so groups form a tree. A supervisor under a parent restarts in place when it gives up, or when its parent restarts it with a sibling, and asks each of its children to restart; every binding keeps its address, and the fault is the parent's to count. A supervisor at the root that gives up dies. A supervisor and its children run on one node; between nodes, a process watches another with `monitor` (§8).
 
-**Stopping a group.** When a supervisor dies, given up, killed, or of a defect of its own, its children are killed after it, the last spawned first, each once the one before has ended; so `kill(group)` stops a group. A killed process runs nothing more, so a child that must finish its work, a file to flush, is sent a message of its own protocol first.
+**Stopping a group.** When a supervisor dies, given up, killed, or of a defect of its own, its children are killed after it, the last spawned first, each once the one before has ended; so `kill(Process.fromAddress(group))` stops a group. A killed process runs nothing more, so a child that must finish its work, a file to flush, is sent a message of its own protocol first.
 
 **Who is in a group.** A child that returns or is killed leaves the group, and a child may join at any time, so one supervisor also holds the children a program starts while it runs, one per connection.
 
@@ -3192,7 +3190,7 @@ On a peer, the move is made at the peer's own prompt, from a shell attached to i
 
 A reload evaluates the module's top-level bindings again, so a service binding starts a second service of the new version beside the old, unless the binding offers its service and, finding it held, waits for the holder to end (§8.2; report §11.2). The old version's processes run on.
 
-`:processes` and `Process.status` list each under the site its version gave it, the build's plain, `Counter.main:59` for the counter `examples/upgrade`'s tool spawns, and a reload's with the version's number, `Counter$2.main:59`; the entry process's site is the entry point's name, with no line (report §6.9). The two find the processes where `Code.running` cannot, a fix in a callee having changed the hash of the function they run. Each is ended by `Process.kill`. It is moved by a message of its own type, as above, only where the program kept an address of that type, since a `Process` takes no message. A service under `restarting` runs the function it was spawned with at each restart, so one moved by a message moves back at its next fault (report §6.9).
+`:processes` and `Process.status` list each under the site its version gave it, the build's plain, `Counter.main:59` for the counter `examples/upgrade`'s tool spawns, and a reload's with the version's number, `Counter$2.main:59`; the entry process's site is the entry point's name, with no line (report §6.9). The two find the processes where `Code.running` cannot, a fix in a callee having changed the hash of the function they run. Each is ended by `kill`. It is moved by a message of its own type, as above, only where the program kept an address of that type, since a `Process` takes no message. A service under `restarting` runs the function it was spawned with at each restart, so one moved by a message moves back at its next fault (report §6.9).
 
 A type that carries `Upgrade` holds a function, so it is bound to its node (§8.4). A process reached from another node, a service or one spawned on a peer, is offered through an adapted address (§5.5) of a type without it, and its upgrade is sent on its own node.
 
@@ -3246,7 +3244,7 @@ A name completed alone is shown under the line with its type, and a second `Tab`
 
 Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. One that offers a service, as §8.2's counter does, finds the service held by the old one, and waits on the old one's end to take it.
 
-`kill(old)`, `old` the old one's address, which a binding made before the reload holds, ends the old one, as does a request of its protocol that makes it write what it keeps and end; the service moves to the new one at the old one's `Down`. What the old one counted since it last wrote is lost at a `kill`, which is why a service that must lose nothing writes at each change, or on request.
+`kill(Process.fromAddress(old))`, `old` the old one's address, which a binding made before the reload holds, ends the old one, as does a request of its protocol that makes it write what it keeps and end; the service moves to the new one at the old one's `Down`. What the old one counted since it last wrote is lost at a `kill`, which is why a service that must lose nothing writes at each change, or on request.
 
 Processes running the old version go on running it, and a binding that holds a function of it keeps it: a reload unloads nothing. A binding made before a reload keeps the type it was checked under. Where the reload changed a type, the binding's type is the previous version's, which prints as `Counter$1.Msg`, and a message of the new version sent to it is a type error. The previous version's types are gone from the session, since a type's name names the current version, so a process of the previous version is reached only through a value bound while they were there: its address, and a constructor of its type bound beside the address (report §11.2).
 

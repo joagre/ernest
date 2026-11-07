@@ -140,7 +140,7 @@ fn await(child : Address(Never), serial : Int) : Either(TryError, Value) receivi
       | Answered() or Died() ->
             await(child, serial) // an earlier expression's child
       | after 2000 -> {
-            kill(child);
+            kill(Process.fromAddress(child));
             Left(Timeout)
         }
     }

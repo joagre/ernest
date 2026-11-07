@@ -29,7 +29,7 @@ export fn run(callers : Int, calls : Int) : Int receiving RunMsg = {
     });
     awaitCallers(callers);
     let total = Address.callForever(counter, fn(reply) = Add(amount = 0, =reply));
-    kill(counter);
+    kill(Process.fromAddress(counter));
     total
 }
 

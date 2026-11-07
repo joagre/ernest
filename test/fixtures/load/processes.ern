@@ -44,7 +44,7 @@ fn once() : Unit receiving Msg = {
     let answerer = spawn(worker);
     let _ = Address.call(answerer, Ask, 1000);
     monitor(Process.fromAddress(answerer), Ended);
-    kill(answerer);
+    kill(Process.fromAddress(answerer));
     receive {
         Ended(_) -> Unit
     };
@@ -56,7 +56,7 @@ fn once() : Unit receiving Msg = {
     send(laggard, Stop);
     let mute = spawn(silent);
     let _ = Address.call(mute, Ask, 0);
-    kill(mute);
+    kill(Process.fromAddress(mute));
     // a process that faults, watched from its start
     let _ = spawnMonitored(fn() = fault("on purpose"), Ended);
     receive {

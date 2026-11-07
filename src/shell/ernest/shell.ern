@@ -737,12 +737,12 @@ fn await(state : State,
       | Done(_) ->
             await(state, screen, checked, inputProcess, started, printing)
       | Interrupted -> {
-            kill(inputProcess);
+            kill(Process.fromAddress(inputProcess));
             say(screen, "Killed");
             Continue(state)
         }
       | ReaderDied(down) -> {
-            kill(inputProcess);
+            kill(Process.fromAddress(inputProcess));
             send(screen, Said(readerEnd(state.color, down)));
             Leave
         }
@@ -751,7 +751,7 @@ fn await(state : State,
       // report §11.2: the local half's end ends the session, the input
       // that runs among what ends
       | LocalEnded(down) -> {
-            kill(inputProcess);
+            kill(Process.fromAddress(inputProcess));
             endWithLocal(state, down);
             Leave
         }

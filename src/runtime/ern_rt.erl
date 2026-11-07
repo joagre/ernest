@@ -1145,22 +1145,21 @@ demonitor(Process) ->
 %% done, a delivery's message delivered among it; it ends as one that
 %% returned, so that what it is linked to goes on, and the recipient's end
 %% takes what it held (abandoned/1).
--spec kill(address()) -> 'Unit'.
-kill(Address) ->
+-spec kill(pid()) -> 'Unit'.
+kill(Pid) when node(Pid) =:= node() ->
     %% report §8.2: no program can name a system process, whose reference is
-    %% private to its module, so an address a program gives here is a
-    %% program's; report §12.6: a peer's frame is carried out only for a
-    %% process the runtime started (ern_peer:frame/2)
-    case process_of(Address) of
-        Pid when node(Pid) =:= node() ->
-            killed(Pid, {ern, killed}),
-            case erlang:get(?ACTING) of
-                Pid -> exit(erlang:self(), normal);
-                _ -> ok
-            end;
-        Pid ->
-            erlang:send({ern_gateway, node(Pid)}, {ern_frame, erlang:self(), {kill, Pid}})
+    %% private to its module, so a `Process` a program gives here is a
+    %% program's
+    killed(Pid, {ern, killed}),
+    case erlang:get(?ACTING) of
+        Pid -> exit(erlang:self(), normal);
+        _ -> ok
     end,
+    ?UNIT;
+kill(Pid) ->
+    %% report §12.6: a peer's frame is carried out only for a process the
+    %% runtime started (ern_peer:frame/2)
+    erlang:send({ern_gateway, node(Pid)}, {ern_frame, erlang:self(), {kill, Pid}}),
     ?UNIT.
 
 %% Report §6.9, §6.6, §8.6, §8.7: Pid, a process of this node, ended from

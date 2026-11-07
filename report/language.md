@@ -291,7 +291,7 @@ A function whose own body, outside its lambdas and local `fn`s, holds a `receive
 
 A `foreign fn`'s mailbox type is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the mailbox type is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit receiving e) : Unit receiving e` receives nothing when `f` does.
 
-An effect variable that nothing has fixed to a type by the end of its definition (§4.8), that no definition around it holds and that is not process-only, is none in the definition's type where it occurs there at most once and outside every parameter's type: the function receives nothing. `fn f() = kill(self())` has type `() -> Unit`, and `fn pair() = fn(x) = #(x, x)` the type `() -> (a) -> #(a, a)`. A variable in a parameter's type stays: `fn ignore(f : () -> Unit receiving e) : Int = 5` has type `(() -> Unit receiving e) -> Int`.
+An effect variable that nothing has fixed to a type by the end of its definition (§4.8), that no definition around it holds and that is not process-only, is none in the definition's type where it occurs there at most once and outside every parameter's type: the function receives nothing. `fn f() = kill(Process.fromAddress(self()))` has type `() -> Unit`, and `fn pair() = fn(x) = #(x, x)` the type `() -> (a) -> #(a, a)`. A variable in a parameter's type stays: `fn ignore(f : () -> Unit receiving e) : Int = 5` has type `(() -> Unit receiving e) -> Int`.
 
 A function has one mailbox type or none. A function may take a callback that receives nothing beside one that receives: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit receiving n) : Unit receiving n`, `p` receives nothing, `e` receives `n`, and the function inherits `n`. Two callbacks whose mailbox types are both variables unify to one. Two callbacks with different concrete mailbox types are a type error.
 
@@ -439,9 +439,9 @@ External callers see `Stack.Stack`, `Stack.empty`, `Stack.push`, `Stack.pop`, an
 
 An annotation without `receiving` on a function that receives is a type error. Such an annotation makes every parameter the body calls one that receives nothing: `fn apply(f, x) : Int = f(x)` has type `((a) -> Int, a) -> Int`.
 
-`: T` stands over the body of a `fn` that calls `self`, `monitor` or another function whose type holds its mailbox type in a value position, where that mailbox type is, at the function's end, a variable that §3.9 makes none: nothing has fixed it to a type, no definition around it holds it, nothing has made it process-only (§3.9), and no value position of the signature holds it. `fn f() : Unit = kill(self())` has type `() -> Unit`; `fn g() : Unit = send(self(), 5)`, whose `send` fixes the variable to `Int`, is refused. A lambda is read so at its own end, where no check waiting for its definition's end holds the variable (§4.8), under its `: T` and where its context expects a function that receives nothing: `monitor(p, fn(d) = { kill(self()); d })` gives `monitor` a wrap that receives nothing.
+`: T` stands over the body of a `fn` that calls `self`, `monitor` or another function whose type holds its mailbox type in a value position, where that mailbox type is, at the function's end, a variable that §3.9 makes none: nothing has fixed it to a type, no definition around it holds it, nothing has made it process-only (§3.9), and no value position of the signature holds it. `fn f() : Unit = kill(Process.fromAddress(self()))` has type `() -> Unit`; `fn g() : Unit = send(self(), 5)`, whose `send` fixes the variable to `Int`, is refused. A lambda is read so at its own end, where no check waiting for its definition's end holds the variable (§4.8), under its `: T` and where its context expects a function that receives nothing: `monitor(p, fn(d) = { kill(Process.fromAddress(self())); d })` gives `monitor` a wrap that receives nothing.
 
-`receiving M` where `M` is a type variable is an error over a body at whose end §3.9 makes `M` none, a body that does not involve its mailbox (§6.1) among them: `fn k() : Int receiving m = 5` is refused, and so is `fn f() : Unit receiving m = kill(self())`.
+`receiving M` where `M` is a type variable is an error over a body at whose end §3.9 makes `M` none, a body that does not involve its mailbox (§6.1) among them: `fn k() : Int receiving m = 5` is refused, and so is `fn f() : Unit receiving m = kill(Process.fromAddress(self()))`.
 
 A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn seenCount(Snapshot(seen = entries) : Snapshot) : Int = Map.size(entries)`.
 
@@ -703,7 +703,7 @@ A process is an execution of a function with a mailbox type. It has a mailbox th
 
 ### 6.1 The mailbox type
 
-`(A) -> B receiving M` is the type of a function whose own process's mailbox is involved, the mailbox of type `M`: it receives from it, gives out the address `self` answers through its type, asks for a message to be delivered into it, as `monitor` and `spawnMonitored` do through their wrap (§6.9, Appendix E.0 shape rule 8), or calls a function whose type names one, a prelude function of §9.4 or §9.5 or a foreign function among them. Its type names `M` only where, at its definition's end, something has fixed `M` to a type, or `M` is a variable that a definition around it holds, that is process-only (§3.9), or that stands in the definition's type more than once, in a value position or in a parameter's type; otherwise the function receives nothing (§3.9), as `fn f() = kill(self())` does.
+`(A) -> B receiving M` is the type of a function whose own process's mailbox is involved, the mailbox of type `M`: it receives from it, gives out the address `self` answers through its type, asks for a message to be delivered into it, as `monitor` and `spawnMonitored` do through their wrap (§6.9, Appendix E.0 shape rule 8), or calls a function whose type names one, a prelude function of §9.4 or §9.5 or a foreign function among them. Its type names `M` only where, at its definition's end, something has fixed `M` to a type, or `M` is a variable that a definition around it holds, that is process-only (§3.9), or that stands in the definition's type more than once, in a value position or in a parameter's type; otherwise the function receives nothing (§3.9), as `fn f() = kill(Process.fromAddress(self()))` does.
 
 Every function runs in a process; that is not marked, and neither is what a function does through other processes or through the world: a `send`, a `spawn`, a `kill`, an `answer`, a call, printing, a file, a socket or a clock carry no mark.
 
@@ -759,7 +759,7 @@ An adapted address crosses to another node as a reference to `f` and the values 
 
 A fault in `f` is the target's, on one node and across nodes alike: it takes the message's place in the target's mailbox, and the target faults at the wait that reaches it, as at a fault of its own (§8.4), which `restarting` restarts (§6.9); a target the runtime did not start, a foreign process (§8.4), has no wait of Ernest's and is ended by the fault as an exit signal, and one on another node takes the fault as a message; the sender goes on.
 
-Addresses have no equality (§3.10). An address is the permission to send to a process; a `Process` is its identity, which a `Down` carries, a monitor watches and `Process.kill` ends (Appendix E.21). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (§6.9, Appendix E.21). There is no registry. A process reaches another through an address it holds or received, through a top-level binding that holds one, which is a *service*, or, from another node, through the name the service is offered under (§8.7):
+Addresses have no equality (§3.10). An address is the permission to send to a process; a `Process` is its identity, which a `Down` carries, a monitor watches and `kill` ends (Appendix E.21). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (§6.9, Appendix E.21). There is no registry. A process reaches another through an address it holds or received, through a top-level binding that holds one, which is a *service*, or, from another node, through the name the service is offered under (§8.7):
 
 ```ernest-fragment
 export type LogMsg = Line(String)
@@ -800,7 +800,7 @@ A process dies when its function returns, when `kill` is called on it, on a faul
 
 `kill` is asynchronous: the target may run until the runtime interrupts it. `kill` on a process that is dead has no effect, and `kill` on a process of another node reaches it as `send` does (§6.2).
 
-`monitor(p, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when the process `p` dies; `d : Down` gives the process and the cause. `p` is a `Process`, the identity of a process (Appendix E.21), which `Process.fromAddress(a)` gives for an address `a`; `kill` takes the address, and `Process.kill` the identity (§6.5, Appendix E.21). `process` in `Down` is `p`. If `p` is already dead, the message is placed at once, with the reason `Unknown`. A `monitor` made while the process runs gets its reason, and a process started with `spawnMonitored` (§6.2) is monitored from its start. Each `monitor` call produces one message.
+`monitor(p, wrap)`, §9.5, places `wrap(d)` in the caller's mailbox when the process `p` dies; `d : Down` gives the process and the cause. `p` is a `Process`, the identity of a process (Appendix E.21), which `Process.fromAddress(a)` gives for an address `a`, and `kill` takes one too (§6.5, Appendix E.21). `process` in `Down` is `p`. If `p` is already dead, the message is placed at once, with the reason `Unknown`. A `monitor` made while the process runs gets its reason, and a process started with `spawnMonitored` (§6.2) is monitored from its start. Each `monitor` call produces one message.
 
 `monitorService(p, wrap)`, §9.5, is a *service monitor*: a monitor that is told of a restart too. At each restart of `p` (below) it places `wrap(d)` in the caller's mailbox with the reason `Restarted` and stands; at `p`'s death it delivers as `monitor` does, and ends. A `Down` with `Restarted` comes to a service monitor alone, and reaches its watcher before anything the new run sends: the restarting process empties its mailbox, waits until each service monitor's `wrap` has placed its message, and then runs `f` again, so a wrap that does not finish holds up that restart.
 
@@ -1123,7 +1123,7 @@ restarting          : (RestartLimit, () -> Unit receiving n) -> () -> Unit recei
 monitor             : (Process, (Down) -> m) -> Unit receiving m
 monitorService      : (Process, (Down) -> m) -> Unit receiving m
 demonitor           : (Process) -> Unit
-kill                : (Address(a)) -> Unit
+kill                : (Process) -> Unit
 ```
 
 ### 9.6 Operations required by the language
@@ -1404,7 +1404,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **inferred restriction** — the equality constraint or process-only, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
 - **irrefutable pattern** — a pattern that cannot fail. §5.10.
 - **key** — a node's own key, the key pair by which it is identified. §8.3, §8.7, §11.3.
-- **`kill`** — `kill(a)`, ends the process `a` names with the reason `Killed`, as `Process.kill(p)` ends the process `p` identifies. §6.9, §9.5, Appendix E.21.
+- **`kill`** — `kill(p)`, ends the process `p` with the reason `Killed`. §6.9, §9.5, Appendix E.21.
 - **lambda** — an anonymous function, `fn(x) = e`. §5.3.
 - **line mode** — the shell reading lines and editing none, when its input or output is not a terminal. §11.2.
 - **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.

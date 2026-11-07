@@ -30,7 +30,7 @@ A sibling restarts only when it next waits, in a `receive`, in `Clock.sleep`, fo
 
 A process replaces its own code while it runs, by a message of its type that carries the new loop, keeping its address and its state (the guide's §4.6); it keeps its mailbox type for life, so a change of its messages is a new process. A module reloaded or brought by a peer runs beside its earlier versions (report §11.2).
 
-Failure arrives as a message: a `monitor` is given a function of the watcher's, `wrap`, that turns the watched process's end, a `Down` with its reason, into a message of the watcher's own type, and there are no links, no exit signals and no exceptions; a process is ended from outside by `kill`, which takes its address, or by `Process.kill`, which takes its identity, and by the program's end, and a worker that must end with its owner monitors it (the guide's §5.2, §5.3, the guide's §6). An Ernest program is not an OTP application, and the guide's §10 says, item by item, what an Erlang programmer finds in its place.
+Failure arrives as a message: a `monitor` is given a function of the watcher's, `wrap`, that turns the watched process's end, a `Down` with its reason, into a message of the watcher's own type, and there are no links, no exit signals and no exceptions; a process is ended from outside by `kill`, which takes its identity, `Process.fromAddress(worker)` for one at an address, and by the program's end, and a worker that must end with its owner monitors it (the guide's §5.2, §5.3, the guide's §6). An Ernest program is not an OTP application, and the guide's §10 says, item by item, what an Erlang programmer finds in its place.
 
 ### Is this Unison on the Erlang runtime?
 

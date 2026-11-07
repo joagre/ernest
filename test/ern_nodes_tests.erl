@@ -1686,7 +1686,7 @@ fn requested(step : Int, held : Address(HeldMsg)) : Unit receiving Int =
             receive { time -> Io.println(Int.toString(time)) }
         }
       | _ -> {
-            kill(held);
+            kill(Process.fromAddress(held));
             Io.println(\"after the kill: \" <> Io.show(Address.call(held, Hold, waitMs())));
             let _ = spawn(fn() = waited());
             Io.println(\"spawned\")
@@ -2200,7 +2200,7 @@ export fn main() : Unit =
     match Peer.find(Server.service, waitMs()) {
         Right(first) -> {
             Io.println(\"first: \" <> asked(first));
-            kill(first);
+            kill(Process.fromAddress(first));
             Io.println(\"killed\");
             // until the test, which has seen the service taken, says so
             let _ = Io.readLine();

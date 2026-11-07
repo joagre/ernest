@@ -51,7 +51,7 @@ fn finds() : Unit receiving Msg = {
     Io.println("through the adapted address: " <> Int.toString(total(counter, 7)));
     let victim = Shared.found(Counter.victim);
     monitor(Process.fromAddress(victim), Died);
-    kill(victim);
+    kill(Process.fromAddress(victim));
     receive {
         Died(down) -> Io.println("killed: " <> Io.show(down.reason) <> " " <> Io.show(down.site))
     };
@@ -273,7 +273,7 @@ fn calls() : Unit receiving Msg = {
                            },
                            Died);
     Io.println("while it waits: " <> Int.toString(notes(census, doomed, 1)));
-    kill(doomed);
+    kill(Process.fromAddress(doomed));
     ended("its callee killed");
     Io.println("after the callee's end: " <> Int.toString(notes(census, doomed, 0)));
     // a time the sleeper's sleep outlasts, the scenario's
@@ -688,7 +688,7 @@ fn computes() : Unit receiving Msg = {
     let killed =
         Peer.computeAt("store",
                        fn() : Int receiving Int = {
-                           kill(self());
+                           kill(Process.current());
                            receive {
                                n -> n
                            }
@@ -711,7 +711,7 @@ fn computes() : Unit receiving Msg = {
         Unit
     });
     receive {
-        Started("abandoned") -> kill(abandoned)
+        Started("abandoned") -> kill(Process.fromAddress(abandoned))
     };
     killedFromTheStore(watcher);
     timedOut(watcher, 1);
@@ -778,7 +778,7 @@ fn callerKilled(watcher : Address(Counter.WatcherMsg)) : Unit receiving Unit = {
         Peer.computeAt("store",
                        fn() : Int receiving Int = {
                            watchedBy(watcher, "the killing compute's process");
-                           kill(caller);
+                           kill(Process.fromAddress(caller));
                            receive {
                                n -> n
                            }

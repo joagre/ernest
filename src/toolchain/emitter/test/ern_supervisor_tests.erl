@@ -188,7 +188,7 @@ limit_ends_the_group_test() ->
         "}\n"),
     ?assertEqual(<<"killed\n">>, Output).
 
-%% Appendix E.22: kill(sup) stops the group, the children killed in the
+%% Appendix E.22: kill(Process.fromAddress(sup)) stops the group, the children killed in the
 %% reverse of the order they joined, each once the one before has ended
 kill_stops_in_reverse_order_test() ->
     {ok, Output} = supervised("OneForOne", ?LIMIT, ["a", "b", "c"],
@@ -198,7 +198,7 @@ kill_stops_in_reverse_order_test() ->
         "    monitor(Process.fromAddress(a), fn(_) = Died(\"a\"));\n"
         "    monitor(Process.fromAddress(b), fn(_) = Died(\"b\"));\n"
         "    monitor(Process.fromAddress(c), fn(_) = Died(\"c\"));\n"
-        "    kill(sup);\n"
+        "    kill(Process.fromAddress(sup));\n"
         "    Io.println(String.join([next(), next(), next()], \" \"))\n"
         "}\n"
         "fn next() : String receiving Seen = receive { Died(n) -> n }\n"),
@@ -315,7 +315,7 @@ child_of_ended_supervisor_test() ->
         "type Seen = Ended(Down)\n"
         "export fn main() : Unit receiving Seen = {\n"
         "    monitor(Process.fromAddress(sup), Ended);\n"
-        "    kill(sup);\n"
+        "    kill(Process.fromAddress(sup));\n"
         "    receive { Ended(_) -> Unit };\n"
         "    let c = Supervisor.child(sup, fn() : Unit receiving Seen = Unit);\n"
         "    c()\n"
@@ -409,7 +409,7 @@ group_runs_once_after_its_end_test() ->
         "    // it runs the group, and waits in it\n"
         "    let _ = waiting(Process.fromAddress(first));\n"
         "    monitor(Process.fromAddress(first), Died);\n"
-        "    kill(first);\n"
+        "    kill(Process.fromAddress(first));\n"
         "    receive { Died(_) -> Unit };\n"
         "    let _ = spawnMonitored(g, Died);\n"
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"

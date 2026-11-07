@@ -2822,7 +2822,7 @@ open_binding() ->
                          "let p = kept(fn() = receive { _ -> Unit })\n"
                          "let q : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"
                          "send(q, 1)\n"
-                         "kill(q)\n"
+                         "kill(Process.fromAddress(q))\n"
                          "1 + 1\n"),
     {0, Output} = ern_pty:sh("../bin/ern shell < " ++ InputFile),
     %% the open binding is refused, and says what would settle it
@@ -3887,7 +3887,7 @@ member_doc() ->
 %% and its type, a function value having no parameters a declaration
 %% names, though it shadows a prelude function. A regression test, written
 %% after the code: it took the prelude function's parameter names,
-%% `kill(address : Int) : Int`. It does not cover `Shift-Tab`, which reads
+%% `kill(process : Int) : Int`. It does not cover `Shift-Tab`, which reads
 %% the same names
 shadowing_let_documented_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun shadowing_let_documented/0).
@@ -3897,7 +3897,7 @@ shadowing_let_documented() ->
     ok = file:write_file(InputFile, "let kill = fn(x : Int) = x + 1\n:doc kill\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> kill\n\n    kill : (Int) -> Int\n">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"address">>)).
+    ?assertEqual(nomatch, binary:match(Output, <<"process">>)).
 
 %% report §11.2: a name of a module whose `:load` was refused is answered
 %% with the refusal's first line, and not with the `:load` just refused,
@@ -4637,7 +4637,7 @@ killed_binding() ->
     ok = file:write_file(filename:join(Dir, "k.ern"),
                          "export let w : Address(Int) = spawn(fn() : Unit receiving Int =\n"
                          "    receive { _ -> Unit })\n"
-                         "export let x : Unit = kill(self())\n"),
+                         "export let x : Unit = kill(Process.fromAddress(self()))\n"),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, ":load K\n:processes\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),

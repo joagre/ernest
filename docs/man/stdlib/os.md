@@ -464,7 +464,7 @@ was killed` where it was killed as the call was made.
                             input = <<>>));
     let first <- Os.read(sh, 5000);
     let last <- Os.read(sh, 5000);
-    kill(sh);
+    kill(Process.fromAddress(sh));
     Right(#(first, last))
 }
 // => Right(#(Os.Stderr(<<110, 111, 10>>), Os.Exited(1)))

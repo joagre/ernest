@@ -124,7 +124,7 @@ os_run_dies_with_its_caller_test() ->
         "      | Left(_) -> Unit\n"
         "    });\n"
         "    receive { Started -> Unit };\n"
-        "    kill(w)\n"
+        "    kill(Process.fromAddress(w))\n"
         "}\n"),
     timer:sleep(1000),
     Marked = filelib:is_file(Mark),
@@ -304,13 +304,13 @@ os_program_is_a_process_test() ->
         "    // the process numbers are written once the shell says so\n"
         "    let _ = Os.read(sleeper, 5000);\n"
         "    monitor(Process.fromAddress(sleeper), Ended);\n"
-        "    kill(sleeper);\n"
+        "    kill(Process.fromAddress(sleeper));\n"
         "    Io.println(reason());\n"
         "    let quick = started(\"exit 0\");\n"
         "    monitor(Process.fromAddress(quick), Ended);\n"
         "    let _ = Os.read(quick, 5000);\n"
         "    Io.println(Io.show(Os.read(quick, 5000)));\n"
-        "    kill(quick);\n"
+        "    kill(Process.fromAddress(quick));\n"
         "    Io.println(reason())\n"
         "}\n"]),
     ?assertEqual(<<"Killed\nRight(Os.Exited(0))\nKilled\n">>, Output),
@@ -593,7 +593,7 @@ owned_test() ->
         "            Io.println(Io.show(sites(Process.owned(p))));\n"
         "            monitor(p, Ended);\n"
         "            monitor(listener, Ended);\n"
-        "            kill(o);\n"
+        "            kill(Process.fromAddress(o));\n"
         "            receive { _ -> Unit };\n"
         "            receive { _ -> Unit };\n"
         "            Io.println(Io.show(#(Process.owned(p), Process.status(listener))))\n"
