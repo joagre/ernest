@@ -1301,7 +1301,8 @@ fn settingLines(settings : Settings) : List(String) =
 // `:output` sent what programs write, since it is what appends there, its
 // local half, which writes its bytes on the shell's own node, and the
 // bytes of a character the last write of a program's cut, which wait for
-// the next (report §11.2).
+// the next, one cut to a screen whichever stream wrote, and go with the
+// screen (report §11.2).
 type Showing = Showing(destination : Optional(Path), local : Address(LocalMsg), cut : Bytes)
 
 // The screen process holds the region of `Ernest.Shell.Region` and writes what
@@ -1313,7 +1314,7 @@ fn screenLoop(region : Ernest.Shell.Region.Region, showing : Showing) : Unit rec
       | Noted(text) ->
             paint(Ernest.Shell.Region.noted(region, text), showing)
       | Wrote(bytes) -> {
-            let #(text, cut) = decoded(showing.cut, bytes);
+            let #(text, cut) = String.fromUtf8Piece(showing.cut <> bytes);
             let showing = Showing(..showing, =cut);
             match showing.destination {
                 None ->
@@ -1388,7 +1389,7 @@ fn plainLoop(showing : Showing) : Unit receiving ScreenMsg = {
             showing
         }
       | Wrote(bytes) -> {
-            let #(text, cut) = decoded(showing.cut, bytes);
+            let #(text, cut) = String.fromUtf8Piece(showing.cut <> bytes);
             match showing.destination {
                 None -> {
                     writeLine(showing.local, text);
@@ -2367,12 +2368,6 @@ foreign fn attachTo() : Optional(String) =
 // standard error, the job's own, which no screen takes.
 foreign fn sayEnd(line : String) : Unit =
     "ern_shell:say_end/1"
-
-// Report §11.2: the text of what a program wrote, after the bytes of a
-// character the screen's last write cut, each byte that is not UTF-8 shown
-// as U+FFFD; and the bytes of a character this write cuts, for the next.
-foreign fn decoded(cut : Bytes, bytes : Bytes) : #(String, Bytes) =
-    "ern_shell:decoded/2"
 
 foreign fn spawnProgram() : Unit =
     "ern_shell:spawn_program/0"

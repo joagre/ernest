@@ -526,7 +526,7 @@ exits when its input ends may exit so and never take the hangup.
     let wc <- Os.start(Os.Command(program = "wc", arguments = ["-c"], input = <<1, 2>>));
     Os.closeInput(wc);
     Either.map(Os.read(wc, 5000), fn(output) = match output {
-        Os.Stdout(bytes) -> String.trim(Optional.withDefault(String.fromUtf8(bytes), ""))
+        Os.Stdout(bytes) -> String.trim(String.fromUtf8Lossy(bytes))
       | _ -> ""
     })
 }

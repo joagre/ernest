@@ -519,6 +519,8 @@ hosts() ->
       <<"String.toInt">> => fun(Text) -> try binary_to_integer(Text) catch _:_ -> none end end,
       <<"String.toFloat">> => fun(Text) -> try binary_to_float(Text) catch _:_ -> none end end,
       <<"String.fromUtf8">> => fun(Bytes) -> unicode:characters_to_binary(Bytes) end,
+      <<"String.fromUtf8Lossy">> => fun(Bytes) -> unicode:characters_to_binary(Bytes) end,
+      <<"String.fromUtf8Piece">> => fun(Bytes) -> unicode:characters_to_binary(Bytes) end,
       <<"String.toUtf8">> => fun(Text) -> Text end,
       <<"Map.size">> => fun maps:size/1,
       <<"Map.isEmpty">> => fun(Map) -> map_size(Map) =:= 0 end,

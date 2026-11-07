@@ -344,6 +344,56 @@ string_split_once_test() ->
      || Text <- [<<>>, <<"a">>, <<"a,b">>, <<",a,,b,">>, <<"a\r\nb">>, Composed],
         Separator <- [<<",">>, <<"\n">>, <<>>, <<"a,">>]].
 
+%% report Appendix E.5: each byte that begins no character is one U+FFFD,
+%% and a cut character shows byte by byte where nothing can finish it
+from_utf8_lossy_test() ->
+    String = ern_named:functions('ern@string'),
+    Stray = <<16#FFFD/utf8>>,
+    Lossy = String(fromUtf8Lossy),
+    ?assertEqual(<<"héllo"/utf8>>, Lossy(<<"héllo"/utf8>>)),
+    ?assertEqual(<<>>, Lossy(<<>>)),
+    ?assertEqual(<<"h", Stray/binary, "i">>, Lossy(<<104, 255, 105>>)),
+    ?assertEqual(<<Stray/binary, Stray/binary, "i">>, Lossy(<<226, 130, 105>>)),
+    ?assertEqual(<<Stray/binary, Stray/binary>>, Lossy(<<226, 130>>)),
+    %% a surrogate's encoding and an overlong one are not characters
+    ?assertEqual(binary:copy(Stray, 3), Lossy(<<237, 160, 128>>)),
+    ?assertEqual(binary:copy(Stray, 2), Lossy(<<192, 128>>)),
+    ?assertEqual(<<"é"/utf8, Stray/binary, "é"/utf8, Stray/binary>>,
+                 Lossy(<<"é"/utf8, 128, "é"/utf8, 245>>)),
+    %% what a stray byte costs is what the input's size does
+    Long = binary:copy(<<255>>, 100000),
+    ?assertEqual(binary:copy(Stray, 100000), Lossy(Long)).
+
+%% report Appendix E.5: a piece's text and the bytes of a character it ends
+%% inside, for the next piece; cut at every place, the pieces read as the
+%% whole does
+from_utf8_piece_test() ->
+    String = ern_named:functions('ern@string'),
+    Stray = <<16#FFFD/utf8>>,
+    Piece = String(fromUtf8Piece),
+    ?assertEqual({<<"hi">>, <<>>}, Piece(<<"hi">>)),
+    ?assertEqual({<<>>, <<>>}, Piece(<<>>)),
+    ?assertEqual({<<"h">>, <<226>>}, Piece(<<104, 226>>)),
+    ?assertEqual({<<"h">>, <<226, 130>>}, Piece(<<104, 226, 130>>)),
+    ?assertEqual({<<"h">>, <<240, 159, 152>>}, Piece(<<104, 240, 159, 152>>)),
+    ?assertEqual({<<"h", Stray/binary>>, <<226>>}, Piece(<<104, 255, 226>>)),
+    ?assertEqual({<<"€"/utf8>>, <<>>}, Piece(<<226, 130, 172>>)),
+    %% a byte's form asks for more, though no character can follow it
+    ?assertEqual({<<>>, <<245>>}, Piece(<<245>>)),
+    ?assertEqual({<<>>, <<192>>}, Piece(<<192>>)),
+    ?assertEqual({binary:copy(Stray, 4), <<>>}, Piece(<<245, 128, 128, 128>>)),
+    %% a byte no form has does not wait
+    ?assertEqual({Stray, <<>>}, Piece(<<255>>)),
+    Whole = <<"a€b"/utf8, 255, "😀é"/utf8, 245, 65, 226, 130>>,
+    Read = fun(Left, Right) ->
+                   {Text, Cut} = Piece(Left),
+                   {After, End} = Piece(<<Cut/binary, Right/binary>>),
+                   <<Text/binary, After/binary, (String(fromUtf8Lossy)(End))/binary>>
+           end,
+    [?assertEqual(String(fromUtf8Lossy)(Whole),
+                  Read(binary:part(Whole, 0, At), binary:part(Whole, At, byte_size(Whole) - At)))
+     || At <- lists:seq(0, byte_size(Whole))].
+
 %% report Appendix E.5, §9.6
 string_test() ->
     String = ern_named:functions('ern@string'),

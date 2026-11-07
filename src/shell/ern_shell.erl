@@ -24,7 +24,7 @@
          session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
          browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2, reload/1, version/0,
-         write/1, node_screen/1, to_screen/1, flush_screen/0, decoded/2, leaves_it_unchanged/1,
+         write/1, node_screen/1, to_screen/1, flush_screen/0, leaves_it_unchanged/1,
          collect/2, own/1, detach/0, input_site/2, is_expression/1, declared/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -423,7 +423,7 @@ reloaded_by(Session, By, Modules) ->
 %% Report §12.1, §11.2: what the session's processes write to standard
 %% output and standard error, sent to its screen as it comes, the bytes as
 %% they are: the screen keeps a character cut across two writes until its
-%% end comes (decoded/2).
+%% end comes (`String.fromUtf8Piece`).
 %%
 %% Report §4.7, §8.4: the bytes go to the screen's process by its host
 %% identity, `Wrote(bytes)`, as the drains' `Flush` goes, and not to an
@@ -4633,26 +4633,6 @@ flush_screen() ->
                 {Reply, answered, _} -> erlang:demonitor(Reply, [flush]), ok;
                 {'DOWN', Reply, process, _, _} -> ok
             end
-    end.
-
-%% Report §11.2: the text the screen shows of what a program wrote, Cut the
-%% bytes of a character the screen's last write cut, with U+FFFD for each
-%% byte that is not UTF-8; and the bytes of a character this write cuts,
-%% which wait for the next. The screen keeps the cut, one to a screen
-%% whichever stream wrote, and it goes with the screen.
--spec decoded(binary(), binary()) -> {binary(), binary()}.
-decoded(Cut, Bytes) ->
-    shown(<<Cut/binary, Bytes/binary>>).
-
-shown(Whole) ->
-    case unicode:characters_to_binary(Whole, utf8, utf8) of
-        Text when is_binary(Text) ->
-            {Text, <<>>};
-        {incomplete, Text, Cut} ->
-            {Text, Cut};
-        {error, Text, <<_, Rest/binary>>} ->
-            {After, Cut} = shown(Rest),
-            {<<Text/binary, 16#FFFD/utf8, After/binary>>, Cut}
     end.
 
 %% Report §8.7, Appendix H: a name the session binds is a binding, whose

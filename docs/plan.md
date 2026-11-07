@@ -96,15 +96,9 @@ reader S reads of its live shell. The release note's line on the installed layou
 5. **`kill` takes a `Process`**, done 2026-11-07 (§6.5, §6.9, §9.5, E.21; the log's *`kill` Takes a
    `Process`*). `Process.kill` went, and a site that holds an address writes
    `kill(Process.fromAddress(worker))`. ernest-httpd meets it at its floor's rise.
-6. **Text from bytes that are not all UTF-8**, feedback 206, decided 2026-11-02, the policy
-   §11.2 and §11.5 state for the shell's region and a diagnostic's source line: each byte that
-   begins no character shows as U+FFFD. Two functions, `String.fromUtf8Lossy`, the bytes as
-   text so, and `String.fromUtf8Piece`, the text of a piece of a stream and the bytes of a
-   character the piece ends inside, which the reader keeps for the next piece; admitted by
-   E.0's rule 3 as policies of `fromUtf8`, as `Float.round` and `Float.floor` are of one
-   conversion, Ernest closing the difference around the host's decoder (rule 1), E.5 stating
-   them. The shell's `foreign fn decoded` and the harness's own decoding go; the compiler's
-   diagnostic keeps its Erlang, since the compiler calls no shim.
+6. **Text from bytes that are not all UTF-8**, done 2026-11-07 (E.5, §11.2; the log's *Text from
+   Bytes*). `String.fromUtf8Lossy` and `String.fromUtf8Piece` stand, and the shell's and the
+   harness's own decoding went.
 7. **A text after its prefix, and a slice to the end**, feedback 214 and 220, decided
    2026-11-03: `String.slice(x, i, String.size(x))` and `Bytes.slice` to the end stand at 23
    sites, and the text after a prefix is taken three ways at seven sites, counted 2026-11-04:

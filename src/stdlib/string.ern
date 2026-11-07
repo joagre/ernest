@@ -46,6 +46,11 @@
 ///
 /// since 0.1.0
 
+// What the host's decoder finds: the text the bytes begin with, then their
+// end, empty or a character they end inside, or a byte that begins no
+// character, with the bytes after it.
+type Decoded = Ended(text : String, cut : Bytes) | Stray(text : String, rest : Bytes)
+
 /// The first string, then the second.
 export fn String.<>(left : String, right : String) : String =
     left <> right
@@ -518,3 +523,50 @@ export foreign fn toUtf8(text : String) : Bytes =
 /// The string that `bytes` holds in UTF-8, or `None` where they are not UTF-8.
 export foreign fn fromUtf8(bytes : Bytes) : Optional(String) =
     "ern_string:from_utf8/1"
+
+/// The text `bytes` hold in UTF-8, each byte that begins no character shown as
+/// one U+FFFD.
+///
+/// ### Examples
+///
+/// ```ernest
+/// String.fromUtf8Lossy(<<104, 255, 105>>)
+/// // => "h�i"
+/// ```
+///
+/// since 0.10.0
+export fn fromUtf8Lossy(bytes : Bytes) : String = {
+    let #(text, cut) = fromUtf8Piece(bytes);
+    text <> repeat("\u{FFFD}", Bytes.size(cut))
+}
+
+/// The text of one piece of a stream, read as `fromUtf8Lossy` reads it, and the
+/// bytes of a character the piece ends inside. The reader puts those bytes
+/// before the next piece. They wait wherever a byte's form asks for more than
+/// the piece holds, even where no character can follow, and `fromUtf8Lossy`
+/// shows what is left where the stream ends.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let #(text, cut) = String.fromUtf8Piece(<<104, 226, 130>>);
+///     #(text, cut, String.fromUtf8Piece(cut <> <<172>>))
+/// }
+/// // => #("h", <<226, 130>>, #("€", <<>>))
+/// ```
+///
+/// since 0.10.0
+export fn fromUtf8Piece(bytes : Bytes) : #(String, Bytes) =
+    decodedFrom(bytes, [])
+
+// The parts of the text so far, the last first, joined once at the end, so
+// that a piece of stray bytes costs what its size does.
+fn decodedFrom(bytes : Bytes, parts : List(String)) : #(String, Bytes) =
+    match decoded(bytes) {
+        Ended(=text, =cut) -> #(join(List.reverse(text :: parts), ""), cut)
+      | Stray(=text, =rest) -> decodedFrom(rest, "\u{FFFD}" :: text :: parts)
+    }
+
+foreign fn decoded(bytes : Bytes) : Decoded =
+    "ern_string:decoded/1"

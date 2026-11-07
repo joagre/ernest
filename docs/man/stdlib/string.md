@@ -541,6 +541,48 @@ String.fromUtf8(bytes : Bytes) : Optional(String)
 
 The string that `bytes` holds in UTF-8, or `None` where they are not UTF-8.
 
+## String.fromUtf8Lossy
+
+```ernest
+String.fromUtf8Lossy(bytes : Bytes) : String
+```
+
+*Since 0.10.0.*
+
+The text `bytes` hold in UTF-8, each byte that begins no character shown as
+one U+FFFD.
+
+### Examples
+
+```ernest
+String.fromUtf8Lossy(<<104, 255, 105>>)
+// => "h�i"
+```
+
+## String.fromUtf8Piece
+
+```ernest
+String.fromUtf8Piece(bytes : Bytes) : #(String, Bytes)
+```
+
+*Since 0.10.0.*
+
+The text of one piece of a stream, read as `fromUtf8Lossy` reads it, and the
+bytes of a character the piece ends inside. The reader puts those bytes
+before the next piece. They wait wherever a byte's form asks for more than
+the piece holds, even where no character can follow, and `fromUtf8Lossy`
+shows what is left where the stream ends.
+
+### Examples
+
+```ernest
+{
+    let #(text, cut) = String.fromUtf8Piece(<<104, 226, 130>>);
+    #(text, cut, String.fromUtf8Piece(cut <> <<172>>))
+}
+// => #("h", <<226, 130>>, #("€", <<>>))
+```
+
 ## String.compare
 
 ```ernest

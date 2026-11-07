@@ -85,7 +85,7 @@
 
 %% Kv_parser.number
 '$6'(Chars_29, Line_30) ->
-    case ern@string:'$25'(try ern_string:from_list(Chars_29)
+    case ern@string:'$26'(try ern_string:from_list(Chars_29)
                           catch
                               Class_31:Error_32:Trace_33 ->
                                   ern_boundary:raised(ern_string,

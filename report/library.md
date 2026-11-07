@@ -364,11 +364,15 @@ A `String` is a container read through `toList`: of the container operations it 
 
 A search for a second string, `contains`, `indexOf`, `lastIndexOf`, `startsWith`, `endsWith`, `replace`, `split` and `splitOnce`, finds it only where its graphemes are whole graphemes of the first: `"/"` is not in `"/\u{301}"`, whose one grapheme is the separator with the combining mark, `String.contains("e\u{301}", "e")` is `false`, and `String.split("a\r\nb", "\n")` is `["a\r\nb"]`, a carriage return and a line feed being one grapheme. Text a protocol frames by bytes is searched as `Bytes` (E.20).
 
-The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `toLower` and `toUpper`, which need Unicode's tables, the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`, and functions of the host's beneath `repeat`, `join`, and `toIntBase`. Four that need Unicode's tables are private to the module: the slice `slice` makes once it has clipped its two indexes, the string after a count of graphemes, beneath `trimStart`, the last grapheme `trimEnd` takes off, found from the string's end, and `around`, the string before a part's first occurrence and the string after it (E.0 rule 1). The rest is Ernest over them.
+The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `toLower` and `toUpper`, which need Unicode's tables, the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`, and functions of the host's beneath `repeat`, `join`, and `toIntBase`. Four that need Unicode's tables are private to the module: the slice `slice` makes once it has clipped its two indexes, the string after a count of graphemes, beneath `trimStart`, the last grapheme `trimEnd` takes off, found from the string's end, and `around`, the string before a part's first occurrence and the string after it. So is `decoded`, what the host's decoder finds in bytes, beneath the two conversions that read bytes that may not all be UTF-8 (E.0 rule 1). The rest is Ernest over them.
 
 Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 `splitOnce` splits at the separator's first occurrence alone, and answers `None` for an empty separator, at which `split` does not split.
+
+`fromUtf8Lossy` reads bytes that may not all be UTF-8, showing each byte that begins no character as one U+FFFD: `String.fromUtf8Lossy(<<104, 255, 105>>)` is `"h\u{FFFD}i"`.
+
+`fromUtf8Piece` reads a stream, whose pieces may cut a character. It answers the text of one piece, as `fromUtf8Lossy` shows it, and the bytes of a character the piece ends inside, which the reader puts before the next piece: `String.fromUtf8Piece(<<104, 226, 130>>)` is `#("h", <<226, 130>>)`. Those bytes are at most three. They wait wherever a byte's form asks for more than the piece holds, even where no character can follow: `String.fromUtf8Piece(<<245>>)` is `#("", <<245>>)`. Where the stream ends, `fromUtf8Lossy` shows what is left.
 
 ```
 String.size : (String) -> Int // graphemes
@@ -402,6 +406,8 @@ String.toList : (String) -> List(Char)
 String.fromList : (List(Char)) -> String
 String.toUtf8 : (String) -> Bytes
 String.fromUtf8 : (Bytes) -> Optional(String) // None when the bytes are not UTF-8
+String.fromUtf8Lossy : (Bytes) -> String // each byte that begins no character as U+FFFD
+String.fromUtf8Piece : (Bytes) -> #(String, Bytes) // a piece's text, and the bytes of a character it ends inside
 ```
 
 ### Appendix E.6. `char.ern` (namespace `Char`)

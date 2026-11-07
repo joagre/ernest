@@ -80,7 +80,7 @@ The front end's values reach the shell as handles of four foreign types, `Sessio
 - **A result**: `typeText`, `isUnit`, `isExpression`, `declared`, `leavesItUnchanged` and `declaredType` read a `Checked` for what is printed and what `:type` and `it` do; `declared` reads the input's `Value` too, since a `let` with `<-` binds by its value's side. `show` prints a `Value` to a depth and a length.
 - **The commands** that reach past the shell: `bindings`, `browse` and `doc`.
 - **The questions the reader and `Ernest.Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `slot`, `needsMore`, `opening`, `fields`, `documentation`, `signature`, `segment` and `component`. None takes a `Session`; those that read the session read the front end's copy.
-- **The host's alone**: `version`, `configStartup`, `isSameFile`, `givenSourceRoot`, `attachTo`, `sayEnd`, `spawnProgram`, `write`, `decoded`, `setNodeScreen`, `dialMs` and `holdTerminal`.
+- **The host's alone**: `version`, `configStartup`, `isSameFile`, `givenSourceRoot`, `attachTo`, `sayEnd`, `spawnProgram`, `write`, `setNodeScreen`, `dialMs` and `holdTerminal`.
 
 `check` is told where the input came from: the count of what was entered at the prompt, or a startup file's line and the column the input begins in.
 

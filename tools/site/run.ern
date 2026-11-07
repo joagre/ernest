@@ -443,7 +443,7 @@ export fn committed(tag : String, path : String) : Either(String, String) = {
                    input = <<>>);
     let finished <-
         Either.mapLeft(Os.run(command, 10000), fn(error) = "cannot run git: " <> Io.show(error));
-    let date = String.trim(Optional.withDefault(String.fromUtf8(finished.stdout), ""));
+    let date = String.trim(String.fromUtf8Lossy(finished.stdout));
     if finished.status == 0 && date != "" then
         Right(date)
     else
@@ -452,7 +452,7 @@ export fn committed(tag : String, path : String) : Either(String, String) = {
                  <> " at "
                  <> tag
                  <> ": "
-                 <> String.trim(Optional.withDefault(String.fromUtf8(finished.stderr), "")))
+                 <> String.trim(String.fromUtf8Lossy(finished.stderr)))
 }
 
 /// A file's text, which is UTF-8.

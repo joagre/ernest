@@ -434,7 +434,7 @@ fn found(screen : Screen, text : Bytes) : Optional(Screen) = {
 // on a pane. A byte that begins no UTF-8 character shows as U+FFFD.
 fn rendered(bytes : Bytes, size : Terminal.Size) : String = {
     let blank = Grid(=size, cells = Map.empty, top = 0, row = 0, column = 0);
-    let grid = painted(blank, bytes);
+    let grid = painted(blank, String.toUtf8(String.fromUtf8Lossy(bytes)));
     List.range(0, size.rows - 1) |> List.map(fn(row) = rowText(grid, row)) |> String.join("\n")
 }
 
@@ -453,8 +453,6 @@ fn painted(grid : Grid, text : Bytes) : Grid =
             painted(lineFed(grid), rest)
       | <<char:utf8, rest:bytes>> ->
             painted(written(grid, char), rest)
-      | <<_, rest:bytes>> ->
-            painted(written(grid, '\u{FFFD}'), rest)
       | _ ->
             grid
     }

@@ -187,7 +187,7 @@ The *host* is the Erlang runtime Ernest runs on and the operating system under i
 ```ernest
 export fn main() : Unit =
     match Os.run(Os.Command(program = "echo", arguments = ["hi"], input = <<>>), 5000) {
-        Right(finished) -> Io.print(Optional.withDefault(String.fromUtf8(finished.stdout), ""))
+        Right(finished) -> Io.print(String.fromUtf8Lossy(finished.stdout))
       | Left(error) -> Io.printlnError(Io.show(error))
     }
 ```

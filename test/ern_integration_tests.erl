@@ -828,7 +828,7 @@ given_environment() ->
             " input = <<>>);\n"
             "    match Os.run(command, ", ern_nodes_tests:wait_ms_text(), ") {\n"
             "        Right(finished) ->\n"
-            "            Io.print(Optional.withDefault(String.fromUtf8(finished.stdout), \"\"))\n"
+            "            Io.print(String.fromUtf8Lossy(finished.stdout))\n"
             "      | Left(_) -> Io.println(\"not run\")\n"
             "    }\n"
             "}\n"]),

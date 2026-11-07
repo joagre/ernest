@@ -2,14 +2,15 @@
 %% Unicode operations, each returning what the declared type says; the rest
 %% of String is Ernest over them, so every search matches whole graphemes.
 %% One stands on a host function whose answer no Ernest value is,
-%% `binary_to_integer/2`'s raise.
+%% `binary_to_integer/2`'s raise, and one on a decoder whose answer no
+%% Ernest type describes.
 %% A String is a UTF-8 binary (report §12.2), so toUtf8 is the value itself
 %% and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
 -export([graphemes/1, index_of/2, last_index_of/2, around/2, slice/3, drop/2, last_grapheme/1,
          to_lower/1, to_upper/1, to_integer/2, to_float/1, to_list/1, from_list/1, from_utf8/1,
-         to_utf8/1]).
+         decoded/1, to_utf8/1]).
 
 %% Appendix E.5: the graphemes in order, as `string:to_graphemes/1` splits
 %% them, extended grapheme clusters by the host's Unicode data, the same
@@ -248,6 +249,17 @@ from_utf8(Bytes) ->
     case unicode:characters_to_binary(Bytes, utf8, utf8) of
         Text when is_binary(Text) -> {'Some', Text};
         _ -> 'None'
+    end.
+
+%% Appendix E.5: the decoder's answer as string.ern's `Decoded`. A lead byte
+%% with fewer continuation bytes than it asks for is `incomplete` by the
+%% host's manual page, whether or not a character can follow it.
+-spec decoded(binary()) -> {'Ended', binary(), binary()} | {'Stray', binary(), binary()}.
+decoded(Bytes) ->
+    case unicode:characters_to_binary(Bytes, utf8, utf8) of
+        Text when is_binary(Text) -> {'Ended', Text, <<>>};
+        {incomplete, Text, Cut} -> {'Ended', Text, Cut};
+        {error, Text, <<_, Rest/binary>>} -> {'Stray', Text, Rest}
     end.
 
 -spec to_utf8(binary()) -> binary().
