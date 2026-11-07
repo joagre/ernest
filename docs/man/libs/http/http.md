@@ -10,10 +10,14 @@ status phrases.
 Use it to serve HTTP over `Tcp`, or to speak it to a server. A server
 reads a request's head with `readRequest` and its body with
 `readRequestBody`, its target with `target` and a cookie with `cookie`,
-and writes its response with `renderResponse`, a body in chunks with
-`chunk`; a client writes its request with `renderRequest` and reads the
-response with `readResponse` and `readResponseBody`. `parseRequest` and
-`parseResponse` read a head from bytes a program already holds.
+and writes its response with `writeResponse`, a body in chunks with
+`writeChunk`; a client writes its request with `writeRequest` and reads
+the response with `readResponse` and `readResponseBody`. `parseRequest`
+and `parseResponse` read a head from bytes a program already holds, and
+`renderRequest`, `renderResponse` and `chunk` write one to bytes.
+
+A program opens its connection with `Tcp`, and meets `Io.Error` there
+alone: every function here over a socket answers a `SocketError`.
 
 The library stands on every job's load path, so a program names it with
 no option (report Appendix G).
@@ -273,14 +277,18 @@ Http.parseRequest(String.toUtf8("GET / HTTP/1.1\r\n"), Http.defaultLimits)
 - `Incomplete`: The bytes end before the head's empty line.
 - `Parsed`: The head, and the bytes after its empty line.
 
-## Http.ReadError
+## Http.SocketError
 
 ```ernest
-type ReadError = Protocol(Error) | Socket(Io.Error)
+type SocketError = Protocol(Error) | Socket(Io.Error)
 ```
 
-Why reading from a socket found no head or no body: `Protocol` for what
-was read, `Socket` for the socket's error.
+*Since 0.10.0.*
+
+The error of every function over a socket: `Protocol` for what was read
+and refused, `Socket` for the socket's own error.
+
+A write's `Left` is `Socket` alone.
 
 ### Examples
 
@@ -291,7 +299,8 @@ Http.Socket(Io.Timeout)
 
 - `Protocol`: The head or the body read is refused.
 - `Socket`: The socket answered an error: `Timeout` where the milliseconds passed,
-`Closed` where the connection closed first.
+`Closed` where the connection closed before the read or the write was
+done.
 
 ## Http.parseRequest
 
@@ -363,7 +372,7 @@ the white space around it, replaced by one space (RFC 9112, section
 ## Http.readRequest
 
 ```ernest
-Http.readRequest(socket : Address(Tcp.SocketMsg), carried : Bytes, limits : Limits, ms : Int) : Either(ReadError, #(Request, Bytes))
+Http.readRequest(socket : Address(Tcp.SocketMsg), carried : Bytes, limits : Limits, ms : Int) : Either(SocketError, #(Request, Bytes))
 ```
 
 The request whose head `socket` sends after the bytes `carried`, read
@@ -379,25 +388,23 @@ line feed comes after them.
 
 ### Examples
 
-A server that reads one request and answers its target:
+A server's handler, given the socket of a connection, that reads one
+request and answers its target:
 
 ```ernest
-{
-    let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
-    let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
+fn serve(socket : Address(Tcp.SocketMsg)) : Either(Http.SocketError, Unit) = {
     let #(request, _) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
     let response = Http.Response(version = Http.http11, status = 200, headers = []);
-    let body = String.toUtf8(request.target);
-    let written = Tcp.write(socket, Http.renderResponse(response, body), 5000);
-    Tcp.close(socket);
-    Either.mapLeft(written, Http.Socket)
+    Http.writeResponse(socket, response, String.toUtf8(request.target), 5000)
 }
+
+serve
 ```
 
 ## Http.readResponse
 
 ```ernest
-Http.readResponse(socket : Address(Tcp.SocketMsg), carried : Bytes, limits : Limits, ms : Int) : Either(ReadError, #(Response, Bytes))
+Http.readResponse(socket : Address(Tcp.SocketMsg), carried : Bytes, limits : Limits, ms : Int) : Either(SocketError, #(Response, Bytes))
 ```
 
 The response whose head `socket` sends after the bytes `carried`, read
@@ -421,8 +428,7 @@ may run to the connection's close:
                      target = "/",
                      version = Http.http11,
                      headers = [Http.Header(name = "Host", value = "example.com")]);
-    let _ <-
-        Either.mapLeft(Tcp.write(socket, Http.renderRequest(request, <<>>), 5000), Http.Socket);
+    let _ <- Http.writeRequest(socket, request, <<>>, 5000);
     let #(response, carried) <- Http.readResponse(socket, <<>>, Http.defaultLimits, 10000);
     let #(body, _) <- Http.readResponseBody(socket, carried, response, 1000000, 10000);
     Tcp.close(socket);
@@ -433,7 +439,7 @@ may run to the connection's close:
 ## Http.readRequestBody
 
 ```ernest
-Http.readRequestBody(socket : Address(Tcp.SocketMsg), carried : Bytes, request : Request, limit : Int, ms : Int) : Either(ReadError, #(Bytes, Bytes))
+Http.readRequestBody(socket : Address(Tcp.SocketMsg), carried : Bytes, request : Request, limit : Int, ms : Int) : Either(SocketError, #(Bytes, Bytes))
 ```
 
 The body of `request`, which `socket` sends after the bytes `carried`,
@@ -467,27 +473,24 @@ where `Content-Length` or a chunk's size passes it.
 
 ### Examples
 
-A server that reads one request and its body, and answers the body's
-size:
+A server's handler, given the socket of a connection, that reads one
+request and its body, and answers the body's size:
 
 ```ernest
-{
-    let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
-    let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
+fn serve(socket : Address(Tcp.SocketMsg)) : Either(Http.SocketError, Unit) = {
     let #(request, carried) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
     let #(body, _) <- Http.readRequestBody(socket, carried, request, 1000000, 10000);
     let response = Http.Response(version = Http.http11, status = 200, headers = []);
-    let size = String.toUtf8(Int.toString(Bytes.size(body)));
-    let written = Tcp.write(socket, Http.renderResponse(response, size), 5000);
-    Tcp.close(socket);
-    Either.mapLeft(written, Http.Socket)
+    Http.writeResponse(socket, response, String.toUtf8(Int.toString(Bytes.size(body))), 5000)
 }
+
+serve
 ```
 
 ## Http.readResponseBody
 
 ```ernest
-Http.readResponseBody(socket : Address(Tcp.SocketMsg), carried : Bytes, response : Response, limit : Int, ms : Int) : Either(ReadError, #(Bytes, Bytes))
+Http.readResponseBody(socket : Address(Tcp.SocketMsg), carried : Bytes, response : Response, limit : Int, ms : Int) : Either(SocketError, #(Bytes, Bytes))
 ```
 
 The body of `response`, which `socket` sends after the bytes `carried`,
@@ -645,6 +648,8 @@ phrase for it. Where the headers carry neither `Content-Length` nor
 `Content-Length` of the body's size is written after them (RFC 9110,
 section 8.6). A header's value is written as given.
 
+### Errors
+
 A head that would not read back as written is a program's own error,
 and faults the caller, its cause naming the header or the status: a
 header's name that is no token, one or more of the ASCII letters and
@@ -679,6 +684,8 @@ Where the body is not empty and the headers carry neither
 `Content-Length` nor `Transfer-Encoding`, a `Content-Length` of the
 body's size is written after them; a body is written whatever the
 method.
+
+### Errors
 
 A header faults the caller as `renderResponse` says, and so do a
 method and a target `parseRequest` would refuse, its cause naming the
@@ -723,6 +730,112 @@ chunks are written after it.
 ```ernest
 #(String.fromUtf8(Http.chunk(String.toUtf8("Hello, world"))), String.fromUtf8(Http.chunk(<<>>)))
 // => #(Some("C\r\nHello, world\r\n"), Some("0\r\n\r\n"))
+```
+
+## Http.writeRequest
+
+```ernest
+Http.writeRequest(socket : Address(Tcp.SocketMsg), request : Request, body : Bytes, ms : Int) : Either(SocketError, Unit)
+```
+
+*Since 0.10.0.*
+
+Writes the request's head and `body` to `socket`, as `renderRequest`
+renders them, within `ms` milliseconds.
+
+A `Left` is `Socket(error)`, as `Tcp.write` answers the error:
+`Socket(Timeout)` where the milliseconds pass first, and `Socket(Closed)`
+once the connection has closed.
+
+### Errors
+
+Faults where `renderRequest` faults, a header, the method or the target
+that would not read back as written, with its cause, and nothing is
+written.
+
+### Examples
+
+A client's request with a body, its `Content-Length` added:
+
+```ernest
+fn post(socket : Address(Tcp.SocketMsg), body : Bytes) : Either(Http.SocketError, Unit) = {
+    let request =
+        Http.Request(method = "POST",
+                     target = "/items",
+                     version = Http.http11,
+                     headers = [Http.Header(name = "Host", value = "example.com")]);
+    Http.writeRequest(socket, request, body, 5000)
+}
+
+post
+```
+
+## Http.writeResponse
+
+```ernest
+Http.writeResponse(socket : Address(Tcp.SocketMsg), response : Response, body : Bytes, ms : Int) : Either(SocketError, Unit)
+```
+
+*Since 0.10.0.*
+
+Writes the response's head and `body` to `socket`, as `renderResponse`
+renders them, within `ms` milliseconds.
+
+A `Left` is `Socket(error)`, as `writeRequest` answers it.
+
+### Errors
+
+Faults where `renderResponse` faults, a header or the status that would
+not read back as written, or a body given with a status of 1xx, 204 or
+304, with its cause, and nothing is written.
+
+### Examples
+
+A server's handler that answers status 404, its phrase the body, and
+closes the connection after it:
+
+```ernest
+fn notFound(socket : Address(Tcp.SocketMsg)) : Either(Http.SocketError, Unit) = {
+    let response =
+        Http.Response(version = Http.http11,
+                      status = 404,
+                      headers = [Http.Header(name = "Connection", value = "close")]);
+    Http.writeResponse(socket, response, String.toUtf8(Http.reason(404)), 5000)
+}
+
+notFound
+```
+
+## Http.writeChunk
+
+```ernest
+Http.writeChunk(socket : Address(Tcp.SocketMsg), bytes : Bytes, ms : Int) : Either(SocketError, Unit)
+```
+
+*Since 0.10.0.*
+
+Writes one chunk of the chunked transfer coding to `socket`, as `chunk`
+renders it, within `ms` milliseconds; empty bytes write the last chunk.
+
+A `Left` is `Socket(error)`, as `writeRequest` answers it. The chunks
+follow a head that names `Transfer-Encoding: chunked`, written with an
+empty body.
+
+### Examples
+
+A server's handler that answers with a body in chunks, one for each part:
+
+```ernest
+fn stream(socket : Address(Tcp.SocketMsg),
+          parts : List(String)) : Either(Http.SocketError, Unit) = {
+    let chunked = [Http.Header(name = "Transfer-Encoding", value = "chunked")];
+    let response = Http.Response(version = Http.http11, status = 200, headers = chunked);
+    let _ <- Http.writeResponse(socket, response, <<>>, 5000);
+    let _ <- List.tryMap(parts, fn(part) = Http.writeChunk(socket, String.toUtf8(part), 5000));
+    Http.writeChunk(socket, <<>>, 5000)
+}
+
+stream
 ```
 
 ## Http.reason

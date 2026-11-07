@@ -13,7 +13,7 @@
 //   and writes through its address (Tcp, report Appendix E.18).
 // - The request is read from the socket by `Http.readRequest`, its session's
 //   cookie by `Http.cookie` from every `Cookie` header it carries, and the
-//   response written by `Http.renderResponse`, which adds its
+//   response written by `Http.writeResponse`, which adds its
 //   `Content-Length` and its status's phrase (libs/http, report Appendix
 //   G.11).
 // - A session id is sixteen bytes drawn at random, which a client cannot
@@ -102,13 +102,12 @@ fn handle(sessions : Address(SessionMsg), socket : Address(Tcp.SocketMsg)) : Uni
             let body = String.toUtf8("Visit number " <> Int.toString(visits));
             let setCookie = "sid=" <> sessionIdText(id) <> "; path=/";
             let headers = Http.Header(name = "Set-Cookie", value = setCookie) :: closingHeaders();
-            let _ = Tcp.write(socket, Http.renderResponse(response(200, headers), body), 5000);
+            let _ = Http.writeResponse(socket, response(200, headers), body, 5000);
             Tcp.close(socket)
         }
       | Left(Http.Protocol(_)) -> {
             // the connection is closed whether the far end took it or not
-            let _ =
-                Tcp.write(socket, Http.renderResponse(response(400, closingHeaders()), <<>>), 5000);
+            let _ = Http.writeResponse(socket, response(400, closingHeaders()), <<>>, 5000);
             Tcp.close(socket)
         }
       | Left(Http.Socket(_)) ->

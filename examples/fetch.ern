@@ -26,7 +26,7 @@
 // - `Tcp.connectTls` opens a socket over TLS, and `Tcp.Verified` checks the
 //   server's certificate against the file's and for the host's name; the
 //   socket is then written and read as any other (report Appendix E.18).
-// - The request is written by `Http.renderRequest`, the response's head is
+// - The request is written by `Http.writeRequest`, the response's head is
 //   read by `Http.readResponse`, and its body by `Http.readResponseBody`
 //   from the bytes the head's read took past the head (libs/http, report
 //   Appendix G.11).
@@ -90,14 +90,14 @@ fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) 
                                 Http.Header(name = "Accept", value = "application/json"),
                                 Http.Header(name = "Connection", value = "close")]);
     let _ <-
-        Either.mapLeft(Tcp.write(socket, Http.renderRequest(request, <<>>), 10000),
-                       fn(error) = "cannot send the request: " <> errorText(error));
+        Either.mapLeft(Http.writeRequest(socket, request, <<>>, 10000),
+                       fn(error) = "cannot send the request: " <> socketErrorText(error));
     let #(response, carried) <-
         Either.mapLeft(Http.readResponse(socket, <<>>, Http.defaultLimits, 10000),
-                       fn(error) = "cannot read the response's head: " <> readErrorText(error));
+                       fn(error) = "cannot read the response's head: " <> socketErrorText(error));
     let #(body, _) <-
         Either.mapLeft(Http.readResponseBody(socket, carried, response, bodyLimit, 30000),
-                       fn(error) = "cannot read the response's body: " <> readErrorText(error));
+                       fn(error) = "cannot read the response's body: " <> socketErrorText(error));
     Right(#(response, body))
 }
 
@@ -226,7 +226,7 @@ fn connectErrorText(error : Io.Error, target : Target, caFile : Path) : String =
             "cannot connect to " <> target.authority <> ": " <> errorText(error)
     }
 
-fn readErrorText(error : Http.ReadError) : String =
+fn socketErrorText(error : Http.SocketError) : String =
     match error {
         Http.Protocol(refusal) -> "refused as " <> Io.show(refusal)
       | Http.Socket(socketError) -> errorText(socketError)

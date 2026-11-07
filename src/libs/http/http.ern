@@ -6,10 +6,14 @@
 /// Use it to serve HTTP over `Tcp`, or to speak it to a server. A server
 /// reads a request's head with `readRequest` and its body with
 /// `readRequestBody`, its target with `target` and a cookie with `cookie`,
-/// and writes its response with `renderResponse`, a body in chunks with
-/// `chunk`; a client writes its request with `renderRequest` and reads the
-/// response with `readResponse` and `readResponseBody`. `parseRequest` and
-/// `parseResponse` read a head from bytes a program already holds.
+/// and writes its response with `writeResponse`, a body in chunks with
+/// `writeChunk`; a client writes its request with `writeRequest` and reads
+/// the response with `readResponse` and `readResponseBody`. `parseRequest`
+/// and `parseResponse` read a head from bytes a program already holds, and
+/// `renderRequest`, `renderResponse` and `chunk` write one to bytes.
+///
+/// A program opens its connection with `Tcp`, and meets `Io.Error` there
+/// alone: every function here over a socket answers a `SocketError`.
 ///
 /// The library stands on every job's load path, so a program names it with
 /// no option (report Appendix G).
@@ -233,8 +237,10 @@ export type Parsed(a) =
   /// The head, and the bytes after its empty line.
   | Parsed(head : a, rest : Bytes)
 
-/// Why reading from a socket found no head or no body: `Protocol` for what
-/// was read, `Socket` for the socket's error.
+/// The error of every function over a socket: `Protocol` for what was read
+/// and refused, `Socket` for the socket's own error.
+///
+/// A write's `Left` is `Socket` alone.
 ///
 /// ### Examples
 ///
@@ -242,11 +248,14 @@ export type Parsed(a) =
 /// Http.Socket(Io.Timeout)
 /// // => Http.Socket(Io.Timeout)
 /// ```
-export type ReadError =
+///
+/// since 0.10.0
+export type SocketError =
     /// The head or the body read is refused.
     Protocol(Error)
   /// The socket answered an error: `Timeout` where the milliseconds passed,
-  /// `Closed` where the connection closed first.
+  /// `Closed` where the connection closed before the read or the write was
+  /// done.
   | Socket(Io.Error)
 
 /// The request whose head `bytes` begin with, and the bytes after the head,
@@ -321,24 +330,22 @@ export foreign fn parseResponse(bytes : Bytes, limits : Limits) : Either(Error, 
 ///
 /// ### Examples
 ///
-/// A server that reads one request and answers its target:
+/// A server's handler, given the socket of a connection, that reads one
+/// request and answers its target:
 ///
 /// ```ernest
-/// {
-///     let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
-///     let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
+/// fn serve(socket : Address(Tcp.SocketMsg)) : Either(Http.SocketError, Unit) = {
 ///     let #(request, _) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
 ///     let response = Http.Response(version = Http.http11, status = 200, headers = []);
-///     let body = String.toUtf8(request.target);
-///     let written = Tcp.write(socket, Http.renderResponse(response, body), 5000);
-///     Tcp.close(socket);
-///     Either.mapLeft(written, Http.Socket)
+///     Http.writeResponse(socket, response, String.toUtf8(request.target), 5000)
 /// }
+///
+/// serve
 /// ```
 export fn readRequest(socket : Address(Tcp.SocketMsg),
                       carried : Bytes,
                       limits : Limits,
-                      ms : Int) : Either(ReadError, #(Request, Bytes)) = {
+                      ms : Int) : Either(SocketError, #(Request, Bytes)) = {
     let deadline = Clock.monotonic() + ms;
     readHead(HeadReading(=socket,
                          =deadline,
@@ -368,8 +375,7 @@ export fn readRequest(socket : Address(Tcp.SocketMsg),
 ///                      target = "/",
 ///                      version = Http.http11,
 ///                      headers = [Http.Header(name = "Host", value = "example.com")]);
-///     let _ <-
-///         Either.mapLeft(Tcp.write(socket, Http.renderRequest(request, <<>>), 5000), Http.Socket);
+///     let _ <- Http.writeRequest(socket, request, <<>>, 5000);
 ///     let #(response, carried) <- Http.readResponse(socket, <<>>, Http.defaultLimits, 10000);
 ///     let #(body, _) <- Http.readResponseBody(socket, carried, response, 1000000, 10000);
 ///     Tcp.close(socket);
@@ -379,7 +385,7 @@ export fn readRequest(socket : Address(Tcp.SocketMsg),
 export fn readResponse(socket : Address(Tcp.SocketMsg),
                        carried : Bytes,
                        limits : Limits,
-                       ms : Int) : Either(ReadError, #(Response, Bytes)) = {
+                       ms : Int) : Either(SocketError, #(Response, Bytes)) = {
     let deadline = Clock.monotonic() + ms;
     readHead(HeadReading(=socket,
                          =deadline,
@@ -410,7 +416,7 @@ type HeadReading(a) =
 //
 // Each parse reads the lines before it again, so a head of many lines that
 // comes a line at a time costs the square of its lines.
-fn readHead(reading : HeadReading(a), bytes : Bytes) : Either(ReadError, #(a, Bytes)) =
+fn readHead(reading : HeadReading(a), bytes : Bytes) : Either(SocketError, #(a, Bytes)) =
     match reading.parse(bytes) {
         Right(Parsed(=head, =rest)) -> Right(#(head, rest))
       | Right(Incomplete) -> readOn(reading, bytes, passingSize(bytes, reading.limits))
@@ -422,7 +428,7 @@ fn readHead(reading : HeadReading(a), bytes : Bytes) : Either(ReadError, #(a, By
 // then begin with.
 fn readOn(reading : HeadReading(a),
           bytes : Bytes,
-          passing : Int) : Either(ReadError, #(a, Bytes)) = {
+          passing : Int) : Either(SocketError, #(a, Bytes)) = {
     let more <- received(reading.socket, bytes, reading.deadline);
     let read = Bytes.drop(more, Bytes.size(bytes));
     if Bytes.contains(read, <<'\n':utf8>>) || Bytes.size(more) >= passing then
@@ -487,7 +493,7 @@ fn isFolded(bytes : Bytes, index : Int) : Bool = {
 // keeps sending meets the deadline too.
 fn received(socket : Address(Tcp.SocketMsg),
             bytes : Bytes,
-            deadline : Int) : Either(ReadError, Bytes) = {
+            deadline : Int) : Either(SocketError, Bytes) = {
     let ms = deadline - Clock.monotonic();
     if ms <= 0 then
         Left(Socket(Io.Timeout))
@@ -528,27 +534,24 @@ fn received(socket : Address(Tcp.SocketMsg),
 ///
 /// ### Examples
 ///
-/// A server that reads one request and its body, and answers the body's
-/// size:
+/// A server's handler, given the socket of a connection, that reads one
+/// request and its body, and answers the body's size:
 ///
 /// ```ernest
-/// {
-///     let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
-///     let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
+/// fn serve(socket : Address(Tcp.SocketMsg)) : Either(Http.SocketError, Unit) = {
 ///     let #(request, carried) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
 ///     let #(body, _) <- Http.readRequestBody(socket, carried, request, 1000000, 10000);
 ///     let response = Http.Response(version = Http.http11, status = 200, headers = []);
-///     let size = String.toUtf8(Int.toString(Bytes.size(body)));
-///     let written = Tcp.write(socket, Http.renderResponse(response, size), 5000);
-///     Tcp.close(socket);
-///     Either.mapLeft(written, Http.Socket)
+///     Http.writeResponse(socket, response, String.toUtf8(Int.toString(Bytes.size(body))), 5000)
 /// }
+///
+/// serve
 /// ```
 export fn readRequestBody(socket : Address(Tcp.SocketMsg),
                           carried : Bytes,
                           request : Request,
                           limit : Int,
-                          ms : Int) : Either(ReadError, #(Bytes, Bytes)) =
+                          ms : Int) : Either(SocketError, #(Bytes, Bytes)) =
     readBody(socket, carried, request.headers, limit, ms, Client)
 
 /// The body of `response`, which `socket` sends after the bytes `carried`,
@@ -568,7 +571,7 @@ export fn readResponseBody(socket : Address(Tcp.SocketMsg),
                            carried : Bytes,
                            response : Response,
                            limit : Int,
-                           ms : Int) : Either(ReadError, #(Bytes, Bytes)) =
+                           ms : Int) : Either(SocketError, #(Bytes, Bytes)) =
     if isBodiless(response.status) then
         Right(#(<<>>, carried))
     else
@@ -581,7 +584,7 @@ fn readBody(socket : Address(Tcp.SocketMsg),
             headers : List(Header),
             limit : Int,
             ms : Int,
-            sender : Sender) : Either(ReadError, #(Bytes, Bytes)) = {
+            sender : Sender) : Either(SocketError, #(Bytes, Bytes)) = {
     let reading = Reading(=socket, =limit, deadline = Clock.monotonic() + ms);
     match framing(headers, sender) {
         Right(Chunked) ->
@@ -661,7 +664,7 @@ fn decimal(text : String) : Optional(Int) =
 fn chunks(reading : Reading,
           bytes : Bytes,
           consumed : Int,
-          body : Bytes) : Either(ReadError, #(Bytes, Bytes)) = {
+          body : Bytes) : Either(SocketError, #(Bytes, Bytes)) = {
     let #(sizeLine, afterSize, consumed) <- line(reading, bytes, consumed);
     let size <- Either.fromOptional(chunkSize(sizeLine), Protocol(Malformed));
     if size == 0 then
@@ -695,7 +698,7 @@ fn chunkSize(sizeLine : Bytes) : Optional(Int) = {
 
 // RFC 9112, section 7.1.2: the trailer lines after the last chunk, dropped,
 // to the empty line that ends the body, and the bytes after it.
-fn trailers(reading : Reading, bytes : Bytes, consumed : Int) : Either(ReadError, Bytes) = {
+fn trailers(reading : Reading, bytes : Bytes, consumed : Int) : Either(SocketError, Bytes) = {
     let #(trailer, rest, consumed) <- line(reading, bytes, consumed);
     if Bytes.isEmpty(trailer) then Right(rest) else trailers(reading, rest, consumed)
 }
@@ -705,7 +708,7 @@ fn trailers(reading : Reading, bytes : Bytes, consumed : Int) : Either(ReadError
 // it, read on from the socket until its line feed comes, within the limit.
 fn line(reading : Reading,
         bytes : Bytes,
-        consumed : Int) : Either(ReadError, #(Bytes, Bytes, Int)) =
+        consumed : Int) : Either(SocketError, #(Bytes, Bytes, Int)) =
     match Bytes.indexOf(bytes, <<'\n':utf8>>) {
         Some(index) ->
             if consumed + index + 1 > reading.limit then
@@ -732,7 +735,7 @@ fn withoutReturn(content : Bytes) : Bytes =
 
 // The first `count` bytes and the bytes after them, read on from the socket
 // until there are as many.
-fn taken(reading : Reading, bytes : Bytes, count : Int) : Either(ReadError, #(Bytes, Bytes)) =
+fn taken(reading : Reading, bytes : Bytes, count : Int) : Either(SocketError, #(Bytes, Bytes)) =
     if Bytes.size(bytes) >= count then
         Right(#(Bytes.slice(bytes, 0, count), Bytes.drop(bytes, count)))
     else {
@@ -742,7 +745,7 @@ fn taken(reading : Reading, bytes : Bytes, count : Int) : Either(ReadError, #(By
 
 // RFC 9112, section 6.3: a response's body the connection's close ends,
 // within the limit, with no bytes after it.
-fn toClose(reading : Reading, bytes : Bytes) : Either(ReadError, #(Bytes, Bytes)) =
+fn toClose(reading : Reading, bytes : Bytes) : Either(SocketError, #(Bytes, Bytes)) =
     if Bytes.size(bytes) > reading.limit then
         Left(Protocol(BodyTooLarge))
     else match received(reading.socket, bytes, reading.deadline) {
@@ -914,6 +917,8 @@ fn absoluteForm(text : String) : Optional(Uri.Reference) =
 /// `Content-Length` of the body's size is written after them (RFC 9110,
 /// section 8.6). A header's value is written as given.
 ///
+/// ### Errors
+///
 /// A head that would not read back as written is a program's own error,
 /// and faults the caller, its cause naming the header or the status: a
 /// header's name that is no token, one or more of the ASCII letters and
@@ -964,6 +969,8 @@ fn isBodiless(status : Int) : Bool =
 /// `Content-Length` nor `Transfer-Encoding`, a `Content-Length` of the
 /// body's size is written after them; a body is written whatever the
 /// method.
+///
+/// ### Errors
 ///
 /// A header faults the caller as `renderResponse` says, and so do a
 /// method and a target `parseRequest` would refuse, its cause naming the
@@ -1083,6 +1090,113 @@ export fn chunk(bytes : Bytes) : Bytes = {
     let size = Optional.withDefault(Int.toStringBase(Bytes.size(bytes), 16), "");
     String.toUtf8(size <> "\r\n") <> bytes <> String.toUtf8("\r\n")
 }
+
+/// Writes the request's head and `body` to `socket`, as `renderRequest`
+/// renders them, within `ms` milliseconds.
+///
+/// A `Left` is `Socket(error)`, as `Tcp.write` answers the error:
+/// `Socket(Timeout)` where the milliseconds pass first, and `Socket(Closed)`
+/// once the connection has closed.
+///
+/// ### Errors
+///
+/// Faults where `renderRequest` faults, a header, the method or the target
+/// that would not read back as written, with its cause, and nothing is
+/// written.
+///
+/// ### Examples
+///
+/// A client's request with a body, its `Content-Length` added:
+///
+/// ```ernest
+/// fn post(socket : Address(Tcp.SocketMsg), body : Bytes) : Either(Http.SocketError, Unit) = {
+///     let request =
+///         Http.Request(method = "POST",
+///                      target = "/items",
+///                      version = Http.http11,
+///                      headers = [Http.Header(name = "Host", value = "example.com")]);
+///     Http.writeRequest(socket, request, body, 5000)
+/// }
+///
+/// post
+/// ```
+///
+/// since 0.10.0
+export fn writeRequest(socket : Address(Tcp.SocketMsg),
+                       request : Request,
+                       body : Bytes,
+                       ms : Int) : Either(SocketError, Unit) =
+    sent(socket, renderRequest(request, body), ms)
+
+/// Writes the response's head and `body` to `socket`, as `renderResponse`
+/// renders them, within `ms` milliseconds.
+///
+/// A `Left` is `Socket(error)`, as `writeRequest` answers it.
+///
+/// ### Errors
+///
+/// Faults where `renderResponse` faults, a header or the status that would
+/// not read back as written, or a body given with a status of 1xx, 204 or
+/// 304, with its cause, and nothing is written.
+///
+/// ### Examples
+///
+/// A server's handler that answers status 404, its phrase the body, and
+/// closes the connection after it:
+///
+/// ```ernest
+/// fn notFound(socket : Address(Tcp.SocketMsg)) : Either(Http.SocketError, Unit) = {
+///     let response =
+///         Http.Response(version = Http.http11,
+///                       status = 404,
+///                       headers = [Http.Header(name = "Connection", value = "close")]);
+///     Http.writeResponse(socket, response, String.toUtf8(Http.reason(404)), 5000)
+/// }
+///
+/// notFound
+/// ```
+///
+/// since 0.10.0
+export fn writeResponse(socket : Address(Tcp.SocketMsg),
+                        response : Response,
+                        body : Bytes,
+                        ms : Int) : Either(SocketError, Unit) =
+    sent(socket, renderResponse(response, body), ms)
+
+/// Writes one chunk of the chunked transfer coding to `socket`, as `chunk`
+/// renders it, within `ms` milliseconds; empty bytes write the last chunk.
+///
+/// A `Left` is `Socket(error)`, as `writeRequest` answers it. The chunks
+/// follow a head that names `Transfer-Encoding: chunked`, written with an
+/// empty body.
+///
+/// ### Examples
+///
+/// A server's handler that answers with a body in chunks, one for each part:
+///
+/// ```ernest
+/// fn stream(socket : Address(Tcp.SocketMsg),
+///           parts : List(String)) : Either(Http.SocketError, Unit) = {
+///     let chunked = [Http.Header(name = "Transfer-Encoding", value = "chunked")];
+///     let response = Http.Response(version = Http.http11, status = 200, headers = chunked);
+///     let _ <- Http.writeResponse(socket, response, <<>>, 5000);
+///     let _ <- List.tryMap(parts, fn(part) = Http.writeChunk(socket, String.toUtf8(part), 5000));
+///     Http.writeChunk(socket, <<>>, 5000)
+/// }
+///
+/// stream
+/// ```
+///
+/// since 0.10.0
+export fn writeChunk(socket : Address(Tcp.SocketMsg),
+                     bytes : Bytes,
+                     ms : Int) : Either(SocketError, Unit) =
+    sent(socket, chunk(bytes), ms)
+
+// Report Appendix G.11: the bytes written to the socket within the
+// milliseconds, its error the socket's.
+fn sent(socket : Address(Tcp.SocketMsg), bytes : Bytes, ms : Int) : Either(SocketError, Unit) =
+    Either.mapLeft(Tcp.write(socket, bytes, ms), Socket)
 
 /// RFC 9110's phrase for `status`, `Not Found` for 404, from its section 15;
 /// `""` for a status it does not name.
@@ -2397,4 +2511,159 @@ let bodyCut =
                              #(Right(Left(Socket(Io.Closed))),
                                Right(Left(Socket(Io.Closed))),
                                Right(Left(Socket(Io.Timeout)))))
+              })
+
+// What `write` answers on one end of a connection, and what `read` answers
+// on the other after it.
+fn exchanged(write : (Address(Tcp.SocketMsg)) -> b,
+             read : (Address(Tcp.SocketMsg)) -> a) : Either(Io.Error, #(b, a)) = {
+    let #(server, client) <- connection();
+    let written = write(client);
+    let answer = read(server);
+    Tcp.close(client);
+    Tcp.close(server);
+    Right(#(written, answer))
+}
+
+// report Appendix G.11: written with the code.
+let requestWritten =
+    Test.Case(name = "a request written to a socket is read back whole, its body after it",
+              run = fn() = {
+                  let request =
+                      Request(method = "POST",
+                              target = "/items",
+                              version = http11,
+                              headers = [Header(name = "Host", value = "example.com")]);
+                  let read = fn(socket) = {
+                      let #(head, carried) <- readRequest(socket, <<>>, defaultLimits, 1000);
+                      let #(body, rest) <- readRequestBody(socket, carried, head, 100, 1000);
+                      Right(#(head, body, rest))
+                  };
+                  Test.equal(exchanged(fn(socket) =
+                                           writeRequest(socket, request, String.toUtf8("{}"), 1000),
+                                       read),
+                             Right(#(Right(Unit),
+                                     Right(#(Request(..request,
+                                                     headers = request.headers <> sized("2")),
+                                             String.toUtf8("{}"),
+                                             <<>>)))))
+              })
+
+// report Appendix G.11: written with the code.
+let responseWritten =
+    Test.Case(name = "a response written to a socket is read back whole, its body after it",
+              run = fn() = {
+                  let response = answered([Header(name = "Content-Type", value = "text/plain")]);
+                  let read = fn(socket) = {
+                      let #(head, carried) <- readResponse(socket, <<>>, defaultLimits, 1000);
+                      let #(body, rest) <- readResponseBody(socket, carried, head, 100, 1000);
+                      Right(#(head, body, rest))
+                  };
+                  Test.equal(exchanged(fn(socket) =
+                                           writeResponse(socket,
+                                                         response,
+                                                         String.toUtf8(helloBody),
+                                                         1000),
+                                       read),
+                             Right(#(Right(Unit),
+                                     Right(#(Response(..response,
+                                                      headers = response.headers <> sized("51")),
+                                             String.toUtf8(helloBody),
+                                             <<>>)))))
+              })
+
+// report Appendix G.11: written with the code.
+let chunksWritten =
+    Test.Case(name = "a chunked response written head and chunks is read back as their bytes",
+              run = fn() = {
+                  let response = answered([Header(name = "Transfer-Encoding", value = "chunked")]);
+                  let write = fn(socket) = {
+                      let _ <- writeResponse(socket, response, <<>>, 1000);
+                      let _ <- writeChunk(socket, String.toUtf8("Wiki"), 1000);
+                      let _ <- writeChunk(socket, String.toUtf8("pedia"), 1000);
+                      writeChunk(socket, <<>>, 1000)
+                  };
+                  let read = fn(socket) = {
+                      let #(head, carried) <- readResponse(socket, <<>>, defaultLimits, 1000);
+                      readResponseBody(socket, carried, head, 100, 1000)
+                  };
+                  Test.equal(exchanged(write, read),
+                             Right(#(Right(Unit), Right(#(String.toUtf8("Wikipedia"), <<>>)))))
+              })
+
+// report Appendix G.11: written with the code.
+let writtenAfterClose =
+    Test.Case(name = "a write to a connection the far end has closed is the socket's Closed",
+              run = fn() = match connection() {
+                  Right(#(server, client)) -> {
+                      Tcp.close(client);
+                      // the read answers once the close has reached the server's socket
+                      let read = readRequest(server, <<>>, defaultLimits, 1000);
+                      let written =
+                          [writeRequest(server, asked([]), <<>>, 1000),
+                           writeResponse(server, answered([]), <<>>, 1000),
+                           writeChunk(server, String.toUtf8("a"), 1000)];
+                      Tcp.close(server);
+                      Test.equal(#(read, written),
+                                 #(Left(Socket(Io.Closed)),
+                                   List.repeat(Left(Socket(Io.Closed)), 3)))
+                  }
+                | Left(error) ->
+                      Test.Failed(Io.show(error))
+              })
+
+// report Appendix G.11: written with the code.
+let writeFaults =
+    Test.Case(name = "a write the rendering refuses faults its writer and writes nothing",
+              run = fn() = match connection() {
+                  Right(#(server, client)) -> {
+                      let faults =
+                          [Test.faults(fn() =
+                                           writeResponse(server,
+                                                         Response(..answered([]), status = 99),
+                                                         <<>>,
+                                                         1000),
+                                       "the status 99 is not three digits"),
+                           Test.faults(fn() =
+                                           writeRequest(server,
+                                                        Request(..asked([]), method = ""),
+                                                        <<>>,
+                                                        1000),
+                                       "the method \"\" is no token")];
+                      // the first bytes the client reads are the next write's
+                      let response = Response(..answered([]), status = 204);
+                      let read =
+                          Either.andThen(writeResponse(server, response, <<>>, 1000),
+                                         fn(_) = readResponse(client, <<>>, defaultLimits, 1000));
+                      Tcp.close(client);
+                      Tcp.close(server);
+                      Test.equal(#(faults, read),
+                                 #(List.repeat(Test.Passed, 2), Right(#(response, <<>>))))
+                  }
+                | Left(error) ->
+                      Test.Failed(Io.show(error))
+              })
+
+// report Appendix G.11: written with the code.
+let writtenInNoTime =
+    Test.Case(name = "a write given no milliseconds is the socket's Timeout, and writes nothing",
+              run = fn() = match connection() {
+                  Right(#(server, client)) -> {
+                      let written =
+                          [writeRequest(server, asked([]), <<>>, 0),
+                           writeResponse(server, answered([]), <<>>, 0),
+                           writeChunk(server, String.toUtf8("a"), 0)];
+                      // the first bytes the client reads are the next write's
+                      let response = Response(..answered([]), status = 204);
+                      let read =
+                          Either.andThen(writeResponse(server, response, <<>>, 1000),
+                                         fn(_) = readResponse(client, <<>>, defaultLimits, 1000));
+                      Tcp.close(client);
+                      Tcp.close(server);
+                      Test.equal(#(written, read),
+                                 #(List.repeat(Left(Socket(Io.Timeout)), 3),
+                                   Right(#(response, <<>>))))
+                  }
+                | Left(error) ->
+                      Test.Failed(Io.show(error))
               })

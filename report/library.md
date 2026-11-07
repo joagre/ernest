@@ -179,7 +179,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    An operations record and a function over one are the program's (§4.9): no module declares one.
 
-Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hold in a library outside the standard library too, as Appendix D's, which the four admission rules do not reach.
+Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 11 hold in a library outside the standard library too, as Appendix D's, which the four admission rules do not reach.
 
 1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. A time that is the operation's own subject, an alarm's or a sleep's, comes first; one that bounds a wait comes last (shape rule 8). No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function that needs a type's member declares the requirement (§4.9) and takes no function of the member's shape: `List.sort(list)` under `needs a.compare`, and `List.sortBy(list, key)` for an order by a key.
 2. One verb per operation on each kind of type that has it, and a type alone of its kind names its own; a module whose operations serve two kinds names the second's with the kind, `closeListener`, `nextFloat`.
@@ -224,6 +224,7 @@ Ten *shape rules* give a function its shape. Shape rules 1 to 5, 7, 9 and 10 hol
    One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is none, and a wait given none has run out as it begins, answering `Left(Timeout)` before any other answer, the host given nothing, or a call `None` (§6.6), but where its section orders its answers otherwise (E.27).
 9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.toString`, is not such a choice.
 10. A name is the word a reader who knows the operation and not Ernest predicts from the thing named, `toCodePoint`, `removeAt`, `width`, `termination`: not a word the design used on its way to the thing, and not one that a name beside it in the module makes mean something else. Where the languages a reader comes from agree on a word or a shape, a slice by an end index, Ernest takes it, and departs only where its section states the departure.
+11. A library's error that wraps `Io.Error` is the error of every operation of the library's protocol on the system module's resource, reading and writing alike, so that a program over the library meets `Io.Error` from that resource only where it opens it: `Http.writeResponse` stands beside `Http.readRequest` (Appendix G.11), and a program over `Http` writes its response with it and not with `Tcp.write`.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
@@ -1188,7 +1189,7 @@ Time.weekday : (Civil) -> Optional(Weekday) // the day of the week of the civil 
 
 ### Appendix G.11. `libs/http` (namespace `Http`)
 
-HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, a head and a body written, a request's target read in its form, and RFC 6265's `Cookie` header read. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language since the host answers names of its own for the headers it knows (E.0 rule 1); the rest is Ernest.
+HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, a head and a body written to bytes or to a socket, a request's target read in its form, and RFC 6265's `Cookie` header read. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language since the host answers names of its own for the headers it knows (E.0 rule 1); the rest is Ernest.
 
 A `Request` is its method, its target as the client wrote it, its version and its headers, in their order and with their names as written; a `Response` is its version, its status and its headers, the status line's phrase being the status's. A body stands beside either as `Bytes`: `renderResponse` and `renderRequest` take one, and a reader of a head answers the bytes after it. `http11` is HTTP/1.1, `Version(major = 1, minor = 1)`.
 
@@ -1204,7 +1205,7 @@ A value is read without the white space before and after it. A limit counts a li
 
 `cookies(headers)` is the pairs of every `Cookie` header, RFC 6265's, in order: each value parted at `;`, each part trimmed of the white space around it and parted at its first `=`, a part with no `=` dropped, and a value kept as written, its quotes among them. `cookie(headers, name)` is the first value under the name, compared exactly.
 
-`readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends.
+`readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is a `SocketError`, the error of every function over a socket: `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends.
 
 `readRequestBody(socket, carried, request, limit, ms)` and `readResponseBody(socket, carried, response, limit, ms)` read the body the head's headers frame and answer it with the bytes after it: `Transfer-Encoding: chunked` decoded, its chunks' extensions and its trailers dropped, else `Content-Length` bytes; where neither frames one a request has no body, and a response's runs to the connection's close (RFC 9112). A response of status 1xx, 204 or 304 has no body, whatever its headers; one to a `HEAD` request has none either, which the reader cannot know, so a client that sent `HEAD` reads none.
 
@@ -1216,6 +1217,8 @@ A header whose name holds anything but a token's characters or whose value holds
 
 `chunk(bytes)` writes one chunk of the chunked transfer coding, RFC 9112 §7.1: the size in hexadecimal, a carriage return and a line feed, the bytes, and a carriage return and a line feed. Empty bytes write the last chunk and an empty trailer section, `0` and two carriage returns and line feeds, since no other chunk is empty. A head that names `Transfer-Encoding: chunked` is rendered with an empty body, and the chunks follow it.
 
+`writeRequest(socket, request, body, ms)`, `writeResponse(socket, response, body, ms)` and `writeChunk(socket, bytes, ms)` write to a socket of `Tcp` what `renderRequest`, `renderResponse` and `chunk` render, within `ms` milliseconds (E.0 shape rule 11). A `Left` is `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass; what the rendering refuses faults the caller as it does there. A program over `Http` opens its connection with `Tcp` and speaks with these.
+
 `date(time)` writes a time as RFC 9110's `IMF-fixdate`, `Sun, 06 Nov 1994 08:49:37 GMT`, over `libs/time`; `parseDate(text)` reads that form and the two obsolete ones the RFC has a reader accept, RFC 850's `Sunday, 06-Nov-94 08:49:37 GMT` and asctime's `Sun Nov  6 08:49:37 1994`, each in its own case and spacing with the day of the week the date's, RFC 850's two-digit year read against the clock as the year with those digits that puts the date not more than fifty years after now; it answers `None` for any other text.
 
 ```
@@ -1226,15 +1229,18 @@ type Response = Response(version : Version, status : Int, headers : List(Header)
 type Limits = Limits(line : Int, headers : Int) // the most bytes of any line, and of the headers together
 type Error = Malformed | LineTooLong | HeadersTooLarge | BodyTooLarge
 type Parsed(a) = Incomplete | Parsed(head : a, rest : Bytes)
-type ReadError = Protocol(Error) | Socket(Io.Error)
+type SocketError = Protocol(Error) | Socket(Io.Error) // the error of every function over a socket
 Http.http11 : Version // HTTP/1.1
 Http.defaultLimits : Limits // a line of 8192 bytes, and headers of 65536 together
 Http.parseRequest : (Bytes, Limits) -> Either(Error, Parsed(Request))
 Http.parseResponse : (Bytes, Limits) -> Either(Error, Parsed(Response))
-Http.readRequest : (Address(Tcp.SocketMsg), Bytes, Limits, Int) -> Either(ReadError, #(Request, Bytes)) // the request and the bytes after its head
-Http.readResponse : (Address(Tcp.SocketMsg), Bytes, Limits, Int) -> Either(ReadError, #(Response, Bytes)) // the response and the bytes after its head
-Http.readRequestBody : (Address(Tcp.SocketMsg), Bytes, Request, Int, Int) -> Either(ReadError, #(Bytes, Bytes)) // the body the request's headers frame, none where they frame none, at most the limit, and the bytes after it
-Http.readResponseBody : (Address(Tcp.SocketMsg), Bytes, Response, Int, Int) -> Either(ReadError, #(Bytes, Bytes)) // the body the response's headers frame, none for a 1xx, 204 or 304, to the close where they frame none, at most the limit, and the bytes after it
+Http.readRequest : (Address(Tcp.SocketMsg), Bytes, Limits, Int) -> Either(SocketError, #(Request, Bytes)) // the request and the bytes after its head
+Http.readResponse : (Address(Tcp.SocketMsg), Bytes, Limits, Int) -> Either(SocketError, #(Response, Bytes)) // the response and the bytes after its head
+Http.readRequestBody : (Address(Tcp.SocketMsg), Bytes, Request, Int, Int) -> Either(SocketError, #(Bytes, Bytes)) // the body the request's headers frame, none where they frame none, at most the limit, and the bytes after it
+Http.readResponseBody : (Address(Tcp.SocketMsg), Bytes, Response, Int, Int) -> Either(SocketError, #(Bytes, Bytes)) // the body the response's headers frame, none for a 1xx, 204 or 304, to the close where they frame none, at most the limit, and the bytes after it
+Http.writeRequest : (Address(Tcp.SocketMsg), Request, Bytes, Int) -> Either(SocketError, Unit) // the head and the body, as renderRequest writes them
+Http.writeResponse : (Address(Tcp.SocketMsg), Response, Bytes, Int) -> Either(SocketError, Unit) // the head and the body, as renderResponse writes them
+Http.writeChunk : (Address(Tcp.SocketMsg), Bytes, Int) -> Either(SocketError, Unit) // one chunk, as chunk writes it; empty bytes the last chunk
 Http.header : (List(Header), String) -> Optional(String) // the first value under the name, in any case
 Http.headers : (List(Header), String) -> List(String) // every value under the name, in order
 Http.renderResponse : (Response, Bytes) -> Bytes // the head and the body

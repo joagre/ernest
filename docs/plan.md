@@ -134,12 +134,15 @@ reader S reads of its live shell. The release note's line on the installed layou
 12. **A process owns what it opens**, done 2026-11-07 (E.18, E.21; the log's *A Process Owns What
     It Opens*). `examples/fetch.ern` runs its fetch under `Process.run`, whose end closes the
     socket on every way out, and no form of the language closes on leaving a block.
-13. **An error across a library**, feedback 185: a block's `<-` takes one error type, so a
-    library whose error wraps the host's makes a program lift every `Tcp` call. A proposal, to be written under
-    `docs/proposals/errors_across_libraries/`, argues the three ways, the library answering
-    `Io.Error` itself, a conversion declared at `<-`, or the form standing as the one way to lift
-    with the library reading and writing the socket for the program, the third recommended;
-    decided with the user, then built here or dropped.
+13. **An error across a library**, feedback 185, decided 2026-11-07 (E.0 shape rule 11, G.11;
+    the log's *An Error Across a Library*): a library's error that wraps `Io.Error` is the error
+    of every operation of its protocol on the resource, so `Http.writeRequest`,
+    `Http.writeResponse` and `Http.writeChunk` stand beside its reads, `ReadError` is
+    `SocketError`, and a program over `Http` meets `Io.Error` only where it opens the connection.
+    The proposal under `docs/proposals/errors_across_libraries/` is its record. Built the same
+    day. ernest-httpd meets the rename at its first build against 0.10.0, before its rehearsal
+    of the switch, and its `smoke.ern` writes its requests with `writeRequest` by its own
+    session, told at the milestone's end.
 14. **The libraries' shims read against E.0 rule 1**, from the release review before 0.9.0: `ern_http`
     runs the whole head loop in Erlang, the limits' accounting, the words and the values, where
     G.11 says a primitive reads a line and the rest is Ernest; `ern_json` computes a position, a
@@ -272,6 +275,12 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    Before its readers start, `tools/paragraphs.sh`, `tools/comments.sh` and
    `tools/unicode_width.escript` are weighed against CLAUDE.md's *Shims*, each written in Ernest
    or its reason to stay stated (the log's *The Layout's Proposal Read*).
+
+   Before them too, `docs/soundness.md`'s section 7 is recut, decided 2026-11-07: its paragraphs
+   cut at their turns and ordered by claim, not by the history of the rules that wrote them, and
+   section 1 naming the two claims it argues beyond the four, that no process runs after the end
+   and that a process's code stands while it runs, with no paragraph's content changed, so that
+   the cold reader reads the argument and not its history (the log's *The Argument Recut*).
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the
