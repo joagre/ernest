@@ -20,7 +20,7 @@ One Ernest module goes through these stages, each a directory of Erlang under `s
 | tree | `ern_tree`, in `shared`, the toolchain's tree, the builds of its own under it and its own Erlang (§11.1, §11.2) | a build's path | its directory |
 | cli | the modules below | command lines | `ern`'s jobs |
 
-`ern_json`, `ern_base64`, `ern_http` and `ern_uri` stand beside the stages, the shims of `libs/json`, `libs/base64`, `libs/http` and `libs/uri`, each beside its library's Ernest (*The libraries' primitives*).
+`ern_json`, `ern_http` and `ern_uri` stand beside the stages, the shims of `libs/json`, `libs/http` and `libs/uri`, each beside its library's Ernest (*The libraries' primitives*).
 
 The modules of `cli`, under `src/toolchain/cli/`:
 
@@ -309,11 +309,11 @@ The tests that hold the library to its names: `src/runtime/test/ern_stdlib_tests
 
 A library under `src/libs/` stands on the host as the standard library does. The primitives it needs in Erlang are a shim beside its Ernest, named for the library, compiled beside its `.erc`, where the load path finds it, and found before any other `.beam` of the program's, since it is the toolchain's own (§11.2).
 
-`src/libs/json/ern_json.erl` is `libs/json`'s (G.6): `ern_json:parse/1`, `ern_json:format/1` and `ern_json:encode/1`.
+`src/libs/json/ern_json.erl` is `libs/json`'s (G.6): `ern_json:decode/1`, `ern_json:format/1` and `ern_json:encode/1`.
 
-`src/libs/base64/ern_base64.erl` is `libs/base64`'s (G.8): `ern_base64:decode/1`.
+`libs/base64` has no shim: its primitives are the host's `base64:encode/1` and `base64:decode/1`, named in its `foreign fn`s (G.8).
 
-`src/libs/http/ern_http.erl` is `libs/http`'s (G.11): `ern_http:parse_request/2` and `ern_http:parse_response/2`.
+`src/libs/http/ern_http.erl` is `libs/http`'s (G.11): `ern_http:read_first/2` and `ern_http:read_field/2`, each a line of a head.
 
 `src/libs/uri/ern_uri.erl` is `libs/uri`'s (G.12): `ern_uri:parse/1`.
 

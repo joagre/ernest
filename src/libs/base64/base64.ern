@@ -71,8 +71,80 @@ export foreign fn encode(bytes : Bytes) : String =
 /// #(Base64.decode("Zm8="), Base64.decode("Zm8"), Base64.decode("Zm-v"))
 /// // => #(Some(<<102, 111>>), None, None)
 /// ```
-export foreign fn decode(text : String) : Optional(Bytes) =
-    "ern_base64:decode/1"
+export fn decode(text : String) : Optional(Bytes) =
+    if isWritten(String.toUtf8(text)) then Some(decoded(text)) else None
+
+// Report Appendix G.8: the host's reading of a text `encode` writes, on
+// which it raises nothing. The host skips white space and drops the bits a
+// `=` leaves unused, which `isWritten` has refused.
+foreign fn decoded(text : String) : Bytes =
+    "base64:decode/1"
+
+// Report Appendix G.8: whether the bytes are a text `encode` writes, four
+// characters at a time, the last four being how `encode` ends a text.
+fn isWritten(bytes : Bytes) : Bool = {
+    let size = Bytes.size(bytes);
+    match bytes {
+        <<before:size(size - 4)-bytes, a, b, c, d>> ->
+            size % 4 == 0 && isEnd(a, b, c, d) && isCharacters(before)
+      | <<>> ->
+            true
+      | _ ->
+            false // fewer than four characters
+    }
+}
+
+// Whether every byte is a character of the alphabet.
+fn isCharacters(bytes : Bytes) : Bool =
+    match bytes {
+        <<byte, rest:bytes>> -> isCharacter(byte) && isCharacters(rest)
+      | _ -> true
+    }
+
+// Whether four characters end a text as `encode` ends one: four of the
+// alphabet; three and a `=`, the third's last two bits clear; or two and
+// two `=`, the second's last four bits clear. Clear bits are RFC 4648's
+// canonical encoding (section 3.5).
+fn isEnd(a : Int, b : Int, c : Int, d : Int) : Bool =
+    if d != 0x3D then
+        isCharacter(a) && isCharacter(b) && isCharacter(c) && isCharacter(d)
+    else if c != 0x3D then
+        isCharacter(a) && isCharacter(b) && isClear(c, 4)
+    else
+        isCharacter(a) && isClear(b, 16)
+
+// Whether the byte is a character of the standard alphabet (RFC 4648,
+// section 4).
+fn isCharacter(byte : Int) : Bool =
+    byte >= 0x41 && byte <= 0x5A
+        || byte >= 0x61 && byte <= 0x7A
+        || byte >= 0x30 && byte <= 0x39
+        || byte == 0x2B
+        || byte == 0x2F
+
+// Whether the byte is a character whose place in the alphabet is a multiple
+// of `multiple`, the bits below it clear.
+fn isClear(byte : Int, multiple : Int) : Bool =
+    match place(byte) {
+        Some(bits) -> bits % multiple == 0
+      | None -> false
+    }
+
+// A character's place in the standard alphabet, its six bits, or `None`
+// for a byte that is no character of it.
+fn place(byte : Int) : Optional(Int) =
+    if byte >= 0x41 && byte <= 0x5A then
+        Some(byte - 0x41)
+    else if byte >= 0x61 && byte <= 0x7A then
+        Some(byte - 0x61 + 26)
+    else if byte >= 0x30 && byte <= 0x39 then
+        Some(byte - 0x30 + 52)
+    else if byte == 0x2B then
+        Some(62)
+    else if byte == 0x2F then
+        Some(63)
+    else
+        None
 
 //
 // The tests (report §9.3), run by `ern test` as every library's are. They
@@ -138,6 +210,29 @@ let unusedBits =
     Test.Case(name = "a bit the bytes do not use, set before a =, is refused",
               run = fn() = Test.equal(read(["Zh==", "Zm9="]), []))
 
+// The standard alphabet, RFC 4648's (section 4).
+let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+// report Appendix G.8: of every text of four characters that begins with
+// `Q`, its other three each a character of the alphabet, `=` or a space,
+// those `encode` writes are read, 64^3 of three bytes, 64 * 16 of two and 4
+// of one, and every other is refused.
+let exactlyWritten =
+    Test.Case(name = "of the texts of four characters after Q, those encode writes are read",
+              run = fn() = {
+                  let characters =
+                      List.map(String.toList(alphabet <> "= "), fn(char) = String.fromList([char]));
+                  let texts =
+                      extended(extended(extended(["Q"], characters), characters), characters);
+                  let read =
+                      List.filterMap(texts,
+                                     fn(text) =
+                                         Optional.map(decode(text), fn(bytes) = #(text, bytes)));
+                  Test.equal(#(List.size(read),
+                               List.filter(read, fn(#(text, bytes)) = encode(bytes) != text)),
+                             #(64 * 64 * 64 + 64 * 16 + 4, []))
+              })
+
 // report Appendix G.8: every count of bytes from 0 to 256, so that each
 // byte's value and each count left over from three are written.
 let readBack =
@@ -148,6 +243,10 @@ let readBack =
                   Test.equal(List.map(parts, fn(bytes) = decode(encode(bytes))),
                              List.map(parts, Some))
               })
+
+// Each of the prefixes with each of the characters after it.
+fn extended(prefixes : List(String), characters : List(String)) : List(String) =
+    List.flatMap(prefixes, fn(prefix) = List.map(characters, fn(character) = prefix <> character))
 
 // The texts of `texts` that `decode` reads, which a case of refused texts
 // expects to be none.

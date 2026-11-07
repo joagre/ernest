@@ -289,8 +289,8 @@ export type SocketError =
 /// }
 /// // => #("/a", Some("GET /b HTTP/1.1\r\n\r\n"))
 /// ```
-export foreign fn parseRequest(bytes : Bytes, limits : Limits) : Either(Error, Parsed(Request)) =
-    "ern_http:parse_request/2"
+export fn parseRequest(bytes : Bytes, limits : Limits) : Either(Error, Parsed(Request)) =
+    parsed(requestHeading(bytes, limits, 1), limits)
 
 /// The response whose head `bytes` begin with, and the bytes after the head,
 /// or `Incomplete` where they end before the head's empty line, read as
@@ -314,8 +314,361 @@ export foreign fn parseRequest(bytes : Bytes, limits : Limits) : Either(Error, P
 /// }
 /// // => #(404, [Http.Header(name = "Content-Length", value = "0")])
 /// ```
-export foreign fn parseResponse(bytes : Bytes, limits : Limits) : Either(Error, Parsed(Response)) =
-    "ern_http:parse_response/2"
+export fn parseResponse(bytes : Bytes, limits : Limits) : Either(Error, Parsed(Response)) =
+    parsed(responseHeading(bytes, limits), limits)
+
+// A head whose first line is read: what makes the head of its headers, who
+// sent it, the headers read, the last first, the bytes their lines took,
+// and the bytes from the line under way on.
+type Heading(a) =
+    Heading(make : (List(Header)) -> a,
+            sender : Sender,
+            headers : List(Header),
+            taken : Int,
+            rest : Bytes)
+
+// Who sent a message a reader reads: a client, a request's, or a server, a
+// response's. A server's folded header is read unfolded, and its body's
+// framing differs where the headers frame none, and where the last
+// transfer coding is not chunked (RFC 9112, sections 5.2 and 6.3).
+type Sender = Client | Server
+
+// How far a head's header lines are read: to the head's end, the head and
+// the bytes after it, or partway, to a line the bytes end inside, which the
+// heading's rest begins with.
+type Step(a) = Done(head : a, rest : Bytes) | Partway(Heading(a))
+
+// The host's reading of one line of a head (report Appendix G.11): the
+// bytes end inside it, `More`; it passes the size it is given before its
+// line feed, `TooLong`; a request line or a status line, with its version,
+// a status line's status, and the bytes after the line; a header line, by
+// its name and its value; the empty line, the head's end; or a line the
+// host cannot read.
+type Line =
+    More
+  | TooLong
+  | RequestLine(major : Int, minor : Int, rest : Bytes)
+  | StatusLine(major : Int, minor : Int, status : Int, rest : Bytes)
+  | Field(name : String, value : Bytes, rest : Bytes)
+  | HeadEnd(rest : Bytes)
+  | Unreadable(line : Bytes, rest : Bytes)
+
+// The host's `erlang:decode_packet` over the first line, given the most
+// bytes the line may take, 0 being no limit.
+foreign fn readFirst(bytes : Bytes, size : Int) : Line =
+    "ern_http:read_first/2"
+
+// The host's `erlang:decode_packet` over a header line, as `readFirst`.
+foreign fn readField(bytes : Bytes, size : Int) : Line =
+    "ern_http:read_field/2"
+
+// Report Appendix G.11: the head a first line's reading leads to, or
+// `Incomplete`.
+fn parsed(first : Either(Error, Optional(Heading(a))), limits : Limits) : Either(Error, Parsed(a)) =
+    match first {
+        Right(Some(heading)) ->
+            match headerLines(heading, limits) {
+                Right(Done(=head, =rest)) -> Right(Parsed(=head, =rest))
+              | Right(Partway(_)) -> Right(Incomplete)
+              | Left(error) -> Left(error)
+            }
+      | Right(None) ->
+            Right(Incomplete)
+      | Left(error) ->
+            Left(error)
+    }
+
+// Report Appendix G.11: the request line the bytes begin with, as the
+// request's heading, or `None` where the bytes end inside it. `skips` is
+// how many empty lines may still be skipped before it, as RFC 9112,
+// section 2.2 has a server skip one.
+//
+// The host reads a request line without a version as HTTP/0.9's, `GET
+// HTTP/1.1` among them, whose target it takes for `HTTP/1.1`, and reads a
+// version past its form, `HTTP/1.1x` as 1.1. So the line is read again
+// here as its three words, the method, the target as the client wrote it,
+// and the version as RFC 9112, section 2.3 writes one.
+fn requestHeading(bytes : Bytes,
+                  limits : Limits,
+                  skips : Int) : Either(Error, Optional(Heading(Request))) =
+    if Bytes.isEmpty(bytes) then
+        Right(None)
+    else if limits.line < 1 then
+        Left(LineTooLong)
+    else match readFirst(bytes, packetSize(limits.line, bytes)) {
+        More ->
+            Right(None)
+      | TooLong ->
+            Left(LineTooLong)
+      | Unreadable(=line, =rest) ->
+            if skips > 0 && isEmptyLine(line) then
+                requestHeading(rest, limits, skips - 1)
+            else
+                Left(Malformed)
+      | RequestLine(=major, =minor, =rest) ->
+            match words(lineOf(bytes, rest), 0, []) {
+                [method, target, version] when isTarget(target) && isVersion(version) ->
+                    match #(String.fromUtf8(method), String.fromUtf8(target)) {
+                        #(Some(methodText), Some(targetText)) -> {
+                            let make =
+                                fn(headers) =
+                                    Request(method = methodText,
+                                            target = targetText,
+                                            version = Version(=major, =minor),
+                                            =headers);
+                            Right(Some(Heading(=make,
+                                               sender = Client,
+                                               headers = [],
+                                               taken = 0,
+                                               =rest)))
+                        }
+                      | _ ->
+                            Left(Malformed)
+                    }
+              | _ ->
+                    Left(Malformed)
+            }
+      | _ ->
+            Left(Malformed)
+    }
+
+// Report Appendix G.11: the status line the bytes begin with, as the
+// response's heading, or `None` where the bytes end inside it. The host
+// reads a status of any count of digits, `0200` as 200, so the line's
+// second word is read again as the three digits RFC 9112, section 4
+// writes, and its phrase is dropped: the status's is `reason`'s.
+fn responseHeading(bytes : Bytes, limits : Limits) : Either(Error, Optional(Heading(Response))) =
+    if Bytes.isEmpty(bytes) then
+        Right(None)
+    else if limits.line < 1 then
+        Left(LineTooLong)
+    else match readFirst(bytes, packetSize(limits.line, bytes)) {
+        More ->
+            Right(None)
+      | TooLong ->
+            Left(LineTooLong)
+      | StatusLine(=major, =minor, =status, =rest) ->
+            match words(lineOf(bytes, rest), 0, []) {
+                _ :: word :: _ ->
+                    if isStatus(word) then {
+                        let make =
+                            fn(headers) =
+                                Response(version = Version(=major, =minor), =status, =headers);
+                        Right(Some(Heading(=make, sender = Server, headers = [], taken = 0, =rest)))
+                    } else
+                        Left(Malformed)
+              | _ ->
+                    Left(Malformed)
+            }
+      | _ ->
+            Left(Malformed)
+    }
+
+// Report Appendix G.11: the header lines from the heading's rest on, to the
+// empty line that ends the head, each line within the line's limit and all
+// of them, their line endings counted, within the headers'. The host
+// answers a header line once the byte after it shows that the next line is
+// no continuation of it.
+//
+// A header line may take the headers' limit less what the lines before it
+// took, or the line's limit where that is less, so that the host refuses it
+// at the bytes that pass either; the empty line that ends the head is no
+// header line, and may take the line's limit.
+fn headerLines(heading : Heading(a), limits : Limits) : Either(Error, Step(a)) = {
+    let bytes = heading.rest;
+    let room = if isHeadEnd(bytes) then
+        limits.line
+    else
+        Int.min(limits.line, limits.headers - heading.taken);
+    if Bytes.isEmpty(bytes) then
+        Right(Partway(heading))
+    else if room < 1 then
+        Left(HeadersTooLarge)
+    else match readField(bytes, packetSize(room, bytes)) {
+        More ->
+            Right(Partway(heading))
+      | TooLong ->
+            Left(HeadersTooLarge)
+      | HeadEnd(=rest) ->
+            Right(Done(head = heading.make(List.reverse(heading.headers)), =rest))
+      | Field(=name, =value, =rest) ->
+            match headerOf(name, value, heading.sender) {
+                Some(header) ->
+                    headerLines(Heading(..heading,
+                                        headers = header :: heading.headers,
+                                        taken = heading.taken + lineSize(bytes, rest),
+                                        =rest),
+                                limits)
+              | None ->
+                    Left(Malformed)
+            }
+      | _ ->
+            Left(Malformed)
+    }
+}
+
+// Report Appendix G.11: a header by its name as written and its value
+// without the spaces and tabs around it, which RFC 9112, section 5.1 leaves
+// out of the value and the host keeps after it. A header the host reads
+// with no name is refused, as is a value holding a carriage return or a
+// line feed, which a request's header folded over two lines holds, or a
+// NUL, which RFC 9110, section 5.5 has a recipient refuse, or one that is
+// not UTF-8, which no `String` holds. A server's value is unfolded first.
+fn headerOf(name : String, value : Bytes, sender : Sender) : Optional(Header) =
+    if name == "" then
+        None
+    else {
+        let read = match sender {
+            Client -> value
+          | Server -> unfolded(value)
+        };
+        let trimmedValue = trimmed(read);
+        if isPlain(trimmedValue) then match String.fromUtf8(trimmedValue) {
+            Some(text) -> Some(Header(=name, value = text))
+          | None -> None
+        } else
+            None
+    }
+
+// RFC 9112, section 5.2: a response's value with each fold, a line break
+// and the white space around it, replaced by one space, as a user agent
+// replaces it; the host answers a folded value with its line breaks.
+fn unfolded(value : Bytes) : Bytes =
+    if Bytes.contains(value, <<'\n':utf8>>) then
+        Bytes.join(List.map(foldedLines(Bytes.split(value, <<'\n':utf8>>)), trimmed), <<' ':utf8>>)
+    else
+        value
+
+// The lines of a folded value, each but the last without the carriage
+// return before its line feed.
+fn foldedLines(lines : List(Bytes)) : List(Bytes) =
+    match lines {
+        line :: next :: rest -> withoutReturn(line) :: foldedLines(next :: rest)
+      | _ -> lines
+    }
+
+// Whether the bytes hold no carriage return, line feed or NUL.
+fn isPlain(bytes : Bytes) : Bool =
+    match bytes {
+        <<byte, rest:bytes>> when byte != 0x0D && byte != 0x0A && byte != 0 -> isPlain(rest)
+      | <<>> -> true
+      | _ -> false
+    }
+
+// The bytes without the spaces and tabs before and after them.
+fn trimmed(bytes : Bytes) : Bytes =
+    trimmedEnd(trimmedStart(bytes))
+
+fn trimmedStart(bytes : Bytes) : Bytes =
+    match bytes {
+        <<byte, rest:bytes>> when isBlank(byte) -> trimmedStart(rest)
+      | _ -> bytes
+    }
+
+fn trimmedEnd(bytes : Bytes) : Bytes = {
+    let size = Bytes.size(bytes);
+    match bytes {
+        <<before:size(size - 1)-bytes, byte>> when isBlank(byte) -> trimmedEnd(before)
+      | _ -> bytes
+    }
+}
+
+// Whether a byte is a space or a tab, which part a request line's words
+// and stand around a header's value.
+fn isBlank(byte : Int) : Bool =
+    byte == 0x20 || byte == 0x09
+
+// Whether the bytes begin with the empty line, or with the carriage return
+// it may begin with, its line feed still to come.
+fn isHeadEnd(bytes : Bytes) : Bool =
+    match bytes {
+        <<'\n':utf8, _:bytes>> -> true
+      | <<'\r':utf8, '\n':utf8, _:bytes>> -> true
+      | <<'\r':utf8>> -> true
+      | _ -> false
+    }
+
+// Whether a line the host could not read is an empty one.
+fn isEmptyLine(line : Bytes) : Bool =
+    line == <<'\r':utf8, '\n':utf8>> || line == <<'\n':utf8>>
+
+// The host's `packet_size` for a line that may take `limit` bytes, its line
+// ending among them: the limit, or none, 0, where the bytes are shorter,
+// since no line in them can pass it and the host takes no size past 2^32 -
+// 1. The host refuses a line once it passes the size, before its line feed
+// comes.
+fn packetSize(limit : Int, bytes : Bytes) : Int =
+    if limit > Bytes.size(bytes) then 0 else limit
+
+// The line the bytes begin with, which `rest` follows, without its line
+// feed and a carriage return before it.
+fn lineOf(bytes : Bytes, rest : Bytes) : Bytes =
+    withoutReturn(Bytes.slice(bytes, 0, lineSize(bytes, rest) - 1))
+
+// The size of the line the bytes begin with, which `rest` follows, its
+// line ending among it.
+fn lineSize(bytes : Bytes, rest : Bytes) : Int =
+    Bytes.size(bytes) - Bytes.size(rest)
+
+// The line without the carriage return before its line feed.
+fn withoutReturn(content : Bytes) : Bytes =
+    if Bytes.endsWith(content, <<'\r':utf8>>) then
+        Bytes.slice(content, 0, Bytes.size(content) - 1)
+    else
+        content
+
+// The words of a line without its ending, at most four, `count` of them
+// read: the runs of bytes between spaces and tabs, at which RFC 9112,
+// section 3 parts a request line. The section lets a recipient part one at
+// a bare carriage return, a vertical tab and a form feed too, which the
+// host refuses between words; so a bare carriage return stays in its word,
+// where a target holds none.
+fn words(line : Bytes, count : Int, acc : List(Bytes)) : List(Bytes) =
+    match line {
+        <<byte, rest:bytes>> when count < 4 ->
+            if isBlank(byte) then
+                words(rest, count, acc)
+            else {
+                let size = wordSize(line, 0);
+                words(Bytes.drop(line, size), count + 1, Bytes.slice(line, 0, size) :: acc)
+            }
+      | _ ->
+            List.reverse(acc)
+    }
+
+fn wordSize(bytes : Bytes, size : Int) : Int =
+    match bytes {
+        <<byte, rest:bytes>> when !isBlank(byte) -> wordSize(rest, size + 1)
+      | _ -> size
+    }
+
+// Whether a word is a version, `HTTP/`, a digit, `.` and a digit.
+fn isVersion(word : Bytes) : Bool =
+    match word {
+        <<'H':utf8, 'T':utf8, 'T':utf8, 'P':utf8, '/':utf8, major, '.':utf8, minor>> ->
+            isDigit(major) && isDigit(minor)
+      | _ ->
+            false
+    }
+
+// Whether a word is a status, three digits.
+fn isStatus(word : Bytes) : Bool =
+    match word {
+        <<hundreds, tens, ones>> -> isDigit(hundreds) && isDigit(tens) && isDigit(ones)
+      | _ -> false
+    }
+
+fn isDigit(byte : Int) : Bool =
+    byte >= 0x30 && byte <= 0x39
+
+// Report Appendix G.11: whether a target is written in the visible ASCII
+// characters, RFC 3986's, so that a raw UTF-8 byte is refused.
+fn isTarget(bytes : Bytes) : Bool =
+    match bytes {
+        <<byte, rest:bytes>> when byte >= 0x21 && byte <= 0x7E -> isTarget(rest)
+      | <<>> -> true
+      | _ -> false
+    }
 
 /// The request whose head `socket` sends after the bytes `carried`, read
 /// within `ms` milliseconds, and the bytes read after its head.
@@ -350,7 +703,7 @@ export fn readRequest(socket : Address(Tcp.SocketMsg),
     readHead(HeadReading(=socket,
                          =deadline,
                          =limits,
-                         parse = fn(bytes) = parseRequest(bytes, limits)),
+                         first = fn(bytes) = requestHeading(bytes, limits, 1)),
              carried)
 }
 
@@ -390,101 +743,78 @@ export fn readResponse(socket : Address(Tcp.SocketMsg),
     readHead(HeadReading(=socket,
                          =deadline,
                          =limits,
-                         parse = fn(bytes) = parseResponse(bytes, limits)),
+                         first = fn(bytes) = responseHeading(bytes, limits)),
              carried)
 }
 
 // What reads a head: its socket, the deadline on the monotonic clock, the
-// limits, and the parse of a request's head or a response's.
+// limits, and the reading of a request's first line or a response's.
 type HeadReading(a) =
     HeadReading(socket : Address(Tcp.SocketMsg),
                 deadline : Int,
                 limits : Limits,
-                parse : (Bytes) -> Either(Error, Parsed(a)))
+                first : (Bytes) -> Either(Error, Optional(Heading(a))))
 
 // Report Appendix G.11: the head the bytes begin with, read on from the
 // socket while it is incomplete, each read given what is left until the
 // deadline.
 //
-// The bytes are parsed from the head's start again only where a parse can
-// answer otherwise than the last: where the new bytes hold a line feed,
-// which may end a line or the head, or where they reach the size at which
-// a limit passes inside the line under way (`passingSize`), where the
-// primitive refuses them. So a head is refused at the bytes that pass its
-// limits though no line feed comes, and a client that paces its bytes
-// costs a parse a line, not a parse a read.
-//
-// Each parse reads the lines before it again, so a head of many lines that
-// comes a line at a time costs the square of its lines.
+// A line is read again only where its reading can answer otherwise than
+// the last: where the new bytes hold a line feed, which may end it, or
+// where they reach the size at which a limit passes inside it, where the
+// host refuses it. A header line is read again from its own start, and the
+// lines before it are not, so that each line is read at most twice however
+// the bytes come: the second time where the host waited for the byte after
+// it, which shows that the line is no fold.
 fn readHead(reading : HeadReading(a), bytes : Bytes) : Either(SocketError, #(a, Bytes)) =
-    match reading.parse(bytes) {
-        Right(Parsed(=head, =rest)) -> Right(#(head, rest))
-      | Right(Incomplete) -> readOn(reading, bytes, passingSize(bytes, reading.limits))
-      | Left(error) -> Left(Protocol(error))
+    match reading.first(bytes) {
+        Right(Some(heading)) ->
+            readHeaderLines(reading, headerLines(heading, reading.limits))
+      | Right(None) -> {
+            let more <- readOn(reading, bytes, firstPassing(bytes, reading.limits));
+            readHead(reading, more)
+        }
+      | Left(error) ->
+            Left(Protocol(error))
+    }
+
+// The head the header lines lead to, read on from the socket while they
+// stop partway.
+fn readHeaderLines(reading : HeadReading(a),
+                   step : Either(Error, Step(a))) : Either(SocketError, #(a, Bytes)) =
+    match step {
+        Right(Done(=head, =rest)) ->
+            Right(#(head, rest))
+      | Right(Partway(heading)) -> {
+            let room = Int.min(reading.limits.line, reading.limits.headers - heading.taken);
+            let more <- readOn(reading, heading.rest, room);
+            readHeaderLines(reading, headerLines(Heading(..heading, rest = more), reading.limits))
+        }
+      | Left(error) ->
+            Left(Protocol(error))
     }
 
 // The bytes with what the socket answers after them, read on until the new
-// bytes hold a line feed or the bytes reach `passing`, and the head they
-// then begin with.
-fn readOn(reading : HeadReading(a),
-          bytes : Bytes,
-          passing : Int) : Either(SocketError, #(a, Bytes)) = {
+// bytes hold a line feed or the bytes reach `passing`.
+fn readOn(reading : HeadReading(a), bytes : Bytes, passing : Int) : Either(SocketError, Bytes) = {
     let more <- received(reading.socket, bytes, reading.deadline);
     let read = Bytes.drop(more, Bytes.size(bytes));
     if Bytes.contains(read, <<'\n':utf8>>) || Bytes.size(more) >= passing then
-        readHead(reading, more)
+        Right(more)
     else
         readOn(reading, more, passing)
 }
 
-// The size the head's bytes may reach with no line feed more before a
-// limit passes inside the line under way, as the primitive counts the
-// limits: the first line within the line's limit, after the one empty line
-// a request may begin with; then a header line within it from its first
-// byte, and the header lines together within the headers' limit from the
-// first line's end.
-fn passingSize(bytes : Bytes, limits : Limits) : Int = {
-    let skipped = if Bytes.startsWith(bytes, <<'\r':utf8, '\n':utf8>>) then
-        2
+// The size the bytes may reach with no line feed more before the first
+// line passes the line's limit, after the one empty line a request may
+// begin with.
+fn firstPassing(bytes : Bytes, limits : Limits) : Int =
+    if Bytes.startsWith(bytes, <<'\r':utf8, '\n':utf8>>) then
+        2 + limits.line
     else if Bytes.startsWith(bytes, <<'\n':utf8>>) then
-        1
+        1 + limits.line
     else
-        0;
-    match Bytes.indexOf(Bytes.drop(bytes, skipped), <<'\n':utf8>>) {
-        None ->
-            skipped + limits.line
-      | Some(index) -> {
-            let firstEnd = skipped + index + 1;
-            Int.min(lineStart(bytes, firstEnd) + limits.line, firstEnd + limits.headers)
-        }
-    }
-}
-
-// Where the header line under way begins: after the last line feed past
-// the first line that a byte other than a space or a tab follows, a header
-// folded over lines being one line (RFC 9112, section 5.2), or at the
-// first line's end. A line feed the bytes end with may begin a fold, so
-// the line it ends is taken as under way, which costs at most a parse
-// more.
-fn lineStart(bytes : Bytes, firstEnd : Int) : Int =
-    match Bytes.lastIndexOf(Bytes.drop(bytes, firstEnd), <<'\n':utf8>>) {
-        None ->
-            firstEnd
-      | Some(index) -> {
-            let next = firstEnd + index + 1;
-            if next < Bytes.size(bytes) && !isFolded(bytes, next) then
-                next
-            else
-                lineStart(Bytes.slice(bytes, 0, next - 1), firstEnd)
-        }
-    }
-
-// Whether the byte at the index is a space or a tab, which continues the
-// line before it.
-fn isFolded(bytes : Bytes, index : Int) : Bool = {
-    let byte = Bytes.slice(bytes, index, index + 1);
-    byte == <<' ':utf8>> || byte == <<'\t':utf8>>
-}
+        limits.line
 
 // The bytes with what the socket answers next after them, waiting until the
 // deadline at most. A deadline passed is a timeout, as a wait given no time
@@ -605,11 +935,6 @@ type Reading = Reading(socket : Address(Tcp.SocketMsg), limit : Int, deadline : 
 // What frames a body (RFC 9112, section 6.3).
 type Framing = Chunked | Length(Int) | ToClose
 
-// Who sent the body a reader reads: a client, a request's, or a server, a
-// response's, whose framing differs where the headers frame none, and
-// where the last transfer coding is not chunked (RFC 9112, section 6.3).
-type Sender = Client | Server
-
 // Report Appendix G.11, RFC 9112, sections 6.1 and 6.3: a transfer coding
 // frames the body, its last coding deciding how, and the field's values are
 // one list however many lines carry them; a `Content-Length` beside it, or
@@ -725,13 +1050,6 @@ fn line(reading : Reading,
                 line(reading, more, consumed)
             }
     }
-
-// The line without the carriage return before its line feed.
-fn withoutReturn(content : Bytes) : Bytes =
-    if Bytes.endsWith(content, <<'\r':utf8>>) then
-        Bytes.slice(content, 0, Bytes.size(content) - 1)
-    else
-        content
 
 // The first `count` bytes and the bytes after them, read on from the socket
 // until there are as many.
@@ -1657,22 +1975,86 @@ let malformed =
              "GET / HTTP/1.1\r\n: a\r\n\r\n",
              "GET / HTTP/1.1\r\nHost : a\r\n\r\n",
              "GET / HTTP/1.1\r\nX: a\r\n b\r\n\r\n",
+             "GET / HTTP/1.1\r\nX: a\r\n\tb\r\n\r\n",
              "GET / HTTP/1.1\r\nX: a\rb\r\n\r\n",
-             "GET / HTTP/1.1\r\nX: a\u{0}b\r\n\r\n"];
+             "GET / HTTP/1.1\r\nX: a\u{0}b\r\n\r\n",
+             "GET / HTTP/11.1\r\n\r\n",
+             "GET /a\rHTTP/1.1\r\n\r\n",
+             "GET\r/\rHTTP/1.1\r\n\r\n",
+             "GET /\u{e9} HTTP/1.1\r\n\r\n",
+             "GET /\u{301}x HTTP/1.1\r\n\r\n",
+             "GET /a\u{1}b HTTP/1.1\r\n\r\n",
+             "GET /\u{7f} HTTP/1.1\r\n\r\n",
+             "GET / HTTP/1.1\r\nX y: z\r\n\r\n",
+             "GET / HTTP/1.1\r\n Host: x\r\n\r\n",
+             "GET / HTTP/1.1\r\nX(y): z\r\n\r\n"];
         let notUtf8 =
-            String.toUtf8("GET / HTTP/1.1\r\nX: ") <> <<255>> <> String.toUtf8("\r\n\r\n");
+            List.map([<<255>>, <<0xC3>>],
+                     fn(byte) =
+                         String.toUtf8("GET / HTTP/1.1\r\nX: a")
+                             <> byte
+                             <> String.toUtf8("\r\n\r\n"));
+        let responses = ["GET / HTTP/1.1\r\n\r\n", "\r\nHTTP/1.1 200 OK\r\n\r\n"];
         Test.equal(#(List.map(texts, fn(text) = parseRequest(String.toUtf8(text), defaultLimits))
-                         <> [parseRequest(notUtf8, defaultLimits)],
-                     parseResponse(String.toUtf8("GET / HTTP/1.1\r\n\r\n"), defaultLimits)),
-                   #(List.repeat(Left(Malformed), List.size(texts) + 1), Left(Malformed)))
+                         <> List.map(notUtf8, fn(bytes) = parseRequest(bytes, defaultLimits)),
+                     List.map(responses,
+                              fn(text) = parseResponse(String.toUtf8(text), defaultLimits))),
+                   #(List.repeat(Left(Malformed), List.size(texts) + 2),
+                     [Left(Malformed), Left(Malformed)]))
     })
 
-// report Appendix G.11: written with the code.
+// report Appendix G.11: a request line's words, and a status line's, are
+// parted at runs of spaces and tabs, the phrase after a status dropped,
+// an empty one among them, and a method, a target and a header's name are
+// read as the client wrote them, where the host reads a name it knows as
+// its own atom and recapitalizes one it does not.
+let asWritten =
+    Test.Case(name = "a line's words are parted at runs of blanks, and read as written",
+              run = fn() = {
+                  let request =
+                      requestOf("PATCH  /a%CC%81\tHTTP/1.0 \r\nhost: a\r\n"
+                                    <> "Sec-WebSocket-Key: k\r\n\r\n");
+                  let statuses =
+                      ["HTTP/1.1  200 OK",
+                       "HTTP/1.1\t200\tOK",
+                       "HTTP/1.1 099 Low",
+                       "HTTP/1.1 404",
+                       "HTTP/1.1 404 ",
+                       "HTTP/1.0 200 Very Fine"];
+                  let status =
+                      fn(line) =
+                          Optional.map(headOf(parseResponse(String.toUtf8(line <> "\r\n\r\n"),
+                                                            defaultLimits)),
+                                       fn(response) = #(response.version.minor, response.status));
+                  Test.equal(#(request, List.map(statuses, status)),
+                             #(Some(Request(method = "PATCH",
+                                            target = "/a%CC%81",
+                                            version = Version(major = 1, minor = 0),
+                                            headers = [Header(name = "host", value = "a"),
+                                                       Header(name = "Sec-WebSocket-Key",
+                                                              value = "k")])),
+                               [Some(#(1, 200)),
+                                Some(#(1, 200)),
+                                Some(#(1, 99)),
+                                Some(#(1, 404)),
+                                Some(#(1, 404)),
+                                Some(#(0, 200))]))
+              })
+
+// report Appendix G.11: written with the code; an empty line alone is no
+// request yet, and the line's limit is the request line's.
 let emptyLineSkipped =
     Test.Case(name = "one empty line before a request line is skipped, on a socket too",
               run = fn() =
-                  Test.equal(#(Optional.map(requestOf("\r\nGET /a HTTP/1.1\r\n\r\n"),
-                                            fn(request) = request.target),
+                  Test.equal(#(List.map(["\r\nGET /a HTTP/1.1\r\n\r\n", "\nGET /a HTTP/1.1\n\n"],
+                                        fn(text) =
+                                            Optional.map(requestOf(text),
+                                                         fn(request) = request.target)),
+                               List.map(["\r\n", "\r", "\n\r"],
+                                        fn(text) =
+                                            parseRequest(String.toUtf8(text), defaultLimits)),
+                               parseRequest(String.toUtf8("\r\nGET / HTTP/1.1\r\n\r\n"),
+                                            Limits(line = 1, headers = 0)),
                                served(["GET /b HTTP/1.1\r\n\r\n"],
                                       StaysOpen,
                                       fn(socket) =
@@ -1681,7 +2063,10 @@ let emptyLineSkipped =
                                                                  defaultLimits,
                                                                  1000),
                                                      fn(#(request, _)) = request.target))),
-                             #(Some("/a"), Right(Right("/b")))))
+                             #([Some("/a"), Some("/a")],
+                               [Right(Incomplete), Right(Incomplete), Right(Incomplete)],
+                               Left(LineTooLong),
+                               Right(Right("/b")))))
 
 // report Appendix G.11: a regression test; the host read these as 20, 2000
 // and 200.
@@ -1690,9 +2075,13 @@ let threeDigits = Test.Case(name = "a status line's status is three digits", run
     Test.equal(List.map(["HTTP/1.1 20 OK\r\n\r\n",
                          "HTTP/1.1 2000 OK\r\n\r\n",
                          "HTTP/1.1 0200 OK\r\n\r\n",
+                         "HTTP/1.1 2 00 OK\r\n\r\n",
+                         "HTTP/1.1 20\r\n\r\n",
                          "HTTP/1.1 200 OK\r\n\r\n"],
                         read),
                [Left(Malformed),
+                Left(Malformed),
+                Left(Malformed),
                 Left(Malformed),
                 Left(Malformed),
                 Right(Parsed(head = Response(version = http11, status = 200, headers = []),
@@ -1704,13 +2093,29 @@ let responseFolds =
     Test.Case(name = "a response's header folded over lines is read with each fold one space",
               run = fn() = {
                   let text = "HTTP/1.1 200 OK\r\nX: a \r\n\t b\r\n c\r\nY: d\r\n\r\n";
+                  let bareReturn = "HTTP/1.1 200 OK\r\nX: a\r\r\n b\r\n\r\n";
+                  let headers =
+                      fn(text) =
+                          Optional.map(headOf(parseResponse(String.toUtf8("HTTP/1.1 200 OK\r\n"
+                                                                              <> text),
+                                                            defaultLimits)),
+                                       fn(response) = response.headers);
                   Test.equal(#(Optional.map(headOf(parseResponse(String.toUtf8(text),
                                                                  defaultLimits)),
                                             fn(response) = response.headers),
+                               List.map(["X:\r\n b\r\n\r\n",
+                                         "X: a\n b\n\n",
+                                         "X: a\r\n \r\n b\r\n\r\n"],
+                                        headers),
+                               parseResponse(String.toUtf8(bareReturn), defaultLimits),
                                parseRequest(String.toUtf8("GET / HTTP/1.1\r\nX: a\r\n b\r\n\r\n"),
                                             defaultLimits)),
                              #(Some([Header(name = "X", value = "a b c"),
                                      Header(name = "Y", value = "d")]),
+                               [Some([Header(name = "X", value = "b")]),
+                                Some([Header(name = "X", value = "a b")]),
+                                Some([Header(name = "X", value = "a  b")])],
+                               Left(Malformed),
                                Left(Malformed)))
               })
 
@@ -1725,13 +2130,21 @@ let lineTooLong =
                                parseRequest(String.toUtf8(line), Limits(line = 23, headers = 0)),
                                parseRequest(String.toUtf8("GET /abcdefghijklmnopqrstuvwxyz"),
                                             Limits(line = 23, headers = 0)),
+                               // 21 bytes, which may still end in time
+                               List.map([21, 22],
+                                        fn(limit) =
+                                            parseRequest(String.toUtf8("GET /abcdefghijklmnop"),
+                                                         Limits(line = limit, headers = 0))),
                                parseRequest(String.toUtf8(line), Limits(line = 0, headers = 0)),
+                               parseRequest(String.toUtf8(line), Limits(line = -1, headers = 0)),
                                parseRequest(<<>>, Limits(line = 0, headers = 0))),
                              #(Some(Request(method = "GET",
                                             target = "/abcdefgh",
                                             version = http11,
                                             headers = [])),
                                Left(LineTooLong),
+                               Left(LineTooLong),
+                               [Left(LineTooLong), Right(Incomplete)],
                                Left(LineTooLong),
                                Left(LineTooLong),
                                Right(Incomplete)))
@@ -1761,6 +2174,43 @@ let headersTooLarge =
                                Left(HeadersTooLarge),
                                Left(HeadersTooLarge),
                                Left(HeadersTooLarge)))
+              })
+
+// report Appendix G.11: a header line may take what the headers' limit
+// leaves, or the line's where that is less, and is refused at the bytes
+// that pass it, before its line feed comes; the empty line that ends the
+// head is no header line, and may take the line's limit. A regression
+// test, of the shim the Ernest replaced: the limit was found only after
+// the line's end.
+let headersInLine =
+    Test.Case(name = "a header line is refused at the bytes that pass what the limits leave",
+              run = fn() = {
+                  let head = "GET / HTTP/1.1\r\nX: a\r\n";
+                  let read =
+                      fn(text, line, headers) =
+                          Either.map(parseRequest(String.toUtf8(text), Limits(=line, =headers)),
+                                     fn(parsed) = Optional.isSome(headOf(Right(parsed))));
+                  Test.equal([read("GET / HTTP/1.1\r\nX: abcdefghijklm", 16, 100),
+                              read("GET / HTTP/1.1\r\nX: abcdefghijkl", 16, 100),
+                              read(head <> "YYY", 100, 10),
+                              read(head <> "YYYY", 100, 10),
+                              read(head <> String.repeat("Y", 90), 100, 10),
+                              read("GET / HTTP/1.1\r\nX", 100, 0),
+                              read(head <> "\r\nrest", 100, 6),
+                              read("GET / HTTP/1.1\r\n\r\n", 100, 0),
+                              read(head <> "\r\n", 100, -1),
+                              // 2^40, past the most the host's size takes
+                              read(head <> "\r\n", 1099511627776, 1099511627776)],
+                             [Left(HeadersTooLarge),
+                              Right(false),
+                              Right(false),
+                              Left(HeadersTooLarge),
+                              Left(HeadersTooLarge),
+                              Left(HeadersTooLarge),
+                              Right(true),
+                              Right(true),
+                              Left(HeadersTooLarge),
+                              Right(true)])
               })
 
 // report Appendix G.11
@@ -2086,6 +2536,29 @@ let oneRequest =
                                     fn(socket) = readRequest(socket, <<>>, defaultLimits, 1000)),
                              Right(Right(#(hello, <<>>)))))
 
+// report Appendix G.11: written with the code, which reads a head on from
+// the line under way: a head split at each of its bytes between the bytes
+// carried and the socket is read as the head sent whole.
+let everySplit =
+    Test.Case(name = "a head split anywhere between the carried bytes and the socket is read whole",
+              run = fn() = {
+                  let bytes = String.toUtf8(helloText <> "GET");
+                  let read =
+                      fn(count) =
+                          served([String.fromUtf8Lossy(Bytes.drop(bytes, count))],
+                                 StaysOpen,
+                                 fn(socket) =
+                                     readRequest(socket,
+                                                 Bytes.slice(bytes, 0, count),
+                                                 defaultLimits,
+                                                 1000));
+                  Test.equal(List.filter(List.range(0, Bytes.size(bytes) - 4),
+                                         fn(count) =
+                                             read(count)
+                                                 != Right(Right(#(hello, String.toUtf8("GET"))))),
+                             [])
+              })
+
 // report Appendix G.11
 let twoRequests =
     Test.Case(name = "two requests sent at once are read one after the other",
@@ -2190,11 +2663,11 @@ let endlessHead =
                       Test.Failed(Io.show(error))
               })
 
-// report Appendix G.11: written with the code, which parses a head again
-// only where the new bytes hold a line feed or pass a limit: each limit is
-// found at the bytes that pass it with no line feed after them, a folded
-// header's from its first line, and a line under way that passes none is
-// read on.
+// report Appendix G.11: written with the code, which reads the line under
+// way again only where the new bytes hold a line feed or pass a limit:
+// each limit is found at the bytes that pass it with no line feed after
+// them, a folded header's from its first line, and a line under way that
+// passes none is read on.
 let limitsWithoutFeed =
     Test.Case(name = "a limit passed inside a line is found though no line feed comes",
               run = fn() = {

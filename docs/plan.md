@@ -143,15 +143,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     day. ernest-httpd meets the rename at its first build against 0.10.0, before its rehearsal
     of the switch, and its `smoke.ern` writes its requests with `writeRequest` by its own
     session, told at the milestone's end.
-14. **The libraries' shims read against E.0 rule 1**, from the release review before 0.9.0: `ern_http`
-    runs the whole head loop in Erlang, the limits' accounting, the words and the values, where
-    G.11 says a primitive reads a line and the rest is Ernest; `ern_json` computes a position, a
-    too-long number's offset and a lone surrogate's in Erlang; `Base64.decode`'s strictness scan
-    could be Ernest around an exact shim. Each measured first, and moved where the Ernest costs
-    less than three times the host's function (the findings E4-25 to E4-27).
-
-    With them `roff` moves from `libs/markdown` to `tools/manual.ern`, its one user (decided
-    2026-10-10), Appendix G.2's lines and §11's on manual pages first.
+14. **The libraries' shims read against E.0 rule 1**, done 2026-11-07 (E.0 rule 1, G.6, G.8,
+    G.11; the log's *The Libraries' Shims Read Against E.0 Rule 1*). `Base64.decode`, `Json.parse`
+    and `Http`'s heads are Ernest around a primitive, and a head is read on from the line under
+    way, so its lines are not read again. `roff` stays in `libs/markdown`, since `ern doc --man`
+    lays its pages out with it as §11.4 says, beside `tools/manual.ern` (principle 2).
 15. **What a lambda's reach finds on a peer**, feedback 217, a named decision for the user: a
     lambda naming `Ansi.clearScreen`, spawned on a bare node whose tree holds `libs/ansi`,
     answers `Left(Io.NotLoaded)`, since a reach crosses as forms and §12.7 loads a
@@ -264,10 +260,15 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    candidate, whether the trace is taken at the raise or when a line is written. The verdicts and
    rates are one log entry and the rules a section of the runtime's design note beside how it
    keeps its books, `why.md`'s cost claims held to them; read before the review.
-3. **The raise a primitive catches**, `ern_base64:decode` and `ern_json:parse` among them, whose
-   cost grows with the caller's stack, 0.4 microseconds on a shallow stack and 110 at 100,000
-   frames, the trace's capture (found 2026-11-01; the log's *The Four Libraries*): read in erts
-   and taken to `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
+
+   A `match` guard that calls a function, feedback 235, is read with them: it compiles into a
+   chain of closures, which cost `Base64.decode`'s loop about four times the host where the same
+   test in the body cost 1.4 to 2.3 (the log's *The Libraries' Shims Read Against E.0 Rule 1*).
+   The emitter compiles it so that a loop pays the call alone, or §11 states the cost.
+3. **The raise a primitive catches**, `ern_json:decode` among them, whose cost grows with the
+   caller's stack, 0.4 microseconds on a shallow stack and 110 at 100,000 frames, the trace's
+   capture (found 2026-11-01; the log's *The Four Libraries*): read in erts and taken to
+   `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says, the batches' sentences read cold before the build.

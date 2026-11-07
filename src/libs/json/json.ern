@@ -145,8 +145,326 @@ export type Error =
 /// Json.parse("4001 4002")
 /// // => Left(Json.UnexpectedByte(byte = 52, at = Json.Position(line = 1, column = 6)))
 /// ```
-export foreign fn parse(text : String) : Either(Error, Value) =
-    "ern_json:parse/1"
+export fn parse(text : String) : Either(Error, Value) = {
+    let bytes = String.toUtf8(text);
+    match decoded(text) {
+        Decoded(=value, =rest) ->
+            match afterWhiteSpace(rest) {
+                <<byte, _:bytes>> as trailing ->
+                    Left(UnexpectedByte(=byte, at = position(bytes, indexOfRest(bytes, trailing))))
+              | _ ->
+                    Right(value)
+            }
+      | IntegerTooLong(=digits) -> {
+            let index = numberIndex(bytes, bytes, String.toUtf8(digits));
+            Left(UnexpectedSequence(text = digits, at = position(bytes, index)))
+        }
+      | EndMet ->
+            Left(match loneEscape(bytes, bytes) {
+                Some(#(escape, end)) ->
+                    lone(bytes, escape, end)
+              | None ->
+                    match firstBroken(bytes, bytes) {
+                        Some(broken) -> broken.error
+                      | None -> UnexpectedEnd
+                    }
+            })
+      | InvalidByte(=byte, =index) ->
+            Left(match loneEscape(bytes, bytes) {
+                Some(#(escape, end)) when end == index ->
+                    lone(bytes, escape, end)
+              | _ ->
+                    match firstBroken(bytes, bytes) {
+                        Some(broken) when broken.kind == Literal && broken.index + 1 == index ->
+                            broken.error
+                      | _ ->
+                            UnexpectedByte(=byte, at = position(bytes, index))
+                    }
+            })
+      | InvalidSequence(text = sequence, =index) ->
+            Left(match firstBroken(bytes, bytes) {
+                Some(broken) when broken.kind == Escape
+                    && broken.index >= index
+                    && broken.index < index + String.size(sequence) -> broken.error
+              | _ -> UnexpectedSequence(text = sequence, at = position(bytes, index))
+            })
+    }
+}
+
+// The host's reading of a text: the value and the text after it, white
+// space among it; or what the host raised, and the index of the byte or
+// the sequence it raised at. An integer longer than the host holds is
+// raised with no index.
+type Decoded =
+    Decoded(value : Value, rest : Bytes)
+  | EndMet
+  | InvalidByte(byte : Int, index : Int)
+  | InvalidSequence(text : String, index : Int)
+  | IntegerTooLong(digits : String)
+
+// Report Appendix G.6: the host's `json:decode`, which raises on a text it
+// cannot read and builds terms no Ernest type describes.
+foreign fn decoded(text : String) : Decoded =
+    "ern_json:decode/1"
+
+// The index at which `rest`, the text from some byte on, begins.
+fn indexOfRest(text : Bytes, rest : Bytes) : Int =
+    Bytes.size(text) - Bytes.size(rest)
+
+// The bytes after their JSON white space (RFC 8259, section 2).
+fn afterWhiteSpace(bytes : Bytes) : Bytes =
+    match bytes {
+        <<byte, rest:bytes>> when byte == 0x20 || byte == 0x09 || byte == 0x0A || byte == 0x0D ->
+            afterWhiteSpace(rest)
+      | _ ->
+            bytes
+    }
+
+// Report Appendix G.6: the line and the column the byte at `index`
+// begins, counted as a diagnostic's are (report §11.5): from 1, a line
+// ending at a line feed and a column a code point.
+fn position(text : Bytes, index : Int) : Position = {
+    let lines = Bytes.split(Bytes.slice(text, 0, index), <<'\n':utf8>>);
+    let last = Optional.withDefault(List.last(lines), <<>>); // a split answers one part at least
+    Position(line = List.size(lines), column = 1 + codePoints(last, 0))
+}
+
+// The code points of UTF-8 bytes, a byte from 0x80 to 0xBF continuing
+// the one before it.
+fn codePoints(bytes : Bytes, count : Int) : Int =
+    match bytes {
+        <<byte, rest:bytes>> when byte >= 0x80 && byte < 0xC0 -> codePoints(rest, count)
+      | <<_, rest:bytes>> -> codePoints(rest, count + 1)
+      | _ -> count
+    }
+
+// Report Appendix G.6: the index of the integer `digits` writes, which the
+// host could not hold: the first number outside a string that begins with
+// the digits and goes on with no digit, point or exponent, since an earlier
+// integer of the digits would have been raised on first, and a real that
+// holds them is no integer. A number is compared only where it begins, and
+// passed whole where it is not the one, so the text is read once.
+fn numberIndex(text : Bytes, here : Bytes, digits : Bytes) : Int =
+    match here {
+        <<'"':utf8, rest:bytes>> ->
+            numberIndex(text, afterString(rest), digits)
+      | <<byte, _:bytes>> when isNumberByte(byte) ->
+            if isWritten(here, digits) then
+                indexOfRest(text, here)
+            else
+                numberIndex(text, afterNumber(here), digits)
+      | <<_, rest:bytes>> ->
+            numberIndex(text, rest, digits)
+      | _ ->
+            fault("the integer the host could not hold is not in the text")
+    }
+
+// Whether a byte may stand in a number, which a number outside a string is
+// a run of.
+fn isNumberByte(byte : Int) : Bool =
+    isDigit(byte) || byte == 0x2E || byte == 0x65 || byte == 0x45 || byte == 0x2B || byte == 0x2D
+
+fn isDigit(byte : Int) : Bool =
+    byte >= 0x30 && byte <= 0x39
+
+// Whether the number `here` begins with is the integer `digits` writes.
+fn isWritten(here : Bytes, digits : Bytes) : Bool = {
+    let size = Bytes.size(digits);
+    match here {
+        <<written:size(size)-bytes, byte, _:bytes>> when written == digits ->
+            !isDigit(byte) && byte != 0x2E && byte != 0x65 && byte != 0x45
+      | <<written:size(size)-bytes>> ->
+            written == digits
+      | _ ->
+            false
+    }
+}
+
+fn afterNumber(bytes : Bytes) : Bytes =
+    match bytes {
+        <<byte, rest:bytes>> when isNumberByte(byte) -> afterNumber(rest)
+      | _ -> bytes
+    }
+
+// The text after a string, from the byte after its opening quote: a
+// backslash escapes the byte after it, a quote among them.
+fn afterString(bytes : Bytes) : Bytes =
+    match bytes {
+        <<'\\':utf8, _, rest:bytes>> -> afterString(rest)
+      | <<'"':utf8, rest:bytes>> -> rest
+      | <<_, rest:bytes>> -> afterString(rest)
+      | _ -> <<>>
+    }
+
+// Report Appendix G.6: a high surrogate's escape that no low one's follows,
+// as `UnexpectedSequence` of its six bytes, as the host answers a lone low
+// surrogate. The host answers it as the text's end where fewer than an
+// escape's bytes follow it, and as the byte after it where more do.
+fn lone(text : Bytes, escape : Bytes, end : Int) : Error =
+    UnexpectedSequence(text = String.fromUtf8Lossy(escape),
+                       at = position(text, end - Bytes.size(escape)))
+
+// The first escape of a high surrogate inside a string that no low one's
+// follows, and its end, the index of the byte after it, or `None`: the
+// strings are read in turn and an escape by its bytes. Where the text ends
+// inside an escape a low one's could be, there is none.
+fn loneEscape(text : Bytes, here : Bytes) : Optional(#(Bytes, Int)) =
+    match here {
+        <<'"':utf8, rest:bytes>> -> loneInString(text, rest)
+      | <<_, rest:bytes>> -> loneEscape(text, rest)
+      | _ -> None
+    }
+
+fn loneInString(text : Bytes, here : Bytes) : Optional(#(Bytes, Int)) =
+    match here {
+        <<'"':utf8, rest:bytes>> ->
+            loneEscape(text, rest)
+      | <<'\\':utf8, 'u':utf8, hex:size(4)-bytes, rest:bytes>> ->
+            match #(surrogate(hex), rest) {
+                #(High, <<'\\':utf8, 'u':utf8, next:size(4)-bytes, beyond:bytes>>) ->
+                    if surrogate(next) == Low then
+                        loneInString(text, beyond)
+                    else
+                        loneInString(text, rest)
+              | #(High, _) ->
+                    if isEscapeBegun(rest) then
+                        None
+                    else
+                        Some(#(<<'\\':utf8, 'u':utf8, hex:bytes>>, indexOfRest(text, rest)))
+              | _ ->
+                    loneInString(text, rest)
+            }
+      | <<'\\':utf8, _, rest:bytes>> ->
+            loneInString(text, rest)
+      | <<_, rest:bytes>> ->
+            loneInString(text, rest)
+      | _ ->
+            None
+    }
+
+// Whether the bytes end inside an escape a low surrogate's could be.
+fn isEscapeBegun(bytes : Bytes) : Bool =
+    match bytes {
+        <<>> -> true
+      | <<'\\':utf8>> -> true
+      | <<'\\':utf8, 'u':utf8, part:bytes>> -> Bytes.size(part) < 4
+      | _ -> false
+    }
+
+// A UTF-16 code unit's kind: a high surrogate, a low one, or neither.
+type Surrogate = High | Low | Neither
+
+// The kind of the code unit four bytes write in hexadecimal.
+fn surrogate(hex : Bytes) : Surrogate =
+    match Optional.andThen(String.fromUtf8(hex), fn(digits) = String.toIntBase(digits, 16)) {
+        Some(unit) when unit >= 0xD800 && unit <= 0xDBFF -> High
+      | Some(unit) when unit >= 0xDC00 && unit <= 0xDFFF -> Low
+      | _ -> Neither
+    }
+
+// A literal, `true`, `false` or `null`, or an escape `\u`.
+type Kind = Literal | Escape
+
+// A literal or an escape a byte breaks off, the index it begins at and
+// the error it is.
+type Broken = Broken(kind : Kind, index : Int, error : Error)
+
+// Report Appendix G.6: the first literal outside a string that a byte of
+// the text differs from, or the first escape `\u` inside one that a byte
+// breaks before its four hexadecimal digits, or `None`. A literal broken
+// off is the first byte that differs from it, and an escape the escape as
+// the text writes it up to the byte that breaks it. Outside a string a
+// `t`, an `f` or an `n` begins a literal and nothing else, and a literal
+// or an escape the text ends inside is broken by no byte.
+//
+// The host answers a literal by the count of bytes after its first, the
+// text's end where no more follow than the rest of the literal's and the
+// byte after its first where more do; and an escape by the count after its
+// `u`, the text's end where fewer than four follow and the six bytes from
+// its backslash, past the string's end among them, where more do. So the
+// host's answer stands where none is broken, or where the one broken is
+// not the one the host stopped at.
+fn firstBroken(text : Bytes, here : Bytes) : Optional(Broken) =
+    match here {
+        <<'"':utf8, rest:bytes>> -> brokenInString(text, rest)
+      | <<'t':utf8, _:bytes>> -> fromLiteral(text, here, String.toUtf8("true"))
+      | <<'f':utf8, _:bytes>> -> fromLiteral(text, here, String.toUtf8("false"))
+      | <<'n':utf8, _:bytes>> -> fromLiteral(text, here, String.toUtf8("null"))
+      | <<_, rest:bytes>> -> firstBroken(text, rest)
+      | _ -> None
+    }
+
+// How bytes begin against a literal: with it whole, ended inside it, or
+// with a byte that differs from it, at its index.
+type Against = Whole | EndedInside | Differs(index : Int, byte : Int)
+
+// The first literal or escape a byte breaks, from the bytes on, which begin
+// with a literal's first byte.
+fn fromLiteral(text : Bytes, here : Bytes, literal : Bytes) : Optional(Broken) =
+    match against(here, literal, 0) {
+        Whole ->
+            firstBroken(text, Bytes.drop(here, Bytes.size(literal)))
+      | EndedInside ->
+            None
+      | Differs(=index, =byte) -> {
+            let literalIndex = indexOfRest(text, here);
+            Some(Broken(kind = Literal,
+                        index = literalIndex,
+                        error = UnexpectedByte(=byte, at = position(text, literalIndex + index))))
+        }
+    }
+
+fn against(here : Bytes, literal : Bytes, index : Int) : Against =
+    match literal {
+        <<expected, more:bytes>> ->
+            match here {
+                <<byte, rest:bytes>> ->
+                    if byte == expected then
+                        against(rest, more, index + 1)
+                    else
+                        Differs(=index, =byte)
+              | _ ->
+                    EndedInside
+            }
+      | _ ->
+            Whole
+    }
+
+fn brokenInString(text : Bytes, here : Bytes) : Optional(Broken) =
+    match here {
+        <<'"':utf8, rest:bytes>> ->
+            firstBroken(text, rest)
+      | <<'\\':utf8, 'u':utf8, rest:bytes>> -> {
+            let count = hexDigits(rest, 0);
+            if count == 4 then
+                brokenInString(text, Bytes.drop(rest, 4))
+            else if count == Bytes.size(rest) then
+                None
+            else {
+                let index = indexOfRest(text, here);
+                let escape = String.fromUtf8Lossy(Bytes.slice(here, 0, 2 + count));
+                Some(Broken(kind = Escape,
+                            =index,
+                            error = UnexpectedSequence(text = escape, at = position(text, index))))
+            }
+        }
+      | <<'\\':utf8, _, rest:bytes>> ->
+            brokenInString(text, rest)
+      | <<_, rest:bytes>> ->
+            brokenInString(text, rest)
+      | _ ->
+            None
+    }
+
+// How many of an escape's four digits the bytes begin with.
+fn hexDigits(bytes : Bytes, count : Int) : Int =
+    match bytes {
+        <<byte, rest:bytes>> when count < 4 && isHexDigit(byte) -> hexDigits(rest, count + 1)
+      | _ -> count
+    }
+
+fn isHexDigit(byte : Int) : Bool =
+    isDigit(byte) || byte >= 0x61 && byte <= 0x66 || byte >= 0x41 && byte <= 0x46
 
 /// `value` as JSON text, laid out over lines as the host's `json:format`
 /// lays it out, two spaces to a level, an object's members in the order of
@@ -246,11 +564,13 @@ let loneSurrogate =
                                                   at = Position(line = 1, =column)));
                   Test.equal([parse("\"\\ud800\""),
                               parse("[\"\\ud800 and more\", 1]"),
+                              parse("[x, \"\\ud800 and more\"]"),
                               parse("\"\\ud800\\n\""),
                               parse("\"\\ud800"),
                               parse("\"\\\\ud800\"")],
                              [lone(2),
                               lone(3),
+                              Left(UnexpectedByte(byte = 120, at = Position(line = 1, column = 2))),
                               lone(2),
                               Left(UnexpectedEnd),
                               Right(Text("\\ud800"))])
@@ -280,6 +600,21 @@ let tooLongAfterReal =
                      parse("[1" <> digits <> "e-1300000, " <> digits <> "]")),
                    #(sequence(1300006), sequence(1300014)))
     })
+
+// report Appendix G.6: a regression test, written after the code: a real
+// that begins with the digits and goes on with a fraction or an exponent
+// is no integer of them, though the host can hold it.
+let tooLongAfterItsDigits =
+    Test.Case(name = "a too-long integer is found past a real that begins with its digits",
+              run = fn() = {
+                  let digits = String.repeat("9", 1300000);
+                  let sequence =
+                      fn(column) =
+                          Left(UnexpectedSequence(text = digits, at = Position(line = 1, =column)));
+                  Test.equal(#(parse("[" <> digits <> "e-1300000, " <> digits <> "]"),
+                               parse("[" <> digits <> ".5e-1300000, " <> digits <> "]")),
+                             #(sequence(1300013), sequence(1300015)))
+              })
 
 // report Appendix G.6: a regression test: the digits were compared at every
 // byte of the real, each comparison running to the real's end, and the

@@ -100,10 +100,10 @@ src/runtime/       the runtime, its modules beside include/ and test/, and c_src
 src/stdlib/        the standard library as Ernest source
 src/libs/          the first-party libraries, each a source root whose build ends
                    every job's load path, so that a program names none: ansi, base64,
-                   crypto, ets, http, which needs time, json, markdown, which needs
-                   ansi, proxy, time and utilization; json, base64 and http each hold
-                   their shim beside their Ernest, ern_json.erl, ern_base64.erl and
-                   ern_http.erl, the last two with its tests under test/
+                   crypto, ets, http, which needs time and uri, json, markdown, which
+                   needs ansi, proxy, time, uri and utilization; json, http and uri
+                   each hold their shim beside their Ernest, ern_json.erl, ern_http.erl
+                   and ern_uri.erl, http with its tests under test/
 src/shell/         the shell as Ernest source under ernest/, its host half
                    ern_shell.erl, whose tests stand under test/, and README.md, which
                    guides a reader through the code

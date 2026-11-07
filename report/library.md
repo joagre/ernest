@@ -1118,7 +1118,7 @@ Utilization.disk : () -> Optional(Float)
 
 ### Appendix G.6. `libs/json` (namespace `Json`)
 
-JSON text as RFC 8259 defines it, read into a value and written from one by the host's `json` module. Its three functions are primitives written in the host's language, since the host raises on a text it cannot read and answers terms no Ernest type describes (E.0 rule 1).
+JSON text as RFC 8259 defines it, read into a value and written from one by the host's `json` module. `format` and `encode` are primitives written in the host's language, since the host answers terms no Ernest type describes (E.0 rule 1). `parse` is Ernest around a primitive that answers the host's value and the text after it, or what the host raised and at which byte, since the host raises on a text it cannot read; the white space after the value, a position, and an error this section names where the host names another are Ernest's.
 
 `parse` reads one value, with white space before it and after it and nothing else. A number written with neither a fraction nor an exponent is an `Integer`, of any size the host can hold, and one written with either is a `Real`; a `Real` nearer to zero than a `Float` can hold is `0.0`, and so is `-0.0` (§3.1). An object is a `Map` from its members' names to their values, and where a text names a member twice the last is kept, as `Map.fromList` keeps a later pair (E.3).
 
@@ -1157,7 +1157,7 @@ Proxy.start : (Peer.Service(m), Int) -> Address(m)
 
 ### Appendix G.8. `libs/base64` (namespace `Base64`)
 
-The base 64 encoding of RFC 4648, its standard alphabet with padding, over the host's `base64`. `encode` writes the bytes as text padded with `=` to a multiple of four characters. `decode` reads what `encode` writes and answers `None` for anything else: a character outside the alphabet, white space among them, which the host's `base64:decode` skips and this library does not; a count of characters that is no multiple of four; a `=` anywhere but as the last one or two characters, and a last character before a `=` that sets a bit the bytes do not use, `Zh==` where `encode` writes `Zg==`. `decode` is a primitive written in the host's language, since the host raises on a text it cannot read (E.0 rule 1).
+The base 64 encoding of RFC 4648, its standard alphabet with padding, over the host's `base64`. `encode` writes the bytes as text padded with `=` to a multiple of four characters. `decode` reads what `encode` writes and answers `None` for anything else: a character outside the alphabet, white space among them, which the host's `base64:decode` skips and this library does not; a count of characters that is no multiple of four; a `=` anywhere but as the last one or two characters, and a last character before a `=` that sets a bit the bytes do not use, `Zh==` where `encode` writes `Zg==`. `decode` reads the text in Ernest and calls the host's `base64:decode` only on a text `encode` writes, on which the host does not raise (E.0 rule 1).
 
 ```
 Base64.encode : (Bytes) -> String

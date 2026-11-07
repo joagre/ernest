@@ -11,7 +11,7 @@
 own_code_test() ->
     Own = [filename:basename(Beam, ".beam") || Beam <- ern_tree:own_code()],
     ?assertEqual([], ["ern_cli", "ern_tree", "ern_node", "ern_rt", "ern_shell", "ern_json",
-                      "ern_http", "ern_base64"] -- Own),
+                      "ern_http", "ern_uri"] -- Own),
     ?assertEqual([], [Module || Module <- ["ern_tree_tests", "ern_named", "ern_site"],
                                 lists:member(Module, Own)]).
 
