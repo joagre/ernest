@@ -105,9 +105,18 @@ reader S reads of its live shell. The release note's line on the installed layou
    refusal of 2026-09-26. Feedback 215 is dropped: no search by code points stands beside
    E.5's, since `toList` reads them.
 8. **A worker's value or its end**, feedback 209: a function that runs a function monitored and
-   answers its value or its end, written by hand at five sites. Its form is decided in a design
-   session, decided with the user on 2026-11-07 (the log's *A Test's Scratch, and JSON on One
-   Line*).
+   answers its value or its end, written by hand at five sites, and wrong at a sixth,
+   `examples/interpreter.ern`'s `await`. Decided with the user on 2026-11-07, in its design
+   session: `Process.run(f) : Either(Reason, a)` (E.21), a wait without a limit as `Test.faults`
+   waits, the fault as data, and no delivering form, by the argument that took out the ask (the
+   log's *A Worker's Value or Its End*).
+
+   The build, an item session's: `Process.run` in
+   `process.ern`, with the emitter passing its site as it does `spawn`'s; `Test.faults` written
+   over it, its judge going; the six sites and the guide's §4.4, §5.2, §5.6 and §6.4 written
+   with it, the gathering sites through a helper that sends `Process.run`'s answer home; the
+   interpreter's deadline a helper and an `Address.call`; `make bench`'s row for it; and item
+   12's guide sentence naming it as the form that closes what a fetch opened.
 
    The rest of the item was built or decided on 2026-11-07. Feedback 211 brought
    `Fs.makeTempDir` (E.17) and a `Test.equal` failure that says where two values differ (E.24,

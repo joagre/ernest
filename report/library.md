@@ -748,6 +748,10 @@ Its `memory` is the bytes the process holds as the host counts them: its stack, 
 
 `live` answers the processes a program spawned and the listeners, sockets and running programs a system module opened (Appendix E.18, E.23), that have not ended; no process of the runtime's own, its evaluators among them (E.28), and no system process is among them; in a shell, and on a node a shell is attached to, each session's own processes are excepted too (§11.2).
 
+`run(f)` runs `f()` in a process of its own and answers `Right(v)`, `v` the value `f` returned, or `Left(reason)`, the `Reason` the process ended with before it returned (§6.9): `Fault(cause)` where `f` faulted, and `Killed` where a `kill` ended it. The caller waits for the end without a limit, as a direct call of `f` would (E.0 shape rule 8), and receives nothing: the answer reaches it as a call's does (§6.6).
+
+The process's site is where `run` is written, as a spawn's is (§6.9). It owns what `f` opens, which its end closes (§6.9), and it is killed where the caller ends or restarts while it waits. A fault in `f` is the process's own, reported as any fault is (§7.3, §11.2); the caller reads it in the answer. `run` is not a compute (§8.7, Appendix E.27): it runs on the caller's node, with no time, and answers a fault where a compute faults the caller.
+
 `faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own, each session's own (§11.2) and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§12.1): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more. `cause` is the cause `Down` gives (§6.9). `callee` is the site of the callee whose fault a call carried to the process (§6.6), `Ledger.start:6`, and is `None` where no call carried it and where the callee has no site, a process of another node or one the runtime did not start (§6.9). `peer` is the name of the peer whose fault a compute carried to the process (§8.7), and is `None` where no compute carried it. `time` is the moment the fault was met, in milliseconds since the epoch as `Clock.now` counts them (E.15).
@@ -772,6 +776,7 @@ Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the me
 Process.live : () -> List(Process) // in unspecified order
 Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended
 Process.faults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox
+Process.run : (() -> a receiving m) -> Either(Reason, a) // the value `f` returned in a process of its own, or the reason it ended with first; waits as a call of `f` would
 ```
 
 ### Appendix E.22. `supervisor.ern` (namespace `Supervisor`)
