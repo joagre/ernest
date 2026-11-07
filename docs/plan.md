@@ -112,11 +112,10 @@ reader S reads of its live shell. The release note's line on the installed layou
 
    With them two of ernest-httpd's lines: feedback 224, its 20,
    `Json.encode`, a value as JSON on one line, the host's `json:encode`, read against E.0's
-   rules beside `format`'s layout; and feedback 225, its 21, a named decision for the user:
-   `ern test` cannot read what a case writes on standard error, so a test of a line the design
-   says a program writes there cannot check it, and the line stands among the passes, as four
-   of ernest-httpd's do at every run; a case's standard error captured, or a `Test` function
-   that runs a function and answers what it wrote, decided here first. And feedback 228, a listed entry's
+   rules beside `format`'s layout. Feedback 225, its 21, a case's standard error, decided
+   with the user and built 2026-11-07: `Test.capture` answers a call's value and what the
+   caller's chain wrote to each stream while it ran (E.24; the log's *A Case's Standard
+   Error*), and ernest-httpd's four lines wait for its session. And feedback 228, a listed entry's
    name: `Fs.list` answers each entry by its path, so the site's generator writes
    `Optional.withDefault(Path.name(entry.path), "")` at three sites; whether `Fs.Entry` carries
    its name is read against E.0's rules with E.17.

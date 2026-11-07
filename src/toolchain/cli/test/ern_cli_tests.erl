@@ -3195,6 +3195,73 @@ test_until_answers_the_last_failure_test() ->
     %% tests or misses its deadline would pass by far.
     ?assert(Took < 10 * Ms).
 
+%% report Appendix E.24: `Test.capture` answers its call's value and what
+%% the caller's chain wrote to each stream while the call ran, a server the
+%% case started before the call among them; the later of two captures takes
+%% the chain's writes until it returns; what was captured stands among
+%% neither stream's lines, while a line after the capture does; and where
+%% the caller faults inside the call, what was captured is written after
+%% all. A regression test, written after the code; the page's example meets
+%% a shell's live region (ern_site_shell_tests), and no case writes from a
+%% process of another chain, a service's.
+test_capture_test() ->
+    Dir = tmp(),
+    File = write(Dir, "cap.ern",
+                 ["type EchoMsg = Say(text : String, reply : Reply(Unit))\n"
+                  "fn echo() : Unit receiving EchoMsg =\n"
+                  "    receive {\n"
+                  "        Say(=text, =reply) -> {\n"
+                  "            Io.printlnError(\"echo: \" <> text);\n"
+                  "            answer(reply, Unit);\n"
+                  "            echo()\n"
+                  "        }\n"
+                  "    }\n"
+                  "fn text(bytes : Bytes) : String = String.fromUtf8Lossy(bytes)\n"
+                  "let both = Test.Case(name = \"both\", run = fn() = {\n"
+                  "    let #(value, captured) = Test.capture(fn() = {\n"
+                  "        Io.println(\"out\");\n"
+                  "        Io.printlnError(\"err\");\n"
+                  "        42\n"
+                  "    });\n"
+                  "    Test.equal(#(value, text(captured.stdout), text(captured.stderr)),\n"
+                  "               #(42, \"out\\n\", \"err\\n\"))\n"
+                  "})\n"
+                  "let earlier = Test.Case(name = \"earlier\", run = fn() = {\n"
+                  "    let server = spawn(echo);\n"
+                  "    let #(_, captured) = Test.capture(fn() =\n"
+                  "        Address.callForever(server, fn(reply) = Say(text = \"hi\", =reply)));\n"
+                  "    Test.equal(text(captured.stderr), \"echo: hi\\n\")\n"
+                  "})\n"
+                  "let nested = Test.Case(name = \"nested\", run = fn() = {\n"
+                  "    let #(inner, outer) = Test.capture(fn() = {\n"
+                  "        Io.printlnError(\"a\");\n"
+                  "        let #(_, inner) = Test.capture(fn() = Io.printlnError(\"b\"));\n"
+                  "        Io.printlnError(\"c\");\n"
+                  "        inner\n"
+                  "    });\n"
+                  "    Test.equal(#(text(inner.stderr), text(outer.stderr)),\n"
+                  "               #(\"b\\n\", \"a\\nc\\n\"))\n"
+                  "})\n"
+                  "let later = Test.Case(name = \"later\", run = fn() = {\n"
+                  "    let _ = Test.capture(fn() = Io.printlnError(\"hidden\"));\n"
+                  "    Io.printlnError(\"shown\");\n"
+                  "    Test.Passed\n"
+                  "})\n"
+                  "let faulted = Test.Case(name = \"faulted\", run = fn() = {\n"
+                  "    let _ = Test.capture(fn() = {\n"
+                  "        Io.printlnError(\"written back\");\n"
+                  "        fault(\"inside\")\n"
+                  "    });\n"
+                  "    Test.Passed\n"
+                  "})\n"]),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    {Errors, Status} = standard_error_of(["test", filename:join(Dir, "cap.erc")]),
+    ?assertEqual(1, Status),
+    ?assertMatch(<<"both: passed\nearlier: passed\nnested: passed\nlater: passed\n"
+                   "faulted: faulted: inside\n", _/binary>>,
+                 iolist_to_binary(?capturedOutput)),
+    ?assertEqual(<<"shown\nwritten back\n">>, unicode:characters_to_binary(Errors)).
+
 %% report Appendix E.24: `Test.until` runs its test in the caller's
 %% process, once where the first run passes and again after each `Failed`
 %% until one passes, three runs for a test that passes on its third,

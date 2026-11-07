@@ -75,6 +75,17 @@ if 1 + 1 == 2 then Test.Passed else Test.Failed("1 + 1 is not 2")
 // => Test.Passed
 ```
 
+## Test.Captured
+
+```ernest
+type Captured = Captured(stdout : Bytes, stderr : Bytes)
+```
+
+*Since 0.10.0.*
+
+What a call `capture` ran wrote: to standard output, and to standard
+error, each in the order it was written.
+
 ## Test.equal
 
 ```ernest
@@ -162,6 +173,41 @@ Test.until(fn() = Test.equal(1 + 1, 2), 1000)
 ```ernest
 Test.until(fn() = Test.equal(1 + 1, 3), 10)
 // => Test.Failed("expected 3, got 2")
+```
+
+## Test.capture
+
+```ernest
+Test.capture(run : () -> a receiving m) : #(a, Captured) receiving m
+```
+
+*Since 0.10.0.*
+
+`run`'s value, and what was written to standard output and standard error
+while it ran, as `Os.run` answers a program's: how a test reads a line the
+code it tests writes, which then stands neither among the test's lines nor
+in a shell's live region.
+
+`run` runs in the caller's process. What is captured is what the caller's
+chain writes: the process at the head of the caller's spawns, a test's own
+under `ern test`, and every process that one started, directly or through
+one it started, a server the test started before the call among them. A
+write by any other process, a system process's own or a service's, goes
+where it went (report Appendix E.24).
+
+Where two captures of one chain run at once, the one begun last takes the
+chain's writes until it returns. Where the caller ends before `run`
+returns, a fault among the ways, what was captured is written where it
+would have gone.
+
+### Examples
+
+```ernest
+{
+    let #(_, captured) = Test.capture(fn() = Io.printlnError("listening on 8080"));
+    String.fromUtf8Lossy(captured.stderr)
+}
+// => "listening on 8080\n"
 ```
 
 ---

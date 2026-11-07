@@ -47,7 +47,8 @@
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
          killed/2, reason/1, peer_restarted/2, left_waiting/1, wait_for_deliveries/0, started_by/1,
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
-         screen/2, drop_screens/1, root_of/1, status/1, writes_through/1, faults/1, termination/1,
+         screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
+         writes_through/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
@@ -81,11 +82,12 @@
                          evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
                               kill_all/1, opened/3, asked_of_run/1, unwatched/2,
-                              evaluator_ended/2]}).
+                              evaluator_ended/2, captured/1]}).
 -receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
                          killer/0, wait_for_ends/1, ended_program/0, counted_link/3,
                          delivery_ended/1,
-                         write_loop/1, stream_loop/2, dropping/0, stdin_loop/2, taken/1,
+                         write_loop/2, stream_loop/2, is_taken/3, collect/3, written_back/3,
+                         dropping/0, stdin_loop/2, taken/1,
                          clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
                          sink_flushed/1, stop/1, stopped_in_order/1, told_once_delivered/2]}).
 
@@ -191,6 +193,12 @@
 %% each write, by standard input and the terminal at each request, and by
 %% Os.exit (screen_of/1)
 -define(SCREENS, ern_screens).
+%% Report Appendix E.24: the captures that run, {{Head, Order}, Collector},
+%% by the head of the chain whose writes each takes and the order the
+%% captures began in, so that the chain's last is found by one step back
+%% (capture_of/1), written as a capture begins and deleted by its collector
+%% as the capture ends, or as its caller does (capture_writes/0)
+-define(CAPTURES, ern_captures).
 %% Report Appendix E.27: the offers of the node, {{Name, Hash}, Address,
 %% Process} by the service's name and its type's hash, ordered so that one
 %% name's are read together
@@ -2268,6 +2276,87 @@ root_of(Pid) ->
     catch error:badarg -> none
     end.
 
+%% Report Appendix E.24: what the caller's chain writes taken from now on by
+%% a collector, a process of the runtime's own and of no chain's, so that no
+%% kill of the chain's ends it before its capture does. The collector
+%% watches the caller, and where the caller ends before its capture does,
+%% it lets the chain's writes go and writes what it took where it would
+%% have gone: through the streams again as the head of the chain's, which
+%% the chain's earlier capture or its session's screen then takes.
+-spec capture_writes() -> {'Writes', pid()}.
+capture_writes() ->
+    Caller = erlang:self(),
+    Key = {chain_head(Caller), erlang:unique_integer([monotonic])},
+    Collector = erlang:spawn(fun() -> collect(erlang:monitor(process, Caller), Key, []) end),
+    true = ets:insert(?CAPTURES, {Key, Collector}),
+    {'Writes', Collector}.
+
+%% Report Appendix E.24: the capture ended, and what its collector took, by
+%% stream, in the order it was written.
+-spec captured({'Writes', pid()}) -> {'Captured', binary(), binary()}.
+captured({'Writes', Collector}) ->
+    Alias = erlang:alias([reply]),
+    Collector ! {collect, Alias},
+    receive
+        {Alias, Captured} -> Captured
+    end.
+
+collect(Monitor, Key, Taken) ->
+    receive
+        {written, Alias, Name, Bytes} ->
+            Alias ! {Alias, taken},
+            collect(Monitor, Key, [{Name, Bytes} | Taken]);
+        {collect, Alias} ->
+            true = ets:delete(?CAPTURES, Key),
+            Alias ! {Alias, {'Captured', taken(stdout, Taken), taken(stderr, Taken)}};
+        {'DOWN', Monitor, process, _, _} ->
+            true = ets:delete(?CAPTURES, Key),
+            {Head, _} = Key,
+            written_back(Head, lists:reverse(Taken))
+    end.
+
+taken(Name, Taken) ->
+    iolist_to_binary(lists:reverse([Bytes || {Stream, Bytes} <- Taken, Stream =:= Name])).
+
+%% What a collector took written again, each piece answered before the
+%% next goes; a write a stream gave it meanwhile, which it began before
+%% the capture ended, is taken and written after them, since the stream
+%% waits on the collector as the collector waits on the stream.
+written_back(_Head, []) ->
+    ok;
+written_back(Head, [{Name, Bytes} | Rest]) ->
+    Alias = erlang:alias([reply]),
+    system_process(Name) ! {'Write', Bytes, {Alias, Head}},
+    written_back(Head, Alias, Rest).
+
+written_back(Head, Alias, Rest) ->
+    receive
+        {Alias, answered, _} ->
+            written_back(Head, Rest);
+        {written, Taker, Name, Bytes} ->
+            Taker ! {Taker, taken},
+            written_back(Head, Alias, Rest ++ [{Name, Bytes}])
+    end.
+
+%% Report Appendix E.24: the collector of the last capture of Pid's chain
+%% that runs, and the capture's key, or none: the chain's keys sort before
+%% {Head, []}, since a number sorts before a list, the last just before it.
+capture_of(Pid) ->
+    Head = chain_head(Pid),
+    try ets:prev(?CAPTURES, {Head, []}) of
+        {Head, _} = Key -> {Key, ets:lookup_element(?CAPTURES, Key, 2, none)};
+        _ -> none
+    catch
+        error:badarg -> none
+    end.
+
+%% The head of Pid's chain, or Pid where the runtime did not start it.
+chain_head(Pid) ->
+    case root_of(Pid) of
+        none -> Pid;
+        Root -> Root
+    end.
+
 %% Appendix E.21: Process.status, a snapshot of a live process, None once it
 %% has ended, for a process on another node, and for one of the runtime's
 %% own, which has no row but a load's evaluator (E.28). A process waiting for a
@@ -3102,26 +3191,26 @@ system_process(Name) ->
 stream({fd, Fd}, Name) ->
     process_flag(trap_exit, true),
     stream_loop(erlang:open_port({fd, 0, Fd}, [out, binary, {busy_limits_port, {1, 1}}]), Name);
-stream(Write, _Name) ->
-    write_loop(Write).
+stream(Write, Name) ->
+    write_loop(Write, Name).
 
-write_loop(Write) ->
+write_loop(Write, Name) ->
     receive
         {flush, From, Ref} ->
             From ! {Ref, flushed},
-            write_loop(Write);
+            write_loop(Write, Name);
         stop ->
             ok;
         {'Write', Bytes, Reply} ->
-            case screen_of(reply_process(Reply)) of
-                none -> Write(Bytes);
-                Sink -> Sink(Bytes)
+            case is_taken(reply_process(Reply), Name, Bytes) of
+                false -> Write(Bytes);
+                true -> ok
             end,
             answer(Reply, ?UNIT),
-            write_loop(Write);
+            write_loop(Write, Name);
         Bytes when is_binary(Bytes) ->
             Write(Bytes),
-            write_loop(Write)
+            write_loop(Write, Name)
     end.
 
 stream_loop(Stream, Name) ->
@@ -3140,14 +3229,13 @@ stream_loop(Stream, Name) ->
                     gone(Name)
             end;
         {'Write', Bytes, Reply} ->
-            case screen_of(reply_process(Reply)) of
-                none ->
+            case is_taken(reply_process(Reply), Name, Bytes) of
+                false ->
                     case written(Stream, Bytes) of
                         ok -> answer(Reply, ?UNIT), stream_loop(Stream, Name);
                         gone -> gone(Name)
                     end;
-                Sink ->
-                    Sink(Bytes),
+                true ->
                     answer(Reply, ?UNIT),
                     stream_loop(Stream, Name)
             end;
@@ -3158,6 +3246,32 @@ stream_loop(Stream, Name) ->
             end;
         {'EXIT', Stream, _} ->
             gone(Name)
+    end.
+
+%% Report Appendix E.24, §12.1, §11.2: a program's write taken by the last
+%% capture of its writer's chain, or else by the sink of its session's
+%% screen, and false where neither is there and the stream writes it. A
+%% capture is given the bytes and answers once it holds them, so that the
+%% write returns only then; one that has ended meanwhile takes nothing, and
+%% the write goes where it would have gone without it.
+is_taken(Writer, Name, Bytes) ->
+    case capture_of(Writer) of
+        {Key, Collector} when is_pid(Collector) ->
+            Alias = erlang:monitor(process, Collector, [{alias, demonitor}]),
+            Collector ! {written, Alias, Name, Bytes},
+            receive
+                {Alias, taken} ->
+                    erlang:demonitor(Alias, [flush]),
+                    true;
+                {'DOWN', Alias, process, _, _} ->
+                    _ = ets:delete_object(?CAPTURES, {Key, Collector}),
+                    is_taken(Writer, Name, Bytes)
+            end;
+        _ ->
+            case screen_of(Writer) of
+                none -> false;
+                Sink -> Sink(Bytes), true
+            end
     end.
 
 written(Stream, Bytes) ->
@@ -4114,7 +4228,7 @@ outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 -spec tables() -> [atom()].
 tables() ->
     [?PROCESSES, ?CALLEES, ?FAULTS, ?TERMINATING, ?HELD, ?DELIVERIES, ?CHECKERS, ?LAUNCH,
-     ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES, ?SCREENS].
+     ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES, ?SCREENS, ?CAPTURES].
 
 make_tables() ->
     lists:foreach(fun(Table) -> ets:new(Table, [named_table, public | table_options(Table)]) end,
@@ -4133,6 +4247,7 @@ table_options(?DELIVERIES) -> [ordered_set];
 table_options(?OFFERS) -> [ordered_set];
 table_options(?OFFERED) -> [bag];
 table_options(?NOTES) -> [ordered_set];
+table_options(?CAPTURES) -> [ordered_set];
 table_options(?PROCESSES) -> [set, {keypos, #process_row.pid}];
 table_options(_) -> [set].
 

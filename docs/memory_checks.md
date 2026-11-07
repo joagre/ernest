@@ -10,7 +10,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)` aft
 
 | Load | Each round |
 |---|---|
-| `processes` | 300 times: a call answered; a callee monitored and killed; a call answered after its time, and one never answered; a process that faults, watched from its start; a short-lived process that watches a service which outlives it; a subscription to faults that ends with its process |
+| `processes` | 300 times: a call answered; a callee monitored and killed; a call answered after its time, and one never answered; a process that faults, watched from its start; a short-lived process that watches a service which outlives it; a subscription to faults that ends with its process; a capture that returns, and one whose caller faults inside it |
 | `supervisors` | 100 times: a child of a `OneForOne` group and one of a `OneForAll` group fault and restart in place, each then answering a call; a child joins and returns |
 | `sockets` | 200 connections to an echo server, one message each way, a read that times out, then closed |
 | `programs` | 20 times: `Os.run` of `cat` and of a program not found; `Os.start` of `sleep` killed; one that runs past its time |
@@ -77,6 +77,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - `ern_initialized` holds a row for each unit whose initializers a run or a load has run, which the build and the session's loads bound; a unit unloaded takes its row with it (`ern_code:unloaded/1`), and a session's input's and holder's have none, since no peer can name a session's binding (the log's *Sites, Sessions and Their Names*).
 - The utilization a program set is one row of `ern_launch`, each set in place of the last, for the launch's life.
 - A session's screen, a row of `ern_screens` for each root the session heads, its own and each evaluator's started in its chain, is dropped whole by the session as it detaches, every row of its sink, an evaluator's that ended among them, since what the evaluation started is the session's until then, a withdrawn load's by the load as it answers, and goes with the launch's tables at the end, a row a load at most while the session runs; the mark that a process is a session's own is in its row, and goes with the process (report §12.1, §11.2). A character a program's write cut waits in the screen's own state, and goes with the screen.
+- A capture's row of `ern_captures` goes as the capture ends, or as its caller does, which its collector watches; the collector is no chain's process, so nothing the program kills ends it first (E.24).
 - The note of a call from another node, in `ern_notes` and `ern_callees`, goes at an answer given on this node, the callee's restart or end, the caller's second note, or the loss of the caller's node. The call sends the second note wherever it ends otherwise, its caller's end among them.
 
 ### What a process owns (Appendix E.21, G.1)

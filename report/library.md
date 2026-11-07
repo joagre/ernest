@@ -847,18 +847,22 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished)
 
 ### Appendix E.24. `test.ern` (namespace `Test`)
 
-A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4).
+A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types, `Captured` below, and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4).
 
 `faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). It waits for `run`'s end without a limit, as a direct call of `run` waits for the caller's own work (E.0 shape rule 8). Where the caller ends before `run`'s process does, that process is killed. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.faults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
 
 `until(run, ms)` runs `run` again until it answers `Passed` or `ms` milliseconds have passed since the call, and answers the last `Result`, not `Left(Timeout)` (E.0 shape rule 8), since the last `Failed` says what the test saw. It runs `run` once at least, in the caller's process, and again after a `Failed`, yielding the scheduler between runs and waiting for nothing else. It is how a test waits for an effect that has no order with what the test can wait on: a `Down` the runtime delivered and what its recipient did with it (§6.9).
 
+`capture(run)` runs `run` in the caller's process and answers its value with what was written to standard output and to standard error while it ran, `Captured(stdout, stderr)`, as `Os.run` answers a program's (E.23). It captures what the caller's chain writes: the process at the head of the caller's spawns, a test's own under `ern test` (§11.2), and every process that one started, directly or through one it started. What it captures reaches neither stream nor a shell's live region. A write by any other process, a system process's own or a service's, goes where it went. Where two captures of one chain run at once, the one begun last takes the chain's writes until it returns. Where the caller ends before `run` returns, what was captured is written where it would have gone, and so is what the chain writes from then on.
+
 ```
 type Case(m) = Case(name : String, run : () -> Result receiving m)
 type Result = Passed | Failed(String)
+type Captured = Captured(stdout : Bytes, stderr : Bytes)
 Test.equal : (a=, a=) -> Result needs a.show // the actual value first, then the expected one
 Test.faults : (() -> a receiving m, String) -> Result // the call first, then the cause it faults with
 Test.until : (() -> Result receiving m, Int) -> Result receiving m // the test first, run again until it passes or the milliseconds end; the last answer
+Test.capture : (() -> a receiving m) -> #(a, Captured) receiving m // the value, and what the caller's chain wrote while it ran
 ```
 
 ### Appendix E.25. `ordered_set.ern` (namespace `OrderedSet`)

@@ -76,7 +76,23 @@ fn once() : Unit receiving Msg = {
                        Ended);
     receive {
         Ended(_) -> Unit
+    };
+    // a capture that returns, and one whose caller faults inside it
+    let _ = Test.capture(fn() = Io.write(<<>>));
+    let _ = spawnMonitored(faultInCapture, Ended);
+    receive {
+        Ended(_) -> Unit
     }
+}
+
+// A capture whose caller faults inside it, whose collector then writes
+// back what it took.
+fn faultInCapture() : Unit = {
+    let _ = Test.capture(fn() = {
+        Io.write(<<>>);
+        fault("inside a capture")
+    });
+    Unit
 }
 
 fn worker() : Unit receiving WorkMsg =

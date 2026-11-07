@@ -63,11 +63,20 @@ export type Case(m) = Case(name : String, run : () -> Result receiving m)
 /// ```
 export type Result = Passed | Failed(String)
 
+/// What a call `capture` ran wrote: to standard output, and to standard
+/// error, each in the order it was written.
+///
+/// since 0.10.0
+export type Captured = Captured(stdout : Bytes, stderr : Bytes)
+
 // What the process that judges a call of `faults` takes: the request for its
 // verdict, the end of the process the call ran in, and the end of the caller.
 // The judge is a process of its own, since `faults` receives nothing in its
 // caller's process.
 type JudgeMsg = Judge(Reply(Result)) | Ended(Down) | CallerEnded(Down)
+
+// A capture that runs, its collector the runtime's.
+type Writes = Writes(Foreign.Term)
 
 /// `Passed` where `actual` equals `expected`, and otherwise `Failed` naming
 /// both as `Io.show` writes them, the expected first: `expected 3, got 2`. It
@@ -212,3 +221,47 @@ fn runUntil(run : () -> Result receiving m, deadline : Int) : Result receiving m
 // for it, which answers true, the host's own.
 foreign fn yield() : Bool =
     "erlang:yield/0"
+
+/// `run`'s value, and what was written to standard output and standard error
+/// while it ran, as `Os.run` answers a program's: how a test reads a line the
+/// code it tests writes, which then stands neither among the test's lines nor
+/// in a shell's live region.
+///
+/// `run` runs in the caller's process. What is captured is what the caller's
+/// chain writes: the process at the head of the caller's spawns, a test's own
+/// under `ern test`, and every process that one started, directly or through
+/// one it started, a server the test started before the call among them. A
+/// write by any other process, a system process's own or a service's, goes
+/// where it went (report Appendix E.24).
+///
+/// Where two captures of one chain run at once, the one begun last takes the
+/// chain's writes until it returns. Where the caller ends before `run`
+/// returns, a fault among the ways, what was captured is written where it
+/// would have gone.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let #(_, captured) = Test.capture(fn() = Io.printlnError("listening on 8080"));
+///     String.fromUtf8Lossy(captured.stderr)
+/// }
+/// // => "listening on 8080\n"
+/// ```
+///
+/// since 0.10.0
+export fn capture(run : () -> a receiving m) : #(a, Captured) receiving m = {
+    let writes = captureWrites();
+    let value = run();
+    #(value, captured(writes))
+}
+
+// Report Appendix E.24: the caller's chain's writes taken from now on by a
+// collector of the runtime's own, which no kill of the chain's ends, and
+// which lets them go where the caller ends first.
+foreign fn captureWrites() : Writes =
+    "ern_rt:capture_writes/0"
+
+// Report Appendix E.24: the capture ended, and what it took.
+foreign fn captured(writes : Writes) : Captured =
+    "ern_rt:captured/1"
