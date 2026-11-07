@@ -135,10 +135,66 @@ process_status_test() ->
                ern_rt:kill(Caller),
                ern_rt:kill(Server)
            end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual([{'Some', {'Status', <<"M.quiet:1">>, 1, 'Receiving'}},
-                  {'Some', {'Status', <<"M.caller:3">>, 0, 'Calling'}}], wait(statuses)),
+    ?assertMatch([{'Some', {'Status', <<"M.quiet:1">>, 1, 'Receiving', _}},
+                  {'Some', {'Status', <<"M.caller:3">>, 0, 'Calling', _}}], wait(statuses)),
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
+
+%% report Appendix E.21, §10: a process's memory is the host's count with the
+%% binaries it references, in its mailbox as in its heap, each whole however
+%% small the part it uses and for each reference, and a process that waits
+%% still counts what it dropped, until it is collected. A regression test,
+%% written after the code: MVP 4.15's item 3.
+process_memory_test() ->
+    Size = 1 bsl 20,
+    Bytes = binary:copy(<<0>>, Size),
+    Self = self(),
+    ok = ern_waits:with_room(
+           fun() ->
+               ern_rt:run_main(fun() -> Self ! {memories, memories(Bytes)} end, <<"M.main">>,
+                               #{stdout => fun(_) -> ok end})
+           end),
+    #{none := None, queued := Queued, kept := Kept, part := Part, twice := Twice,
+      dropped := Dropped, collected := Collected} = wait(memories),
+    ?assert(None > 0 andalso None < Size),
+    ?assert(Queued >= Size),
+    ?assert(Kept >= Size),
+    ?assert(Part >= Size),
+    ?assert(Twice >= 2 * Size),
+    ?assert(Dropped >= Size),
+    ?assert(Collected < Size).
+
+memories(Bytes) ->
+    Holding = fun(Then) ->
+                  ern_rt:spawn(fun() -> receive {bytes, Taken} -> Then(Taken) end end, <<"M.h:1">>)
+              end,
+    Waits = fun(Held) -> receive stop -> Held end end,
+    None = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.none:2">>),
+    Queued = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.queued:3">>),
+    Kept = Holding(Waits),
+    Part = Holding(fun(Taken) -> Waits(binary:part(Taken, 0, 100)) end),
+    Twice = ern_rt:spawn(fun() ->
+                             receive {bytes, First} ->
+                                 receive {bytes, Second} -> Waits({First, Second}) end
+                             end
+                         end, <<"M.twice:4">>),
+    Dropped = Holding(fun(Taken) -> Waits(byte_size(Taken)) end),
+    ern_rt:send(Twice, {bytes, Bytes}),
+    [ern_rt:send(Address, {bytes, Bytes}) || Address <- [Queued, Kept, Part, Twice, Dropped]],
+    ern_rt:timed(),
+    [ok = ern_waits:waiting(ern_rt:process_of(Address))
+     || Address <- [None, Queued, Kept, Part, Twice, Dropped]],
+    ern_rt:untimed(),
+    Memory = fun(Address) ->
+                 {'Some', {'Status', _, _, _, Held}} = ern_rt:status(ern_rt:process_of(Address)),
+                 Held
+             end,
+    Read = #{none => Memory(None), queued => Memory(Queued), kept => Memory(Kept),
+             part => Memory(Part), twice => Memory(Twice), dropped => Memory(Dropped)},
+    erlang:garbage_collect(ern_rt:process_of(Dropped)),
+    Answer = Read#{collected => Memory(Dropped)},
+    [ern_rt:kill(Address) || Address <- [None, Queued, Kept, Part, Twice, Dropped]],
+    Answer.
 
 %% report §12.1, §11.2, Appendix E.28: on a node a shell is attached to,
 %% standard output and standard error write what a process of a session

@@ -28,7 +28,17 @@
 /// since 0.1.0
 
 /// What the runtime knows of a live process: where it was spawned, as `Down`'s
-/// site names it, how many messages wait in its mailbox, and what it is doing.
+/// site names it, how many messages wait in its mailbox, what it is doing, and
+/// the bytes it holds.
+///
+/// `memory` is what the host counts for the process: its stack, its heap, its
+/// mailbox and each binary it references, whole, however small the part it uses.
+/// A binary is counted for each reference and in each process that holds one, so
+/// the memories of a node's processes can add up to more than the node holds. A
+/// process that waits still counts what it dropped (report §10). A binary that
+/// code holds, a constant's or a shell's binding's, is not counted. A socket's
+/// counts the process that does its writes too (report Appendix E.18), and not
+/// the host's processes of a connection over TLS.
 ///
 /// ### Examples
 ///
@@ -38,7 +48,7 @@
 /// ```
 ///
 /// since 0.4.0
-export type Status = Status(site : String, queued : Int, activity : Activity)
+export type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 
 /// What a live process is doing: running, waiting in a `receive` or in
 /// `Clock.sleep`, or waiting for the answer to a call.

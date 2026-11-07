@@ -751,8 +751,13 @@ attached(Base, Ops, ["$ ern " ++ Words | Lines]) ->
                     "Ernest " ++ Rest -> [Start, string:find(Rest, " "), "\n"];
                     _ -> [Line, "\n"]
                 end || Line <- Shown] ++ [Tail],
-    ?assertEqual(lists:flatten(Expected), lists:flatten(Unsaid)),
+    ?assertEqual(memoryless(Expected), memoryless(Unsaid)),
     Answer.
+
+%% Report §11.2, Appendix E.21: a session's text with each process's memory
+%% taken out, a count that differs from run to run.
+memoryless(Text) ->
+    re:replace(Text, "memory = [0-9]+|[0-9]+ bytes$", "", [global, multiline, {return, list}]).
 
 %% Report §11.2 *The attached shell*, §11.8: an attached shell's end the
 %% guide shows, Shown, its last prompt and the shell's line under it, Line,

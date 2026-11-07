@@ -314,9 +314,9 @@ $ ern shell --config-dir ops --attach b
 the peer b connected
 Ernest 0.10.0, session 1. :help for help.
 > :processes
-Counter.serve receiving
+Counter.serve receiving 3120 bytes
 > List.map(Process.live(), Process.status)
-[Some(Process.Status(site = "Counter.serve", queued = 0, activity = Process.Receiving))] : List(Optional(Process.Status))
+[Some(Process.Status(site = "Counter.serve", queued = 0, activity = Process.Receiving, memory = 3120))] : List(Optional(Process.Status))
 > Peer.peers()
 ["a", "ops"] : List(String)
 > :browse Counter
@@ -324,7 +324,7 @@ Counter.serve() : Unit receiving Counter.CounterMsg
 > :quit
 ```
 
-`the peer b connected` is said by `ops` as the shell dials, and `b` says `the peer ops connected`. The shell prints each value with its type. `:processes` lists `b`'s live processes, each by its spawn site and what it does, `running`, `receiving` or `calling`, here the counter waiting for a message; a process in `Clock.sleep` is `receiving` too (report Appendix E.21). `Process.live()` and `Process.status` answer for `b` at its prompt, and `Process.live()`, as `:processes`, leaves out every session's own processes, this one's and another's (report Appendix E.21). `Peer.peers()` is `b`'s configuration, and a binding of the program read at the prompt is `b`'s value, as a function of the program called there runs on `b`.
+`the peer b connected` is said by `ops` as the shell dials, and `b` says `the peer ops connected`. The shell prints each value with its type. `:processes` lists `b`'s live processes, each by its spawn site, what it does, `running`, `receiving` or `calling`, and the bytes it holds, here the counter waiting for a message; a process in `Clock.sleep` is `receiving` too (report Appendix E.21). `Process.live()` and `Process.status` answer for `b` at its prompt, and `Process.live()`, as `:processes`, leaves out every session's own processes, this one's and another's (report Appendix E.21). `Peer.peers()` is `b`'s configuration, and a binding of the program read at the prompt is `b`'s value, as a function of the program called there runs on `b`.
 
 A process's site is the declaration its spawn is written in, with the spawn's line, `Counter.main:59` for the counter the second build's tool spawns. The entry process, which no spawn starts, has the entry point's name and no line, `Counter.serve` above (report §6.9). A site carries the number of the version that spawned it, fixed at the spawn: plain for the build and the first load, and with the version's number for a reload's, `Counter$2.main:59` for that spawn in the module's first reload. A site of a process a session started carries the session, `$Session2.input 3:1`, in every shell's lines and on the node's standard error alike (report §11.2, *Faults*).
 
@@ -411,7 +411,7 @@ $ ern shell --config-dir ops --attach b
 the peer b connected
 Ernest 0.10.0, session 1. :help for help.
 > :processes
-Counter.serve receiving
+Counter.serve receiving 3120 bytes
 ```
 
 `b` says `the peer ops connected` as the shell dials it, and `:processes` lists the counter by its site, the entry point `--main` named, waiting for a message. Leave the shell attached.

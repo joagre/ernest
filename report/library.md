@@ -729,7 +729,11 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` takes one (§6.9). Across nodes a `Process` names its node.
 
-`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28). `live` answers the processes a program spawned and the listeners, sockets and running programs a system module opened (Appendix E.18, E.23), that have not ended; no process of the runtime's own, its evaluators among them (E.28), and no system process is among them; in a shell, and on a node a shell is attached to, each session's own processes are excepted too (§11.2).
+`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28).
+
+Its `memory` is the bytes the process holds as the host counts them: its stack, its heap and its mailbox, and each binary it references, whole, however small the part it uses. A binary is counted for each reference and in each process that holds one, so the memories of a node's processes can add up to more than the node holds. A process that waits still counts what it dropped (§10). A binary that code holds, a constant's (§4.6) or a shell's binding's (§11.2), is not counted. A socket's counts the process that does its writes too (E.18), and not the host's processes of a connection over TLS.
+
+`live` answers the processes a program spawned and the listeners, sockets and running programs a system module opened (Appendix E.18, E.23), that have not ended; no process of the runtime's own, its evaluators among them (E.28), and no system process is among them; in a shell, and on a node a shell is attached to, each session's own processes are excepted too (§11.2).
 
 `faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own, each session's own (§11.2) and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. A process holds one subscription to faults, beside one to the terminal (§12.1): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 
@@ -746,13 +750,13 @@ A frame of a process that waits in a `receive` names the line of the last call b
 A frame of Ernest code is written as a spawn site is (§6.9), the name of the top-level declaration the code is written in and the frame's line, `Counter.worker:23`, for a lambda or a local function as for the declaration's own body; a frame of the host's, and a kept frame of the runtime's, is the function as the host writes it, an atom quoted where the host quotes one, then its line, `lists:nth/2:213`, without a line where the host has none.
 
 ```
-type Status = Status(site : String, queued : Int, activity : Activity)
+type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 type Activity = Running | Receiving | Calling // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's or a load's answer (E.28)
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
 Process.kill : (Process) -> Unit // ends the process with the reason Killed, as kill does (§6.9); nothing for one that has ended
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
-Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a `receive` or in `Clock.sleep`, or waits for a call's answer; None once it has ended, and for a process of another node
+Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, or waits for a call's answer, and the bytes it holds; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
 Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended
 Process.faults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox

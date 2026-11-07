@@ -88,9 +88,9 @@ reader S reads of its live shell. The release note's line on the installed layou
    *Nothing at the Wait Built*). A `receive` without an `after` is the host's again, so its waiting
    frame names the last call before the wait or its function's head, as E.21 has said since
    2026-10-23, and not the `receive`'s own line.
-3. **Memory shown.** `Process.status` and `:processes` show each process's memory, the host's
-   count with its binaries (E.21, §11.2), read against E.0's rules first, so that an operator
-   sees what an idle connection holds.
+3. **Memory shown**, done 2026-11-07 (E.21, §11.2; the log's *Memory Shown*). `Process.status` has
+   a `memory` field, and `:processes` writes it. A binary is counted whole for each reference, so
+   the lines can add up to more than the node holds, and a socket's counts its writer's.
 4. **The deployment guide says what a waiting process holds**, one sentence in its section 7,
    pointing at §10.
 5. **`kill` takes a `Process`**, feedback 213, as `monitor` does, so that a function of an

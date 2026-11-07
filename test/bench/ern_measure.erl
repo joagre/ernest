@@ -829,7 +829,8 @@ process_scenarios() ->
       {fun() -> ProcessFromAddress(ern_rt:self()) end, fun() -> erlang:self() end}},
      {<<"Process.status">>, {fun() -> ProcessStatus(Me) end,
                              fun() -> erlang:process_info(erlang:self(),
-                                                          [message_queue_len, status])
+                                                          [message_queue_len, status, memory,
+                                                           garbage_collection_info])
                              end}},
      {<<"Process.live">>, {fun() -> ProcessLive() end, fun() -> erlang:processes() end}},
      %% each side kills a process of the host's spawned for it, whose spawn

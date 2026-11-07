@@ -67,9 +67,8 @@ untraced(Pid, Flags) ->
 
 %% Report §10: until Pid references no binary of Size bytes or more, or has
 %% ended. Its references are read at first and again after each collection of
-%% Pid and each hibernation, which the host traces. A read in a loop, as
-%% until/2 would make it, is a signal Pid answers on its own heap, which fills
-%% and collects Pid by itself.
+%% Pid and each hibernation, which the host traces, so that no read waits in a
+%% loop.
 -spec freed(pid(), non_neg_integer()) -> ok | ended.
 freed(Pid, Size) ->
     Flags = [garbage_collection, running],

@@ -4343,7 +4343,7 @@ attached_sessions(Base) ->
             "> 5 : Int\n"),
     ThirdOut = string:find(written(One, out), ", session 3. :help"),
     has(ThirdOut, Offered),
-    has(ThirdOut, "$Session1.input 3:1 receiving\n"),
+    has(ThirdOut, "$Session1.input 3:1 receiving "),
     ?assertEqual(nomatch, string:find(ThirdOut, "Greet")),
     _ = detached({Third, WaitThird}, One),
     {SecondOut, _} = detached({Second, WaitSecond}, Two),
@@ -4947,7 +4947,8 @@ is_session(_) -> false.
 %%
 %% The shell's own node's line of the connection stands out of the file,
 %% since nothing orders it against the start line; it is held to stand
-%% once, without the time its stream stamps (§11.2). A process at
+%% once, without the time its stream stamps (§11.2), and the file holds no
+%% process's memory, a count that differs from run to run (E.21). A process at
 %% `:processes` is spawned some inputs before, so that it waits by then.
 %% Written after the code, a regression test: MVP 4.0's item 5
 attached_session_test_() ->
@@ -4971,8 +4972,9 @@ attached_session(Base) ->
     Connected = "the peer node connected\n",
     ?assertEqual(2, length(string:split(Unstamped, Connected, all))),
     {ok, Expected} = file:read_file("fixtures/session/attached.out"),
-    ?assertEqual(binary_to_list(Expected),
-                 lists:flatten(string:replace(Unstamped, Connected, "", all))),
+    Listed = re:replace(string:replace(Unstamped, Connected, "", all), " [0-9]+ bytes$", "",
+                        [global, multiline, {return, list}]),
+    ?assertEqual(binary_to_list(Expected), lists:flatten(Listed)),
     stop(Node, WaitNode).
 
 %% Report §11.2: Text without the time its lines begin with where the

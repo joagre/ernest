@@ -674,6 +674,7 @@ socket_process(Tcp, Transport, Socket, State, Owner, Site) ->
                                     end)
               end,
     Loop = fun(MonitorRef, Writer) ->
+               ern_rt:writes_through(Writer),
                Writer ! go,
                socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
                                        owner = Owner, monitor_ref = MonitorRef, state = State})

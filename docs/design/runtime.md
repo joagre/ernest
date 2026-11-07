@@ -39,6 +39,7 @@ A process's own, in its dictionary, dying with it, read by the process and by th
 - the mark that it is inside foreign code, put by the boundary's wrapper while a function given to foreign code runs, and by each slow wait of the runtime's own around its receive (§8.4, §8.6);
 - the mark that it is in a receive with a deadline (§6.3);
 - its call, the callee and the reply, while a call waits (§6.6), which the look, `Process.status` and a kill read;
+- on a socket's process, the process that does its writes, which has no row and holds what it wrote until it runs again, so that `Process.status` counts it as the socket's (E.18, E.21);
 - while a restarting function runs, its outermost's start cause and the alias a supervisor asks the process to restart through, which a supervisor reads of the process as it asks (§6.9, E.22);
 - the evaluator a load's caller waits for, which a deadlock faults in the caller's place (§8.6, E.28), and what a process of the runtime's own acts for, its recipient, or none where the recipient is on another node (§6.5, §6.9);
 - the tables it made, which `Ets.new` tells the runtime of, and the processes it started to end with it, a proxy's, which `Proxy.start` tells, each a list that drops what the process no longer holds once it has doubled, so that it stays within twice what the process holds; a load's evaluator reads its own at its end, and `Process.owned` and `Ets.owned` read another's, with what watches it as its owner (E.21, E.28, G.1, G.7).

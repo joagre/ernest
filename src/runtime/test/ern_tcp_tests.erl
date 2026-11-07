@@ -866,6 +866,44 @@ side({Side, _}) -> Side.
 quiet() ->
     #{stdout => fun(_) -> ok end}.
 
+%% report Appendix E.21, E.18: a socket's memory counts its writer's, which holds
+%% the bytes it wrote until it runs again, where the socket's own process has let
+%% them go and no line of `:processes` would show them otherwise. A regression
+%% test, written after the code: MVP 4.15's item 3. It does not cover a socket
+%% over TLS, whose writer is the same process.
+socket_memory_counts_its_writer_test() ->
+    Size = 1 bsl 20,
+    Self = self(),
+    ok = ern_waits:with_room(fun() ->
+         quietly(
+           fun() ->
+               Main = self(),
+               {'Right', Listener} = listen(0),
+               {'Right', Port} = port(Listener),
+               Peer = spawn(fun() ->
+                                {ok, Connected} = gen_tcp:connect("127.0.0.1", Port,
+                                                                  [binary, {active, false}]),
+                                {ok, _} = gen_tcp:recv(Connected, Size),
+                                Main ! taken,
+                                receive close -> gen_tcp:close(Connected) end
+                            end),
+               {'Right', Socket} = accept(Listener, 5000),
+               _ = ern_rt:spawn(fun() ->
+                                    write(Socket, binary:copy(<<0>>, Size)),
+                                    Main ! written
+                                end, <<"M.write:1">>),
+               receive written -> ok end,
+               receive taken -> ok after 5000 -> error(not_taken) end,
+               Process = ern_rt:process_of(Socket),
+               erlang:garbage_collect(Process),
+               {binary, Own} = erlang:process_info(Process, binary),
+               {'Some', {'Status', _, _, _, Memory}} = ern_rt:status(Process),
+               Self ! {counted, {Own, Memory >= Size}},
+               Peer ! close
+           end)
+         end),
+    ?assertEqual({[], true}, wait(counted)).
+
 %% report Appendix E.18, §10: the host's process of a connection over TLS
 %% hibernates after a millisecond's wait, and so holds no bytes a write brought.
 %% The socket's process and its writer are the runtime's, and hold them until

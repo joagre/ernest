@@ -47,7 +47,7 @@
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
          killed/2, reason/1, peer_restarted/2, left_waiting/1, wait_for_deliveries/0, started_by/1,
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
-         screen/2, drop_screens/1, root_of/1, status/1, faults/1, termination/1,
+         screen/2, drop_screens/1, root_of/1, status/1, writes_through/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
@@ -126,6 +126,14 @@
 %% process (ends_with_caller/1, owned/1). Each is owned_listed/3's.
 -define(TABLES, '$ern_tables').
 -define(ENDING, '$ern_ending').
+
+%% A socket's process keeps the writer that does its writes under this key,
+%% which Process.status reads (writes_through/1).
+-define(WRITER, '$ern_writer').
+
+%% What Process.status asks the host of a process for its memory, in this order
+%% (held_bytes/1).
+-define(HOLDS, [memory, garbage_collection_info]).
 %% Report §11.2: the fewest entries a list owned_listed/3 keeps before it
 %% drops those no longer held, so that a process that holds few reads none
 %% again.
@@ -2265,26 +2273,54 @@ root_of(Pid) ->
 %% has ended, for a process on another node, and for one of the runtime's
 %% own, which has no row but a load's evaluator (E.28). A process waiting for a
 %% call's answer is Calling, which the host's status does not tell from a
-%% receive: it keeps its call under its CALL key (§6.6).
--spec status(pid()) -> 'None' | {'Some', {'Status', binary(), non_neg_integer(), atom()}}.
+%% receive: it keeps its call under its CALL key (§6.6). A socket's memory
+%% counts the writer it keeps under its WRITER key.
+-spec status(pid()) ->
+    'None' | {'Some', {'Status', binary(), non_neg_integer(), atom(), non_neg_integer()}}.
 status(Pid) when node(Pid) =:= node() ->
-    case {ets_lookup(?PROCESSES, Pid),
-          erlang:process_info(Pid, [status, message_queue_len, {dictionary, ?CALL}])} of
+    Asked = [status, message_queue_len, {dictionary, ?CALL}, {dictionary, ?WRITER} | ?HOLDS],
+    case {ets_lookup(?PROCESSES, Pid), erlang:process_info(Pid, Asked)} of
         {[#process_row{own = evaluator}], _} ->
             'None';
         {[#process_row{site = Site}],
-         [{status, HostStatus}, {message_queue_len, Queued}, {_, Call}]} ->
+         [{status, HostStatus}, {message_queue_len, Queued}, {_, Call}, {_, Writer} | Holds]} ->
             Activity = case {HostStatus, Call} of
                            {waiting, undefined} -> 'Receiving';
                            {waiting, _} -> 'Calling';
                            _ -> 'Running'
                        end,
-            {'Some', {'Status', Site, Queued, Activity}};
+            {'Some', {'Status', Site, Queued, Activity, held_bytes(Holds) + writer_bytes(Writer)}};
         _ ->
             'None'
     end;
 status(_) ->
     'None'.
+
+%% Appendix E.21: the bytes the host counts for a process. Its `memory` leaves
+%% out the binaries the process references, which its collector counts in
+%% words, young and old, without a scan of them.
+held_bytes([{memory, Memory}, {garbage_collection_info, Collection}]) ->
+    {_, Young} = lists:keyfind(bin_vheap_size, 1, Collection),
+    {_, Old} = lists:keyfind(bin_old_vheap_size, 1, Collection),
+    Memory + (Young + Old) * erlang:system_info(wordsize).
+
+%% A socket's writer, which ended where the socket has closed, and no other
+%% process has one.
+writer_bytes(undefined) ->
+    0;
+writer_bytes(Writer) ->
+    case erlang:process_info(Writer, ?HOLDS) of
+        undefined -> 0;
+        Holds -> held_bytes(Holds)
+    end.
+
+%% Appendix E.18, E.21: the calling socket's process names the process that
+%% does its writes, which holds the bytes it wrote until it runs again, and
+%% has no row of its own, so that Process.status counts them as the socket's.
+-spec writes_through(pid()) -> ok.
+writes_through(Writer) ->
+    _ = erlang:put(?WRITER, Writer),
+    ok.
 
 ets_lookup(Table, Key) ->
     try ets:lookup(Table, Key) catch _:_ -> [] end.
