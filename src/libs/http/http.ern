@@ -42,7 +42,7 @@
 /// ```ernest
 /// {
 ///     let bytes = String.toUtf8("GET /hello.txt HTTP/1.1\r\nHost: www.example.com\r\n\r\n");
-///     match Http.parseRequest(bytes, Http.Limits(line = 8192, headers = 65536)) {
+///     match Http.parseRequest(bytes, Http.defaultLimits) {
 ///         Right(Http.Parsed(head = request)) ->
 ///             #(request.method, request.target, Http.header(request.headers, "host"))
 ///       | _ ->
@@ -57,7 +57,7 @@
 /// ```ernest
 /// {
 ///     let response =
-///         Http.Response(version = Http.Version(major = 1, minor = 1),
+///         Http.Response(version = Http.http11,
 ///                       status = 200,
 ///                       headers = [Http.Header(name = "Content-Type", value = "text/plain")]);
 ///     String.fromUtf8(Http.renderResponse(response, String.toUtf8("Hello")))
@@ -71,19 +71,36 @@
 ///
 /// since 0.9.0
 
-/// A version of HTTP, `HTTP/1.1` being `Version(major = 1, minor = 1)`.
+/// A version of HTTP, `HTTP/1.0` being `Version(major = 1, minor = 0)`;
+/// `http11` is HTTP/1.1.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Http.Version(major = 1, minor = 1)
-/// // => Http.Version(major = 1, minor = 1)
+/// Http.Version(major = 1, minor = 0)
+/// // => Http.Version(major = 1, minor = 0)
 /// ```
 export type Version = Version(
     /// The number before the point.
     major : Int,
     /// The number after the point.
     minor : Int)
+
+/// HTTP/1.1, the version of the messages RFC 9112 writes.
+///
+/// A server answers an HTTP/1.0 request in HTTP/1.1 too, the highest
+/// version it speaks whose major number is not above the request's (RFC
+/// 9110, section 2.5).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Http.http11
+/// // => Http.Version(major = 1, minor = 1)
+/// ```
+///
+/// since 0.10.0
+export let http11 : Version = Version(major = 1, minor = 1)
 
 /// A header: its name, which a reader keeps as written, and its value.
 ///
@@ -109,7 +126,7 @@ export type Header = Header(
 ///     let request =
 ///         Http.Request(method = "GET",
 ///                      target = "/",
-///                      version = Http.Version(major = 1, minor = 1),
+///                      version = Http.http11,
 ///                      headers = [Http.Header(name = "Host", value = "example.com")]);
 ///     #(request.method, request.target, request.headers)
 /// }
@@ -132,7 +149,7 @@ export type Request = Request(
 /// ### Examples
 ///
 /// ```ernest
-/// Http.Response(version = Http.Version(major = 1, minor = 1), status = 404, headers = [])
+/// Http.Response(version = Http.http11, status = 404, headers = [])
 /// // => Http.Response(version = Http.Version(major = 1, minor = 1), status = 404, headers = [])
 /// ```
 export type Response = Response(
@@ -145,12 +162,13 @@ export type Response = Response(
 
 /// The most bytes a head may take: of any of its lines, the line ending
 /// among them, and of its header lines together, theirs among them.
+/// A program with no reason to choose its own passes `defaultLimits`.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Http.Limits(line = 8192, headers = 65536)
-/// // => Http.Limits(line = 8192, headers = 65536)
+/// Http.Limits(line = 4096, headers = 16384)
+/// // => Http.Limits(line = 4096, headers = 16384)
 /// ```
 export type Limits = Limits(
     /// The most bytes of any line; a limit below 1 lets no line in.
@@ -158,12 +176,27 @@ export type Limits = Limits(
     /// The most bytes of the header lines together.
     headers : Int)
 
+/// The limits a head is read within where a program has no reason to
+/// choose its own: a line of 8192 bytes, past the 8000 that RFC 9112,
+/// section 3, recommends a recipient read in a request line, and header
+/// lines of 65536 bytes together.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Http.defaultLimits
+/// // => Http.Limits(line = 8192, headers = 65536)
+/// ```
+///
+/// since 0.10.0
+export let defaultLimits : Limits = Limits(line = 8192, headers = 65536)
+
 /// Why a head or a body is refused.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Http.parseRequest(String.toUtf8("GET /\r\n\r\n"), Http.Limits(line = 8192, headers = 65536))
+/// Http.parseRequest(String.toUtf8("GET /\r\n\r\n"), Http.defaultLimits)
 /// // => Left(Http.Malformed)
 /// ```
 export type Error =
@@ -188,8 +221,7 @@ export type Error =
 /// ### Examples
 ///
 /// ```ernest
-/// Http.parseRequest(String.toUtf8("GET / HTTP/1.1\r\n"),
-///                   Http.Limits(line = 8192, headers = 65536))
+/// Http.parseRequest(String.toUtf8("GET / HTTP/1.1\r\n"), Http.defaultLimits)
 /// // => Right(Http.Incomplete)
 /// ```
 export type Parsed(a) =
@@ -237,9 +269,8 @@ export type ReadError =
 ///
 /// ```ernest
 /// {
-///     let limits = Http.Limits(line = 8192, headers = 65536);
 ///     let bytes = String.toUtf8("GET /a HTTP/1.1\r\n\r\nGET /b HTTP/1.1\r\n\r\n");
-///     match Http.parseRequest(bytes, limits) {
+///     match Http.parseRequest(bytes, Http.defaultLimits) {
 ///         Right(Http.Parsed(head = first, =rest)) -> #(first.target, String.fromUtf8(rest))
 ///       | _ -> #("", None)
 ///     }
@@ -264,7 +295,7 @@ export foreign fn parseRequest(bytes : Bytes, limits : Limits) : Either(Error, P
 /// ```ernest
 /// {
 ///     let bytes = String.toUtf8("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-///     match Http.parseResponse(bytes, Http.Limits(line = 8192, headers = 65536)) {
+///     match Http.parseResponse(bytes, Http.defaultLimits) {
 ///         Right(Http.Parsed(head = response)) -> #(response.status, response.headers)
 ///       | _ -> #(0, [])
 ///     }
@@ -293,9 +324,8 @@ export foreign fn parseResponse(bytes : Bytes, limits : Limits) : Either(Error, 
 /// {
 ///     let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
 ///     let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
-///     let limits = Http.Limits(line = 8192, headers = 65536);
-///     let #(request, _) <- Http.readRequest(socket, <<>>, limits, 10000);
-///     let response = Http.Response(version = request.version, status = 200, headers = []);
+///     let #(request, _) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
+///     let response = Http.Response(version = Http.http11, status = 200, headers = []);
 ///     let body = String.toUtf8(request.target);
 ///     let written = Tcp.write(socket, Http.renderResponse(response, body), 5000);
 ///     Tcp.close(socket);
@@ -333,12 +363,11 @@ export fn readRequest(socket : Address(Tcp.SocketMsg),
 ///     let request =
 ///         Http.Request(method = "GET",
 ///                      target = "/",
-///                      version = Http.Version(major = 1, minor = 1),
+///                      version = Http.http11,
 ///                      headers = [Http.Header(name = "Host", value = "example.com")]);
 ///     let _ <-
 ///         Either.mapLeft(Tcp.write(socket, Http.renderRequest(request, <<>>), 5000), Http.Socket);
-///     let limits = Http.Limits(line = 8192, headers = 65536);
-///     let #(response, carried) <- Http.readResponse(socket, <<>>, limits, 10000);
+///     let #(response, carried) <- Http.readResponse(socket, <<>>, Http.defaultLimits, 10000);
 ///     let #(body, _) <- Http.readResponseBody(socket, carried, response, 1000000, 10000);
 ///     Tcp.close(socket);
 ///     Right(body)
@@ -503,10 +532,9 @@ fn received(socket : Address(Tcp.SocketMsg),
 /// {
 ///     let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
 ///     let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
-///     let limits = Http.Limits(line = 8192, headers = 65536);
-///     let #(request, carried) <- Http.readRequest(socket, <<>>, limits, 10000);
+///     let #(request, carried) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
 ///     let #(body, _) <- Http.readRequestBody(socket, carried, request, 1000000, 10000);
-///     let response = Http.Response(version = request.version, status = 200, headers = []);
+///     let response = Http.Response(version = Http.http11, status = 200, headers = []);
 ///     let size = String.toUtf8(Int.toString(Bytes.size(body)));
 ///     let written = Tcp.write(socket, Http.renderResponse(response, size), 5000);
 ///     Tcp.close(socket);
@@ -781,8 +809,7 @@ fn isNamed(header : Header, lowered : String) : Bool =
 ///
 /// ```ernest
 /// {
-///     let response =
-///         Http.Response(version = Http.Version(major = 1, minor = 1), status = 204, headers = []);
+///     let response = Http.Response(version = Http.http11, status = 204, headers = []);
 ///     String.fromUtf8(Http.renderResponse(response, <<>>))
 /// }
 /// // => Some("HTTP/1.1 204 No Content\r\n\r\n")
@@ -833,7 +860,7 @@ fn isBodiless(status : Int) : Bool =
 ///     let request =
 ///         Http.Request(method = "POST",
 ///                      target = "/items",
-///                      version = Http.Version(major = 1, minor = 1),
+///                      version = Http.http11,
 ///                      headers = [Http.Header(name = "Host", value = "example.com")]);
 ///     String.fromUtf8(Http.renderRequest(request, String.toUtf8("{}")))
 /// }
@@ -1154,11 +1181,6 @@ let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 // Regression tests, written with the code.
 //
 
-// The limits the tests read heads within, and the version they write.
-let testLimits = Limits(line = 8192, headers = 65536)
-
-let testVersion = Version(major = 1, minor = 1)
-
 // The head a parse found, or none.
 fn headOf(parsed : Either(Error, Parsed(a))) : Optional(a) =
     match parsed {
@@ -1166,9 +1188,9 @@ fn headOf(parsed : Either(Error, Parsed(a))) : Optional(a) =
       | _ -> None
     }
 
-// The request whose head the text holds, within the tests' limits, or none.
+// The request whose head the text holds, within the default limits, or none.
 fn requestOf(text : String) : Optional(Request) =
-    headOf(parseRequest(String.toUtf8(text), testLimits))
+    headOf(parseRequest(String.toUtf8(text), defaultLimits))
 
 // The request of RFC 9110's example exchange (section 3.9), and its head
 // read.
@@ -1184,7 +1206,7 @@ let helloText =
 let hello =
     Request(method = "GET",
             target = "/hello.txt",
-            version = testVersion,
+            version = http11,
             headers = [Header(name = "User-Agent", value = "curl/7.64.1"),
                        Header(name = "Host", value = "www.example.com"),
                        Header(name = "Accept-Language", value = "en, mi")])
@@ -1193,7 +1215,7 @@ let hello =
 let rfcRequest =
     Test.Case(name = "RFC 9110's example request is read, its headers in their order",
               run = fn() =
-                  Test.equal(parseRequest(String.toUtf8(helloText), testLimits),
+                  Test.equal(parseRequest(String.toUtf8(helloText), defaultLimits),
                              Right(Parsed(head = hello, rest = <<>>))))
 
 // report Appendix G.11
@@ -1211,10 +1233,26 @@ let rfcResponse =
             [Header(name = "Date", value = "Mon, 27 Jul 2009 12:28:53 GMT"),
              Header(name = "Server", value = "Apache"),
              Header(name = "Content-Length", value = "51")];
-        Test.equal(parseResponse(String.toUtf8(text), testLimits),
-                   Right(Parsed(head = Response(version = testVersion, status = 200, =headers),
+        Test.equal(parseResponse(String.toUtf8(text), defaultLimits),
+                   Right(Parsed(head = Response(version = http11, status = 200, =headers),
                                 rest = String.toUtf8("Hello"))))
     })
+
+// report Appendix G.11: written with the code.
+let namedValues =
+    Test.Case(name = "http11 writes HTTP/1.1, and defaultLimits lets in a line of 8192 bytes",
+              run = fn() = {
+                  let sized =
+                      fn(count) =
+                          String.toUtf8("GET /"
+                                            <> String.repeat("a", count - 16)
+                                            <> " HTTP/1.1\r\n\r\n");
+                  let response = Response(version = http11, status = 204, headers = []);
+                  Test.equal(#(String.fromUtf8(renderResponse(response, <<>>)),
+                               Optional.isSome(headOf(parseRequest(sized(8192), defaultLimits))),
+                               parseRequest(sized(8193), defaultLimits)),
+                             #(Some("HTTP/1.1 204 No Content\r\n\r\n"), true, Left(LineTooLong)))
+              })
 
 // report Appendix G.11
 let targetForms =
@@ -1242,7 +1280,7 @@ let lineFeeds =
     Test.Case(name = "a line may end in a line feed alone",
               run = fn() =
                   Test.equal(parseRequest(String.toUtf8(String.replace(helloText, "\r\n", "\n")),
-                                          testLimits),
+                                          defaultLimits),
                              Right(Parsed(head = hello, rest = <<>>))))
 
 // report Appendix G.11
@@ -1264,9 +1302,9 @@ let pipelined =
     Test.Case(name = "two requests sent at once: the second is the bytes after the first's head",
               run = fn() = {
                   let bytes = String.toUtf8("GET /a HTTP/1.1\r\n\r\n" <> helloText);
-                  match parseRequest(bytes, testLimits) {
+                  match parseRequest(bytes, defaultLimits) {
                       Right(Parsed(head = first, =rest)) ->
-                          Test.equal(#(first.target, parseRequest(rest, testLimits)),
+                          Test.equal(#(first.target, parseRequest(rest, defaultLimits)),
                                      #("/a", Right(Parsed(head = hello, rest = <<>>))))
                     | other ->
                           Test.Failed(Io.show(other))
@@ -1279,7 +1317,7 @@ let everyPrefix =
         let bytes = String.toUtf8(helloText);
         Test.equal(List.filter(List.range(0, Bytes.size(bytes) - 1),
                                fn(count) =
-                                   parseRequest(Bytes.slice(bytes, 0, count), testLimits)
+                                   parseRequest(Bytes.slice(bytes, 0, count), defaultLimits)
                                        != Right(Incomplete)),
                    [])
     })
@@ -1306,9 +1344,9 @@ let malformed =
              "GET / HTTP/1.1\r\nX: a\u{0}b\r\n\r\n"];
         let notUtf8 =
             String.toUtf8("GET / HTTP/1.1\r\nX: ") <> <<255>> <> String.toUtf8("\r\n\r\n");
-        Test.equal(#(List.map(texts, fn(text) = parseRequest(String.toUtf8(text), testLimits))
-                         <> [parseRequest(notUtf8, testLimits)],
-                     parseResponse(String.toUtf8("GET / HTTP/1.1\r\n\r\n"), testLimits)),
+        Test.equal(#(List.map(texts, fn(text) = parseRequest(String.toUtf8(text), defaultLimits))
+                         <> [parseRequest(notUtf8, defaultLimits)],
+                     parseResponse(String.toUtf8("GET / HTTP/1.1\r\n\r\n"), defaultLimits)),
                    #(List.repeat(Left(Malformed), List.size(texts) + 1), Left(Malformed)))
     })
 
@@ -1323,7 +1361,7 @@ let emptyLineSkipped =
                                       fn(socket) =
                                           Either.map(readRequest(socket,
                                                                  String.toUtf8("\n"),
-                                                                 testLimits,
+                                                                 defaultLimits,
                                                                  1000),
                                                      fn(#(request, _)) = request.target))),
                              #(Some("/a"), Right(Right("/b")))))
@@ -1331,7 +1369,7 @@ let emptyLineSkipped =
 // report Appendix G.11: a regression test; the host read these as 20, 2000
 // and 200.
 let threeDigits = Test.Case(name = "a status line's status is three digits", run = fn() = {
-    let read = fn(text) = parseResponse(String.toUtf8(text), testLimits);
+    let read = fn(text) = parseResponse(String.toUtf8(text), defaultLimits);
     Test.equal(List.map(["HTTP/1.1 20 OK\r\n\r\n",
                          "HTTP/1.1 2000 OK\r\n\r\n",
                          "HTTP/1.1 0200 OK\r\n\r\n",
@@ -1340,7 +1378,7 @@ let threeDigits = Test.Case(name = "a status line's status is three digits", run
                [Left(Malformed),
                 Left(Malformed),
                 Left(Malformed),
-                Right(Parsed(head = Response(version = testVersion, status = 200, headers = []),
+                Right(Parsed(head = Response(version = http11, status = 200, headers = []),
                              rest = <<>>))])
 })
 
@@ -1349,10 +1387,11 @@ let responseFolds =
     Test.Case(name = "a response's header folded over lines is read with each fold one space",
               run = fn() = {
                   let text = "HTTP/1.1 200 OK\r\nX: a \r\n\t b\r\n c\r\nY: d\r\n\r\n";
-                  Test.equal(#(Optional.map(headOf(parseResponse(String.toUtf8(text), testLimits)),
+                  Test.equal(#(Optional.map(headOf(parseResponse(String.toUtf8(text),
+                                                                 defaultLimits)),
                                             fn(response) = response.headers),
                                parseRequest(String.toUtf8("GET / HTTP/1.1\r\nX: a\r\n b\r\n\r\n"),
-                                            testLimits)),
+                                            defaultLimits)),
                              #(Some([Header(name = "X", value = "a b c"),
                                      Header(name = "Y", value = "d")]),
                                Left(Malformed)))
@@ -1373,7 +1412,7 @@ let lineTooLong =
                                parseRequest(<<>>, Limits(line = 0, headers = 0))),
                              #(Some(Request(method = "GET",
                                             target = "/abcdefgh",
-                                            version = testVersion,
+                                            version = http11,
                                             headers = [])),
                                Left(LineTooLong),
                                Left(LineTooLong),
@@ -1398,7 +1437,7 @@ let headersTooLarge =
                                             Limits(line = 100, headers = 10))),
                              #(Some(Request(method = "GET",
                                             target = "/",
-                                            version = testVersion,
+                                            version = http11,
                                             headers = [Header(name = "X", value = "a"),
                                                        Header(name = "Y", value = "b")])),
                                Left(HeadersTooLarge),
@@ -1437,9 +1476,9 @@ let anyCase =
 let rendered =
     Test.Case(name = "a head is written with Content-Length where the headers carry none",
               run = fn() = {
-                  let response = Response(version = testVersion, status = 404, headers = []);
+                  let response = Response(version = http11, status = 404, headers = []);
                   let request =
-                      Request(method = "GET", target = "/", version = testVersion, headers = []);
+                      Request(method = "GET", target = "/", version = http11, headers = []);
                   Test.equal(List.map([renderResponse(response, String.toUtf8("gone")),
                                        renderResponse(Response(..response, status = 299), <<>>),
                                        renderRequest(request, <<>>),
@@ -1455,8 +1494,8 @@ let rendered =
 // report Appendix G.11: written with the code.
 let renderFaults =
     Test.Case(name = "a head that would not read back as written faults its writer", run = fn() = {
-        let request = Request(method = "GET", target = "/", version = testVersion, headers = []);
-        let response = Response(version = testVersion, status = 200, headers = []);
+        let request = Request(method = "GET", target = "/", version = http11, headers = []);
+        let response = Response(version = http11, status = 200, headers = []);
         let withHeader =
             fn(name, value) =
                 renderResponse(Response(..response, headers = [Header(=name, =value)]), <<>>);
@@ -1495,7 +1534,7 @@ let renderFaults =
 // report Appendix G.11
 let bodyWhateverMethod =
     Test.Case(name = "a request's body is written whatever its method", run = fn() = {
-        let request = Request(method = "GET", target = "/", version = testVersion, headers = []);
+        let request = Request(method = "GET", target = "/", version = http11, headers = []);
         Test.equal(String.fromUtf8(renderRequest(request, String.toUtf8("x"))),
                    Some("GET / HTTP/1.1\r\nContent-Length: 1\r\n\r\nx"))
     })
@@ -1504,13 +1543,10 @@ let bodyWhateverMethod =
 let renderedWithout =
     Test.Case(name = "no Content-Length for a 1xx, a 204 or a 304, or beside Transfer-Encoding",
               run = fn() = {
-                  let response = Response(version = testVersion, status = 204, headers = []);
+                  let response = Response(version = http11, status = 204, headers = []);
                   let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
                   let request =
-                      Request(method = "POST",
-                              target = "/",
-                              version = testVersion,
-                              headers = chunked);
+                      Request(method = "POST", target = "/", version = http11, headers = chunked);
                   let upgrade = [Header(name = "Upgrade", value = "websocket")];
                   // the headers and the body of a chunked message, its last chunk alone
                   let chunkedRest = "Transfer-Encoding: chunked\r\n\r\n0\r\n\r\n";
@@ -1539,11 +1575,11 @@ let readBack =
     Test.Case(name = "a response written is read back, its body the bytes after its head",
               run = fn() = {
                   let response =
-                      Response(version = testVersion,
+                      Response(version = http11,
                                status = 201,
                                headers = [Header(name = "Location", value = "/items/1")]);
                   Test.equal(parseResponse(renderResponse(response, String.toUtf8("made")),
-                                           testLimits),
+                                           defaultLimits),
                              Right(Parsed(head = Response(..response,
                                                           headers = response.headers
                                                               <> [Header(name = "Content-Length",
@@ -1697,7 +1733,7 @@ let oneRequest =
                   Test.equal(served(["GET /hello.txt HTTP/1.1\r\nUser-Agent: curl/7.64.1\r\n",
                                      "Host: www.example.com\r\nAccept-Language: en, mi\r\n\r\n"],
                                     StaysOpen,
-                                    fn(socket) = readRequest(socket, <<>>, testLimits, 1000)),
+                                    fn(socket) = readRequest(socket, <<>>, defaultLimits, 1000)),
                              Right(Right(#(hello, <<>>)))))
 
 // report Appendix G.11
@@ -1708,9 +1744,9 @@ let twoRequests =
                                     StaysOpen,
                                     fn(socket) = {
                                         let #(first, carried) <-
-                                            readRequest(socket, <<>>, testLimits, 1000);
+                                            readRequest(socket, <<>>, defaultLimits, 1000);
                                         let #(second, rest) <-
-                                            readRequest(socket, carried, testLimits, 1000);
+                                            readRequest(socket, carried, defaultLimits, 1000);
                                         Right(#(first.target, second.target, rest))
                                     }),
                              Right(Right(#("/a", "/b", <<>>)))))
@@ -1724,7 +1760,7 @@ let fromCarried =
                                     fn(socket) =
                                         readRequest(socket,
                                                     String.toUtf8(helloText <> "GET"),
-                                                    testLimits,
+                                                    defaultLimits,
                                                     0)),
                              Right(Right(#(hello, String.toUtf8("GET"))))))
 
@@ -1735,7 +1771,10 @@ let noTime =
                   Test.equal(served(["GET / HTTP/1.1\r\n\r\n"],
                                     StaysOpen,
                                     fn(socket) =
-                                        readRequest(socket, String.toUtf8("GET"), testLimits, 0)),
+                                        readRequest(socket,
+                                                    String.toUtf8("GET"),
+                                                    defaultLimits,
+                                                    0)),
                              Right(Left(Socket(Io.Timeout)))))
 
 // report Appendix G.11
@@ -1744,7 +1783,7 @@ let halfHead =
               run = fn() =
                   Test.equal(served(["GET / HTTP/1.1\r\nHost: exa"],
                                     StaysOpen,
-                                    fn(socket) = readRequest(socket, <<>>, testLimits, 100)),
+                                    fn(socket) = readRequest(socket, <<>>, defaultLimits, 100)),
                              Right(Left(Socket(Io.Timeout)))))
 
 // report Appendix G.11
@@ -1753,7 +1792,7 @@ let closedHead =
               run = fn() =
                   Test.equal(served(["GET / HTTP/1.1\r\nHost: exa"],
                                     Closes,
-                                    fn(socket) = readRequest(socket, <<>>, testLimits, 1000)),
+                                    fn(socket) = readRequest(socket, <<>>, defaultLimits, 1000)),
                              Right(Left(Socket(Io.Closed)))))
 
 // report Appendix G.11
@@ -1762,7 +1801,7 @@ let refusedHead =
               run = fn() =
                   Test.equal(served(["GET / HTTP/1.1\r\nX: a\r\n b\r\n\r\n"],
                                     StaysOpen,
-                                    fn(socket) = readResponse(socket, <<>>, testLimits, 1000)),
+                                    fn(socket) = readResponse(socket, <<>>, defaultLimits, 1000)),
                              Right(Left(Protocol(Malformed)))))
 
 type TrickleMsg = Stop
@@ -1846,10 +1885,10 @@ fn sized(size : String) : List(Header) =
 // The heads the tests read bodies after: a request's, and a response's of
 // status 200, carrying the headers.
 fn asked(headers : List(Header)) : Request =
-    Request(method = "POST", target = "/", version = testVersion, =headers)
+    Request(method = "POST", target = "/", version = http11, =headers)
 
 fn answered(headers : List(Header)) : Response =
-    Response(version = testVersion, status = 200, =headers)
+    Response(version = http11, status = 200, =headers)
 
 // report Appendix G.11
 let sizedBody =

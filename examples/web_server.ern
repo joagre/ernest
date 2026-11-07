@@ -91,7 +91,7 @@ fn acceptor(sessions : Address(SessionMsg), listener : Address(Tcp.ListenerMsg))
 
 // One process per connection: reads a request, writes a response, closes.
 fn handle(sessions : Address(SessionMsg), socket : Address(Tcp.SocketMsg)) : Unit =
-    match Http.readRequest(socket, <<>>, limits, 5000) {
+    match Http.readRequest(socket, <<>>, Http.defaultLimits, 5000) {
         Right(#(request, _)) -> {
             let id = match Optional.andThen(cookie(request.headers, "sid"), parseSessionId) {
                 Some(found) -> found
@@ -118,12 +118,9 @@ fn handle(sessions : Address(SessionMsg), socket : Address(Tcp.SocketMsg)) : Uni
 // Pure code: requests and responses
 //
 
-// The most bytes of a request's line, and of its headers together.
-let limits = Http.Limits(line = 8192, headers = 65536)
-
 // A response of HTTP/1.1, the version the server speaks.
 fn response(status : Int, headers : List(Http.Header)) : Http.Response =
-    Http.Response(version = Http.Version(major = 1, minor = 1), =status, =headers)
+    Http.Response(version = Http.http11, =status, =headers)
 
 // The headers every response carries: the date it is sent, which an origin
 // server with a clock sends (RFC 9110 §6.6.1), and that the server closes

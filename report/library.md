@@ -1190,7 +1190,7 @@ Time.weekday : (Civil) -> Optional(Weekday) // the day of the week of the civil 
 
 HTTP/1.1's message syntax, RFC 9112, and of its semantics, RFC 9110, the date and the status phrases: a request's or a response's head read from bytes or from a socket, its body read after it, and a head and a body written. A head is read by a primitive over the host's `erlang:decode_packet`, a line at a time, written in the host's language since the host answers names of its own for the headers it knows (E.0 rule 1); the rest is Ernest.
 
-A `Request` is its method, its target as the client wrote it, its version and its headers, in their order and with their names as written; a `Response` is its version, its status and its headers, the status line's phrase being the status's. A body stands beside either as `Bytes`: `renderResponse` and `renderRequest` take one, and a reader of a head answers the bytes after it.
+A `Request` is its method, its target as the client wrote it, its version and its headers, in their order and with their names as written; a `Response` is its version, its status and its headers, the status line's phrase being the status's. A body stands beside either as `Bytes`: `renderResponse` and `renderRequest` take one, and a reader of a head answers the bytes after it. `http11` is HTTP/1.1, `Version(major = 1, minor = 1)`.
 
 `parseRequest(bytes, limits)` and `parseResponse(bytes, limits)` read one head from the bytes: `Incomplete` where the bytes end before the head's empty line, else the head and the bytes after it. A line ends in a line feed, with or without a carriage return before it.
 
@@ -1198,7 +1198,7 @@ A `Request` is its method, its target as the client wrote it, its version and it
 
 A request line is three words parted at runs of spaces and tabs, the third `HTTP/`, a digit, `.` and a digit and nothing more; one of more than three words, one whose third word is no version, a target with a byte outside U+0021 to U+007E, the visible ASCII characters RFC 3986 writes a target in, or two empty lines before it is `Malformed`, one being skipped as RFC 9112 has a server skip it, within `limits.line`, and so is a header line with no name, one the host cannot read, or a value holding U+0000 or bytes that are not UTF-8.
 
-A value is read without the white space before and after it. A limit counts a line's ending, a line that passes it is refused before its line feed comes, and a limit below 1 lets no line in. `header(headers, name)` is the first value under the name, compared in any case, and `headers(headers, name)` every value under it, in order.
+A value is read without the white space before and after it. A limit counts a line's ending, a line that passes it is refused before its line feed comes, and a limit below 1 lets no line in. `defaultLimits` is `Limits(line = 8192, headers = 65536)`. `header(headers, name)` is the first value under the name, compared in any case, and `headers(headers, name)` every value under it, in order.
 
 `readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends.
 
@@ -1221,6 +1221,8 @@ type Limits = Limits(line : Int, headers : Int) // the most bytes of any line, a
 type Error = Malformed | LineTooLong | HeadersTooLarge | BodyTooLarge
 type Parsed(a) = Incomplete | Parsed(head : a, rest : Bytes)
 type ReadError = Protocol(Error) | Socket(Io.Error)
+Http.http11 : Version // HTTP/1.1
+Http.defaultLimits : Limits // a line of 8192 bytes, and headers of 65536 together
 Http.parseRequest : (Bytes, Limits) -> Either(Error, Parsed(Request))
 Http.parseResponse : (Bytes, Limits) -> Either(Error, Parsed(Response))
 Http.readRequest : (Address(Tcp.SocketMsg), Bytes, Limits, Int) -> Either(ReadError, #(Request, Bytes)) // the request and the bytes after its head

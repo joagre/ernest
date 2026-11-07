@@ -74,7 +74,7 @@ fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) 
     let request =
         Http.Request(method = "GET",
                      target = target.path,
-                     version = Http.Version(major = 1, minor = 1),
+                     version = Http.http11,
                      headers = [Http.Header(name = "Host", value = target.authority),
                                 Http.Header(name = "User-Agent",
                                             value = "fetch (an Ernest example)"),
@@ -84,7 +84,7 @@ fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) 
         Either.mapLeft(Tcp.write(socket, Http.renderRequest(request, <<>>), 10000),
                        fn(error) = "cannot send the request: " <> errorText(error));
     let #(response, carried) <-
-        Either.mapLeft(Http.readResponse(socket, <<>>, limits, 10000),
+        Either.mapLeft(Http.readResponse(socket, <<>>, Http.defaultLimits, 10000),
                        fn(error) = "cannot read the response's head: " <> readErrorText(error));
     let #(body, _) <-
         Either.mapLeft(Http.readResponseBody(socket, carried, response, bodyLimit, 30000),
@@ -92,9 +92,6 @@ fn fetch(url : String, caFile : Path) : Either(String, #(Http.Response, Bytes)) 
     Tcp.close(socket);
     Right(#(response, body))
 }
-
-// The most bytes of the response's status line, and of its headers together.
-let limits = Http.Limits(line = 8192, headers = 65536)
 
 // The most bytes of the response's body.
 let bodyLimit = 10000000

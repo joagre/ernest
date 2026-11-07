@@ -46,7 +46,7 @@ A request's head read from bytes:
 ```ernest
 {
     let bytes = String.toUtf8("GET /hello.txt HTTP/1.1\r\nHost: www.example.com\r\n\r\n");
-    match Http.parseRequest(bytes, Http.Limits(line = 8192, headers = 65536)) {
+    match Http.parseRequest(bytes, Http.defaultLimits) {
         Right(Http.Parsed(head = request)) ->
             #(request.method, request.target, Http.header(request.headers, "host"))
       | _ ->
@@ -61,7 +61,7 @@ A response written, its `Content-Length` added:
 ```ernest
 {
     let response =
-        Http.Response(version = Http.Version(major = 1, minor = 1),
+        Http.Response(version = Http.http11,
                       status = 200,
                       headers = [Http.Header(name = "Content-Type", value = "text/plain")]);
     String.fromUtf8(Http.renderResponse(response, String.toUtf8("Hello")))
@@ -79,18 +79,40 @@ A response written, its `Content-Length` added:
 type Version = Version(major : Int, minor : Int)
 ```
 
-A version of HTTP, `HTTP/1.1` being `Version(major = 1, minor = 1)`.
+A version of HTTP, `HTTP/1.0` being `Version(major = 1, minor = 0)`;
+`http11` is HTTP/1.1.
 
 ### Examples
 
 ```ernest
-Http.Version(major = 1, minor = 1)
-// => Http.Version(major = 1, minor = 1)
+Http.Version(major = 1, minor = 0)
+// => Http.Version(major = 1, minor = 0)
 ```
 
 - `Version`
   - `major : Int`: The number before the point.
   - `minor : Int`: The number after the point.
+
+## Http.http11
+
+```ernest
+Http.http11 : Version
+```
+
+*Since 0.10.0.*
+
+HTTP/1.1, the version of the messages RFC 9112 writes.
+
+A server answers an HTTP/1.0 request in HTTP/1.1 too, the highest
+version it speaks whose major number is not above the request's (RFC
+9110, section 2.5).
+
+### Examples
+
+```ernest
+Http.http11
+// => Http.Version(major = 1, minor = 1)
+```
 
 ## Http.Header
 
@@ -127,7 +149,7 @@ in their order.
     let request =
         Http.Request(method = "GET",
                      target = "/",
-                     version = Http.Version(major = 1, minor = 1),
+                     version = Http.http11,
                      headers = [Http.Header(name = "Host", value = "example.com")]);
     #(request.method, request.target, request.headers)
 }
@@ -153,7 +175,7 @@ order. The status line's phrase is the status's, which `reason` gives.
 ### Examples
 
 ```ernest
-Http.Response(version = Http.Version(major = 1, minor = 1), status = 404, headers = [])
+Http.Response(version = Http.http11, status = 404, headers = [])
 // => Http.Response(version = Http.Version(major = 1, minor = 1), status = 404, headers = [])
 ```
 
@@ -170,17 +192,38 @@ type Limits = Limits(line : Int, headers : Int)
 
 The most bytes a head may take: of any of its lines, the line ending
 among them, and of its header lines together, theirs among them.
+A program with no reason to choose its own passes `defaultLimits`.
 
 ### Examples
 
 ```ernest
-Http.Limits(line = 8192, headers = 65536)
-// => Http.Limits(line = 8192, headers = 65536)
+Http.Limits(line = 4096, headers = 16384)
+// => Http.Limits(line = 4096, headers = 16384)
 ```
 
 - `Limits`
   - `line : Int`: The most bytes of any line; a limit below 1 lets no line in.
   - `headers : Int`: The most bytes of the header lines together.
+
+## Http.defaultLimits
+
+```ernest
+Http.defaultLimits : Limits
+```
+
+*Since 0.10.0.*
+
+The limits a head is read within where a program has no reason to
+choose its own: a line of 8192 bytes, past the 8000 that RFC 9112,
+section 3, recommends a recipient read in a request line, and header
+lines of 65536 bytes together.
+
+### Examples
+
+```ernest
+Http.defaultLimits
+// => Http.Limits(line = 8192, headers = 65536)
+```
 
 ## Http.Error
 
@@ -193,7 +236,7 @@ Why a head or a body is refused.
 ### Examples
 
 ```ernest
-Http.parseRequest(String.toUtf8("GET /\r\n\r\n"), Http.Limits(line = 8192, headers = 65536))
+Http.parseRequest(String.toUtf8("GET /\r\n\r\n"), Http.defaultLimits)
 // => Left(Http.Malformed)
 ```
 
@@ -220,8 +263,7 @@ before the head does, else the head and the bytes after it.
 ### Examples
 
 ```ernest
-Http.parseRequest(String.toUtf8("GET / HTTP/1.1\r\n"),
-                  Http.Limits(line = 8192, headers = 65536))
+Http.parseRequest(String.toUtf8("GET / HTTP/1.1\r\n"), Http.defaultLimits)
 // => Right(Http.Incomplete)
 ```
 
@@ -277,9 +319,8 @@ first's head:
 
 ```ernest
 {
-    let limits = Http.Limits(line = 8192, headers = 65536);
     let bytes = String.toUtf8("GET /a HTTP/1.1\r\n\r\nGET /b HTTP/1.1\r\n\r\n");
-    match Http.parseRequest(bytes, limits) {
+    match Http.parseRequest(bytes, Http.defaultLimits) {
         Right(Http.Parsed(head = first, =rest)) -> #(first.target, String.fromUtf8(rest))
       | _ -> #("", None)
     }
@@ -308,7 +349,7 @@ the white space around it, replaced by one space (RFC 9112, section
 ```ernest
 {
     let bytes = String.toUtf8("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
-    match Http.parseResponse(bytes, Http.Limits(line = 8192, headers = 65536)) {
+    match Http.parseResponse(bytes, Http.defaultLimits) {
         Right(Http.Parsed(head = response)) -> #(response.status, response.headers)
       | _ -> #(0, [])
     }
@@ -341,9 +382,8 @@ A server that reads one request and answers its target:
 {
     let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
     let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
-    let limits = Http.Limits(line = 8192, headers = 65536);
-    let #(request, _) <- Http.readRequest(socket, <<>>, limits, 10000);
-    let response = Http.Response(version = request.version, status = 200, headers = []);
+    let #(request, _) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
+    let response = Http.Response(version = Http.http11, status = 200, headers = []);
     let body = String.toUtf8(request.target);
     let written = Tcp.write(socket, Http.renderResponse(response, body), 5000);
     Tcp.close(socket);
@@ -376,12 +416,11 @@ may run to the connection's close:
     let request =
         Http.Request(method = "GET",
                      target = "/",
-                     version = Http.Version(major = 1, minor = 1),
+                     version = Http.http11,
                      headers = [Http.Header(name = "Host", value = "example.com")]);
     let _ <-
         Either.mapLeft(Tcp.write(socket, Http.renderRequest(request, <<>>), 5000), Http.Socket);
-    let limits = Http.Limits(line = 8192, headers = 65536);
-    let #(response, carried) <- Http.readResponse(socket, <<>>, limits, 10000);
+    let #(response, carried) <- Http.readResponse(socket, <<>>, Http.defaultLimits, 10000);
     let #(body, _) <- Http.readResponseBody(socket, carried, response, 1000000, 10000);
     Tcp.close(socket);
     Right(body)
@@ -432,10 +471,9 @@ size:
 {
     let listener <- Either.mapLeft(Tcp.listen("0.0.0.0", 8080), Http.Socket);
     let socket <- Either.mapLeft(Tcp.accept(listener, 60000), Http.Socket);
-    let limits = Http.Limits(line = 8192, headers = 65536);
-    let #(request, carried) <- Http.readRequest(socket, <<>>, limits, 10000);
+    let #(request, carried) <- Http.readRequest(socket, <<>>, Http.defaultLimits, 10000);
     let #(body, _) <- Http.readRequestBody(socket, carried, request, 1000000, 10000);
-    let response = Http.Response(version = request.version, status = 200, headers = []);
+    let response = Http.Response(version = Http.http11, status = 200, headers = []);
     let size = String.toUtf8(Int.toString(Bytes.size(body)));
     let written = Tcp.write(socket, Http.renderResponse(response, size), 5000);
     Tcp.close(socket);
@@ -528,8 +566,7 @@ A response of no content, which carries no `Content-Length`:
 
 ```ernest
 {
-    let response =
-        Http.Response(version = Http.Version(major = 1, minor = 1), status = 204, headers = []);
+    let response = Http.Response(version = Http.http11, status = 204, headers = []);
     String.fromUtf8(Http.renderResponse(response, <<>>))
 }
 // => Some("HTTP/1.1 204 No Content\r\n\r\n")
@@ -564,7 +601,7 @@ them, whose `é` a client writes `%C3%A9`.
     let request =
         Http.Request(method = "POST",
                      target = "/items",
-                     version = Http.Version(major = 1, minor = 1),
+                     version = Http.http11,
                      headers = [Http.Header(name = "Host", value = "example.com")]);
     String.fromUtf8(Http.renderRequest(request, String.toUtf8("{}")))
 }
