@@ -49,9 +49,7 @@
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, status/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
-         opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1,
-         first_wait/1,
-         collect/0, sleep/1,
+         opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, met/3, host_cause/2, fault/1, fault/2, trace/1,
          failure_trace/1, system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
@@ -79,15 +77,15 @@
 -receives({foreign_wait, [computed_answer/3, exit_program/1, refused/1, restart_taken/1,
                           end_with_program/0, waited_deliveries/1, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
--receives({ernest_wait, [waited_answer/4, forever_answer/3, waited_evaluation/2,
-                         evaluated_lives/1, sleep_until/2]}).
+-receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
+                         evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
                               kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2]}).
--receives({own_process, [said_later/0, wait_for_later/0, kept_loop/3, reaper_loop/2, settler/4,
+-receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
                          killer/0, wait_for_ends/1, ended_program/0, counted_link/3,
                          delivery_ended/1,
-                         write_loop/2, stream_loop/3, dropping/0, stdin_loop/3, taken/1,
+                         write_loop/1, stream_loop/2, dropping/0, stdin_loop/2, taken/1,
                          clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
                          sink_flushed/1, stop/1, stopped_in_order/1, told_once_delivered/2]}).
 
@@ -110,9 +108,6 @@
 %% function makes ends before the call it is made for is noted (call/4).
 -define(FOREIGN, '$ern_foreign').
 -define(TIMED, '$ern_timed').
-%% Report §10: the words of the binaries the process referenced after it last
-%% collected at a wait (collect/0).
--define(COLLECTED, '$ern_collected').
 -define(CALL, '$ern_call').
 -define(LOAD, '$ern_load').
 %% Report §6.9, Appendix E.22: while a restarting function runs, its
@@ -462,10 +457,6 @@ reaper_held(Reaper, Work) ->
                  end).
 
 kept_loop(Address, Worker) ->
-    kept_loop(Address, Worker, ?WAIT_BEFORE_COLLECTING).
-
-%% Report §10: a process that waits collects, as a receive of the program's.
-kept_loop(Address, Worker, After) ->
     receive
         {apply, Message} ->
             deliver(Address, Message),
@@ -473,9 +464,6 @@ kept_loop(Address, Worker, After) ->
             kept_loop(Address, Worker);
         stop ->
             ok
-    after After ->
-        collect(),
-        kept_loop(Address, Worker, infinity)
     end.
 
 %% Report §6.9, §6.5: the calling process of the runtime's own, a delivery,
@@ -700,9 +688,7 @@ call(Address, Request, Ms, Check) ->
                  pending(Callee, Reply),
                  sent(Way),
                  timed(),
-                 try waited_answer(Reply, Deadline, Check, first_wait(Deadline))
-                 after untimed()
-                 end
+                 try waited_answer(Reply, Deadline, Check) after untimed() end
              after
                  settled(Reply)
              end,
@@ -714,7 +700,7 @@ call(Address, Request, Ms, Check) ->
 
 %% Report §6.6: the answer, or None after the deadline, or at once when the
 %% callee ends or restarts before it answers.
-waited_answer(Reply, Deadline, Check, After) ->
+waited_answer(Reply, Deadline, Check) ->
     receive
         {Reply, answered, Value} -> {'Some', Value};
         {Reply, unnoted, Value} -> closed(), {'Some', Value};
@@ -726,13 +712,10 @@ waited_answer(Reply, Deadline, Check, After) ->
         %% report §8.4, §6.5: a foreign message's fault, or one met on a
         %% message's way, taken at a call's wait
         {'$ern_fault', Fault} -> throw(Fault)
-    after After ->
+    after remaining(Deadline) ->
         case remaining(Deadline) of
-            0 ->
-                'None';
-            Remaining ->
-                collect(),
-                waited_answer(Reply, Deadline, Check, Remaining)
+            0 -> 'None';
+            _ -> waited_answer(Reply, Deadline, Check)
         end
     end.
 
@@ -755,7 +738,26 @@ call_forever(Address, Request, Check) ->
                  Way = adapted_way(Address, Request({Reply, current()})),
                  pending(Callee, Reply),
                  sent(Way),
-                 forever_answer(Reply, Check, ?WAIT_BEFORE_COLLECTING)
+                 receive
+                     {Reply, answered, Value} -> {answered, Value};
+                     {Reply, unnoted, Value} -> closed(), {answered, Value};
+                     {Reply, Value} -> {answered, foreign_answer(Check, Value)};
+                     {Reply, restarted, How} ->
+                         closed(),
+                         {restarted, How};
+                     %% report §12.1: a system process faults the caller it
+                     %% answers
+                     {Reply, fault, SystemCause} -> {fault, SystemCause};
+                     {'DOWN', Reply, process, _, CalleeExitReason} ->
+                         closed(),
+                         {ended, CalleeExitReason};
+                     %% report §6.9: a restart asked for is taken at a call's
+                     %% wait
+                     '$ern_restart' -> restart;
+                     %% report §8.4, §6.5: a foreign message's fault, or one
+                     %% met on a message's way, taken there too
+                     {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
+                 end
              after
                  settled(Reply)
              end,
@@ -770,30 +772,6 @@ call_forever(Address, Request, Check) ->
         {ended, {ern, closed}} -> fault(<<"callee was closed">>);
         {ended, ExitReason} -> ended(Callee, Site, reason(ExitReason));
         restart -> restart_now()
-    end.
-
-%% Report §6.6: what a callForever's wait ends with.
-forever_answer(Reply, Check, After) ->
-    receive
-        {Reply, answered, Value} -> {answered, Value};
-        {Reply, unnoted, Value} -> closed(), {answered, Value};
-        {Reply, Value} -> {answered, foreign_answer(Check, Value)};
-        {Reply, restarted, How} ->
-            closed(),
-            {restarted, How};
-        %% report §12.1: a system process faults the caller it answers
-        {Reply, fault, SystemCause} -> {fault, SystemCause};
-        {'DOWN', Reply, process, _, CalleeExitReason} ->
-            closed(),
-            {ended, CalleeExitReason};
-        %% report §6.9: a restart asked for is taken at a call's wait
-        '$ern_restart' -> restart;
-        %% report §8.4, §6.5: a foreign message's fault, or one met on a
-        %% message's way, taken there too
-        {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
-    after After ->
-        collect(),
-        forever_answer(Reply, Check, infinity)
     end.
 
 %% Report §6.9: the spawn site of a process the runtime started, as its
@@ -2768,51 +2746,6 @@ deadline(Ms) ->
 remaining(Deadline) ->
     min(?SLICE, max(0, Deadline - erlang:monotonic_time(millisecond))).
 
-%% Report §10: the first wait towards the deadline, which ends where a wait
-%% lasts long enough to collect (collect/0), or sooner at the deadline.
--spec first_wait(integer()) -> 0..?WAIT_BEFORE_COLLECTING.
-first_wait(Deadline) ->
-    min(?WAIT_BEFORE_COLLECTING, remaining(Deadline)).
-
-%% Report §10: the process collected, wholly, where nothing waits in its
-%% mailbox, which a wake by a timer may find, its binaries in use as they
-%% would then count, and where the binaries it has come to reference since it
-%% last collected here pass the host's own threshold and the words of its heap,
-%% what the collection copies; each generation counts, since a binary the
-%% host's own collection found in use stands in the old one when it is dropped.
-%% What it references after is kept, so that binaries it keeps cost it this
-%% once, and what the host's own collections free is taken off.
--spec collect() -> ok.
-collect() ->
-    {Waiting, Threshold, Heap, Referenced} = counts(),
-    Collected = case erlang:get(?COLLECTED) of
-                    undefined -> 0;
-                    Kept -> Kept
-                end,
-    if
-        Waiting =:= 0, Referenced - Collected >= max(Threshold, Heap) ->
-            erlang:garbage_collect(),
-            {_, _, _, After} = counts(),
-            erlang:put(?COLLECTED, After),
-            ok;
-        Referenced < Collected ->
-            erlang:put(?COLLECTED, Referenced),
-            ok;
-        true ->
-            ok
-    end.
-
-%% The messages in the process's mailbox, the host's own threshold, the words
-%% of its heap and the words of the binaries it references, each the host's.
-counts() ->
-    [{message_queue_len, Waiting}, {min_bin_vheap_size, Threshold},
-     {garbage_collection_info, Counts}] =
-        erlang:process_info(erlang:self(), [message_queue_len, min_bin_vheap_size,
-                                            garbage_collection_info]),
-    Count = fun(Name) -> element(2, lists:keyfind(Name, 1, Counts)) end,
-    {Waiting, Threshold, Count(heap_size) + Count(old_heap_size),
-     Count(bin_vheap_size) + Count(bin_old_vheap_size)}.
-
 %% Appendix E.15: Clock.sleep, the one wait for a time alone (§6.3, §6.8):
 %% the receive the compiler emits for an `after` (ern_emitter's waiting/4)
 %% with no clause of the program's, so that it takes no message of the
@@ -2825,19 +2758,16 @@ counts() ->
 sleep(Ms) ->
     Deadline = deadline(Ms),
     timed(),
-    try sleep_until(Deadline, first_wait(Deadline)) after untimed() end.
+    try sleep_until(Deadline) after untimed() end.
 
-sleep_until(Deadline, After) ->
+sleep_until(Deadline) ->
     receive
         '$ern_restart' -> restart_now();
         {'$ern_fault', Fault} -> throw(Fault)
-    after After ->
+    after remaining(Deadline) ->
         case remaining(Deadline) of
-            0 ->
-                ?UNIT;
-            Remaining ->
-                collect(),
-                sleep_until(Deadline, Remaining)
+            0 -> ?UNIT;
+            _ -> sleep_until(Deadline)
         end
     end.
 
@@ -3141,10 +3071,6 @@ stream(Write, _Name) ->
     write_loop(Write).
 
 write_loop(Write) ->
-    write_loop(Write, ?WAIT_BEFORE_COLLECTING).
-
-%% Report §10: a process that waits collects, as a receive of the program's.
-write_loop(Write, After) ->
     receive
         {flush, From, Ref} ->
             From ! {Ref, flushed},
@@ -3161,16 +3087,9 @@ write_loop(Write, After) ->
         Bytes when is_binary(Bytes) ->
             Write(Bytes),
             write_loop(Write)
-    after After ->
-        collect(),
-        write_loop(Write, infinity)
     end.
 
 stream_loop(Stream, Name) ->
-    stream_loop(Stream, Name, ?WAIT_BEFORE_COLLECTING).
-
-%% Report §10: a process that waits collects, as a receive of the program's.
-stream_loop(Stream, Name, After) ->
     receive
         stop ->
             ok;
@@ -3204,9 +3123,6 @@ stream_loop(Stream, Name, After) ->
             end;
         {'EXIT', Stream, _} ->
             gone(Name)
-    after After ->
-        collect(),
-        stream_loop(Stream, Name, infinity)
     end.
 
 written(Stream, Bytes) ->
@@ -3311,10 +3227,6 @@ stdin_loop(Open) ->
     stdin_loop(Open, <<>>).
 
 stdin_loop(Open, Buffer) ->
-    stdin_loop(Open, Buffer, ?WAIT_BEFORE_COLLECTING).
-
-%% Report §10: a process that waits collects, as a receive of the program's.
-stdin_loop(Open, Buffer, After) ->
     receive
         %% report §12.1: a claim the terminal refuses faults the process that
         %% asked, and nothing is read for it
@@ -3331,9 +3243,6 @@ stdin_loop(Open, Buffer, After) ->
         {'EXIT', _, _} ->
             %% an input closed after its answer came
             stdin_loop(Open, Buffer)
-    after After ->
-        collect(),
-        stdin_loop(Open, Buffer, infinity)
     end.
 
 %% Report §11.2, §12.1: a read asked by the process Reply names, the one a

@@ -850,7 +850,7 @@ hashes_test() ->
 %% moved off it by its own message, and ended, is listed no more. Two
 %% declarations whose forms are one term are one definition (Appendix H),
 %% so idle differs from waiter. A process in a receive with an `after` is
-%% listed, and a process in a receive written in a lambda is not: the first a
+%% listed, and a process in such a receive written in a lambda is not: a
 %% regression test of MVP 4.15's item 2, before which a receive with an `after`
 %% in a function's tail was no frame of the function's
 running_test() ->
@@ -923,6 +923,7 @@ running_program() ->
     "            answer(reply, Unit);\n"
     "            receive {\n"
     "                Stop -> Unit\n"
+    "              | after 60000 -> Unit\n"
     "            }\n"
     "        }\n"
     "      | Stop -> Unit\n"

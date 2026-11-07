@@ -741,7 +741,9 @@ A frame of the runtime's, or of a function the compiler adds to a unit beside it
 
 The host leaves out the frame of a function whose call of another function of its module it proved cannot return, having compiled that call as the function's last. A process faulted as it waits in `Address.callForever` shows first the program's frame that called it, and a division by zero shows the host's `erlang:'div'/2` above the program's frame. A raise in a foreign function of the standard library's, called by its name, shows the host's function above the frame of the program's that called it, as a division by zero does, and no frame of the library's between them (§11.1).
 
-A frame of a process that waits in a `receive` names the line of the last call before the wait, as the host records a waiting process's stack. A frame of Ernest code is written as a spawn site is (§6.9), the name of the top-level declaration the code is written in and the frame's line, `Counter.worker:23`, for a lambda or a local function as for the declaration's own body; a frame of the host's, and a kept frame of the runtime's, is the function as the host writes it, an atom quoted where the host quotes one, then its line, `lists:nth/2:213`, without a line where the host has none.
+A frame of a process that waits in a `receive` names the line of the last call before the wait, or of its function's head where no call stands before it, as the host records a waiting process's stack. A frame of a process that waits in a `receive` with an `after` names the `receive`'s own line, and so does a frame of a fault taken at a wait (§6.5, §8.4).
+
+A frame of Ernest code is written as a spawn site is (§6.9), the name of the top-level declaration the code is written in and the frame's line, `Counter.worker:23`, for a lambda or a local function as for the declaration's own body; a frame of the host's, and a kept frame of the runtime's, is the function as the host writes it, an atom quoted where the host quotes one, then its line, `lists:nth/2:213`, without a line where the host has none.
 
 ```
 type Status = Status(site : String, queued : Int, activity : Activity)

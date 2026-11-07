@@ -31,11 +31,10 @@
 -export([start/0, reloaded/0, departing/0, work/2, outcome/2]).
 
 -include_lib("nodes/include/ern_node.hrl").
--include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({answered_at_once, [start/0, asked/1]}).
--receives({own_process, [gateway/6, working/2]}).
+-receives({own_process, [gateway/5, work/1]}).
 
 -define(NAME, ern_gateway).
 
@@ -112,10 +111,6 @@ asked(Request) ->
 %% moment of the next telling, none while the node lists no peer or once it
 %% ends (armed/2), and Departed whether it has ended (departing/0).
 gateway(Workers, Ended, Measured, Deadline, Departed) ->
-    gateway(Workers, Ended, Measured, Deadline, Departed, ?WAIT_BEFORE_COLLECTING).
-
-%% Report §10: a process that waits collects, as a receive of the program's.
-gateway(Workers, Ended, Measured, Deadline, Departed, After) ->
     receive
         {ern_frame, From, {call_waits, Callee, Reply}} when is_pid(From), node(From) =/= node(),
                                                            is_pid(Callee),
@@ -231,9 +226,6 @@ gateway(Workers, Ended, Measured, Deadline, Departed, After) ->
             ern_carrier:say_later("a frame that names no peer's process came to the gateway,"
                                   " and was dropped"),
             gateway(Workers, Ended, Measured, Deadline, Departed)
-    after After ->
-        ern_rt:collect(),
-        gateway(Workers, Ended, Measured, Deadline, Departed, infinity)
     end.
 
 %% Report §8.7, Appendix E.27: the moment of the next telling, Deadline
@@ -387,11 +379,7 @@ started(Node) ->
 work(Node, Gateway) ->
     work(#worker{node = Node, gateway = Gateway}).
 
-work(State) ->
-    working(State, ?WAIT_BEFORE_COLLECTING).
-
-%% Report §10: a process that waits collects, as a receive of the program's.
-working(#worker{node = Node, taken = Taken} = State, After) ->
+work(#worker{node = Node, taken = Taken} = State) ->
     receive
         {ern_frame, From, Body} ->
             work(idled(framed(From, Body, State#worker{taken = Taken + 1})));
@@ -408,9 +396,6 @@ working(#worker{node = Node, taken = Taken} = State, After) ->
             work(idled(State#worker{taken = Taken + 1, lost = true}));
         stop ->
             ok
-    after After ->
-        ern_rt:collect(),
-        working(State, infinity)
     end.
 
 %% A peer's frame read: a message to an adapted address handed to the

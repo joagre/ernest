@@ -38,15 +38,12 @@ A process's own, in its dictionary, dying with it, read by the process and by th
 
 - the mark that it is inside foreign code, put by the boundary's wrapper while a function given to foreign code runs, and by each slow wait of the runtime's own around its receive (§8.4, §8.6);
 - the mark that it is in a receive with a deadline (§6.3);
-- the words of binaries its last collection at a wait left it referencing, read by itself alone at its next wait of a millisecond (§10);
 - its call, the callee and the reply, while a call waits (§6.6), which the look, `Process.status` and a kill read;
 - while a restarting function runs, its outermost's start cause and the alias a supervisor asks the process to restart through, which a supervisor reads of the process as it asks (§6.9, E.22);
 - the evaluator a load's caller waits for, which a deadlock faults in the caller's place (§8.6, E.28), and what a process of the runtime's own acts for, its recipient, or none where the recipient is on another node (§6.5, §6.9);
 - the tables it made, which `Ets.new` tells the runtime of, and the processes it started to end with it, a proxy's, which `Proxy.start` tells, each a list that drops what the process no longer holds once it has doubled, so that it stays within twice what the process holds; a load's evaluator reads its own at its end, and `Process.owned` and `Ets.owned` read another's, with what watches it as its owner (E.21, E.28, G.1, G.7).
 
-A wait that may hold a program's bytes first waits the host's shortest timer, and collects as that timer ends (§10): the compiler's receive, a call's wait, a sleep's, and the loop of each long-lived process of the runtime's that a program's bytes pass through, which a new such loop follows. So a receive that takes a message at once pays nothing and one that waits pays the timer, and the rule stands in one function of the runtime's. The host's process of a connection over TLS is the host's, and is told the same time through the host's option that hibernates it. The log's *A Wait Collects* argues it.
-
-The compiler writes a receive as a fun applied where it stands, so that its clauses stand once. The fun's frame is its definition's to `Code.running` and writes its definition's line in a trace, and a fun in a lambda's body is named apart (E.21, E.28).
+The compiler writes a receive with an `after` as a fun applied where it stands, which it enters again until the deadline has passed. The fun's frame is its definition's to `Code.running` and writes the receive's line in a trace, and a fun in a lambda's body is named apart (E.21, E.28). A receive without an `after` is the host's `receive`. The log's *Nothing at the Wait Built* argues it.
 
 Shared rows, in the runtime's tables, each with the reader outside its owner that needs it (`ern_rt:tables/0`):
 

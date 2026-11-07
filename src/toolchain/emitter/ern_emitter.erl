@@ -44,7 +44,6 @@
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
--include_lib("runtime/include/ern_rt.hrl").
 
 %% The elements past which a list or a tuple literal is built an element at
 %% a time, so that the host's limit of values live at a call is never met.
@@ -1211,11 +1210,10 @@ read_first(ScrutineeForm, Reads, Clauses, Context) ->
 %% A receive of Clauses with its `after`, if any: the bindings before it,
 %% and the receive.
 receive_form(Source, Clauses, none, Context) ->
-    {Bindings, ClauseForms, Context1} = receive_clauses(Clauses, Context),
-    {Wait, Context2} = waiting_forever(Source, ClauseForms, Context1),
-    {Bindings, Wait, Context2};
+    {Bindings, ClauseForms, Context1} = receive_clauses(Source, Clauses, Context),
+    {Bindings, erl_syntax:receive_expr(ClauseForms), Context1};
 receive_form(Source, Clauses, {'after', Timeout, AfterBody}, Context) ->
-    {Bindings, ClauseForms, Context1} = receive_clauses(Clauses, Context),
+    {Bindings, ClauseForms, Context1} = receive_clauses(Source, Clauses, Context),
     {Enter, Wait, Context2} = timed_receive(Source, ClauseForms, Timeout, AfterBody, Context1),
     {Bindings ++ Enter, Wait, Context2}.
 
@@ -1225,8 +1223,8 @@ receive_form(Source, Clauses, {'after', Timeout, AfterBody}, Context) ->
 %% and a fault met on a message's way, stand in the mailbox as their fault,
 %% which is taken here before any clause of the program's could bind it,
 %% and raised here, so that its trace is this function's stack where it
-%% has none of where it was met (§7.3).
-receive_clauses(Clauses, Context) ->
+%% has none of where it was met, at the receive's line (§7.3, Appendix E.21).
+receive_clauses(Source, Clauses, Context) ->
     {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Clauses),
     {Bindings, OwnForms} = join_parts(Parts),
     {[FaultName], Context2} = fresh_variables(1, "Fault", Context1),
@@ -1234,37 +1232,15 @@ receive_clauses(Clauses, Context) ->
     ClauseForms = [erl_syntax:clause([erl_syntax:atom('$ern_restart')], none,
                                      [call_remote(ern_rt, restart_now, [])]),
                    erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom('$ern_fault'), Fault])],
-                                     none, [call_remote(erlang, throw, [Fault])])
+                                     none, [at(Source, call_remote(erlang, throw, [Fault]))])
                    | OwnForms],
     {Bindings, ClauseForms, Context2}.
 
-%% The receive of ClauseForms, which takes a message at once as a plain
-%% receive does. Report §10: one that has waited as long as the host can
-%% time collects the process, and waits on.
-waiting_forever(Source, ClauseForms, Context) ->
-    {[WaitName, AfterName], Context1} = named_variables([wait_prefix(Context), "After"], Context),
-    After = erl_syntax:variable(AfterName),
-    WaitAgain = erl_syntax:application(erl_syntax:variable(WaitName),
-                                       [erl_syntax:atom(infinity)]),
-    Receive = erl_syntax:receive_expr(ClauseForms, After,
-                                      [call_remote(ern_rt, collect, []), WaitAgain]),
-    {wait_applied(Source, WaitName, After, Receive, erl_syntax:integer(?WAIT_BEFORE_COLLECTING)),
-     Context1}.
-
-%% What the fun of a receive's wait is named by. Appendix E.28: the name tells
-%% a frame of a definition's own body, which Code.running finds, from a frame
-%% of a lambda written in it, which it does not (ern_code:frame_function/3).
+%% What the fun of a timed receive's wait is named by. Appendix E.28: the name
+%% tells a frame of a definition's own body, which Code.running finds, from a
+%% frame of a lambda written in it, which it does not (ern_code:frame_function/3).
 wait_prefix(#emit_context{in_lambda = true}) -> "LambdaWait";
 wait_prefix(_) -> "Wait".
-
-%% The fun of a receive's wait, applied to the time of its first wait. Report
-%% §7.3, Appendix E.21: both hold the source's line, which the host gives the
-%% frame of a process that waits in the fun and the frame beneath it, one line
-%% of the trace where the receive is not the last thing its function does.
-wait_applied(Source, WaitName, After, Receive, First) ->
-    Wait = erl_syntax:named_fun_expr(erl_syntax:variable(WaitName),
-                                     [erl_syntax:clause([After], none, [Receive])]),
-    at(Source, erl_syntax:application(at(Source, Wait), [First])).
 
 %% A receive with an `after`: the bindings that enter it, and the call
 %% that waits. Report §8.6: a timed receive holds the look's TIMED key from
@@ -1278,29 +1254,32 @@ timed_receive(Source, ClauseForms, Timeout, AfterBody, Context) ->
     waiting(Source, ClauseForms, TimeoutForm, AfterForms, Context2).
 
 %% The timed receive of ClauseForms, entered again until its deadline has
-%% passed: the bindings that enter it, and the call that waits.
+%% passed: the bindings that enter it, and the call that waits. Report §7.3,
+%% Appendix E.21: the fun, its application and the read of the time before the
+%% wait hold the source's line, which the host gives the frame of a process
+%% that waits in the fun and the frame beneath it, one line of the trace where
+%% the receive is not the last thing its function does.
 waiting(Source, ClauseForms, TimeoutForm, AfterForms, Context) ->
-    {[DeadlineName, WaitName, AfterName, RemainingName], Context1} =
-        named_variables(["Deadline", wait_prefix(Context), "After", "Remaining"], Context),
+    {[DeadlineName, WaitName], Context1} =
+        named_variables(["Deadline", wait_prefix(Context)], Context),
     Deadline = erl_syntax:variable(DeadlineName),
-    After = erl_syntax:variable(AfterName),
-    Remaining = erl_syntax:variable(RemainingName),
+    Remaining = at(Source, call_remote(ern_rt, remaining, [Deadline])),
     Untimed = call_remote(ern_rt, untimed, []),
     Timed = [erl_syntax:clause(erl_syntax:clause_patterns(ClauseForm),
                                erl_syntax:clause_guard(ClauseForm),
                                [Untimed | erl_syntax:clause_body(ClauseForm)])
              || ClauseForm <- ClauseForms],
-    WaitAgain = erl_syntax:application(erl_syntax:variable(WaitName), [Remaining]),
+    WaitAgain = erl_syntax:application(erl_syntax:variable(WaitName), []),
     Due = erl_syntax:case_expr(
-            call_remote(ern_rt, remaining, [Deadline]),
+            Remaining,
             [erl_syntax:clause([erl_syntax:integer(0)], none, [Untimed | AfterForms]),
-             erl_syntax:clause([Remaining], none, [call_remote(ern_rt, collect, []), WaitAgain])]),
-    Receive = erl_syntax:receive_expr(Timed, After, [Due]),
+             erl_syntax:clause([erl_syntax:underscore()], none, [WaitAgain])]),
+    Receive = erl_syntax:receive_expr(Timed, Remaining, [Due]),
+    Wait = erl_syntax:named_fun_expr(erl_syntax:variable(WaitName),
+                                     [erl_syntax:clause([], none, [Receive])]),
     Enter = [erl_syntax:match_expr(Deadline, call_remote(ern_rt, deadline, [TimeoutForm])),
              call_remote(ern_rt, timed, [])],
-    {Enter,
-     wait_applied(Source, WaitName, After, Receive, call_remote(ern_rt, first_wait, [Deadline])),
-     Context1}.
+    {Enter, at(Source, erl_syntax:application(at(Source, Wait), [])), Context1}.
 
 exprs(Exprs, Context) ->
     lists:mapfoldl(fun expr/2, Context, Exprs).

@@ -590,7 +590,7 @@ What the end of §8.6 does beyond its rules: a signal before the runtime takes s
 
 A signal that comes before the runtime can take signals, in the host's first fraction of a second, may be lost, or may end the program as the host ends it, with status 0 and a line of the host's own. At the host's interrupt, output the system processes have not yet written may be lost. The runtime prints nothing of its own about a signal.
 
-**A deadlock's report** (§8.6, §11.2) lists the waiting processes beneath the trace, the faulting process left out, a line for each group of processes with one spawn site and one waiting frame (Appendix E.21), indented by four spaces as a frame of the trace is: the group's count, its site and, where its stack shows one, its frame, `3 processes of Dinner.table:40 wait in Dinner.take:112`, `1 process of Dead.main:7 waits in Dead.work:14`. The lines are ordered by their sites and then by their frames, each compared by its name's code points and then by its line as a number, one without a line first: `Dead.alpha:9` before `Dead.alpha:10`.
+**A deadlock's report** (§8.6, §11.2) lists the waiting processes beneath the trace, the faulting process left out, a line for each group of processes with one spawn site and one waiting frame (Appendix E.21), indented by four spaces as a frame of the trace is: the group's count, its site and, where its stack shows one, its frame, `3 processes of Dinner.table:40 wait in Dinner.take:112`, `1 process of Dead.main:7 waits in Dead.work:13`. The lines are ordered by their sites and then by their frames, each compared by its name's code points and then by its line as a number, one without a line first: `Dead.alpha:9` before `Dead.alpha:10`.
 
 ### 12.5 The carrier
 

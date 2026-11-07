@@ -230,8 +230,8 @@ fn work(main : Address(MainMsg)) : Unit receiving WorkerMsg =
 ```console
 $ ern run dead.erc
 Dead.main faulted: deadlock
-    Dead.main:8
-    1 process of Dead.main:7 waits in Dead.work:14
+    Dead.main:7
+    1 process of Dead.main:7 waits in Dead.work:13
 ```
 
 The trace names line 7, the `spawn`, and not the `receive` below it: a wait leaves no frame of its own, so a waiting process's frame names the last call before the wait (report Appendix E.21).

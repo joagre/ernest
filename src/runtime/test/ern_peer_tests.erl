@@ -1319,17 +1319,12 @@ library(Name) ->
     {module, Unit} = code:load_binary(Unit, Erc, Bytes),
     Unit.
 
-%% Whether the proxy's process waits for its next message, in the wait of the
-%% receive of its function `held`.
+%% Whether the proxy's process waits for its next message, in its function
+%% `held`.
 holds(Proxy, Forwarder) ->
     {Held, 4} = ern_code:function(Proxy, ['Proxy', held]),
-    Wait = "-" ++ atom_to_list(Held) ++ "/4-Wait_",
-    case erlang:process_info(Forwarder, [status, current_function]) of
-        [{status, waiting}, {current_function, {Proxy, Function, _}}] ->
-            lists:prefix(Wait, atom_to_list(Function));
-        _ ->
-            false
-    end.
+    erlang:process_info(Forwarder, [status, current_function])
+        =:= [{status, waiting}, {current_function, {Proxy, Held, 4}}].
 
 %% What the traced process did, a find, a call of the host's function
 %% Peer.find names, or a message sent and to whom, up to the message Last

@@ -52,7 +52,8 @@ names last, since they sweep every site of Ernest once. The six decisions for th
 items 8, 9, 13, 15, 16 and 21, are discussed early, so that no build waits on them.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
-`docs/clean_room.md` says, the archive's path and commit, and that the release answers that
+`docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
+the wait (the log's *Nothing at the Wait*), and that the release answers that
 program's lines still open, each by Ernest's number, and so hands over the site for its
 rehearsal of the switch (MVP 4.4's item 6): `make site` from the release's tag, given the
 configuration ernest-httpd will serve it with, writes it to `build/site/`, the tag naming the
@@ -83,14 +84,10 @@ reader S reads of its live shell. The release note's line on the installed layou
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
 
-2. **Nothing at the wait**, decided 2026-11-07 (§10, E.18; the log's *Nothing at the Wait*, after
-   *A Wait Collects*). A process that waits holds what it dropped until it runs again, as the host's
-   does; the collection at a wait, built 2026-11-06 and reopened the same day, goes whole: `collect/0`,
-   its dictionary key, the timer and the `after` clauses in the runtime's loops, the design note's
-   paragraph, `docs/memory_checks.md`'s lines on it and the tests of the rule. The host's process of
-   a connection over TLS keeps its `hibernate_after`, now E.18's sentence. The two defect fixes made
-   with it stay with their regression tests; whether a compiled receive stays a fun is read then.
-   `make bench` shows the counter program back near 1.26x against Erlang.
+2. **Nothing at the wait**, done 2026-11-07 (§10, E.18, E.21; the log's *Nothing at the Wait* and
+   *Nothing at the Wait Built*). A `receive` without an `after` is the host's again, so its waiting
+   frame names the last call before the wait or its function's head, as E.21 has said since
+   2026-10-23, and not the `receive`'s own line.
 3. **Memory shown.** `Process.status` and `:processes` show each process's memory, the host's
    count with its binaries (E.21, §11.2), read against E.0's rules first, so that an operator
    sees what an idle connection holds.

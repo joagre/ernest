@@ -1010,9 +1010,9 @@ dependencies(Unit) ->
 %% runs it by, which its row in the table names (loaded/2), so that a unit
 %% the build loaded and one an arrival or a load made of the same definition
 %% count alike (§8.7). A lambda's and a local function's frames are their
-%% own functions', '$N.P' or a fun, and no definition's; a wait of a receive
-%% written in the definition's own body is the definition's. The scan reads
-%% each process's stack once, its input being the node's processes.
+%% own functions', '$N.P' or a fun, and no definition's; a wait of a timed
+%% receive written in the definition's own body is the definition's. The scan
+%% reads each process's stack once, its input being the node's processes.
 %%
 %% Appendix E.28: the host keeps at most the innermost 64 frames of a
 %% stack, which the runtime sets at its start (ern_rt:run_main/3), so a
@@ -1036,8 +1036,8 @@ runs(Pid, Functions) ->
             false
     end.
 
-%% The function a frame is a frame of. A receive's wait written in a
-%% definition's own body is a fun the host names -Function/Arity-Wait_N/1-Index-
+%% The function a frame is a frame of. A timed receive's wait written in a
+%% definition's own body is a fun the host names -Function/Arity-Wait_N/0-Index-
 %% (ern_emitter's wait_prefix/1), and is its function's.
 frame_function(Module, Function, Arity) ->
     Own = {Module, Function, Arity},

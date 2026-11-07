@@ -37,7 +37,7 @@
 -include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({own_process, [checker_loop/7]}).
+-receives({own_process, [checker_loop/6]}).
 
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
                     | unit | foreign
@@ -436,10 +436,6 @@ start_checker(Key, Behind, MessageDescriptor, Bound, Cause) ->
                  end).
 
 checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
-    checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause, ?WAIT_BEFORE_COLLECTING).
-
-%% Report §10: a process that waits collects, as a receive of the program's.
-checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause, After) ->
     receive
         {'DOWN', MonitorRef, process, _, _} ->
             ern_rt:checker_forget(Key, erlang:self()),
@@ -456,7 +452,4 @@ checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause, After) ->
                     ern_rt:process_of(Behind) ! {'$ern_fault', {ern, fault, Cause}}
             end,
             checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
-    after After ->
-        ern_rt:collect(),
-        checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause, infinity)
     end.

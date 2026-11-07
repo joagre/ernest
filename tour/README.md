@@ -339,9 +339,9 @@ $ ern build .
 $ ern test counter.erc
 counts per key: passed
 reports: faulted: deadlock
-    Counter.reports:71
-    1 process of Counter.countsPerKey:62 waits in Counter.count:11
-    1 process of Counter.reports:69 waits in Counter.count:11
+    Counter.reports:70
+    1 process of Counter.countsPerKey:62 waits in Counter.count:10
+    1 process of Counter.reports:69 waits in Counter.count:10
 ```
 
 A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): that is the fifth claim of *Why Ernest*, a program in which every process waits for a message none can send is a deadlock, found.
