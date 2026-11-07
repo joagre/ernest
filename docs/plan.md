@@ -109,17 +109,11 @@ reader S reads of its live shell. The release note's line on the installed layou
    Case's Standard Error*). `Process.run`, `Fs.makeTempDir`, `Json.encode` and `Test.capture`
    stand, `Test.faults` is written over `run`, and the sites are written with it.
    ernest-httpd's lines 20 and 21 wait for its session.
-
-9. **A program's environment, and a signal named**, feedback 207 and 233, ernest-httpd's 25,
-   decided 2026-11-07 (E.23; the log's *A Program's Environment, and a Signal Named*).
-   `Os.Command` has `environment`, each variable set over the inherited environment, and
-   `workingDirectory`, which every site writes, the inheriting one as `Os.workingDirectory`;
-   184's verdict holds. `Os.signal(program, signal)` sends the program alone `Termination`,
-   `Hangup` or `Interrupt`, the three §8.6 names, and answers `Left(Closed)` once it has
-   exited. The build: the helper takes the environment and the directory before `exec` and a
-   signal frame, `ern_os`, `os.ern`, the thirteen sites, the guide's `Os` sentences,
-   `docs/design/runtime.md`'s line on the helper's frames, and the tests citing E.23.
-   ernest-httpd's `smoke.ern` and `session.ern` are its session's, told at the milestone's end.
+9. **A program's environment, and a signal named**, done 2026-11-07 (E.23; the log's *A
+   Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named
+   Built*). `Os.Command`'s `environment` and `workingDirectory` and `Os.signal` stand, and the
+   sites are written with them. ernest-httpd's `smoke.ern` and `session.ern` are its
+   session's, told at the milestone's end.
 10. **`libs/http`'s values**, feedback 186: a value for its ordinary limits and one for HTTP/1.1,
     named by the guide's style, the examples and the pages using them.
 11. **`libs/uri`**, feedback 210, decided with the user 2026-11-03: RFC 3986's authority and

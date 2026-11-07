@@ -186,20 +186,25 @@ The *host* is the Erlang runtime Ernest runs on and the operating system under i
 
 ```ernest
 export fn main() : Unit =
-    match Os.run(Os.Command(program = "echo", arguments = ["hi"], input = <<>>), 5000) {
+    match Os.run(Os.Command(program = "echo",
+                            arguments = ["hi"],
+                            input = <<>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory),
+                 5000) {
         Right(finished) -> Io.print(String.fromUtf8Lossy(finished.stdout))
       | Left(error) -> Io.printlnError(Io.show(error))
     }
 ```
 
-`Os.Command(program = ..., ...)` builds a value by naming its fields (§2.4), and `Right(finished)` and `Left(error)` are the two cases of `Either` (§2.7); `<<>>` is the empty bytes (§2.1), `finished.stdout` a field of the record `Os.run` answers (§2.4), and `String.fromUtf8` answers an `Optional`, `None` for bytes that are not UTF-8, which `Optional.withDefault` turns into `""` (§2.3).
+`Os.Command(program = ..., ...)` builds a value by naming its fields (§2.4), and `Right(finished)` and `Left(error)` are the two cases of `Either` (§2.7); `<<>>` is the empty bytes (§2.1), `finished.stdout` a field of the record `Os.run` answers (§2.4), and `String.fromUtf8Lossy` the text the bytes hold, a byte that is not UTF-8 shown as U+FFFD. A command names the variables it sets over the environment the program inherits, here none, and the directory the program runs in, here the one this program was started in.
 
 ```console
 $ ern run echo.erc
 hi
 ```
 
-`Os.start` starts one to talk with while it runs: `Os.write` feeds it, `Os.read` answers what it wrote, piece by piece, and the running program is a process, which `kill` ends and `monitor` watches (§5.2, §5.3; report Appendix E.23). `Os.startTerminal` starts one under a pseudo-terminal of a given size, for a program that reads and writes a terminal.
+`Os.start` starts one to talk with while it runs: `Os.write` feeds it, `Os.read` answers what it wrote, piece by piece, `Os.signal` sends it the host's termination, hangup or interrupt, and the running program is a process, which `kill` ends and `monitor` watches (§5.2, §5.3; report Appendix E.23). `Os.startTerminal` starts one under a pseudo-terminal of a given size, for a program that reads and writes a terminal.
 
 `Io.readLine()` waits for a line of standard input and answers `Some(line)`, or `None` at its end. A program that reads its input to the end loops:
 

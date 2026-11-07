@@ -15,29 +15,36 @@
  * frames of a 4-byte big-endian length followed by a tag byte and the
  * frame's data.
  *
- *   To the program: first 'c', the program and then each of its arguments,
- *   each ended by a NUL byte, as execvp takes them; they come here and not
- *   on the helper's own command line, so that an argument too long for the
- *   host is the program's failure to start, and not the helper's. Then 'i'
- *   bytes of its input, dropped after 'e' or once the program has closed
- *   its input; 'e' the end of its input; 'n' a request for the next piece
- *   of its output. The end of fd 0 means the runtime has let go of the
- *   run: the program and its process group are killed, and the helper
- *   ends.
+ *   To the program: first a 'v' for each variable the command sets,
+ *   NAME=VALUE, set over the helper's environment in their order, and 'p'
+ *   the directory it runs in, which the helper enters before it finds the
+ *   program, so that a relative name resolves there; without 'p' it runs
+ *   where the helper does. Then 'c', the program and then each of its
+ *   arguments, each ended by a NUL byte, as execvp takes them; they come
+ *   here and not on the helper's own command line, so that an argument too
+ *   long for the host is the program's failure to start, and not the
+ *   helper's. Then 'i' bytes of its input, dropped after 'e' or once the
+ *   program has closed its input or exited; 'e' the end of its input; 'n'
+ *   a request for the next piece of its output; 'k' and a signal's number
+ *   in one byte, the signal sent to the program alone, not its group. The
+ *   end of fd 0 means the runtime has let go of the run: the program and
+ *   its process group are killed, and the helper ends.
  *
  *   From the program: 's' it started; 'f' and an error's name, it did not
- *   start; 'a' the program has taken the bytes of one 'i', or 'd' they
+ *   start; 'p' and an error's name, the helper could not enter its
+ *   directory; 'a' the program has taken the bytes of one 'i', or 'd' they
  *   were dropped, one of the two for each 'i' in order, so that a writer
  *   waits while the program is behind and learns whether its bytes were
- *   taken; 'o' bytes of its output; 'r' bytes of its standard
- *   error, each answering one 'n', so that a program no one asks waits on
- *   its output;
+ *   taken; 'g' the signal of one 'k' was sent, or 'z' the program had
+ *   exited and nothing was sent, one of the two for each 'k' in order;
+ *   'o' bytes of its output; 'r' bytes of its standard error, each
+ *   answering one 'n', so that a program no one asks waits on its output;
  *   'x' and a 4-byte big-endian status, once it has exited and both its
  *   output and its standard error have ended, the processes still in its
  *   process group killed as it is reaped. A status is the program's exit
  *   code, or 128 and the signal's number for a program a signal ended.
- *   After 'x', 'f' or 't', the run's last frame, the helper drops what the
- *   runtime sends until fd 0 ends, and then ends.
+ *   After 'x', 'f', 'p' or 't', the run's last frame, the helper drops what
+ *   the runtime sends until fd 0 ends, and then ends.
  *
  * Run with the arguments `terminal`, a count of rows and one of columns,
  * each from 0 to 65535, the helper runs the program so under a
@@ -53,7 +60,8 @@
  *   terminal's foreground of. 'e' hangs the terminal up at once, its master
  *   closed: the host sends the program the hangup, the input it has not
  *   taken is dropped, no more of its output is read, and 'x' comes once
- *   it has exited.
+ *   it has exited. A terminal that no process holds open any longer ends
+ *   its input as the hangup does, since nothing can read it.
  *
  * With no argument, the helper writes what the host says of the program as
  * it starts: a 'u' frame, the user it runs as in four bytes, big-endian,
@@ -181,11 +189,13 @@ static int watch_exit(void)
     return sigaction(SIGCHLD, &action, NULL);
 }
 
-/* The command the runtime's first frame names: the frame's text, and the
-   program and its arguments pointing into it, as execvp takes them, held
-   here so that they stay reachable until the helper ends. */
+/* The command the runtime's first frames name: the 'c' frame's text, and
+   the program and its arguments pointing into it, as execvp takes them,
+   and the 'p' frame's text, its tag and the directory, held here so that
+   they stay reachable until the helper ends. */
 static char *command_text = NULL;
 static char **command = NULL;
+static char *directory_text = NULL;
 
 /* The highest signal number of a host Ernest runs on; a number that names
    no signal is refused by the host, which is all that happens. */
@@ -241,6 +251,16 @@ static void kill_program(void)
     }
 }
 
+/* Whether the program has exited, seen and not yet reaped, so that its
+   number still names it and its process group. */
+static int has_exited(void)
+{
+    siginfo_t ended;
+    memset(&ended, 0, sizeof ended);
+    return waitid(P_PID, (id_t)program, &ended, WEXITED | WNOHANG | WNOWAIT) == 0
+        && ended.si_pid == program;
+}
+
 static void write_all(int fd, const unsigned char *data, size_t size)
 {
     while (size > 0) {
@@ -266,6 +286,20 @@ static void frame(unsigned char tag, const unsigned char *data, size_t size)
     };
     write_all(1, head, sizeof head);
     write_all(1, data, size);
+}
+
+/* Report Appendix E.23: a 'k' frame's signal sent to the program alone,
+   not its group, 'g', or 'z' where the program has exited, which nothing
+   reaches. The host refuses none of the runtime's three signals to a child
+   the helper has not reaped. */
+static void signal_program(int number)
+{
+    if (has_exited()) {
+        frame('z', NULL, 0);
+    } else {
+        kill(program, number);
+        frame('g', NULL, 0);
+    }
 }
 
 /* The name Erlang gives an error, which the runtime describes as it does
@@ -457,6 +491,42 @@ static void add_pending(const unsigned char *data, size_t size)
     pending_size += size;
 }
 
+/* The program's input ended by the helper, its descriptor closed where it
+   is open: what the program did not take is dropped, and every 'i' still
+   waiting is answered. */
+static void drop_input(int *input)
+{
+    if (*input >= 0)
+        close(*input);
+    *input = -1;
+    pending_start = 0;
+    pending_size = 0;
+    acknowledge(1);
+}
+
+/* Report Appendix E.23: the program's exit, seen and the program not yet
+   reaped, so that its number still names its process group, whose
+   processes are killed before it is reaped and its status sent, as a kill
+   would kill them. */
+static void report_exit(void)
+{
+    int status;
+    uint32_t value;
+    unsigned char code[4];
+
+    kill(-program, SIGKILL);
+    while (waitpid(program, &status, 0) < 0 && errno == EINTR)
+        ;
+    value = WIFSIGNALED(status) ? 128u + (uint32_t)WTERMSIG(status)
+                                : (uint32_t)WEXITSTATUS(status);
+    code[0] = (unsigned char)(value >> 24);
+    code[1] = (unsigned char)(value >> 16);
+    code[2] = (unsigned char)(value >> 8);
+    code[3] = (unsigned char)value;
+    program = -1;
+    frame('x', code, sizeof code);
+}
+
 /* Size bytes from the runtime into data: 0 where the runtime let go
    first. */
 static int read_all(unsigned char *data, size_t size)
@@ -473,23 +543,66 @@ static int read_all(unsigned char *data, size_t size)
     return 1;
 }
 
-/* The runtime's first frame, the command, 'c' and at least the program,
-   each part ended by a NUL byte, as execvp takes it; NULL where it is not
-   one. An empty program is one, which execvp finds nowhere (report
-   Appendix E.23: NotFound). */
-static char **read_command(void)
+/* A frame of the runtime's, read whole, its body ended by a NUL byte past
+   its size, so that a frame of text is a string; NULL where the runtime let
+   go first, the frame is empty, or the host has no room for it. */
+static char *read_frame(size_t *size)
 {
     unsigned char head[4];
-    size_t length, at, parts = 0, part;
+    char *body;
 
     if (!read_all(head, sizeof head))
         return NULL;
-    length = (size_t)head[0] << 24 | (size_t)head[1] << 16 | (size_t)head[2] << 8 | head[3];
-    if (length < 2)
+    *size = (size_t)head[0] << 24 | (size_t)head[1] << 16 | (size_t)head[2] << 8 | head[3];
+    if (*size == 0 || (body = malloc(*size + 1)) == NULL)
         return NULL;
-    command_text = malloc(length);
-    if (command_text == NULL || !read_all((unsigned char *)command_text, length)
-        || command_text[0] != 'c' || command_text[length - 1] != '\0')
+    if (!read_all((unsigned char *)body, *size)) {
+        free(body);
+        return NULL;
+    }
+    body[*size] = '\0';
+    return body;
+}
+
+/* Report Appendix E.23: a 'v' frame's variable, NAME=VALUE, set over the
+   helper's environment, so that the last of two with one name stands; 0
+   where it is not one, its name empty or the frame holding a NUL byte. */
+static int set_variable(char *variable, size_t size)
+{
+    char *equals = strchr(variable, '=');
+    if (strlen(variable) != size || equals == NULL || equals == variable)
+        return 0;
+    *equals = '\0';
+    return setenv(variable, equals + 1, 1) == 0;
+}
+
+/* The runtime's first frames (above): each 'v' set over the helper's
+   environment, the directory 'p' names kept, and last the command, 'c' and
+   at least the program, each part ended by a NUL byte, as execvp takes
+   it; NULL where they are not that. An empty program is one, which execvp
+   finds nowhere (report Appendix E.23: NotFound). */
+static char **read_command(void)
+{
+    size_t length, at, parts = 0, part;
+
+    for (;;) {
+        char *body = read_frame(&length);
+        if (body == NULL)
+            return NULL;
+        if (body[0] == 'c') {
+            command_text = body;
+            break;
+        }
+        if (body[0] == 'v' && set_variable(body + 1, length - 1)) {
+            free(body);
+        } else if (body[0] == 'p' && directory_text == NULL && strlen(body + 1) == length - 1) {
+            directory_text = body;
+        } else {
+            free(body);
+            return NULL;
+        }
+    }
+    if (length < 2 || command_text[length - 1] != '\0')
         return NULL;
     for (at = 1; at < length; at++)
         if (command_text[at] == '\0')
@@ -764,6 +877,11 @@ int main(int argc, char **argv)
     program_command = read_command();
     if (program_command == NULL || program_command[0] == NULL)
         return 1;
+    /* Report Appendix E.23: the directory entered before the program is
+       found, the host's order, so that a relative name resolves there; one
+       the helper cannot enter is its own to say, before any program runs */
+    if (directory_text != NULL && chdir(directory_text + 1) < 0)
+        return wait_for_let_go(fail('p', errno, 0));
     /* the terminal before the handler of SIGCHLD, with which grantpt's
        page leaves its work unspecified */
     if (terminal) {
@@ -853,17 +971,25 @@ int main(int argc, char **argv)
         size_t head_got = 0;
         unsigned char *body = NULL;
         size_t body_size = 0, body_got = 0;
-        int input_ended = 0, hung_up = 0;
+        int input_ended = 0;
         size_t wanted = 0;
         unsigned char buffer[CHUNK];
 
-        /* a hung-up terminal's program may outlive the hangup, and its
-           input is answered until it has exited */
-        while (program_out >= 0 || program_err >= 0 || hung_up) {
+        for (;;) {
             fd_set readable, writable;
             int highest = 0, out_watched = 0, err_watched = 0, in_watched = 0;
-            int exit_watched = 0;
+            /* Report Appendix E.23: once both outputs have ended, a hung-up
+               terminal's among them, the run ends when the program exits,
+               its input given it until then, unless the runtime lets go of
+               it first; a frame of the runtime's not read whole is dropped */
+            int exit_watched = program_out < 0 && program_err < 0;
 
+            if (exit_watched && has_exited()) {
+                free(body);
+                drop_input(&program_in);
+                report_exit();
+                return wait_for_let_go(0);
+            }
             FD_ZERO(&readable);
             FD_ZERO(&writable);
             watch(0, &readable, &highest);
@@ -880,10 +1006,8 @@ int main(int argc, char **argv)
                 watch(program_in, &writable, &highest);
                 in_watched = 1;
             }
-            if (hung_up) {
+            if (exit_watched)
                 watch(exited[0], &readable, &highest);
-                exit_watched = 1;
-            }
             /* Report Appendix E.23: select(2), since poll(2) does not serve a
                device on macOS, which a pseudo-terminal's master is */
             if (select(highest + 1, &readable, &writable, NULL, NULL) < 0) {
@@ -949,6 +1073,8 @@ int main(int argc, char **argv)
                     else if (body_size == 5 && body[0] == 'w' && terminal && program_out >= 0)
                         set_size(program_out, (unsigned)body[1] << 8 | body[2],
                                  (unsigned)body[3] << 8 | body[4]);
+                    else if (body_size == 2 && body[0] == 'k')
+                        signal_program(body[1]);
                     free(body);
                     body = NULL;
                     head_got = 0;
@@ -964,12 +1090,8 @@ int main(int argc, char **argv)
                         pending_start = 0;
                     taken += (uint64_t)wrote;
                 } else if (wrote < 0 && errno != EAGAIN && errno != EINTR) {
-                    /* the program closed its input: what it did not take is dropped */
-                    pending_start = 0;
-                    pending_size = 0;
-                    close(program_in);
-                    program_in = -1;
-                    acknowledge(1);
+                    /* the program closed its input */
+                    drop_input(&program_in);
                 }
             }
             acknowledge(0);
@@ -985,10 +1107,14 @@ int main(int argc, char **argv)
                     wanted--;
                 }
                 /* a terminal's master is its input's too, which writes
-                   without waiting, so a read may find nothing yet */
+                   without waiting, so a read may find nothing yet; a
+                   terminal no process holds open any longer takes no
+                   input */
                 else if (got == 0 || (errno != EINTR && errno != EAGAIN)) {
                     close(program_out);
                     program_out = -1;
+                    if (terminal)
+                        drop_input(&program_in);
                 }
             }
             if (err_watched && FD_ISSET(program_err, &readable) && wanted > 0) {
@@ -1010,72 +1136,11 @@ int main(int argc, char **argv)
             if (terminal && input_ended && program_out >= 0) {
                 close(program_out);
                 program_out = -1;
-                if (program_in >= 0)
-                    close(program_in);
-                program_in = -1;
-                pending_start = 0;
-                pending_size = 0;
-                acknowledge(1);
-                hung_up = 1;
+                drop_input(&program_in);
             }
-            if (exit_watched && FD_ISSET(exited[0], &readable))
-                break;
-        }
-
-        /* Both outputs have ended; the run ends when the program exits,
-           unless the runtime lets go of it first. Input it did not take is
-           dropped, and so is a frame of the runtime's not read whole. */
-        free(body);
-        if (program_in >= 0)
-            close(program_in);
-        acknowledge(1);
-        for (;;) {
-            int status, highest = 0;
-            fd_set woken;
-            siginfo_t ended;
-            /* Report Appendix E.23: the program's exit seen and the program
-               not yet reaped, so that its number still names its process
-               group, whose processes are killed before it is reaped and its
-               status sent, as a kill would kill them */
-            memset(&ended, 0, sizeof ended);
-            if (waitid(P_PID, (id_t)program, &ended, WEXITED | WNOHANG | WNOWAIT) == 0
-                && ended.si_pid == program) {
-                unsigned char code[4];
-                uint32_t value;
-                kill(-program, SIGKILL);
-                while (waitpid(program, &status, 0) < 0 && errno == EINTR)
-                    ;
-                value = WIFSIGNALED(status) ? 128u + (uint32_t)WTERMSIG(status)
-                                            : (uint32_t)WEXITSTATUS(status);
-                code[0] = (unsigned char)(value >> 24);
-                code[1] = (unsigned char)(value >> 16);
-                code[2] = (unsigned char)(value >> 8);
-                code[3] = (unsigned char)value;
-                program = -1;
-                frame('x', code, sizeof code);
-                return wait_for_let_go(0);
-            }
-            /* the program has not ended yet: wait for its exit, or for the
-               runtime to let go, with no timer, by select(2) as above */
-            FD_ZERO(&woken);
-            watch(0, &woken, &highest);
-            watch(exited[0], &woken, &highest);
-            if (select(highest + 1, &woken, NULL, NULL, NULL) < 0) {
-                if (errno == EINTR)
-                    continue;
-                kill_program();
-                return 1;
-            }
-            if (FD_ISSET(exited[0], &woken)) {
+            if (exit_watched && FD_ISSET(exited[0], &readable)) {
                 while (read(exited[0], buffer, sizeof buffer) > 0)
                     ;
-            }
-            if (FD_ISSET(0, &woken)) {
-                ssize_t got = read(0, buffer, sizeof buffer);
-                if (got == 0 || (got < 0 && errno != EINTR)) {
-                    kill_program();
-                    return 0;
-                }
             }
         }
     }

@@ -164,7 +164,9 @@ fn drive(options : Options, ms : Int) : Unit receiving HarnessMsg = {
     let command =
         Os.Command(program = "/bin/sh",
                    arguments = ["-c", String.join(options.command, " ")],
-                   input = <<>>);
+                   input = <<>>,
+                   environment = [],
+                   workingDirectory = Os.workingDirectory);
     match Os.startTerminal(command, options.size) {
         Left(error) ->
             fail("/bin/sh cannot start: " <> Io.show(error))
@@ -288,7 +290,9 @@ fn openPipe(path : String, harness : Address(HarnessMsg), ms : Int) : Unit = {
     let opener =
         Os.Command(program = "/bin/sh",
                    arguments = ["-c", "test -p \"$1\" && : > \"$1\"", "sh", path],
-                   input = <<>>);
+                   input = <<>>,
+                   environment = [],
+                   workingDirectory = Os.workingDirectory);
     match Os.run(opener, ms) {
         Right(Os.Finished(status = 0)) -> send(harness, Opened)
       | _ -> send(harness, Unopened)

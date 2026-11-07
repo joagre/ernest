@@ -1476,7 +1476,8 @@ fn knocked(door : Address(Tcp.ListenerMsg), port : Int) : Unit receiving Down = 
     let listeners = filled([]);
     Io.println(\"connect: \" <> Io.show(opened(Tcp.connect(\"127.0.0.1\", port, waitMs()))));
     Io.println(\"accept: \" <> Io.show(opened(Tcp.accept(door, waitMs()))));
-    let command = Os.Command(program = \"true\", arguments = [], input = <<>>);
+    let command = Os.Command(program = \"true\", arguments = [], input = <<>>,
+                             environment = [], workingDirectory = Os.workingDirectory);
     Io.println(\"start: \" <> Io.show(started(Os.start(command))));
     let size = Terminal.Size(rows = 24, columns = 80);
     Io.println(\"startTerminal: \" <> Io.show(started(Os.startTerminal(command, size))));
@@ -1680,7 +1681,8 @@ fn requested(step : Int, held : Address(HeldMsg)) : Unit receiving Int =
       | 2 -> Io.println(Io.show(Tcp.connect(\"127.0.0.1\", 1, waitMs())))
       | 3 -> Io.println(Io.show(Tcp.listen(\"127.0.0.1\", 0)))
       | 4 -> Io.println(Io.show(Os.start(Os.Command(program = \"true\", arguments = [],
-                                                    input = <<>>))))
+                                                    input = <<>>, environment = [],
+                                                    workingDirectory = Os.workingDirectory))))
       | 5 -> {
             let _ = Clock.alarm(0, fn(time) = time);
             receive { time -> Io.println(Int.toString(time)) }
@@ -4023,12 +4025,15 @@ ender() ->
     "    match Os.arguments {\n"
     "        [pipe, how, pidFile] -> {\n"
     "            Io.println(\"ready\");\n"
-    "            let _ = Os.run(Os.Command(program = \"cat\", arguments = [pipe], input = <<>>),\n"
+    "            let _ = Os.run(Os.Command(program = \"cat\", arguments = [pipe], input = <<>>,\n"
+    "                                      environment = [],\n"
+    "                                      workingDirectory = Os.workingDirectory),\n"
     "                           waitMs());\n"
     "            if how == \"lost\" then {\n"
     "                let kill = \"kill -KILL $(cat \" <> pidFile <> \")\";\n"
     "                let _ = Os.run(Os.Command(program = \"sh\", arguments = [\"-c\", kill],\n"
-    "                                          input = <<>>),\n"
+    "                                          input = <<>>, environment = [],\n"
+    "                                          workingDirectory = Os.workingDirectory),\n"
     "                               waitMs());\n"
     "                Unit\n"
     "            } else\n"
@@ -5091,7 +5096,8 @@ faulter() ->
      "    }\n"
      "\n"
      "fn divided(pipe : String) : Unit = {\n"
-     "    let _ = Os.run(Os.Command(program = \"cat\", arguments = [pipe], input = <<>>),\n"
+     "    let _ = Os.run(Os.Command(program = \"cat\", arguments = [pipe], input = <<>>,\n"
+     "                              environment = [], workingDirectory = Os.workingDirectory),\n"
      "                   waitMs());\n"
      "    Io.println(Int.toString(1 / (List.size(Os.arguments) - 1)))\n"
      "}\n",

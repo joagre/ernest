@@ -117,14 +117,21 @@ fn started(build : String) : Either(String, Address(Os.ProgramMsg)) = {
     let program <-
         shown(Os.start(Os.Command(program = "ern",
                                   arguments = ["run", "--config-dir", "b", file],
-                                  input = <<>>)));
+                                  input = <<>>,
+                                  environment = [],
+                                  workingDirectory = Os.workingDirectory)));
     let _ <- said(program, String.toUtf8("offered"), <<>>);
     Right(program)
 }
 
 // The status the second node ended with, stopped by `ern stop`.
 fn stopped(program : Address(Os.ProgramMsg)) : Either(String, Int) = {
-    let stop = Os.Command(program = "ern", arguments = ["stop", "--config-dir", "b"], input = <<>>);
+    let stop =
+        Os.Command(program = "ern",
+                   arguments = ["stop", "--config-dir", "b"],
+                   input = <<>>,
+                   environment = [],
+                   workingDirectory = Os.workingDirectory);
     let _ <- shown(Os.run(stop, Harness.waitMs()));
     ended(program)
 }

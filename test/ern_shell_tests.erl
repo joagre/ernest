@@ -1254,7 +1254,8 @@ fault_while_typing() ->
     Pipe = scratch_name("ern_typing_"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Late = "spawn(fn() = { let _ = Os.run(Os.Command(program = \"cat\","
-           " arguments = [\"" ++ Pipe ++ "\"], input = <<>>), 60000); let _ = 1 / 0; Unit })\r",
+           " arguments = [\"" ++ Pipe ++ "\"], input = <<>>, environment = [],"
+           " workingDirectory = Os.workingDirectory), 60000); let _ = 1 / 0; Unit })\r",
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex(Late)},
@@ -3007,7 +3008,8 @@ owned_said() ->
            "    #(Ets.new(), Proxy.start(s, 100))\n"
            "let a = 1\n"
            "Io.println(\"a rebound\")\n"
-           "let p <- Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>))\n"
+           "let p <- Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>,"
+           " environment = [], workingDirectory = Os.workingDirectory))\n"
            "let l3 <- Tcp.listen(\"127.0.0.1\", 0)\n"
            "let #(c, d) <- Either.map(Either.andThen(Tcp.port(l3), fn(port) ="
            " Tcp.connect(\"127.0.0.1\", port, 1000)), fn(c) = #(1, c))\n"

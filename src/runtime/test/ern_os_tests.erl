@@ -7,11 +7,11 @@
 %% The size a terminal of the tests begins with, `Terminal.Size(24, 80)`.
 -define(SIZE, {'Size', 24, 80}).
 
-%% Appendix E.23, report §7.4: a write and a read that wait while the helper
-%% ends fault their callers, the runtime's own failure. A regression test:
-%% the process gave them to the port the helper's end had closed, and
-%% crashed with badarg; and of the rule, before which they were answered
-%% `Left(Other(...))`
+%% Appendix E.23, report §7.4: a write, a read and a signal that wait while
+%% the helper ends fault their callers, the runtime's own failure. A
+%% regression test: the process gave them to the port the helper's end had
+%% closed, and crashed with badarg; and of the rule, before which they were
+%% answered `Left(Other(...))`
 helper_ends_under_a_write_and_a_read_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -25,17 +25,21 @@ helper_ends_under_a_write_and_a_read_test() ->
                Program ! {'Write', <<"x">>, 5000, {WriteReply, self()}},
                ReadReply = alias(),
                Program ! {'Read', 5000, {ReadReply, self()}},
+               SignalReply = alias(),
+               Program ! {'SendSignal', 'Termination', {SignalReply, self()}},
                PortRef = erlang:monitor(port, Helper),
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
                %% the port closes once the host has seen the helper end
                receive {'DOWN', PortRef, port, Helper, _} -> ok end,
                erlang:resume_process(Program),
                Self ! {write, answer(WriteReply)},
-               Self ! {read, answer(ReadReply)}
+               Self ! {read, answer(ReadReply)},
+               Self ! {signal, answer(SignalReply)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Failed = {fault, <<"the runtime's helper ern_exec failed">>},
     ?assertEqual(Failed, wait(write)),
-    ?assertEqual(Failed, wait(read)).
+    ?assertEqual(Failed, wait(read)),
+    ?assertEqual(Failed, wait(signal)).
 
 %% Appendix E.23: the helper answers each 'i' in order, one taken after the
 %% input's end among them, so that a write returns only once the program
@@ -83,6 +87,35 @@ output(Helper, Output) ->
         {Helper, {data, _}} -> output(Helper, Output)
     after 20000 -> timeout
     end.
+
+%% Appendix E.23: the program takes its input until it closes it or exits,
+%% after its output and its standard error have ended too. The test asks
+%% for a piece first, so that the helper watches both and sees them end,
+%% and gives the line once the program has said through a named pipe that
+%% it has closed them. A regression test, written after the code: the
+%% helper closed the program's input once both had ended, and dropped the
+%% bytes given after it without an answer
+helper_gives_input_after_the_outputs_end_test() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_os_input_" ++ os:getpid()),
+    ok = filelib:ensure_path(Dir),
+    Fifo = filename:join(Dir, "fifo"),
+    Mark = filename:join(Dir, "mark"),
+    [] = os:cmd("mkfifo " ++ Fifo),
+    Helper = helper(["sh", "-c", "exec > /dev/null 2>&1; echo closed > \"$0\"; read line;"
+                     " echo \"$line\" > \"$1\"", Fifo, Mark]),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    true = port_command(Helper, <<"n">>),
+    Reader = open_port({spawn_executable, os:find_executable("cat")},
+                       [{args, [Fifo]}, binary, exit_status]),
+    receive {Reader, {data, <<"closed\n">>}} -> ok after 5000 -> erlang:error(not_closed) end,
+    true = port_command(Helper, <<"i", "hi\n">>),
+    ?assertEqual(<<"a">>, receive {Helper, {data, Frame}} -> Frame after 5000 -> none end),
+    ?assertMatch(<<"x", 0:32>>, receive {Helper, {data, Exit}} -> Exit after 5000 -> none end),
+    port_close(Helper),
+    Written = file:read_file(Mark),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual({ok, <<"hi\n">>}, Written).
 
 %% Appendix E.23: bytes given once the program has closed its input are
 %% dropped, and the helper says so with `d`, where it says `a` of bytes the
@@ -732,7 +765,7 @@ command(Parts) ->
 
 start(Program, Arguments) ->
     Self = self(),
-    Command = {'Command', Program, Arguments, <<>>},
+    Command = inheriting(Program, Arguments),
     ern_rt:call_forever(ern_rt:system_process(os), fun(Reply) ->
                                                        {'Start', Command, Self, Reply}
                                                    end).
@@ -740,11 +773,16 @@ start(Program, Arguments) ->
 %% Size is `Terminal.Size(rows, columns)`.
 start_terminal(Program, Arguments, Size) ->
     Self = self(),
-    Command = {'Command', Program, Arguments, <<>>},
+    Command = inheriting(Program, Arguments),
     ern_rt:call_forever(ern_rt:system_process(os), fun(Reply) ->
                                                        {'StartTerminal', Command, Size, Self,
                                                         Reply}
                                                    end).
+
+%% `Os.Command(program, arguments, <<>>, [], Os.workingDirectory)`, which
+%% sets no variable and runs where the test runs.
+inheriting(Program, Arguments) ->
+    {'Command', Program, Arguments, <<>>, [], {'Path', ern_os:working_directory()}}.
 
 read(Program, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Read', Ms, Reply} end).

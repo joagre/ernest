@@ -770,10 +770,16 @@ os_scenarios(Bytes) ->
     OsWrite = Os(write),
     OsCloseInput = Os(closeInput),
     OsGive = Os(give),
+    OsSignal = Os(signal),
     FromAddress = ern_named:function('ern@process', fromAddress),
     OsTermination = Os(termination),
-    True = {'Command', <<"true">>, [], <<>>},
-    Cat = {'Command', <<"cat">>, [], <<>>},
+    %% report Appendix E.23: commands that inherit the environment and the
+    %% working directory
+    Here = {'Path', ern_os:working_directory()},
+    True = {'Command', <<"true">>, [], <<>>, [], Here},
+    Cat = {'Command', <<"cat">>, [], <<>>, [], Here},
+    Deaf = {'Command', <<"sh">>, [<<"-c">>, <<"trap '' HUP; echo ready; exec cat">>], <<>>, [],
+            Here},
     %% report Appendix E.23: a program read to its exit status, and its
     %% process, which lives on after the exit, then killed, as Os.run kills
     %% the one it ran, so that the rows' runs leave none behind
@@ -791,6 +797,9 @@ os_scenarios(Bytes) ->
                       end
               end,
     {'Right', Echo} = OsStart(Cat),
+    %% a program that ignores the hangup, once it says so
+    {'Right', Ignoring} = OsStart(Deaf),
+    {'Right', {'Stdout', <<"ready\n">>}} = OsRead(Ignoring, 5000),
     TerminalSize = {'Size', 24, 80},
     {'Right', Sized} = OsStartTerminal(Cat, TerminalSize),
     HostEcho = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary, stream]),
@@ -815,6 +824,9 @@ os_scenarios(Bytes) ->
      {<<"Os.closeInput">>,
       {fun() -> {'Right', Program} = OsStart(Cat), OsCloseInput(Program), Exited(Program) end,
        HostRun("true")}},
+     %% the host has no way to send a program a signal, which the helper
+     %% sends for Ernest
+     {<<"Os.signal">>, {fun() -> {'Right', 'Unit'} = OsSignal(Ignoring, 'Hangup') end, none}},
      {<<"Os.give">>, {fun() -> OsGive(Echo, FromAddress(ern_rt:self())) end,
                       fun() -> erlang:port_connect(HostEcho, erlang:self()) end}},
      {<<"Os.exit">>, {not_measured, <<"ends the program, or faults the caller">>}},

@@ -58,7 +58,8 @@ os_run(Program, Arguments, Input, Ms) ->
          "  | Left(e) -> Io.show(e)\n"
          "}\n"
          "export fn main() : Unit = Io.println(show(Os.run(Os.Command(program = ",
-         Program, ", arguments = ", Arguments, ", input = ", Input, "), ", Ms, ")))\n"]).
+         Program, ", arguments = ", Arguments, ", input = ", Input,
+         ", environment = [], workingDirectory = Os.workingDirectory), ", Ms, ")))\n"]).
 
 %% Appendix E.23: the exit status, the output and the standard error, apart
 os_run_status_and_streams_test() ->
@@ -119,7 +120,8 @@ os_run_dies_with_its_caller_test() ->
         "export fn main() : Unit receiving Msg = {\n"
         "    let me = self();\n"
         "    let w = spawn(fn() = match Os.start(Os.Command(program = \"sh\",\n"
-        "        arguments = [\"-c\", \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>)) {\n"
+        "        arguments = [\"-c\", \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>,\n"
+        "        environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "        Right(p) -> { send(me, Started); let _ = Os.read(p, 5000); Unit }\n"
         "      | Left(_) -> Unit\n"
         "    });\n"
@@ -145,7 +147,8 @@ os_run_leaves_no_process_test() ->
         "  | _ :: rest -> receive { Ended(_) -> ended(rest) }\n"
         "}\n"
         "export fn main() : Unit receiving Msg = {\n"
-        "    let command = Os.Command(program = \"true\", arguments = [], input = <<>>);\n"
+        "    let command = Os.Command(program = \"true\", arguments = [], input = <<>>,\n"
+        "        environment = [], workingDirectory = Os.workingDirectory);\n"
         "    let ran = Os.run(command, 5000);\n"
         "    let left = Process.owned(Process.current());\n"
         "    List.forEach(left, fn(p) = monitor(p, Ended));\n"
@@ -213,7 +216,7 @@ os_start_reads_in_order_test() ->
         [drain(),
         "export fn main() : Unit = match Os.start(Os.Command(program = \"sh\",\n"
         "    arguments = [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"],\n"
-        "    input = <<>>)) {\n"
+        "    input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "    Right(p) -> drain(p)\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
@@ -240,7 +243,7 @@ os_start_output_waits_for_a_read_test() ->
         "fn writer(mark : String) : Address(Os.ProgramMsg) =\n"
         "    match Os.start(Os.Command(program = \"sh\",\n"
         "        arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch \" <> mark],\n"
-        "        input = <<>>)) {\n"
+        "        input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "        Right(p) -> p\n"
         "      | Left(e) -> fault(Io.show(e))\n"
         "    }\n"
@@ -269,7 +272,8 @@ os_start_write_then_close_test() ->
         "  | _ -> got\n"
         "}\n"
         "export fn main() : Unit = match Os.start(Os.Command(program = \"cat\",\n"
-        "    arguments = [], input = String.toUtf8(\"a\"))) {\n"
+        "    arguments = [], input = String.toUtf8(\"a\"),\n"
+        "    environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "    Right(p) -> {\n"
         "        let taken = Os.write(p, String.toUtf8(\"b\"), 5000);\n"
         "        Os.closeInput(p);\n"
@@ -292,7 +296,7 @@ os_program_is_a_process_test() ->
         "type Msg = Ended(Down)\n"
         "fn started(script : String) : Address(Os.ProgramMsg) receiving Msg =\n"
         "    match Os.start(Os.Command(program = \"sh\", arguments = [\"-c\", script],\n"
-        "        input = <<>>)) {\n"
+        "        input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "        Right(p) -> p\n"
         "      | Left(_) -> fault(\"not started\")\n"
         "    }\n"
@@ -327,7 +331,8 @@ os_program_is_a_process_test() ->
 os_read_time_limit_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "export fn main() : Unit = match Os.start(Os.Command(program = \"sh\",\n"
-        "    arguments = [\"-c\", \"sleep 0.3; echo late\"], input = <<>>)) {\n"
+        "    arguments = [\"-c\", \"sleep 0.3; echo late\"], input = <<>>,\n"
+        "    environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "    Right(p) -> {\n"
         "        Io.println(Io.show(Os.read(p, 50)));\n"
         "        Io.println(Io.show(Os.read(p, 5000)));\n"
@@ -338,6 +343,205 @@ os_read_time_limit_test() ->
     ?assertEqual(<<"Left(Io.Timeout)\nRight(Os.Stdout(<<108, 97, 116, 101, 10>>))\n"
                    "Right(Os.Exited(0))\n">>,
                  Output).
+
+%%
+%% Report Appendix E.23: a command's environment and working directory, and
+%% a signal named. Regression tests, written after the code.
+%%
+
+%% What one command answered: its status and its output, trimmed, or why
+%% it did not run.
+ran() ->
+    "fn ran(program : String, arguments : List(String),\n"
+    "       environment : List(#(String, String)), directory : Path) : String =\n"
+    "    match Os.run(Os.Command(=program, =arguments, input = <<>>, =environment,\n"
+    "                            workingDirectory = directory), 5000) {\n"
+    "        Right(f) -> Int.toString(f.status) <> \" \"\n"
+    "            <> String.trim(String.fromUtf8Lossy(f.stdout))\n"
+    "      | Left(e) -> Io.show(e)\n"
+    "    }\n".
+
+%% A command that inherits the environment and the working directory.
+inheriting() ->
+    "fn command(program : String, arguments : List(String)) : Os.Command =\n"
+    "    Os.Command(=program, =arguments, input = <<>>, environment = [],\n"
+    "               workingDirectory = Os.workingDirectory)\n".
+
+%% What a running program wrote from here, and its exit status.
+rest() ->
+    "fn rest(p : Address(Os.ProgramMsg), text : String) : String = match Os.read(p, 5000) {\n"
+    "    Right(Os.Stdout(b)) -> rest(p, text <> String.fromUtf8Lossy(b))\n"
+    "  | Right(Os.Exited(s)) -> text <> \"exit \" <> Int.toString(s)\n"
+    "  | other -> text <> Io.show(other)\n"
+    "}\n".
+
+%% An executable script at Path, its text the shell's.
+script(Path, Text) ->
+    ok = file:write_file(Path, ["#!/bin/sh\n", Text, "\n"]),
+    ok = file:change_mode(Path, 8#755).
+
+%% Appendix E.23: each variable of `environment` is set over the environment
+%% the program inherits, the last of two with one name standing, the rest
+%% inherited; a name without `/` is found in the directories of the `PATH`
+%% the program starts with
+os_command_environment_test() ->
+    Dir = ern_emitter_tests:scratch(),
+    script(filename:join(Dir, "tool"), "echo tool"),
+    {ok, Output} = ern_emitter_tests:run(
+        [ran(),
+         "export fn main() : Unit = {\n"
+         "    Io.println(ran(\"sh\", [\"-c\", \"echo $A $B\"],\n"
+         "        [#(\"A\", \"1\"), #(\"B\", \"2\"), #(\"A\", \"3\")], Os.workingDirectory));\n"
+         "    Io.println(ran(\"sh\", [\"-c\", \"echo $HOME\"], [#(\"A\", \"1\")],\n"
+         "        Os.workingDirectory));\n"
+         "    Io.println(ran(\"tool\", [], [#(\"PATH\", \"", Dir, "\")], Os.workingDirectory))\n"
+         "}\n"]),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual(iolist_to_binary(["0 3 2\n0 ", os:getenv("HOME"), "\n0 tool\n"]), Output).
+
+%% Appendix E.23: the program runs in `workingDirectory`, a relative one
+%% resolved against `Os.workingDirectory`, and a relative name with `/` is
+%% resolved against it, after the directory is entered; a relative
+%% directory of `PATH` is not covered
+os_command_working_directory_test() ->
+    Dir = ern_emitter_tests:scratch(),
+    Sub = filename:join(Dir, "sub"),
+    ok = file:make_dir(Sub),
+    script(filename:join(Sub, "tool"), "pwd -P"),
+    {ok, Cwd} = file:get_cwd(),
+    %% the scratch directory named from the working directory, up to the
+    %% root and down again
+    Relative = filename:join(lists:duplicate(length(filename:split(Cwd)) - 1, "..")
+                             ++ tl(filename:split(Sub))),
+    {ok, Output} = ern_emitter_tests:run(
+        [ran(),
+         "export fn main() : Unit = {\n"
+         "    Io.println(ran(\"pwd\", [\"-P\"], [], Path(\"", Relative, "\")));\n"
+         "    Io.println(ran(\"./tool\", [], [], Path(\"", Sub, "\")))\n"
+         "}\n"]),
+    Physical = string:trim(os:cmd("cd " ++ Sub ++ " && pwd -P")),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual(iolist_to_binary(["0 ", Physical, "\n0 ", Physical, "\n"]), Output).
+
+%% Appendix E.23: a working directory the program cannot be started in
+%% answers Other, the directory and the answer Fs gives for its path on one
+%% line, before the program is looked for: NotFound for no directory and
+%% for a path through a file, NotAFile for a file. A variable whose name is
+%% empty or holds `=` or U+0000, or whose value holds U+0000, and a
+%% directory that holds U+0000 answer Invalid. A directory the program may
+%% not enter is not covered, since the superuser enters any
+os_command_refusals_test() ->
+    Dir = ern_emitter_tests:scratch(),
+    ok = file:write_file(filename:join(Dir, "file"), <<>>),
+    {ok, Output} = ern_emitter_tests:run(
+        [ran(),
+         "export fn main() : Unit = {\n"
+         "    Io.println(ran(\"no-such-program-ern\", [], [], Path(\"", Dir, "/none\")));\n"
+         "    Io.println(ran(\"true\", [], [], Path(\"", Dir, "/file\")));\n"
+         "    Io.println(ran(\"true\", [], [], Path(\"", Dir, "/file/x\")));\n"
+         "    Io.println(ran(\"true\", [], [#(\"\", \"x\")], Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], [#(\"A=B\", \"x\")], Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], [#(\"A\\u{0}\", \"x\")], Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], [#(\"A\", \"x\\u{0}\")], Os.workingDirectory));\n"
+         "    Io.println(ran(\"true\", [], [], Path(\"a\\u{0}b\")))\n"
+         "}\n"]),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual(iolist_to_binary(["Io.Other(\"", Dir, "/none: NotFound\")\n"
+                                   "Io.Other(\"", Dir, "/file: NotAFile\")\n"
+                                   "Io.Other(\"", Dir, "/file/x: NotFound\")\n"
+                                   "Io.Invalid\nIo.Invalid\nIo.Invalid\nIo.Invalid\n"
+                                   "Io.Invalid\n"]),
+                 Output).
+
+%% Appendix E.23: `signal` sends the program the signal it names: one it
+%% does not handle ends it, its status 128 and the signal's number, and one
+%% it handles is its own; once it has exited the answer is Closed
+os_signal_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        [inheriting(), rest(),
+         "fn ended(signal : Os.Signal) : String =\n"
+         "    match Os.start(command(\"sleep\", [\"10\"])) {\n"
+         "        Right(p) -> {\n"
+         "            let sent = Os.signal(p, signal);\n"
+         "            let last = Os.read(p, 5000);\n"
+         "            let again = Os.signal(p, signal);\n"
+         "            kill(Process.fromAddress(p));\n"
+         "            Io.show(#(sent, last, again))\n"
+         "        }\n"
+         "      | Left(e) -> Io.show(e)\n"
+         "    }\n"
+         "export fn main() : Unit = {\n"
+         "    Io.println(ended(Os.Termination));\n"
+         "    Io.println(ended(Os.Hangup));\n"
+         "    Io.println(ended(Os.Interrupt));\n"
+         "    match Os.start(command(\"sh\",\n"
+         "        [\"-c\", \"trap 'exit 7' HUP; echo ready;\"\n"
+         "         <> \" sleep 10 > /dev/null 2>&1 & wait\"])) {\n"
+         "        Right(p) -> {\n"
+         "            let ready = Os.read(p, 5000);\n"
+         "            let sent = Os.signal(p, Os.Hangup);\n"
+         "            Io.println(Io.show(#(ready, sent)) <> \" \" <> rest(p, \"\"))\n"
+         "        }\n"
+         "      | Left(e) -> Io.println(Io.show(e))\n"
+         "    }\n"
+         "}\n"]),
+    ?assertEqual(<<"#(Right(Unit), Right(Os.Exited(143)), Left(Io.Closed))\n"
+                   "#(Right(Unit), Right(Os.Exited(129)), Left(Io.Closed))\n"
+                   "#(Right(Unit), Right(Os.Exited(130)), Left(Io.Closed))\n"
+                   "#(Right(Os.Stdout(<<114, 101, 97, 100, 121, 10>>)), Right(Unit)) exit 7\n">>,
+                 Output).
+
+%% Appendix E.23: a signal goes to the program alone, not to the processes
+%% it started: the shell's child, which a signal to the group would end,
+%% reads the line its parent writes to it at the termination
+os_signal_to_the_program_alone_test() ->
+    Dir = ern_emitter_tests:scratch(),
+    Fifo = filename:join(Dir, "fifo"),
+    {ok, Output} = ern_emitter_tests:run(
+        [inheriting(), rest(),
+         "export fn main() : Unit =\n"
+         "    match Os.start(command(\"sh\", [\"-c\", \"mkfifo $0; trap 'echo > $0' TERM;\"\n"
+         "        <> \" (trap 'echo child-term; exit' TERM; echo ready; read line < $0;\"\n"
+         "        <> \" echo child-saw) & wait; wait\", \"", Fifo, "\"])) {\n"
+         "        Right(p) -> {\n"
+         "            let ready = Os.read(p, 5000);\n"
+         "            let sent = Os.signal(p, Os.Termination);\n"
+         "            Io.println(Io.show(#(ready, sent)) <> \" \" <> rest(p, \"\"))\n"
+         "        }\n"
+         "      | Left(e) -> Io.println(Io.show(e))\n"
+         "    }\n"]),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual(<<"#(Right(Os.Stdout(<<114, 101, 97, 100, 121, 10>>)), Right(Unit))"
+                   " child-saw\nexit 0\n">>,
+                 Output).
+
+%% Appendix E.23: a signal to a program that has exited answers Closed
+%% though no read has yet taken its exit: the shell has exited once its
+%% child reads the end of the pipe the shell held, and the child holds the
+%% output open, so no exit status has come
+os_signal_after_an_unread_exit_test() ->
+    Dir = ern_emitter_tests:scratch(),
+    Fifo = filename:join(Dir, "fifo"),
+    {ok, Output} = ern_emitter_tests:run(
+        [inheriting(), rest(),
+         "fn gone(p : Address(Os.ProgramMsg), text : String) : String =\n"
+         "    if String.contains(text, \"gone\") then text else match Os.read(p, 5000) {\n"
+         "        Right(Os.Stdout(b)) -> gone(p, text <> String.fromUtf8Lossy(b))\n"
+         "      | other -> text <> Io.show(other)\n"
+         "    }\n"
+         "export fn main() : Unit =\n"
+         "    match Os.start(command(\"sh\",\n"
+         "        [\"-c\", \"mkfifo $0; (read line < $0; echo gone) &\"\n"
+         "        <> \" exec 4> $0; echo started\", \"", Fifo, "\"])) {\n"
+         "        Right(p) -> {\n"
+         "            let text = gone(p, \"\");\n"
+         "            let sent = Os.signal(p, Os.Interrupt);\n"
+         "            Io.println(Io.show(sent) <> \" \" <> rest(p, text))\n"
+         "        }\n"
+         "      | Left(e) -> Io.println(Io.show(e))\n"
+         "    }\n"]),
+    ok = file:del_dir_r(Dir),
+    ?assertEqual(<<"Left(Io.Closed) started\ngone\nexit 0\n">>, Output).
 
 %% Appendix E.23, report §8.6: Os.exit ends the program with its status,
 %% from any process, the output written before it flushed; a status
@@ -540,7 +744,7 @@ opened_processes_are_live_test() ->
         "                let pc = Process.fromAddress(c);\n"
         "                Io.println(Io.show(#(site(pl), site(pc), listed(pl), listed(pc))));\n"
         "                match Os.start(Os.Command(program = \"cat\", arguments = [],"
-        " input = <<>>)) {\n"
+        " input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "                    Right(p) -> Io.println(site(Process.fromAddress(p)))\n"
         "                  | Left(e) -> Io.println(Io.show(e))\n"
         "                }\n"
@@ -573,7 +777,7 @@ owned_test() ->
         " Tcp.connect(\"127.0.0.1\", port, 1000)) {\n"
         "        Right(c) -> {\n"
         "            let _ = Os.start(Os.Command(program = \"cat\", arguments = [],"
-        " input = <<>>));\n"
+        " input = <<>>, environment = [], workingDirectory = Os.workingDirectory));\n"
         "            send(main, Opened(listener = Process.fromAddress(l), socket = c));\n"
         "            receive { _ -> Unit }\n"
         "        }\n"
@@ -770,7 +974,8 @@ os_write_waits_test() ->
         "  | _ -> n\n"
         "}\n"
         "fn written() : Address(Os.ProgramMsg) receiving Msg =\n"
-        "    match Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>)) {\n"
+        "    match Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>,\n"
+        "        environment = [], workingDirectory = Os.workingDirectory)) {\n"
         "        Right(p) -> {\n"
         "            let me = self();\n"
         "            let _ = spawn(fn() = {\n"

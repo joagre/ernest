@@ -9,11 +9,13 @@ Use `arguments`, `environment` and `workingDirectory` to read what the
 program was started with, `exit` to end it with a status, and `termination`
 to be told before it ends. Use `run` to run another program to its end and
 read all it wrote, `start` with `read` and `write` to talk to one while it
-runs, and `startTerminal` for one that needs a terminal, a shell or an
-editor, whose size `resize` changes.
+runs, `signal` to send it the termination, the hangup or the interrupt, and
+`startTerminal` for one that needs a terminal, a shell or an editor, whose
+size `resize` changes.
 
 **No shell.** A program is found as the host finds a command: a name without
-`/` is looked for in the directories of `PATH`. Each argument reaches it as
+`/` is looked for in the directories of `PATH`, and a relative name with `/`
+is taken from the command's `workingDirectory`. Each argument reaches it as
 it is, so nothing is expanded or quoted; a program that wants a shell runs
 `sh` with `-c`.
 
@@ -30,7 +32,12 @@ until it is killed or its owner dies (report Appendix E.23).
 A program run to its end, and its exit status:
 
 ```ernest
-Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input = <<>>), 5000),
+Either.map(Os.run(Os.Command(program = "sh",
+                             arguments = ["-c", "exit 3"],
+                             input = <<>>,
+                             environment = [],
+                             workingDirectory = Os.workingDirectory),
+                  5000),
            fn(finished) = finished.status)
 // => Right(3)
 ```
@@ -45,17 +52,28 @@ under.
 ## Os.Command
 
 ```ernest
-type Command = Command(program : String, arguments : List(String), input : Bytes)
+type Command =
+    Command(program : String,
+            arguments : List(String),
+            input : Bytes,
+            environment : List(#(String, String)),
+            workingDirectory : Path)
 ```
 
-A program to run: its name, its arguments, and the bytes it reads first as
-its input.
+A program to run: its name, its arguments, the bytes it reads first as its
+input, the variables set over the environment it inherits, and the
+directory it runs in. A command that changes neither gives `environment =
+[]` and `workingDirectory = Os.workingDirectory`.
 
 ### Examples
 
 ```ernest
-Os.Command(program = "wc", arguments = ["-l"], input = String.toUtf8("a\nb\n")).program
-// => "wc"
+Os.Command(program = "make",
+           arguments = ["test"],
+           input = <<>>,
+           environment = [#("LC_ALL", "C")],
+           workingDirectory = Path("build")).program
+// => "make"
 ```
 
 ## Os.Output
@@ -75,12 +93,39 @@ status:
 
 ```ernest
 {
-    let program <- Os.start(Os.Command(program = "echo", arguments = ["hi"], input = <<>>));
+    let program <-
+        Os.start(Os.Command(program = "echo",
+                            arguments = ["hi"],
+                            input = <<>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
     let first <- Os.read(program, 5000);
     let second <- Os.read(program, 5000);
     Right(#(first, second))
 }
 // => Right(#(Os.Stdout(<<104, 105, 10>>), Os.Exited(0)))
+```
+
+## Os.Signal
+
+```ernest
+type Signal = Termination | Hangup | Interrupt
+```
+
+*Since 0.10.0.*
+
+A signal of the host's that `signal` sends a running program: `Termination`,
+the host's `SIGTERM`, which asks it to end; `Hangup`, `SIGHUP`; and
+`Interrupt`, `SIGINT`, the one Ctrl-C sends. What the program does with one
+is its own. An Ernest program ends at the termination as when `main`
+returns, its subscribers told; at the hangup a node reloads and any other
+program ends as at the termination; and the interrupt ends it at once
+(report §8.6).
+
+### Examples
+
+```ernest
+[Os.Termination, Os.Hangup, Os.Interrupt]
 ```
 
 ## Os.Finished
@@ -106,16 +151,20 @@ abstract type ProgramMsg
 ```
 
 What a running program's process takes. Its constructors are hidden, so a
-program uses `Os.read`, `Os.write`, `Os.resize`, `Os.closeInput` and
-`Os.give` on it (report Appendix E.23).
+program uses `Os.read`, `Os.write`, `Os.resize`, `Os.signal`,
+`Os.closeInput` and `Os.give` on it (report Appendix E.23).
 
 ### Examples
 
 The address of a running program, which `read`, `write`, `resize`,
-`closeInput` and `give` take:
+`signal`, `closeInput` and `give` take:
 
 ```ernest
-Os.start(Os.Command(program = "cat", arguments = [], input = <<>>))
+Os.start(Os.Command(program = "cat",
+                    arguments = [],
+                    input = <<>>,
+                    environment = [],
+                    workingDirectory = Os.workingDirectory))
 ```
 
 ## Os.arguments
@@ -188,9 +237,8 @@ Os.workingDirectory : Path
 
 The absolute path of the directory the program was started in, bound when
 the program starts, which nothing changes. A relative path given to `Fs`,
-and a program's name to `start` that holds a `/`, `./tool`, are taken from
-it; a name without `/` is looked for in `PATH`. A path joined to it is
-absolute.
+and a command's relative `workingDirectory`, are taken from it. A path
+joined to it is absolute.
 
 ### Examples
 
@@ -283,16 +331,22 @@ start.
 - `Left(NotFound)`: the program is not found.
 - `Left(Denied)`: it may not be run.
 - `Left(Invalid)`: a name or an argument no program could be given, one that
-  holds U+0000 among them.
-- `Left(Other(text))`: another reason, in the host's words.
+  holds U+0000 among them, a variable whose name is empty or holds `=`, or a
+  value or a directory that holds U+0000.
+- `Left(Other(text))`: the program cannot be started in
+  `command.workingDirectory`, the directory and the answer `Fs` gives for it
+  on one line, `build: NotFound`; or another reason, in the host's words.
 
-The program reads `command.input`, then what `Os.write` gives it, until
-`Os.closeInput` ends its input. It never reads the standard input of the
-program that started it. It inherits that program's environment and working
-directory.
+The program runs in `command.workingDirectory`, a relative one taken from
+`Os.workingDirectory`. It inherits the environment of the program that
+started it, each variable of `command.environment` set over it, the last of
+two with one name standing. It reads `command.input`, then what `Os.write`
+gives it, until `Os.closeInput` ends its input, and never reads the standard
+input of the program that started it.
 
-It runs until it exits, until `kill` ends it, or until its owner dies: the
-process that started it, or the one it was given to with `give`. Its owner's
+It runs until it exits, until a signal `Os.signal` sends ends it, until
+`kill` ends it, or until its owner dies: the process that started it, or the
+one it was given to with `give`. Its owner's
 death kills it, and with it the programs it started in turn that are still
 in its Unix process group. To limit how long it runs, set a `Clock.alarm`
 and `kill` it when the alarm comes; `Os.run` takes a limit of its own.
@@ -313,7 +367,11 @@ is a fault of the installation, not of the command.
 ```ernest
 {
     let cat <-
-        Os.start(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")));
+        Os.start(Os.Command(program = "cat",
+                            arguments = [],
+                            input = String.toUtf8("hi"),
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
     Os.closeInput(cat);
     Os.read(cat, 5000)
 }
@@ -337,8 +395,9 @@ error, and the program is its session's leader and in its foreground, as a
 shell a terminal window starts is. The terminal begins in the host's
 ordinary mode, echoing its input, `command.input` and what `write` gives
 it, and giving the program a line at a time, which the program changes as
-it would any terminal's. The runtime sets no `TERM`: the program inherits
-the environment as under `start`.
+it would any terminal's. The runtime sets no `TERM`, which
+`command.environment` gives: the program inherits the environment as under
+`start`.
 
 Its standard output and standard error come merged through the terminal, so
 `read` answers `Stdout` alone, and a line feed the program writes arrives
@@ -365,7 +424,9 @@ as its status:
     let sh <-
         Os.startTerminal(Os.Command(program = "sh",
                                     arguments = ["-c", "set -- $(stty size); exit $2"],
-                                    input = <<>>),
+                                    input = <<>>,
+                                    environment = [],
+                                    workingDirectory = Os.workingDirectory),
                          Terminal.Size(rows = 24, columns = 80));
     Os.read(sh, 5000)
 }
@@ -405,7 +466,9 @@ before the line has set; the terminal echoes the line feed as it reads it:
         Os.startTerminal(Os.Command(program = "sh",
                                     arguments = ["-c",
                                                  "read line; set -- $(stty size); exit $1"],
-                                    input = <<>>),
+                                    input = <<>>,
+                                    environment = [],
+                                    workingDirectory = Os.workingDirectory),
                          Terminal.Size(rows = 24, columns = 80));
     let _ <- Os.resize(sh, Terminal.Size(rows = 30, columns = 100));
     let _ <- Os.write(sh, <<10>>, 5000);
@@ -420,7 +483,12 @@ A program `start` started has no terminal:
 
 ```ernest
 {
-    let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>));
+    let cat <-
+        Os.start(Os.Command(program = "cat",
+                            arguments = [],
+                            input = <<>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
     Os.resize(cat, Terminal.Size(rows = 24, columns = 80))
 }
 // => Left(Io.NotATerminal)
@@ -461,7 +529,9 @@ was killed` where it was killed as the call was made.
     let sh <-
         Os.start(Os.Command(program = "sh",
                             arguments = ["-c", "echo no >&2; exit 1"],
-                            input = <<>>));
+                            input = <<>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
     let first <- Os.read(sh, 5000);
     let last <- Os.read(sh, 5000);
     kill(Process.fromAddress(sh));
@@ -496,11 +566,60 @@ program's process has ended, as `read` does.
 
 ```ernest
 {
-    let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>));
+    let cat <-
+        Os.start(Os.Command(program = "cat",
+                            arguments = [],
+                            input = <<>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
     let _ <- Os.write(cat, String.toUtf8("hi"), 5000);
     Os.read(cat, 5000)
 }
 // => Right(Os.Stdout(<<104, 105>>))
+```
+
+## Os.signal
+
+```ernest
+Os.signal(program : Address(ProgramMsg), signal : Signal) : Either(Io.Error, Unit)
+```
+
+*Since 0.10.0.*
+
+Sends the program `signal`, to the program alone and not to the programs it
+started, as the host's `kill` given the program's number does. It answers
+`Right(Unit)` once the signal is sent, and `Left(Closed)` once the program
+has exited, since the signal then reaches nothing.
+
+What the program does with the signal is its own. One that does not handle
+it ends, and `read` answers what it wrote and then `Exited` with 128 plus
+the signal's number; one that handles it goes on, or ends with a status of
+its own. `Hangup` sends the signal alone, where `closeInput` on a program
+`startTerminal` started hangs its terminal up, which drops its input too.
+
+### Errors
+
+Faults where the runtime's helper fails, as `start` does, and where the
+program's process has ended, as `read` does.
+
+### Examples
+
+A program that waits until the termination ends it:
+
+```ernest
+{
+    let sleeper <-
+        Os.start(Os.Command(program = "sleep",
+                            arguments = ["10"],
+                            input = <<>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
+    let _ <- Os.signal(sleeper, Os.Termination);
+    let ended <- Os.read(sleeper, 5000);
+    kill(Process.fromAddress(sleeper));
+    Right(ended)
+}
+// => Right(Os.Exited(143))
 ```
 
 ## Os.closeInput
@@ -523,7 +642,12 @@ exits when its input ends may exit so and never take the hangup.
 
 ```ernest
 {
-    let wc <- Os.start(Os.Command(program = "wc", arguments = ["-c"], input = <<1, 2>>));
+    let wc <-
+        Os.start(Os.Command(program = "wc",
+                            arguments = ["-c"],
+                            input = <<1, 2>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
     Os.closeInput(wc);
     Either.map(Os.read(wc, 5000), fn(output) = match output {
         Os.Stdout(bytes) -> String.trim(String.fromUtf8Lossy(bytes))
@@ -552,7 +676,12 @@ program is killed if its reader dies:
 
 ```ernest
 {
-    let program <- Os.start(Os.Command(program = "sleep", arguments = ["1"], input = <<>>));
+    let program <-
+        Os.start(Os.Command(program = "sleep",
+                            arguments = ["1"],
+                            input = <<>>,
+                            environment = [],
+                            workingDirectory = Os.workingDirectory));
     let reader = spawn(fn() = match Os.read(program, 5000) {
         _ -> Unit
     });
@@ -586,7 +715,11 @@ Faults where the runtime's helper fails, as `start` does.
 ### Examples
 
 ```ernest
-Either.map(Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")),
+Either.map(Os.run(Os.Command(program = "cat",
+                             arguments = [],
+                             input = String.toUtf8("hi"),
+                             environment = [],
+                             workingDirectory = Os.workingDirectory),
                   5000),
            fn(finished) = String.fromUtf8(finished.stdout))
 // => Right(Some("hi"))

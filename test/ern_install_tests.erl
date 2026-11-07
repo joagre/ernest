@@ -415,7 +415,8 @@ calls_a_shim() ->
 
 runs_echo() ->
     "export fn main() : Unit = match Os.run(Os.Command(\n"
-    "    program = \"echo\", arguments = [\"hi\"], input = <<>>), 5000) {\n"
+    "    program = \"echo\", arguments = [\"hi\"], input = <<>>, environment = [],\n"
+    "    workingDirectory = Os.workingDirectory), 5000) {\n"
     "    Right(Os.Finished(stdout = out)) -> Io.print(Optional.withDefault(\n"
     "        String.fromUtf8(out), \"\"))\n"
     "  | Left(e) -> Io.println(Io.show(e))\n"

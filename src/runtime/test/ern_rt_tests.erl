@@ -594,7 +594,7 @@ evaluator_ends_with_what_it_owns_test() ->
                                                             <<"S.load:1">>),
                    Listener = receive {listener, L} -> L end,
                    MonitorRef = erlang:monitor(process, Evaluator),
-                   {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>}),
+                   {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
                    'Unit' = (Os(give))(Cat, Evaluator),
                    ok = ern_waits:watching(Cat, Evaluator),
                    ern_rt:send(Listener, 'CloseListener'),
@@ -730,8 +730,14 @@ ended_proxy() ->
 %% then, and the second opens a listener with `Tcp.listen` and closes it.
 -spec ran_program() -> ok.
 ran_program() ->
-    {'Right', _} = (ern_named:function('ern@os', run))({'Command', <<"true">>, [], <<>>}, 5000),
+    Run = ern_named:function('ern@os', run),
+    {'Right', _} = Run({'Command', <<"true">>, [], <<>>, [], here()}, 5000),
     ok.
+
+%% Report Appendix E.23: the working directory of a command that inherits
+%% it, `Os.workingDirectory`.
+here() ->
+    {'Path', ern_os:working_directory()}.
 
 -spec closed_listener() -> ok.
 closed_listener() ->
@@ -754,7 +760,7 @@ kept_listener() ->
 -spec exited_program() -> ok.
 exited_program() ->
     Os = ern_named:functions('ern@os'),
-    {'Right', True} = (Os(start))({'Command', <<"true">>, [], <<>>}),
+    {'Right', True} = (Os(start))({'Command', <<"true">>, [], <<>>, [], here()}),
     {'Right', {'Exited', 0}} = (Os(read))(True, 5000),
     ern_rt_tests_main ! {owned, True},
     ok.

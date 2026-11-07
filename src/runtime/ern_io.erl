@@ -5,7 +5,8 @@
 %% modules answer, the one mapping of the host's errors to it.
 -module(ern_io).
 
--export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, helper_reason/1, other/2]).
+-export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, helper_reason/1,
+         path_error/2, other/2]).
 
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).
@@ -72,6 +73,16 @@ is_posix_name(<<$e, Rest/binary>>) when Rest =/= <<>> ->
               end, binary_to_list(Rest));
 is_posix_name(_) ->
     false.
+
+%% Report Appendix E.1, E.18, E.23: a file or a directory a primitive could
+%% not use beside its own work, Other(text), the path and what is wrong on
+%% one line, the Io.Error's constructor or its text, `cert.pem: Denied`, so
+%% that it is told from the primitive's own answer.
+-spec path_error(unicode:chardata(), term()) -> {'Other', binary()}.
+path_error(Path, {'Other', Text}) ->
+    {'Other', unicode:characters_to_binary([Path, ": ", Text])};
+path_error(Path, Error) when is_atom(Error) ->
+    {'Other', unicode:characters_to_binary([Path, ": ", atom_to_binary(Error)])}.
 
 %% Report Appendix E.1: Io.Error's Other for a reason of the host's that no
 %% constructor names. It is the host's description, which Describe, the

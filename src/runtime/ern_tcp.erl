@@ -1102,12 +1102,9 @@ file_error(File, {unexpected_content, {missing_single_key, _}}) ->
 file_error(File, {unexpected_content, _}) ->
     file_other(File, "not a key");
 file_error(File, Reason) when is_atom(Reason) ->
-    case ern_io:host_error(Reason, fun file:format_error/1) of
-        {'Other', Text} -> file_other(File, Text);
-        Named -> file_other(File, atom_to_binary(Named))
-    end;
+    ern_io:path_error(File, ern_io:host_error(Reason, fun file:format_error/1));
 file_error(File, Reason) ->
     file_other(File, io_lib:format("~0p", [Reason])).
 
 file_other(File, Text) ->
-    {'Other', unicode:characters_to_binary([File, ": ", Text])}.
+    ern_io:path_error(File, {'Other', Text}).
