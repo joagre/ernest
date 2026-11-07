@@ -126,6 +126,11 @@ handle({'MakeFile', Path, Bytes, Reply}) ->
                       Error ->
                           Error
                   end);
+%% Report Appendix E.17: a directory of a new name in the parent, made as
+%% makeDir makes one and so under the program's mask; its mode is set
+%% before its path is answered (temp_dir/1).
+handle({'MakeTempDir', Parent, Reply}) ->
+    answer(Reply, temp_dir(text(Parent)));
 %% Report Appendix E.17: the modification time, kept to the second, as the
 %% host sets it; the access time is left as it was.
 handle({'SetModified', Path, Mtime, Reply}) ->
@@ -299,6 +304,26 @@ utf8_target(Bytes) ->
     case is_utf8(Bytes) of
         true -> {ok, {'Some', {'Path', Bytes}}};
         false -> {error, {not_utf8, Bytes}}
+    end.
+
+%% Report Appendix E.17: `ern-` and sixteen hexadecimal digits drawn at
+%% random, drawn again where an entry has the name; a directory whose mode
+%% cannot be set is removed, so that none is left.
+temp_dir(Parent) ->
+    Dir = filename:join(Parent, <<"ern-", (binary:encode_hex(rand:bytes(8), lowercase))/binary>>),
+    case file:make_dir(Dir) of
+        ok ->
+            case file:change_mode(Dir, 8#700) of
+                ok ->
+                    {ok, {'Path', Dir}};
+                Error ->
+                    _ = file:del_dir(Dir),
+                    Error
+            end;
+        {error, eexist} ->
+            temp_dir(Parent);
+        Error ->
+            Error
     end.
 
 %% A file created whose write failed is removed, so that none is left.

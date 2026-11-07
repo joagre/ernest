@@ -104,21 +104,17 @@ reader S reads of its live shell. The release note's line on the installed layou
    `String.stripSuffix` stand, and the sites are written with them. `String.drop` reverses the
    refusal of 2026-09-26. Feedback 215 is dropped: no search by code points stands beside
    E.5's, since `toList` reads them.
-8. **A worker's value or its end, and a test's scratch**, feedback 209 and 211: one reading
-   against E.0's rules of a `Process` function that runs a function monitored and answers its
-   value or its end, written by hand at five sites, of a temporary directory from `Fs`, and
-   of `Test.equal`'s failure marking where two values differ. Feedback 226 joins them, `List.dropWhile`, the rest of a list after a run, written
-   `let #(_, rest) = List.span(list, test)` at seven sites.
+8. **A worker's value or its end**, feedback 209: a function that runs a function monitored and
+   answers its value or its end, written by hand at five sites. Its form is decided in a design
+   session, decided with the user on 2026-11-07 (the log's *A Test's Scratch, and JSON on One
+   Line*).
 
-   With them two of ernest-httpd's lines: feedback 224, its 20,
-   `Json.encode`, a value as JSON on one line, the host's `json:encode`, read against E.0's
-   rules beside `format`'s layout. Feedback 225, its 21, a case's standard error, decided
-   with the user and built 2026-11-07: `Test.capture` answers a call's value and what the
-   caller's chain wrote to each stream while it ran (E.24; the log's *A Case's Standard
-   Error*), and ernest-httpd's four lines wait for its session. And feedback 228, a listed entry's
-   name: `Fs.list` answers each entry by its path, so the site's generator writes
-   `Optional.withDefault(Path.name(entry.path), "")` at three sites; whether `Fs.Entry` carries
-   its name is read against E.0's rules with E.17.
+   The rest of the item was built or decided on 2026-11-07. Feedback 211 brought
+   `Fs.makeTempDir` (E.17) and a `Test.equal` failure that says where two values differ (E.24,
+   §11.2). Feedback 224, ernest-httpd's 20, brought `Json.encode` (G.6). All three are argued in
+   the log's *A Test's Scratch, and JSON on One Line*, where 226 and 228 are dropped. Feedback
+   225, ernest-httpd's 21, brought `Test.capture` (E.24; the log's *A Case's Standard Error*).
+   ernest-httpd's lines 20 and 21 wait for its session.
 
 9. **A program's environment and working directory**, feedback 207, decided 2026-11-03: `Os.Command`
    gains what the host's `exec` takes, an environment and a working directory, so that an editor
@@ -214,6 +210,14 @@ reader S reads of its live shell. The release note's line on the installed layou
     over forty-two, past the six rounds the load counts as its warm-up (the log's *A Wait
     Collects*). The warm-up is measured on nike and set to what the steps need, the bound of
     `docs/memory_checks.md` unchanged, so that the release's run of the loads means something.
+23. **A segmentation fault of the host in the typed programs.** On 2026-11-07, one run of `make
+    test-full` on nike ended in a segmentation fault of the host in `make -C test typed`, after
+    30 seconds. No core was kept, and a host that dies prints no seed. The fault did not come
+    again in 172 runs of the target, up to 24 at once with fixed seeds, nor in three runs of
+    `make test-full`. Ernest loads no native code into the host, so the fault is OTP 29's (erts
+    17.1.1). The target now runs with core dumps on, so the next fault leaves its core in `test/`. That
+    core is read with `gdb` and its stack goes to `docs/otp_bugs.md` and to the OTP team; where
+    none comes by the launch's release review, the review decides whether the item stays.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

@@ -113,6 +113,7 @@ type Msg =
   | MakeHardLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
   | MakeFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
+  | MakeTempDir(parent : Path, reply : Reply(Either(Io.Error, Path)))
   | SetModified(path : Path, modified : Int, reply : Reply(Either(Io.Error, Unit)))
   | SetMode(path : Path, mode : Int, reply : Reply(Either(Io.Error, Unit)))
 
@@ -357,6 +358,34 @@ export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) =
 /// since 0.2.0
 export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
     answered(Address.call(reference, fn(reply) = MakeFile(=path, =bytes, =reply), ms))
+
+/// Makes a new directory of the program's own for temporary files, and
+/// answers its path. It is made in the directory `Os.environment("TMPDIR")`
+/// names, or in `/tmp` where `TMPDIR` is not set or is empty. Its name is
+/// `ern-` and sixteen hexadecimal digits drawn at random, which no entry
+/// had, and its mode is `0o700`, its owner's alone. It stays until the
+/// program removes it, its files first.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let dir <- Fs.makeTempDir(5000);
+///     let entry <- Fs.stat(dir, 5000);
+///     let _ <- Fs.remove(dir, 5000);
+///     Right(#(entry.kind, entry.mode == 0o700))
+/// }
+/// // => Right(#(Fs.Directory, true))
+/// ```
+///
+/// since 0.10.0
+export fn makeTempDir(ms : Int) : Either(Io.Error, Path) = {
+    let parent = match Os.environment("TMPDIR") {
+        Some(dir) when dir != "" -> Path(dir)
+      | _ -> Path("/tmp")
+    };
+    answered(Address.call(reference, fn(reply) = MakeTempDir(=parent, =reply), ms))
+}
 
 /// Sets the modification time, in milliseconds since the epoch as
 /// `Clock.now` gives it, kept to the second as the file system keeps it.

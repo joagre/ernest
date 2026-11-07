@@ -2,8 +2,8 @@
 /// it, by the host's `json` module.
 ///
 /// Use it where a program reads or writes JSON, a file of settings or what
-/// a web service sends: `parse` reads a text into a `Value`, and `format`
-/// writes a `Value` as text, laid out over lines.
+/// a web service sends: `parse` reads a text into a `Value`, `format` writes
+/// a `Value` as text laid out over lines, and `encode` writes it on one line.
 ///
 /// The library stands on every job's load path, so a program names it with
 /// no option (report Appendix G).
@@ -18,9 +18,9 @@
 ///
 /// **Objects.** An object is a `Map` from its members' names to their
 /// values. Where a text names a member twice, the last is kept, as
-/// `Map.fromList` keeps a later pair. `format` writes the members in the
-/// order of their names' code points, an order of this library's, which the
-/// host's `json:format` leaves to its caller.
+/// `Map.fromList` keeps a later pair. `format` and `encode` write the
+/// members in the order of their names' code points, an order of this
+/// library's, which the host's `json` module leaves to its caller.
 ///
 /// **Errors.** A text that holds no value is an `Error`: the text ends
 /// inside its value, a byte stands where none may, or a sequence writes no
@@ -28,8 +28,8 @@
 /// their `Position`, the line and the column they begin at, counted as a
 /// diagnostic counts them (report §11.5).
 ///
-/// **Reading back.** `parse` reads what `format` writes as the value it was
-/// written from.
+/// **Reading back.** `parse` reads what `format` and `encode` write as the
+/// value it was written from.
 ///
 /// ## Examples
 ///
@@ -171,6 +171,23 @@ export foreign fn parse(text : String) : Either(Error, Value) =
 /// ```
 export foreign fn format(value : Value) : String =
     "ern_json:format/1"
+
+/// `value` as JSON text on one line, as the host's `json:encode` writes it,
+/// with no white space between its parts and no line feed after it. An
+/// object's members come in the order of their names' code points, and a
+/// text is written as `format` writes it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Json.encode(Json.Object(Map.fromList([#("tags", Json.Array([Json.Text("a"), Json.Null])),
+///                                       #("port", Json.Integer(4001))])))
+/// // => "{\"port\":4001,\"tags\":[\"a\",null]}"
+/// ```
+///
+/// since 0.10.0
+export foreign fn encode(value : Value) : String =
+    "ern_json:encode/1"
 
 //
 // The tests (report §9.3), run by `ern test` as every library's are. They
@@ -363,8 +380,19 @@ let order =
                               "}"]))
 
 // report Appendix G.6
+let encodeOrder =
+    Test.Case(name = "encode writes one line, an object's members in the order of their names",
+              run = fn() = {
+                  let inner = Object(Map.fromList([#("z", Null), #("y", Text("a\nb"))]));
+                  Test.equal(encode(Object(Map.fromList([#("é", Array([Real(0.1), Boolean(true)])),
+                                                         #("b", inner),
+                                                         #("B", Null)]))),
+                             "{\"B\":null,\"b\":{\"y\":\"a\\nb\",\"z\":null},\"é\":[0.1,true]}")
+              })
+
+// report Appendix G.6
 let readBack =
-    Test.Case(name = "parse reads what format writes as the value it was written from",
+    Test.Case(name = "parse reads what format and encode write as the value they were written from",
               run = fn() = {
                   let peer =
                       Object(Map.fromList([#("name", Text("desk \"one\"\n")),
@@ -376,5 +404,6 @@ let readBack =
                                            #("on", Boolean(false)),
                                            #("none", Null),
                                            #("empty", Object(Map.empty))]));
-                  Test.equal(parse(format(value)), Right(value))
+                  Test.equal(#(parse(format(value)), parse(encode(value))),
+                             #(Right(value), Right(value)))
               })

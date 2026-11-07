@@ -83,6 +83,10 @@ type Writes = Writes(Foreign.Term)
 /// needs `a.show`, which a call at a known type supplies without writing it
 /// (report §4.9, §9.4).
 ///
+/// Where the two texts begin alike and then differ, the failure says at
+/// which character, counted from 1: the first that differs, or the one past
+/// the shorter text's end.
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -90,12 +94,36 @@ type Writes = Writes(Foreign.Term)
 /// // => #(Test.Passed, Test.Failed("expected 3, got 2"))
 /// ```
 ///
+/// ```ernest
+/// Test.equal([1, 2, 3], [1, 2, 4])
+/// // => Test.Failed("expected [1, 2, 4], got [1, 2, 3], differing at character 8")
+/// ```
+///
 /// since 0.3.0
 export fn equal(actual : a, expected : a) : Result needs a.show =
     if actual == expected then
         Passed
-    else
-        Failed("expected " <> Io.show(expected) <> ", got " <> Io.show(actual))
+    else {
+        let wanted = Io.show(expected);
+        let got = Io.show(actual);
+        Failed("expected " <> wanted <> ", got " <> got <> parting(wanted, got))
+    }
+
+// Where two texts that begin alike part, as `equal` says it: the grapheme,
+// counted from 1, that differs first, or the one past the shorter's end;
+// nothing where the texts differ at once or not at all.
+fn parting(wanted : String, got : String) : String =
+    match partsAt(String.graphemes(wanted), String.graphemes(got), 1) {
+        Some(at) when at > 1 -> ", differing at character " <> Int.toString(at)
+      | _ -> ""
+    }
+
+fn partsAt(wanted : List(String), got : List(String), at : Int) : Optional(Int) =
+    match #(wanted, got) {
+        #([], []) -> None
+      | #(first :: rest, other :: others) when first == other -> partsAt(rest, others, at + 1)
+      | _ -> Some(at)
+    }
 
 /// `Passed` where a call of `run` faults with `cause`, and otherwise `Failed`
 /// naming the cause expected and what came instead: another cause, a return,

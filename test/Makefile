@@ -205,9 +205,11 @@ grammar: $(BEAMS)
 	$(call EUNIT,$(GRAMMAR))
 
 # Well-typed programs generated, checked, compiled and run in one host
-# (MVP 2.99c item 3), whose seed ERN_SEED gives again.
+# (MVP 2.99c item 3), whose seed ERN_SEED gives again. Core dumps are on,
+# so that a fault of the host leaves its core in this directory
+# (docs/plan.md, MVP 4.15's item 23).
 typed: $(BEAMS) named
-	$(call EUNIT,$(TYPED))
+	ulimit -c unlimited; $(call EUNIT,$(TYPED))
 
 # The shell's and the terminal's tests make their homes, sources and inputs
 # under one directory of the run's own, which is removed when the run ends,

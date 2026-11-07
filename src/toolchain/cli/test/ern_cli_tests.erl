@@ -2104,6 +2104,47 @@ doc_examples_run_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"Adds.f example 2: compiled\n">>)).
 
+%% report §11.2, Appendix E.24: a failed `Test.equal` and a failed doc
+%% example say where the two texts part after a beginning they share, the
+%% first grapheme that differs or the one past the shorter's end, and say
+%% nothing more where the texts differ at once. A regression test, written
+%% after the code; it does not cover a grapheme of several code points
+failure_says_where_test() ->
+    Dir = tmp(),
+    write(Dir, "src/marks.ern",
+          "/// Texts that part.\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// \"abcd\"\n"
+          "/// // => \"abxd\"\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// 12\n"
+          "/// // => 123\n"
+          "/// ```\n"
+          "///\n"
+          "/// ```ernest\n"
+          "/// 3\n"
+          "/// // => 4\n"
+          "/// ```\n"
+          "\n"
+          "let lists = Test.Case(name = \"lists\", run = fn() = Test.equal([1, 2, 3], [1, 2, 4]))\n"
+          "\n"
+          "let texts = Test.Case(name = \"texts\", run = fn() = Test.equal(\"ab\", \"abc\"))\n"
+          "\n"
+          "let numbers = Test.Case(name = \"numbers\", run = fn() = Test.equal(3, 4))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/marks.erc"])),
+    ?assertEqual(<<"lists: failed: expected [1, 2, 4], got [1, 2, 3], differing at character 8\n"
+                   "texts: failed: expected \"abc\", got \"ab\", differing at character 4\n"
+                   "numbers: failed: expected 4, got 3\n"
+                   "Marks example 1: failed: expected \"abxd\", got \"abcd\", "
+                   "differing at character 4\n"
+                   "Marks example 2: failed: expected 123, got 12, differing at character 3\n"
+                   "Marks example 3: failed: expected 4, got 3\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §11.2, Appendix E.0 shape rule 6: a doc example that shows a
 %% value runs in a process whose mailbox type is that of the function it is
 %% compiled into, as a test runs: one that sets an alarm with a wrap and
@@ -2456,7 +2497,7 @@ abstract_constructor_examples_test() ->
     ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/stacks.erc"])),
     Lines = <<"Stacks.Stack example 1: passed\n"
               "Stacks.Stack example 2: passed\n"
-              "Stacks.Stack example 3: failed: expected [4], got [3]\n">>,
+              "Stacks.Stack example 3: failed: expected [4], got [3], differing at character 2\n">>,
     ?assertEqual(Lines, iolist_to_binary(?capturedOutput)),
     ?assertEqual(0, ern_cli:ern(["doc", Dir ++ "/build/stacks.erc"])),
     <<Lines:(byte_size(Lines))/binary, Page/binary>> = iolist_to_binary(?capturedOutput),
@@ -3055,7 +3096,8 @@ test_equal_test() ->
     ?assertMatch({_, _}, binary:match(Output, <<"sums: failed: expected 3, got 2\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"points: failed: expected "
                                                 "Equals.Point(x = 1, y = 3), "
-                                                "got Equals.Point(x = 1, y = 2)\n">>)),
+                                                "got Equals.Point(x = 1, y = 2), "
+                                                "differing at character 25\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"itself: passed\n">>)).
 
 %% report Appendix E.24, §11.2: `Test.faults` passes where the call faults

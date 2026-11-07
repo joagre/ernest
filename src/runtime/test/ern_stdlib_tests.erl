@@ -959,6 +959,48 @@ fs_test() ->
     ?assertEqual({'Left', 'NotFound'}, Gone),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17, E.23: a temporary directory is made in the one
+%% TMPDIR names, or in /tmp where TMPDIR is empty or not set, named `ern-`
+%% and sixteen hexadecimal digits, a new name at each call, and of mode
+%% 0o700; a TMPDIR that names nothing answers NotFound. A regression test,
+%% written after the code; it does not cover a name drawn again because an
+%% entry had it, which a test cannot make happen
+make_temp_dir_test() ->
+    Self = self(),
+    Dir = scratch("ern_temp_"),
+    ok = filelib:ensure_path(Dir),
+    Before = os:getenv("TMPDIR"),
+    Fs = ern_named:functions('ern@fs'),
+    Made = fun(Tmpdir) ->
+               case Tmpdir of
+                   false -> os:unsetenv("TMPDIR");
+                   _ -> os:putenv("TMPDIR", Tmpdir)
+               end,
+               ok = ern_rt:run_main(fun() -> Self ! {made, Fs(makeTempDir)(5000)} end,
+                                    <<"make_temp_dir_test">>, #{}),
+               receive {made, Answer} -> Answer end
+           end,
+    {'Right', {'Path', First}} = Made(Dir),
+    {'Right', {'Path', Second}} = Made(Dir),
+    Missing = Made(filename:join(Dir, "missing")),
+    {'Right', {'Path', Plain}} = Made(""),
+    {'Right', {'Path', Unset}} = Made(false),
+    case Before of
+        false -> os:unsetenv("TMPDIR");
+        _ -> os:putenv("TMPDIR", Before)
+    end,
+    [?assertEqual(<<"/tmp">>, filename:dirname(Path)) || Path <- [Plain, Unset]],
+    [ok = file:del_dir(Path) || Path <- [Plain, Unset]],
+    ?assertEqual({'Left', 'NotFound'}, Missing),
+    ?assertNotEqual(First, Second),
+    [?assertEqual(unicode:characters_to_binary(Dir), filename:dirname(Path))
+     || Path <- [First, Second]],
+    [?assertMatch({match, _}, re:run(filename:basename(Path), "^ern-[0-9a-f]{16}$"))
+     || Path <- [First, Second]],
+    [?assertMatch({ok, #file_info{type = directory, mode = Mode}} when Mode band 8#7777 =:= 8#700,
+                  file:read_file_info(Path)) || Path <- [First, Second]],
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: a copy made where nothing was has the source's
 %% permission bits less the program's mask, as cp(1) makes it, and one
 %% made over a file keeps that file's. A regression test: a copy of a

@@ -4,7 +4,7 @@
 %% and their terms written as `Json.Value`'s.
 -module(ern_json).
 
--export([parse/1, format/1]).
+-export([parse/1, format/1, encode/1]).
 
 -type value() :: 'Null' | {'Boolean', boolean()} | {'Integer', integer()} | {'Real', float()}
                | {'Text', binary()} | {'Array', [value()]} | {'Object', #{binary() => value()}}.
@@ -335,3 +335,14 @@ term({_, Value}) -> Value.
 formatted(Map, Encode, State) when is_map(Map) ->
     json:format_key_value_list(lists:keysort(1, maps:to_list(Map)), Encode, State);
 formatted(Term, Encode, State) -> json:format_value(Term, Encode, State).
+
+%% Appendix G.6: the value on one line by `json:encode/2`, which calls the
+%% encoder given on every value it holds; an object's members in the order
+%% format/1 writes them.
+-spec encode(value()) -> binary().
+encode(Value) ->
+    iolist_to_binary(json:encode(term(Value), fun encoded/2)).
+
+encoded(Map, Encode) when is_map(Map) ->
+    json:encode_key_value_list(lists:keysort(1, maps:to_list(Map)), Encode);
+encoded(Term, Encode) -> json:encode_value(Term, Encode).

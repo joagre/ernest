@@ -463,8 +463,30 @@ loaded(Name, Namespace, Typed, Interface, Env, Build, Expected) ->
 %% §8.5).
 compared(Unit, Shown, Expected) ->
     case Unit:Shown() of
-        Expected -> 'Passed';
-        Got -> {'Failed', <<"expected ", Expected/binary, ", got ", Got/binary>>}
+        Expected ->
+            'Passed';
+        Got ->
+            {'Failed', <<"expected ", Expected/binary, ", got ", Got/binary,
+                         (parting(Expected, Got))/binary>>}
+    end.
+
+%% Report §11.2, Appendix E.24: where the two texts begin alike and then
+%% differ, the grapheme, counted from 1, that differs first, or the one past
+%% the shorter's end, as Test.equal's failure says it.
+parting(Expected, Got) ->
+    case parts_at(Expected, Got, 1) of
+        At when is_integer(At), At > 1 ->
+            <<", differing at character ", (integer_to_binary(At))/binary>>;
+        _ ->
+            <<>>
+    end.
+
+parts_at(Expected, Got, At) ->
+    case {string:next_grapheme(Expected), string:next_grapheme(Got)} of
+        {[], []} -> none;
+        {[Grapheme | ExpectedRest], [Grapheme | GotRest]} ->
+            parts_at(ExpectedRest, GotRest, At + 1);
+        _ -> At
     end.
 
 %% The example's module, Text, checked against the module's interfaces and

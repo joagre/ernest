@@ -99,11 +99,20 @@ both as `Io.show` writes them, the expected first: `expected 3, got 2`. It
 needs `a.show`, which a call at a known type supplies without writing it
 (report §4.9, §9.4).
 
+Where the two texts begin alike and then differ, the failure says at
+which character, counted from 1: the first that differs, or the one past
+the shorter text's end.
+
 ### Examples
 
 ```ernest
 #(Test.equal(List.size([1, 2]), 2), Test.equal(1 + 1, 3))
 // => #(Test.Passed, Test.Failed("expected 3, got 2"))
+```
+
+```ernest
+Test.equal([1, 2, 3], [1, 2, 4])
+// => Test.Failed("expected [1, 2, 4], got [1, 2, 3], differing at character 8")
 ```
 
 ## Test.faults

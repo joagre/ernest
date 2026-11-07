@@ -655,6 +655,7 @@ fs_scenarios(Dir, Bytes) ->
     FsMakeHardLink = Fs(makeHardLink),
     FsReadLink = Fs(readLink),
     FsMakeFile = Fs(makeFile),
+    FsMakeTempDir = Fs(makeTempDir),
     FsSetModified = Fs(setModified),
     FsSetMode = Fs(setMode),
     [{<<"Fs.read">>, {fun() -> FsRead(P("file"), 5000) end,
@@ -709,6 +710,24 @@ fs_scenarios(Dir, Bytes) ->
                ok = file:write(Fd, Bytes),
                ok = file:close(Fd),
                file:delete(In("new"))
+       end}},
+     %% a directory of a random name made in TMPDIR's or /tmp, its mode set
+     %% and then removed, beside the host's three steps
+     {<<"Fs.makeTempDir">>,
+      {fun() ->
+               {'Right', {'Path', Made}} = FsMakeTempDir(5000),
+               file:del_dir(Made)
+       end,
+       fun() ->
+               Parent = case os:getenv("TMPDIR") of
+                            Set when Set =/= false, Set =/= "" -> Set;
+                            _ -> "/tmp"
+                        end,
+               Name = <<"ern-", (binary:encode_hex(rand:bytes(8), lowercase))/binary>>,
+               Made = filename:join(Parent, Name),
+               ok = file:make_dir(Made),
+               ok = file:change_mode(Made, 8#700),
+               file:del_dir(Made)
        end}},
      {<<"Fs.setModified">>,
       {fun() -> FsSetModified(P("file"), 86400000, 5000) end,

@@ -6,8 +6,8 @@ JSON text, read into a value and written from one, as RFC 8259 defines
 it, by the host's `json` module.
 
 Use it where a program reads or writes JSON, a file of settings or what
-a web service sends: `parse` reads a text into a `Value`, and `format`
-writes a `Value` as text, laid out over lines.
+a web service sends: `parse` reads a text into a `Value`, `format` writes
+a `Value` as text laid out over lines, and `encode` writes it on one line.
 
 The library stands on every job's load path, so a program names it with
 no option (report Appendix G).
@@ -22,9 +22,9 @@ read.
 
 **Objects.** An object is a `Map` from its members' names to their
 values. Where a text names a member twice, the last is kept, as
-`Map.fromList` keeps a later pair. `format` writes the members in the
-order of their names' code points, an order of this library's, which the
-host's `json:format` leaves to its caller.
+`Map.fromList` keeps a later pair. `format` and `encode` write the
+members in the order of their names' code points, an order of this
+library's, which the host's `json` module leaves to its caller.
 
 **Errors.** A text that holds no value is an `Error`: the text ends
 inside its value, a byte stands where none may, or a sequence writes no
@@ -32,8 +32,8 @@ character or a number the host cannot hold. A byte and a sequence carry
 their `Position`, the line and the column they begin at, counted as a
 diagnostic counts them (report §11.5).
 
-**Reading back.** `parse` reads what `format` writes as the value it was
-written from.
+**Reading back.** `parse` reads what `format` and `encode` write as the
+value it was written from.
 
 ## Examples
 
@@ -195,6 +195,27 @@ A text's characters, U+0000 escaped and U+007F not:
 ```ernest
 Json.format(Json.Text("a\u{0}\u{7f}\t/"))
 // => "\"a\\u0000\u{7F}\\t/\"\n"
+```
+
+## Json.encode
+
+```ernest
+Json.encode(value : Value) : String
+```
+
+*Since 0.10.0.*
+
+`value` as JSON text on one line, as the host's `json:encode` writes it,
+with no white space between its parts and no line feed after it. An
+object's members come in the order of their names' code points, and a
+text is written as `format` writes it.
+
+### Examples
+
+```ernest
+Json.encode(Json.Object(Map.fromList([#("tags", Json.Array([Json.Text("a"), Json.Null])),
+                                      #("port", Json.Integer(4001))])))
+// => "{\"port\":4001,\"tags\":[\"a\",null]}"
 ```
 
 ---

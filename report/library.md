@@ -627,6 +627,8 @@ A function follows the symbolic links of the paths it is given, but for a path's
 
 `makeSymlink`, `makeHardLink` and `makeFile` answer `Left(Exists)` where the path they make names something, and `readLink` answers `Right(None)` for a path that names anything but a link and `Left(NotUtf8(target))` for a link whose target is not. `makeHardLink` makes a second name for a regular file: a second path that names anything else, a link among them, answers `Left(NotAFile)`.
 
+`makeTempDir` makes a directory in the host's directory for temporary files, the one `TMPDIR` names where `Os.environment` reads it set and not empty (Appendix E.23), and `/tmp` where it does not. Its name is `ern-` and sixteen lowercase hexadecimal digits drawn at random, drawn again where an entry has that name. It is made as `makeDir` makes a directory, and its mode is set to `0o700` before its path is answered, the temporary directory's path joined with its name. It stays until the program removes it.
+
 ```
 type Kind = File | Directory | Link | Other // Other: a named pipe, a device, or a socket
 type Entry = Entry(path : Path, modified : Int, size : Int, kind : Kind, mode : Int, user : Int) // modified in milliseconds since the epoch, as Clock.now, read to the second and so a multiple of 1000; size in bytes; mode the permission bits, as setMode takes them; user the host's number for the user the file belongs to, as Os.user is the program's
@@ -644,6 +646,7 @@ Fs.makeSymlink : (Path, Path, Int) -> Either(Io.Error, Unit) // a symbolic link 
 Fs.makeHardLink : (Path, Path, Int) -> Either(Io.Error, Unit) // a hard link at the first path to the regular file the second names, a second name for it
 Fs.readLink : (Path, Int) -> Either(Io.Error, Optional(Path)) // the path a symbolic link holds, as it was written
 Fs.makeFile : (Path, Bytes, Int) -> Either(Io.Error, Unit) // a new file, or none where the path names something
+Fs.makeTempDir : (Int) -> Either(Io.Error, Path) // a new directory under TMPDIR or /tmp, mode 0o700, which stays until the program removes it
 Fs.setModified : (Path, Int, Int) -> Either(Io.Error, Unit) // the modification time, in milliseconds since the epoch, kept to the second; Left(Invalid) for one past the host's 64-bit seconds, and one past the file system's range kept as the file system keeps it
 Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, as the host writes them, 0o600; a mode outside 0 to 0o7777, or with the bit 0o1000, which the host does not write, is Left(Invalid)
 ```
@@ -847,7 +850,7 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished)
 
 ### Appendix E.24. `test.ern` (namespace `Test`)
 
-A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types, `Captured` below, and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4).
+A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types, `Captured` below, and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4). Where the two texts begin alike and then differ, the failure says where, `expected [1, 2, 4], got [1, 2, 3], differing at character 8`, counting the texts' graphemes from 1 to the first that differs or to the one past the shorter text's end.
 
 `faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` in a process of its own, monitored (§6.9), and reads the process's end. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). It waits for `run`'s end without a limit, as a direct call of `run` waits for the caller's own work (E.0 shape rule 8). Where the caller ends before `run`'s process does, that process is killed. Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.faults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
 
@@ -1107,15 +1110,15 @@ Removed on 2026-10-13. The library asked every peer its utilization at the momen
 
 ### Appendix G.6. `libs/json` (namespace `Json`)
 
-JSON text as RFC 8259 defines it, read into a value and written from one by the host's `json` module. Its two functions are primitives written in the host's language, since the host raises on a text it cannot read and answers terms no Ernest type describes (E.0 rule 1).
+JSON text as RFC 8259 defines it, read into a value and written from one by the host's `json` module. Its three functions are primitives written in the host's language, since the host raises on a text it cannot read and answers terms no Ernest type describes (E.0 rule 1).
 
 `parse` reads one value, with white space before it and after it and nothing else. A number written with neither a fraction nor an exponent is an `Integer`, of any size the host can hold, and one written with either is a `Real`; a `Real` nearer to zero than a `Float` can hold is `0.0`, and so is `-0.0` (§3.1). An object is a `Map` from its members' names to their values, and where a text names a member twice the last is kept, as `Map.fromList` keeps a later pair (E.3).
 
 An error says what the host found and where: `UnexpectedEnd` is a text that ends inside its value or holds none; `UnexpectedByte` is a byte that cannot stand where it is, the first of its character's, or the first that differs from the `true`, `false` or `null` the text breaks off, with its position; and `UnexpectedSequence` is an escape that writes no character, a surrogate's escape without its pair's and one broken off before its digits end among them, as the text writes it up to the byte that breaks it, or a number the host cannot hold, an integer too long or a real larger than a `Float` can hold, in the host's spelling of it, with its position. A position is the line and the column the byte or the sequence begins at, counted as a diagnostic's are (§11.5).
 
-`format` lays a value out over lines as the host's `json:format` does, two spaces to a level, and ends it with a line feed; it writes an object's members in the order of their names' code points, an order of the library's own, which the host's leaves to its caller. `parse` reads what `format` writes as the value it was written from.
+`format` lays a value out over lines as the host's `json:format` does, two spaces to a level, and ends it with a line feed; it writes an object's members in the order of their names' code points, an order of the library's own, which the host's leaves to its caller. `encode` writes a value on one line as the host's `json:encode` does, with no white space between its parts and no line feed after it, an object's members in `format`'s order. `parse` reads what `format` and `encode` write as the value it was written from.
 
-In a text `format` writes `"` and `\` as `\"` and `\\`; a line feed, a carriage return, a tab, a backspace and a form feed as `\n`, `\r`, `\t`, `\b` and `\f`; every other character below U+0020 as `\u` and four uppercase hexadecimal digits; and every other character as itself, U+007F and `/` among them.
+In a text `format` and `encode` write `"` and `\` as `\"` and `\\`; a line feed, a carriage return, a tab, a backspace and a form feed as `\n`, `\r`, `\t`, `\b` and `\f`; every other character below U+0020 as `\u` and four uppercase hexadecimal digits; and every other character as itself, U+007F and `/` among them.
 
 ```
 type Value = Null | Boolean(Bool) | Integer(Int) | Real(Float) | Text(String)
@@ -1125,6 +1128,7 @@ type Error = UnexpectedEnd | UnexpectedByte(byte : Int, at : Position)
   | UnexpectedSequence(text : String, at : Position)
 Json.parse : (String) -> Either(Error, Value)
 Json.format : (Value) -> String
+Json.encode : (Value) -> String
 ```
 
 ### Appendix G.7. `libs/proxy` (namespace `Proxy`)

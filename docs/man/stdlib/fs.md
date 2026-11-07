@@ -393,6 +393,33 @@ file or a temporary file needs.
 // => #(Right(Unit), Left(Io.Exists))
 ```
 
+## Fs.makeTempDir
+
+```ernest
+Fs.makeTempDir(ms : Int) : Either(Io.Error, Path)
+```
+
+*Since 0.10.0.*
+
+Makes a new directory of the program's own for temporary files, and
+answers its path. It is made in the directory `Os.environment("TMPDIR")`
+names, or in `/tmp` where `TMPDIR` is not set or is empty. Its name is
+`ern-` and sixteen hexadecimal digits drawn at random, which no entry
+had, and its mode is `0o700`, its owner's alone. It stays until the
+program removes it, its files first.
+
+### Examples
+
+```ernest
+{
+    let dir <- Fs.makeTempDir(5000);
+    let entry <- Fs.stat(dir, 5000);
+    let _ <- Fs.remove(dir, 5000);
+    Right(#(entry.kind, entry.mode == 0o700))
+}
+// => Right(#(Fs.Directory, true))
+```
+
 ## Fs.setModified
 
 ```ernest
