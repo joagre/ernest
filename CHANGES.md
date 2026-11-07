@@ -117,7 +117,6 @@ What changed:
 - A deadlock while a load's evaluator waits faulting the evaluator: §8.6.
 - A session's namespace carrying its number, and on a node the node's key: Appendix H.
 - An address the permission to send, a `Process` what `Process.kill` ends: §6.5.
-- The report's paragraphs, none past 150 words.
 
 ### The toolchain and the shell
 

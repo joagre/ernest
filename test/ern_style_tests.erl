@@ -179,10 +179,10 @@ comment_ceiling_test() ->
     Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/comments.sh 150"), "\n"),
     ?assertEqual([], Listed).
 
-%% CLAUDE.md's *Writing*: a comment cites no step or item of the plan or
-%% finding of a review, and no date, in every tracked file of code but a
-%% borrowed one and a fixture, which is data. A comment is what follows
-%% the marker its language writes. A log entry's title is a citation the
+%% docs/code_style.md's *Every language*: a comment cites no step or item
+%% of the plan or finding of a review, and no date, in every tracked file
+%% of code but a borrowed one and a fixture, which is data. A comment is
+%% what follows the marker its language writes. A log entry's title is a citation the
 %% rule asks for, and a date with a time after it is a value, as in a doc
 %% block's example. Written with the sweep that made it hold (the log's
 %% *The Release Cleanup Built*); a comment that names the plan in other

@@ -9,7 +9,8 @@
 %% the map name them, why.md's claims and the README's, the reviews' counts
 %% of their readers, the shell's modules and the loads are each current; and
 %% the lists docs/development.md's *Lists in two places* names are kept by
-%% hand.
+%% hand. What a user reads, CHANGES.md among it, names no step of the
+%% plan.
 -module(ern_docs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -602,9 +603,32 @@ user_text_timeline_test() ->
     ?assertEqual([], Read(ern_repository:modules() ++ shell(),
                           "\"[^\"]*(" ++ Timeline ++ ")[^\"]*\"")).
 
+%% CLAUDE.md's row of CHANGES.md: a release's note says what the release
+%% is and where each change is read. Below its title it names no date but
+%% in a release's heading, no log entry, no review and no step of the plan;
+%% each change line ends at a section of the report or a file of the guide.
+%% Written with the rule, when it found one line naming neither (the log's
+%% *Holding the Release Cleanup*)
+changes_note_test() ->
+    Lines = tl(lists:enumerate(lines(ern_repository:read("CHANGES.md")))),
+    Prose = [{Number, Line} || {Number, Line} <- Lines, not is_release_heading(Line)],
+    ?assert(length(Prose) > 100),
+    Refused = "\\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\\b|\\bMVP\\b|\\b[Mm]ilestones?\\b"
+              "|\\bthe plan\\b|\\blog\\b|\\b[Rr]eview|\\b[Nn]ewcomer"
+              "|\\b(a|the|cold|code|independent) readers?\\b|; *\\*|^[^§]*\\*",
+    ?assertEqual([], [Number || {Number, Line} <- Prose,
+                                re:run(Line, Refused, [unicode]) =/= nomatch]),
+    ?assertEqual([], [Number || {Number, <<"- ", _/binary>> = Line} <- Prose,
+                                re:run(Line, ": .*(§|Appendix |`guide/)", [unicode]) =:= nomatch]).
+
 %% The third line of a file of the report, naming Version.
 report_version(Version) ->
     iolist_to_binary(["For Ernest ", Version, "."]).
+
+%% Whether a line of CHANGES.md is a release's heading, its version and
+%% its date.
+is_release_heading(Line) ->
+    re:run(Line, "^## [0-9]+\\.[0-9]+\\.[0-9]+, 20[0-9]{2}-[01][0-9]-[0-3][0-9]$") =/= nomatch.
 
 %% The tracked documents a shell's start line is held in, the log, which is
 %% history, and the proposals aside, as tools/version.sh reads them.

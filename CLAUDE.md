@@ -30,7 +30,7 @@ Each fact has one owner. Every other document points at the owner and does not r
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | how one takes part before 1.0: no contribution, a defect to the repository's issues |
 | [`SECURITY.md`](SECURITY.md) | where to report a security hole |
 | [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) | the people Ernest stands on, by name alone |
-| [`CHANGES.md`](CHANGES.md) | each release's note, newest first: what the release is, what a program written for the release before must change, and one line a change naming the section where it is read, restating nothing. The date stands in the heading alone. The release step writes it and copies it to the release on GitHub |
+| [`CHANGES.md`](CHANGES.md) | each release's note, newest first: what the release is, what a program written for the release before must change, and one line a change naming the section where it is read, restating nothing. The date stands in the heading alone. The release step writes it and copies it to the release on GitHub, and a test holds its form |
 | [`site/templates/README.md`](site/templates/README.md) | the site's templates and fragments, which a test holds each file to |
 | [`site/projects.md`](site/projects.md) | the projects written in Ernest in repositories of their own, a line each, which a test holds to its form |
 
@@ -132,7 +132,6 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating. Clear before short: plain sentences, one rule per sentence, its exception and its example in sentences of their own. Cut a sentence for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
 - **User-facing text has no project timeline.** The report, the guide, the tour, the manual pages and every text `ern` and the shell print name no MVP, no milestone and no date of the project's history. They say what Ernest is at the release they ship with. The one exception is a manual page's `since` line, the release a part arrived in. The history is `CHANGES.md`'s, the log's and the plan's, and a test holds the rule.
-- **A comment names no MVP, milestone, plan item, review finding or date**, in the code and in a test, since each points into a document that deletes it. It cites the report's section, a design note's, and the log entry by its title where the history matters. A regression test still says it is one.
 - **Every other document is plain and short**, the plan, the log, a proposal, a commit message and this file among them. One point to a sentence, in the order a reader needs it, without chains of clauses.
 - **A paragraph is one turn of the text**, in every document, in a comment of the code and in a message to the user. It says one thing, with that thing's exception and example, and a new paragraph begins where the text turns. A break is made where it helps the reader take the next thing in, and nowhere else: never at a count of words, never to shorten, and never later than the turn.
 
