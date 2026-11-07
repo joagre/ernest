@@ -57,7 +57,12 @@ the wait (the log's *Nothing at the Wait*), and that the release answers that
 program's lines still open, each by Ernest's number, and so hands over the site for its
 rehearsal of the switch (MVP 4.4's item 6): `make site` from the release's tag, given the
 configuration ernest-httpd will serve it with, writes it to `build/site/`, the tag naming the
-commit that made it. ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
+commit that made it.
+
+ernest-epx's session is told the same archive and item 26's verdict on its
+line, and each of the two checks its verdicts against the archive and answers with any line it
+keeps, as `docs/clean_room.md`'s *The answer* says (the log's *Both Applications at the
+Milestone's End*). ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
 log's *The Floors and the Releases*).
 
 Between items 1 and 2 the repository's layout was built, in one commit, so that items 2 to 21
@@ -113,9 +118,10 @@ reader S reads of its live shell. The release note's line on the installed layou
    Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named
    Built*). `Os.Command`'s `environment` and `workingDirectory` and `Os.signal` stand, and the
    sites are written with them. The other repositories write the two fields when their floor
-   is 0.10, each by its own session, told at the milestone's end: ernest-template's
-   `tools/docs.ern` and its copies in ernest-epx and ernest-httpd, and ernest-httpd's
-   `ernest_httpd.ern`, `smoke.ern` and `session.ern`.
+   is 0.10. Ernest's session writes ernest-template's `tools/docs.ern`, since the template has
+   no session of its own, and the applications take it from the template's tag; ernest-httpd's
+   session writes its `ernest_httpd.ern`, `smoke.ern` and `session.ern`, told at the
+   milestone's end.
 10. **`libs/http`'s values**, done 2026-11-07 (G.11; the log's *`libs/http`'s Values*).
     `Http.http11` and `Http.defaultLimits` stand, and the sites are written with them. ernest-httpd
     writes them in `smoke.ern`, `hosts.ern`, `static.ern` and `shell.ern` when its floor is 0.10,
@@ -225,6 +231,13 @@ reader S reads of its live shell. The release note's line on the installed layou
     fault in the last case can end the job first. A probe under the light run's load shows the
     cause first; the fix then has the job wait for its collectors, on what it waits for, as
     CLAUDE.md's *No fixed sleep* asks (the log's *`libs/uri` Built*).
+26. **`Float.atan2` at the origin**, ernest-epx's one open line, found unread on 2026-11-07,
+    decided by 2026-11-12: E.9 states the edges of `sqrt`, `pow`, `log`, `asin` and `acos`, and
+    not what `atan2` answers at `#(0.0, 0.0)`, which ernest-epx's `examples/boids.ern` meets where
+    its three rules cancel; on 0.9.0 it answers `0.0`. The line is read as `docs/clean_room.md`
+    says, its program run here first, and E.9 states the answer at the origin. Its verdict goes
+    to ernest-epx's session at the milestone's end (the log's *Both Applications at the
+    Milestone's End*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
