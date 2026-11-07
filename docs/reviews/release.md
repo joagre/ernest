@@ -28,7 +28,7 @@ What a release runs to be ready, and nothing else. Between releases an item that
    - the pages `make man` writes into `docs/man/`, committed with the release;
    - the About text of the repository on GitHub, which follows the opening of `README.md`, and which no test holds;
    - the release's section of `CHANGES.md`, first in the file, committed before the tag, which is the release's note: the release step copies it as the notes of the release on GitHub, so that the note is written once (the log's *A Release Carries No History* and *The Release Cleanup*);
-   - the tag, signed, `git tag -s vVERSION`, with the SSH key the pushes use, so that GitHub marks it verified;
+   - the tag, signed, `git tag -s vVERSION`, with an SSH key GitHub holds as a signing key, so that GitHub marks it verified;
    - then the archive `make release` writes at the tag, `ern-VERSION.tar.gz`, and its checksum, `ern-VERSION.tar.gz.sha256`, both published beside the tag, since an archive made before the tag says its commit (§11.7);
    - and once the tag is made, `make version V=<next minor>.0`, committed at once, so that `VERSION` names the release the checkout works toward and a development build says `0.8.0-dev` while 0.7.0 is the latest release.
 
