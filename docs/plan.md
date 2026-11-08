@@ -153,7 +153,7 @@ reader S reads of its live shell. The release note's line on the installed layou
     Node's*, *The Shell Attaches as a Program Spawns* and its *Built*). The shell's code crosses
     to the node it attaches to as a program's does, and a node of another release on the floor
     runs it; `Ansi.clearBelow` and `Ansi.clearScreen` are literals. The first attach to a node
-    takes about three seconds on nike, the node compiling the shell.
+    took about three seconds on nike, the node compiling the shell, until item 28.
 16. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
     writer's own namespace outward, as a relative path resolves from its directory, so that
     `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
@@ -256,15 +256,26 @@ reader S reads of its live shell. The release note's line on the installed layou
     a loaded bee refused the first attach while it compiled, and the next succeeded (the log's
     *The Shell Attaches as a Program Spawns Built*).
 
-    Neither the wait nor the compile changes: a node holds the shell's definitions of its own release from its start, read from `ern`'s build
-    as it reads its load path's, in scope nowhere, so a shell of that release ships nothing and
-    compiles nothing, and one of another release crosses by the exchange within the wait as today.
+    Neither the wait nor the compile changes: a node holds the definitions of the shell of its own
+    build of `ern` from its start, read from that build as it reads its load path's, in scope
+    nowhere, so a shell of that build ships nothing and compiles nothing, and one of another build
+    crosses by the exchange within the wait as today.
+
+    Three decisions of the cold reading stand with it. A node of a development tree whose
+    `build/shell` is absent is refused at its start with `ern shell`'s text, `the shell is not
+    built; run make`, since a node that silently held no shell would make §8.7's sentence false
+    for it. `--verbose` says nothing of the shell's units, as it says nothing of the standard
+    library's (§11.2). The read is the node's, once at its start, which the test of `ern test
+    --config-dir` over a directory holds.
 
     The build is the start's read of the shell's build, held and on no load path a name resolves
-    on; a test that a same-release attach makes no arrival on the node; the read's cost measured
-    on nike and bee against the host's start, 21 ms for the libraries and the shell together on
-    nike; and the nodes, code and shell notes and the deployment guide's §6 line following the
-    code.
+    on; a test that a same-build attach makes no arrival on the node; the read's cost measured on
+    nike and bee against the host's start, 21 ms for the eleven libraries and the shell together
+    on nike; and the nodes, code and shell notes and the deployment guide's §6 line following the
+    code. The read-back confirms that the shell's four local-half bindings, held on every node
+    without values, link to nothing when another build's session arrives beside them, and looks
+    at a `:load` under `src/shell` of a module the shell's build holds, a second unit of the name
+    as in a plain shell today.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
