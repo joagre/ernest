@@ -1141,11 +1141,12 @@ shell(Options, Rest, ErrorDevice) ->
     Say = fun(_) -> ok end,
     %% report §11.2, §4.2: the shell's modules, `Ernest.Shell` and those
     %% under it, are loaded from build/shell as each is first called
-    %% (ern_code:ensure_loaded/1)
+    %% (ern_code:ensure_loaded/1), and a node's start loads them whole
+    %% (shell_build/0)
     ErlangModule = ern_namespace:erlang_module(['Ernest', 'Shell']),
     case ern_code:ensure_loaded(ErlangModule) of
         {module, ErlangModule} -> ok;
-        _ -> ern_build:fail("the shell is not built; run make")
+        _ -> ern_build:fail(shell_not_built())
     end,
     Attach = proplists:get_value(attach, Options, none),
     %% report §8.5: the shell's own modules are initialized as a program's
@@ -1292,9 +1293,11 @@ run_node(ConfigDir, Read, LoadPath, Say, Run) ->
                               " the command line holds --config-dir"),
     Configuration = ern_node:start(ConfigDir, Read),
     try
-        %% report §8.7: a node carries the whole build, so that a function a
-        %% peer spawns finds its code; nothing of it is initialized because
-        %% a peer asked
+        %% report §8.7: a node carries the shell of its build of `ern` and
+        %% its whole build, so that a function a peer spawns finds its
+        %% code, a shell's of that build among them; nothing of either is
+        %% initialized because a peer asked
+        shell_build(),
         whole_build(LoadPath, Say),
         %% report §8.7: its peers listed from its start, so that a find or a
         %% spawn in an initializer is a peer's, which no connection reaches
@@ -2080,6 +2083,36 @@ whole_build(LoadPath, Say) ->
     lists:foldl(fun(Namespace, Acc) -> load(Namespace, [], LoadPath, Acc, Reading) end, Loaded,
                 Namespaces),
     ok.
+
+%% Report §8.7, §11.2: the shell of this build of `ern`, held by a node from
+%% its start: each unit of `build/shell` loaded as the standard library's
+%% are, from its `.erc` and into the code table (ern_code:ensure_loaded/1),
+%% and none initialized. The build is on no load path, so no name resolves
+%% to one of its units, a session's interfaces hold none (ern_shell), and
+%% no --verbose line says one, as none says the standard library's. It is
+%% read before the load path, so that a unit of the load path that holds
+%% one of its identities is the later and answers a peer for it
+%% (ern_code:answering/1). A tree whose shell is not built is refused, as
+%% `ern shell` refuses it, since such a node would hold no shell.
+shell_build() ->
+    Build = ern_tree:build("shell"),
+    Files = case filelib:is_dir(Build) of
+                true -> ern_build:compiled_under(Build);
+                false -> []
+            end,
+    Files =/= [] orelse ern_build:fail(shell_not_built()),
+    lists:foreach(fun(File) ->
+                      Relative = filename:rootname(ern_build:relative(File, Build)),
+                      Unit = ern_namespace:erlang_module(
+                               ern_namespace:namespace(filename:split(Relative))),
+                      case ern_code:ensure_loaded(Unit) of
+                          {module, Unit} -> ok;
+                          {error, _} -> ern_build:fail(shell_not_built())
+                      end
+                  end, Files).
+
+shell_not_built() ->
+    "the shell is not built; run make".
 
 %% Report §11.2: the namespace of a compiled module of the load path, which
 %% stands at the path of its namespace under its root; one at another

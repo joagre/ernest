@@ -3958,6 +3958,71 @@ attach_unreadable_home(Base) ->
     ?assertEqual(143, WaitNode()),
     ?assertEqual(nomatch, string:find(written(Node, err), "faulted")).
 
+%% report §8.7, §11.2 *The attached shell*, *What a node holds*: a node
+%% holds the shell of its own build of `ern` from its start, so a shell of
+%% that build attaches with an exchange that ships nothing, and the node
+%% makes no unit for it. The node's program counts the units its exchanges
+%% made through a host module, from the first name of their pool the host
+%% holds no unit of (ern_arrival:name/1), so that the count follows the
+%% pool's names.
+attach_ships_nothing_test_() ->
+    nodes_test({waits, 6}, fun attach_ships_nothing/1).
+
+attach_ships_nothing(Base) ->
+    Root = filename:join(Base, "program"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "probe.ern"),
+                         ["// A node's program that counts the units its node's exchanges made,\n"
+                          "// and waits.\n"
+                          "export foreign fn arrivals() : Int = \"ern_nodes_arrivals:counted/0\"\n"
+                          "\n"
+                          "export fn main() : Unit receiving Unit = {\n"
+                          "    Io.println(\"ready\");\n"
+                          "    receive {\n"
+                          "        _ -> Unit\n"
+                          "    }\n"
+                          "}\n"]),
+    Arrivals = filename:join(Root, "ern_nodes_arrivals.erl"),
+    ok = file:write_file(Arrivals,
+                         <<"-module(ern_nodes_arrivals).\n"
+                           "-export([counted/0]).\n"
+                           "counted() ->\n"
+                           "    {_, Next} = ern_arrival:name(1),\n"
+                           "    Next - 2.\n">>),
+    {ok, _} = compile:file(Arrivals, [{outdir, Root}]),
+    0 = built([Root]),
+    Port = free_port(),
+    Node = made(Base, "node", Port),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    lists(Ops, [{"node", Node, Port}]),
+    WaitNode = start(Node, filename:join(Root, "probe.erc"), []),
+    prints(Node, "ready"),
+    {Input, WaitShell} = attached(Ops, "node", Base),
+    entered(Input, Ops, ["Probe.arrivals()"], "> 0 : Int\n"),
+    true = port_command(Input, ":quit\n"),
+    ?assertEqual(0, WaitShell()),
+    stop(Node, WaitNode),
+    {_, Err} = said(Ops),
+    ?assertEqual(nomatch, string:find(Err, "ern shell:")).
+
+%% report §8.7, §11.2: a node of a tree whose shell is not built is refused
+%% at its start, as `ern shell` is in that tree, and leaves no ernest.pid.
+%% The tree is a release made from this one under Base with no unit of the
+%% shell's in its build.
+node_without_shell_test_() ->
+    nodes_test({waits, 1}, fun node_without_shell/1).
+
+node_without_shell(Base) ->
+    {ok, Text} = file:read_file(filename:join(ern_tree:tree(), "VERSION")),
+    NoShell = filename:join(Base, "no-shell"),
+    ok = filelib:ensure_path(NoShell),
+    Ern = released(filename:join(Base, "tree"), NoShell, string:trim(binary_to_list(Text))),
+    Node = made(Base, "node", 0),
+    ?assertEqual({1, "ern run: the shell is not built; run make\n"},
+                 finished([Ern, " run --config-dir ", Node, " 2>&1"])),
+    ?assertNot(filelib:is_regular(filename:join(Node, "ernest.pid"))).
+
 %% report §4.2, §11.2 *The attached shell*, §12.7: a shell attaches to a
 %% node whose program has a module `Shell` of its own, the shell's units
 %% standing under `Ernest`, which no program's module takes: an input reads
@@ -5410,9 +5475,11 @@ export fn main() : Unit receiving Msg =
 %% program reads, and then each other module of its load path, which a
 %% node's start reads, the toolchain's libraries last, on standard error,
 %% each once, and standard output holds the program's alone, from a
-%% directory whose name is beyond Latin-1. A regression test: the
-%% launcher's first start, which writes what the job says to nothing,
-%% raised at such a line, and the node was given no flags
+%% directory whose name is beyond Latin-1. It names no unit of the shell's,
+%% which the node's start reads too, as it names none of the standard
+%% library's, since the lines are held to those modules alone. A
+%% regression test: the launcher's first start, which writes what the job
+%% says to nothing, raised at such a line, and the node was given no flags
 verbose_node_start_test_() ->
     nodes_test({waits, 2}, fun verbose_node_start/1).
 

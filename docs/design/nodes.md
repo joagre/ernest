@@ -8,7 +8,7 @@ A line here is a shape a reader must know to change the component without breaki
 
 Two nodes are two files and one connection, and what passes between them is the host's distribution carrying the host's terms: a message between nodes costs what the host's send costs, and the runtime adds a frame of its own only where the receiving node must do something a message cannot, start a process, apply a function, record a wait, carry code (§12.6, *What passes*).
 
-Nothing is initialized, evaluated or loaded because a peer asked, beyond the code a spawn or a compute carries, the shell's that an attach brings among it: a binding is its node's own, and a bare node runs what it is sent and nothing else (§8.7, §12.7; the log's *The Module Peer*, *What the Outline Asked*, *The Shell Attaches as a Program Spawns*). A node trusts a listed peer whole and no one else: the list of peers is the whole of the trust, and a peer that may spawn may run anything (the log's *The Carrier*).
+Nothing is initialized, evaluated or loaded because a peer asked, beyond the code a spawn or a compute carries, among it the shell's of a build other than the node's, whose own the node holds from its start: a binding is its node's own, and a bare node runs what it is sent and nothing else (§8.7, §12.7; the log's *The Module Peer*, *What the Outline Asked*, *The Shell Attaches as a Program Spawns*, *A Node Holds the Shell*). A node trusts a listed peer whole and no one else: the list of peers is the whole of the trust, and a peer that may spawn may run anything (the log's *The Carrier*).
 
 ## A node
 
@@ -74,7 +74,7 @@ A spawn's frame carries the function's identity, its captures in the order its b
 
 The peer's gateway finds the identity in the node's code table and starts the process through the node's runtime, recording the site as a local spawn's with the peer whose spawn started it in the process's row, or answers `NotLoaded` where a binding of the function's reach has no value there or a foreign declaration's module is missing, or, where it lacks the function, hands the spawn to the node's exchange; the answer goes back through the spawner's gateway, which kills a process no one waits for any more, its spawner's time run out while the connection lasted (§8.7 and Appendix E.27, *A spawn*; the log's *The Spawn by Hash, Built*).
 
-What the peer lacks of the function's reach the exchange brings, which is the code note's ([`code.md`](code.md)). A function typed at a shell, and the shell's own session, has a hash as any definition has, and crosses the same way (§11.2).
+What the peer lacks of the function's reach the exchange brings, which is the code note's ([`code.md`](code.md)). A function typed at a shell, and the shell's own session, has a hash as any definition has, and crosses the same way, but that a node of the shell's build holds its session from its start and lacks none of it (§8.7, §11.2).
 
 ## Services and the pick
 
