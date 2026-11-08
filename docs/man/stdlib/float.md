@@ -328,13 +328,14 @@ Float.atan2(y : Float, x : Float) : Float
 ```
 
 The angle, in radians, of the point `#(x, y)`, `y` given first. It keeps the
-quadrant that `atan(y / x)` loses, and takes an `x` of 0.0.
+quadrant that `atan(y / x)` loses, and takes an `x` of 0.0. At the origin it
+is 0.0.
 
 ### Examples
 
 ```ernest
-Float.atan2(0.0, 1.0)
-// => 0.0
+#(Float.atan2(0.0, -1.0), Float.atan2(0.0, 0.0))
+// => #(3.141592653589793, 0.0)
 ```
 
 ## Float.compare

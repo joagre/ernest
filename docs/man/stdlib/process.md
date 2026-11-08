@@ -70,6 +70,10 @@ type Activity = Running | Receiving | Calling
 What a live process is doing: running, waiting in a `receive` or in
 `Clock.sleep`, or waiting for the answer to a call.
 
+A process that waits is `Running` while the host works in it. The host works
+in every process of a node for a moment when code is let go there (report
+Appendix E.21).
+
 ### Examples
 
 ```ernest

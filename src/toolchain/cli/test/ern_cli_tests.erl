@@ -2019,8 +2019,8 @@ test_fault_fails_the_run_test() ->
                      "    Test.faults(fn() = fault(\"boom\"), \"boom\"))\n"
                      "let provoked = Test.Case(name = \"provoked\", run = fn() = {\n"
                      "    let _ = spawnMonitored(fn() = {\n"
-                     "        let _ = spawn(fn() = fault(\"provoked\"));\n"
-                     "        fault(\"provoked\")\n"
+                     "        let _ = spawnMonitored(fn() = fault(\"provoked\"), Ended);\n"
+                     "        receive { Ended(_) -> fault(\"provoked\") }\n"
                      "    }, Ended);\n"
                      "    receive { Ended(_) -> Test.Passed }\n"
                      "})\n"),

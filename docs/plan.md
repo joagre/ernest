@@ -54,7 +54,7 @@ items 8, 9, 13, 15, 16, 21, 28, 30 and 32, are discussed early, so that no build
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*):
 
-1. Items 26, 33 and 34, each by an item session, items 17, 20, 22 and 31 done.
+1. Items 33 and 34, each by an item session, items 17, 20, 22, 26 and 31 done.
 2. One design session for what no test checks: item 21's decision, item 30's, item 32's, item
    19's question whether a hangup is told from a read that fails, item 29's sentence of §10,
    and item 16's proposal with its cold reading.
@@ -213,13 +213,10 @@ reader S reads of its live shell. The release note's line on the installed layou
     Capture Written Back at the End*). The run's end tells every capture's collector that it ends
     and waits for it before it flushes the streams, so that what a collector writes back is
     written.
-26. **`Float.atan2` at the origin**, ernest-epx's one open line, found unread on 2026-11-07,
-    decided by 2026-11-12: E.9 states the edges of `sqrt`, `pow`, `log`, `asin` and `acos`, and
-    not what `atan2` answers at `#(0.0, 0.0)`, which ernest-epx's `examples/boids.ern` meets where
-    its three rules cancel; on 0.9.0 it answers `0.0`. The line is read as `docs/clean_room.md`
-    says, its program run here first, and E.9 states the answer at the origin. Its verdict goes
-    to ernest-epx's session at the milestone's end (the log's *Both Applications at the
-    Milestone's End*).
+26. **`Float.atan2` at the origin**, done 2026-11-08 (E.9; the log's *`Float.atan2` at the
+    Origin*). E.9 states `0.0` at the origin, the host's answer, and ernest-epx's line is
+    feedback 236. Its verdict goes to ernest-epx's session at the milestone's end (the log's
+    *Both Applications at the Milestone's End*).
 27. **A binding an arrival linked to a fault**, done 2026-11-08 (§12.7; the log's *A Top-Level
     Binding Stays the Node's* and *The Shell Attaches as a Program Spawns Built*). An arrival
     links a binding the node holds to its holder, with its value or not.

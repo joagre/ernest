@@ -488,7 +488,7 @@ Float.tan : (Float) -> Float
 Float.asin : (Float) -> Optional(Float) // None outside -1.0 to 1.0
 Float.acos : (Float) -> Optional(Float) // None outside -1.0 to 1.0
 Float.atan : (Float) -> Float
-Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y first
+Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y first; 0.0 at the origin
 ```
 
 ### Appendix E.10. `optional.ern` (namespace `Optional`)

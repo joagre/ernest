@@ -821,6 +821,15 @@ float_has_one_zero_test() ->
     ?assert(Power =:= +0.0),
     ?assertEqual('Equal', Float(compare)(Small, 0.0)).
 
+%% report Appendix E.9, §3.1: `Float.atan2` is 0.0 at the origin, the
+%% host's answer, and `-0.0` written is that point too. A regression test,
+%% written after the code; that no negative zero enters is
+%% float_has_one_zero_test's and the boundary's
+float_atan2_origin_test() ->
+    Float = ern_named:functions('ern@float'),
+    ?assert(Float(atan2)(0.0, 0.0) =:= +0.0),
+    ?assert(Float(atan2)(0.0, Float(negate)(0.0)) =:= +0.0).
+
 %% report Appendix E.10
 optional_test() ->
     Optional = ern_named:functions('ern@optional'),
