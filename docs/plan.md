@@ -148,20 +148,23 @@ reader S reads of its live shell. The release note's line on the installed layou
     and `Http`'s heads are Ernest around a primitive, and a head is read on from the line under
     way, so its lines are not read again. `roff` stays in `libs/markdown`, since `ern doc --man`
     lays its pages out with it as §11.4 says, beside `tools/manual.ern` (principle 2).
-15. **What a lambda's reach finds on a peer**, feedback 217, decided 2026-11-07 (§8.7, §12.7;
-    the log's *What a Lambda's Reach Finds on a Peer*): a binding of the toolchain's own units
-    that a spawned function's reach names, `Ansi.clearScreen` among them, is given its value on
-    the peer by the load of its unit from the peer's own tree, as a spawned function of theirs
-    is, so the lambda serves where it answered `Left(Io.NotLoaded)`. The report says it.
+15. **What a lambda's reach finds on a peer**, feedback 217, decided 2026-11-07 and decided
+    again 2026-11-08 (§8.5, §8.7, §12.7; the log's *What a Lambda's Reach Finds on a Peer*, *A
+    Top-Level Binding Stays the Node's*): a bare node evaluates the toolchain's own libraries'
+    bindings at its start, as it evaluates the standard library's, so a program's lambda naming
+    `Ansi.clearScreen` serves there where it answered `Left(Io.NotLoaded)`; the load of a unit
+    for a binding of the reach, built 2026-11-08 and uncommitted, goes. The report says it.
 
-    Built by an item session: a nodes test before the code, a program's lambda naming
-    `Ansi.clearScreen` spawned and computed on a bare node answering `Right` with no `was not
-    loaded` line on the peer, and a second spawn through a function the node then holds naming
-    `Ansi.clearBelow`, which covers the held path; one function, called where the exchange
-    reads the reach and where a held function is started, that finds the lacking binding's
-    unit among the node's own and runs the own-unit load, then reads the frame again; the
-    nodes' and the code's design notes and the deployment guide's lines on a binding without a
-    value follow the code; `make test-nodes`, then `make test-full`.
+    Built by an item session: the binding half of the 2026-11-08 build reverted, `unvalued/1`,
+    `lacking_value/4`, the held path's re-read and the lacked rows among it; the bare node's
+    start evaluates the three libraries' units it holds, in §8.5's order after the standard
+    library's, and §8.5 states which unit it evaluates where a program's module on its load
+    path hides a library of theirs (§4.2), the library's by its tree as §12.7's load finds it
+    being the shape; item 27's link built with it; of the nodes tests of 2026-11-08, the bare node's
+    keeps its lines and the held-path test expects the general rule's, `NotLoaded` where a run
+    of `ern test` holds the unit without its values; the nodes' and the code's design notes,
+    the deployment guide's §3.4 and §4.3 and the architecture map follow the code;
+    `make test-nodes`, then `make test-full`.
 16. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
     writer's own namespace outward, as a relative path resolves from its directory, so that
     `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
@@ -246,6 +249,12 @@ reader S reads of its live shell. The release note's line on the installed layou
     says, its program run here first, and E.9 states the answer at the origin. Its verdict goes
     to ernest-epx's session at the milestone's end (the log's *Both Applications at the
     Milestone's End*).
+27. **A binding an arrival linked to a fault**, raised 2026-11-08 by item 15's build, decided
+    2026-11-08 (§12.7; the log's *A Top-Level Binding Stays the Node's*): an arrival links a
+    binding beyond the spawned function's reach that the node holds without its value to the
+    unit that holds it, as it links a valued one, and the fault stays for one held in no unit,
+    so the existing check reads the binding where the code does and a sibling lambda's order
+    changes nothing. The report says it. Built with item 15.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
