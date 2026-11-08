@@ -4,7 +4,7 @@ How the project checks that nothing grows with the work done: the loads that mea
 
 ## The loads
 
-`make load` runs each load in an Erlang node of its own. It prints each load's samples and whether it stayed flat, and writes the same to `test/build/load/<load>.txt`. It takes about 90 seconds (measured 2026-10-21).
+`make load` runs each load in an Erlang node of its own. It prints each load's samples and whether it stayed flat, and writes the same to `test/build/load/<load>.txt`. It takes about a minute (measured 2026-11-08 on nike).
 
 A load does the same work in each of fourteen rounds and calls `mark(round)` after each, a `foreign fn` of `test/ern_load.erl`. The programs are under `test/fixtures/load/`; the harness writes the shell's session.
 
@@ -27,7 +27,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)` aft
 - `rows`, the rows of the runtime's tables, `ern_rt:tables()`, and of the code table, `ern_code`;
 - `terms`, the persistent terms.
 
-The first six rounds are the warm-up, in which heaps, caches and windows settle, the supervisors' restart window of a second among them. From the seventh on:
+The first six rounds are the warm-up, in which heaps, caches and windows settle, the supervisors' restart window of a second among them. The sockets load runs on one scheduler, since on more a stack of the host's socket buffers can fill after the warm-up, and on one its one stack holds what each round has outstanding (*Socket buffers* below). From the seventh round on:
 
 - the code, the atoms, processes, ports, rows, persistent terms and the reaper's memory may not grow at all, the last sample against the first;
 - the node's memory may not grow by more than 128 KB, the mean of the last three samples against the mean of the first three.
@@ -48,13 +48,15 @@ The loads show only what they exercise, so the code is read too, for what a long
 
 Something may be kept as long as a program holds what it stands for: a socket until `Tcp.close`, a running program until it is killed, `Os.run`'s once it has read the exit status, a checker (report §8.4) for as long as the process behind it (the log's *A Check at the Boundary Lasts as Long as Its Process*). What nothing can use again is a defect. A limit the report states, as §11.2's history of a thousand inputs, is a rule and not a cap.
 
-### The host's code and atoms
+### What the host keeps
 
 **The host's code.** OTP keeps an entry for each lambda of each distinct version of a module it loads, for as long as the node lives. It shows as `code` that rises with every new version of a module, and not with a version loaded again. New versions come from the shell's inputs and loads, from code that arrives from peers, and from `Code.load`. The log's *The Shell's Code Memory* has the figures.
 
 **The host's limits.** The host's counts of module names, export entries, lambdas and atoms never fall, and each has a limit, which the runtime says a load nears and which no load passes (report §11.2). The runtime watches them by sums kept beside the code table, a row a count in `ern_code_sums`.
 
 **Atoms.** The host never frees an atom, so what makes one is read for as well as counted. A running program makes none from what it is given. The shell makes them of the inputs it runs, and none of text that is typed and not run. The log's *Atoms, Counted* has what each costs.
+
+**Socket buffers.** The host's inet driver keeps up to 14 released receive buffers on each scheduler, of 9,216 bytes each and 1 MiB at most, for the next reads of any socket. No process references them, so they show as `binary` memory that a collection leaves, up to about 130 KB a scheduler, 3 MB on 24 schedulers. A buffer released on another scheduler than the one that took it moves between their stacks, so a stack fills once the host first gives its scheduler a socket's work, which may come at any time (the log's *The Sockets Load on One Scheduler*).
 
 ### The shell
 

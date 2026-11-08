@@ -54,8 +54,7 @@ items 8, 9, 13, 15, 16, 21, 28 and 30, are discussed early, so that no build wai
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*):
 
-1. Items 22, 31, 17 and 26, each by an item session, item 20 done. Item 22's warm-up is
-   measured on item 20's build, which changed what a node loads in its first rounds.
+1. Items 31, 17 and 26, each by an item session, items 20 and 22 done.
 2. One design session for what no test checks: item 21's decision, item 30's, item 19's
    question whether a hangup is told from a read that fails, item 29's sentence of §10, and
    item 16's proposal with its cold reading.
@@ -206,11 +205,9 @@ reader S reads of its live shell. The release note's line on the installed layou
     finds them, and a process found by its site alone can be killed and not moved, since a
     `Process` cannot be sent to (§6.5). Whether the operator gets a way to reach such a process
     is decided against §6.5's decision that an address is the permission to send.
-22. **The sockets load's warm-up on nike.** `make load` fails on it in about half its runs, on the
-    commit before item 2 as well: the node's memory steps for about twenty rounds, then stays flat
-    over forty-two, past the six rounds the load counts as its warm-up (the log's *A Wait
-    Collects*). The warm-up is measured on nike and set to what the steps need, the bound of
-    `docs/memory_checks.md` unchanged, so that the release's run of the loads means something.
+22. **The sockets load on nike**, done 2026-11-08 (the log's *The Sockets Load on One
+    Scheduler*). Its steps were the host's socket buffers, kept on each scheduler, and the load
+    runs on one, its warm-up and its bound unchanged.
 23. **A segmentation fault of the host in the typed programs**, moved to MVP 4.4's item 5 on
     2026-11-08, whose review decides it (the log's *The Items Left Read Again*).
 24. **The shell's listing under load**, done 2026-11-08 (E.21; the log's *The Host Says

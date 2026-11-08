@@ -50,6 +50,17 @@ main([Name]) ->
 
 launch("shell") ->
     ern_cli:ern(["shell"]);
+launch("sockets") ->
+    %% The host's inet driver keeps up to 14 released receive buffers of
+    %% 9,216 bytes on each scheduler for its next reads, and fills a
+    %% scheduler's stack once the host gives that scheduler a socket's work,
+    %% which it may do in any round: on 24 schedulers the memory stepped by
+    %% buffers as late as the last rounds of 42, in plain Erlang as in
+    %% Ernest. On one scheduler the one stack holds what a round has
+    %% outstanding at once, the same in every round (the log's *The Sockets
+    %% Load on One Scheduler*).
+    _ = erlang:system_flag(schedulers_online, 1),
+    ern_cli:ern(["run", "build/load/sockets.erc"]);
 launch(Name) ->
     ern_cli:ern(["run", "build/load/" ++ Name ++ ".erc"]).
 
