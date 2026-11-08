@@ -497,6 +497,123 @@ out_of_memory() ->
     ?assertEqual(nomatch, binary:match(Output, <<"main was told">>)),
     ?assertNot(filelib:is_regular(Dir ++ "/erl_crash.dump")).
 
+%% report §12, Appendix E.17, E.18, E.23, G.6, G.8: at the operating
+%% system's limit of open files, which `ulimit -n` makes small, each
+%% request that would open a file answers the host's refusal,
+%% `Left(Other("too many open files"))`: `Tcp.listen`, `Tcp.connect`,
+%% `Tcp.accept` with a connection waiting, `Fs.read`, `Fs.list`,
+%% `Os.start`, `Os.startTerminal` and `Os.run`; a library's host module
+%% and a shim's, called first at the limit, answer, `Base64`'s loaded with
+%% its unit and `Json`'s with the runtime; a fault is reported, its time
+%% and its trace, with nothing of the host's beside it, and its `Down`
+%% delivered; a run's first `Tcp.listenTls` answers the host's reason,
+%% which names a file of its own as not found (E.18); and once three
+%% listeners are closed and ended, the waiting connection is accepted and
+%% TLS starts.
+%%
+%% A regression test, written after the fix: the accept neither answered
+%% nor ended, `Os.start` faulted as its helper's failure, and a fault's
+%% report crashed the host's formatter. It does not cover a node at the
+%% limit, whose acceptor the host's `net_kernel` restarts at once
+%% (docs/otp_bugs.md, 14), a TLS handshake at the limit, nor the system's
+%% own limit of files, `enfile`.
+file_limit_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun file_limit/0).
+
+file_limit() ->
+    Dir = "build/file_limit",
+    ok = filelib:ensure_path(Dir ++ "/"),
+    #{server := {Certificate, Key}} = ern_tcp_tests:pki(),
+    {ok, _} = file:copy(Certificate, Dir ++ "/cert.pem"),
+    {ok, _} = file:copy(Key, Dir ++ "/key.pem"),
+    ok = file:write_file(Dir ++ "/limit.ern", <<"
+// Listeners opened until the host refuses one, which is said, each kept, so
+// that the run's files stay at the operating system's limit.
+fn filled(listeners : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.ListenerMsg)) =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(listener) -> filled(listener :: listeners)
+      | Left(error) -> {
+            Io.println(\"listen: \" <> Io.show(error));
+            listeners
+        }
+    }
+
+fn cat() : Os.Command =
+    Os.Command(program = \"cat\", arguments = [], input = <<>>, environment = [],
+               workingDirectory = Os.workingDirectory)
+
+// What an open answered, its socket or its listener left out.
+fn opened(answer : Either(Io.Error, Address(m))) : Either(Io.Error, Unit) =
+    Either.map(answer, fn(_) = Unit)
+
+fn closed(listener : Address(Tcp.ListenerMsg)) : Unit receiving Down = {
+    monitor(Process.fromAddress(listener), fn(down) = down);
+    Tcp.closeListener(listener);
+    receive { _ -> Unit }
+}
+
+fn tls() : Either(Io.Error, Unit) =
+    opened(Tcp.listenTls(\"127.0.0.1\", 0, Path.join([\"cert.pem\"]), Path.join([\"key.pem\"])))
+
+// A connection to the door, made before the limit, then each request at it.
+fn knocked(door : Address(Tcp.ListenerMsg), port : Int) : Unit receiving Down = {
+    Io.println(\"client: \" <> Io.show(opened(Tcp.connect(\"127.0.0.1\", port, 5000))));
+    let listeners = filled([]);
+    Io.println(\"connect: \" <> Io.show(opened(Tcp.connect(\"127.0.0.1\", port, 5000))));
+    Io.println(\"accept: \" <> Io.show(opened(Tcp.accept(door, 5000))));
+    Io.println(\"read: \" <> Io.show(Either.map(Fs.read(Path.join([\"limit.ern\"]), 5000),
+                                               fn(_) = Unit)));
+    Io.println(\"list: \" <> Io.show(Either.map(Fs.list(Path.join([\".\"]), 5000), fn(_) = Unit)));
+    Io.println(\"start: \" <> Io.show(opened(Os.start(cat()))));
+    let size = Terminal.Size(rows = 24, columns = 80);
+    Io.println(\"startTerminal: \" <> Io.show(opened(Os.startTerminal(cat(), size))));
+    Io.println(\"run: \" <> Io.show(Either.map(Os.run(cat(), 5000), fn(_) = Unit)));
+    Io.println(\"encode: \" <> Base64.encode(<<1, 2, 3>>));
+    Io.println(\"parse: \" <> Io.show(Either.map(Json.parse(\"[1]\"), Json.encode)));
+    Io.println(\"listenTls: \" <> Io.show(tls()));
+    let _ = spawnMonitored(fn() = Io.println(Int.toString(10 / List.size([]))), fn(down) = down);
+    receive { down -> Io.println(\"down: \" <> Io.show(down.reason)) };
+    match listeners {
+        first :: second :: third :: _ -> {
+            closed(first);
+            closed(second);
+            closed(third);
+            Io.println(\"after a close: \" <> Io.show(opened(Tcp.accept(door, 5000))));
+            Io.println(\"after a close: \" <> Io.show(tls()))
+        }
+      | _ -> Unit
+    }
+}
+
+export fn main() : Unit receiving Down =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(door) -> match Tcp.port(door) {
+            Right(port) -> knocked(door, port)
+          | Left(error) -> Io.println(Io.show(error))
+        }
+      | Left(error) -> Io.println(Io.show(error))
+    }
+">>),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/limit.ern"),
+    {Status, Output} = sh("sh -c 'cd " ++ Dir ++ " && ulimit -n 64"
+                          " && ../../../bin/ern run limit.erc 2> stderr.txt'"),
+    ?assertEqual(0, Status),
+    Refused = "Io.Other(\"too many open files\")",
+    ?assertEqual(["client: Right(Unit)", "listen: " ++ Refused,
+                  "connect: Left(" ++ Refused ++ ")", "accept: Left(" ++ Refused ++ ")",
+                  "read: Left(" ++ Refused ++ ")", "list: Left(" ++ Refused ++ ")",
+                  "start: Left(" ++ Refused ++ ")", "startTerminal: Left(" ++ Refused ++ ")",
+                  "run: Left(" ++ Refused ++ ")", "encode: AQID", "parse: Right(\"[1]\")",
+                  "listenTls: Left(Io.Other(\"{ssl,{\\\"no such file or directory\\\","
+                  "\\\"ssl.app\\\"}}\"))",
+                  "down: Fault(\"division by zero\")", "after a close: Right(Unit)",
+                  "after a close: Right(Unit)", ""],
+                 string:split(unicode:characters_to_list(Output), "\n", all)),
+    {ok, Said} = file:read_file(Dir ++ "/stderr.txt"),
+    ?assertMatch({match, _},
+                 re:run(Said, "\\A[0-9T:.-]+Z Limit\\.knocked:[0-9]+ faulted: division by zero\n"
+                              "    erlang:'div'/2\n    Limit\\.knocked:[0-9]+\n\\z")).
+
 %% report §8.6, §12.4, §11.2: the host's interrupt ends a running program at once,
 %% printing nothing of its own, with status 128 plus the signal's number.
 %% The run is started from here rather than by a shell, which would start

@@ -502,6 +502,10 @@ What the runtime does behind the rules of §7 to §9, which a program relies on 
 
 The runtime runs one scheduler, and one scheduler for the host's long native calls, for each processor its program may run on as it starts: the processors online, within those the operating system lets it use. A processor brought online later is used from the next start.
 
+The operating system limits the files a run holds open, as `ulimit -n` sets the limit, its sockets, its listeners and the programs it starts among them. The limit leaves the system processes, a fault's report and the end able to run: a run loads at its start the toolchain's own Erlang that a run calls, the runtime's and the shims of its libraries (Appendix G), each module with the host's modules it calls, and loads each unit with every module its code calls, its foreign functions' among them (§8.4).
+
+An operation that would open a file beyond the limit answers the host's refusal, `Left(Other("too many open files"))` (Appendix E.1), and the process that took it lives on. The host's TLS is loaded whole at a run's first use of it (Appendix E.18). A module that only a foreign module calls is loaded at its first call, and a call that the limit leaves the host unable to load faults as a call to a module the host lacks does (§8.4).
+
 ### 12.1 The system processes
 
 The system processes of §8.2, what each does with what its module asks.

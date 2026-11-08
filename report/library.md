@@ -664,6 +664,8 @@ A socket `accept` answers on such a listener is accepted before its handshake, w
 
 `connectTls` answers once its handshake is done, within its milliseconds, or the `Left` the handshake failed with, `Other(text)`; a file of certificates it cannot read or refuses answers as `listenTls`'s files do, read before the dial, so that its answer comes whatever the far end does.
 
+A run's first `listenTls` or `connectTls` starts the host's TLS and loads its code whole (§12). Where the host cannot start it, the call answers `Left(Other(text))`, the host's reason, and where it cannot load a module of it, `Left(Other("the host could not load m"))`, `m` the module's name; a later call tries again. At the limit of open files (§12) the host gives a file of its own that it could not read as one not found, `Other("{ssl,{\"no such file or directory\",\"ssl.app\"}}")`.
+
 With `Verified(caFile)` the far end's certificate is checked against the certificates in the file, which is in PEM, passing where its chain leads to a certificate the file holds or where the file holds the far end's own certificate, self-signed or not, and for naming `host`, a name the certificate gives by a wildcard among them, as a browser matches one, or an address the certificate gives where `host` is an address, and the handshake fails where either check does; with `Unverified` it is not checked. A name is sent to the far end as the server name; an address is not. The versions and the ciphers are the host's own, TLS 1.2 and 1.3.
 
 The host's process of a connection over TLS hibernates after a millisecond's wait, by the host's own `hibernate_after`.

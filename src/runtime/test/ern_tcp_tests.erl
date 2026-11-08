@@ -1344,6 +1344,23 @@ listen_tls_refused_test() ->
                   Refused(Dir, "NotAFile")],
                  wait(listened)).
 
+%% report Appendix E.18, §12: a run's first request over TLS loads the
+%% host's TLS whole, every module of ssl and of the applications it starts
+%% with it, before the request is made, so that a handshake at the limit
+%% of open files finds its code. A regression test, written after the fix:
+%% the first handshake at the limit answered `Left(Closed)`. It does not
+%% cover the handshake at the limit itself, nor a load the limit refuses.
+tls_loaded_whole_test() ->
+    #{server := Files} = pki(),
+    Self = self(),
+    ok = quietly(fun() -> Self ! {listened, listen_tls(0, Files)} end),
+    ?assertMatch({'Right', _}, wait(listened)),
+    Modules = lists:append([Modules || Application <- [crypto, asn1, public_key, ssl],
+                                       {ok, Modules} <- [application:get_key(Application,
+                                                                             modules)]]),
+    ?assertNotEqual([], Modules),
+    ?assertEqual([], [Module || Module <- Modules, not erlang:module_loaded(Module)]).
+
 %% report Appendix E.17, E.18: `connectTls` to a port where nothing listens
 %% answers `Left(Refused)`, as `connect` does; to one whose far end does not
 %% shake hands within its milliseconds `Left(Timeout)`; a file of

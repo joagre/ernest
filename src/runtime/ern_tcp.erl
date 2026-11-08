@@ -113,21 +113,49 @@ serve(Tcp, Tls) ->
             serve(Tcp, Tls)
     end.
 
-%% Report Appendix E.18: a request over TLS, made once the host's ssl is
-%% started, which the first such request of a launch starts where nothing
-%% has, a node's carrier among them, whose distribution runs without it.
-%% A start that fails answers the request with the host's reason, and the
-%% next request tries again.
+%% Report Appendix E.18, §12: a request over TLS, made once the host's ssl
+%% is started and its code loaded whole (tls_loaded/0), which the first
+%% such request of a launch does where nothing has, a node's carrier among
+%% them, whose distribution runs without it. A start that fails answers
+%% the request with the host's reason, a load that fails with the module
+%% the host could not load, and the next request tries again.
 with_ssl(started, _, Request) ->
     Request(),
     started;
 with_ssl(unstarted, Reply, Request) ->
     case application:ensure_all_started(ssl) of
         {ok, _} ->
-            with_ssl(started, Reply, Request);
+            case tls_loaded() of
+                ok ->
+                    with_ssl(started, Reply, Request);
+                {error, Module} ->
+                    ern_rt:answer(Reply, {'Left', {'Other', <<"the host could not load ",
+                                                              Module/binary>>}}),
+                    unstarted
+            end;
         {error, Error} ->
             ern_rt:answer(Reply, {'Left', ern_io:other(Error, fun ssl:format_error/1)}),
             unstarted
+    end.
+
+%% Report §12: the host's TLS loaded whole, ssl's modules and those of the
+%% applications it starts with it, as OTP 29 has them, so that a handshake
+%% at the limit of open files finds its code. A request over TLS may come
+%% near the limit, so the modules are loaded one at a time, each holding
+%% one file: the host's loader of a list reads its files at once, and
+%% fails with files to spare. The host's loader gives no reason a module
+%% could not be loaded (docs/otp_bugs.md, 13).
+tls_loaded() ->
+    loaded_each(lists:append([Modules || Application <- [crypto, asn1, public_key, ssl],
+                                         {ok, Modules} <- [application:get_key(Application,
+                                                                               modules)]])).
+
+loaded_each([]) ->
+    ok;
+loaded_each([Module | Modules]) ->
+    case code:ensure_loaded(Module) of
+        {module, Module} -> loaded_each(Modules);
+        {error, _} -> {error, atom_to_binary(Module)}
     end.
 
 %% A worker of its own for a request, which Work carries out and answers.

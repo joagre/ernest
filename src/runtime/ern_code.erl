@@ -50,7 +50,8 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, load/3, load/4, documented/1, chunk/1,
+-export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, load/3, load/4, documented/1,
+         chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
          holder/1, ground/1, grounded/1, forms/1,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
@@ -153,6 +154,44 @@ own_file(Module) ->
 -spec own_builds() -> [file:filename()].
 own_builds() ->
     [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown", "libs/ets"]].
+
+%% Report §12: what a run loads at its start, so that the limit of open
+%% files leaves its system processes, a fault's report and its end able to
+%% run: the toolchain's own Erlang of the run's side (ern_tree:run_code/0),
+%% each module with the host's modules it calls, and the host's modules
+%% that the runner's report and the host's own call as a report is made,
+%% which no table of the run's side names: a fault line's time (calendar),
+%% a reason's text (file:format_error/1) and a term's (io_lib:format/2's
+%% `~p`). The compiler, the shell, the host's TLS and what a foreign module
+%% calls are loaded at their first call. The libraries' shims are on the
+%% host's code path from here, first after the toolchain's own, as the
+%% runner puts them (ern_cli:host_path/1).
+-spec load_runtime() -> ok.
+load_runtime() ->
+    ok = code:add_pathsz(ern_tree:libraries()),
+    Files = ern_tree:run_code(),
+    Own = [list_to_atom(filename:basename(File, ".beam")) || File <- ern_tree:own_code()],
+    Host = [Called || File <- Files, Called <- absent_calls(File), not lists:member(Called, Own)],
+    ok = code:ensure_modules_loaded([list_to_atom(filename:basename(File, ".beam"))
+                                     || File <- Files]),
+    _ = code:ensure_modules_loaded(lists:usort([calendar, erl_posix_msg, io_lib_pretty | Host])),
+    ok.
+
+%% Report §12, §8.4: the modules a compiled form's code calls, loaded where
+%% the host holds none of them, a unit's foreign functions' among them, so
+%% that the limit of open files finds them loaded. A module the host does
+%% not find is left to its first call, which faults as one the host lacks
+%% does (§8.4); a unit it calls is its loader's (load/3, ensure_loaded/1).
+calls_loaded(Beam) ->
+    _ = code:ensure_modules_loaded(absent_calls(Beam)),
+    ok.
+
+%% The modules a compiled form's code calls that the host holds none of,
+%% units aside, read from the form or from its file.
+absent_calls(Compiled) ->
+    {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Compiled, [imports]),
+    lists:usort([Module || {Module, _, _} <- Imports, not erlang:module_loaded(Module),
+                           not lists:prefix("ern@", atom_to_list(Module))]).
 
 %% Whether a file is there, asked raw.
 is_regular(File) ->
@@ -280,7 +319,8 @@ chunks() ->
 %% digest, the keys of its rows, and the units its code calls, none for a
 %% unit whose '$code'/0 lists none, as a shell's holder of values. What the
 %% unit adds to the host's counts is added to their sums (summed/1), read
-%% from its compiled form.
+%% from its compiled form, and the modules its code calls are loaded with
+%% it (calls_loaded/1).
 -spec loaded(module(), binary()) -> ok.
 loaded(Unit, Beam) ->
     loaded(Unit, Beam, none).
@@ -290,6 +330,7 @@ loaded(Unit, Beam) ->
 %% it, which is kept in a row of its own.
 -spec loaded(module(), binary(), #recorded{} | none) -> ok.
 loaded(Unit, Beam, Recorded) ->
+    ok = calls_loaded(Beam),
     case erlang:function_exported(Unit, '$code', 0) of
         true -> fill(Unit, Unit:module_info(md5), Beam, Recorded);
         false -> ok

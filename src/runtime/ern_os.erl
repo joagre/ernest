@@ -89,9 +89,10 @@ site({terminal, _}) -> <<"Os.startTerminal">>.
 %% and Kind `pipes`, or `{terminal, Size}` with Size `Terminal.Size(rows,
 %% columns)`. Report Appendix E.23: what the host cannot take, and a count
 %% of rows or columns it cannot take, are `Left(Invalid)`. Report §12.5,
-%% Appendix E.23: a host that holds as many ports as its limit refuses the
-%% helper's, and the start answers that refusal in the host's words, as Tcp
-%% answers its own; any other failure to open the helper is the helper's.
+%% §12, Appendix E.23: a host that holds as many ports as its limit, or as
+%% many files as the operating system's, refuses the helper's, and the
+%% start answers that refusal in the host's words, as Tcp answers its own;
+%% any other failure to open the helper is the helper's.
 start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, Kind, Owner,
       Reply) ->
     case is_taken(Program, Arguments, Environment, Directory) andalso is_size_taken(Kind) of
@@ -111,9 +112,8 @@ start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, 
                     command(Helper, <<"c", Parts/binary>>),
                     wait_for_start(Helper, Input, Kind =/= pipes, Directory, Owner, Reply)
             catch
-                error:system_limit ->
-                    end_source(Reply, {'Left', ern_io:host_error(system_limit,
-                                                                 fun file:format_error/1)});
+                error:Limit when Limit =:= system_limit; Limit =:= emfile; Limit =:= enfile ->
+                    end_source(Reply, {'Left', ern_io:host_error(Limit, fun file:format_error/1)});
                 error:_ ->
                     end_source(Reply, helper_failed())
             end

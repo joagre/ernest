@@ -957,7 +957,7 @@ config_options() ->
 
 run(Options, [File | Words], ErrorDevice) ->
     Arguments = program_arguments(Words, 1),
-    quiet_signals(),
+    run_started(),
     Say = ern_build:verbose(Options, ErrorDevice),
     {Namespace, LoadPath, Loaded} = program(File, Options, Say),
     as_node(Options, LoadPath, Say,
@@ -969,7 +969,7 @@ run(Options, [], ErrorDevice) ->
     %% report §8.1, §11.2: --main names a function of the file, and a bare
     %% node has no entry point
     not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(run)),
-    quiet_signals(),
+    run_started(),
     LoadPath = ern_build:load_path(Options),
     host_path(LoadPath),
     as_node(Options, LoadPath, ern_build:verbose(Options, ErrorDevice), bare,
@@ -1006,7 +1006,7 @@ waits() ->
 %% Report §11.2: the tests of a module, or of every module under a
 %% directory.
 test(Options, [Path], ErrorDevice) ->
-    quiet_signals(),
+    run_started(),
     Say = ern_build:verbose(Options, ErrorDevice),
     case filelib:is_dir(Path) of
         true ->
@@ -1129,7 +1129,7 @@ config(_Options, _Rest, _ErrorDevice) ->
 %% the modules, put their interfaces in the session's scope, and run their
 %% initializers (§8.5) before the shell starts.
 shell(Options, Rest, ErrorDevice) ->
-    quiet_signals(),
+    run_started(),
     %% report §11.2: an attached shell takes no file and no load path, which
     %% are the node's, and attaches from a node of its own
     case proplists:get_value(attach, Options) of
@@ -1543,6 +1543,13 @@ config_startup(Options) ->
         ConfigDir -> filename:join(ConfigDir, "startup")
     end.
 
+%% Report §12: a run's start, before it reads a file of its own: the host's
+%% signals quieted, and the toolchain's own Erlang of the run's side loaded
+%% (ern_code:load_runtime/0).
+run_started() ->
+    quiet_signals(),
+    ern_code:load_runtime().
+
 %% Report §8.6, §12.4: the host's termination and hangup end the program as the
 %% end of its entry process does, and the runtime prints nothing of its own
 %% about them (ern_signals).
@@ -1550,8 +1557,8 @@ quiet_signals() ->
     ok = ern_signals:install(),
     %% the host logs its own note about a signal at notice level, and a
     %% program's output is not to be mixed with it; a warning or an error
-    %% from the host still comes through, but its report of a spawn beyond
-    %% its limit of processes (limit_filter/2)
+    %% from the host still comes through, but its reports at its limits
+    %% (limit_filter/2)
     _ = logger:set_handler_config(default, level, warning),
     _ = logger:add_primary_filter(?MODULE, {fun ?MODULE:limit_filter/2, []}),
     ok.
@@ -1559,10 +1566,14 @@ quiet_signals() ->
 %% Report §12.1, §7.4, §12.5: the host's own report of a spawn beyond its
 %% limit of processes, which its handler writes to standard output among
 %% what the program wrote there, is dropped: the spawn faults its asker,
-%% whose fault's line says it (§11.2).
+%% whose fault's line says it (§11.2). Report §12, §11.2: so is its
+%% loader's report of a file it could not read, a module's at the limit of
+%% open files among them: the load's caller answers or faults.
 -spec limit_filter(logger:log_event(), term()) -> logger:filter_return().
 limit_filter(#{msg := {"~s~n", ["Too many processes\n"]},
                meta := #{error_logger := #{emulator := true}}}, _) ->
+    stop;
+limit_filter(#{msg := {report, #{label := {erl_prim_loader, file_error}}}}, _) ->
     stop;
 limit_filter(_Event, _) ->
     ignore.

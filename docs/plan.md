@@ -54,8 +54,8 @@ items 8, 9, 13, 15, 16, 21, 28 and 30, are discussed early, so that no build wai
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*):
 
-1. Items 20, 22, 31, 17 and 26, each by an item session. Item 22's warm-up is measured after
-   item 20, since item 20 changes what a node loads in its first rounds.
+1. Items 22, 31, 17 and 26, each by an item session, item 20 done. Item 22's warm-up is
+   measured on item 20's build, which changed what a node loads in its first rounds.
 2. One design session for what no test checks: item 21's decision, item 30's, item 19's
    question whether a hangup is told from a read that fails, item 29's sentence of §10, and
    item 16's proposal with its cold reading.
@@ -195,15 +195,10 @@ reader S reads of its live shell. The release note's line on the installed layou
     terminal's hangup may come that way, as `eio`, beside the hangup's signal, which §8.6 ends
     the program by, so faulting there would turn the hangup's end into a fault. Whether the
     error is told from a hangup, or §12.1 says the keys end at one, is decided first.
-20. **The runtime at the host's limit of descriptors**, feedback 234, ernest-httpd's 26, found
-    2026-11-04, fixed by 2026-11-12: the runtime loads its own modules, and the host's it calls,
-    on first use, so under `ulimit -n 48` an accept that meets `emfile` cannot load what answers
-    it: the accept neither answers nor ends, `Fs` answers `Timeout` after its full time, the
-    logger's formatter crashes, and a fault is a raw host term. A probe here shows it first.
-    The runtime then loads every module it may call at its start, the host's among them, and
-    the report says what a load does when the host cannot open a module's file, item 1's rule
-    applied to the third of the host's limits. ernest-httpd's test of its listener's retry
-    waits on it (the log's *A Node's Limits*).
+20. **The runtime at the host's limit of descriptors**, done 2026-11-08 (§12, E.18, E.23; the log's
+    *The Runtime at the Limit of Open Files*). A run loads at its start the toolchain's own Erlang
+    of the run's side with the host's modules it calls, a unit loads with the modules it calls, and
+    TLS loads whole at its first request; every request at the limit answers the host's refusal.
 21. **A process a fix leaves out of reach**, a decision for the user, raised by the release
     review before 0.8.0 (the log's *The Release Review Before 0.8.0*, L1), moved here from the
     `:trace` proposal on 2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*). A fix inside a loop's
@@ -270,6 +265,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     module of the node's own over the host's TLS one, whose accept closes a connection the table
     leaves no room for and says so, as an accept at a full table of ports closes its connection
     (§12.5).
+
+    An accept at the limit of open files ends the host's acceptor too, which `net_kernel`
+    restarts at once, spinning a scheduler while the connection waits (`docs/otp_bugs.md`, 14, the
+    log's *The Runtime at the Limit of Open Files*). The node's own acceptor does not spin, and what
+    it waits on for a file, which the host does not signal, is this item's decision.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

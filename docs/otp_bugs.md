@@ -592,3 +592,107 @@ OTP 29, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.
 **Additional context**
 
 The emulator's own `Too many processes` report is printed for each refused spawn as well. A node can refuse the connection itself only where its distribution module catches the limit in `accept_connection`, which the stock modules leave to `net_kernel`.
+
+## 13. At the limit of open files the code server answers `nofile`, and the application controller "no such file or directory"
+
+Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); Ernest loads what its runtime calls at a run's start (report §12), and the host's TLS whole at its first use, which meets this where the limit has been reached first.
+
+**Title:** code:ensure_loaded/1 answers {error,nofile} and application:load/1 "no such file or directory" when the process has no file descriptor left
+
+**Describe the bug**
+
+When the process holds as many files as the operating system lets it, `file:read_file/1` answers `{error, emfile}`, but `code:ensure_loaded/1` of a module on the code path answers `{error, nofile}`, as for a module that does not exist. The code server then lists every directory of the code path again, each listing failing with `emfile` and each logged as its own error report. `application:load/1` answers `{error, {"no such file or directory", "ssl.app"}}` where `erl_posix_msg` is loaded, and `{error, {undef, [{erl_posix_msg, message, [enoent], []} | _]}}` where it is not, so that the reason it gives is neither the right one nor its own. A caller cannot tell a missing module from a full table of descriptors, and cannot tell its own caller why the load failed.
+
+**To Reproduce**
+
+A shell whose limit of open files is 64, listeners opened until the limit, then a load:
+
+```sh
+(ulimit -n 64; erl -noshell -eval '
+    Fill = fun F(Held) -> case gen_tcp:listen(0, []) of
+                              {ok, S} -> F([S | Held]);
+                              {error, Why} -> {Why, Held}
+                          end end,
+    {Why, Held} = Fill([]),
+    Loaded = code:ensure_loaded(calendar),
+    App = application:load(ssl),
+    Read = file:read_file("/etc/hostname"),
+    [gen_tcp:close(S) || S <- Held],
+    io:format("listen: ~p~nensure_loaded: ~p~napplication:load: ~p~nread_file: ~p~n",
+              [Why, Loaded, App, Read]),
+    halt().')
+```
+
+It prints an error report for `calendar.beam`, one for each directory of the code path, `File operation error: emfile. Target: .../lib/ssl-11.7.8/ebin. Function: list_dir. Process: code_server.`, and one for `erl_posix_msg.beam` from the application controller, and then:
+
+```
+listen: emfile
+ensure_loaded: {error,nofile}
+application:load: {error,
+                      {undef,
+                          [{erl_posix_msg,message,[enoent],[]},
+                           {application_controller,make_appl,1, ...}, ...]}}
+read_file: {error,emfile}
+```
+
+**Expected behavior**
+
+`code:ensure_loaded/1` answers `{error, emfile}`, as `file:read_file/1` does, and does not list the code path again for a read that failed for a reason other than a missing file; `application:load/1` answers the read's reason, `emfile`, without describing it as `enoent`.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, kernel 11.0.4, stdlib 8.1.1, on Linux x86_64.
+
+**Additional context**
+
+`erl_prim_loader:check_file_result/3` logs the read's reason and answers `error`, which the code server turns into `nofile`, and the application controller's `make_appl/1` describes any failed read of an `.app` file as `enoent`.
+
+## 14. `net_kernel` spins while a connection waits at the limit of open files
+
+Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); Ernest's nodes run over `inet_tls_dist`, whose acceptor does the same, and plan item 31 gives a node a distribution module of its own.
+
+**Title:** net_kernel restarts the acceptor at once after an accept fails with emfile, and spins on a scheduler while the connection waits
+
+**Describe the bug**
+
+When a node holds as many files as the operating system lets it and another node connects, the acceptor's `inet_tcp:accept/1` answers `{error, emfile}`, `inet_tcp_dist:accept_loop/3` exits with it, and `net_kernel`'s `accept_exit/3` starts a new acceptor at once, which meets the same error. The connection stays in the listener's queue, so the loop runs until a descriptor is free, on a scheduler of its own: the node spends most of a processor doing nothing, and nothing says why.
+
+**To Reproduce**
+
+A node whose limit of open files is 64, listeners opened until the limit and held for three seconds, and a second node that pings it:
+
+```sh
+(ulimit -n 64; erl -sname spin_a -setcookie c -noshell -eval '
+    Fill = fun F(Held) -> case gen_tcp:listen(0, []) of
+                              {ok, S} -> F([S | Held]);
+                              {error, _} -> Held
+                          end end,
+    Held = Fill([]),
+    {_, _} = erlang:statistics(runtime),
+    receive after 3000 -> ok end,
+    {_, Busy} = erlang:statistics(runtime),
+    [gen_tcp:close(S) || S <- Held],
+    io:format("cpu over 3 s at the limit: ~p ms~n", [Busy]),
+    halt().' > a.txt 2>&1) &
+sleep 1
+erl -sname spin_b -setcookie c -noshell -eval '
+    {ok, H} = inet:gethostname(),
+    io:format("ping ~p~n", [net_adm:ping(list_to_atom("spin_a@" ++ H))]),
+    halt().'
+wait
+cat a.txt
+```
+
+The full node prints `cpu over 3 s at the limit: 1935 ms`; without the second node it prints `4 ms`. The ping answers `pong` once the listeners are closed.
+
+**Expected behavior**
+
+An accept that fails for want of a descriptor is retried after a wait, or once a descriptor is freed, and the failure is logged once, so that a node at its limit stays idle while the connection waits.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, kernel 11.0.4, on Linux x86_64.
+
+**Additional context**
+
+`inet_tls_dist`'s acceptor exits on the same error, and `net_kernel` restarts it the same way.

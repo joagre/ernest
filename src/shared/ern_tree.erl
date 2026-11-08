@@ -6,7 +6,7 @@
 %% (docs/design/install.md).
 -module(ern_tree).
 
--export([tree/0, build/1, libraries/0, code_path/0, own_code/0]).
+-export([tree/0, build/1, libraries/0, code_path/0, own_code/0, run_code/0]).
 
 %% The tree, found from where this module was loaded, its build/shared/ebin.
 -spec tree() -> file:filename().
@@ -48,6 +48,17 @@ code_path() ->
 -spec own_code() -> [file:filename()].
 own_code() ->
     [Beam || Directory <- code_path() ++ libraries(),
+             Beam <- filelib:wildcard(filename:join(Directory, "*.beam"))].
+
+%% Report §12: the toolchain's own Erlang of a run's side, which a run loads
+%% at its start (ern_code:load_runtime/0): the .beam files of the
+%% runtime's, the nodes' and the shared directories and each library's
+%% shim. The runner's is loaded as its job starts, and the compiler's and
+%% the shell's at their first call.
+-spec run_code() -> [file:filename()].
+run_code() ->
+    [Beam || Directory <- [build(Root ++ "/ebin") || Root <- ["runtime", "nodes", "shared"]]
+                              ++ libraries(),
              Beam <- filelib:wildcard(filename:join(Directory, "*.beam"))].
 
 %% A path's segments with `.` and `..` resolved, since the code path a
