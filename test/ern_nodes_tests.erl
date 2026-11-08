@@ -2024,7 +2024,10 @@ accept_at(Base, Left, Named) ->
         ["a connection from 127.0.0.1:" ++ Port] when Named =:= from_address ->
             ?assertEqual(Refused, string:find(Port, " "));
         Said ->
-            ?assertEqual(["the peer desk" ++ Refused], Said)
+            ?assertEqual(["the peer desk" ++ Refused], Said),
+            %% the line as the deployment guide quotes it
+            ern_deployment_tests:cataloged(StoreErr, "7", "was refused: this node's table of"
+                                           " processes is full", [{"b", "desk"}])
     end,
     %% The host's reports of a refused spawn, which the runner drops by
     %% their form, each name `system_limit`, which no line of the node's does.
@@ -2069,7 +2072,9 @@ accept_at_the_file_limit(Base) ->
     {Out, _} = said(Desk),
     {_, StoreErr} = said(Store),
     ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
-    ?assertEqual(1, length(string:split(StoreErr, "a connection waits", all)) - 1).
+    ?assertEqual(1, length(string:split(StoreErr, "a connection waits", all)) - 1),
+    %% the line as the deployment guide quotes it
+    ern_deployment_tests:cataloged(StoreErr, "7", "a connection waits: too many open files", []).
 
 %% The processor time the node of Dir has spent, in ticks, as Linux counts
 %% a process's user and system time.
