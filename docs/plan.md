@@ -51,13 +51,16 @@ area: the runtime, the standard library's readings, the libraries, the nodes, an
 names last, since they sweep every site of Ernest once. The eight decisions for the user, in
 items 8, 9, 13, 15, 16, 21, 28 and 30, are discussed early, so that no build waits on them.
 
-The items left are built in this order, set 2026-11-08:
+The items left are built in this order, set 2026-11-08 and read again the same day (the log's
+*The Items Left Read Again*):
 
-1. Items 20, 22 and 31, each by an item session.
+1. Items 20, 22, 31, 17 and 26, each by an item session. Item 22's warm-up is measured after
+   item 20, since item 20 changes what a node loads in its first rounds.
 2. One design session for what no test checks: item 21's decision, item 30's, item 19's
    question whether a hangup is told from a read that fails, item 29's sentence of §10, and
    item 16's proposal with its cold reading.
-3. Items 17, 19, 26, 29 and 30, each a report sentence and its build.
+3. Items 19, 29 and 30, each a report sentence and its build, and item 21's build where its
+   decision builds one.
 4. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -176,12 +179,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     shell's completion, and the shell's own sites written short.
 17. **`or` inside a pattern**, feedback 232, decided 2026-11-04: `#(Paste or Load, _) ->` is
     refused as `a tuple has two components or more`, with a help to add a component, which names
-    a problem the code does not have. An `or` stands between a clause's whole patterns and
-    nowhere inside one, as it does today, so §5's pattern section says so in one sentence
-    first, beside "Patterns nest to any depth". The parser then names it: `an or stands between
-    a clause's whole patterns`, the help writing the clause's alternatives out,
-    `#(Paste, _) or #(Load, _)`. Small, and built in no particular order (the log's *An `or`
-    Stands Between Patterns*).
+    a problem the code does not have. §5 says that an `or` stands between a clause's whole
+    patterns (§5.9), beside "Patterns nest to any depth". The parser names it: `an or stands
+    between a clause's whole patterns`, the help writing the clause's alternatives out,
+    `#(Paste, _) or #(Load, _)`. Small (the log's *An `or` Stands Between Patterns*, *The Items
+    Left Read Again*).
 18. **A node's own processes at a full table**, done 2026-11-08 (§11.2, §12.5, E.18, E.21, E.27;
     the log's *A Node's Own Processes at a Full Table*). A socket's closer is made with the
     socket, the gateway's worker for a peer as the connection opens, and a peer's restart is
@@ -214,14 +216,8 @@ reader S reads of its live shell. The release note's line on the installed layou
     over forty-two, past the six rounds the load counts as its warm-up (the log's *A Wait
     Collects*). The warm-up is measured on nike and set to what the steps need, the bound of
     `docs/memory_checks.md` unchanged, so that the release's run of the loads means something.
-23. **A segmentation fault of the host in the typed programs.** On 2026-11-07, one run of `make
-    test-full` on nike ended in a segmentation fault of the host in `make -C test typed`, after
-    30 seconds. No core was kept, and a host that dies prints no seed. The fault did not come
-    again in 172 runs of the target, up to 24 at once with fixed seeds, nor in three runs of
-    `make test-full`. Ernest loads no native code into the host, so the fault is OTP 29's (erts
-    17.1.1). The target now runs with core dumps on, so the next fault leaves its core in `test/`. That
-    core is read with `gdb` and its stack goes to `docs/otp_bugs.md` and to the OTP team; where
-    none comes by the launch's release review, the review decides whether the item stays.
+23. **A segmentation fault of the host in the typed programs**, moved to MVP 4.4's item 5 on
+    2026-11-08, whose review decides it (the log's *The Items Left Read Again*).
 24. **The shell's listing under load**, done 2026-11-08 (E.21; the log's *The Host Says
     Running*). A process that waits is `Running` while the host works in it, as it does in every
     process once code is let go, and the shell's listing tests allow it.
@@ -338,6 +334,17 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    release, since the others copy from it; ernest-epx's, not waiting for its milestone 9; and
    ernest-httpd's, with its readers (the log's *The Floors and the Releases*). Ernest's session
    tells all three the tag by a message, and asks each in turn when the one before it is out.
+
+   The release review decides the segmentation fault of the host in the typed programs, moved
+   from MVP 4.15's item 23. On 2026-11-07, one run of `make test-full` on nike ended in a
+   segmentation fault of the host in `make -C test typed`, after 30 seconds. No core was kept,
+   and a host that dies prints no seed. The fault did not come again in 172 runs of the target,
+   up to 24 at once with fixed seeds, nor in three runs of `make test-full`. Ernest loads no
+   native code into the host, so the fault is OTP 29's (erts 17.1.1).
+
+   The target runs with core dumps on, so the next fault leaves its core in `test/`. That core
+   is read with `gdb` and its stack goes to `docs/otp_bugs.md` and to the OTP team. Where none
+   comes by the review, the review decides whether the watch stays.
 6. **The site live at ernest-lang.org**, last, so that each project it lists builds on the release
    it names, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
    Goes Live With 1.0*), and with the launch's release since 2026-11-05 (the log's *Ernest Stays
