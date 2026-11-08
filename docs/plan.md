@@ -217,14 +217,20 @@ reader S reads of its live shell. The release note's line on the installed layou
     none comes by the launch's release review, the review decides whether the item stays.
 24. **The shell's listing under load.** On 2026-11-07, one run of `make test-full` failed
     `ern_shell_tests:process_live_at_the_prompt` in the shell's area, the four answers it lists not
-    found, and the next run passed. The output was not kept, and the cause is not found. One
-    candidate is `:processes` listing the spawned process before it has reached its `receive`, so
-    that its activity is not yet `receiving`. The test runs under the full run's load until it
-    fails again, its output kept. On 2026-11-08 the candidate held: `:processes` listed the
-    input's process `running`, in this test and in `reload`, and once in 64 runs by hand under a
-    pty, before item 15's build and after it alike (the log's *The Shell Attaches as a Program
-    Spawns Built*). The test waits for the process to receive, as CLAUDE.md's *No fixed sleep*
-    asks, and so does `reload`'s, by 2026-11-12.
+    found, and the next run passed. The output was not kept. One candidate was `:processes`
+    listing the spawned process before it has reached its `receive`, so that its activity is not
+    yet `receiving`.
+
+    On 2026-11-08 the candidate held: `:processes` listed the input's process `running`, in this
+    test and in `reload`, and once in 64 runs by hand under a pty, before item 15's build and
+    after it alike (the log's *The Shell Attaches as a Program Spawns Built*). The test waits for
+    the process to receive, as CLAUDE.md's *No fixed sleep* asks, and so does `reload`'s, by
+    2026-11-12.
+
+    The same day one run of `make test-full` failed `load_keeps_what_bindings_open`,
+    `Greeter.acceptor:21 calling` not listed. Its output was not kept, 128 runs under a pty did
+    not repeat it, and its cause is not found; the item's fix keeps a failing listing's output, so
+    the next run shows it.
 25. **A capture's write-back at the run's end**, found 2026-11-07, fixed by 2026-11-12. One run
     of `make test` in three failed `ern_cli_tests:test_capture_test`: the line a case wrote inside
     `Test.capture` before it faulted did not reach standard error, where E.24 writes it after all.
