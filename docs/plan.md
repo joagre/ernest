@@ -51,6 +51,16 @@ area: the runtime, the standard library's readings, the libraries, the nodes, an
 names last, since they sweep every site of Ernest once. The seven decisions for the user, in
 items 8, 9, 13, 15, 16, 21 and 28, are discussed early, so that no build waits on them.
 
+The items left are built in this order, set 2026-11-08:
+
+1. Item 24 first, since its race turns `make test-full` red, and every later item closes on
+   that run.
+2. Items 25, 18, 20 and 22, each by an item session.
+3. One design session for what no test checks: item 21's decision, item 19's question whether
+   a hangup is told from a read that fails, and item 16's proposal with its cold reading.
+4. Items 17, 19 and 26, each a report sentence and its build.
+5. Item 16's build last.
+
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
 the wait (the log's *Nothing at the Wait*), and that the release answers that
