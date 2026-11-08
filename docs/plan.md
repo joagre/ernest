@@ -48,8 +48,8 @@ What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (t
 the Server Taught*), built after the site's generator (the log's *The Generator Before MVP
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
-names last, since they sweep every site of Ernest once. The six decisions for the user, in
-items 8, 9, 13, 15, 16 and 21, are discussed early, so that no build waits on them.
+names last, since they sweep every site of Ernest once. The seven decisions for the user, in
+items 8, 9, 13, 15, 16, 21 and 28, are discussed early, so that no build waits on them.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -249,6 +249,15 @@ reader S reads of its live shell. The release note's line on the installed layou
 27. **A binding an arrival linked to a fault**, done 2026-11-08 (§12.7; the log's *A Top-Level
     Binding Stays the Node's* and *The Shell Attaches as a Program Spawns Built*). An arrival
     links a binding the node holds to its holder, with its value or not.
+28. **The first attach on a slow machine**, found 2026-11-08 on bee, a decision for the user in a
+    design session by 2026-11-12. The shell waits twice a dial's time for an attach (§11.2), and
+    the node's compile of the shell's code falls inside that wait: 11.2 seconds of its 14 on bee's
+    two cores, so that a loaded bee refuses the first attach while it compiles, and the next
+    succeeds (the log's *The Shell Attaches as a Program Spawns Built*). The decision is the
+    wait's or the compile's. Either the session's half of the wait ends on what it waits for, the
+    session's start, the node's refusal or the connection's loss; or every arrival compiles
+    without `beam_ssa_opt`, two thirds less compile, for code that then runs without the host's
+    optimizer. The deployment guide's first attach changes with it.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

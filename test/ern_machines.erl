@@ -130,7 +130,8 @@ closed(Machines) ->
 %% it, since no node of it would connect to this one's.
 checked(Machines) ->
     Facts = side_by_side(fun facts/1, Machines),
-    Local = maps:get(floor, facts_of(local(Machines), Machines, Facts)),
+    LocalOf = facts_of(local(Machines), Machines, Facts),
+    Local = maps:get(floor, LocalOf),
     lists:foreach(
       fun({Machine, Of}) ->
           io:format("~s, ~s: ~s~n", [ern_machine:name(Machine), ern_machine:host(Machine),
@@ -146,13 +147,27 @@ checked(Machines) ->
     Other =:= []
         orelse ern_machine:fail(
                  io_lib:format("~s stand~s on another floor than ~s, and no node there would"
-                               " connect to one here (report §12.5); test/machines/nodes.sh"
-                               " pull pulls and builds each clone at origin's main",
+                               " connect to one here (report §12.5); ~s",
                                [lists:join(" and ", [ern_machine:name(Machine)
                                                      || {Machine, _} <- Other]),
                                 [$s || length(Other) =:= 1],
-                                ern_machine:name(local(Machines))])),
+                                ern_machine:name(local(Machines)),
+                                remedy([Machine || {Machine, #{otp := Otp}} <- Other,
+                                                   Otp =/= maps:get(otp, LocalOf)],
+                                       LocalOf)])),
     ok.
+
+%% What brings the machines onto this one's floor: a pull where the commit
+%% differs, and where the OTP release differs, that release and a build
+%% from clean, since each release compiles code of its own and make sees
+%% no source changed.
+remedy([], _) ->
+    "test/machines/nodes.sh pull pulls and builds each clone at origin's main";
+remedy(Machines, #{otp := Otp}) ->
+    io_lib:format("~s run~s another OTP release than this machine's ~s, and each release compiles"
+                  " code of its own: OTP ~s there, then make clean and make in the clone",
+                  [lists:join(" and ", [ern_machine:name(Machine) || Machine <- Machines]),
+                   [$s || length(Machines) =:= 1], Otp, Otp]).
 
 facts_of(Machine, Machines, Facts) ->
     {_, Of} = lists:keyfind(Machine, 1, lists:zip(Machines, Facts)),
