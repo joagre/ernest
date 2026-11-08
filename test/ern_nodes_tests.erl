@@ -2026,8 +2026,11 @@ accept_at(Base, Left, Named) ->
         Said ->
             ?assertEqual(["the peer desk" ++ Refused], Said)
     end,
+    %% The host's reports of a refused spawn, which the runner drops by
+    %% their form, each name `system_limit`, which no line of the node's does.
     [?assertEqual(nomatch, string:find(Text, Part))
-     || Text <- [StoreOut, StoreErr], Part <- ["Too many processes", "REPORT", "Error in"]].
+     || Text <- [StoreOut, StoreErr],
+        Part <- ["Too many processes", "REPORT", "Error in", "system_limit"]].
 
 %% report §12, §12.5: a connection a peer opens while the node holds as many
 %% files as the operating system lets it waits unaccepted, the node saying
