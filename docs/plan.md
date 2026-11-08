@@ -249,15 +249,22 @@ reader S reads of its live shell. The release note's line on the installed layou
 27. **A binding an arrival linked to a fault**, done 2026-11-08 (§12.7; the log's *A Top-Level
     Binding Stays the Node's* and *The Shell Attaches as a Program Spawns Built*). An arrival
     links a binding the node holds to its holder, with its value or not.
-28. **The first attach on a slow machine**, found 2026-11-08 on bee, a decision for the user in a
-    design session by 2026-11-12. The shell waits twice a dial's time for an attach (§11.2), and
-    the node's compile of the shell's code falls inside that wait: 11.2 seconds of its 14 on bee's
-    two cores, so that a loaded bee refuses the first attach while it compiles, and the next
-    succeeds (the log's *The Shell Attaches as a Program Spawns Built*). The decision is the
-    wait's or the compile's. Either the session's half of the wait ends on what it waits for, the
-    session's start, the node's refusal or the connection's loss; or every arrival compiles
-    without `beam_ssa_opt`, two thirds less compile, for code that then runs without the host's
-    optimizer. The deployment guide's first attach changes with it.
+28. **The first attach on a slow machine**, found 2026-11-08 on bee, decided the same day in a
+    design session (§8.7, §11.2; the log's *A Node Holds the Shell*), built by an item session by
+    2026-11-12. The shell waits twice a dial's time for an attach (§11.2), and the node's compile
+    of the shell's code fell inside that wait: 11.2 seconds of its 14 on bee's two cores, so that
+    a loaded bee refused the first attach while it compiled, and the next succeeded (the log's
+    *The Shell Attaches as a Program Spawns Built*).
+
+    Neither the wait nor the compile changes: a node holds the shell's definitions of its own release from its start, read from `ern`'s build
+    as it reads its load path's, in scope nowhere, so a shell of that release ships nothing and
+    compiles nothing, and one of another release crosses by the exchange within the wait as today.
+
+    The build is the start's read of the shell's build, held and on no load path a name resolves
+    on; a test that a same-release attach makes no arrival on the node; the read's cost measured
+    on nike and bee against the host's start, 21 ms for the libraries and the shell together on
+    nike; and the nodes, code and shell notes and the deployment guide's §6 line following the
+    code.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
