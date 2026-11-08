@@ -179,13 +179,14 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | `ern_notes` | `ern_rt` | `{{CallerNode, Reply}, Callee, Caller}`, ordered | the notes of calls from other nodes, a compute's among them (§8.7) |
 | `ern_screens` | `ern_rt` | `{Root, Sink}` | each root of a session's on a node a shell is attached to, with the sink of its screen (§12.1, §11.2) |
 | `ern_captures` | `ern_rt` | `{{Head, Order}, Collector}` | each `Test.capture` that runs, by the head of the chain whose writes it takes and the order it began in, with its collector (Appendix E.24) |
+| `ern_collectors` | `ern_rt` | `{Collector}` | each capture's collector that has not ended, which the run's end waits for (Appendix E.24, §8.6) |
 | `ern_spawns` | `ern_peer`, held by the gateway | `{{Node, Ref}, Waiting, Order}`, ordered | the spawns on a peer that wait for an answer (E.27) |
 | `ern_utilizations` | `ern_peer`, held by the gateway | `{Node, Utilization, At, Interval}` | each peer's last telling (E.27) |
 | `ern_code` | `ern_code`, held by the code table's holder | a bag, its keys under *The code table* | the code table (§8.7) |
 | `ern_code_sums` | `ern_code`, beside it | a row for each count | the sums of the host's counts (§11.2) |
 | `ern_shell` | `ern_shell`, held by a holder of its own for the host's life | `{{Root, Key}, Value}`, and the node's `{Key, Value}` | each session's state under the root of its processes, each of its units a row of its own, and the node's: the next session's number, the modules the sessions loaded and their version, each session's address by its root, which a reload is said at, each input unit's name, what a detached session left (§11.2) |
 
-`run_main` makes `ern_rt`'s fourteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory_checks.md`](memory_checks.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
+`run_main` makes `ern_rt`'s fifteen (`tables/0`), each described where `ern_rt` defines it; `make load` counts their rows ([`memory_checks.md`](memory_checks.md)). `ern test`'s `run_tests/6` keeps the running test in a table of its own.
 
 ### The processes
 

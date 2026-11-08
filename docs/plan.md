@@ -53,7 +53,7 @@ items 8, 9, 13, 15, 16, 21 and 28, are discussed early, so that no build waits o
 
 The items left are built in this order, set 2026-11-08:
 
-1. Items 25, 18, 20 and 22, each by an item session.
+1. Items 18, 20 and 22, each by an item session.
 2. One design session for what no test checks: item 21's decision, item 19's question whether
    a hangup is told from a read that fails, item 29's sentence of §10, and item 16's proposal
    with its cold reading.
@@ -228,14 +228,10 @@ reader S reads of its live shell. The release note's line on the installed layou
 24. **The shell's listing under load**, done 2026-11-08 (E.21; the log's *The Host Says
     Running*). A process that waits is `Running` while the host works in it, as it does in every
     process once code is let go, and the shell's listing tests allow it.
-25. **A capture's write-back at the run's end**, found 2026-11-07, fixed by 2026-11-12. One run
-    of `make test` in three failed `ern_cli_tests:test_capture_test`: the line a case wrote inside
-    `Test.capture` before it faulted did not reach standard error, where E.24 writes it after all.
-    The candidate cause, read in `ern_rt` and not yet shown, is that the collector writes the line
-    back by a message once it sees the caller end, and nothing makes the job wait for it, so a
-    fault in the last case can end the job first. A probe under the light run's load shows the
-    cause first; the fix then has the job wait for its collectors, on what it waits for, as
-    CLAUDE.md's *No fixed sleep* asks (the log's *`libs/uri` Built*).
+25. **A capture's write-back at the run's end**, done 2026-11-08 (E.24, §8.6; the log's *A
+    Capture Written Back at the End*). The run's end tells every capture's collector that it ends
+    and waits for it before it flushes the streams, so that what a collector writes back is
+    written.
 26. **`Float.atan2` at the origin**, ernest-epx's one open line, found unread on 2026-11-07,
     decided by 2026-11-12: E.9 states the edges of `sqrt`, `pow`, `log`, `asin` and `acos`, and
     not what `atan2` answers at `#(0.0, 0.0)`, which ernest-epx's `examples/boids.ern` meets where

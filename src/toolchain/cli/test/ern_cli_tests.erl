@@ -3304,6 +3304,40 @@ test_capture_test() ->
                  iolist_to_binary(?capturedOutput)),
     ?assertEqual(<<"shown\nwritten back\n">>, unicode:characters_to_binary(Errors)).
 
+%% report Appendix E.24, §8.6: a capture whose caller the program's end
+%% ends, its caller waiting inside it as `main` returns, writes what it
+%% took to standard error before the run stops its streams, every line in
+%% order. A thousand lines take the collector a thousand writes back, so
+%% that an end that did not wait for it would stop the streams among them.
+%% It does not show the wait for a collector whose caller ended before the
+%% end began, which `test_capture_test`'s faulted case meets under load.
+capture_at_the_end_test() ->
+    Dir = tmp(),
+    File = write(Dir, "held.ern",
+                 ["type HolderMsg = Hold(Reply(Unit))\n"
+                  "fn printLine(number : Int) : Unit =\n"
+                  "    Io.printlnError(Int.toString(number))\n"
+                  "fn holding() : Unit receiving HolderMsg =\n"
+                  "    receive {\n"
+                  "        Hold(reply) -> {\n"
+                  "            let _ = Test.capture(fn() = {\n"
+                  "                List.forEach(List.range(1, 1000), printLine);\n"
+                  "                answer(reply, Unit);\n"
+                  "                holding()\n"
+                  "            });\n"
+                  "            Unit\n"
+                  "        }\n"
+                  "    }\n"
+                  "export fn main() : Unit = {\n"
+                  "    let holder = spawn(holding);\n"
+                  "    Address.callForever(holder, Hold)\n"
+                  "}\n"]),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    {Errors, Status} = standard_error_of(["run", filename:join(Dir, "held.erc")]),
+    ?assertEqual(0, Status),
+    ?assertEqual(iolist_to_binary([[integer_to_list(N), "\n"] || N <- lists:seq(1, 1000)]),
+                 unicode:characters_to_binary(Errors)).
+
 %% report Appendix E.24: `Test.until` runs its test in the caller's
 %% process, once where the first run passes and again after each `Failed`
 %% until one passes, three runs for a test that passes on its third,

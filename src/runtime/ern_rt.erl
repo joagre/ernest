@@ -89,7 +89,8 @@
                          write_loop/2, stream_loop/2, is_taken/3, collect/3, written_back/3,
                          dropping/0, stdin_loop/2, taken/1,
                          clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
-                         sink_flushed/1, stop/1, stopped_in_order/1, told_once_delivered/2]}).
+                         wait_for_collectors/0, sink_flushed/1, stop/1, stopped_in_order/1,
+                         told_once_delivered/2]}).
 
 -define(UNIT, 'Unit').
 %% Report §8.6: the look's keys, which a process keeps in its own
@@ -199,6 +200,12 @@
 %% (capture_of/1), written as a capture begins and deleted by its collector
 %% as the capture ends, or as its caller does (capture_writes/0)
 -define(CAPTURES, ern_captures).
+%% Report Appendix E.24, §8.6: each collector that has not ended,
+%% {Collector}, written as its capture begins and deleted by the collector
+%% as its last act, once it has answered its capture or written back what
+%% it took, so that the run's end waits for every one before it flushes
+%% the streams (wait_for_collectors/0)
+-define(COLLECTORS, ern_collectors).
 %% Report Appendix E.27: the offers of the node, {{Name, Hash}, Address,
 %% Process} by the service's name and its type's hash, ordered so that one
 %% name's are read together
@@ -2289,12 +2296,15 @@ root_of(Pid) ->
 %% watches the caller, and where the caller ends before its capture does,
 %% it lets the chain's writes go and writes what it took where it would
 %% have gone: through the streams again as the head of the chain's, which
-%% the chain's earlier capture or its session's screen then takes.
+%% the chain's earlier capture or its session's screen then takes. The
+%% run's end waits for the collector (wait_for_collectors/0), so that what
+%% it writes back is not lost to the streams' stop.
 -spec capture_writes() -> {'Writes', pid()}.
 capture_writes() ->
     Caller = erlang:self(),
     Key = {chain_head(Caller), erlang:unique_integer([monotonic])},
     Collector = erlang:spawn(fun() -> collect(erlang:monitor(process, Caller), Key, []) end),
+    true = ets:insert(?COLLECTORS, {Collector}),
     true = ets:insert(?CAPTURES, {Key, Collector}),
     {'Writes', Collector}.
 
@@ -2315,12 +2325,22 @@ collect(Monitor, Key, Taken) ->
             collect(Monitor, Key, [{Name, Bytes} | Taken]);
         {collect, Alias} ->
             true = ets:delete(?CAPTURES, Key),
-            Alias ! {Alias, {'Captured', taken(stdout, Taken), taken(stderr, Taken)}};
+            Alias ! {Alias, {'Captured', taken(stdout, Taken), taken(stderr, Taken)}},
+            true = ets:delete(?COLLECTORS, erlang:self());
         {'DOWN', Monitor, process, _, _} ->
-            true = ets:delete(?CAPTURES, Key),
-            {Head, _} = Key,
-            written_back(Head, lists:reverse(Taken))
+            let_go(Key, Taken);
+        %% report §8.6: the run ends, which stops its streams once every
+        %% collector has ended (wait_for_collectors/0)
+        ending ->
+            let_go(Key, Taken)
     end.
+
+%% The chain's writes let go, and what the collector took written where it
+%% would have gone, the collector's last act.
+let_go({Head, _} = Key, Taken) ->
+    true = ets:delete(?CAPTURES, Key),
+    written_back(Head, lists:reverse(Taken)),
+    true = ets:delete(?COLLECTORS, erlang:self()).
 
 taken(Name, Taken) ->
     iolist_to_binary(lists:reverse([Bytes || {Stream, Bytes} <- Taken, Stream =:= Name])).
@@ -2328,18 +2348,25 @@ taken(Name, Taken) ->
 %% What a collector took written again, each piece answered before the
 %% next goes; a write a stream gave it meanwhile, which it began before
 %% the capture ended, is taken and written after them, since the stream
-%% waits on the collector as the collector waits on the stream.
+%% waits on the collector as the collector waits on the stream. A stream
+%% whose process has ended takes nothing more, and the rest goes with it,
+%% so that the run's end, which waits for the collector, is not held
+%% (sink_flushed/1).
 written_back(_Head, []) ->
     ok;
 written_back(Head, [{Name, Bytes} | Rest]) ->
-    Alias = erlang:alias([reply]),
-    system_process(Name) ! {'Write', Bytes, {Alias, Head}},
+    Stream = system_process(Name),
+    Alias = erlang:monitor(process, Stream, [{alias, demonitor}]),
+    Stream ! {'Write', Bytes, {Alias, Head}},
     written_back(Head, Alias, Rest).
 
 written_back(Head, Alias, Rest) ->
     receive
         {Alias, answered, _} ->
+            erlang:demonitor(Alias, [flush]),
             written_back(Head, Rest);
+        {'DOWN', Alias, process, _, _} ->
+            ok;
         {written, Taker, Name, Bytes} ->
             Taker ! {Taker, taken},
             written_back(Head, Alias, Rest ++ [{Name, Bytes}])
@@ -4238,7 +4265,7 @@ outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 -spec tables() -> [atom()].
 tables() ->
     [?PROCESSES, ?CALLEES, ?FAULTS, ?TERMINATING, ?HELD, ?DELIVERIES, ?CHECKERS, ?LAUNCH,
-     ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES, ?SCREENS, ?CAPTURES].
+     ?OFFERS, ?OFFERED, ?INITIALIZED, ?NOTES, ?SCREENS, ?CAPTURES, ?COLLECTORS].
 
 make_tables() ->
     lists:foreach(fun(Table) -> ets:new(Table, [named_table, public | table_options(Table)]) end,
@@ -5229,10 +5256,11 @@ restarted(How) ->
                       Reply ! {Reply, restarted, How}
                   end, Callers).
 
-%% Report §8.6: every local process ends with ProgramEnd, the sinks' output
-%% is flushed, the system processes and the reaper are stopped, and the
-%% terminal goes back as the program found it (§12.1). The answer is the
-%% streams that could not be flushed, standard output's first.
+%% Report §8.6: every local process ends with ProgramEnd, what each capture
+%% whose caller ended took is written back (Appendix E.24), the sinks'
+%% output is flushed, the system processes and the reaper are stopped, and
+%% the terminal goes back as the program found it (§12.1). The answer is
+%% the streams that could not be flushed, standard output's first.
 end_program(Launch, Reaper, System, Encodings) ->
     Ref = make_ref(),
     MonitorRef = erlang:monitor(process, Reaper),
@@ -5245,6 +5273,7 @@ end_program(Launch, Reaper, System, Encodings) ->
                           live_rows())
     end,
     erlang:demonitor(MonitorRef, [flush]),
+    wait_for_collectors(),
     Gone = [Name || Name <- [stdout, stderr],
                     sink_flushed(proplists:get_value(Name, System)) =:= gone],
     %% report §12.1, §12.5, §11.2: the program's output written, and the
@@ -5275,6 +5304,20 @@ end_program(Launch, Reaper, System, Encodings) ->
     lists:foreach(fun ets:delete/1, tables()),
     flush_launch(Launch),
     Gone.
+
+%% Report Appendix E.24, §8.6: each collector that has not ended told that
+%% the run ends, and waited for. It writes back what it took, as at its
+%% caller's end, through the streams, which run until the end stops them
+%% (collect/3). Its caller may outlive the run's processes: a process kept
+%% for an adapted address a peer sends to runs the address's function,
+%% its target's end does not end it, and it ends only as the reaper is
+%% stopped, after the streams (kept/1).
+wait_for_collectors() ->
+    lists:foreach(fun({Collector}) ->
+                      MonitorRef = erlang:monitor(process, Collector),
+                      Collector ! ending,
+                      receive {'DOWN', MonitorRef, process, _, _} -> ok end
+                  end, ets:tab2list(?COLLECTORS)).
 
 %% A sink's pending output written, or the stream gone (stream/2).
 sink_flushed(Sink) ->
