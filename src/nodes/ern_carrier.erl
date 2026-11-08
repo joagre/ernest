@@ -21,7 +21,7 @@
 
 %% Report §12.5: the protocol's version, in the cookie, so that two nodes of
 %% different protocols never connect.
--define(PROTOCOL, 5).
+-define(PROTOCOL, 6).
 
 %% The constant before the host of a node's name on the carrier, whose host
 %% is its key's digest and names no network address: a peer's address is

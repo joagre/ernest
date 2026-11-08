@@ -8,7 +8,7 @@ A line here is a shape a reader must know to change the component without breaki
 
 Two nodes are two files and one connection, and what passes between them is the host's distribution carrying the host's terms: a message between nodes costs what the host's send costs, and the runtime adds a frame of its own only where the receiving node must do something a message cannot, start a process, apply a function, record a wait, carry code (§12.6, *What passes*).
 
-Nothing is initialized, evaluated or loaded because a peer asked, beyond the code a spawn or a compute carries and the toolchain's own units a spawn names, which the node loads and evaluates from its own tree ([`code.md`](code.md)'s *The toolchain's own units*): a binding is its node's own, and a bare node runs what it is sent and nothing else (§8.7, §12.7; the log's *The Module Peer*, *What the Outline Asked*). A node trusts a listed peer whole and no one else: the list of peers is the whole of the trust, and a peer that may spawn may run anything (the log's *The Carrier*).
+Nothing is initialized, evaluated or loaded because a peer asked, beyond the code a spawn or a compute carries, the shell's that an attach brings among it: a binding is its node's own, and a bare node runs what it is sent and nothing else (§8.7, §12.7; the log's *The Module Peer*, *What the Outline Asked*, *The Shell Attaches as a Program Spawns*). A node trusts a listed peer whole and no one else: the list of peers is the whole of the trust, and a peer that may spawn may run anything (the log's *The Carrier*).
 
 ## A node
 
@@ -70,11 +70,11 @@ The alias is let go when the wait ends, so that a late answer is dropped. The re
 
 ## A spawn
 
-A spawn's frame carries the function's identity, its captures in the order its body first names them, a reply among them crossing as in a message, whether the function's unit is the toolchain's own, its site and its time, and for `restarting` the limit and the inner function's identity (§12.6, *A spawn's frame*; §11.1; `ern_peer`'s `spawned()`). A compute's frame says the same of its function. The spawner's node knows a unit of the toolchain's own as the one its code table marked as it loaded it from the tree's builds (`ern_code:is_own/1`; the log's *The Shell's Own Node*).
+A spawn's frame carries the function's identity, its captures in the order its body first names them, a reply among them crossing as in a message, its site and its time, and for `restarting` the limit and the inner function's identity (§12.6, *A spawn's frame*; §11.1; `ern_peer`'s `spawned()`). A compute's frame says the same of its function.
 
 The peer's gateway finds the identity in the node's code table and starts the process through the node's runtime, recording the site as a local spawn's with the peer whose spawn started it in the process's row, or answers `NotLoaded` where a binding of the function's reach has no value there or a foreign declaration's module is missing, or, where it lacks the function, hands the spawn to the node's exchange; the answer goes back through the spawner's gateway, which kills a process no one waits for any more, its spawner's time run out while the connection lasted (§8.7 and Appendix E.27, *A spawn*; the log's *The Spawn by Hash, Built*).
 
-What the peer lacks of the function's reach the exchange brings, or, for a function of the toolchain's own, the peer's own tree, which is the code note's ([`code.md`](code.md)). A function typed at a shell has a hash as any definition has, and crosses the same way (§11.2).
+What the peer lacks of the function's reach the exchange brings, which is the code note's ([`code.md`](code.md)). A function typed at a shell, and the shell's own session, has a hash as any definition has, and crosses the same way (§11.2).
 
 ## Services and the pick
 
@@ -96,4 +96,4 @@ Three idle nodes exchange about 1.2 packets a second at the default telling inte
 
 It opens no connection in the background and sends nothing a second time: a message arrives once or not at all, and where one is dropped the connection is lost with everything that waited (§8.7, *Messages*). It connects no third node through a second: that A knows B and B knows C connects A and C in no way.
 
-The nodes' machinery evaluates no binding, runs no initializer and loads no module because a peer asked, beyond the reach a spawn or a compute carries and the toolchain's own units a spawn names, whose bindings are the toolchain's tables and constants and offer nothing, so a bare node's offers are what the processes spawned on it offer and nothing of its own. It looks for no deadlock on a node, since a peer can reach it (§8.6). It keeps nothing for a peer it has lost but what §8.7 names, a node's end recorded against the loss and a worker that lives until it holds no frame and no kept process. And it names no node to itself: a program that must say where it runs is given the name by whoever spawned it (the log's *What the Feedback Left*).
+The nodes' machinery evaluates no binding, runs no initializer and loads no module because a peer asked, beyond the reach a spawn or a compute carries, so a bare node's offers are what the processes spawned on it offer and nothing of its own. It looks for no deadlock on a node, since a peer can reach it (§8.6). It keeps nothing for a peer it has lost but what §8.7 names, a node's end recorded against the loss and a worker that lives until it holds no frame and no kept process. And it names no node to itself: a program that must say where it runs is given the name by whoever spawned it (the log's *What the Feedback Left*).

@@ -7,9 +7,10 @@
 %% reference outside the unit is linked through the code table (ern_code):
 %% a definition of another unit by its hash, to a unit that exports its
 %% function (§11.1), a type to the forms the unit that holds it keeps; a
-%% binding by its identity, to a unit that holds it with its value, through
-%% its getter, or, whose initializer is a ground term, to the value that
-%% unit lists, which its read is compiled to (§11.1); and what the standard
+%% binding by its identity, to the unit that holds it, the latest loaded of
+%% those with its value, or of all of them where none has, through its
+%% getter, or, whose initializer is a ground term, to the value a unit
+%% lists, which its read is compiled to (§11.1); and what the standard
 %% library and the prelude declare by its name, as the build links it, from
 %% the prelude's environment, which holds the library's interfaces
 %% (ern_compile:named/2).
@@ -22,11 +23,12 @@
 %% beyond the spawned function's reach, from the declaration its code
 %% frame carries.
 %%
-%% What the definitions name beyond that reach and the node lacks, a
-%% binding without its value here or a foreign function whose module or
-%% function is not here, is linked to a function of the unit's own that
-%% faults naming it, `'$lacked_K'`, which no process reaches, since a spawn
-%% whose reach names it is answered `NotLoaded` before it starts.
+%% What the definitions name that the node lacks, a binding it holds in no
+%% unit or a foreign function whose module or function is not here, is
+%% linked to a function of the unit's own that faults naming it,
+%% `'$lacked_K'`, which no process reaches, since a spawn whose reach names
+%% it is answered `NotLoaded` before it starts; and so is a binding read
+%% from a unit that holds it without its value.
 %%
 %% The unit is named from the node's pool (name/1), `ern$1`, `ern$2` and
 %% on, the first the host holds no unit of from the exchange's count, which
@@ -285,15 +287,13 @@ foreign_function(#foreign_function{qualified_name = Name, host_module = HostModu
 %% Report §12.7, §11.1: where each reference the unit's forms make outside
 %% it is, as the code table and the prelude's environment know it; and the
 %% reach of each definition of another unit its forms reference by hash,
-%% which its own reaches take in. What the forms name beyond the spawned
-%% function's reach that this node lacks, a binding without its value here
-%% or a foreign function Lacking holds, is taken to a function of the
-%% unit's own that faults naming it, each of the unit's lacked functions
-%% {Function, Arity, Text}, which no process reaches, since a spawn whose
-%% reach names it is answered `NotLoaded` first. Any other reference that
-%% links to nothing is the reason the reach cannot be taken, a binding of
-%% the reach without its value among them, which reach_lacked/2 answered
-%% before any code crossed.
+%% which its own reaches take in. What the forms name that this node
+%% lacks, a binding it holds in no unit or a foreign function Lacking
+%% holds, is taken to a function of the unit's own that faults naming it,
+%% each of the unit's lacked functions {Function, Arity, Text}, which no
+%% process reaches, since a spawn whose reach names it is answered
+%% `NotLoaded` first. Any other reference that links to nothing is the
+%% reason the reach cannot be taken.
 linked(Unit, Compiled, ForeignFunctions, Reach, Env) ->
     Hashes = maps:from_keys([Hash || #definition{hash = Hash} <- Compiled], true),
     Foreign = [QualifiedName || #foreign_function{qualified_name = QualifiedName}
@@ -378,10 +378,9 @@ external({hash, Hash} = Reference,
                               binary:encode_hex(Hash, lowercase)]})
     end;
 external({binding, QualifiedName, Hash} = Reference,
-         #linking{functions = Functions, lacking = Lacking} = Linking, {Bindings, _}, _Env) ->
-    Absent = ["the binding ", ern_namespace:text(QualifiedName), " has no value here"],
-    case {value_held(Reference), lists:keymember(Hash, 2, Bindings)} of
-        {{Unit, Getter, Term}, _} ->
+         #linking{functions = Functions, lacking = Lacking} = Linking, _Reach, _Env) ->
+    case binding_held(Reference) of
+        {Unit, Getter, Term} ->
             %% report §11.1: a ground binding's read is its value
             Linking#linking{functions = Functions#{Reference => #linked{unit = Unit,
                                                                          function = Getter,
@@ -389,18 +388,26 @@ external({binding, QualifiedName, Hash} = Reference,
                                                                          kind = value,
                                                                          identity = Hash,
                                                                          term = Term}}};
-        {none, false} ->
-            Linking#linking{lacking = [{Reference, 0, value, Hash, Absent} | Lacking]};
-        {none, true} ->
-            throw({unlinked, Absent})
+        none ->
+            Absent = ["the binding ", ern_namespace:text(QualifiedName), " has no value here"],
+            Linking#linking{lacking = [{Reference, 0, value, Hash, Absent} | Lacking]}
     end;
 external({named, QualifiedName} = Reference,
          #linking{functions = Functions, types = Types} = Linking, _Reach, Env) ->
     case ern_typecheck:described_type(QualifiedName, Env) of
         undefined ->
-            Linked = maps:from_list([{Reference, Named}
-                                     || Named <- ern_compile:named(Reference, Env)]),
-            Linking#linking{functions = maps:merge(Functions, Linked)};
+            case ern_compile:named(Reference, Env) of
+                [Named] ->
+                    Linking#linking{functions = Functions#{Reference => Named}};
+                [] ->
+                    %% report §12.7, Appendix H, §4.2: a name the prelude's
+                    %% environment holds as no type and no value is a
+                    %% program's foreign type, since a program's other
+                    %% declarations are named by hash and its namespaces are
+                    %% not the library's, linked as a foreign type, declared
+                    %% here or not (types/4)
+                    Linking#linking{types = [Reference | Types]}
+            end;
         _ ->
             Linking#linking{types = [Reference | Types]}
     end;
@@ -416,23 +423,25 @@ external({foreign, QualifiedName, Scheme} = Reference, #linking{lacking = Lackin
                               ern_namespace:text(QualifiedName)]})
     end.
 
-%% Report §8.7, §4.6, §11.1: where a binding is held with its value: a
-%% unit whose initializers gave it one, through its getter, and a unit that
-%% lists it as a constant, whose value is its read wherever its form is,
-%% evaluated nowhere, which the getter's term answers, or none; none where
-%% the node holds it with no value.
-value_held({binding, _, Hash} = Reference) ->
-    case {ern_code:valued(Reference), ern_code:grounded(Hash)} of
+%% Report §12.7, §4.6, §11.1: where a binding is held: the unit its read
+%% goes through, the latest loaded of those whose initializers gave it a
+%% value, or of all that hold it where none has (ern_code:holder/1), and
+%% its getter; and a unit that lists it as a constant, whose value is its
+%% read wherever its form is, evaluated nowhere, which the getter's term
+%% answers; none where the node holds it in no unit.
+binding_held({binding, _, Hash} = Reference) ->
+    case {ern_code:holder(Reference), ern_code:grounded(Hash)} of
         {{Unit, Getter}, {_, _, Term}} -> {Unit, Getter, {term, Term}};
         {{Unit, Getter}, none} -> {Unit, Getter, none};
         {none, {Unit, Getter, Term}} -> {Unit, Getter, {term, Term}};
         {none, none} -> none
     end.
 
-%% Report §8.4, §11.5: each type of References with its name and its
-%% constructors as its form writes them, a program's from the forms the
-%% unit that holds it keeps, the library's and the prelude's from the
-%% prelude's environment, and those its constructors name, each once,
+%% Report §8.4, §11.5, §12.7: each type of References with its name and
+%% its constructors as its form writes them, a program's from the forms
+%% the unit that holds it keeps, the library's and the prelude's from the
+%% prelude's environment, a name that environment does not describe a
+%% program's foreign type, and those its constructors name, each once,
 %% which the descriptors read; a type of the unit's own the back end reads
 %% from its form. Own holds the unit's hashes and the forms of each unit
 %% read.
@@ -441,29 +450,32 @@ types([], Types, _Own, _Env) ->
 types([Reference | References], Types, Own, Env) when is_map_key(Reference, Types) ->
     types(References, Types, Own, Env);
 types([{named, QualifiedName} = Reference | References], Types, Own, Env) ->
-    case ern_canonical:declared_type(QualifiedName, Env, [], []) of
+    Declared = case ern_typecheck:described_type(QualifiedName, Env) of
+                   undefined -> foreign;
+                   _ -> ern_canonical:declared_type(QualifiedName, Env, [], [])
+               end,
+    case Declared of
         foreign ->
             types(References, Types#{Reference => {QualifiedName, foreign}}, Own, Env);
         {Arity, Constructors, _} ->
-            types(inner(Constructors, Env) ++ References,
+            types(inner(Constructors) ++ References,
                   Types#{Reference => {QualifiedName, {Arity, Constructors}}}, Own, Env)
     end;
 types([{hash, Hash} | References], Types, {Hashes, _} = Own, Env) when is_map_key(Hash, Hashes) ->
     types(References, Types, Own, Env);
 types([{hash, Hash} = Reference | References], Types, {Hashes, Read}, Env) ->
     {{type, QualifiedName, Arity, _, _, Constructors}, Read1} = type_form(Hash, Read),
-    types(inner(Constructors, Env) ++ References,
+    types(inner(Constructors) ++ References,
           Types#{Reference => {QualifiedName, {Arity, Constructors}}}, {Hashes, Read1}, Env).
 
 %% The types a type's constructors name, by hash or by name: a
-%% constructor's field holds types alone, so a reference by hash is to a
-%% type.
-inner(Constructors, Env) ->
+%% constructor's field holds types alone, so each reference is to a type,
+%% a program's foreign type among them.
+inner(Constructors) ->
     [Reference || Reference <- ern_compile:references(Constructors),
                   case Reference of
                       {hash, _} -> true;
-                      {named, QualifiedName} ->
-                          ern_typecheck:described_type(QualifiedName, Env) =/= undefined;
+                      {named, _} -> true;
                       _ -> false
                   end].
 

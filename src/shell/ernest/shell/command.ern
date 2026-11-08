@@ -48,7 +48,7 @@ type Selection = Picked(Command) | Unknown | Ambiguous(List(String))
 export type Setting = Depth(Int) | Length(Int) | Rows(Int) | Timing(Bool)
 
 /// Report §11.2: the commands, in the alphabetical order the help lists them.
-export let commands =
+export fn commands() : List(Command) =
     [Command(name = "bindings",
              action = Bindings,
              placeholder = "",
@@ -104,7 +104,7 @@ export let commands =
              action = Settings,
              placeholder = "",
              takes = Allows(SettingWords),
-             about = settingsAbout),
+             about = settingsAbout()),
      Command(name = "type",
              action = Type,
              placeholder = "e",
@@ -136,7 +136,7 @@ export fn parse(line : String) : Either(String, #(Action, String)) = {
 // Report §11.2: a name selects its command, and so does a prefix of it that
 // begins no other command's name.
 fn pick(name : String) : Selection = {
-    let begun = List.filter(commands, fn(command) = String.startsWith(command.name, name));
+    let begun = List.filter(commands(), fn(command) = String.startsWith(command.name, name));
     match List.filter(begun, fn(command) = command.name == name) {
         [whole] ->
             Picked(whole)
@@ -192,7 +192,7 @@ export fn completes(word : String) : Optional(Completes) =
 /// command by the same line.
 export fn help() : List(String) =
     ["Commands, which a prefix of the name selects where it begins no other:"]
-        <> List.map(commands, fn(command) = "  " <> line(command))
+        <> List.map(commands(), fn(command) = "  " <> line(command))
         <> ["The value of the last expression is `it`."]
 
 /// A command's line of the help: its name, the word it takes, and what it
@@ -216,7 +216,7 @@ let column = 16
 /// Report §11.2: what `:set` sets, each with the word its value is.
 export let settings = [#("depth", "n"), #("length", "n"), #("rows", "n"), #("timing", "on or off")]
 
-let settingsAbout =
+fn settingsAbout() : String =
     String.join(List.map(settings, fn(#(setting, value)) = setting <> " " <> value), ", ")
         <> "; :set alone shows them"
 
@@ -270,7 +270,7 @@ let oneWordToLeave =
               })
 
 let alphabetical = Test.Case(name = "the commands are in alphabetical order", run = fn() = {
-    let names = List.map(commands, fn(command) = command.name);
+    let names = List.map(commands(), fn(command) = command.name);
     Test.equal(names, List.sort(names))
 })
 

@@ -148,32 +148,12 @@ reader S reads of its live shell. The release note's line on the installed layou
     and `Http`'s heads are Ernest around a primitive, and a head is read on from the line under
     way, so its lines are not read again. `roff` stays in `libs/markdown`, since `ern doc --man`
     lays its pages out with it as §11.4 says, beside `tools/manual.ern` (principle 2).
-15. **What a lambda's reach finds on a peer**, feedback 217, decided 2026-11-07 and decided
-    again 2026-11-08 (§4.6, §8.5, §8.7, §11.2, §12.7; the log's *What a Lambda's Reach Finds on
-    a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*):
-    the toolchain's own units are no class of the exchange; the shell's definitions cross to
-    the node it attaches to as any program's do, and `libs/ansi`'s `clearBelow` and
-    `clearScreen` are string literals, constants that cross with the code, so a program's
-    lambda naming `Ansi.clearScreen` serves on a bare node where it answered
-    `Left(Io.NotLoaded)`. The report says it.
-
-    Built by an item session: the 2026-11-08 build in the checkout reverted whole but for what
-    item 27's link keeps; the two bindings as literals; the four non-constant bindings of the
-    shell's session half, `Ernest.Shell.localMs`, `Ernest.Shell.defaults`,
-    `Ernest.Shell.Command.settingsAbout` and `Ernest.Shell.Command.commands`, written as
-    functions or captures as the guide's §8.1 has them; `ern_code`'s own-unit index,
-    `is_own/1` and `own_unit/1`, the exchange's branch and its loader, `ern_code_load:own/1`,
-    and the spawn frame's mark removed, the protocol's version moving with the frame, before
-    the release.
-
-    Then the tests and the documents: `attach_other_build`'s other build changes a function's
-    body and not a binding, and expects the run and the start line naming the node's release;
-    item 15's bare-node test keeps its lines and its held-path test goes, the rule having no
-    held path; the first attach is timed and its number goes to the log; the release review's
-    patch check names the shell's foreign declarations with the library's; the nodes' and the
-    code's design notes, the architecture map and the deployment guide's lines on the attach
-    and on a binding without a value follow the code; `make test-nodes`, then
-    `make test-full`.
+15. **What a lambda's reach finds on a peer**, feedback 217, done 2026-11-08 (§4.6, §8.7, §11.2,
+    §12.7; the log's *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the
+    Node's*, *The Shell Attaches as a Program Spawns* and its *Built*). The shell's code crosses
+    to the node it attaches to as a program's does, and a node of another release on the floor
+    runs it; `Ansi.clearBelow` and `Ansi.clearScreen` are literals. The first attach to a node
+    takes about three seconds on nike, the node compiling the shell.
 16. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
     writer's own namespace outward, as a relative path resolves from its directory, so that
     `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
@@ -240,9 +220,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     found, and the next run passed. The output was not kept, and the cause is not found. One
     candidate is `:processes` listing the spawned process before it has reached its `receive`, so
     that its activity is not yet `receiving`. The test runs under the full run's load until it
-    fails again, its output kept. Where the candidate holds, the test waits for the process to
-    receive, as CLAUDE.md's *No fixed sleep* asks; where none comes by the launch's release review,
-    the review decides whether the item stays.
+    fails again, its output kept. On 2026-11-08 the candidate held: `:processes` listed the
+    input's process `running`, in this test and in `reload`, and once in 64 runs by hand under a
+    pty, before item 15's build and after it alike (the log's *The Shell Attaches as a Program
+    Spawns Built*). The test waits for the process to receive, as CLAUDE.md's *No fixed sleep*
+    asks, and so does `reload`'s, by 2026-11-12.
 25. **A capture's write-back at the run's end**, found 2026-11-07, fixed by 2026-11-12. One run
     of `make test` in three failed `ern_cli_tests:test_capture_test`: the line a case wrote inside
     `Test.capture` before it faulted did not reach standard error, where E.24 writes it after all.
@@ -258,12 +240,9 @@ reader S reads of its live shell. The release note's line on the installed layou
     says, its program run here first, and E.9 states the answer at the origin. Its verdict goes
     to ernest-epx's session at the milestone's end (the log's *Both Applications at the
     Milestone's End*).
-27. **A binding an arrival linked to a fault**, raised 2026-11-08 by item 15's build, decided
-    2026-11-08 (§12.7; the log's *A Top-Level Binding Stays the Node's*): an arrival links a
-    binding beyond the spawned function's reach that the node holds without its value to the
-    unit that holds it, as it links a valued one, and the fault stays for one held in no unit,
-    so the existing check reads the binding where the code does and a sibling lambda's order
-    changes nothing. The report says it. Built with item 15.
+27. **A binding an arrival linked to a fault**, done 2026-11-08 (§12.7; the log's *A Top-Level
+    Binding Stays the Node's* and *The Shell Attaches as a Program Spawns Built*). An arrival
+    links a binding the node holds to its holder, with its value or not.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

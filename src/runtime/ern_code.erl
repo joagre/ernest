@@ -18,9 +18,7 @@
 %%
 %% Beside them a unit has rows of its own that its load adds: the
 %% interface chunk the runner read of it and its documentation as it was
-%% loaded (load/4) and, for a unit loaded
-%% from the tree's builds of the toolchain's own, the mark that it is one
-%% (load/3, is_own/1).
+%% loaded (load/4).
 %%
 %% A unit loaded again with other code replaces its rows, and one unloaded
 %% takes them with it, so that the table holds what the host holds and no
@@ -52,10 +50,9 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, own_unit/1, is_own/1, load/3, load/4,
-         documented/1, chunk/1,
+-export([ensure_loaded/1, own_file/1, own_builds/0, load/3, load/4, documented/1, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
-         ground/1, grounded/1, forms/1,
+         holder/1, ground/1, grounded/1, forms/1,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2,
          function_text/3, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
@@ -148,56 +145,14 @@ own_file(Module) ->
             none
     end.
 
-%% Report §11.2, §12.7: the builds of the toolchain's own units beside the
+%% Report §11.2, §12.5: the builds of the toolchain's own units beside the
 %% standard library's, under the tree's `build` (ern_tree:build/1): the
-%% shell's and those of the three libraries it is compiled against.
+%% shell's and those of the three libraries it is compiled against, which
+%% a unit's first call finds it in (own_file/1) and a development build's
+%% floor digests (ern_carrier).
 -spec own_builds() -> [file:filename()].
 own_builds() ->
     [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown", "libs/ets"]].
-
-%% Report §12.7, *The toolchain's own units*: the unit of the toolchain's
-%% own whose `.erc` in this node's tree holds the definition of Hash, by
-%% its Erlang name, or none: a unit of the shell's or of the three
-%% libraries' it is compiled against (own_builds/0), the standard library's being
-%% held by every node from its start. The index is read from the builds'
-%% interfaces, each definition's hash by its name (#interface{}'s
-%% `identities`), at its first need, and kept for the host's life, since
-%% the tree does not change under a running node (the deployment guide's
-%% §5.1): some 600 hashes, read in about ten milliseconds.
--spec own_unit(binary()) -> module() | none.
-own_unit(Hash) ->
-    maps:get(Hash, own_units(), none).
-
-%% Report §12.6, §12.7: whether the function a spawn or a compute names,
-%% as the compiler writes it (ern_peer's spawned()), is held by a unit of
-%% the toolchain's own on this node, one loaded from the tree's builds of
-%% the toolchain's own beside the standard library's (load/3), which the
-%% frame says so that a peer that lacks it asks this node for nothing.
--spec is_own(term()) -> boolean().
-is_own({function, Hash}) -> is_held_own(lookup({hash, Hash}));
-is_own({lambda, Hash, Position, _Captures}) -> is_held_own(lookup({lambda, Hash, Position}));
-is_own({restarting, _Limit, Inner}) -> is_own(Inner);
-is_own({foreign, _}) -> false.
-
-is_held_own(Rows) ->
-    lists:any(fun({_, Unit, _}) -> lookup({own, Unit}) =/= [] end, Rows).
-
-own_units() ->
-    case persistent_term:get({?MODULE, own_units}, none) of
-        none ->
-            Units = maps:from_list(
-                      [{Hash, ern_namespace:erlang_module(Namespace)}
-                       || Root <- own_builds(), Relative <- filelib:wildcard("**/*.erc", Root),
-                          {ok, Beam} <- [file:read_file(filename:join(Root, Relative), [raw])],
-                          {ok, #{interface := #interface{namespace = Namespace,
-                                                         identities = Identities}}}
-                              <- [ern_interface:read(Beam)],
-                          Hash <- maps:values(Identities), is_binary(Hash)]),
-            persistent_term:put({?MODULE, own_units}, Units),
-            Units;
-        Units ->
-            Units
-    end.
 
 %% Whether a file is there, asked raw.
 is_regular(File) ->
@@ -232,23 +187,10 @@ load(Unit, File, Beam) ->
             code:purge(Unit),
             case code:load_binary(Unit, File, Beam) of
                 {module, Unit} ->
-                    loaded(Unit, Beam),
-                    own_kept(Unit, File);
+                    loaded(Unit, Beam);
                 {error, _} = Refused ->
                     Refused
             end
-    end.
-
-%% Report §12.6, §12.7: a unit loaded from the tree's builds of the
-%% toolchain's own beside the standard library's, the shell's and its
-%% libraries' (own_builds/0), marked so in a row of its own, which goes
-%% with its other rows, so that a spawn of its function says it (is_own/1).
-own_kept(Unit, File) ->
-    Absolute = filename:absname(File),
-    case lists:any(fun(Build) -> lists:prefix(filename:join(Build, "") ++ "/", Absolute) end,
-                   own_builds()) of
-        true -> row_kept(Unit, {{own, Unit}, Unit, true});
-        false -> ok
     end.
 
 %% Report §11.2: the same for a module the runner loads, a program's or its
@@ -496,6 +438,21 @@ valued(Key) ->
                             ern_rt:binding_value(Unit, Kept) =/= absent] of
         [] -> none;
         Valued -> lists:last(Valued)
+    end.
+
+%% Report §12.7: the unit a unit an exchange makes reads a top-level
+%% binding through, by its identity, and its getter: the one valued/1
+%% answers, or where no unit holds it with its value, the latest loaded of
+%% those that hold it, whose code reads it once a load or a run gives it a
+%% value, and faults until then (ern_rt:binding/1), which no process
+%% reaches, since a spawn whose reach names the binding reads it there
+%% first (absent_binding/2); none where no unit holds it.
+-spec holder({binding, [atom()], binary()}) -> {module(), atom()} | none.
+holder(Key) ->
+    case {valued(Key), [{Unit, Getter} || {_, Unit, {binding, {_, Getter}}} <- lookup(Key)]} of
+        {none, []} -> none;
+        {none, Held} -> lists:last(Held);
+        {Valued, _} -> Valued
     end.
 
 %% Report §11.1, §8.7: the value of a top-level binding whose initializer is

@@ -152,7 +152,7 @@ fn move(count : Int, direction : String) : String =
 /// "\r" <> Ansi.clearBelow
 /// // => "\r\u{1B}[J"
 /// ```
-export let clearBelow = sequence("J")
+export let clearBelow = "\u{1b}[J"
 
 /// The sequence that erases the screen and puts the cursor at its top left.
 ///
@@ -162,7 +162,7 @@ export let clearBelow = sequence("J")
 /// Ansi.clearScreen
 /// // => "\u{1B}[2J\u{1B}[H"
 /// ```
-export let clearScreen = sequence("2J") <> sequence("H")
+export let clearScreen = "\u{1b}[2J\u{1b}[H"
 
 // ECMA-48's control sequence introducer and what follows it.
 fn sequence(body : String) : String =

@@ -107,7 +107,7 @@ fn commandWord(typedWord : String, line : String) : Completion = {
 }
 
 fn commandNames() : List(Name) =
-    List.map(Ernest.Shell.Command.commands,
+    List.map(Ernest.Shell.Command.commands(),
              fn(command) =
                  Name(text = ":" <> command.name,
                       kind = Value,

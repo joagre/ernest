@@ -40,14 +40,9 @@
 %% brought stay loaded, out of reach, since a process running before the
 %% load may hold a function of one (§11.2); loaded again, unchanged, the
 %% module makes no unit.
-%%
-%% Report §12.7: a unit of the toolchain's own that a peer's spawn names is
-%% loaded the same way from the node's own tree, the modules it uses found
-%% in the tree's builds of the toolchain's own and not on the load path,
-%% for a process of the runtime's own (own/1).
 -module(ern_code_load).
 
--export([load/1, own/1]).
+-export([load/1]).
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
@@ -69,27 +64,6 @@ load({'Path', Path}) ->
         evaluated(placed_and_loaded(Path, ern_cli:load_path()))
     catch
         throw:{refused, Error} -> {'Left', Error}
-    end.
-
-%% Report §12.7, *The toolchain's own units*: the toolchain's own unit
-%% Unit, which a peer's spawn names a definition of, from this node's own
-%% tree (ern_code:own_file/1), and the modules it uses, found in the
-%% tree's builds of the toolchain's own (ern_code:own_builds/0), each
-%% placed and loaded as a load places a module and their bindings that
-%% have no value on the node evaluated as a load evaluates them, before any
-%% process runs the spawned function; nothing is asked of another node. ok,
-%% or why the node could not load them, a binding's fault among the
-%% causes, which the node answers as `Other(text)` and says.
--spec own(module()) -> ok | {refused, binary()}.
-own(Unit) ->
-    {ok, File} = ern_code:own_file(Unit),
-    try evaluated(placed_and_loaded(File, ern_code:own_builds())) of
-        {'Right', 'Unit'} -> ok
-    catch
-        throw:{refused, {'Other', Text}} -> {refused, Text};
-        throw:{refused, Error} ->
-            {refused, <<"the toolchain's own units in this node's tree could not be loaded: ",
-                        (ern_io:show(Error))/binary>>}
     end.
 
 %% Report §8.6: the load's reading of its files, its placing and its load

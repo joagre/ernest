@@ -307,7 +307,7 @@ send(Node) ->
 site(Node, Hash) ->
     Spawned = {function, binary:decode_hex(Hash)},
     %% the site alone out of shape, the spawner waiting nothing
-    Frame = {spawn, make_ref(), Spawned, false, <<255>>, false, 0},
+    Frame = {spawn, make_ref(), Spawned, <<255>>, false, 0},
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
     'Unit'.
 ">>),
@@ -3690,18 +3690,256 @@ constant_crosses(Base) ->
                                 "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
                                 "computed: Left(Io.NotLoaded)"]].
 
-%% report §11.2 *The attached shell*, §12.7, §8.7: an attach to a node
-%% that holds the shell's units and could not load them, a bare node whose
-%% `HOME` is not UTF-8, so that `Ernest.Shell.History.directory` faults as
-%% their bindings are evaluated, is refused with status 1 and the node's
-%% reason as the node answers it, `Other(r)`, which the node says too. A
-%% regression test, written after the code: the node answered `NotLoaded`,
-%% and the shell said that the node ran another build of `ern`. It does
-%% not cover a load the host refuses, whose reason crosses the same way
-attach_unloadable_shell_test_() ->
-    nodes_test({waits, 6}, fun attach_unloadable_shell/1).
+%% report §4.6, §8.7, §12.7: libs/ansi's bindings are constants, so a
+%% program's lambda that names one has its value on a bare node, the form
+%% crossing with the code and evaluated nowhere: a spawn whose reach names
+%% Ansi.clearScreen, which brings its enclosing definition, a compute of
+%% another definition's lambda that names it, and a spawn of a lambda the
+%% node then holds, which names Ansi.clearBelow, each run with the
+%% library's values and none said to be not loaded. A binding of the
+%% program's own whose initializer computes has no value there,
+%% constant_crosses/1's
+lambda_reach_on_a_bare_node_test_() ->
+    nodes_test({waits, 9}, fun lambda_reach_on_a_bare_node/1).
 
-attach_unloadable_shell(Base) ->
+lambda_reach_on_a_bare_node(Base) ->
+    ProgramDir = filename:join(Base, "program"),
+    ok = filelib:ensure_path(ProgramDir),
+    ok = file:write_file(
+           filename:join(ProgramDir, "reach.ern"),
+           unicode:characters_to_binary(
+             ["// Report §8.7, §12.7: lambdas whose reach names a binding of libs/ansi's,\n"
+              "// spawned and computed on a bare node.\n"
+              "\n"
+              "export fn main() : Unit =\n"
+              "    match Os.arguments {\n"
+              "        [bare] -> placed(bare)\n"
+              "      | _ -> Unit\n"
+              "    }\n"
+              "\n"
+              "// The first spawn brings this definition, so the node holds the last\n"
+              "// spawn's lambda when it comes.\n"
+              "fn placed(bare : String) : Unit = {\n"
+              "    let cleared = Peer.spawn(bare, fn() = Io.println(Io.show(Ansi.clearScreen)),"
+              " waitMs());\n"
+              "    Io.println(\"spawned: \" <> outcome(cleared));\n"
+              "    computed(bare);\n"
+              "    let below = Peer.spawn(bare, fn() = Io.println(Io.show(Ansi.clearBelow)),"
+              " waitMs());\n"
+              "    Io.println(\"held: \" <> outcome(below))\n"
+              "}\n"
+              "\n"
+              "fn computed(bare : String) : Unit =\n"
+              "    Io.println(\"computed: \" <> Io.show(Peer.computeAt(bare,"
+              " fn() = Ansi.clearScreen, waitMs())))\n"
+              "\n"
+              "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
+              "    match spawned {\n"
+              "        Right(_) -> \"Right\"\n"
+              "      | Left(failure) -> Io.show(failure)\n"
+              "    }\n",
+              wait_ms_declaration()])),
+    0 = built([ProgramDir]),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}]),
+    WaitB = bare_started(B, []),
+    lists(A, [{"b", B, bound_port(B)}]),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ",
+                              filename:join(ProgramDir, "reach.erc"), " b"]),
+    ?assertEqual(0, WaitA()),
+    [prints(B, Line) || Line <- ["\"\\u{1B}[2J\\u{1B}[H\"", "\"\\u{1B}[J\""]],
+    ?assertMatch({0, _}, signaled("stop", B)),
+    ?assertEqual(143, WaitB()),
+    {Out, _} = said(A),
+    {_, ErrB} = said(B),
+    [has(Out, Line) || Line <- ["spawned: Right", "computed: Right(\"\\u{1B}[2J\\u{1B}[H\")",
+                                "held: Right"]],
+    ?assertEqual(nomatch, string:find(ErrB, "was not loaded")).
+
+%% report §12.7, §8.7, Appendix E.28: a binding an arrival's code reads
+%% beyond the spawned function's reach, which the node holds without its
+%% value, is linked to the unit that holds it. A bare node holds `Config`
+%% from its load path, unevaluated, and a lambda spawned there brings its
+%% enclosing definition, whose code calls `Config.shout` and reads
+%% `Config.greeting` in two other lambdas. A spawn of the one and a compute
+%% of the other, which the node then holds, are NotLoaded, the node naming
+%% the binding; once a compute's `Code.load` has evaluated the module
+%% there, both run and read its value, and nothing faults.
+%%
+%% Written before its code, a regression test of the order the log's *A
+%% Top-Level Binding Stays the Node's* names: the binding was linked to a
+%% fault, and once the load had given it its value the held spawn passed
+%% the check and faulted on the link. Where the node holds the binding in
+%% no unit the link is a fault still, beyond_reach/1's
+binding_linked_to_its_holder_test_() ->
+    nodes_test({waits, 12}, fun binding_linked_to_its_holder/1).
+
+binding_linked_to_its_holder(Base) ->
+    SharedDir = filename:join(Base, "shared"),
+    ProgramDir = filename:join(Base, "program"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [SharedDir, ProgramDir]],
+    ok = file:write_file(
+           filename:join(SharedDir, "config.ern"),
+           unicode:characters_to_binary(
+             ["// Report §8.5, §8.7: a module a bare node holds from its load path, whose\n"
+              "// binding has no value there until a load evaluates it.\n"
+              "\n"
+              "export let greeting = String.toUpper(\"held\")\n"
+              "\n"
+              "export fn shout(text : String) : String =\n"
+              "    String.toUpper(text)\n"])),
+    Source = "// Report §8.7, §12.7: lambdas of one definition spawned on a bare node\n"
+             "// that holds Config, before and after a load gives its binding a value.\n"
+             "\n"
+             "export fn main() : Unit =\n"
+             "    match Os.arguments {\n"
+             "        [bare, path] -> {\n"
+             "            placed(bare, false);\n"
+             "            placed(bare, true);\n"
+             "            let loaded = Peer.computeAt(bare, fn() = Code.load(Path(path)),"
+             " waitMs());\n"
+             "            Io.println(\"loaded: \" <> Io.show(loaded));\n"
+             "            placed(bare, true)\n"
+             "        }\n"
+             "      | _ -> Unit\n"
+             "    }\n"
+             "\n"
+             "// The first call's spawn brings this definition whole, its code calling\n"
+             "// Config.shout, so the node holds the later calls' lambdas when they come.\n"
+             "fn placed(bare : String, read : Bool) : Unit =\n"
+             "    if read then {\n"
+             "        let greeted = Peer.spawn(bare, fn() = Io.println(Config.greeting),"
+             " waitMs());\n"
+             "        Io.println(\"greeted: \" <> outcome(greeted));\n"
+             "        let computed = Peer.computeAt(bare, fn() = Config.greeting, waitMs());\n"
+             "        Io.println(\"computed: \" <> Io.show(computed))\n"
+             "    } else {\n"
+             "        let shouted = Peer.spawn(bare, fn() = Io.println(Config.shout(\"plain\")),"
+             " waitMs());\n"
+             "        Io.println(\"shouted: \" <> outcome(shouted))\n"
+             "    }\n"
+             "\n"
+             "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
+             "    match spawned {\n"
+             "        Right(_) -> \"Right\"\n"
+             "      | Left(failure) -> Io.show(failure)\n"
+             "    }\n",
+    ok = file:write_file(filename:join(ProgramDir, "held.ern"),
+                         unicode:characters_to_binary([Source, wait_ms_declaration()])),
+    0 = built([SharedDir]),
+    0 = built(["--load-path", SharedDir, ProgramDir]),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}]),
+    WaitB = bare_started(B, [SharedDir]),
+    lists(A, [{"b", B, bound_port(B)}]),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " --load-path ", SharedDir, " ",
+                              filename:join(ProgramDir, "held.erc"), " b ",
+                              filename:join(SharedDir, "config.erc")]),
+    ?assertEqual(0, WaitA()),
+    [prints(B, Line) || Line <- ["PLAIN", "HELD"]],
+    Site = fun(Part) -> "Held.placed:" ++ integer_to_list(line_of(Source, Part)) end,
+    [says(B, Line)
+     || Line <- ["the peer a's spawn at " ++ Site("let greeted") ++ " was not loaded:"
+                 " the binding Config.greeting has no value here",
+                 "the peer a's compute at " ++ Site("let computed") ++ " was not loaded:"
+                 " the binding Config.greeting has no value here"]],
+    ?assertMatch({0, _}, signaled("stop", B)),
+    ?assertEqual(143, WaitB()),
+    {Out, _} = said(A),
+    {_, ErrB} = said(B),
+    ?assertEqual(["shouted: Right", "greeted: Io.NotLoaded", "computed: Left(Io.NotLoaded)",
+                  "loaded: Right(Right(Unit))", "greeted: Right", "computed: Right(\"HELD\")",
+                  ""],
+                 string:split(Out, "\n", all)),
+    ?assertEqual(nomatch, string:find(ErrB, "faulted")).
+
+%% report §12.7, §8.4, Appendix H: a program's foreign type, which no peer
+%% declares, crosses by its name in the code that names it. Three lambdas,
+%% each in a definition of its own, are computed on a bare node: the first
+%% calls foreign functions whose types name `Token`, the second one whose
+%% result names `Boxed`, a type of the program's with a field of `Token`,
+%% which arrives with it, and the third the same function where the node
+%% then holds `Boxed`. Each answers, and the node says nothing of a load.
+%%
+%% Written before its code: the shell's foreign types made its attach
+%% fail, the node's back end finding no unit for `Session`, and no test
+%% crossed a program's foreign type before
+foreign_type_crosses_test_() ->
+    nodes_test({waits, 7}, fun foreign_type_crosses/1).
+
+foreign_type_crosses(Base) ->
+    ProgramDir = filename:join(Base, "program"),
+    ok = filelib:ensure_path(ProgramDir),
+    ok = file:write_file(
+           filename:join(ProgramDir, "handle.ern"),
+           unicode:characters_to_binary(
+             ["// Report §12.7: lambdas whose definitions name a foreign type of the\n"
+              "// program's own, computed on a bare node.\n"
+              "\n"
+              "foreign type Token\n"
+              "\n"
+              "type Boxed = Boxed(Token)\n"
+              "\n"
+              "foreign fn token() : Token =\n"
+              "    \"erlang:make_ref/0\"\n"
+              "\n"
+              "foreign fn isToken(token : Token) : Bool =\n"
+              "    \"erlang:is_reference/1\"\n"
+              "\n"
+              "foreign fn unboxed(counts : List(Int)) : List(Boxed) =\n"
+              "    \"lists:reverse/1\"\n"
+              "\n"
+              "export fn main() : Unit =\n"
+              "    match Os.arguments {\n"
+              "        [bare] -> {\n"
+              "            Io.println(\"tokened: \" <> Io.show(tokened(bare)));\n"
+              "            Io.println(\"reversed: \" <> Io.show(reversed(bare)));\n"
+              "            Io.println(\"emptied: \" <> Io.show(emptied(bare)))\n"
+              "        }\n"
+              "      | _ -> Unit\n"
+              "    }\n"
+              "\n"
+              "fn tokened(bare : String) : Either(Io.Error, Bool) =\n"
+              "    Peer.computeAt(bare, fn() = isToken(token()), waitMs())\n"
+              "\n"
+              "fn reversed(bare : String) : Either(Io.Error, Bool) =\n"
+              "    Peer.computeAt(bare, fn() = List.isEmpty(List.reverse(unboxed([]))),"
+              " waitMs())\n"
+              "\n"
+              "fn emptied(bare : String) : Either(Io.Error, Bool) =\n"
+              "    Peer.computeAt(bare, fn() = List.isEmpty(unboxed([])), waitMs())\n",
+              wait_ms_declaration()])),
+    0 = built([ProgramDir]),
+    A = made(Base, "a", none),
+    B = made(Base, "b", 0),
+    lists(B, [{"a", A, none}]),
+    WaitB = bare_started(B, []),
+    lists(A, [{"b", B, bound_port(B)}]),
+    {_, WaitA} = launched(A, [?ERN, " run --config-dir ", A, " ",
+                              filename:join(ProgramDir, "handle.erc"), " b"]),
+    ?assertEqual(0, WaitA()),
+    ?assertMatch({0, _}, signaled("stop", B)),
+    ?assertEqual(143, WaitB()),
+    {Out, _} = said(A),
+    {_, ErrB} = said(B),
+    ?assertEqual(["tokened: Right(true)", "reversed: Right(true)", "emptied: Right(true)", ""],
+                 string:split(Out, "\n", all)),
+    ?assertEqual(nomatch, string:find(ErrB, "was not loaded")).
+
+%% report §11.2 *The attached shell*, §12.7: an attach to a bare node whose
+%% `HOME` is not UTF-8 runs, and `:quit` ends it with status 0, the shell
+%% saying nothing of its own on standard error and the node no fault: the
+%% bindings of the shell's that read `HOME`, `Ernest.Shell.History`'s, are
+%% the local half's, which no spawn's reach names. A regression test,
+%% written after the code: the node evaluated every binding of the shell's
+%% units as it loaded them from its own tree, `History.directory` faulted,
+%% and the attach was refused as `could not load the shell`
+attach_unreadable_home_test_() ->
+    nodes_test({waits, 5}, fun attach_unreadable_home/1).
+
+attach_unreadable_home(Base) ->
     Node = made(Base, "node", 0),
     Ops = made(Base, "ops", none),
     lists(Node, [{"ops", Ops, none}]),
@@ -3710,22 +3948,15 @@ attach_unloadable_shell(Base) ->
     lists(Ops, [{"node", Node, bound_port(Node)}]),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    {_, WaitShell} = launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
-                                    " --attach node"]),
-    ?assertEqual(1, WaitShell()),
+    {Input, WaitShell} = launched(Ops, ["HOME=", Home, " ", ?ERN, " shell --config-dir ", Ops,
+                                        " --attach node"]),
+    true = port_command(Input, ":quit\n"),
+    ?assertEqual(0, WaitShell()),
     {_, Err} = said(Ops),
-    Loading = "ern shell: the node node could not load the shell: ",
-    [Reason] = [string:slice(Found, length(Loading))
-                || Line <- string:split(Err, "\n", all), Found <- [string:find(Line, Loading)],
-                   Found =/= nomatch],
-    has(Reason, "Ernest.Shell.History.directory:"),
-    has(Reason, " faulted: the environment variable HOME is not UTF-8"),
-    ern_deployment_tests:cataloged(Err, "6", "could not load the shell", [{"b", "node"}]),
-    ?assertEqual(nomatch, string:find(Err, "another build")),
-    says(Node, "the peer ops's spawn at Ernest.Shell.localHalf:"),
-    has(written(Node, err), "was not loaded: " ++ Reason),
+    ?assertEqual(nomatch, string:find(Err, "ern shell:")),
     ?assertMatch({0, _}, signaled("stop", Node)),
-    ?assertEqual(143, WaitNode()).
+    ?assertEqual(143, WaitNode()),
+    ?assertEqual(nomatch, string:find(written(Node, err), "faulted")).
 
 %% report §4.2, §11.2 *The attached shell*, §12.7: a shell attaches to a
 %% node whose program has a module `Shell` of its own, the shell's units
@@ -4124,40 +4355,38 @@ stall() ->
     "    receive { _ -> Unit }\n"
     "}\n".
 
-%% report §11.2 *The attached shell*, §11.8, §12.5, §12.6, §12.7: a shell
-%% of another build of `ern` than its node's, on the node's floor, is
-%% refused, saying that the node runs another build, with status 1, the
-%% line as the deployment guide's section 6 quotes it, its standard output
-%% the line of the connection alone, as an attach unanswered leaves it; and
-%% the node says that the spawn was not loaded, its tree holding none of
-%% the toolchain's own definition the spawn's frame names, which it asks
-%% the shell's own node nothing of.
+%% report §11.2 *The attached shell*, *Startup and history*, §8.7, §12.5,
+%% §12.7: a shell of another release of `ern` than its node's, on the
+%% node's floor, attaches, its definitions crossing to the node by the
+%% exchange as any program's do, and its start line names the node's
+%% release beside its own; a shell of the node's own release then attaches
+%% with the plain start line. Each leaves by `:quit` with status 0 and says
+%% nothing of its own on standard error.
 %%
-%% The builds are releases made from this tree under Base, so that each
-%% stands on the floor of the release VERSION names: the second's shell
-%% compiled from the shell's source with one binding's form changed,
-%% `fileMs`, its value not, and the third's with one function's form
-%% changed and no binding's, `isAttaching`'s clauses in the other order, so
-%% that the local half, whose reach names both, hashes otherwise and the
-%% node's own tree lacks it (the design note on code's *The toolchain's
-%% own units*). A shell of the node's own build attaches and leaves between
-%% the two, so that the refusal is the shell's units and not the floor, and
-%% so that the node's own shell units have run before the third's attach,
-%% which an exchange of its code would then have let run.
+%% The builds are releases made from this tree under Base, each on the
+%% floor of the release VERSION names: the node's of that version, and the
+%% other a patch release after it, its shell compiled from the shell's
+%% source with one function's form changed, `isAttaching`'s clauses in the
+%% other order, so that the local half, whose reach names it, hashes
+%% otherwise than the node's own release's.
 %%
-%% Written after the code, a regression test, and of the third build (the
-%% log's *The Shell's Own Node*), refused only where the reach named a
-%% binding without a value
+%% A regression test, written after the code: a shell of another build was
+%% refused, the node saying that its tree held none of the definition the
+%% spawn named (the log's *The Shell Attaches as a Program Spawns*)
 attach_other_build_test_() ->
-    nodes_test({waits, 12}, fun attach_other_build/1).
+    nodes_test({waits, 7}, fun attach_other_build/1).
 
 attach_other_build(Base) ->
-    Own = released(filename:join(Base, "one"), ern_tree:build("shell")),
-    Other = changed_release(filename:join(Base, "two"), <<"\nlet fileMs = 5000\n">>,
-                            <<"\nlet fileMs = 5000 + 0\n">>),
-    Third = changed_release(filename:join(Base, "three"),
+    {ok, Text} = file:read_file(filename:join(ern_tree:tree(), "VERSION")),
+    Version = string:trim(binary_to_list(Text)),
+    [Major, Minor, Patch] = string:split(Version, ".", all),
+    Later = lists:flatten(lists:join(".", [Major, Minor,
+                                           integer_to_list(list_to_integer(Patch) + 1)])),
+    Own = released(filename:join(Base, "one"), ern_tree:build("shell"), Version),
+    Other = changed_release(filename:join(Base, "two"),
                             <<"        Attaching(_) -> true\n      | Beside(_) -> false\n">>,
-                            <<"        Beside(_) -> false\n      | Attaching(_) -> true\n">>),
+                            <<"        Beside(_) -> false\n      | Attaching(_) -> true\n">>,
+                            Later),
     Node = made(Base, "node", 0),
     Ops = made(Base, "ops", none),
     lists(Node, [{"ops", Ops, none}]),
@@ -4165,41 +4394,29 @@ attach_other_build(Base) ->
     lists(Ops, [{"node", Node, bound_port(Node)}]),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
-    Shell = fun(Ern) -> launched(Ops, ["HOME=", Home, " ", Ern, " shell --config-dir ", Ops,
-                                       " --attach node"])
-            end,
-    Refused = fun(Ern) ->
-                  {_, Wait} = Shell(Ern),
-                  ?assertEqual(1, Wait()),
-                  {RefusedOut, RefusedErr} = said(Ops),
-                  ?assertEqual("the peer node connected\n", unstamped(RefusedOut)),
-                  ern_deployment_tests:cataloged(RefusedErr, "6", "another build",
-                                                 [{"b", "node"}])
-              end,
-    Refused(Other),
-    says(Node, "the peer ops's spawn at Ernest.Shell.localHalf:"),
-    NotLoaded = " was not loaded: the toolchain's own definition it names, which this node's"
-        " tree holds none of, another build of ern than the spawner's\n",
-    has(written(Node, err), NotLoaded),
-    {Input, Attached} = Shell(Own),
-    true = port_command(Input, ":quit\n"),
-    ?assertEqual(0, Attached()),
-    {Out, Err} = said(Ops),
-    has(Out, ". :help for help.\n"),
-    ?assertEqual(nomatch, string:find(Err, "ern shell:")),
-    Refused(Third),
-    seen(Node, err, NotLoaded, 2, ?WAIT_MS),
+    Attached = fun(Ern, Line) ->
+                   {Input, Wait} = launched(Ops, ["HOME=", Home, " ", Ern, " shell --config-dir ",
+                                                  Ops, " --attach node"]),
+                   true = port_command(Input, ":quit\n"),
+                   ?assertEqual(0, Wait()),
+                   {Out, Err} = said(Ops),
+                   has(Out, Line),
+                   ?assertEqual(nomatch, string:find(Err, "ern shell:"))
+               end,
+    Attached(Other, "Ernest " ++ Later ++ ", session 1 on ern " ++ Version
+             ++ ". :help for help.\n"),
+    Attached(Own, "Ernest " ++ Version ++ ", session 2. :help for help.\n"),
     stop(Node, WaitNode).
 
-%% A release of `ern` made in Dir as released/2 makes one, and its
-%% launcher, whose shell is compiled from the shell's source with Old
+%% A release of `ern` of Version made in Dir as released/3 makes one, and
+%% its launcher, whose shell is compiled from the shell's source with Old
 %% replaced by New in `ernest/shell.ern`: the source copied into the
 %% release's own tree and built there by the release's `ern`, since a
 %% module of `Ernest` is built in the shell's own source root alone (report
 %% §4.2), the tree's of the `ern` that builds it. The build is one of the
 %% test's steps.
-changed_release(Dir, Old, New) ->
-    Ern = released(Dir, ern_tree:build("shell")),
+changed_release(Dir, Old, New, Version) ->
+    Ern = released(Dir, ern_tree:build("shell"), Version),
     Tree = ern_tree:tree(),
     Source = filename:join([Dir, "src", "shell"]),
     [begin
@@ -4215,14 +4432,14 @@ changed_release(Dir, Old, New) ->
                                    filename:join([Dir, "build", "shell"]), " ", Source])),
     Ern.
 
-%% Report §12.5, §12.7: a release of `ern` made in Dir from this tree, and
-%% its launcher: the tree's code, the runtime's helper, the standard
-%% library and the libraries copied as they stand, the shell's build from
-%% Shell, and `ern_release` compiled again with an empty mark in place of
-%% `-dev`, as the release archive compiles it at the release's tag
-%% (tools/install.sh), so that its version text is VERSION's alone and it
-%% stands on a release's floor.
-released(Dir, Shell) ->
+%% Report §12.5, §12.7: a release of `ern` of Version made in Dir from
+%% this tree, and its launcher: the tree's code, the runtime's helper, the
+%% standard library and the libraries copied as they stand, the shell's
+%% build from Shell, and `ern_release` compiled again with Version and an
+%% empty mark in place of `-dev`, as the release archive compiles it at the
+%% release's tag (tools/install.sh), so that its version text is Version
+%% alone and it stands on a release's floor.
+released(Dir, Shell, Version) ->
     Tree = ern_tree:tree(),
     Copies = [{filename:join(Tree, File), filename:join(Dir, File)}
               || Pattern <- ["bin/ern", "build/toolchain/*/ebin/*", "build/shared/ebin/*",
@@ -4238,9 +4455,8 @@ released(Dir, Shell) ->
                   end, Copies),
     [ok = file:change_mode(filename:join(Dir, File), 8#755)
      || File <- ["bin/ern", "build/runtime/priv/ern_exec"]],
-    {ok, Version} = file:read_file(filename:join(Tree, "VERSION")),
     {ok, ern_release} = compile:file(filename:join(Tree, "src/toolchain/cli/ern_release"),
-                                     [{d, 'VERSION', string:trim(binary_to_list(Version))},
+                                     [{d, 'VERSION', Version},
                                       {d, 'MARK', ""},
                                       {outdir, filename:join(Dir, "build/toolchain/cli/ebin")},
                                       report]),
@@ -5607,7 +5823,7 @@ sent(Node, Body) ->
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Body}).
 spawned(Node, Hash) ->
     Ref = make_ref(),
-    sent(Node, {spawn, Ref, {function, Hash}, false, <<\"Lost.z:1\">>, false,
+    sent(Node, {spawn, Ref, {function, Hash}, <<\"Lost.z:1\">>, false,
                 list_to_integer(argument(ern_nodes_ms))}),
     Ref.
 requested() ->

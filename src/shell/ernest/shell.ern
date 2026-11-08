@@ -152,8 +152,9 @@ type LastKey = Ordinary | Tabbed | Documented
 // file takes what is typed; the lines to say of what it read, a startup
 // file it did not run or a history it does not keep; the inputs of the
 // startup files, each with its file and the line it begins on; the source
-// root and the working directory, which are the operator's; and whether
-// the session is attached to a node from another.
+// root and the working directory, which are the operator's; whether the
+// session is attached to a node from another; and the version text of the
+// shell's own `ern`, which the start line names.
 type Desk =
     Desk(local : Address(LocalMsg),
          size : Optional(Terminal.Size),
@@ -164,7 +165,8 @@ type Desk =
          startup : List(#(String, Int, String)),
          sourceRoot : String,
          workingDirectory : String,
-         attached : Bool)
+         attached : Bool,
+         version : String)
 
 // Report §11.2: what the local half is told, on the shell's own node. Its
 // session sends `Attached` once it has its screen, a call, with the
@@ -231,7 +233,7 @@ type Serving =
 // Report §11.2: a value is printed to a depth and a length, and 0 is
 // neither. The defaults print what a prompt is used for whole and stop a
 // value that would scroll the session away.
-let defaults =
+fn defaults() : Settings =
     Settings(depth = 10, length = 100, timing = false, rows = Ernest.Shell.Region.defaultRows)
 
 /// The shell: a session beside its local half on this node, at a terminal
@@ -323,7 +325,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                               desk.workingDirectory,
                               attached,
                               shell),
-              settings = defaults,
+              settings = defaults(),
               =color,
               own = Set.fromList(ownProcesses),
               faults = [],
@@ -344,8 +346,12 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
                                   screen = screenProcess,
                                   =reply),
                      screenMs);
-    let greeting = "Ernest " <> version() <> ", session " <> Int.toString(number(state.session));
-    send(screen, Said(greeting <> ". :help for help.\n"));
+    // report §11.2: the start line names the shell's version, and the
+    // node's where the node runs another release
+    let nodeVersion = version();
+    let on = if nodeVersion == desk.version then "" else " on ern " <> nodeVersion;
+    let greeting = "Ernest " <> desk.version <> ", session " <> Int.toString(number(state.session));
+    send(screen, Said(greeting <> on <> ". :help for help.\n"));
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs
@@ -562,7 +568,8 @@ let screenMs = 5000
 // How long to wait for the local half to answer for a file: as long as it
 // waits for its file system, and a dial beside it, the carrier's longest
 // wait to reach the shell's own node (§8.7).
-let localMs = fileMs + dialMs()
+fn localMs() : Int =
+    fileMs + dialMs()
 
 fn trouble(error : Io.Error) : String =
     match error {
@@ -621,13 +628,13 @@ fn locate(screen : Address(ScreenMsg)) : Either(String, String) =
 // answers there, the one path it appends what programs write to from then
 // on, or `Timeout` where no answer comes.
 fn tryOutput(local : Address(LocalMsg), path : Path) : Either(Io.Error, Unit) =
-    Optional.withDefault(Address.call(local, fn(reply) = Output(=path, =reply), localMs),
+    Optional.withDefault(Address.call(local, fn(reply) = Output(=path, =reply), localMs()),
                          Left(Io.Timeout))
 
 // Report §11.2: what the local half appends to the path `:output` took, as
 // `Fs.append` answers there, or `Timeout` where no answer comes.
 fn appendThere(local : Address(LocalMsg), path : Path, bytes : Bytes) : Either(Io.Error, Unit) =
-    Optional.withDefault(Address.call(local, fn(reply) = Append(=path, =bytes, =reply), localMs),
+    Optional.withDefault(Address.call(local, fn(reply) = Append(=path, =bytes, =reply), localMs()),
                          Left(Io.Timeout))
 
 // Report §11.2: a path that names no terminal, other device or file, a
@@ -1729,7 +1736,7 @@ fn remember(screen : Address(ScreenMsg),
 // `Ernest.Shell.History.add` answers on the shell's own node, or `Timeout` where
 // no answer comes.
 fn addToHistory(local : Address(LocalMsg), input : String) : Either(Io.Error, Unit) =
-    Optional.withDefault(Address.call(local, fn(reply) = Remember(=input, =reply), localMs),
+    Optional.withDefault(Address.call(local, fn(reply) = Remember(=input, =reply), localMs()),
                          Left(Io.Timeout))
 
 // Report §11.2: `Tab` completes the word before the cursor; a second
@@ -1759,7 +1766,7 @@ fn completing(shell : Address(ShellMsg),
 // Report §11.2: a directory of the source root, listed by the local half,
 // which holds the operator's files, or `Timeout` where no answer comes.
 fn listEntries(local : Address(LocalMsg), path : Path) : Either(Io.Error, List(Fs.Entry)) =
-    Optional.withDefault(Address.call(local, fn(reply) = ListEntries(=path, =reply), localMs),
+    Optional.withDefault(Address.call(local, fn(reply) = ListEntries(=path, =reply), localMs()),
                          Left(Io.Timeout))
 
 // Report §11.2: what `Tab` puts in where it indents.
@@ -2023,7 +2030,8 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
              startup = List.flatMap(read, fn(#(inputs, _)) = inputs),
              sourceRoot = givenSourceRoot(),
              workingDirectory = Path.toString(Os.workingDirectory),
-             attached = isAttaching(attachment));
+             attached = isAttaching(attachment),
+             version = version());
     let serving =
         Serving(keys = None,
                 =lines,
@@ -2078,24 +2086,16 @@ fn holdKeys() : Optional(Terminal.Size) receiving LocalMsg =
 
 // Report §11.2, §11.8: an attach that fails is the job's refusal, naming
 // the spawn's `Io.Error` (Appendix E.27), and dials again never; a node
-// that lacks the shell's units runs another build of `ern`, and one that
-// holds them and could not load them answers why (§12.7), which the shell
-// says as it is.
+// that could not compile or load the shell's definitions answers why
+// (§12.7), which the shell says as it is.
 fn refusal(name : String, error : Io.Error) : String = {
     let peer = "ern shell: the peer " <> name;
     match error {
-        Io.NotListed ->
-            peer <> " is not listed"
-      | Io.Unreachable ->
-            peer <> " is unreachable"
-      | Io.Timeout ->
-            peer <> " did not answer in time"
-      | Io.NotLoaded ->
-            nodeRefusal(name, "runs another build of ern than this shell; attach with its release")
-      | Io.Other(text) ->
-            nodeRefusal(name, "could not load the shell: " <> text)
-      | other ->
-            peer <> ": " <> trouble(other)
+        Io.NotListed -> peer <> " is not listed"
+      | Io.Unreachable -> peer <> " is unreachable"
+      | Io.Timeout -> peer <> " did not answer in time"
+      | Io.Other(text) -> nodeRefusal(name, "could not load the shell: " <> text)
+      | other -> peer <> ": " <> trouble(other)
     }
 }
 
@@ -2492,7 +2492,8 @@ foreign fn browse(session : Session, name : String) : Either(String, List(String
 foreign fn doc(session : Session, name : String) : Either(String, String) =
     "ern_shell:doc/2"
 
-// The toolchain's version, which the host was built with.
+// The version text of the `ern` the calling process runs under, the
+// node's in an attached session (report §11.7).
 foreign fn version() : String =
     "ern_shell:version/0"
 

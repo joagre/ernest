@@ -456,7 +456,7 @@ main() ->
     true = register(ern_gateway, self()),
     true = net_kernel:connect_node(Node),
     Spawn = make_ref(),
-    sent(Node, {spawn, Spawn, {function, Hash}, false, <<\"Taker.main:1\">>, false,
+    sent(Node, {spawn, Spawn, {function, Hash}, <<\"Taker.main:1\">>, false,
                 list_to_integer(argument(ern_deployment_ms))}),
     Exchange = receive {ern_frame, _, {reach_request, Asked, _}} -> Asked end,
     sent(Node, {reach, Exchange, [Hash], [], []}),
@@ -499,11 +499,14 @@ four_fifths() ->
 %% guide/deployment.md, sections 7, 4.3 and 6: every line the guide quotes
 %% there is held to a node's or a shell's by a check that names it, beside
 %% the test that provokes the line, in this module or in ern_nodes_tests,
-%% and each check names one line; but one, which no test provokes: the
-%% attach refused as `ern shell: the node b could not start the shell:`,
-%% where the session's root ends before the session's `Attached` call
-%% reaches the local half (report §11.2), which no input a test controls
-%% causes
+%% and each check names one line; but two, which no test provokes, since
+%% no input a test controls causes them: the attach refused as `ern shell:
+%% the node b could not start the shell:`, where the session's root ends
+%% before the session's `Attached` call reaches the local half, and as `ern
+%% shell: the node b could not load the shell:`, where a node on the
+%% shell's floor could not compile or load the shell's code that crossed,
+%% which the host's refusal of a load at a limit of section 4.2 causes
+%% (report §11.2, §12.7)
 catalog_test() ->
     Quoted = quoted(),
     ?assert(length(Quoted) >= 26),
@@ -512,7 +515,8 @@ catalog_test() ->
                 [Line || {In, Line, _} <- Quoted, In =:= Section,
                          string:find(Line, Fragment) =/= nomatch]
             end,
-    Unprovoked = [{"6", "ern shell: the node b could not start the shell: ..."}],
+    Unprovoked = [{"6", "ern shell: the node b could not start the shell: ..."},
+                  {"6", "ern shell: the node b could not load the shell: ..."}],
     Checked = [{Section, Line} || {Section, Fragment} <- Checks,
                                   Line <- Named(Section, Fragment)] ++ Unprovoked,
     ?assertEqual([], [{Section, Line} || {Section, Line, _} <- Quoted,

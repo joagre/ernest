@@ -66,7 +66,7 @@ cookie_test() ->
              end,
     Unasked = fun() -> erlang:error(code_digest_asked) end,
     Otp = erlang:system_info(otp_release),
-    ?assertEqual(Digest({5, 2, 0, 3, Otp}), ern_carrier:cookie({0, 3, 1}, Unasked)),
+    ?assertEqual(Digest({6, 2, 0, 3, Otp}), ern_carrier:cookie({0, 3, 1}, Unasked)),
     ?assertEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({0, 3, 7}, Unasked)),
     ?assertNotEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({0, 4, 0}, Unasked)),
     ?assertNotEqual(ern_carrier:cookie({0, 3, 1}, Unasked), ern_carrier:cookie({1, 3, 1}, Unasked)),
