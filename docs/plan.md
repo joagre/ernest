@@ -149,22 +149,31 @@ reader S reads of its live shell. The release note's line on the installed layou
     way, so its lines are not read again. `roff` stays in `libs/markdown`, since `ern doc --man`
     lays its pages out with it as §11.4 says, beside `tools/manual.ern` (principle 2).
 15. **What a lambda's reach finds on a peer**, feedback 217, decided 2026-11-07 and decided
-    again 2026-11-08 (§8.5, §8.7, §12.7; the log's *What a Lambda's Reach Finds on a Peer*, *A
-    Top-Level Binding Stays the Node's*): a bare node evaluates the toolchain's own libraries'
-    bindings at its start, as it evaluates the standard library's, so a program's lambda naming
-    `Ansi.clearScreen` serves there where it answered `Left(Io.NotLoaded)`; the load of a unit
-    for a binding of the reach, built 2026-11-08 and uncommitted, goes. The report says it.
+    again 2026-11-08 (§4.6, §8.5, §8.7, §11.2, §12.7; the log's *What a Lambda's Reach Finds on
+    a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*):
+    the toolchain's own units are no class of the exchange; the shell's definitions cross to
+    the node it attaches to as any program's do, and `libs/ansi`'s `clearBelow` and
+    `clearScreen` are string literals, constants that cross with the code, so a program's
+    lambda naming `Ansi.clearScreen` serves on a bare node where it answered
+    `Left(Io.NotLoaded)`. The report says it.
 
-    Built by an item session: the binding half of the 2026-11-08 build reverted, `unvalued/1`,
-    `lacking_value/4`, the held path's re-read and the lacked rows among it; the bare node's
-    start evaluates the three libraries' units it holds, in §8.5's order after the standard
-    library's, and §8.5 states which unit it evaluates where a program's module on its load
-    path hides a library of theirs (§4.2), the library's by its tree as §12.7's load finds it
-    being the shape; item 27's link built with it; of the nodes tests of 2026-11-08, the bare node's
-    keeps its lines and the held-path test expects the general rule's, `NotLoaded` where a run
-    of `ern test` holds the unit without its values; the nodes' and the code's design notes,
-    the deployment guide's §3.4 and §4.3 and the architecture map follow the code;
-    `make test-nodes`, then `make test-full`.
+    Built by an item session: the 2026-11-08 build in the checkout reverted whole but for what
+    item 27's link keeps; the two bindings as literals; the four non-constant bindings of the
+    shell's session half, `Ernest.Shell.localMs`, `Ernest.Shell.defaults`,
+    `Ernest.Shell.Command.settingsAbout` and `Ernest.Shell.Command.commands`, written as
+    functions or captures as the guide's §8.1 has them; `ern_code`'s own-unit index,
+    `is_own/1` and `own_unit/1`, the exchange's branch and its loader, `ern_code_load:own/1`,
+    and the spawn frame's mark removed, the protocol's version moving with the frame, before
+    the release.
+
+    Then the tests and the documents: `attach_other_build`'s other build changes a function's
+    body and not a binding, and expects the run and the start line naming the node's release;
+    item 15's bare-node test keeps its lines and its held-path test goes, the rule having no
+    held path; the first attach is timed and its number goes to the log; the release review's
+    patch check names the shell's foreign declarations with the library's; the nodes' and the
+    code's design notes, the architecture map and the deployment guide's lines on the attach
+    and on a binding without a value follow the code; `make test-nodes`, then
+    `make test-full`.
 16. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
     writer's own namespace outward, as a relative path resolves from its directory, so that
     `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in

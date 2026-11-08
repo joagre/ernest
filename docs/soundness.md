@@ -300,8 +300,6 @@ A `send` to a process of a node out of reach, and a `kill`, do nothing (§6.2), 
 
 **Code that crosses.** A spawn carries to a peer the definitions of its function's reach that the peer lacks, each as its canonical form, and the peer verifies each against its hash and compiles the reach from the forms (§8.7, Appendix H).
 
-A function of the toolchain's own units crosses in no form: a peer that lacks its identity loads those units from its own tree by identity, the same hash giving the same definition, and evaluates their bindings there before the process starts (§12.7), so the code is the same build's and the argument is the one above.
-
 The form holds the definition as the checker typed it, every name resolved to an identity and every inferred type the emitted code depends on (Appendix H), so the code the peer compiles is the code the sender's checker accepted, typed by the same rules, and I1 to I3 hold in a process on the peer as they hold in one on the sender.
 
 A form that does not match its hash is refused before anything of it runs, and nothing of a reach runs before all of it is loaded, so no process runs a definition whose references are not there; a member of a mutually recursive group is hashed with its group and crosses with it (Appendix H), so no definition is compiled apart from those it was typed with.

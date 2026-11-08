@@ -378,7 +378,7 @@ The type of an exported declaration, and the field types of an exported type tha
 
 **Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library, nor stand under one. The prelude's namespaces are `Prelude` and the name of every type whose namespace §9 fills, as `Int` and `Address`: `address.ern` at the source root is an error, and so is `io.ern`, a namespace of the standard library, and `fs/entry.ern` under one. A prelude type without members takes no namespace: `down.ern` at the source root provides the namespace `Down`, and the type `Down` is still the prelude's.
 
-`Ernest` is taken too, with every namespace under it; the toolchain's own Ernest stands there, the shell as `Ernest.Shell` (§11.2, §12.7). `ernest.ern` at the source root and `ernest/shell.ern` under it are errors as `io.ern` is, and a program names nothing under `Ernest`: `Ernest.Shell.main` is an unknown name, said so. The toolchain's own source roots are the exception: the standard library's provides the prelude's namespaces and its own, and the shell's provides `Ernest` and what stands under it, each root's files providing its namespaces alone, built to `build/stdlib` and `build/shell` (§11.1). A file under one is compiled with it as the source root (§11.1); another source root is an error.
+`Ernest` is taken too, with every namespace under it; the toolchain's own Ernest stands there, the shell as `Ernest.Shell` (§11.2). `ernest.ern` at the source root and `ernest/shell.ern` under it are errors as `io.ern` is, and a program names nothing under `Ernest`: `Ernest.Shell.main` is an unknown name, said so. The toolchain's own source roots are the exception: the standard library's provides the prelude's namespaces and its own, and the shell's provides `Ernest` and what stands under it, each root's files providing its namespaces alone, built to `build/stdlib` and `build/shell` (§11.1). A file under one is compiled with it as the source root (§11.1); another source root is an error.
 
 The namespace of a library of the toolchain's own (Appendix G) is not taken: a program's module of its name hides the library, which stands last on the load path (§11.2).
 
@@ -903,7 +903,7 @@ A deadlock faults the entry process with `Fault("deadlock")`, or in its place a 
 
 The entry point is a function of type `() -> Unit`, `receiving m` or without. The process that runs it is the *entry process*. `m` is the message type where the entry point receives; where it receives nothing, or `m` is a variable, the process's mailbox type is `Never`. A result type that is a type variable, as a function that never returns has, is taken as `Unit`.
 
-A top-level `let`, a function of another shape, and a private function are not entry points, and `ern run` refuses them. `ern run module.erc` runs the `export fn main` of that module; `ern run --main Qualified.name module.erc` runs another exported function of that shape. `main` is a convention, not a reserved name. A bare node (§8.7) has no entry point: its entry process, whose site is `bare node` (§6.9), evaluates the standard library's bindings and the toolchain's own libraries' (§8.5) and waits, and the node ends as §8.6 says.
+A top-level `let`, a function of another shape, and a private function are not entry points, and `ern run` refuses them. `ern run module.erc` runs the `export fn main` of that module; `ern run --main Qualified.name module.erc` runs another exported function of that shape. `main` is a convention, not a reserved name. A bare node (§8.7) has no entry point: its entry process, whose site is `bare node` (§6.9), evaluates the standard library's bindings (§8.5) and waits, and the node ends as §8.6 says.
 
 ### 8.2 System references
 
@@ -943,7 +943,7 @@ How each value crosses, the host's term for it and the term a process ends with,
 
 ### 8.5 Initialization
 
-Before `main` runs, the runtime evaluates in the entry process, in dependency order, every top-level `let` of the standard library but a constant (§4.6), and then of the entry point's module and of every module it depends on, directly or through others. The standard library is initialized whole, whether the program depends on each of its modules or not; another module the program does not depend on is not initialized. On a bare node (§8.7) the standard library's bindings are evaluated, then those of the toolchain's own libraries (§12.7) whole, and no other.
+Before `main` runs, the runtime evaluates in the entry process, in dependency order, every top-level `let` of the standard library but a constant (§4.6), and then of the entry point's module and of every module it depends on, directly or through others. The standard library is initialized whole, whether the program depends on each of its modules or not; another module the program does not depend on is not initialized. On a bare node (§8.7) the standard library's bindings are evaluated and no other.
 
 A binding depends on every top-level `let` its initializer names, and on what every function it names depends on, called or not; a lambda's body is part of its initializer. A member is named where an operator resolves to it (§4.8), and where it is supplied: by a requirement (§4.9), a fill (§5.6), or a derived `compare` (§3.5). A binding is evaluated after those it depends on, and otherwise in the order its module declares it. A module's bindings are evaluated after those of every module it depends on. `let handlers = [f]` is a cycle when `f` names `handlers`, and so is `let a = fn() = a()`. The order of modules that do not depend on one another is unspecified. A cycle is a compile-time error. Only `let` requires evaluation.
 
@@ -983,7 +983,7 @@ A node (§8.3) is identified by its key, which `ern config` makes with a certifi
 
 **Its start and its end.** Each start of a node has a number of its own, which the host draws and puts in every address (**Addresses**).
 
-A *bare node* is `ern run --config-dir dir` with no `.erc` (§11.2): it holds no definition of a program's, its entry process (§8.1) evaluates the bindings §8.5 names for a bare node and waits, it listens and takes what its peers spawn and compute on it, which bring their code (**The exchange**), it offers what the processes spawned on it offer, and it ends as §8.6 says, never by its entry process's return; one whose `ernest.conf` has no `listen` is refused at its start, but for the shell's (§11.2).
+A *bare node* is `ern run --config-dir dir` with no `.erc` (§11.2): it holds no definition of a program's, its entry process evaluates the standard library's bindings and waits (§8.1, §8.5), it listens and takes what its peers spawn and compute on it, which bring their code (**The exchange**), it offers what the processes spawned on it offer, and it ends as §8.6 says, never by its entry process's return; one whose `ernest.conf` has no `listen` is refused at its start, but for the shell's (§11.2).
 
 A node reads every module of its load path at its start, and is refused where one of them needs a module the path lacks, as `ern run` refuses a module it cannot find (§11.2). It listens and dials only once its initializers have their values (§8.5): a find, a spawn, a compute or a utilization in an initializer answers `Unreachable`.
 
@@ -991,7 +991,7 @@ A node that ends is no loss to its peers. Its processes die with `ProgramEnd`, a
 
 **A reload.** `ern reload --config-dir dir` makes the node read `ernest.conf` again (§12.5). A peer added is reached by the next operation towards it or when it dials in; a peer removed, or one whose key changed, is lost, both nodes running the loss, and the addresses a program holds of its processes are those of a node not listed; a peer whose address or name changed keeps its connection. The node's own key and `listen` cannot change while it runs.
 
-**Connections.** Two nodes have at most one connection, opened by the first operation that needs it, and only where each lists the other's public key (§12.5); connections are not transitive: that A knows B and B knows C connects A and C in no way. Two nodes connect only where they stand on one *floor*, one major and minor release of `ern` on one major release of OTP, which the handshake proves before anything passes (§12.5). A patch release changes no type of the standard library's, no foreign declaration's type and no form's version (Appendix H), and a build of `ern` that is no release stands on a floor of its own.
+**Connections.** Two nodes have at most one connection, opened by the first operation that needs it, and only where each lists the other's public key (§12.5); connections are not transitive: that A knows B and B knows C connects A and C in no way. Two nodes connect only where they stand on one *floor*, one major and minor release of `ern` on one major release of OTP, which the handshake proves before anything passes (§12.5). A patch release changes no type of the standard library's, no foreign declaration's type, no form's version (Appendix H) and no version of the protocol (§12.5), and a build of `ern` that is no release stands on a floor of its own.
 
 Nodes of different builds connect, and what they share they share by hash: a service names its type by hash and a spawn its function (below). What the hashes leave out, the runtime's functions, the standard library and every foreign declaration over a module of OTP's or of `ern`'s, agrees by the floor. A foreign declaration over a module of the program's own is in the hashes by its name and type alone (Appendix H), and what that module does on a node is the node's. A find, a spawn, a compute or a utilization whose connection the peer refused fails with `Unreachable`, the refusing side saying why on its standard error.
 
@@ -1027,7 +1027,7 @@ What one process sends another arrives in the order it was sent, whichever addre
 
 A function spawned on a peer runs there once the peer's code table holds its identity and every identity its reach names, which cross to a peer that lacks them (**The exchange**), and only where every top-level binding its reach names, found by its identity, has its value there, in the unit its code reads it from (§11.2), a constant (§4.6) having it wherever its form is, made from the form and evaluated nowhere (§8.5), and the module every foreign declaration its reach names calls is on the peer; otherwise the peer starts nothing, the spawn fails with `NotLoaded`, and the peer says on its standard error what it lacked, the binding or the module.
 
-Nothing is initialized because a peer asked, but for the toolchain's own units, which the peer evaluates where §12.7 loads them. A function spawns whatever its module holds beside it: a binding outside its reach keeps it from no peer.
+Nothing is initialized because a peer asked. A function spawns whatever its module holds beside it: a binding outside its reach keeps it from no peer.
 
 In the spawned function a top-level `let` and a declaration's name are the peer's, a value it captured is the spawner's, and the system processes are the peer's (§8.2).
 
@@ -1497,7 +1497,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **telling** — the frame a node sends each peer every `utilization-interval` with how busy it is, which the peer holds to draw a peer for `Peer.compute`. §8.7, Appendix E.27.
 - **termination** — the host's signal `SIGTERM`, which ends the Ernest program as a return of `main` does, its subscribers told; sent to a running program by `Os.signal`. §8.6, Appendix E.23.
 - **tick** — a sign of life the host sends a peer where nothing else was sent for 15 seconds. §12.6.
-- **toolchain's own units** — the units of the toolchain, the shell's among them, which a node loads from its own tree where a spawn names one it lacks, and which cross to no peer; a bare node evaluates the libraries' bindings at its start. §8.5, §8.7, §12.7.
 - **top-level binding** — a value bound at file scope by a `let`. §4.6, §8.5.
 - **trace** — the host's stack where a fault was met, at the moment it was, as text, a frame a line as Appendix E.21 writes it; a fault's report shows it and `Down` leaves it out. §7.3, §11.2, Appendix E.21.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`. §3.2.
