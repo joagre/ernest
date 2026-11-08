@@ -730,19 +730,21 @@ OTP 29, erts 17.1.1, kernel 11.0.4, on Linux x86_64.
 
 `inet_tls_dist`'s acceptor exits on the same error, and `net_kernel` restarts it the same way.
 
-## 15. `ssl:handshake/3` answers `{dtls_upgrade, notsup}` when the process table is full
+## 15. `ssl` raises a failed match, or answers `{dtls_upgrade, notsup}`, when the process table is full
 
-Not filed. Found on 2026-11-08 (the log's *The Carrier's Acceptor at a Full Table*); a node's acceptor reads that answer as the full table (`ern_tls_dist`), and plan item 33 takes a program's TLS.
+Not filed. Found on 2026-11-08 (the log's *The Carrier's Acceptor at a Full Table*), the raises on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a node's acceptor reads the handshake's answer as the full table (`ern_tls_dist`), and a program's TLS reads the raise so (`ern_tcp`).
 
-**Title:** ssl:handshake/3 on a TCP socket answers {error,{dtls_upgrade,notsup}} when the connection's processes cannot be started
+**Title:** ssl:connect/4, ssl:listen/2 and ssl:transport_accept/2 raise badmatch, and ssl:handshake/3 answers {error,{dtls_upgrade,notsup}}, when the process table is full
 
 **Describe the bug**
 
-`ssl:handshake/3` given a `gen_tcp` socket catches every `error:{badmatch, _}` in `tls_socket:upgrade/4` and answers `{error, {dtls_upgrade, notsup}}`. A start of the connection's processes that fails is such a badmatch, `{ok, DynSup} = start_connection_tree(...)` in `tls_gen_connection:start_fsm/6`, so a full process table is reported as a DTLS upgrade, which the caller never asked for. The caller cannot tell a full table from any other failed match, and `ssl:connect/3` on a socket does the same.
+`ssl` matches `{ok, _}` on each start of a process of its own. A connection's processes are started by `{ok, DynSup} = start_connection_tree(...)` in `tls_gen_connection:start_fsm/6,7`, and a listener's trackers by `{ok, _} = session_tickets_tracker(...)`, `session_id_tracker(...)` and `inherit_tracker(...)` in `tls_socket:listen/3`. Where the process table is full, the start answers `{error, Reason}`, `Reason` holding the refused spawn's `system_limit`, and the match fails.
+
+`ssl:connect/4`, `ssl:listen/2` and `ssl:transport_accept/2` let `error:{badmatch, {error, Reason}}` out to their caller, which none of their specs gives. `ssl:handshake/3` given a `gen_tcp` socket catches every `error:{badmatch, _}` in `tls_socket:upgrade/4` and answers `{error, {dtls_upgrade, notsup}}`, which the caller never asked for; `ssl:connect/3` on a socket does the same. Either way the caller cannot tell a full table from another failed match but by the form of `Reason`.
 
 **To Reproduce**
 
-A certificate, a node whose table holds 1024 processes, a connection accepted, the table filled, then the handshake:
+A certificate, a node whose table holds 1024 processes, a TCP connection accepted, a TLS listener with a TCP connection waiting on it, the table filled, then each call:
 
 ```sh
 openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 1 -subj /CN=x
@@ -750,25 +752,43 @@ erl +P 1024 -noshell -eval '
     {ok, _} = application:ensure_all_started(ssl),
     [code:ensure_loaded(M) || A <- [ssl, crypto, public_key, asn1],
                               {ok, Ms} <- [application:get_key(A, modules)], M <- Ms],
+    Files = [{certfile, "cert.pem"}, {keyfile, "key.pem"}],
     {ok, L} = gen_tcp:listen(0, [{active, false}]),
     {ok, Port} = inet:port(L),
-    {ok, _C} = gen_tcp:connect("localhost", Port, []),
+    {ok, _C} = gen_tcp:connect({127, 0, 0, 1}, Port, []),
     {ok, S} = gen_tcp:accept(L),
+    {ok, TL} = ssl:listen(0, Files),
+    {ok, {_, TlsPort}} = ssl:sockname(TL),
+    {ok, _T} = gen_tcp:connect({127, 0, 0, 1}, TlsPort, []),
     Fill = fun F(N) -> try spawn(fun() -> receive _ -> ok end end) of
                            _ -> F(N + 1)
                        catch error:system_limit -> N end end,
     Fill(0),
-    Answer = ssl:handshake(S, [{certfile, "cert.pem"}, {keyfile, "key.pem"},
-                               {versions, ['\''tlsv1.3'\'']}], 1000),
-    io:format("handshake: ~p~n", [Answer]),
+    Show = fun(Name, Call) ->
+               Answer = try Call() catch error:Reason -> {raised, Reason} end,
+               io:format("~s: ~P~n", [Name, Answer, 7])
+           end,
+    Show("handshake", fun() -> ssl:handshake(S, [{versions, ['\''tlsv1.3'\'']} | Files], 1000) end),
+    Show("connect", fun() -> ssl:connect({127, 0, 0, 1}, Port, [{verify, verify_none}], 1000) end),
+    Show("transport_accept", fun() -> ssl:transport_accept(TL, 1000) end),
+    Show("listen", fun() -> ssl:listen(0, Files) end),
     halt().'
 ```
 
-It prints `handshake: {error,{dtls_upgrade,notsup}}`. The modules are loaded first, since a load at the full table fails before the handshake does.
+It prints:
+
+```
+handshake: {error,{dtls_upgrade,notsup}}
+connect: {raised,{badmatch,{error,{...}}}}
+transport_accept: {raised,{badmatch,{error,{...}}}}
+listen: {raised,{badmatch,{error,{...}}}}
+```
+
+The modules are loaded first, since a load at the full table fails before the calls do.
 
 **Expected behavior**
 
-The handshake answers the start's own reason, `{error, system_limit}` or the supervisor's `{error, {system_limit, _}}`, and `{dtls_upgrade, notsup}` only where a DTLS socket was given.
+Each call answers the start's own reason, `{error, system_limit}` or the supervisor's `{error, {system_limit, _}}`, and `{dtls_upgrade, notsup}` only where a DTLS socket was given.
 
 **Affected versions**
 
@@ -778,3 +798,73 @@ OTP 29, erts 17.1.1, ssl 11.7.8, on Linux x86_64.
 
 Where the connection's supervisor is started but one of its children is not, the supervisor also writes a `start_error` report for the child. Under TLS 1.2 the session tracker's start fails first and raises a `case_clause` out of `ssl:handshake/3` instead.
 
+## 16. `ssl:format_error/1` raises `badarg` for a reason it does not name
+
+Not filed. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's TLS writes such a reason as the host prints it (`ern_tcp`).
+
+**Title:** ssl:format_error/1 raises badarg for a reason that is neither an atom nor a form it names
+
+**Describe the bug**
+
+`ssl:format_error/1` takes any `reason()`, which its spec gives as `term()`. A reason none of its clauses names falls to `do_format_error/1`'s last clause, which calls `inet:format_error/1`, and that takes an atom alone: `erl_posix_msg:message/1` raises `badarg` on any other term. So the function meant to describe an error raises for a tuple, where its own `unexpected_format/1`, "Unexpected error: ~p", is reached only for an atom.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval 'io:format("~p~n", [catch ssl:format_error({a, b})]), halt().'
+```
+
+It prints `{'EXIT',{badarg,[{erlang,atom_to_binary,[{a,b}],...`.
+
+**Expected behavior**
+
+`"Unexpected error: {a,b}"`, as for an atom it does not name.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, ssl 11.7.8, on Linux x86_64.
+
+**Additional context**
+
+The reasons `ssl:connect/4` and its kin give a caller who catches their raise (15) are such terms.
+
+## 17. An application started at a full process table ends the emulator, or never answers
+
+Not filed. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's first request over TLS starts the host's TLS, and plan item 35 takes it.
+
+**Title:** application:ensure_all_started/1 at a full process table terminates the application controller or the logger, or hangs
+
+**Describe the bug**
+
+Starting an application spawns its application master from the application controller, the master spawns its own loop, and `ssl`'s start adds a logger handler, whose call the logger server answers through a process it spawns. None of the three spawns is caught. So a start where the table has room for no process, or for one or two, ends differently each time:
+
+- With no process free, the application controller's `spawn_link` of the master raises, the controller terminates, and the emulator halts: `Kernel pid terminated (application_controller) ({system_limit,...})`.
+- With one free, the master is made and its spawn of its loop raises. The master dies, the controller never learns of it, and `application:ensure_all_started/1` never answers.
+- With two free, the logger server's spawn in `logger_server:call_h_async/4` raises as `ssl_app:start_logger/0` adds its handler, the logger terminates, and the emulator halts: `Kernel pid terminated (logger) ({system_limit,...})`.
+- With three free, the start answers `{error, {ssl, {{shutdown, {failed_to_start_child, ...}}, ...}}}`, as expected.
+
+A full table is a condition a node recovers from once processes end; here the node is gone, or the caller waits for ever.
+
+**To Reproduce**
+
+```sh
+for free in 0 1 2 3; do
+    timeout 10 erl +P 1024 -noshell -eval '
+        Room = fun() -> erlang:system_info(process_limit) - erlang:system_info(process_count) end,
+        [spawn(fun() -> receive _ -> ok end end) || _ <- lists:seq(1, Room() - '$free')],
+        Free = Room(),
+        io:format("~p free: ~P~n", [Free, application:ensure_all_started(ssl), 6]),
+        halt().'
+    echo "status $?"
+done
+```
+
+It prints `Kernel pid terminated (application_controller)` and `status 1`, then `status 124` from the timeout, then `Kernel pid terminated (logger)` and `status 1`, then `3 free: {error,{ssl,{{...},...}}}` and `status 0`.
+
+**Expected behavior**
+
+Each start answers `{error, Reason}`, `Reason` holding the refused spawn's `system_limit`, and the application controller, the logger and the caller live on.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.

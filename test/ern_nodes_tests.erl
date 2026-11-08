@@ -1851,6 +1851,122 @@ export fn main() : Unit receiving Down =
                  lines_said(finished([?ERN, " run --config-dir ", Node, " ",
                                       filename:join([Base, "build", "closer.erc"]), " 2>&1"]))).
 
+%% report §7.4, §12.5, Appendix E.18: a request over TLS at a full table of
+%% processes, which leaves room for its own worker but not for the host's
+%% TLS, faults its caller with `Fault("error:system_limit")`, the host's
+%% own reports not written: a `connectTls`, whose connection's processes
+%% the host's TLS cannot start, an `accept` on a listener over TLS, which
+%% starts them as it takes the connection, and a `listenTls` after the
+%% first, whose listener's trackers it cannot start. Each run leaves one,
+%% two or three processes free, which reach the host's start in turn.
+%%
+%% A regression test, written after the fix: each such request waited for
+%% ever, its worker ended by the host's raise unanswered. It does not cover
+%% a run's first request over TLS at a full table, which starts the host's
+%% TLS there (docs/otp_bugs.md, 17), nor a handshake, which over TLS 1.2 and 1.3
+%% makes no process once the connection's are made
+tls_at_a_full_table_test_() ->
+    nodes_test({waits, 9}, fun tls_at_a_full_table/1).
+
+tls_at_a_full_table(Base) ->
+    #{server := {Certificate, Key}} = ern_tcp_tests:pki(),
+    {Server, ServerPort} = tls_server(Certificate, Key),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "full_tls.ern"), [<<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// The processes the table has room for.
+fn room() : Int =
+    systemInfo(Foreign.atom(\"process_limit\")) - systemInfo(Foreign.atom(\"process_count\"))
+
+// Count processes spawned, each waiting for ever.
+fn filled(count : Int) : Unit =
+    if count > 0 then {
+        let _ = spawn(fn() = waited());
+        filled(count - 1)
+    } else
+        Unit
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// The run's argument at the index as a number, 0 where it is none.
+fn number(index : Int) : Int =
+    Optional.withDefault(Optional.andThen(List.get(Os.arguments, index), String.toInt), 0)
+
+// The run's argument at the index as a path.
+fn path(index : Int) : Path = Path(Optional.withDefault(List.get(Os.arguments, index), \"\"))
+
+// A listener over TLS, which starts the host's TLS, then the request the
+// first argument names at the full table.
+export fn main() : Unit =
+    match Tcp.listenTls(\"127.0.0.1\", 0, path(3), path(4)) {
+        Right(door) -> match Tcp.port(door) {
+            Right(port) -> requested(door, port)
+          | Left(error) -> Io.println(\"port: \" <> Io.show(error))
+        }
+      | Left(error) -> Io.println(\"listenTls: \" <> Io.show(error))
+    }
+
+// A connection to the door made, then the table filled but for the
+// second argument's count, then the request: a connect to the port the
+// third argument names, the accept of that connection, or a listen. What
+// it answers is said where it does not fault.
+fn requested(door : Address(Tcp.ListenerMsg), port : Int) : Unit = {
+    let _ = Tcp.connect(\"127.0.0.1\", port, waitMs());
+    filled(room() - number(1));
+    match List.get(Os.arguments, 0) {
+        Some(\"connect\") ->
+            Io.println(Io.show(Tcp.connectTls(\"127.0.0.1\", number(2), Tcp.Unverified, waitMs())))
+      | Some(\"accept\") -> Io.println(Io.show(Tcp.accept(door, waitMs())))
+      | _ -> Io.println(Io.show(Tcp.listenTls(\"127.0.0.1\", 0, path(3), path(4))))
+    }
+}
+">>, wait_ms_declaration()]),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    Program = filename:join([Base, "build", "full_tls.erc"]),
+    Cases = [{Request, Free} || Request <- ["connect", "accept"], Free <- [1, 2, 3]]
+        ++ [{"listen", Free} || Free <- [1, 2]],
+    Runs = [begin
+                Node = made(Base, Request ++ integer_to_list(Free), none),
+                edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+                {Request, Free,
+                 begun([?ERN, " run --config-dir ", Node, " ", Program, " ", Request, " ",
+                        integer_to_list(Free), " ", integer_to_list(ServerPort), " ",
+                        Certificate, " ", Key, " 2>&1"])}
+            end || {Request, Free} <- Cases],
+    try
+        [?assertEqual({Request, Free, {1, ["FullTls.main faulted: error:system_limit"]}},
+                      {Request, Free, lines_said(Run())})
+         || {Request, Free, Run} <- Runs]
+    after
+        exit(Server, kill)
+    end.
+
+%% A server over TLS in the test's own host, at the port it answers, which
+%% shakes hands with each connection in a process of its own, so that no
+%% client holds up another, and closes it once the handshake ends.
+tls_server(Certificate, Key) ->
+    {ok, _} = application:ensure_all_started(ssl),
+    {ok, Listener} = ssl:listen(0, [{certfile, Certificate}, {keyfile, Key}, {reuseaddr, true}]),
+    {ok, {_, Port}} = ssl:sockname(Listener),
+    Server = spawn(fun() -> receive go -> served(Listener) end end),
+    ok = ssl:controlling_process(Listener, Server),
+    Server ! go,
+    {Server, Port}.
+
+served(Listener) ->
+    {ok, Socket} = ssl:transport_accept(Listener),
+    Handshake = spawn(fun() ->
+                          receive go -> ok end,
+                          _ = ssl:handshake(Socket, infinity),
+                          ssl:close(Socket)
+                      end),
+    ok = ssl:controlling_process(Socket, Handshake),
+    Handshake ! go,
+    served(Listener).
+
 %% report §7.4, §12.5, Appendix E.27: a node whose table of processes is
 %% full serves the peer connected before it filled: a spawn of a function
 %% the node holds, which its reaper cannot start, and one of a function it

@@ -256,7 +256,7 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
                                     end,
                              held_open(Open, Transport, Socket);
                          {error, Error} ->
-                             {'Left', io_error(Transport, Error)}
+                             failed(Transport, Error)
                      end
              end,
     answered(Reply, Answer).
@@ -602,7 +602,7 @@ attempt(Transport, Try, Open, Deadline, Reply) ->
                          _ -> again
                      end;
                  {error, Error} ->
-                     {'Left', io_error(Transport, Error)};
+                     failed(Transport, Error);
                  invalid ->
                      {'Left', 'Invalid'}
              end,
@@ -610,6 +610,20 @@ attempt(Transport, Try, Open, Deadline, Reply) ->
         again -> attempt(Transport, Try, Open, Deadline, Reply);
         _ -> end_source(Reply, Answer)
     end.
+
+%% Report §7.4, §12.5: a request's failure, its `Io.Error`, or the caller
+%% faulted with the host's class and reason where the host's TLS could not
+%% start a process of its own for the full table of processes: a
+%% listener's trackers, or a connection's supervisor or one of its two
+%% children. The host raises a failed match of the start's answer for it,
+%% which guarded/1 gives as the error (docs/otp_bugs.md, 15).
+failed(ssl, {badmatch, {error, {'EXIT', {system_limit, _}}}}) ->
+    limited();
+failed(ssl, {badmatch, {error, {shutdown, {failed_to_start_child, _,
+                                           {'EXIT', {system_limit, _}}}}}}) ->
+    limited();
+failed(Transport, Error) ->
+    {'Left', io_error(Transport, Error)}.
 
 %% The answer to a request counted as a source, given before its count
 %% ends, so that no deadlock is found between the two (report §8.6).
@@ -668,7 +682,8 @@ port(ssl, Socket) ->
 %% accept that times out has taken no connection. Report Appendix E.18:
 %% over TLS, the accept is the host's ssl's before the handshake, which
 %% the socket runs (writer/4), so that a client slow to shake hands holds
-%% up no accept.
+%% up no accept; the host's accept starts the connection's processes, and
+%% raises where it cannot (failed/2).
 accept(Tcp, gen_tcp, Socket, Deadline, Owner, Reply) ->
     Open = fun(Accepted) ->
                socket_process(Tcp, gen_tcp, Accepted, open, Owner, <<"Tcp.accept">>)
@@ -679,8 +694,12 @@ accept(Tcp, ssl, Socket, Deadline, Owner, Reply) ->
     Open = fun(Accepted) ->
                socket_process(Tcp, ssl, Accepted, handshaking, Owner, <<"Tcp.accept">>)
            end,
-    attempt(ssl, fun() -> accepted(ssl:transport_accept(Socket, ern_rt:remaining(Deadline))) end,
-            Open, Deadline, Reply).
+    Try = fun() ->
+              accepted(guarded(fun() ->
+                                   ssl:transport_accept(Socket, ern_rt:remaining(Deadline))
+                               end))
+          end,
+    attempt(ssl, Try, Open, Deadline, Reply).
 
 %% Report Appendix E.18: an accept the listener's close answers is
 %% `Closed`. The host answers `closed` to an accept waiting when the close
@@ -1118,6 +1137,10 @@ endpoint(_, Ask) ->
 %% and no part of the reason, so the white space that ends ssl's text is
 %% left out, and the rest kept as the host writes it, its line feeds
 %% within.
+%%
+%% A reason ssl's own words do not name, and that is no atom, its
+%% format_error raises on (docs/otp_bugs.md, 16), so it is written as the
+%% host prints it.
 io_error(_, closed) -> 'Closed';
 io_error(_, etimedout) -> 'Timeout';
 io_error(gen_tcp, Error) -> ern_io:host_error(Error, fun inet:format_error/1);
@@ -1129,7 +1152,11 @@ io_error(ssl, {options, {Option, File, Reason}})
   when Option =:= certfile; Option =:= keyfile; Option =:= cacertfile ->
     file_error(File, Reason);
 io_error(ssl, Error) ->
-    {'Other', unicode:characters_to_binary(string:trim(ssl:format_error(Error), trailing))}.
+    try ssl:format_error(Error) of
+        Text -> {'Other', unicode:characters_to_binary(string:trim(Text, trailing))}
+    catch
+        error:badarg -> ern_io:other(Error, fun ssl:format_error/1)
+    end.
 
 %% Report Appendix E.1, E.18: a certificate's, a key's or a CA file's
 %% failure, Other(text), the file's name and what is wrong on one line: for

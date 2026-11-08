@@ -48,18 +48,19 @@ What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (t
 the Server Taught*), built after the site's generator (the log's *The Generator Before MVP
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
-names last, since they sweep every site of Ernest once. The nine decisions for the user, in
-items 8, 9, 13, 15, 16, 21, 28, 30 and 32, are discussed early, so that no build waits on them.
+names last, since they sweep every site of Ernest once. The ten decisions for the user, in
+items 8, 9, 13, 15, 16, 21, 28, 30, 32 and 35, are discussed early, so that no build waits on
+them.
 
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*):
 
-1. Items 33 and 34, each by an item session, items 17, 20, 22, 26 and 31 done.
+1. Item 34, by an item session, items 17, 20, 22, 26, 31 and 33 done.
 2. One design session for what no test checks: item 21's decision, item 30's, item 32's, item
-   19's question whether a hangup is told from a read that fails, item 29's sentence of §10,
-   and item 16's proposal with its cold reading.
-3. Items 19, 29, 30 and 32, each a report sentence and its build, and item 21's build where its
-   decision builds one.
+   35's, item 19's question whether a hangup is told from a read that fails, item 29's sentence
+   of §10, and item 16's proposal with its cold reading.
+3. Items 19, 29, 30, 32 and 35, each a report sentence and its build, and item 21's build where
+   its decision builds one.
 4. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -265,17 +266,28 @@ reader S reads of its live shell. The release note's line on the installed layou
     the floor's, until OTP takes the fix. Its alternative, by principle 5, is §12.5 stating that
     such a dial ends the node, with a line of its own and no crash dump. No count of the table
     before a dial is sound, since the host's own processes fill it beside the program's.
-33. **A program's TLS at a full table**, a defect found 2026-11-08 by item 31, diagnosed and
-    fixed by 2026-11-12. A probe's `Tcp.connectTls` at a full table with one process free did
-    not answer within its three seconds, and a handshake there meets the host's answer
-    `{dtls_upgrade, notsup}` (`docs/otp_bugs.md`, 15), which E.18 would give as its
-    `Other(text)`. The wait is diagnosed first; then the connect and the handshake answer the
-    full table as a socket's process does (E.18, §12.5).
+33. **A program's TLS at a full table**, done 2026-11-09 (§7.4, §12.5, E.18; the log's *A
+    Program's TLS at a Full Table*). A `connectTls`, an `accept` over TLS and a `listenTls`
+    whose processes the host's TLS cannot start fault their caller with `error:system_limit`,
+    where each waited for ever.
 34. **A flake of `broken_exchange_test_`**, seen 2026-11-08 by item 17's `make test-full`,
     diagnosed and fixed by 2026-11-12. One `has/2` of the test found no line it looked for, and
     `make test-nodes` passed whole after it, under the same load. `has/2` names neither the part
     nor the text, so it says what it missed first; the cause is then found under the load of
     `make test-nodes`.
+35. **The first request over TLS at a full table**, a decision for the user, found 2026-11-09
+    by item 33, decided and built by 2026-11-12. A run's first `listenTls` or `connectTls`
+    starts the host's TLS (E.18), and at a full table of processes the host's start ends the
+    run, never answers, or ends the host's logger (`docs/otp_bugs.md`, 17), where E.18 has it
+    answer `Left(Other(text))`.
+
+    The recommendation, by principle 1: the runtime starts the host's TLS at each run's start,
+    before the table can fill, as item 1 had what the end uses exist from the start (the log's
+    *A Node's Limits*), its code still loaded whole at the first request (§12). It costs a bare
+    run about 10 ms, a node about 5 ms, and 22 processes. Its alternative, by principle 5, is
+    E.18 stating that such a request may end the run, which cannot state the start that never
+    answers. No count of the table before the start is sound (the log's *A Program's TLS at a
+    Full Table*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
