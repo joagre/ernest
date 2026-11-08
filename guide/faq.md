@@ -94,6 +94,12 @@ A module reloaded in the shell gets a version beside its earlier ones, each name
 
 Across nodes a definition is known by the hash of its form, so two nodes agree on a function by its content and not by a module's name, which in Erlang stands for whichever of its two loaded versions is current (report §8.7). A service's protocol evolves the same way: a service of a new message type is a new service, found by the new type's hash, and the old runs on for the finders built against it.
 
+### Why does a function spawned on a peer read the peer's top-level bindings, and not the spawner's?
+
+Because a top-level `let` is where an Ernest program starts its processes: its initializer may spawn, send and call, and a service is such a binding (report §4.6, §6.5). So a binding is the node's, as `Io.println` in a spawned function writes to the peer's terminal, and what the function needs from where it was written is a capture, a parameter or a constant, which cross with the code (report §3.11, §4.6, §8.7; the guide's §8.1).
+
+Three answers exist to the question. Emerald and Obliq keep a moved closure's free names pointing back at the site they live on, each read a round trip. Unison, Cloud Haskell and Spark's `object`s take a top-level definition as code, evaluated once where it runs, which is safe where the top level is pure, as Unison's abilities and Haskell's `IO` type make it. Erlang's funs, Scala's spores and Gleam's `const` make a top-level name the receiving node's, a local an explicit capture and a constant part of the code. Ernest takes the third, since its top level is not pure and a reader from Erlang predicts it.
+
 ### Is there a type class, an interface or a trait?
 
 Not as a construct. A type's members are the functions declared under its name in its own module, `Int.compare`, so a type has one `compare`. A requirement names `compare`, `negate`, one of the six operators `+`, `-`, `*`, `/`, `%` and `<>`, or `show`, and nothing else. A function generic in `a` that needs it writes `needs a.compare`, and a call writes nothing, since the compiler supplies the type's own; code written once over several representations takes a record of functions the program declares, and `Operations(..Set)` fills each field from the declaration of its name in the module `Set` (the guide's §7.3).
