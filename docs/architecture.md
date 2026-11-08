@@ -17,6 +17,7 @@ One Ernest module goes through these stages, each a directory of Erlang under `s
 | diagnostics | `ern_diagnostic`, in `shared`, beneath every stage | a `#diagnostic{}`, the source | the text of §11.5 |
 | chunks | `ern_chunk`, in `shared`, which reads a compiled module's chunk as data alone (§11.1) | a chunk's bytes | the term, or `error` |
 | namespaces | `ern_namespace`, in `shared`, the one mapping between a path's components and a namespace's segments (§4.2, §11.1) | a component or a segment | the other |
+| literals | `ern_literal`, in `shared`, a value as Ernest writes its literal, which `ern_show`, `Float.toString` and the parser's helps write through (§2.5, E.9) | a float, a string or a character | its literal |
 | tree | `ern_tree`, in `shared`, the toolchain's tree, the builds of its own under it and its own Erlang (§11.1, §11.2) | a build's path | its directory |
 | cli | the modules below | command lines | `ern`'s jobs |
 

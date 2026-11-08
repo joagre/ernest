@@ -24,7 +24,8 @@ float(Value, 32)
   when is_float(Value), Value >= -3.4028234663852886e38, Value =< 3.4028234663852886e38 ->
     Value;
 float(Value, 16) when is_float(Value), Value >= -65504.0, Value =< 65504.0 -> Value;
-float(Value, Bits) -> overflow("~ts does not fit a ~B-bit float", [ern_float:text(Value), Bits]).
+float(Value, Bits) ->
+    overflow("~ts does not fit a ~B-bit float", [ern_literal:float_text(Value), Bits]).
 
 %% A bytes segment of a given width, a whole number of octets, holds a value
 %% of exactly that size (report §5.11).

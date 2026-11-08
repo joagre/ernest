@@ -423,6 +423,36 @@ or_pattern_test() ->
     ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_or{alternatives = [_, _, _]}}]},
                  expression("receive { A or B or C -> 1 }")).
 
+%% report §5.10, §11.5: an `or` inside a pattern is refused at the
+%% alternatives it joins, and in a clause the help writes the clause's
+%% alternatives out whole, a literal, a pun, a size and `as` as written; a
+%% `let` and a parameter take no `or`, and have no help. A regression test,
+%% written after the code.
+or_inside_a_pattern_test() ->
+    Refused = "an `or` stands between a clause's whole patterns",
+    ?assertMatch({error, #diagnostic{message = Refused, span = {1, 13, {1, 26}}}},
+                 ern_parser:parse_expr("match x { #(Paste or Load, _) -> 0 }")),
+    Clause = fun(Patterns) ->
+                 expression_refusal_and_help("match x { " ++ Patterns ++ " -> 0 }")
+             end,
+    Help = fun(Text) -> "write the clause's alternatives out: `" ++ Text ++ "`" end,
+    ?assertEqual({Refused, Help("#(Paste, _) or #(Load, _)")}, Clause("#(Paste or Load, _)")),
+    ?assertEqual({Refused, Help("[1, 3] or [2, 3] or []")}, Clause("[1 or 2, 3] or []")),
+    ?assertEqual({Refused, Help("Some(\"a\\n\" as s) or Some('b' as s)")},
+                 Clause("Some(\"a\\n\" as s or 'b' as s)")),
+    ?assertEqual({Refused, Help("P(=x, y = -1) or P(=x, y = 2.5)")},
+                 Clause("P(=x, y = -1 or 2.5)")),
+    ?assertEqual({Refused, Help("#(A, C) as t or #(A, D) as t or #(B, C) as t or #(B, D) as t")},
+                 Clause("#(A or B, C or D) as t")),
+    ?assertEqual({Refused, Help("Some(x :: rest) or Some([])")}, Clause("Some(x :: rest or [])")),
+    ?assertEqual({Refused, Help("<<0:size(n)-big, _:bytes>> or <<1:size(n)-big, _:bytes>>")},
+                 Clause("<<0 or 1:size(n)-big, _:bytes>>")),
+    ?assertEqual({Refused, undefined}, refusal_and_help("fn f(x) = { let #(a or b, c) = x; c }")),
+    ?assertEqual({Refused, undefined}, refusal_and_help("fn f(#(a or b, c)) = c")),
+    %% a size's expression holds clauses of its own, whose `or` stands
+    %% between whole patterns
+    ?assertMatch({ok, _}, ern_parser:parse_string("fn f(<<x:size(match n { 1 or 2 -> 8 })>>) = x")).
+
 %% report §6.3
 receive_test() ->
     ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_constructor{name = 'Inc'}},

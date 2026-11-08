@@ -47,10 +47,10 @@ by_type(any, Value, _, Limits) -> represented(Value, Limits);
 %% report Appendix E.1: a foreign type's value is the host's own term
 by_type(foreign, _, _, _) -> "<foreign>";
 by_type(int, Value, _, _) -> integer_to_list(Value);
-by_type(float, Value, _, _) -> float_text(Value);
+by_type(float, Value, _, _) -> ern_literal:float_text(Value);
 by_type(bool, Value, _, _) -> atom_to_list(Value);
-by_type(char, Value, _, _) -> [$', char_body(Value), $'];
-by_type(string, Value, _, _) -> string(Value);
+by_type(char, Value, _, _) -> ern_literal:char_text(Value);
+by_type(string, Value, _, _) -> ern_literal:string_text(Value);
 by_type(bytes, Value, _, Limits) -> bytes(Value, Limits);
 by_type(unit, Value, _, _) -> atom_to_list(Value);
 by_type({address, _, _}, Value, _, _) -> address(Value);
@@ -112,11 +112,11 @@ number(Pid) ->
 
 %% By the runtime's representation alone.
 represented(Value, _) when is_integer(Value) -> integer_to_list(Value);
-represented(Value, _) when is_float(Value) -> float_text(Value);
+represented(Value, _) when is_float(Value) -> ern_literal:float_text(Value);
 represented(Value, _) when is_atom(Value) -> atom_to_list(Value);
 represented(Value, Limits) when is_binary(Value) ->
     case unicode:characters_to_list(Value) of
-        Chars when is_list(Chars) -> string(Value);
+        Chars when is_list(Chars) -> ern_literal:string_text(Value);
         _ -> bytes(Value, Limits)
     end;
 represented(Pid, _) when is_pid(Pid) -> address(Pid);
@@ -169,25 +169,9 @@ proper([]) -> true;
 proper([_ | Tail]) -> proper(Tail);
 proper(_) -> false.
 
-float_text(Float) -> ern_float:text(Float).
-
-string(Text) -> [$", [escape(Char, $") || Char <- unicode:characters_to_list(Text)], $"].
-
 bytes(Bytes, Limits) ->
     Shown = parts([Byte || <<Byte>> <= Bytes], Limits, fun integer_to_list/1),
     ["<<", join(Shown), ">>"].
-
-char_body(Char) -> escape(Char, $').
-
-%% Report §2.5: the escapes a literal needs, the quote being the literal's own.
-escape(Quote, Quote) -> [$\\, Quote];
-escape($\\, _) -> "\\\\";
-escape($\n, _) -> "\\n";
-escape($\t, _) -> "\\t";
-escape($\r, _) -> "\\r";
-escape(Char, _) when Char < 16#20; Char >= 16#7F, Char =< 16#9F ->
-    ["\\u{", integer_to_list(Char, 16), "}"];
-escape(Char, _) -> [Char].
 
 %% Report §11.2: a text the toolchain writes on a line of its own, a fault's
 %% cause, with each control character as the escape a literal writes for
@@ -199,7 +183,7 @@ controls(Text, Keep) ->
     unicode:characters_to_binary([control(Char, Keep) || Char <- unicode:characters_to_list(Text)]).
 
 control($\n, lines) -> $\n;
-control(Char, _) when Char < 16#20; Char >= 16#7F, Char =< 16#9F -> escape(Char, none);
+control(Char, _) when Char < 16#20; Char >= 16#7F, Char =< 16#9F -> ern_literal:escape(Char, none);
 control(Char, _) -> Char.
 
 join(Parts) -> lists:join(", ", Parts).

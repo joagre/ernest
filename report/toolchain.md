@@ -412,6 +412,7 @@ Other errors are placed and told as follows.
 - A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6).
 - A `fn` where the parser expects a type has a help line that names the form a function type is written in, `(Int) -> Int` (§3.4). A `()` where the parser expects an expression has one that names `Unit` (§3.1).
 - A `,` after a constructor pattern's positional field is reported as a second positional field in a declaration is (§3.5), `a constructor has exactly one positional field`, with a help line in a pattern's terms, ``name the fields, `V(x = ..., y = ...)`, or match a tuple, `V(#(..., ...))` ``.
+- An `or` inside a pattern (§5.10) is reported at the alternatives it joins, ``an `or` stands between a clause's whole patterns``. In a clause the help line writes the clause's alternatives out whole: ``write the clause's alternatives out: `#(Paste, _) or #(Load, _)` `` for `#(Paste or Load, _)`.
 - A selector its operand's type lacks is reported at the selector, naming a constructor without the field.
 - A value a module exports under the name of a member of the type whose namespace it shares (§4.2) is reported at the value's declaration, naming the type and the module that declares it: `Main.Stack.compare is a member of the type Stack in the module Main`.
 - A qualified name that names nothing, in a build given no `--source-root`, has a help line where a source root nearer the module's file holds the name's module: `this module is Src.Main; --source-root src makes it Main`.

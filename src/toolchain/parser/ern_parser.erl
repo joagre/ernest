@@ -565,6 +565,7 @@ params(Tokens) ->
 
 param(Tokens) ->
     {Pattern, Rest} = pattern(Tokens),
+    no_or_inside([Pattern], param),
     case Rest of
         [{':', _} | Rest1] ->
             {Type, Rest2} = type(Rest1),
@@ -946,6 +947,7 @@ receive_clauses(Tokens, Acc) ->
 %% Report §5.9: a clause lists one or more patterns separated by `or`.
 clause(Tokens) ->
     {Alternatives, Rest} = separated(Tokens, 'or', fun pattern/1),
+    no_or_inside(Alternatives, clause),
     {Pattern, _} = case Alternatives of
                        [Single] -> {Single, Rest};
                        [First | _] -> spanned({#p_or{span = ern_ast:span(First),
@@ -1318,6 +1320,7 @@ statements(Tokens, Acc) ->
 
 statement([{'let', Position} | Rest]) ->
     {Pattern, Rest1} = pattern(Rest),
+    no_or_inside([Pattern], binding),
     {Annotation, Rest2} = case Rest1 of
                               [{':', _} | AfterColon] -> type(AfterColon);
                               _ -> {undefined, Rest1}
@@ -1355,6 +1358,142 @@ pattern(Tokens) ->
             {Pattern, Rest}
     end.
 
+%% Report §5.10: a pattern inside another. An `or` written there is held
+%% as the alternatives it joins, so that the site of the whole pattern
+%% refuses it with the whole in hand (no_or_inside/2).
+nested_pattern(Tokens) ->
+    case separated(Tokens, 'or', fun pattern/1) of
+        {[Pattern], Rest} ->
+            {Pattern, Rest};
+        {[First | _] = Alternatives, Rest} ->
+            spanned({#p_or{span = ern_ast:span(First), alternatives = Alternatives}, Rest})
+    end.
+
+%% Report §5.10, §11.5: an `or` stands between a clause's whole patterns,
+%% and one inside a pattern is refused at the alternatives it joins. In a
+%% clause the help writes the clause's alternatives out whole; a
+%% parameter and a `let` take no `or`, so theirs has no help.
+no_or_inside(Alternatives, Site) ->
+    case inner_or(Alternatives) of
+        none ->
+            ok;
+        #p_or{span = Span} ->
+            fail(Span, "an `or` stands between a clause's whole patterns",
+                 or_help(Site, Alternatives))
+    end.
+
+%% The first `or` the patterns hold, read through their parts alone: a
+%% size's expression holds clauses of its own, whose `or` stands between
+%% whole patterns.
+inner_or([]) ->
+    none;
+inner_or([#p_or{} = Or | _]) ->
+    Or;
+inner_or([Pattern | Patterns]) ->
+    case inner_or(parts(Pattern)) of
+        none -> inner_or(Patterns);
+        Or -> Or
+    end.
+
+parts(#p_tuple{elements = Elements}) -> Elements;
+parts(#p_list{elements = Elements}) -> Elements;
+parts(#p_cons{head = Head, tail = Tail}) -> [Head, Tail];
+parts(#p_as{pattern = Pattern}) -> [Pattern];
+parts(#p_constructor{args = {positional, Pattern}}) -> [Pattern];
+parts(#p_constructor{args = {named, Fields}}) ->
+    [Pattern || #field_pattern{pattern = Pattern} <- Fields];
+parts(#p_bitstring{segments = Segments}) -> [Value || #bit_segment{value = Value} <- Segments];
+parts(_) -> [].
+
+or_help(clause, Alternatives) ->
+    Texts = [pattern_text(Whole) || Alternative <- Alternatives,
+                                   Whole <- spread(Alternative)],
+    "write the clause's alternatives out: `" ++ lists:append(lists:join(" or ", Texts)) ++ "`";
+or_help(_, _) ->
+    undefined.
+
+%% Report §5.9: the whole patterns a pattern with an `or` inside it stands
+%% for, in the order written, so that `#(A or B, C or D)` is four.
+spread(#p_or{alternatives = Alternatives}) ->
+    lists:append([spread(Alternative) || Alternative <- Alternatives]);
+spread(#p_tuple{elements = Elements} = Tuple) ->
+    [Tuple#p_tuple{elements = Spread} || Spread <- spread_each(Elements)];
+spread(#p_list{elements = Elements} = List) ->
+    [List#p_list{elements = Spread} || Spread <- spread_each(Elements)];
+spread(#p_cons{head = Head, tail = Tail} = Cons) ->
+    [Cons#p_cons{head = SpreadHead, tail = SpreadTail}
+     || SpreadHead <- spread(Head), SpreadTail <- spread(Tail)];
+spread(#p_as{pattern = Pattern} = As) ->
+    [As#p_as{pattern = Spread} || Spread <- spread(Pattern)];
+spread(#p_constructor{args = {positional, Pattern}} = Constructor) ->
+    [Constructor#p_constructor{args = {positional, Spread}} || Spread <- spread(Pattern)];
+spread(#p_constructor{args = {named, Fields}} = Constructor) ->
+    [Constructor#p_constructor{args = {named, Spread}} || Spread <- spread_each(Fields)];
+spread(#field_pattern{pattern = Pattern} = Field) ->
+    [Field#field_pattern{pattern = Spread} || Spread <- spread(Pattern)];
+spread(#p_bitstring{segments = Segments} = Bitstring) ->
+    [Bitstring#p_bitstring{segments = Spread} || Spread <- spread_each(Segments)];
+spread(#bit_segment{value = Value} = Segment) ->
+    [Segment#bit_segment{value = Spread} || Spread <- spread(Value)];
+spread(Pattern) ->
+    [Pattern].
+
+%% Every choice of one whole for each part, in the order written.
+spread_each([]) ->
+    [[]];
+spread_each([Part | Parts]) ->
+    [[Spread | Others] || Spread <- spread(Part), Others <- spread_each(Parts)].
+
+%% Report §11.5: a pattern as a help writes it whole, a literal as Ernest
+%% writes its value (§2.5), a field that binds its own name as a pun, and
+%% a size as an expression's help text.
+pattern_text(#p_wildcard{}) ->
+    "_";
+pattern_text(#p_var{name = Name}) ->
+    atom_to_list(Name);
+pattern_text(#p_literal{kind = int, value = Value}) ->
+    integer_to_list(Value);
+pattern_text(#p_literal{kind = float, value = Value}) ->
+    ern_literal:float_text(Value);
+pattern_text(#p_literal{kind = bool, value = Value}) ->
+    atom_to_list(Value);
+pattern_text(#p_literal{kind = char, value = Value}) ->
+    unicode:characters_to_list(ern_literal:char_text(Value));
+pattern_text(#p_literal{kind = string, value = Value}) ->
+    unicode:characters_to_list(ern_literal:string_text(Value));
+pattern_text(#p_constructor{namespace = Namespace, name = Name, args = none}) ->
+    ern_namespace:text(Namespace ++ [Name]);
+pattern_text(#p_constructor{namespace = Namespace, name = Name, args = {positional, Pattern}}) ->
+    ern_namespace:text(Namespace ++ [Name]) ++ "(" ++ pattern_text(Pattern) ++ ")";
+pattern_text(#p_constructor{namespace = Namespace, name = Name, args = {named, Fields}}) ->
+    ern_namespace:text(Namespace ++ [Name]) ++ "(" ++ texts(fun field_text/1, Fields) ++ ")";
+pattern_text(#p_tuple{elements = Elements}) ->
+    "#(" ++ texts(fun pattern_text/1, Elements) ++ ")";
+pattern_text(#p_list{elements = Elements}) ->
+    "[" ++ texts(fun pattern_text/1, Elements) ++ "]";
+pattern_text(#p_cons{head = Head, tail = Tail}) ->
+    pattern_text(Head) ++ " :: " ++ pattern_text(Tail);
+pattern_text(#p_as{pattern = Pattern, name = Name}) ->
+    pattern_text(Pattern) ++ " as " ++ atom_to_list(Name);
+pattern_text(#p_bitstring{segments = Segments}) ->
+    "<<" ++ texts(fun segment_text/1, Segments) ++ ">>".
+
+field_text(#field_pattern{name = Name, pattern = #p_var{name = Name}}) ->
+    "=" ++ atom_to_list(Name);
+field_text(#field_pattern{name = Name, pattern = Pattern}) ->
+    atom_to_list(Name) ++ " = " ++ pattern_text(Pattern).
+
+segment_text(#bit_segment{value = Value, specs = []}) ->
+    pattern_text(Value);
+segment_text(#bit_segment{value = Value, specs = Specs}) ->
+    pattern_text(Value) ++ ":" ++ lists:append(lists:join("-", [spec_text(Spec) || Spec <- Specs])).
+
+spec_text({size, Expr}) -> "size(" ++ ern_ast:help_text(Expr) ++ ")";
+spec_text(Spec) -> atom_to_list(Spec).
+
+texts(Text, Parts) ->
+    lists:append(lists:join(", ", [Text(Part) || Part <- Parts])).
+
 conspat(Tokens) ->
     {Head, Rest} = atompat(Tokens),
     case Rest of
@@ -1386,16 +1525,16 @@ atompat([{typename, Position, _} | _] = Tokens) ->
                  "expected a constructor; a pattern cannot name a function or value")
     end;
 atompat([{'#(', Position} | Rest]) ->
-    {Elements, Rest1} = components(Position, separated(Rest, ',', fun pattern/1)),
+    {Elements, Rest1} = components(Position, separated(Rest, ',', fun nested_pattern/1)),
     spanned({#p_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
 atompat([{'[', Position} | Rest]) ->
     {Elements, Rest1} = case Rest of
                             [{']', _} | _] -> {[], Rest};
-                            _ -> separated(Rest, ',', fun pattern/1)
+                            _ -> separated(Rest, ',', fun nested_pattern/1)
                         end,
     spanned({#p_list{span = Position, elements = Elements}, expect(Rest1, ']')});
 atompat([{'<<', Position} | Rest]) ->
-    {Segments, Rest1} = bit_segments(Rest, fun pattern/1),
+    {Segments, Rest1} = bit_segments(Rest, fun nested_pattern/1),
     spanned({#p_bitstring{span = Position, segments = Segments}, Rest1});
 atompat([Token | _]) ->
     wanted(pattern, position(Token), instead("expected a pattern", Token)).
@@ -1419,7 +1558,7 @@ constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
                                    constructor_name = Name},
                    EndPosition, "expected a pattern instead of end of input");
         _ ->
-            {Pattern, Rest1} = pattern(Rest),
+            {Pattern, Rest1} = nested_pattern(Rest),
             no_path_pattern(Pattern, Rest1),
             no_second_positional(Name, Rest1),
             spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
@@ -1473,7 +1612,7 @@ field_pattern_of(Namespace, ConstructorName) ->
             _ ->
                 {Name, Position, Rest} = FieldName(Tokens),
                 no_path_in_field_pattern(Rest),
-                {Pattern, Rest1} = pattern(expect(Rest, '=')),
+                {Pattern, Rest1} = nested_pattern(expect(Rest, '=')),
                 spanned({#field_pattern{span = Position, name = Name, pattern = Pattern}, Rest1})
         end
     end.

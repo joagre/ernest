@@ -54,7 +54,7 @@ items 8, 9, 13, 15, 16, 21, 28, 30 and 32, are discussed early, so that no build
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*):
 
-1. Items 17, 26 and 33, each by an item session, items 20, 22 and 31 done.
+1. Items 26, 33 and 34, each by an item session, items 17, 20, 22 and 31 done.
 2. One design session for what no test checks: item 21's decision, item 30's, item 32's, item
    19's question whether a hangup is told from a read that fails, item 29's sentence of §10,
    and item 16's proposal with its cold reading.
@@ -176,13 +176,9 @@ reader S reads of its live shell. The release note's line on the installed layou
     import; a proposal under `docs/proposals/relative_names/` first, with how far a short name
     reaches, then §4.2 after the cold reading, the checker, the diagnostics, `ern doc`, the
     shell's completion, and the shell's own sites written short.
-17. **`or` inside a pattern**, feedback 232, decided 2026-11-04: `#(Paste or Load, _) ->` is
-    refused as `a tuple has two components or more`, with a help to add a component, which names
-    a problem the code does not have. §5 says that an `or` stands between a clause's whole
-    patterns (§5.9), beside "Patterns nest to any depth". The parser names it: `an or stands
-    between a clause's whole patterns`, the help writing the clause's alternatives out,
-    `#(Paste, _) or #(Load, _)`. Small (the log's *An `or` Stands Between Patterns*, *The Items
-    Left Read Again*).
+17. **`or` inside a pattern**, done 2026-11-08 (§5.10, §11.5; the log's *An `or` Stands Between
+    Patterns* and *An `or` Inside a Pattern Refused*). The parser refuses it at the alternatives
+    it joins, and in a clause its help writes the clause's alternatives out whole.
 18. **A node's own processes at a full table**, done 2026-11-08 (§11.2, §12.5, E.18, E.21, E.27;
     the log's *A Node's Own Processes at a Full Table*). A socket's closer is made with the
     socket, the gateway's worker for a peer as the connection opens, and a peer's restart is
@@ -278,6 +274,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     `{dtls_upgrade, notsup}` (`docs/otp_bugs.md`, 15), which E.18 would give as its
     `Other(text)`. The wait is diagnosed first; then the connect and the handshake answer the
     full table as a socket's process does (E.18, §12.5).
+34. **A flake of `broken_exchange_test_`**, seen 2026-11-08 by item 17's `make test-full`,
+    diagnosed and fixed by 2026-11-12. One `has/2` of the test found no line it looked for, and
+    `make test-nodes` passed whole after it, under the same load. `has/2` names neither the part
+    nor the text, so it says what it missed first; the cause is then found under the load of
+    `make test-nodes`.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
