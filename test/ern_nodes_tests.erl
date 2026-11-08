@@ -4075,7 +4075,7 @@ attach_beside_a_program_shell(Base) ->
 %% the shell's source root, which the shell's own node reads; the process of
 %% a `let` lives while its name is in scope, and `:forget` ends it; and
 %% `:processes` lists the node's program and what an input spawned, each
-%% with its activity.
+%% by its site.
 %%
 %% `:quit` ends the shell with status 0 and leaves that process running on
 %% the node, which a second session lists. Written after the code, a
@@ -4133,7 +4133,7 @@ attached_shell(Base) ->
     prints(Ops, "false : Bool"),
     true = port_command(ShellInput, ["let w : Address(Int) = spawn(fn() = receive { _ -> Unit })\n",
                                      ":processes\n"]),
-    prints(Ops, "$Session1.input 11:1 receiving"),
+    prints(Ops, "$Session1.input 11:1 "),
     prints(Ops, "Echo.main "),
     true = port_command(ShellInput, ":quit\n"),
     ?assertEqual(0, WaitShell()),
@@ -4144,7 +4144,7 @@ attached_shell(Base) ->
     %% report §11.2: what the session started stays the node's
     {SecondInput, WaitSecond} = attached(Ops, "node", Source),
     true = port_command(SecondInput, ":processes\n:quit\n"),
-    prints(Ops, "$Session1.input 11:1 receiving"),
+    prints(Ops, "$Session1.input 11:1 "),
     ?assertEqual(0, WaitSecond()),
     stop(Node, WaitNode),
     {NodeOut, _} = said(Node),
@@ -4621,7 +4621,7 @@ attached_sessions(Base) ->
             "> 5 : Int\n"),
     ThirdOut = string:find(written(One, out), ", session 3. :help"),
     has(ThirdOut, Offered),
-    has(ThirdOut, "$Session1.input 3:1 receiving "),
+    has(ThirdOut, "$Session1.input 3:1 "),
     ?assertEqual(nomatch, string:find(ThirdOut, "Greet")),
     _ = detached({Third, WaitThird}, One),
     {SecondOut, _} = detached({Second, WaitSecond}, Two),
@@ -4987,7 +4987,7 @@ attached_code_load(Base) ->
     prints(Ops, ":help for help.\n"),
     entered(Shell, Ops, ["Code.load(Path(\"" ++ filename:join(Lib, "told.erc") ++ "\"))"],
             "Right(Unit)"),
-    entered(Shell, Ops, [":processes"], "Told.teller:15 receiving"),
+    entered(Shell, Ops, [":processes"], "Told.teller:15 "),
     {Out, _} = detached(Attached, Ops),
     has(Out, "evaluated at the prompt\n"),
     ?assertEqual(2, length(string:split(Out, "Told.teller:15", all))),

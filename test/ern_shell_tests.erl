@@ -358,9 +358,7 @@ startup_failures_named() ->
                  ":6: no module Nope under the source root or on the load path"]],
     ?assertMatch({_, _}, binary:match(Output, <<"5 | :type  1 + \"a\"\n  |        -">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)),
-    ?assertMatch({_, _},
-                 binary:match(listing(Output),
-                              list_to_binary(["$Session1.", Startup, ":7 receiving\n"]))),
+    listed(Output, list_to_binary(["$Session1.", Startup, ":7 receiving\n"])),
     ok = file:write_file(Startup, <<255, 254, "\n">>),
     {0, Bad} = ern_pty:sh(Command),
     ?assertMatch({_, _},
@@ -1088,17 +1086,18 @@ process_live_at_the_prompt() ->
                                     "Process.live() == [Process.fromAddress(p)]\n"
                                     ":processes\n"),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(listing(Output), <<"> [] : List(Process)\n"
-                                                         "> p : Address(Int)\n"
-                                                         "> true : Bool\n"
-                                                         "> $Session1.input 2:1 receiving\n">>)),
-    ?assertMatch({match, _},
-                 re:run(Output, <<"> \\$Session1\\.input 2:1 receiving [0-9]+ bytes\n">>)).
+    listed(Output, <<"> [] : List(Process)\n"
+                     "> p : Address(Int)\n"
+                     "> true : Bool\n"
+                     "> $Session1.input 2:1 receiving\n">>),
+    ?assertMatch({match, _}, re:run(Output, <<"> \\$Session1\\.input 2:1 (receiving|running)"
+                                              " [0-9]+ bytes\n">>)).
 
 %% report §11.2, Appendix E.21: `:processes` writes each process's memory after
-%% its activity, and orders one site's processes by it as a number, the
-%% process that holds a binary after the one that holds none though its count
-%% begins with a lower digit
+%% its activity, and orders one site's processes by activity and then by
+%% memory as a number, the process that holds a binary after the one that
+%% holds none though its count begins with a lower digit, where the host
+%% gives both one activity
 listed_by_memory_test() ->
     Dir = fresh_home(),
     InputFile = filename:join(Dir, "session.in"),
@@ -1108,11 +1107,17 @@ listed_by_memory_test() ->
                                      "send(big, String.toUtf8(String.repeat(\"x\", 1048576)))\n",
                                      ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    Site = "\\$Session1\\.holder:1 receiving ",
-    {match, [Small, Large]} = re:run(Output, [Site, "([0-9]+) bytes\n", Site, "([0-9]+) bytes\n"],
-                                     [{capture, all_but_first, binary}]),
-    ?assert(binary_to_integer(Small) < 1048576),
-    ?assert(binary_to_integer(Large) >= 1048576).
+    Listed = case re:run(Output, "\\$Session1\\.holder:1 (receiving|running) ([0-9]+) bytes\n",
+                         [global, {capture, all_but_first, binary}]) of
+                 {match, Lines} ->
+                     [{Activity, binary_to_integer(Memory)} || [Activity, Memory] <- Lines];
+                 nomatch ->
+                     erlang:error({not_listed, Output})
+             end,
+    ?assertEqual(lists:sort(Listed), Listed),
+    [Small, Large] = lists:sort([Memory || {_, Memory} <- Listed]),
+    ?assert(Small < 1048576),
+    ?assert(Large >= 1048576).
 
 %% report §11.2, Appendix E.24: the shell reports as `ern run` does, so a
 %% fault `Test.faults` expects is no line and not among `:faults`; the
@@ -3291,9 +3296,9 @@ reload_keeps_previous_versions() ->
                                      ":faults\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n> 3 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(listing(Output), <<"Counter$2.service:5 receiving\n"
-                                                         "Counter$3.service:5 receiving\n"
-                                                         "Counter.service:5 receiving\n">>)),
+    listed(Output, <<"Counter$2.service:5 receiving\n"
+                     "Counter$3.service:5 receiving\n"
+                     "Counter.service:5 receiving\n">>),
     ?assertMatch({_, _}, binary:match(Output, <<"no process has faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"previous version is">>)).
 
@@ -3379,10 +3384,10 @@ reload_version_sites() ->
                                      write_source(Dir, "counter.ern", Counter(2)),
                                      ":reload\n:processes\n", Asked, ":quit\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    [printed(listing(Output), Line)
-     || Line <- [<<"> Counter$2.service:5 receiving\n"
-                   "Counter.service:5 receiving\n">>,
-                 <<"the end waits for 2 subscribers: Counter.service:5,"
+    listed(Output, <<"> Counter$2.service:5 receiving\n"
+                     "Counter.service:5 receiving\n">>),
+    [printed(Output, Line)
+     || Line <- [<<"the end waits for 2 subscribers: Counter.service:5,"
                    " Counter$2.service:5\n">>,
                  <<"the subscriber Counter.service:5 answered\n">>,
                  <<"the subscriber Counter$2.service:5 answered\n">>]].
@@ -3391,6 +3396,26 @@ reload_version_sites() ->
 %% so that a red that comes under the full run's load alone is diagnosed.
 printed(Output, Line) ->
     binary:match(Output, Line) =/= nomatch orelse erlang:error({not_printed, Line, Output}).
+
+%% Report §11.2, Appendix E.21: that the listing `:processes` wrote in Output
+%% holds Lines, in their order, Count times or at least once, the memory
+%% taken off each line (listing/1). A process Lines lists `receiving` or
+%% `calling` may be listed `running`, as the host says of a process that
+%% waits while it works in it, which it does when the session has let an
+%% input's code go. A failure carries Output whole, as printed/2's does.
+listed(Output, Lines) ->
+    listed(Output, Lines, any).
+
+listed(Output, Lines, Count) ->
+    Waits = lists:foldl(fun(Activity, Text) ->
+                            binary:replace(Text, <<" ", Activity/binary, "\n">>,
+                                           <<"\\E (?:", Activity/binary, "|running)\n\\Q">>,
+                                           [global])
+                        end, Lines, [<<"receiving">>, <<"calling">>]),
+    case re:run(listing(Output), <<"\\Q", Waits/binary, "\\E">>, [global]) of
+        {match, Matches} when Count =:= any; length(Matches) =:= Count -> ok;
+        _ -> erlang:error({not_listed, Lines, Count, Output})
+    end.
 
 %% The session's Output with the memory taken off each line `:processes`
 %% wrote, a count that differs from run to run (report §11.2).
@@ -4052,29 +4077,21 @@ doc_every_name() ->
 %% shadows no name the session declares. A regression test for findings
 %% of the session of real use: `:processes` showed `Input2.main:1`, a name
 %% the session shows only for a shadowed type, and `main()` after `fn main` called the
-%% wrapper, which was named `main`, forever. `:processes` is asked once the
-%% two processes are receiving, which Test.until waits for, since a spawn
-%% answers before the process it spawned reaches its `receive`: asked at
-%% once, a line lacked `receiving` under the full run's load
+%% wrapper, which was named `main`, forever
 session_names_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun session_names/0).
 
 session_names() ->
     InputFile = scratch_file("ern_names_"),
     Wait = "receive { n -> Io.println(Int.toString(n)) }",
-    Receiving = ["Test.until(fn() = Test.equal(List.map(Process.live(), fn(p) =",
-                 " Optional.map(Process.status(p), fn(s) = s.activity)),",
-                 " [Some(Process.Receiving), Some(Process.Receiving)]), ",
-                 ern_nodes_tests:wait_ms_text(), ")\n"],
     ok = file:write_file(InputFile, ["fn main() : Int = 1\n", "main()\n",
                                      "fn start() : Address(Int) = spawn(fn() = ", Wait,
                                      ")\n", "start()\n", "spawn(fn() = ", Wait, ")\n",
-                                     Receiving, ":processes\n"]),
+                                     ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> Test.Passed : Test.Result\n">>)),
-    ?assertMatch({_, _}, binary:match(listing(Output), <<"$Session1.input 5:1 receiving\n"
-                                                       "$Session1.start:1 receiving\n">>)),
+    listed(Output, <<"$Session1.input 5:1 receiving\n"
+                     "$Session1.start:1 receiving\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)).
 
 %% report §11.2: text that is typed and not run makes no name the host
@@ -4364,7 +4381,7 @@ reload() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 2 : Int\n> 1 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 3 : Int\n> 1 : Int">>)),
     %% the process of the first version runs on
-    ?assertMatch({_, _}, binary:match(listing(Output), <<"> $Session1.input 4:1 receiving\n">>)),
+    listed(Output, <<"> $Session1.input 4:1 receiving\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"previous version">>)).
 
 %% report §11.2: `:reload` of a module that has come to use one the session
@@ -4704,7 +4721,7 @@ load_keeps_what_bindings_open() ->
                           ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Right(Some(\"hello\"))">>)),
-    ?assertMatch({_, _}, binary:match(listing(Output), <<"Greeter.acceptor:21 calling\n">>)),
+    listed(Output, <<"Greeter.acceptor:21 calling\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"Ernest.Shell.load">>)).
 
 %% report §11.2, §6.9: a `:load` whose binding faults loads nothing: the
@@ -4787,12 +4804,11 @@ refused_load_kills_holder() ->
     ok = file:write_file(InputFile, [":load Runner\n:load Bad\n:processes\n",
                                      "Runner.tick()\n:processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(listing(Output),
-                                      <<"Bad.broken:5 faulted: division by zero; nothing"
-                                        " was loaded, and the process spawned at"
-                                        " Runner.start:19 was killed\n"
-                                        "> Runner.hub:7 receiving\n">>)),
-    ?assertEqual(2, ern_pty:count(listing(Output), <<"> Runner.hub:7 receiving\n">>)),
+    listed(Output, <<"Bad.broken:5 faulted: division by zero; nothing"
+                     " was loaded, and the process spawned at"
+                     " Runner.start:19 was killed\n"
+                     "> Runner.hub:7 receiving\n">>),
+    listed(Output, <<"> Runner.hub:7 receiving\n">>, 2),
     [?assertEqual(nomatch, binary:match(Output, Text))
      || Text <- [<<"stepped">>, <<"badfun">>, <<"undef">>, <<"Runner.start:19 faulted">>]].
 
@@ -5303,7 +5319,7 @@ load_loaded() ->
                                      ":load Demo\n", ":load Demo\n", ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertEqual(2, ern_pty:count(Output, <<"Demo is loaded already; :reload compiles it again">>)),
-    ?assertMatch({_, _}, binary:match(listing(Output), <<"$Session1.input 2:1 receiving\n">>)),
+    listed(Output, <<"$Session1.input 2:1 receiving\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"no process of the session's is running">>)).
 
 %% report §8.5, §11.2: `:reload` evaluates the changed modules' bindings in

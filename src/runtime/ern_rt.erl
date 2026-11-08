@@ -2368,8 +2368,10 @@ chain_head(Pid) ->
 %% has ended, for a process on another node, and for one of the runtime's
 %% own, which has no row but a load's evaluator (E.28). A process waiting for a
 %% call's answer is Calling, which the host's status does not tell from a
-%% receive: it keeps its call under its CALL key (§6.6). A socket's memory
-%% counts the writer it keeps under its WRITER key.
+%% receive: it keeps its call under its CALL key (§6.6). Every other status
+%% of the host's is Running, its work in a process that waits among them,
+%% which no item of the host's tells from the process's own. A socket's
+%% memory counts the writer it keeps under its WRITER key.
 -spec status(pid()) ->
     'None' | {'Some', {'Status', binary(), non_neg_integer(), atom(), non_neg_integer()}}.
 status(Pid) when node(Pid) =:= node() ->

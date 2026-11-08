@@ -743,6 +743,8 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 `status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28).
 
+A process that waits is `Running` while the host works in it. The host works in every process of a node for a moment when code is let go there (§11.2).
+
 Its `memory` is the bytes the process holds as the host counts them: its stack, its heap and its mailbox, and each binary it references, whole, however small the part it uses. A binary is counted for each reference and in each process that holds one, so the memories of a node's processes can add up to more than the node holds. A process that waits still counts what it dropped (§10). A binary that code holds, a constant's (§4.6) or a shell's binding's (§11.2), is not counted. A socket's counts the process that does its writes too (E.18), and not the host's processes of a connection over TLS.
 
 `live` answers the processes a program spawned and the listeners, sockets and running programs a system module opened (Appendix E.18, E.23), that have not ended; no process of the runtime's own, its evaluators among them (E.28), and no system process is among them; in a shell, and on a node a shell is attached to, each session's own processes are excepted too (§11.2).

@@ -53,13 +53,12 @@ items 8, 9, 13, 15, 16, 21 and 28, are discussed early, so that no build waits o
 
 The items left are built in this order, set 2026-11-08:
 
-1. Item 24 first, since its race turns `make test-full` red, and every later item closes on
-   that run.
-2. Items 25, 18, 20 and 22, each by an item session.
-3. One design session for what no test checks: item 21's decision, item 19's question whether
-   a hangup is told from a read that fails, and item 16's proposal with its cold reading.
-4. Items 17, 19 and 26, each a report sentence and its build.
-5. Item 16's build last.
+1. Items 25, 18, 20 and 22, each by an item session.
+2. One design session for what no test checks: item 21's decision, item 19's question whether
+   a hangup is told from a read that fails, item 29's sentence of §10, and item 16's proposal
+   with its cold reading.
+3. Items 17, 19, 26 and 29, each a report sentence and its build.
+4. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -226,22 +225,9 @@ reader S reads of its live shell. The release note's line on the installed layou
     17.1.1). The target now runs with core dumps on, so the next fault leaves its core in `test/`. That
     core is read with `gdb` and its stack goes to `docs/otp_bugs.md` and to the OTP team; where
     none comes by the launch's release review, the review decides whether the item stays.
-24. **The shell's listing under load.** On 2026-11-07, one run of `make test-full` failed
-    `ern_shell_tests:process_live_at_the_prompt` in the shell's area, the four answers it lists not
-    found, and the next run passed. The output was not kept. One candidate was `:processes`
-    listing the spawned process before it has reached its `receive`, so that its activity is not
-    yet `receiving`.
-
-    On 2026-11-08 the candidate held: `:processes` listed the input's process `running`, in this
-    test and in `reload`, and once in 64 runs by hand under a pty, before item 15's build and
-    after it alike (the log's *The Shell Attaches as a Program Spawns Built*). The test waits for
-    the process to receive, as CLAUDE.md's *No fixed sleep* asks, and so does `reload`'s, by
-    2026-11-12.
-
-    The same day one run of `make test-full` failed `load_keeps_what_bindings_open`,
-    `Greeter.acceptor:21 calling` not listed. Its output was not kept, 128 runs under a pty did
-    not repeat it, and its cause is not found; the item's fix keeps a failing listing's output, so
-    the next run shows it.
+24. **The shell's listing under load**, done 2026-11-08 (E.21; the log's *The Host Says
+    Running*). A process that waits is `Running` while the host works in it, as it does in every
+    process once code is let go, and the shell's listing tests allow it.
 25. **A capture's write-back at the run's end**, found 2026-11-07, fixed by 2026-11-12. One run
     of `make test` in three failed `ern_cli_tests:test_capture_test`: the line a case wrote inside
     `Test.capture` before it faulted did not reach standard error, where E.24 writes it after all.
@@ -264,6 +250,13 @@ reader S reads of its live shell. The release note's line on the installed layou
     Holds the Shell* and its *Built*). A node holds the shell of its own build of `ern` from its
     start, so a shell of that build attaches with an exchange that ships nothing, and a node of a
     tree whose shell is not built is refused at its start.
+29. **What a process that waits holds when a value is let go**, found 2026-11-08 by item 24's
+    cold reading, decided by 2026-11-12. §10 says the host does not collect a process that waits,
+    so that it holds what it dropped. A process that waits and references a value the host lets
+    go, a persistent term erased as a shell lets an input's values go, is collected then: in a
+    bare host its heap fell from 636,374 words to 2,819, and one that references nothing kept
+    its heap. §10 states the exception, E.21's sentence on what a waiting process counts and the
+    deployment guide's §7 follow it, and a test holds it (the log's *The Host Says Running*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
