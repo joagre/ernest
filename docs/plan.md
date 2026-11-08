@@ -257,11 +257,15 @@ reader S reads of its live shell. The release note's line on the installed layou
     at its first fault; and an `Fs` request faults the local half, a history's append at each
     `Enter` at a terminal and the sources `:load` and `:reload` read.
 
-    The recommendation, by principles 5 and 1: a subscription's fault reports come through a courier made with the
-    subscription, as the terminal's keys do (§12.1), so that none is lost to a full table; and
-    `Fs` at a full table of processes answers the host's refusal, `Left(Other(text))`, as it does
-    at a full table of ports (E.1, §12.5). Both change what item 1 decided for those two (the
-    log's *A Node's Limits*, *A Node's Own Processes at a Full Table*).
+    The recommendation, by principles 5 and 1: a subscription's fault reports come through a
+    courier made with the subscription, as the terminal's keys do (§12.1), so that none is lost
+    to a full table; and `Fs` at a full table of processes answers the host's refusal,
+    `Left(Other(text))`, as it does at a full table of ports (E.1, §12.5). Both change what
+    item 1 decided for those two (the log's *A Node's Limits*, *A Node's Own Processes at a
+    Full Table*).
+
+    The shell's test of an input at a full table keeps no history until this item is built,
+    and its build gives the test its history again.
 31. **The carrier's acceptor at a full table**, a defect found 2026-11-08 by item 18, fixed by
     2026-11-12. A connection a peer opens while a node's table of processes is full ends the
     host's TLS acceptor, which prints its own report, and the node accepts no connection again;

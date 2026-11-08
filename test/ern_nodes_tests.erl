@@ -22,7 +22,7 @@
          address/1, edit/2, configuration/1, lists/2, peer/3, name/1, program/1, built/1,
          wait_ms_text/0, client/0, client/8, key_files/1, start/3, bare_started/2, bound_port/1,
          launched/2, says/2, says/3, prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0,
-         detector_ms/0, has/2, connected/2, accepted/1, received/2, collected/2]).
+         detector_ms/0, has/2, connected/2, accepted/1, received/2, collected/2, closed/1]).
 
 %% What waits for a node's end: its status, or `timeout` where it has not
 %% ended within the harness's time for one wait.
@@ -7403,8 +7403,8 @@ output(Port) ->
 %% A port's output to its end, and its exit status, within Steps steps,
 %% each given the harness's time for one wait: one, or a run's own steps,
 %% which the harness cannot see. The port is opened with `binary` and
-%% `exit_status`; one that has not ended by then is closed and fails the
-%% test, naming what it wrote.
+%% `exit_status`; one that has not ended by then is closed with what it
+%% started (closed/1) and fails the test, naming what it wrote.
 -spec collected(port(), pos_integer()) -> {integer(), binary()}.
 collected(Port, Steps) ->
     step({collected, Port}, Steps),
@@ -7415,9 +7415,23 @@ collected(Port, Acc, Deadline) ->
         {Port, {data, Bytes}} -> collected(Port, <<Acc/binary, Bytes/binary>>, Deadline);
         {Port, {exit_status, Status}} -> {Status, Acc}
     after max(Deadline - erlang:monotonic_time(millisecond), 0) ->
-        port_close(Port),
+        closed(Port),
         erlang:error({still_running, Port, Acc})
     end.
+
+%% A port the test opened closed, its process killed first with each process
+%% of its group, which the host makes for that process alone: closing the
+%% port alone leaves a command that does not read its input running past
+%% its test and the run. The kill can close the port first, as its process
+%% ends. A node leaves the group, and is the test's cleanup's (killed/1).
+-spec closed(port()) -> ok.
+closed(Port) ->
+    case erlang:port_info(Port, os_pid) of
+        {os_pid, Number} -> _ = os:cmd("kill -KILL -" ++ integer_to_list(Number));
+        undefined -> ok
+    end,
+    try port_close(Port) catch error:badarg -> true end,
+    ok.
 
 %% The process number in a node's ernest.pid.
 pid(Dir) ->

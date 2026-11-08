@@ -2275,9 +2275,11 @@ input_fault_status() ->
 %% cannot compile, so that the name is not bound. The second fills it from
 %% a process the input asks, which fills it again once the input has ended,
 %% its call on the input ending then, and says so; the next input is typed
-%% after that, and its compiler cannot start. The second keeps no history,
-%% since its append at a full table faults the local half (the log's *A
-%% Node's Own Processes at a Full Table*).
+%% after that, and its compiler cannot start.
+%%
+%% The second run keeps no history, since its append at a full table faults
+%% the local half, and waits to keep it until that append no longer ends
+%% the shell (the log's *A Node's Own Processes at a Full Table*).
 %%
 %% A regression test, written after the fix: the shell faulted, a failure
 %% of `ern` itself, at each. It does not cover a full table as the input's

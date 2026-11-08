@@ -241,7 +241,7 @@ collected(Port, Said, Deadline, {Name, Command, Ms} = Run) ->
         {Port, {data, Bytes}} -> collected(Port, [Said, Bytes], Deadline, Run);
         {Port, {exit_status, Status}} -> {Status, unicode:characters_to_list(Said)}
     after left(Deadline) ->
-        port_close(Port),
+        ern_nodes_tests:closed(Port),
         fail(io_lib:format("on ~s, `~ts` did not end within ~B ms: ~ts",
                            [Name, Command, Ms, string:trim(unicode:characters_to_list(Said))]))
     end.
