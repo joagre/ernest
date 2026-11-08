@@ -237,8 +237,7 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
                                 Measured),
                     gateway(Workers1, Ended, Told, Deadline, Departed);
                 limited ->
-                    ern_carrier:say_later([ern_carrier:named(Node), " was refused: this node's"
-                                           " table of processes is full"]),
+                    ern_carrier:table_full(ern_carrier:named(Node)),
                     _ = erlang:disconnect_node(Node),
                     gateway(Workers, Ended#{Node => refused}, Measured, Deadline, Departed)
             end;

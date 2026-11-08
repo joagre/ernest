@@ -100,18 +100,19 @@ cookie_test() ->
     Configuration = configured(),
     ?assert(contains(ern_carrier:boot_flags(Configuration), ["-setcookie", Cookie])).
 
-%% report §12.5, §12.6: a node's host boots with TLS 1.3 over the listener's family
-%% of addresses, the node's certificate and key on each side, the rule as
-%% the verification, no port-mapper daemon, no mesh, the detector's times,
-%% the buffer, and the floor's digest as the cookie; the listener's
-%% interface is the kernel's to bind where it is one, and an IPv6
-%% listener's family alone (Appendix E.18)
+%% report §12.5, §12.6: a node's host boots with TLS 1.3 by the node's own
+%% distribution module, whatever its listener's family, which the module
+%% reads from the configuration (ern_tls_dist), the node's certificate and
+%% key on each side, the rule as the verification, no port-mapper daemon,
+%% no mesh, the detector's times, the buffer, and the floor's digest as the
+%% cookie; the listener's interface is the kernel's to bind where it is
+%% one, and an IPv6 listener's family alone (Appendix E.18)
 boot_flags_test() ->
     Configuration = configured(),
     Dir = filename:absname(Configuration#configuration.config_dir),
     Flags = ern_carrier:boot_flags(Configuration#configuration{listen = {{127, 0, 0, 1}, 0}}),
     Cookie = ern_carrier:cookie(),
-    ?assertMatch(["-proto_dist", "inet_tls", "-ssl_dist_opt" | _], Flags),
+    ?assertMatch(["-proto_dist", "ern_tls", "-ssl_dist_opt" | _], Flags),
     lists:foreach(fun(Pair) -> ?assert(contains(Flags, Pair)) end,
                   [["server_certfile", filename:join(Dir, "certificate.pem")],
                    ["server_keyfile", filename:join(Dir, "private-key.pem")],
@@ -129,12 +130,12 @@ boot_flags_test() ->
     ?assertNot(contains(Flags, ["client_fail_if_no_peer_cert", "true"])),
     All = ern_carrier:boot_flags(Configuration#configuration{listen = {{0, 0, 0, 0, 0, 0, 0, 0},
                                                                          8654}}),
-    ?assertMatch(["-proto_dist", "inet6_tls" | _], All),
+    ?assertMatch(["-proto_dist", "ern_tls" | _], All),
     ?assertNot(lists:member("inet_dist_use_interface", All)),
     ?assert(contains(All, ["-kernel", "inet_dist_listen_options", "[{ipv6_v6only,true}]"])),
     ?assertNot(lists:member("inet_dist_listen_options", Flags)),
     Dialing = ern_carrier:boot_flags(Configuration#configuration{listen = none}),
-    ?assertMatch(["-proto_dist", "inet_tls" | _], Dialing),
+    ?assertMatch(["-proto_dist", "ern_tls" | _], Dialing),
     ?assertNot(lists:member("inet_dist_use_interface", Dialing)),
     ?assertNot(lists:member("inet_dist_listen_options", Dialing)).
 

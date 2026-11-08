@@ -40,7 +40,7 @@ The shell's host half is `ern_shell`, the shell's front end, beside its Ernest i
 | Module | Job |
 |---|---|
 | `ern_node` | a node's configuration directory, made, checked and read (§8.3, §11.3, Appendix C) |
-| `ern_carrier`, `ern_epmd`, `ern_gateway` | a node's carrier, its port mapper and its gateway (*A node*) |
+| `ern_carrier`, `ern_tls_dist`, `ern_epmd`, `ern_gateway` | a node's carrier, its distribution module, its port mapper and its gateway (*A node*) |
 | `ern_exchange`, `ern_arrival` | the exchange and the unit an exchange makes (*The exchange and arrivals*) |
 | `ern_code_load` | `Code.load` (E.28, *The code table*) |
 
@@ -207,6 +207,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | a closer | a socket (`lingering/4`) | | closes a host socket once the far end has taken its bytes (E.18) |
 | a running program's process | `os` | `ern_held`, as opened | owns the program's `ern_exec` port (E.23) |
 | the code table's holder | `ern_code`, at the table's first use | | holds `ern_code` and `ern_code_sums` for the host's life |
+| the carrier's acceptor | the host's `net_kernel`, as the carrier listens (`ern_tls_dist:accept/1`) | a link to `net_kernel` | takes each peer's connection, and makes a process for each that shakes hands with the peer and hands the connection to the host (*A node*) |
 | the gateway, registered `ern_gateway`, and a worker for each peer | `ern_carrier:start/1` | | takes the runtime's frames from the peers (*A node*) |
 | the exchange, registered `ern_exchange` | `ern_gateway:start/0` | | carries a reach's definitions between nodes (*The exchange and arrivals*) |
 | the shell's table's holder | `ern_shell`, at the table's first need (`table/0`) | | holds `ern_shell` for the host's life |
@@ -257,10 +258,11 @@ A reference tags each launch, held with its runner, its reaper, its killer, its 
 
 ### A node
 
-The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_epmd` and `ern_gateway` in `cli`, and `ern_peer` in `runtime`.
+The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_tls_dist`, `ern_epmd` and `ern_gateway` in `nodes`, and `ern_peer` in `runtime`.
 
 - `ern_node` reads the configuration directory into a `#configuration{}` (`src/nodes/include/ern_node.hrl`) and holds `ernest.pid` through the helper's `lock` mode, a port the runner's process owns (`pid_written/1`).
 - `ern_carrier` is the carrier: the host's boot flags (`boot_flags/1`), the node's name (`name/1`, `host/1`), the cookie (`cookie/0`), the rule that accepts a peer (`verify/3`), the start (`start/1`), a reload (`reload/0`), the end in order (`depart/0`), and the lines a node says (`say/1`, and `say_later/1` for a process that must not wait on standard error, which `ern_rt:say_later/2` says through a process of its own).
+- `ern_tls_dist` is the host's distribution over TLS with an acceptor of the node's own, which closes a connection the full table leaves no room for and waits at the limit of open files (§12.5).
 - `ern_epmd` answers the host in the port mapper's place, from the configuration.
 - `ern_gateway` takes every frame of the runtime's from every peer and hands each to a worker for that peer, which `ern_peer:frame/2` reads. Its header comment lists the frames.
 - The gateway records a call's notes in `ern_notes` itself (§8.7, §12.6). It answers a utilization, tells each connected peer its own every `utilization-interval`, and holds each peer's telling in `ern_utilizations`.

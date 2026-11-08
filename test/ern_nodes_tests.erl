@@ -1955,6 +1955,221 @@ export fn main() : Unit =
     ?assertEqual(nomatch, string:find(StoreErr, "Too many processes")),
     ?assertEqual(nomatch, string:find(StoreErr, "REPORT")).
 
+%% report §12.5: a connection a peer opens while the node's table of
+%% processes is full is closed as it opens, the node saying so, and the node
+%% accepts the next once room is made: the keeper, connected, fills the
+%% store's table, the desk's dial fails, and once the keeper frees it the
+%% desk's next spawn starts. A regression test, written after the code. It
+%% holds the refusal at a table filled whole; the probe that left one to
+%% five processes free, which reached the host's TLS, its handshake and its
+%% timer in turn, is not held, since the runtime's own processes come and
+%% go beside the filler.
+accept_at_a_full_table_test_() ->
+    nodes_test({waits, 11}, fun accept_at_a_full_table/1).
+
+accept_at_a_full_table(Base) ->
+    {Store, Keeper, Desk} = accepting_nodes(Base, <<"processes">>),
+    WaitStore = start(Store, filename:join([Base, "build", "store.erc"]), []),
+    prints(Store, "ready"),
+    {Keep, WaitKeeper} = started(Keeper, filename:join([Base, "build", "keeper.erc"]),
+                                 ["processes"]),
+    prints(Keeper, "filled"),
+    {Dial, WaitDesk} = started(Desk, filename:join([Base, "build", "desk.erc"]), []),
+    prints(Desk, "full: "),
+    says(Store, "was refused: this node's table of processes is full"),
+    true = port_command(Keep, "free\n"),
+    prints(Keeper, "freed"),
+    true = port_command(Dial, "again\n"),
+    ?assertEqual(0, WaitDesk()),
+    true = port_command(Keep, "end\n"),
+    ?assertEqual(0, WaitKeeper()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {StoreOut, StoreErr} = said(Store),
+    ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
+    [?assertEqual(nomatch, string:find(Text, Part))
+     || Text <- [StoreOut, StoreErr], Part <- ["Too many processes", "REPORT", "Error in"]].
+
+%% report §12, §12.5: a connection a peer opens while the node holds as many
+%% files as the operating system lets it waits unaccepted, the node saying
+%% so once and spending under a tenth of the wait on a processor, where the
+%% host's own acceptor spun a scheduler (docs/otp_bugs.md, 14); the dial
+%% fails, and once the keeper closes its listeners the node accepts again
+%% within a dial's time, so that the desk's second dial after them starts
+%% its spawn. A regression test, written after the code; the limit of the
+%% system's table of files, `enfile`, is not reached.
+accept_at_the_file_limit_test_() ->
+    nodes_test({waits, 11, 3 * ?DIAL_MS}, fun accept_at_the_file_limit/1).
+
+accept_at_the_file_limit(Base) ->
+    {Store, Keeper, Desk} = accepting_nodes(Base, none),
+    {_, WaitStore} = launched(Store, ["ulimit -n 64; exec ", ?ERN, " run --config-dir ", Store,
+                                      " ", filename:join([Base, "build", "store.erc"])]),
+    prints(Store, "ready"),
+    {Keep, WaitKeeper} = started(Keeper, filename:join([Base, "build", "keeper.erc"]),
+                                 ["files"]),
+    prints(Keeper, "filled"),
+    Before = {erlang:monotonic_time(millisecond), processor_ticks(Store)},
+    {Dial, WaitDesk} = started(Desk, filename:join([Base, "build", "desk.erc"]), []),
+    prints(Desk, "full: ", 2 * ?DIAL_MS + ?WAIT_MS),
+    {Start, Ticks} = Before,
+    Waited = erlang:monotonic_time(millisecond) - Start,
+    %% a tick is a hundredth of a second, Linux's USER_HZ
+    ?assert((processor_ticks(Store) - Ticks) * 10 < Waited div 10),
+    says(Store, "a connection waits: too many open files"),
+    true = port_command(Keep, "free\n"),
+    prints(Keeper, "freed"),
+    true = port_command(Dial, "again\n"),
+    ?assertEqual(0, WaitDesk()),
+    true = port_command(Keep, "end\n"),
+    ?assertEqual(0, WaitKeeper()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {_, StoreErr} = said(Store),
+    ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
+    ?assertEqual(1, length(string:split(StoreErr, "a connection waits", all)) - 1).
+
+%% The processor time the node of Dir has spent, in ticks, as Linux counts
+%% a process's user and system time.
+processor_ticks(Dir) ->
+    {ok, Pid} = file:read_file(filename:join(Dir, "ernest.pid")),
+    {ok, Stat} = file:read_file(filename:join(["/proc", string:trim(Pid), "stat"])),
+    %% the fields after the command's name, which closes with the last `)`
+    [_, After] = string:split(binary_to_list(Stat), ")", trailing),
+    Fields = string:lexemes(After, " "),
+    list_to_integer(lists:nth(12, Fields)) + list_to_integer(lists:nth(13, Fields)).
+
+%% The store, listening, its table of processes held at the least limit
+%% where Limit names it, and the keeper and the desk, which each dial it,
+%% their programs built: the store's fillers of processes and of files; the
+%% keeper, which fills the store's processes or its files as its argument
+%% says, then frees them at its first line of input and ends at its second;
+%% and the desk, which spawns on the store, then, at its line of input,
+%% once more, or twice where the first dial fails.
+accepting_nodes(Base, Limit) ->
+    PortStore = free_port(),
+    Store = made(Base, "store", PortStore),
+    Keeper = made(Base, "keeper", none),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"keeper", Keeper, none}, {"desk", Desk, none}]),
+    lists(Keeper, [{"store", Store, PortStore}]),
+    lists(Desk, [{"store", Store, PortStore}]),
+    Limit =:= none
+        orelse edit(Store, fun(Conf) -> Conf#{<<"limits">> => #{Limit => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "store.ern"), <<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// What a filler takes: the ask to fill, and the ask to free.
+export type FillMsg = Fill(Reply(Unit)) | Free(Reply(Unit))
+
+// The processes the table has room for.
+fn room() : Int =
+    systemInfo(Foreign.atom(\"process_limit\")) - systemInfo(Foreign.atom(\"process_count\"))
+
+// A process that waits until it is told to end.
+export fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// Count processes spawned, each waiting, after those held.
+fn filled(count : Int, held : List(Address(Int))) : List(Address(Int)) =
+    if count > 0 then filled(count - 1, spawn(fn() = waited()) :: held) else held
+
+// The filler of processes: the table filled when asked, and the processes
+// it filled it with ended when asked.
+export fn filling(held : List(Address(Int))) : Unit receiving FillMsg =
+    receive {
+        Fill(reply) -> {
+            let full = filled(room(), held);
+            answer(reply, Unit);
+            filling(full)
+        }
+      | Free(reply) -> {
+            List.forEach(held, fn(process) = send(process, 0));
+            answer(reply, Unit);
+            filling([])
+        }
+    }
+
+// Listeners opened until the host refuses one, after those held.
+fn listened(held : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.ListenerMsg)) =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(listener) -> listened(listener :: held)
+      | Left(_) -> held
+    }
+
+// The filler of files: the node's files filled with listeners when asked,
+// and the listeners closed when asked.
+export fn filing(held : List(Address(Tcp.ListenerMsg))) : Unit receiving FillMsg =
+    receive {
+        Fill(reply) -> {
+            let full = listened(held);
+            answer(reply, Unit);
+            filing(full)
+        }
+      | Free(reply) -> {
+            List.forEach(held, Tcp.closeListener);
+            answer(reply, Unit);
+            filing([])
+        }
+    }
+
+// The store waits until it is stopped.
+export fn main() : Unit receiving Int = {
+    Io.println(\"ready\");
+    waited()
+}
+">>),
+    ok = file:write_file(filename:join(Source, "keeper.ern"), [<<"
+// The store's filler its argument names.
+fn filler() : Either(Io.Error, Address(Store.FillMsg)) =
+    match Os.arguments {
+        [\"files\"] -> Peer.spawn(\"store\", fn() = Store.filing([]), waitMs())
+      | _ -> Peer.spawn(\"store\", fn() = Store.filling([]), waitMs())
+    }
+
+// The store filled, freed at the first line of input, the keeper ending at
+// the second.
+export fn main() : Unit =
+    match filler() {
+        Right(filler) -> {
+            Address.callForever(filler, Store.Fill);
+            Io.println(\"filled\");
+            let _ = Io.readLine();
+            Address.callForever(filler, Store.Free);
+            Io.println(\"freed\");
+            let _ = Io.readLine();
+            Unit
+        }
+      | Left(error) -> Io.println(\"no filler: \" <> Io.show(error))
+    }
+">>, wait_ms_declaration()]),
+    ok = file:write_file(filename:join(Source, "desk.ern"), [<<"
+// A spawn's answer, its address left out.
+fn started(spawned : Either(Io.Error, Address(m))) : String =
+    match spawned {
+        Right(_) -> \"Right\"
+      | Left(error) -> Io.show(error)
+    }
+
+// A spawn on the store, once more where the dial fails.
+fn spawned(tries : Int) : Either(Io.Error, Address(Int)) =
+    match Peer.spawn(\"store\", Store.waited, waitMs()) {
+        Left(Io.Unreachable) when tries > 1 -> spawned(tries - 1)
+      | answer -> answer
+    }
+
+// The spawn at the store's full table, and the one once the keeper has
+// freed it.
+export fn main() : Unit = {
+    Io.println(\"full: \" <> started(Peer.spawn(\"store\", Store.waited, waitMs())));
+    let _ = Io.readLine();
+    Io.println(\"after: \" <> started(spawned(2)))
+}
+">>, wait_ms_declaration()]),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    {Store, Keeper, Desk}.
+
 %% A finished command's status, and the lines of its output that are no
 %% trace's, each from where its time ends, a node's lines being stamped.
 lines_said({Status, Output}) ->

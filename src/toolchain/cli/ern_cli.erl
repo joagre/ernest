@@ -1566,13 +1566,31 @@ quiet_signals() ->
 %% Report §12.1, §7.4, §12.5: the host's own report of a spawn beyond its
 %% limit of processes, which its handler writes to standard output among
 %% what the program wrote there, is dropped: the spawn faults its asker,
-%% whose fault's line says it (§11.2). Report §12, §11.2: so is its
-%% loader's report of a file it could not read, a module's at the limit of
-%% open files among them: the load's caller answers or faults.
+%% whose fault's line says it (§11.2). So are the reports of what such a
+%% spawn ends in the host's own processes, a supervisor's child it could
+%% not start and a process of the host's the spawn ended, the start of a
+%% socket's processes over TLS and a node's handshake among them: the
+%% operation answers, and the node says a connection it refused
+%% (ern_tls_dist). Report §12, §11.2: so is its loader's report of a file
+%% it could not read, a module's at the limit of open files among them: the
+%% load's caller answers or faults.
 -spec limit_filter(logger:log_event(), term()) -> logger:filter_return().
 limit_filter(#{msg := {"~s~n", ["Too many processes\n"]},
                meta := #{error_logger := #{emulator := true}}}, _) ->
     stop;
+limit_filter(#{msg := {report, #{label := {supervisor, start_error}, report := Report}}}, _) ->
+    case proplists:get_value(reason, Report) of
+        {'EXIT', {system_limit, _}} -> stop;
+        _ -> ignore
+    end;
+limit_filter(#{msg := {"Error in process " ++ _, [_ | Args]},
+               meta := #{error_logger := #{emulator := true}}}, _) ->
+    case lists:last(Args) of
+        {system_limit, [{erlang, Spawn, _, _} | _]}
+          when Spawn =:= spawn; Spawn =:= spawn_link; Spawn =:= spawn_opt;
+               Spawn =:= spawn_monitor -> stop;
+        _ -> ignore
+    end;
 limit_filter(#{msg := {report, #{label := {erl_prim_loader, file_error}}}}, _) ->
     stop;
 limit_filter(_Event, _) ->

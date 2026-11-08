@@ -13,8 +13,8 @@
 
 -export([dial_ms/0, boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
          configuration/0, is_node/0, attaching/1, tells/0, reload/0, depart/0, peer/1, verify/3,
-         dialing/1, listed/1, names_own_host/1, say/1, say_later/1, named/1, said/1,
-         filter/2]).
+         dialing/1, listed/1, names_own_host/1, say/1, say_later/1, named/1, certified/1,
+         table_full/1, said/1, filter/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("nodes/include/ern_node.hrl").
@@ -53,10 +53,11 @@ dial_ms() ->
 %%
 
 %% Report §12.5: the flags a node's host boots with, since the host takes its
-%% carrier and its limits only as it boots: TLS 1.3 with the node's
-%% certificate and key on each side and the rule as the verification, over
-%% the listener's family of addresses; no port-mapper daemon, a module of
-%% the runtime's answering from the configuration in its place; no mesh;
+%% carrier and its limits only as it boots: the host's TLS 1.3 with an
+%% acceptor of the node's own, over the listener's family of addresses
+%% (ern_tls_dist), the node's certificate and key on each side and the rule
+%% as the verification; no port-mapper daemon, a module of the runtime's
+%% answering from the configuration in its place; no mesh;
 %% the detector's times and the buffer; the floor's digest as the cookie;
 %% and the limits `limits` names (limit_flags/1). The listener's
 %% interface, where it is one, is the kernel's to bind, and so is its
@@ -65,17 +66,10 @@ dial_ms() ->
 boot_flags(#configuration{config_dir = ConfigDir, listen = Listen, limits = Limits}) ->
     Certificate = ern_node:file(filename:absname(ConfigDir), certificate),
     Key = ern_node:file(filename:absname(ConfigDir), key),
-    %% the host's own distribution, whose acceptor a connection at a full
-    %% table of processes ends, so that the node accepts no more
-    %% (docs/otp_bugs.md, 12)
-    Proto = case ern_node:family(Listen) of
-                inet -> "inet_tls";
-                inet6 -> "inet6_tls"
-            end,
     Tls = lists:append([[Side ++ "_" ++ Name, Value]
                         || Side <- ["server", "client"],
                            {Name, Value} <- tls(Side, Certificate, Key)]),
-    ["-proto_dist", Proto, "-ssl_dist_opt" | Tls]
+    ["-proto_dist", "ern_tls", "-ssl_dist_opt" | Tls]
         ++ ["-epmd_module", "ern_epmd", "-start_epmd", "false", "-connect_all", "false",
             "-kernel", "net_ticktime", ?TICK_TIME, "-kernel", "net_setuptime",
             integer_to_list(dial_ms() div 1000),
@@ -549,6 +543,19 @@ line(Text) ->
 -spec named(atom()) -> iodata().
 named(Node) ->
     host_named(lists:last(string:split(atom_to_list(Node), "@"))).
+
+%% A peer as a line names it by the certificate it gave, the DER the host's
+%% TLS answers, before the host's handshake has given its name.
+-spec certified(binary()) -> iodata().
+certified(Der) ->
+    host_named(host(certificate_key(public_key:pkix_decode_cert(Der, otp)))).
+
+%% Report §12.5: the line of a peer refused as its connection opens, since
+%% the full table of processes leaves no room to serve it, Named as a line
+%% names it (named/1, certified/1).
+-spec table_full(iodata()) -> ok.
+table_full(Named) ->
+    say_later([Named, " was refused: this node's table of processes is full"]).
 
 %% A peer as a line names it by the host of its name on the carrier; one
 %% not listed by that name as the node gave it, which may be any text where

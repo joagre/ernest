@@ -532,17 +532,19 @@ OTP 29, erts 17.1, stdlib 8.1, on Linux x86_64.
 
 An escape meets the same rule: `["\u12"]` raises `{unexpected_sequence, <<"\\u12\"]">>}`, the six bytes from the backslash, past the string's end, and `["\u1"]` raises `unexpected_end`, where the escape's first byte that is no hexadecimal digit is the one that cannot stand.
 
-## 12. A connection accepted at a full table of processes ends the distribution
+## 12. A connection accepted or dialed at a full table of processes ends the distribution
 
-Not filed. Found on 2026-11-08 (the log's *A Node's Own Processes at a Full Table*); Ernest's nodes run over `inet_tls_dist`, and plan item 31 has a node close a connection it cannot serve.
+Not filed. Found on 2026-11-08 (the log's *A Node's Own Processes at a Full Table*), the dial on the same day (the log's *The Carrier's Acceptor at a Full Table*); a node's own acceptor over `inet_tls_dist` closes a connection it cannot serve (`ern_tls_dist`), and plan item 32 takes the dial, which no distribution module reaches.
 
-**Title:** net_kernel terminates, and with it the emulator, when a connection is accepted while the process table is full
+**Title:** net_kernel terminates, and with it the emulator, when a connection is accepted or dialed while the process table is full
 
 **Describe the bug**
 
 When a node's process table is full and another node connects, `net_kernel:handle_info({accept, ...})` calls `inet_tcp_dist:gen_accept_connection/6`, whose `spawn_opt` raises `system_limit`. Nothing catches it, so `net_kernel` terminates, `kernel` shuts down and the emulator halts with a crash dump. A full table is a condition a node recovers from once processes end; here the node is gone.
 
 Over `inet_tls_dist` the acceptor's loop dies on its `spawn_link` instead, printing its own error report, and the node never accepts a connection again. Where processes are being spawned beside it, `net_kernel`'s handling of the acceptor's exit raises within `catch`, `handle_info/2` returns the `{'EXIT', ...}` term, and `net_kernel` terminates with `bad_return_value`.
+
+A node whose table is full and that dials another, by a send to a process there, meets the same in `net_kernel:setup_check/5`, whose `spawn_link` of the check raises in `handle_info({auto_connect, ...})`, before any distribution module is called.
 
 **To Reproduce**
 
@@ -581,9 +583,40 @@ The dialing node prints `ping pang`, and the full node:
 Kernel pid terminated (application_controller) ("{application_terminated,kernel,shutdown}")
 ```
 
+The dial, from a node whose table is full to one that waits:
+
+```sh
+erl -sname dial_b -setcookie c -noshell -eval 'receive after 6000 -> halt() end.' &
+sleep 1
+erl -sname full_a -setcookie c +P 1024 -noshell -eval '
+    Fill = fun F(N) -> try spawn(fun() -> receive _ -> ok end end) of
+                           _ -> F(N + 1)
+                       catch error:system_limit -> N end end,
+    io:format("filled ~p~n", [Fill(0)]),
+    {ok, H} = inet:gethostname(),
+    {x, list_to_atom("dial_b@" ++ H)} ! hi,
+    receive after 1000 -> ok end,
+    halt().'
+wait
+```
+
+The full node prints:
+
+```
+** Generic server net_kernel terminating
+** Last message in was {auto_connect,dial_b@nike, ...}
+** Reason for termination ==
+** {system_limit,[{erlang,spawn_link, ...},
+                  {erlang,spawn_link,1,[]},
+                  {net_kernel,setup_check,5,
+                              [{file,"net_kernel.erl"},{line,2348}]},
+                  {net_kernel,do_auto_connect_2,5,
+                              [{file,"net_kernel.erl"},{line,1100}]}, ...]}
+```
+
 **Expected behavior**
 
-A connection the node has no room to serve is closed, its refusal logged once, and `net_kernel` and the acceptor live on, so that the node accepts again once processes have ended, as `gen_tcp:accept` answers `{error, system_limit}` and its caller decides.
+A connection the node has no room to serve is closed, its refusal logged once, and `net_kernel` and the acceptor live on, so that the node accepts again once processes have ended, as `gen_tcp:accept` answers `{error, system_limit}` and its caller decides. A dial the node has no room for fails as a refused one does, `net_kernel` living on, as `do_spawn/3` already catches its own spawn.
 
 **Affected versions**
 
@@ -591,7 +624,7 @@ OTP 29, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.
 
 **Additional context**
 
-The emulator's own `Too many processes` report is printed for each refused spawn as well. A node can refuse the connection itself only where its distribution module catches the limit in `accept_connection`, which the stock modules leave to `net_kernel`.
+The emulator's own `Too many processes` report is printed for each refused spawn as well. A node can refuse an accepted connection itself only where its distribution module catches the limit in `accept_connection`, which the stock modules leave to `net_kernel`; the dial's check is `net_kernel`'s alone.
 
 ## 13. At the limit of open files the code server answers `nofile`, and the application controller "no such file or directory"
 
@@ -649,7 +682,7 @@ OTP 29, erts 17.1.1, kernel 11.0.4, stdlib 8.1.1, on Linux x86_64.
 
 ## 14. `net_kernel` spins while a connection waits at the limit of open files
 
-Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); Ernest's nodes run over `inet_tls_dist`, whose acceptor does the same, and plan item 31 gives a node a distribution module of its own.
+Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); `inet_tls_dist`'s acceptor does the same, and a node's own acceptor waits a dial's time instead (`ern_tls_dist`; the log's *The Carrier's Acceptor at a Full Table*).
 
 **Title:** net_kernel restarts the acceptor at once after an accept fails with emfile, and spins on a scheduler while the connection waits
 
@@ -696,3 +729,52 @@ OTP 29, erts 17.1.1, kernel 11.0.4, on Linux x86_64.
 **Additional context**
 
 `inet_tls_dist`'s acceptor exits on the same error, and `net_kernel` restarts it the same way.
+
+## 15. `ssl:handshake/3` answers `{dtls_upgrade, notsup}` when the process table is full
+
+Not filed. Found on 2026-11-08 (the log's *The Carrier's Acceptor at a Full Table*); a node's acceptor reads that answer as the full table (`ern_tls_dist`), and plan item 33 takes a program's TLS.
+
+**Title:** ssl:handshake/3 on a TCP socket answers {error,{dtls_upgrade,notsup}} when the connection's processes cannot be started
+
+**Describe the bug**
+
+`ssl:handshake/3` given a `gen_tcp` socket catches every `error:{badmatch, _}` in `tls_socket:upgrade/4` and answers `{error, {dtls_upgrade, notsup}}`. A start of the connection's processes that fails is such a badmatch, `{ok, DynSup} = start_connection_tree(...)` in `tls_gen_connection:start_fsm/6`, so a full process table is reported as a DTLS upgrade, which the caller never asked for. The caller cannot tell a full table from any other failed match, and `ssl:connect/3` on a socket does the same.
+
+**To Reproduce**
+
+A certificate, a node whose table holds 1024 processes, a connection accepted, the table filled, then the handshake:
+
+```sh
+openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 1 -subj /CN=x
+erl +P 1024 -noshell -eval '
+    {ok, _} = application:ensure_all_started(ssl),
+    [code:ensure_loaded(M) || A <- [ssl, crypto, public_key, asn1],
+                              {ok, Ms} <- [application:get_key(A, modules)], M <- Ms],
+    {ok, L} = gen_tcp:listen(0, [{active, false}]),
+    {ok, Port} = inet:port(L),
+    {ok, _C} = gen_tcp:connect("localhost", Port, []),
+    {ok, S} = gen_tcp:accept(L),
+    Fill = fun F(N) -> try spawn(fun() -> receive _ -> ok end end) of
+                           _ -> F(N + 1)
+                       catch error:system_limit -> N end end,
+    Fill(0),
+    Answer = ssl:handshake(S, [{certfile, "cert.pem"}, {keyfile, "key.pem"},
+                               {versions, ['\''tlsv1.3'\'']}], 1000),
+    io:format("handshake: ~p~n", [Answer]),
+    halt().'
+```
+
+It prints `handshake: {error,{dtls_upgrade,notsup}}`. The modules are loaded first, since a load at the full table fails before the handshake does.
+
+**Expected behavior**
+
+The handshake answers the start's own reason, `{error, system_limit}` or the supervisor's `{error, {system_limit, _}}`, and `{dtls_upgrade, notsup}` only where a DTLS socket was given.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, ssl 11.7.8, on Linux x86_64.
+
+**Additional context**
+
+Where the connection's supervisor is started but one of its children is not, the supervisor also writes a `start_error` report for the child. Under TLS 1.2 the session tracker's start fails first and raises a `case_clause` out of `ssl:handshake/3` instead.
+

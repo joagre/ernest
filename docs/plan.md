@@ -48,17 +48,17 @@ What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (t
 the Server Taught*), built after the site's generator (the log's *The Generator Before MVP
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
-names last, since they sweep every site of Ernest once. The eight decisions for the user, in
-items 8, 9, 13, 15, 16, 21, 28 and 30, are discussed early, so that no build waits on them.
+names last, since they sweep every site of Ernest once. The nine decisions for the user, in
+items 8, 9, 13, 15, 16, 21, 28, 30 and 32, are discussed early, so that no build waits on them.
 
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*):
 
-1. Items 31, 17 and 26, each by an item session, items 20 and 22 done.
-2. One design session for what no test checks: item 21's decision, item 30's, item 19's
-   question whether a hangup is told from a read that fails, item 29's sentence of §10, and
-   item 16's proposal with its cold reading.
-3. Items 19, 29 and 30, each a report sentence and its build, and item 21's build where its
+1. Items 17, 26 and 33, each by an item session, items 20, 22 and 31 done.
+2. One design session for what no test checks: item 21's decision, item 30's, item 32's, item
+   19's question whether a hangup is told from a read that fails, item 29's sentence of §10,
+   and item 16's proposal with its cold reading.
+3. Items 19, 29, 30 and 32, each a report sentence and its build, and item 21's build where its
    decision builds one.
 4. Item 16's build last.
 
@@ -254,19 +254,30 @@ reader S reads of its live shell. The release note's line on the installed layou
 
     The shell's test of an input at a full table keeps no history until this item is built,
     and its build gives the test its history again.
-31. **The carrier's acceptor at a full table**, a defect found 2026-11-08 by item 18, fixed by
-    2026-11-12. A connection a peer opens while a node's table of processes is full ends the
-    host's TLS acceptor, which prints its own report, and the node accepts no connection again;
-    under plain TCP the host's `net_kernel` dies and the emulator with it (`docs/otp_bugs.md`,
-    12). §12.5 has such a connection closed as it opens, and said. The fix is a distribution
-    module of the node's own over the host's TLS one, whose accept closes a connection the table
-    leaves no room for and says so, as an accept at a full table of ports closes its connection
-    (§12.5).
+31. **The carrier's acceptor at a full table**, done 2026-11-08 (§12.5; the log's *The
+    Carrier's Acceptor at a Full Table*). A node runs the host's TLS distribution through a
+    module of its own, `ern_tls_dist`, whose acceptor takes each connection before it makes the
+    connection's process, closes one that any step leaves no room for and says so, and at the
+    limit of open files tries again once a dial's time has passed.
+32. **A dial from a full table**, a decision for the user, found 2026-11-08 by item 31, decided
+    and built by 2026-11-12. A node whose table of processes is full ends when it dials a peer:
+    the host's `net_kernel` spawns its check of the dial in its own process before any
+    distribution module is called, and the refused spawn ends it, the kernel and the node, a
+    crash dump written (`docs/otp_bugs.md`, 12). §12.5 has such a connection closed as it
+    opens, and said.
 
-    An accept at the limit of open files ends the host's acceptor too, which `net_kernel`
-    restarts at once, spinning a scheduler while the connection waits (`docs/otp_bugs.md`, 14, the
-    log's *The Runtime at the Limit of Open Files*). The node's own acceptor does not spin, and what
-    it waits on for a file, which the host does not signal, is this item's decision.
+    The recommendation, by principle 1: the node loads at its start the host's `net_kernel`
+    with that spawn and the dial's own caught, as its `do_spawn/3` already catches a spawn, so
+    that the dial fails as a refused one does; a module borrowed for each major release of OTP,
+    the floor's, until OTP takes the fix. Its alternative, by principle 5, is §12.5 stating that
+    such a dial ends the node, with a line of its own and no crash dump. No count of the table
+    before a dial is sound, since the host's own processes fill it beside the program's.
+33. **A program's TLS at a full table**, a defect found 2026-11-08 by item 31, diagnosed and
+    fixed by 2026-11-12. A probe's `Tcp.connectTls` at a full table with one process free did
+    not answer within its three seconds, and a handshake there meets the host's answer
+    `{dtls_upgrade, notsup}` (`docs/otp_bugs.md`, 15), which E.18 would give as its
+    `Other(text)`. The wait is diagnosed first; then the connect and the handshake answer the
+    full table as a socket's process does (E.18, §12.5).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
