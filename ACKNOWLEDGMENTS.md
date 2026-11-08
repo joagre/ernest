@@ -9,6 +9,8 @@ The people without whom Ernest would not be.
 - Cons Åhs
 - Tony Rogvall
 
+All bad decisions are mine.
+
 ## Erlang and OTP
 
 Everyone thanked in the acknowledgments of Joe Armstrong's *A History of Erlang* (HOPL III, 2007) and of Bjarne Däcker's licentiate thesis *Concurrent Functional Programming for Telecommunications* (KTH, 2000):
