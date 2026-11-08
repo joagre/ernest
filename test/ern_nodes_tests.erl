@@ -1959,20 +1959,51 @@ export fn main() : Unit =
 %% processes is full is closed as it opens, the node saying so, and the node
 %% accepts the next once room is made: the keeper, connected, fills the
 %% store's table, the desk's dial fails, and once the keeper frees it the
-%% desk's next spawn starts. A regression test, written after the code. It
-%% holds the refusal at a table filled whole; the probe that left one to
-%% five processes free, which reached the host's TLS, its handshake and its
-%% timer in turn, is not held, since the runtime's own processes come and
-%% go beside the filler.
+%% desk's next spawn starts. A regression test, written after the code. The
+%% table filled whole leaves no room for the acceptor's own process.
 accept_at_a_full_table_test_() ->
     nodes_test({waits, 11}, fun accept_at_a_full_table/1).
 
 accept_at_a_full_table(Base) ->
+    accept_at(Base, 0, from_address).
+
+%% The same with two processes left free, which the acceptor's own process
+%% and the host's TLS take before the TLS handshake gives the peer's key,
+%% so that the refusal holds the host's answer to a full table
+%% (docs/otp_bugs.md, 15). A regression test, written after the code.
+accept_at_the_hosts_tls_test_() ->
+    nodes_test({waits, 11}, fun accept_at_the_hosts_tls/1).
+
+accept_at_the_hosts_tls(Base) ->
+    accept_at(Base, 2, from_address).
+
+%% The same with four left free, which leave no room for the host's
+%% handshake after its TLS has given the peer's key. A regression test,
+%% written after the code.
+accept_at_the_handshake_test_() ->
+    nodes_test({waits, 11}, fun accept_at_the_handshake/1).
+
+accept_at_the_handshake(Base) ->
+    accept_at(Base, 4, by_peer).
+
+%% The same with five left free, which leave no room for the handshake's
+%% timer. A regression test, written after the code.
+accept_at_the_handshake_timer_test_() ->
+    nodes_test({waits, 11}, fun accept_at_the_handshake_timer/1).
+
+accept_at_the_handshake_timer(Base) ->
+    accept_at(Base, 5, by_peer).
+
+%% The store's table filled but for Left processes, the desk's dial refused
+%% at the step they leave no room for, the line naming the connection by
+%% the address it came from or by its peer, and the desk's next spawn
+%% started once the keeper frees the table.
+accept_at(Base, Left, Named) ->
     {Store, Keeper, Desk} = accepting_nodes(Base, <<"processes">>),
     WaitStore = start(Store, filename:join([Base, "build", "store.erc"]), []),
     prints(Store, "ready"),
     {Keep, WaitKeeper} = started(Keeper, filename:join([Base, "build", "keeper.erc"]),
-                                 ["processes"]),
+                                 ["processes", integer_to_list(Left)]),
     prints(Keeper, "filled"),
     {Dial, WaitDesk} = started(Desk, filename:join([Base, "build", "desk.erc"]), []),
     prints(Desk, "full: "),
@@ -1987,6 +2018,14 @@ accept_at_a_full_table(Base) ->
     {Out, _} = said(Desk),
     {StoreOut, StoreErr} = said(Store),
     ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
+    {_, Lines} = lines_said({0, StoreErr}),
+    Refused = " was refused: this node's table of processes is full",
+    case [Line || Line <- Lines, string:find(Line, Refused) =/= nomatch] of
+        ["a connection from 127.0.0.1:" ++ Port] when Named =:= from_address ->
+            ?assertEqual(Refused, string:find(Port, " "));
+        Said ->
+            ?assertEqual(["the peer desk" ++ Refused], Said)
+    end,
     [?assertEqual(nomatch, string:find(Text, Part))
      || Text <- [StoreOut, StoreErr], Part <- ["Too many processes", "REPORT", "Error in"]].
 
@@ -2061,8 +2100,9 @@ accepting_nodes(Base, Limit) ->
     ok = file:write_file(filename:join(Source, "store.ern"), <<"
 foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
 
-// What a filler takes: the ask to fill, and the ask to free.
-export type FillMsg = Fill(Reply(Unit)) | Free(Reply(Unit))
+// What a filler takes: the ask to fill, leaving room for `left`, and the
+// ask to free.
+export type FillMsg = Fill(left : Int, reply : Reply(Unit)) | Free(Reply(Unit))
 
 // The processes the table has room for.
 fn room() : Int =
@@ -2079,8 +2119,8 @@ fn filled(count : Int, held : List(Address(Int))) : List(Address(Int)) =
 // it filled it with ended when asked.
 export fn filling(held : List(Address(Int))) : Unit receiving FillMsg =
     receive {
-        Fill(reply) -> {
-            let full = filled(room(), held);
+        Fill(=left, =reply) -> {
+            let full = filled(room() - left, held);
             answer(reply, Unit);
             filling(full)
         }
@@ -2102,10 +2142,11 @@ fn listened(held : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.ListenerMs
 // and the listeners closed when asked.
 export fn filing(held : List(Address(Tcp.ListenerMsg))) : Unit receiving FillMsg =
     receive {
-        Fill(reply) -> {
+        Fill(=left, =reply) -> {
             let full = listened(held);
+            List.forEach(List.take(full, left), Tcp.closeListener);
             answer(reply, Unit);
-            filing(full)
+            filing(List.drop(full, left))
         }
       | Free(reply) -> {
             List.forEach(held, Tcp.closeListener);
@@ -2121,11 +2162,18 @@ export fn main() : Unit receiving Int = {
 }
 ">>),
     ok = file:write_file(filename:join(Source, "keeper.ern"), [<<"
-// The store's filler its argument names.
+// The store's filler its first argument names.
 fn filler() : Either(Io.Error, Address(Store.FillMsg)) =
     match Os.arguments {
-        [\"files\"] -> Peer.spawn(\"store\", fn() = Store.filing([]), waitMs())
+        \"files\" :: _ -> Peer.spawn(\"store\", fn() = Store.filing([]), waitMs())
       | _ -> Peer.spawn(\"store\", fn() = Store.filling([]), waitMs())
+    }
+
+// The room the filler leaves, its second argument, or none.
+fn left() : Int =
+    match Os.arguments {
+        [_, count] -> Optional.withDefault(String.toInt(count), 0)
+      | _ -> 0
     }
 
 // The store filled, freed at the first line of input, the keeper ending at
@@ -2133,7 +2181,7 @@ fn filler() : Either(Io.Error, Address(Store.FillMsg)) =
 export fn main() : Unit =
     match filler() {
         Right(filler) -> {
-            Address.callForever(filler, Store.Fill);
+            Address.callForever(filler, fn(reply) = Store.Fill(left = left(), =reply));
             Io.println(\"filled\");
             let _ = Io.readLine();
             Address.callForever(filler, Store.Free);
