@@ -32,17 +32,18 @@
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [serve/2, counted_request/2, opened/7, listener_loop/4, socket_process/6,
                          writing/3, handshake_failed/2, socket_loop/1, stop_writer/1,
-                         close_socket/2, lingering/5]}).
+                         closer/1, lingering/5]}).
 
 %% A socket's process: its transport, the host's socket, the writer that
-%% writes to it, its owner and the owner's monitor, the reads with no bytes
+%% writes to it, the closer that closes it, its owner and the owner's
+%% monitor, the reads with no bytes
 %% yet, oldest first, the writes the writer holds, oldest first, the bytes
 %% no read has taken, and whether the connection is open or closed, or,
 %% for a socket over TLS that accept answered, handshaking until its
 %% handshake ends. The host's socket is asked for bytes only while a read
 %% waits, so a program that stops reading holds the far end back.
--record(connection, {transport, socket, writer, owner, monitor_ref, waiting = [], writes = [],
-                     buffer = <<>>, state = open}).
+-record(connection, {transport, socket, writer, closer, owner, monitor_ref, waiting = [],
+                     writes = [], buffer = <<>>, state = open}).
 
 %% A read waiting: its reply, the reference of its caller's monitor, which
 %% names the read to its timer too, its deadline and its timer.
@@ -168,7 +169,7 @@ answered(Reply, Answer) -> ern_rt:answer(Reply, Answer).
 %% the process before its address is given out, a socket's writer, once the
 %% host's socket is the process's. It traps exits from its start, so that
 %% however it ends, by a kill, with the program or with the TCP process, it
-%% closes its host's socket itself (close_socket/2). Report §7.4, §12.5:
+%% closes its host's socket itself (close_socket/3). Report §7.4, §12.5:
 %% where the host's table of processes is full, so that the process or what
 %% Made makes cannot be made, the host's error is raised here, before the
 %% address is given out (held_open/3).
@@ -665,21 +666,28 @@ accepted(Result) ->
 
 %% Report Appendix E.18: a socket is its owner's, the process that opened
 %% it until one is given it, and is killed when its owner dies; a monitor of
-%% an owner that has already ended fires at once.
+%% an owner that has already ended fires at once. Its closer and its writer
+%% are made with it, before its address is given out, so that its end makes
+%% no process (closer/1): the closer first, which ends with the socket's
+%% process where the writer cannot be made.
 socket_process(Tcp, Transport, Socket, State, Owner, Site) ->
-    Writing = fun() ->
-                  Self = erlang:self(),
-                  erlang:spawn_link(fun() ->
-                                        receive go -> writer(Transport, Socket, Self, State) end
-                                    end)
-              end,
-    Loop = fun(MonitorRef, Writer) ->
-               ern_rt:writes_through(Writer),
+    Made = fun() ->
+               Self = erlang:self(),
+               Closer = erlang:spawn(fun() -> closer(Self) end),
+               Writer = erlang:spawn_link(fun() ->
+                                              receive go -> writer(Transport, Socket, Self, State)
+                                              end
+                                          end),
+               {Writer, Closer}
+           end,
+    Loop = fun(MonitorRef, {Writer, Closer}) ->
+               ern_rt:socket_processes([Writer, Closer]),
                Writer ! go,
                socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
-                                       owner = Owner, monitor_ref = MonitorRef, state = State})
+                                       closer = Closer, owner = Owner, monitor_ref = MonitorRef,
+                                       state = State})
            end,
-    opened(Tcp, Transport, Socket, Writing, Loop, Site, Owner).
+    opened(Tcp, Transport, Socket, Made, Loop, Site, Owner).
 
 %% Report Appendix E.18: a socket's writes, one after another in the order
 %% they came, in a process of their own, so that a write the far end holds
@@ -727,7 +735,7 @@ handshake_failed(Failure, SocketProcess) ->
             handshake_failed(Failure, SocketProcess)
     end.
 
-socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
+socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer, closer = Closer,
                         monitor_ref = MonitorRef, state = State} = Connection) ->
     receive
         {'Read', Ms, Reply} ->
@@ -766,7 +774,7 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
         %% report Appendix E.18: its owner has died, and it is killed
         {'DOWN', MonitorRef, process, _, _} ->
             stop_writer(Writer),
-            close_socket(Transport, Socket),
+            close_socket(Transport, Socket, Closer),
             exit({ern, killed});
         %% report Appendix E.18: a read whose caller has ended before it
         %% was answered
@@ -780,7 +788,7 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
             lists:foreach(fun(#write{reply = Reply}) ->
                               ern_rt:answer(Reply, {'Left', 'Closed'})
                           end, Writes),
-            close_socket(Transport, Socket),
+            close_socket(Transport, Socket, Closer),
             %% report Appendix E.18: a call after the close faults its caller
             exit({ern, closed});
         %% the writer's exit, or the host's socket's when the far end has
@@ -790,7 +798,7 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
         %% report Appendix E.18: killed, or ended with the program
         {'EXIT', _, ExitReason} ->
             stop_writer(Writer),
-            close_socket(Transport, Socket),
+            close_socket(Transport, Socket, Closer),
             exit(ExitReason);
         {'Remote', Reply} ->
             Inet = inet_module(Transport),
@@ -834,32 +842,40 @@ stop_writer(Writer) ->
 %% not taken sent while it takes them. The host's own close leaves its
 %% socket open, with its descriptor, for as long as the far end takes
 %% nothing, and once the socket's owner has ended no process can stop that;
-%% so a socket with bytes waiting is handed to a closer of its own first.
-%% A socket over TLS is too, since ssl's close writes the record that ends
-%% the connection and waits for the far end's answer, in two waits of 5
+%% so a socket with bytes waiting is handed to its closer first. A socket
+%% over TLS is too, since ssl's close writes the record that ends the
+%% connection and waits for the far end's answer, in two waits of 5
 %% seconds of its own whatever time it is given (docs/otp_bugs.md, 10).
 %% Where the host can no longer read the socket's statistics, or give it
-%% to the closer, its connection has gone, and it is closed here.
-close_socket(Transport, Socket) ->
+%% to the closer, its connection has gone, and it is closed here; the
+%% closer then ends with the socket's process (closer/1).
+close_socket(Transport, Socket, Closer) ->
     Inet = inet_module(Transport),
     case Inet:getstat(Socket, [send_pend]) of
         {ok, [{send_pend, Pending}]} when Pending > 0; Transport =:= ssl ->
             Ended = erlang:monotonic_time(millisecond),
-            Closer = erlang:spawn(fun() ->
-                                      receive
-                                          go -> lingering(Transport, Socket, Pending, Ended, Ended)
-                                      end
-                                  end),
             _ = Inet:setopts(Socket, [{active, false}]),
             case Transport:controlling_process(Socket, Closer) of
-                ok ->
-                    Closer ! go;
-                {error, _} ->
-                    exit(Closer, kill),
-                    Transport:close(Socket)
+                ok -> Closer ! {close, Transport, Socket, Pending, Ended};
+                {error, _} -> Transport:close(Socket)
             end;
         _ ->
             Transport:close(Socket)
+    end.
+
+%% Report Appendix E.18: a socket's closer, waiting from the socket's start
+%% for the host's socket, which the socket's process gives it at its end
+%% with what the host held then (close_socket/3), or for that process's
+%% end, after which it holds nothing to close. A full table of the host's
+%% so loses no socket's lingering.
+closer(SocketProcess) ->
+    MonitorRef = erlang:monitor(process, SocketProcess),
+    receive
+        {close, Transport, Socket, Pending, Ended} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            lingering(Transport, Socket, Pending, Ended, Ended);
+        {'DOWN', MonitorRef, process, _, _} ->
+            ok
     end.
 
 %% Report Appendix E.18: the closer looks at what the host still holds, at

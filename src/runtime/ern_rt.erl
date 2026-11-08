@@ -45,10 +45,10 @@
          spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/4, answer/2,
          refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
-         killed/2, reason/1, peer_restarted/2, left_waiting/1, wait_for_deliveries/0, started_by/1,
+         killed/2, reason/1, peer_restarted/1, left_waiting/1, wait_for_deliveries/0, started_by/1,
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
-         writes_through/1, faults/1, termination/1,
+         socket_processes/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
@@ -89,8 +89,7 @@
                          write_loop/2, stream_loop/2, is_taken/3, collect/3, written_back/3,
                          dropping/0, stdin_loop/2, taken/1,
                          clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
-                         wait_for_collectors/0, sink_flushed/1, stop/1, stopped_in_order/1,
-                         told_once_delivered/2]}).
+                         wait_for_collectors/0, sink_flushed/1, stop/1, stopped_in_order/1]}).
 
 -define(UNIT, 'Unit').
 %% Report §8.6: the look's keys, which a process keeps in its own
@@ -130,9 +129,10 @@
 -define(TABLES, '$ern_tables').
 -define(ENDING, '$ern_ending').
 
-%% A socket's process keeps the writer that does its writes under this key,
-%% which Process.status reads (writes_through/1).
--define(WRITER, '$ern_writer').
+%% A socket's process keeps its own processes, the writer that does its
+%% writes and the closer that does its close, under this key, which
+%% Process.status reads (socket_processes/1).
+-define(SOCKET_PROCESSES, '$ern_socket_processes').
 
 %% What Process.status asks the host of a process for its memory, in this order
 %% (held_bytes/1).
@@ -1135,7 +1135,7 @@ monitor(Process, Wrap) ->
 %% Report §6.9: the prelude's monitorService, a monitor the reaper keeps
 %% marked, which a restart of the process tells as well as its end
 %% (delivered_restart/2); report §8.7: a restart of a process of another
-%% node too, which that node tells this one of (peer_restarted/2).
+%% node too, which that node tells this one of (peer_restarted/1).
 -spec monitor_service(pid(), fun((term()) -> term())) -> 'Unit'.
 monitor_service(Process, Wrap) ->
     ask_monitor(Process, #monitor{wrap = Wrap, service = true}).
@@ -1337,7 +1337,7 @@ reaper_loop(Reaper, Wait) ->
             end;
         %% report §6.9, §8.7: a restart of a process of another node,
         %% which its node tells this one, told to the service monitors held
-        %% of it here (peer_restarted/2)
+        %% of it here (peer_restarted/1)
         {asked, From, Ref, {restarted, Pid}} ->
             From ! {Ref, delivered_restart(Pid, Reaper)},
             reaper_loop(Reaper);
@@ -1629,7 +1629,7 @@ new_run(Pid, Ref, Reaper) ->
 %% asks for once its mailbox is emptied (tell_service_monitors/0), its own
 %% monitors canceled before (new_run/3); a monitor that is no service
 %% monitor is told nothing. Report §8.7: so too for a process of another
-%% node, which its node tells this one of (peer_restarted/2), its site
+%% node, which its node tells this one of (peer_restarted/1), its site
 %% empty, since a process's site is its node's record (§6.9). The answer is
 %% the deliveries made, none for one a full table kept from being made,
 %% whose watcher faults instead (counted_link/3).
@@ -1650,18 +1650,19 @@ delivered_restart(Pid, #reaper{monitors = Monitors}) ->
 %% Report §6.9, §8.7: a restart of Pid, a process of another node, which
 %% Pid's node tells this one by a frame (ern_peer:frame/2): each service
 %% monitor the run in progress holds of it told, as at a restart of a
-%% process of this node (delivered_restart/2), and Answer, which answers
-%% Pid's node, called once every delivery has ended, by a process of its
-%% own, so that a wrap that does not finish holds up the restart on Pid's
-%% node and no frame here; at once where the run holds none, and where no
-%% run is in progress (asked_of_run/1, told_once_delivered/2).
--spec peer_restarted(pid(), fun(() -> term())) -> ok.
-peer_restarted(Pid, Answer) ->
-    Deliveries = case asked_of_run({restarted, Pid}) of
-                     {answered, Started} -> Started;
-                     none -> []
-                 end,
-    told_once_delivered(Deliveries, Answer).
+%% process of this node (delivered_restart/2), and the deliveries made,
+%% which the gateway's worker that reads the frame waits for in its own
+%% state before it answers Pid's node, so that a wrap that does not finish
+%% holds up the restart on Pid's node and no frame here, and the wait
+%% needs no process; none where no run is in progress (asked_of_run/1).
+%% The deliveries end at the latest with the run, or at a loss of the peer
+%% (restarts_ended/2).
+-spec peer_restarted(pid()) -> [pid()].
+peer_restarted(Pid) ->
+    case asked_of_run({restarted, Pid}) of
+        {answered, Started} -> Started;
+        none -> []
+    end.
 
 %% A caller's own monitors canceled, taken from the processes it
 %% monitored: at its restart (new_run/3), and at the end of a process of
@@ -1708,14 +1709,14 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
 %% Pid, a process of the lost peer, has each delivery to a caller that
 %% holds a service monitor of it ended, before the loss's Down is given. A
 %% delivery that names Pid then is one of Restarted, which a peer's restart
-%% alone starts of a process of another node (peer_restarted/2), every other
+%% alone starts of a process of another node (peer_restarted/1), every other
 %% Down of it coming from the host's one end of the monitor, which this is.
 %%
 %% A delivery that has placed its message has placed it before the loss's
 %% delivery begins. The rows are read by each caller's prefix, as a
 %% demonitor reads them (demonitored/5), so that a restart pays nothing for
-%% it and a loss pays what the lost process's watchers hold. The process
-%% that waits for these deliveries to answer the peer (told_once_delivered/2)
+%% it and a loss pays what the lost process's watchers hold. The worker
+%% that waits for these deliveries to answer the peer (peer_restarted/1)
 %% answers into nothing: its frame goes on no connection, and the alias it
 %% names on one opened again was let go with the restart's wait.
 restarts_ended(Pid, Monitors) ->
@@ -2398,22 +2399,23 @@ chain_head(Pid) ->
 %% receive: it keeps its call under its CALL key (§6.6). Every other status
 %% of the host's is Running, its work in a process that waits among them,
 %% which no item of the host's tells from the process's own. A socket's
-%% memory counts the writer it keeps under its WRITER key.
+%% memory counts the processes it keeps under its SOCKET_PROCESSES key.
 -spec status(pid()) ->
     'None' | {'Some', {'Status', binary(), non_neg_integer(), atom(), non_neg_integer()}}.
 status(Pid) when node(Pid) =:= node() ->
-    Asked = [status, message_queue_len, {dictionary, ?CALL}, {dictionary, ?WRITER} | ?HOLDS],
+    Asked = [status, message_queue_len, {dictionary, ?CALL}, {dictionary, ?SOCKET_PROCESSES}
+             | ?HOLDS],
     case {ets_lookup(?PROCESSES, Pid), erlang:process_info(Pid, Asked)} of
         {[#process_row{own = evaluator}], _} ->
             'None';
         {[#process_row{site = Site}],
-         [{status, HostStatus}, {message_queue_len, Queued}, {_, Call}, {_, Writer} | Holds]} ->
+         [{status, HostStatus}, {message_queue_len, Queued}, {_, Call}, {_, Own} | Holds]} ->
             Activity = case {HostStatus, Call} of
                            {waiting, undefined} -> 'Receiving';
                            {waiting, _} -> 'Calling';
                            _ -> 'Running'
                        end,
-            {'Some', {'Status', Site, Queued, Activity, held_bytes(Holds) + writer_bytes(Writer)}};
+            {'Some', {'Status', Site, Queued, Activity, held_bytes(Holds) + own_bytes(Own)}};
         _ ->
             'None'
     end;
@@ -2428,22 +2430,23 @@ held_bytes([{memory, Memory}, {garbage_collection_info, Collection}]) ->
     {_, Old} = lists:keyfind(bin_old_vheap_size, 1, Collection),
     Memory + (Young + Old) * erlang:system_info(wordsize).
 
-%% A socket's writer, which ended where the socket has closed, and no other
-%% process has one.
-writer_bytes(undefined) ->
+%% A socket's own processes, each of which has ended where the socket has
+%% closed, and no other process has any.
+own_bytes(undefined) ->
     0;
-writer_bytes(Writer) ->
-    case erlang:process_info(Writer, ?HOLDS) of
-        undefined -> 0;
-        Holds -> held_bytes(Holds)
-    end.
+own_bytes(Own) ->
+    lists:sum([case erlang:process_info(Pid, ?HOLDS) of
+                   undefined -> 0;
+                   Holds -> held_bytes(Holds)
+               end || Pid <- Own]).
 
-%% Appendix E.18, E.21: the calling socket's process names the process that
-%% does its writes, which holds the bytes it wrote until it runs again, and
-%% has no row of its own, so that Process.status counts them as the socket's.
--spec writes_through(pid()) -> ok.
-writes_through(Writer) ->
-    _ = erlang:put(?WRITER, Writer),
+%% Appendix E.18, E.21: the calling socket's process names its own
+%% processes, the one that does its writes, which holds the bytes it wrote
+%% until it runs again, and the one that does its close, neither with a row
+%% of its own, so that Process.status counts them as the socket's.
+-spec socket_processes([pid()]) -> ok.
+socket_processes(Own) ->
+    _ = erlang:put(?SOCKET_PROCESSES, Own),
     ok.
 
 ets_lookup(Table, Key) ->
@@ -2744,13 +2747,21 @@ snapshot(Pids) ->
 %% foreign code is one per address and mailbox type, not one per call: two
 %% checkers checking the same messages for the same process are two of the
 %% same thing. The loser of a race is killed and the winner used.
+%%
+%% Report §7.4, §12.5: where the host's table of processes is full, the
+%% checker cannot be made, and what crosses faults the process it crosses
+%% from with the host's class and reason, `Fault("error:system_limit")`, a
+%% failure of the runtime's and not the foreign function's, which never ran
+%% (ern_boundary:raised/6).
 -spec checker_for(term(), address(), fun(() -> pid())) -> pid().
 checker_for(Key, Behind, Start) ->
     case ets:lookup(?CHECKERS, {checker, Key}) of
         [{_, Pid}] ->
             Pid;
         [] ->
-            Pid = Start(),
+            Pid = try Start()
+                  catch error:system_limit:Stack -> throw({ern, met(error, system_limit, Stack)})
+                  end,
             case ets:insert_new(?CHECKERS, {{checker, Key}, Pid}) of
                 true ->
                     %% what the checker stands before, and the key, which
@@ -5190,25 +5201,6 @@ watching_nodes() ->
     {monitored_by, Monitoring} = erlang:process_info(erlang:self(), monitored_by),
     lists:usort([node(Pid) || Pid <- Monitoring, is_pid(Pid), node(Pid) =/= node()]).
 
-%% Report §8.7: Answer called once each of the deliveries that tell this
-%% node's service monitors of a peer's restart has ended: at once where
-%% there is none, and else by a process of the runtime's own, so that the
-%% gateway's worker that reads the frame waits for none (peer_restarted/2).
-%% The deliveries end at the latest with the run, or at a loss of the peer
-%% (restarts_ended/2).
-told_once_delivered([], Answer) ->
-    _ = Answer(),
-    ok;
-told_once_delivered(Deliveries, Answer) ->
-    _ = erlang:spawn(fun() ->
-                         lists:foreach(fun(Delivery) ->
-                                           MonitorRef = erlang:monitor(process, Delivery),
-                                           receive {'DOWN', MonitorRef, process, _, _} -> ok end
-                                       end, Deliveries),
-                         Answer()
-                     end),
-    ok.
-
 emptied() ->
     receive
         _ -> emptied()
@@ -5499,7 +5491,7 @@ program_utilization() ->
 %% process started so for a compute, which runs the function for its caller,
 %% or `over` where its note has gone (is_noted/2); or the deliveries that
 %% tell this node's service monitors of a process of another node of its
-%% restart (peer_restarted/2).
+%% restart (peer_restarted/1).
 %%
 %% None is answered where no run is in progress, its reaper ended or not
 %% yet begun: as a run ends, and between two runs of `ern test` over a

@@ -84,7 +84,7 @@
 %% the prelude's environment.
 -spec received(atom(), [#definition{}], [#foreign_function{}],
                {[{[binary()], binary()}], [#foreign_function{}]}, ern_typecheck:env()) ->
-          ok | {error, binary()}.
+          ok | limited | {error, binary()}.
 received(Unit, Arrived, Declared, Reach, Env) ->
     try
         case made(Unit, Arrived, Declared, Reach, Env) of
@@ -121,10 +121,13 @@ reason(Text) ->
 %% The unit compiled by the host, loaded by the host's atomic load, one
 %% batch, off the code path and without `-on_load`, and in the code table
 %% with what it records; and the node says where its loads near a limit of
-%% the host's (§11.2).
+%% the host's (§11.2). Report §7.4, §12.5, Appendix E.27: the host's
+%% compiler runs in a process of its own, which a full table of processes
+%% keeps from being made, and the arrival is then `limited`, as a spawn
+%% the node cannot start is.
 compiled(#unit{name = Unit} = Made, Recorded) ->
     {Forms, _} = ern_emitter:unit(Made),
-    case ern_compile:compiled(Forms, []) of
+    try ern_compile:compiled(Forms, []) of
         {ok, Unit, Beam} ->
             case code:atomic_load([{Unit, atom_to_list(Unit), Beam}]) of
                 ok ->
@@ -137,6 +140,8 @@ compiled(#unit{name = Unit} = Made, Recorded) ->
             reason(["the host's compiler refused it, ", Compiler:format_error(Description)]);
         {error, _} ->
             reason(["the host's compiler refused it"])
+    catch
+        error:system_limit -> limited
     end.
 
 %%

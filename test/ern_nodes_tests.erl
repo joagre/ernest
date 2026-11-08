@@ -1593,17 +1593,21 @@ export fn main() : Unit receiving Down = {
 %% its fault reported, its end telling its subscriber of `Os.termination`
 %% by a delivery that cannot be made, so that the subscriber faults and is
 %% waited for no longer. Report §12.1: the host's own report of each spawn
-%% refused is not written, the fault's line saying it.
+%% refused is not written, the fault's line saying it. Report §8.4, §7.4:
+%% an address given to foreign code at the full table, whose checker
+%% cannot be made, faults the process that gives it with the host's class
+%% and reason, the foreign function not having run.
 %%
 %% A regression test, written after the fix: the reaper and the system
-%% processes died of the host's `system_limit`, and the node hung; and a
-%% kill faulted where the table was full. It does
+%% processes died of the host's `system_limit`, and the node hung; a kill
+%% faulted where the table was full; and the checker's refusal was said as
+%% the foreign function's raise. It does
 %% not cover a listener's accept, whose worker is made as a connect's is, a
 %% process kept for an adapted address, which needs a peer, the terminal's
 %% subscription, or a deadlock at a full table, which a node does not look
 %% for
 full_process_table_test_() ->
-    nodes_test({waits, 4}, fun full_process_table/1).
+    nodes_test({waits, 5}, fun full_process_table/1).
 
 full_process_table(Base) ->
     Node = made(Base, "node", none),
@@ -1716,6 +1720,29 @@ export fn main() : Unit = {
     filled()
 }
 ">>),
+    ok = file:write_file(filename:join(Source, "checker.ern"), <<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+foreign fn isPid(address : Address(Int)) : Bool = \"erlang:is_pid/1\"
+
+// Count processes spawned, each waiting for ever.
+fn filled(count : Int) : Unit =
+    if count > 0 then {
+        let _ = spawn(fn() = waited());
+        filled(count - 1)
+    } else
+        Unit
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// An address given to foreign code once the table is full.
+export fn main() : Unit = {
+    let target = spawn(fn() = waited());
+    filled(systemInfo(Foreign.atom(\"process_limit\"))
+           - systemInfo(Foreign.atom(\"process_count\")));
+    Io.println(Io.show(isPid(target)))
+}
+">>),
     0 = built(["--build-root", filename:join(Base, "build"), Source]),
     ?assertEqual(0, (start(Node, filename:join([Base, "build", "full.erc"]), []))()),
     {Out, Err} = said(Node),
@@ -1732,7 +1759,201 @@ export fn main() : Unit = {
                       "Ending.main:19 faulted: error:system_limit",
                       "the subscriber Ending.main:19 ended without answering"]},
                  lines_said(finished([?ERN, " run --config-dir ", Node, " ",
-                                      filename:join([Base, "build", "ending.erc"]), " 2>&1"]))).
+                                      filename:join([Base, "build", "ending.erc"]), " 2>&1"]))),
+    ?assertEqual({1, ["Checker.main faulted: error:system_limit"]},
+                 lines_said(finished([?ERN, " run --config-dir ", Node, " ",
+                                      filename:join([Base, "build", "checker.erc"]), " 2>&1"]))).
+
+%% report Appendix E.18, §7.4, §12.5: a socket closed at a full table of
+%% processes lingers over what it has not sent, its closer made with it,
+%% so that a far end that reads takes every byte and then the close.
+%%
+%% A regression test, written after the fix, of the close at a full table.
+%% It does not hold the defect, a closer spawned at the close, which the
+%% old code passed where a process of the host's had ended between the
+%% fill and the close, as it did in each of five runs; ern_tcp_tests finds the
+%% closer before the close. Nor does it cover the linger's bounds at a
+%% full table, which ern_tcp_tests holds with room
+full_table_close_lingers_test_() ->
+    nodes_test({waits, 2}, fun full_table_close_lingers/1).
+
+full_table_close_lingers(Base) ->
+    Node = made(Base, "node", none),
+    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "closer.ern"), [<<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// What the reader is told: to read what came.
+type ReaderMsg = Go
+
+// The bytes the server writes before it closes.
+let size : Int = 4000000
+
+// Count processes spawned, each waiting for ever.
+fn filled(count : Int) : Unit =
+    if count > 0 then {
+        let _ = spawn(fn() = waited());
+        filled(count - 1)
+    } else
+        Unit
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// The bytes read until the connection ends, and how it ended.
+fn counted(socket : Address(Tcp.SocketMsg), taken : Int) : #(Int, Io.Error) =
+    match Tcp.read(socket, waitMs()) {
+        Right(bytes) -> counted(socket, taken + Bytes.size(bytes))
+      | Left(error) -> #(taken, error)
+    }
+
+// The far end, which reads once told, and says what it took.
+fn reader(port : Int) : Unit receiving ReaderMsg =
+    match Tcp.connect(\"127.0.0.1\", port, waitMs()) {
+        Right(socket) -> receive {
+            Go -> {
+                let #(taken, error) = counted(socket, 0);
+                Io.println(\"taken \" <> Int.toString(taken) <> \", then \" <> Io.show(error))
+            }
+        }
+      | Left(error) -> Io.println(\"connect: \" <> Io.show(error))
+    }
+
+// The server writes more than the far end's buffers hold, fills the
+// table, closes, and tells the far end to read.
+export fn main() : Unit receiving Down =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(door) -> match Tcp.port(door) {
+            Right(port) -> {
+                let far = spawn(fn() = reader(port));
+                monitor(Process.fromAddress(far), fn(down) = down);
+                match Tcp.accept(door, waitMs()) {
+                    Right(socket) -> {
+                        let _ = Tcp.write(socket, Bytes.repeat(<<65>>, size), waitMs());
+                        filled(systemInfo(Foreign.atom(\"process_limit\"))
+                               - systemInfo(Foreign.atom(\"process_count\")));
+                        Tcp.close(socket);
+                        send(far, Go);
+                        receive { _ -> Unit }
+                    }
+                  | Left(error) -> Io.println(\"accept: \" <> Io.show(error))
+                }
+            }
+          | Left(error) -> Io.println(Io.show(error))
+        }
+      | Left(error) -> Io.println(Io.show(error))
+    }
+">>, wait_ms_declaration()]),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    ?assertEqual({0, ["taken 4000000, then Io.Closed"]},
+                 lines_said(finished([?ERN, " run --config-dir ", Node, " ",
+                                      filename:join([Base, "build", "closer.erc"]), " 2>&1"]))).
+
+%% report §7.4, §12.5, Appendix E.27: a node whose table of processes is
+%% full serves the peer connected before it filled: a spawn of a function
+%% the node holds, which its reaper cannot start, and one of a function it
+%% lacks, whose arrival the host's compiler cannot be started for, each
+%% answers `Left(Other("error:system_limit"))`, and once room is made each
+%% starts, the gateway, its worker for the peer and the exchange living
+%% on. The host's own reports of the refused spawns are not written.
+%%
+%% A regression test, written after the fix: the exchange ended with the
+%% host's term as it compiled an arrival, and no later spawn of a function
+%% the store lacked was answered. It does not cover the worker for a peer,
+%% made as its connection opens, at a connection that opens at a full
+%% table, which the host's acceptor does not survive (docs/otp_bugs.md,
+%% 12), nor the frames of a restart of a peer's process, whose wait needs
+%% no process (ern_gateway_tests)
+full_table_with_a_peer_test_() ->
+    nodes_test({waits, 6}, fun full_table_with_a_peer/1).
+
+full_table_with_a_peer(Base) ->
+    PortStore = free_port(),
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, PortStore}]),
+    edit(Store, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "store.ern"), <<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// What the filler takes: the ask to fill the table, and the ask to free it.
+export type FillMsg = Fill(Reply(Unit)) | Free(Reply(Unit))
+
+// The processes the table has room for.
+fn room() : Int =
+    systemInfo(Foreign.atom(\"process_limit\")) - systemInfo(Foreign.atom(\"process_count\"))
+
+// A process that waits until it is told to end.
+export fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// Count processes spawned, each waiting, after those held.
+fn filled(count : Int, held : List(Address(Int))) : List(Address(Int)) =
+    if count > 0 then filled(count - 1, spawn(fn() = waited()) :: held) else held
+
+// The filler: the table filled when asked, and the processes it filled it
+// with ended when asked.
+export fn filling(held : List(Address(Int))) : Unit receiving FillMsg =
+    receive {
+        Fill(reply) -> {
+            let full = filled(room(), held);
+            answer(reply, Unit);
+            filling(full)
+        }
+      | Free(reply) -> {
+            List.forEach(held, fn(process) = send(process, 0));
+            answer(reply, Unit);
+            filling([])
+        }
+    }
+
+// The store waits until it is stopped.
+export fn main() : Unit receiving Int = {
+    Io.println(\"ready\");
+    waited()
+}
+">>),
+    ok = file:write_file(filename:join(Source, "desk.ern"), [<<"
+// A spawn's answer, its address left out.
+fn started(spawned : Either(Io.Error, Address(m))) : String =
+    match spawned {
+        Right(_) -> \"Right\"
+      | Left(error) -> Io.show(error)
+    }
+
+// The spawns at the store's full table, one of a function the store holds
+// and one of a function only the desk holds, and the same once the filler
+// has made room.
+export fn main() : Unit =
+    match Peer.spawn(\"store\", fn() = Store.filling([]), waitMs()) {
+        Right(filler) -> {
+            Address.callForever(filler, Store.Fill);
+            Io.println(\"held: \" <> started(Peer.spawn(\"store\", Store.waited, waitMs())));
+            Io.println(\"lacked: \" <> started(Peer.spawn(\"store\", fn() = Unit, waitMs())));
+            Address.callForever(filler, Store.Free);
+            Io.println(\"held after: \" <> started(Peer.spawn(\"store\", Store.waited, waitMs())));
+            Io.println(\"lacked after: \" <> started(Peer.spawn(\"store\", fn() = Unit, waitMs())))
+        }
+      | Left(error) -> Io.println(\"no filler: \" <> Io.show(error))
+    }
+">>, wait_ms_declaration()]),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    WaitStore = start(Store, filename:join([Base, "build", "store.erc"]), []),
+    prints(Store, "ready"),
+    ?assertEqual(0, (start(Desk, filename:join([Base, "build", "desk.erc"]), []))()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {_, StoreErr} = said(Store),
+    ?assertEqual(["held: Io.Other(\"error:system_limit\")",
+                  "lacked: Io.Other(\"error:system_limit\")",
+                  "held after: Right", "lacked after: Right", ""],
+                 string:split(Out, "\n", all)),
+    ?assertEqual(nomatch, string:find(StoreErr, "Too many processes")),
+    ?assertEqual(nomatch, string:find(StoreErr, "REPORT")).
 
 %% A finished command's status, and the lines of its output that are no
 %% trace's, each from where its time ends, a node's lines being stamped.

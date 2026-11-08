@@ -25,7 +25,7 @@
          browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2, reload/1, version/0,
          write/1, node_screen/1, to_screen/1, flush_screen/0, leaves_it_unchanged/1,
-         collect/2, own/1, detach/0, input_site/2, is_expression/1, declared/2]).
+         collect/1, collect/3, own/1, detach/0, input_site/2, is_expression/1, declared/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -179,7 +179,7 @@
 -record(value, {term, descriptor}).
 %% Report §11.2: what an input bound, which its outcome carries beside its
 %% value, and which the session binds by in its own process once the input
-%% has answered (collect/2): its binding, made in the session's process
+%% has answered (collect/3): its binding, made in the session's process
 %% before the spawn (binding/6), and the input's process where it is the
 %% binder of the holder the session makes of what it bound, or none. The
 %% input's process writes nothing of the session's, so that one an
@@ -1245,12 +1245,22 @@ entry_body(Typed) ->
 %% process, and the input's process is given what it needs to compute its
 %% value, and not the session: it answers its value with its binding, by
 %% which the session binds it in its own process once the answer is in
-%% (collect/2), and writes nothing of the session's itself. An expression's
+%% (collect/3), and writes nothing of the session's itself. An expression's
 %% unit holds the value `it` names. The process of an input that binds a
 %% name lives on while a name it bound is in scope, so that what the
 %% binding opened stays open (binders/0).
--spec spawn_input(#session{}, #checked{}, integer(), term()) -> ern_rt:address().
-spawn_input(Session, #checked{namespace = Namespace, typed = Typed, interface = Interface,
+%%
+%% Report §11.2, §7.4: a full table of processes, which leaves no room for
+%% the compiler's process or the input's own, answers the input's fault,
+%% `error:system_limit`, with no trace, and the session goes on.
+-spec spawn_input(#session{}, #checked{}, integer(), term()) ->
+          {'Right', ern_rt:address()} | {'Left', binary()}.
+spawn_input(Session, Checked, Serial, Address) ->
+    try {'Right', input_spawned(Session, Checked, Serial, Address)}
+    catch error:system_limit -> {'Left', ern_rt:host_cause(error, system_limit)}
+    end.
+
+input_spawned(Session, #checked{namespace = Namespace, typed = Typed, interface = Interface,
                               env = Env, type = Type, binds = Binds,
                               site = {InputName, Offset}} = Checked,
             Serial, Address) ->
@@ -1366,7 +1376,7 @@ build_holding(_Plan, _Namespace) ->
     #{}.
 
 %% Report §11.2, §8.7, Appendix H: what the session binds the input's value
-%% by once it has answered (collect/2), made from its plan in the session's
+%% by once it has answered (collect/3), made from its plan in the session's
 %% process before the spawn, so that the binding needs no checker's
 %% environment: for `it`, the key the unit's getter reads, at the position
 %% the compiled interface gives it, and the interface of `it` the session
@@ -4682,6 +4692,14 @@ holder_bound(Bindings, {SessionNamespace, Hash}, Session) ->
                            positions = #{HolderNamespace ++ [Name] => Position
                                          || {Position, {Name, _, _}} <- Numbered}},
     Keys = [{ErlangModule, ern_emitter:function_name(Position)} || {Position, _} <- Numbered],
+    %% report Appendix H, §8.7: each by its identity as a form names it, its
+    %% name under the session's one namespace, whatever holder holds it
+    Code = [{SessionNamespace ++ [Name], {binding, Hash, Key}}
+            || {Key, {Name, _, _}} <- lists:zip(Keys, Bindings)],
+    %% report §11.2, §7.4: compiled before anything of it is recorded, so
+    %% that a full table of processes, which leaves the compiler no room,
+    %% leaves the session as it was (collect/3)
+    Beam = holder(ErlangModule, Names, Code),
     unit_recorded(ErlangModule,
                   #session_unit{namespace = HolderNamespace, keys = Keys,
                                 names = Interface#interface.lets,
@@ -4691,11 +4709,6 @@ holder_bound(Bindings, {SessionNamespace, Hash}, Session) ->
                                                                               <- Bindings],
                                                                       []))}),
     [persistent_term:put(Key, Value) || {Key, {_, Value, _}} <- lists:zip(Keys, Bindings)],
-    %% report Appendix H, §8.7: each by its identity as a form names it, its
-    %% name under the session's one namespace, whatever holder holds it
-    Code = [{SessionNamespace ++ [Name], {binding, Hash, Key}}
-            || {Key, {Name, _, _}} <- lists:zip(Keys, Bindings)],
-    Beam = holder(ErlangModule, Names, Code),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     holder_loaded(ErlangModule, Beam),
     {#scoped{interface = Interface}, HolderNamespace, Session1}.
@@ -4734,15 +4747,28 @@ binding_scheme(Type, TypeState) -> ern_types:monomorphic(ern_types:substitute(Ty
 %% names no more (collected/1); and the session's row written, once an
 %% input. The session alone writes its rows and binds what its inputs
 %% bound, so that two processes never write one row.
--spec collect(#session{}, {'Some', {#bound{}, #value{}}} | 'None') -> #session{}.
-collect(Session, 'None') ->
+-spec collect(#session{}) -> #session{}.
+collect(Session) ->
     collect_detached(),
-    keep_session(collected(Session));
-collect(Session, {'Some', {#bound{binding = Binding, binder = Binder}, #value{term = Value}}}) ->
+    keep_session(collected(Session)).
+
+%% Report §11.2, §7.4: an answer whose binding a full table of processes
+%% leaves no room to make, its holder's compiler unstarted, answers the
+%% input's fault, `error:system_limit`, the session as it was and its
+%% binder let go, so that what the input opened ends with it as a faulted
+%% input's does.
+-spec collect(#session{}, #bound{}, #value{}) -> {'Right', #session{}} | {'Left', binary()}.
+collect(Session, #bound{binding = Binding, binder = Binder}, #value{term = Value}) ->
     collect_detached(),
-    {Scoped, Holder, Session1} = bound_value(Binding, Value, Session),
-    Binder =:= none orelse keep(binders, (binders())#{Holder => Binder}),
-    keep_session(collected(joined_bound(Session1, Scoped))).
+    try bound_value(Binding, Value, Session) of
+        {Scoped, Holder, Session1} ->
+            Binder =:= none orelse keep(binders, (binders())#{Holder => Binder}),
+            {'Right', keep_session(collected(joined_bound(Session1, Scoped)))}
+    catch
+        error:system_limit ->
+            Binder =:= none orelse (Binder ! {?MODULE, let_go}),
+            {'Left', ern_rt:host_cause(error, system_limit)}
+    end.
 
 %% Report §11.2: the session with what an input bound: what it declared,
 %% its compiled module kept for `:doc` and the name it prints with, the
@@ -4774,9 +4800,10 @@ joined_bound(#session{beams = Beams, input_names = InputNames} = Session,
 %% a name of its own in scope or by a unit the session keeps
 %% (kept_needs/0), and not every unit and every name, so that its cost
 %% follows what an input made and not what the session holds. The session
-%% collects in its own process, once an input has answered (collect/2), so
-%% that an input killed while it runs has let nothing go that the session
-%% still names; the binders go by the same reading (leaving/2).
+%% collects in its own process, once an input has answered (collect/1,
+%% collect/3), so that an input killed while it runs has let nothing go
+%% that the session still names; the binders go by the same reading
+%% (leaving/2).
 collected(#session{interfaces = Interfaces, scope = Scope} = Session) ->
     Values = maps:get(values, Scope, #{}),
     Units = #{ErlangModule => Unit || ErlangModule := _ <- held_units(),

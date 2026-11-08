@@ -780,7 +780,8 @@ closed_socket_sends_what_it_took() ->
     {ok, Port} = inet:port(Listen),
     Self = self(),
     %% the far end takes the bytes late: once the closer the socket hands
-    %% its host socket to has looked twice and found nothing taken
+    %% its host socket to, made with the socket, has looked twice and found
+    %% nothing taken
     Peer = spawn(fun() ->
                      {ok, Connection} = gen_tcp:accept(Listen),
                      receive {go, Closer} -> ok end,
@@ -864,9 +865,12 @@ quiet() ->
 %% report Appendix E.21, E.18: a socket's memory counts its writer's, which
 %% holds the bytes it wrote until it runs again, where the socket's own
 %% process has let them go and no line of `:processes` would show them
-%% otherwise. A regression test, written after the code. It does not cover a
-%% socket over TLS, whose writer is the same process.
-socket_memory_counts_its_writer_test() ->
+%% otherwise, and its closer's, which is there before the socket closes,
+%% so that a close at a full table needs no room (§12.5). A regression
+%% test, written after the code; the closer's presence is one of the fix,
+%% which spawned it at the close. It does not cover a socket over TLS,
+%% whose writer is the same process.
+socket_memory_counts_its_own_processes_test() ->
     Size = 1 bsl 20,
     Self = self(),
     ok = ern_waits:with_room(fun() ->
@@ -892,8 +896,9 @@ socket_memory_counts_its_writer_test() ->
                Process = ern_rt:process_of(Socket),
                erlang:garbage_collect(Process),
                {binary, Own} = erlang:process_info(Process, binary),
+               {memory, Closer} = erlang:process_info(closer_of(Process), memory),
                {'Some', {'Status', _, _, _, Memory}} = ern_rt:status(Process),
-               Self ! {counted, {Own, Memory >= Size}},
+               Self ! {counted, {Own, Memory >= Size + Closer}},
                Peer ! close
            end)
          end),
@@ -1524,7 +1529,8 @@ tls_closed_socket_sends_what_it_took() ->
     #{server := Server} = pki(),
     Self = self(),
     %% the far end takes the bytes late: once the closer the socket hands
-    %% its host socket to has looked twice and found nothing taken
+    %% its host socket to, made with the socket, has looked twice and found
+    %% nothing taken
     {FarEnd, FarPort} = tls_far_end(Server, fun(Accepted) ->
                                            receive {go, Closer} -> ok end,
                                            ok = ern_waits:called(Closer,
@@ -1540,11 +1546,10 @@ tls_closed_socket_sends_what_it_took() ->
                Self ! {written, write(Socket, binary:copy(<<1>>, Size))},
                Self ! {host_sockets, [HostSocket]},
                SocketPid = ern_rt:process_of(Socket),
-               erlang:trace(SocketPid, true, [procs, {tracer, self()}]),
+               Closer = closer_of(SocketPid),
                SocketRef = erlang:monitor(process, SocketPid),
                ern_rt:send(Socket, 'Close'),
                ern_rt:timed(),
-               Closer = receive {trace, SocketPid, spawn, Spawned, _} -> Spawned end,
                receive {'DOWN', SocketRef, process, _, _} -> ern_rt:untimed() end,
                FarEnd ! {go, Closer}
            end),
@@ -1557,6 +1562,15 @@ tls_closed_socket_sends_what_it_took() ->
     %% failure on a loaded host
     Bound = ?LINGER_IDLE div 5 + ?TLS_CLOSE + ?LINGER_IDLE,
     ?assertEqual(HostSockets, gone(HostSockets, Bound)).
+
+%% The closer a socket's process made as it began, which watches it and
+%% waits for its host socket (ern_tcp:closer/1).
+closer_of(SocketPid) ->
+    {monitored_by, Watching} = erlang:process_info(SocketPid, monitored_by),
+    [Closer] = [Pid || Pid <- Watching, is_pid(Pid),
+                       erlang:process_info(Pid, current_function)
+                           =:= {current_function, {ern_tcp, closer, 1}}],
+    Closer.
 
 %% Every byte the far end over TLS reads, and how the connection then ends.
 tls_taken(Connection, Count) ->

@@ -694,13 +694,22 @@ fn execute(state : State,
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.monotonic();
             let serial = state.serial + 1;
-            let inputProcess = spawnInput(session, checked, serial, adapted(self(), Done));
-            await(State(..state, =session, =serial),
-                  screen,
-                  checked,
-                  inputProcess,
-                  started,
-                  printing)
+            match spawnInput(session, checked, serial, adapted(self(), Done)) {
+                Right(inputProcess) ->
+                    await(State(..state, =session, =serial),
+                          screen,
+                          checked,
+                          inputProcess,
+                          started,
+                          printing)
+              | Left(cause) ->
+                    faulted(State(..state, =session, =serial),
+                            screen,
+                            causeLine(cause, None, None),
+                            "",
+                            started,
+                            printing)
+            }
         }
     }
 
@@ -716,29 +725,27 @@ fn await(state : State,
          printing : Bool) : Next receiving ShellMsg = {
     let current = state.serial;
     receive {
-        Done(Ok(=bound, =serial, =value)) when serial == current -> {
-            // report §11.2: what the input bound is bound and joins the
-            // session, and what nothing reaches is let go, here, in the
-            // session's process, once the input has answered, and before
-            // the answer is said, so that what is said is the session's
-            // as completion reads it
-            let session = collect(state.session, Some(#(bound, value)));
-            if printing then {
-                printResult(state, screen, checked, value);
-                sayTime(screen, state.settings, started)
-            } else
-                Unit;
-            sayAndLetGo(screen);
-            Continue(State(..state, =session))
-        }
-      | Done(Faulted(=cause, =trace, =callee, =peer, =serial)) when serial == current -> {
-            sayFault(state, screen, causeLine(cause, callee, peer), trace);
-            if printing then sayTime(screen, state.settings, started) else Unit;
-            // report §11.2: the input's unit, which holds nothing, is let go
-            let session = collect(state.session, None);
-            sayAndLetGo(screen);
-            Continue(State(..state, =session))
-        }
+        // report §11.2: what the input bound is bound and joins the
+        // session, and what nothing reaches is let go, here, in the
+        // session's process, once the input has answered, and before the
+        // answer is said, so that what is said is the session's as
+        // completion reads it
+        Done(Ok(=bound, =serial, =value)) when serial == current ->
+            match collectBound(state.session, bound, value) {
+                Right(session) -> {
+                    if printing then {
+                        printResult(state, screen, checked, value);
+                        sayTime(screen, state.settings, started)
+                    } else
+                        Unit;
+                    sayAndLetGo(screen);
+                    Continue(State(..state, =session))
+                }
+              | Left(cause) ->
+                    faulted(state, screen, causeLine(cause, None, None), "", started, printing)
+            }
+      | Done(Faulted(=cause, =trace, =callee, =peer, =serial)) when serial == current ->
+            faulted(state, screen, causeLine(cause, callee, peer), trace, started, printing)
       // the outcome of an input `Interrupted` killed, which came after the
       // next was taken
       | Done(_) ->
@@ -786,6 +793,22 @@ fn await(state : State,
         // reader, whose end above kills this input and ends the shell, as
         // `:quit` ends it (report §11.2)
     }
+}
+
+// Report §11.2: an input that faulted, or that a full table of processes
+// left no room to compile or run, is said with its fault and its time,
+// and the input's unit, which holds nothing, is let go.
+fn faulted(state : State,
+           screen : Address(ScreenMsg),
+           cause : String,
+           trace : String,
+           started : Int,
+           printing : Bool) : Next = {
+    sayFault(state, screen, cause, trace);
+    if printing then sayTime(screen, state.settings, started) else Unit;
+    let session = collect(state.session);
+    sayAndLetGo(screen);
+    Continue(State(..state, =session))
 }
 
 // Report §11.2: an input's own fault is its answer, `fault:` and its cause
@@ -2453,12 +2476,18 @@ foreign fn declared(checked : Checked, value : Value) : Optional(List(String)) =
 foreign fn leavesItUnchanged(checked : Checked) : Bool =
     "ern_shell:leaves_it_unchanged/1"
 
-// The session after an input has answered, its value with what it bound,
-// or none where it faulted: what it bound bound by the session and joined,
-// and what nothing reaches any more let go, the input's own unit among it
-// (report §11.2).
-foreign fn collect(session : Session, answer : Optional(#(Bound, Value))) : Session =
-    "ern_shell:collect/2"
+// The session after an input has faulted: what nothing reaches any more
+// let go, the input's own unit among it (report §11.2).
+foreign fn collect(session : Session) : Session =
+    "ern_shell:collect/1"
+
+// The session after an input has answered its value with what it bound:
+// what it bound bound by the session and joined, and what nothing reaches
+// any more let go, the input's own unit among it; or the input's fault
+// where a full table of processes leaves no room to bind it (report §11.2,
+// §7.4).
+foreign fn collectBound(session : Session, bound : Bound, value : Value) : Either(String, Session) =
+    "ern_shell:collect/3"
 
 // Report §11.2 *Inputs*: the processes of the inputs the session's
 // collections set to go, each with the names its holder held, which the
@@ -2474,7 +2503,7 @@ foreign fn letGo() : Unit =
 foreign fn spawnInput(session : Session,
                       checked : Checked,
                       serial : Int,
-                      address : Address(Outcome)) : Address(Never) =
+                      address : Address(Outcome)) : Either(String, Address(Never)) =
     "ern_shell:spawn_input/4"
 
 foreign fn show(value : Value, depth : Int, length : Int) : String =

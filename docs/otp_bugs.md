@@ -417,7 +417,7 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 
 ## 10. `ssl:close/2` ignores the time it is given
 
-Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/2` hands a socket over TLS to a closer of its own, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
+Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/3` hands a socket over TLS to its closer, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
 
 **Title:** ssl:close/2 closes a TLS connection in its own two 5-second waits whatever Timeout it is given
 
@@ -531,3 +531,64 @@ OTP 29, erts 17.1, stdlib 8.1, on Linux x86_64.
 **Additional context**
 
 An escape meets the same rule: `["\u12"]` raises `{unexpected_sequence, <<"\\u12\"]">>}`, the six bytes from the backslash, past the string's end, and `["\u1"]` raises `unexpected_end`, where the escape's first byte that is no hexadecimal digit is the one that cannot stand.
+
+## 12. A connection accepted at a full table of processes ends the distribution
+
+Not filed. Found on 2026-11-08 (the log's *A Node's Own Processes at a Full Table*); Ernest's nodes run over `inet_tls_dist`, and plan item 31 has a node close a connection it cannot serve.
+
+**Title:** net_kernel terminates, and with it the emulator, when a connection is accepted while the process table is full
+
+**Describe the bug**
+
+When a node's process table is full and another node connects, `net_kernel:handle_info({accept, ...})` calls `inet_tcp_dist:gen_accept_connection/6`, whose `spawn_opt` raises `system_limit`. Nothing catches it, so `net_kernel` terminates, `kernel` shuts down and the emulator halts with a crash dump. A full table is a condition a node recovers from once processes end; here the node is gone.
+
+Over `inet_tls_dist` the acceptor's loop dies on its `spawn_link` instead, printing its own error report, and the node never accepts a connection again. Where processes are being spawned beside it, `net_kernel`'s handling of the acceptor's exit raises within `catch`, `handle_info/2` returns the `{'EXIT', ...}` term, and `net_kernel` terminates with `bad_return_value`.
+
+**To Reproduce**
+
+A node whose table holds 1024 processes, filled, and a second node that pings it:
+
+```sh
+erl -sname full_a -setcookie c +P 1024 -noshell -eval '
+    Fill = fun F(N) -> try spawn(fun() -> receive _ -> ok end end) of
+                           _ -> F(N + 1)
+                       catch error:system_limit -> N end end,
+    io:format("filled ~p~n", [Fill(0)]),
+    timer:sleep(4000),
+    halt().' > a.txt 2>&1 &
+sleep 1
+erl -sname dial_b -setcookie c -noshell -eval '
+    {ok, H} = inet:gethostname(),
+    io:format("ping ~p~n", [net_adm:ping(list_to_atom("full_a@" ++ H))]),
+    halt().'
+wait
+cat a.txt
+```
+
+The dialing node prints `ping pang`, and the full node:
+
+```
+** Generic server net_kernel terminating
+** Last message in was {accept,<0.67.0>,#Port<0.5>,inet,tcp}
+** Reason for termination ==
+** {system_limit,[{erlang,spawn_opt,
+                          [inet_tcp_dist,do_accept, ...],
+                          [link,{priority,max}]], ...},
+                  {inet_tcp_dist,gen_accept_connection,6,
+                                 [{file,"inet_tcp_dist.erl"},{line,339}]},
+                  {net_kernel,handle_info,2,
+                              [{file,"net_kernel.erl"},{line,1430}]}, ...]}
+Kernel pid terminated (application_controller) ("{application_terminated,kernel,shutdown}")
+```
+
+**Expected behavior**
+
+A connection the node has no room to serve is closed, its refusal logged once, and `net_kernel` and the acceptor live on, so that the node accepts again once processes have ended, as `gen_tcp:accept` answers `{error, system_limit}` and its caller decides.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.
+
+**Additional context**
+
+The emulator's own `Too many processes` report is printed for each refused spawn as well. A node can refuse the connection itself only where its distribution module catches the limit in `accept_connection`, which the stock modules leave to `net_kernel`.

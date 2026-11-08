@@ -1047,15 +1047,17 @@ foreign_callee_test() ->
 %% process, Restarted with an empty site, and to no monitor that is no
 %% service monitor, and is answered by the frame that its watchers have
 %% been told, carrying its alias, once the delivery has ended, a wrap that
-%% has not finished holding the answer back. One of a process this node
+%% has not finished holding the answer back: the reading gives the
+%% deliveries and the answer to the gateway's worker, which waits for them
+%% (ern_gateway_tests's restart_waited_test). One of a process this node
 %% holds no service monitor of is answered at once, and the answer, read on
 %% the restarting node, goes to the alias it carries.
 %%
 %% Here a process of this host's stands in for the peer's, and the watcher
-%% stands in for the peer's gateway, taking the answers. A regression test,
-%% written after the code; the frames between real nodes, and the
-%% restarting node's wait for them, are test/ern_nodes_tests.erl's
-%% restart_told_test_
+%% stands in for the peer's gateway, taking the answers, and for the worker,
+%% waiting for the delivery. A regression test, written after the code; the
+%% frames between real nodes, and the restarting node's wait for them, are
+%% test/ern_nodes_tests.erl's restart_told_test_
 restarted_frame_test() ->
     Self = self(),
     Main = fun() ->
@@ -1069,10 +1071,14 @@ restarted_frame_test() ->
                ern_rt:monitor_service(Restarting, Holding),
                ern_rt:monitor(Restarting, fun(Down) -> {plain, Down} end),
                Alias = make_ref(),
-               Read = ern_peer:frame(Restarting, {restarted, Alias}),
+               {restart_waits, Deliveries, Answering} = ern_peer:frame(Restarting,
+                                                                         {restarted, Alias}),
                Delivery = receive {holding, Pid} -> Pid end,
+               Read = Deliveries =:= [Delivery],
                Early = receive {ern_frame, _, _} -> early after 0 -> held end,
+               DeliveryRef = erlang:monitor(process, Delivery),
                Delivery ! go,
+               receive {'DOWN', DeliveryRef, process, _, _} -> Answering() end,
                Answer = receive {ern_frame, _, Body} -> Body end,
                Told = receive {service, Down} -> Down end,
                Unwatched = spawn(fun() -> receive stop -> ok end end),
@@ -1092,7 +1098,7 @@ restarted_frame_test() ->
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
     {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain, Restarting} =
         receive {restarted, Got} -> Got end,
-    ?assertEqual({ok, held, true, {'Down', Restarting, 'Restarted', <<>>}, true, ok, true, none},
+    ?assertEqual({true, held, true, {'Down', Restarting, 'Restarted', <<>>}, true, ok, true, none},
                  {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain}).
 
 %% report §8.7, *A restart*, §12.6: "The answer comes through an alias of the
@@ -1205,8 +1211,9 @@ restarted_ended_at_a_loss_test() ->
                               {service, Down}
                       end,
                ern_rt:monitor_service(Restarting, Wrap),
-               ok = ern_peer:frame(Restarting, {restarted, make_ref()}),
-               Delivery = receive {holding, Pid} -> Pid end,
+               {restart_waits, [Delivery], _} = ern_peer:frame(Restarting,
+                                                                 {restarted, make_ref()}),
+               receive {holding, Delivery} -> ok end,
                ern_rt:launch_reaper() ! {'DOWN', make_ref(), process, Restarting, noconnection},
                Lost = receive {service, Down} -> Down end,
                Delivery ! go,

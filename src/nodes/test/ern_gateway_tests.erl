@@ -174,6 +174,63 @@ adapted_across_a_loss_test() ->
         ets:delete(ern_utilizations)
     end.
 
+%% report §8.7, *A restart*, §12.6: a peer's frame that its process
+%% restarted is answered once the delivery of `Restarted` it starts here
+%% has ended, a wrap that has not finished holding the answer back, and the
+%% worker waits for it in its state, reading the peer's next frame, a find
+%% here, meanwhile; a loss then ends the worker only once the wait is over,
+%% and once its connection opens again it asks to end no more. Report
+%% §7.4, §12.5: the wait needs no process, which a full table of the host's
+%% could keep from being made.
+%%
+%% Here a process of this host's stands in for the peer's, and the test for
+%% the peer's gateway, which takes the answer. A regression test, written
+%% after the code: a process of its own waited for the deliveries, and a
+%% full table killed the worker as it was spawned
+restart_waited_test() ->
+    Self = self(),
+    ok = ern_peer:tables(),
+    try
+        ok = ern_rt:run_main(
+               fun() ->
+                   Main = erlang:self(),
+                   true = register(ern_gateway, Main),
+                   Restarting = spawn(fun() -> receive stop -> ok end end),
+                   ern_rt:monitor_service(Restarting, fun(Down) ->
+                                                          Main ! {holding, erlang:self()},
+                                                          receive go -> Down end
+                                                      end),
+                   Worker = spawn(fun() -> ern_gateway:work(?PEER, Main) end),
+                   ern_rt:timed(),
+                   Alias = make_ref(),
+                   Worker ! {ern_frame, Restarting, {restarted, Alias}},
+                   Delivery = receive {holding, Pid} -> Pid end,
+                   Found = erlang:alias([reply]),
+                   Worker ! {ern_frame, Restarting, {find, <<"s">>, <<"h">>, Found}},
+                   Meanwhile = receive {Found, _} -> found end,
+                   Early = receive {ern_frame, _, _} -> early after 0 -> held end,
+                   Worker ! {lost, erlang:unique_integer([monotonic])},
+                   Delivery ! go,
+                   Answer = receive {ern_frame, Worker, Body} -> Body end,
+                   Asked = idle(Worker),
+                   Worker ! connected,
+                   FoundAgain = erlang:alias([reply]),
+                   Worker ! {ern_frame, Restarting, {find, <<"s">>, <<"h">>, FoundAgain}},
+                   receive {FoundAgain, _} -> ok end,
+                   AskedAgain = receive {idle, ?PEER, Worker, _} -> asked after 0 -> none end,
+                   Down = receive {'Down', _, _, _} = Told -> Told end,
+                   exit(Worker, kill),
+                   Restarting ! stop,
+                   ern_rt:untimed(),
+                   Self ! {waited, {Meanwhile, Early, Answer =:= {watchers_told, Alias}, Asked,
+                                    AskedAgain, Down =:= {'Down', Restarting, 'Restarted', <<>>}}}
+               end, <<"main">>, quiet()),
+        ?assertEqual({found, held, true, 3, none, true}, wait(waited))
+    after
+        ets:delete(ern_spawns),
+        ets:delete(ern_utilizations)
+    end.
+
 %% The worker's ask to end, with how many of the gateway's messages it has
 %% taken.
 idle(Worker) ->

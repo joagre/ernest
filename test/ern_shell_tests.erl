@@ -2267,6 +2267,70 @@ input_fault_status() ->
     ?assertEqual(nomatch, binary:match(Output, <<"fault:">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"4 : Int">>)).
 
+%% report §11.2, §7.4, §12.5: at a full table of processes, which a node's
+%% `limits` makes small, an input the table leaves no room to compile or
+%% to bind answers its fault, `fault: error:system_limit`, with no trace,
+%% and the session goes on to its next prompt and ends with status 0. The
+%% first run fills the table from a `let`, whose holder the session then
+%% cannot compile, so that the name is not bound. The second fills it from
+%% a process the input asks, which fills it again once the input has ended,
+%% its call on the input ending then, and says so; the next input is typed
+%% after that, and its compiler cannot start. The second keeps no history,
+%% since its append at a full table faults the local half (the log's *A
+%% Node's Own Processes at a Full Table*).
+%%
+%% A regression test, written after the fix: the shell faulted, a failure
+%% of `ern` itself, at each. It does not cover a full table as the input's
+%% own process is spawned, which the compiler's process, ended just
+%% before, leaves room for, nor a fault report the session cannot be given
+%% at a full table, which ends the shell (the log's *A Node's Own Processes
+%% at a Full Table*)
+input_at_a_full_table_test_() ->
+    ern_nodes_tests:counted_test({waits, 12}, fun input_at_a_full_table/0).
+
+input_at_a_full_table() ->
+    ConfigDir = filename:join(fresh_home(), ".ernest"),
+    node_dir(ConfigDir),
+    ern_nodes_tests:edit(ConfigDir, fun(Conf) ->
+                                        Conf#{<<"limits">> => #{<<"processes">> => 1024}}
+                                    end),
+    Shell = "../bin/ern shell --config-dir " ++ ConfigDir,
+    Declared = ["foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"",
+                "fn room() : Int = systemInfo(Foreign.atom(\"process_limit\"))"
+                " - systemInfo(Foreign.atom(\"process_count\"))",
+                "fn waited() : Unit receiving Int = receive { _ -> Unit }",
+                "fn filled(count : Int) : Unit ="
+                " if count > 0 then { let _ = spawn(fn() = waited()); filled(count - 1) }"
+                " else Unit"],
+    InputFile = filename:join(ConfigDir, "session.in"),
+    ok = file:write_file(InputFile, lists:join("\n", Declared ++ ["let held = filled(room())",
+                                                                  "held", ""])),
+    {0, Bound} = ern_pty:sh(alone(Shell ++ " < " ++ InputFile)),
+    ?assertMatch({_, _}, binary:match(Bound, <<"\n> fault: error:system_limit\n> ">>)),
+    ?assertMatch({_, _}, binary:match(Bound, <<"unknown name held">>)),
+    ?assertEqual(nomatch, binary:match(Bound, <<"foreign function">>)),
+    %% the filler's call on the input ends at the input's end, the test's
+    %% time for one wait its bound
+    Filling = ["type FillMsg = Fill(reply : Reply(Unit), asker : Address(Reply(Unit)))",
+               "fn filling() : Unit receiving FillMsg = receive {"
+               " Fill(=reply, =asker) -> {"
+               " filled(room()); answer(reply, Unit);"
+               " let _ = Address.call(asker, fn(r) = r, "
+               ++ integer_to_list(ern_nodes_tests:wait_ms()) ++ ");"
+               " filled(room()); Io.println(\"the table is \" <> \"full\"); filling() } }"],
+    Steps = lists:append([[{send, hex(Input ++ "\r")}, {expect, "> "}]
+                          || Input <- Declared ++ Filling])
+        ++ [{send, hex("{ let me = self(); Address.callForever(spawn(fn() = filling()),"
+                       " fn(reply) = Fill(=reply, asker = me)) }\r")},
+            {expect, "the table is full"},
+            {send, hex("1 + 1\r")},
+            {expect, "fault: error:system_limit"},
+            {expect, "> "},
+            {send, hex(":quit\r")}],
+    Compiled = pty("HOME=. " ++ Shell, [{expect, "> "} | Steps], {30, 200}),
+    ?assertEqual(nomatch, binary:match(Compiled, <<"2 : Int">>)),
+    ?assertEqual(nomatch, binary:match(Compiled, <<"foreign function">>)).
+
 %% report §11.2: `:load` refuses a module whose dependency has no source
 %% and a compiled form it cannot read, with a sentence naming it. A
 %% regression test of compile_source's refusal, which the shell had told

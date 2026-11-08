@@ -65,6 +65,9 @@ dial_ms() ->
 boot_flags(#configuration{config_dir = ConfigDir, listen = Listen, limits = Limits}) ->
     Certificate = ern_node:file(filename:absname(ConfigDir), certificate),
     Key = ern_node:file(filename:absname(ConfigDir), key),
+    %% the host's own distribution, whose acceptor a connection at a full
+    %% table of processes ends, so that the node accepts no more
+    %% (docs/otp_bugs.md, 12)
     Proto = case ern_node:family(Listen) of
                 inet -> "inet_tls";
                 inet6 -> "inet6_tls"

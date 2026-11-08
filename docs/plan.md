@@ -48,16 +48,16 @@ What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (t
 the Server Taught*), built after the site's generator (the log's *The Generator Before MVP
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
-names last, since they sweep every site of Ernest once. The seven decisions for the user, in
-items 8, 9, 13, 15, 16, 21 and 28, are discussed early, so that no build waits on them.
+names last, since they sweep every site of Ernest once. The eight decisions for the user, in
+items 8, 9, 13, 15, 16, 21, 28 and 30, are discussed early, so that no build waits on them.
 
 The items left are built in this order, set 2026-11-08:
 
-1. Items 18, 20 and 22, each by an item session.
-2. One design session for what no test checks: item 21's decision, item 19's question whether
-   a hangup is told from a read that fails, item 29's sentence of §10, and item 16's proposal
-   with its cold reading.
-3. Items 17, 19, 26 and 29, each a report sentence and its build.
+1. Items 20, 22 and 31, each by an item session.
+2. One design session for what no test checks: item 21's decision, item 30's, item 19's
+   question whether a hangup is told from a read that fails, item 29's sentence of §10, and
+   item 16's proposal with its cold reading.
+3. Items 17, 19, 26, 29 and 30, each a report sentence and its build.
 4. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -104,7 +104,8 @@ reader S reads of its live shell. The release note's line on the installed layou
    2026-10-23, and not the `receive`'s own line.
 3. **Memory shown**, done 2026-11-07 (E.21, §11.2; the log's *Memory Shown*). `Process.status` has
    a `memory` field, and `:processes` writes it. A binary is counted whole for each reference, so
-   the lines can add up to more than the node holds, and a socket's counts its writer's.
+   the lines can add up to more than the node holds, and a socket's counts its writer's and,
+   since item 18, its closer's.
 4. **The deployment guide says what a waiting process holds**, done 2026-11-07, its section 7's
    last sentence (the log's *Memory Shown*).
 5. **`kill` takes a `Process`**, done 2026-11-07 (§6.5, §6.9, §9.5, E.21; the log's *`kill` Takes a
@@ -181,15 +182,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     a clause's whole patterns`, the help writing the clause's alternatives out,
     `#(Paste, _) or #(Load, _)`. Small, and built in no particular order (the log's *An `or`
     Stands Between Patterns*).
-18. **A node's own processes at a full table**, defects found 2026-11-04 by item 1, fixed by
-    2026-11-12: a socket's closer, spawned at its end, so that the socket's process dies with
-    the host's term and E.18's lingering is lost; the gateway's worker for a peer, made at the
-    peer's first frame, so that the gateway dies and every peer with it; the exchange's
-    processes; the process that waits for a peer's restart deliveries; the shell's own
-    spawns; and the checker made as an address crosses into foreign code, whose cause text is
-    unchecked. Each answers or faults as item 1's rule says, or exists from its node's start
-    as the closer can, and each frame a peer is sent at a full table is decided with its
-    item (the log's *A Node's Limits*).
+18. **A node's own processes at a full table**, done 2026-11-08 (§11.2, §12.5, E.18, E.21, E.27;
+    the log's *A Node's Own Processes at a Full Table*). A socket's closer is made with the
+    socket, the gateway's worker for a peer as the connection opens, and a peer's restart is
+    waited for in the worker. An arrival, a checker and the shell's input at a full table each
+    answer `error:system_limit`.
 19. **A keys read that fails**, found 2026-11-04 by item 1, decided and built by 2026-11-12: a
     read of the terminal's keys that the host answers with an error closes the keys and faults
     nothing, where §12.1 has a standard input that cannot be read fault the entry process. A
@@ -253,6 +250,26 @@ reader S reads of its live shell. The release note's line on the installed layou
     bare host its heap fell from 636,374 words to 2,819, and one that references nothing kept
     its heap. §10 states the exception, E.21's sentence on what a waiting process counts and the
     deployment guide's §7 follow it, and a test holds it (the log's *The Host Says Running*).
+30. **The shell at a full table**, a decision for the user, found 2026-11-08 by item 18,
+    decided and built by 2026-11-12. A full table of processes still ends the shell as a
+    failure of `ern`, status 70, by item 1's rule applied to the shell's own processes: a fault
+    report the session cannot be given faults it at its wait (§7.4), which a runaway input meets
+    at its first fault; and an `Fs` request faults the local half, a history's append at each
+    `Enter` at a terminal and the sources `:load` and `:reload` read.
+
+    The recommendation, by principles 5 and 1: a subscription's fault reports come through a courier made with the
+    subscription, as the terminal's keys do (§12.1), so that none is lost to a full table; and
+    `Fs` at a full table of processes answers the host's refusal, `Left(Other(text))`, as it does
+    at a full table of ports (E.1, §12.5). Both change what item 1 decided for those two (the
+    log's *A Node's Limits*, *A Node's Own Processes at a Full Table*).
+31. **The carrier's acceptor at a full table**, a defect found 2026-11-08 by item 18, fixed by
+    2026-11-12. A connection a peer opens while a node's table of processes is full ends the
+    host's TLS acceptor, which prints its own report, and the node accepts no connection again;
+    under plain TCP the host's `net_kernel` dies and the emulator with it (`docs/otp_bugs.md`,
+    12). §12.5 has such a connection closed as it opens, and said. The fix is a distribution
+    module of the node's own over the host's TLS one, whose accept closes a connection the table
+    leaves no room for and says so, as an accept at a full table of ports closes its connection
+    (§12.5).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

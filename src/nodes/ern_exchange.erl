@@ -370,7 +370,10 @@ arrived(Ref, #exchange{lacked = Lacked, arrived = Arrived} = Exchange, Members, 
 %% whole before any of it runs, and every spawn and compute that waits read
 %% again as the gateway's worker reads it, which starts it; where the node
 %% could not take the reach, each answered `Other` with its reason, which
-%% the node says.
+%% the node says. Report §7.4, Appendix E.27: where its full table of
+%% processes kept the host's compiler from starting, each is answered as a
+%% spawn it cannot start, `Other("error:system_limit")`, and nothing is
+%% said, as the gateway's worker says nothing of one.
 completed(Ref, #exchange{identity = Identity, waiting = Waiting, arrived = Arrived,
                          reach = {_, Bindings, Foreigns}}, State) ->
     Members = lists:append(lists:reverse(Arrived)),
@@ -378,8 +381,14 @@ completed(Ref, #exchange{identity = Identity, waiting = Waiting, arrived = Arriv
                                   lists:append([Calls || {_, Calls} <- Members]),
                                   {Bindings, Foreigns}, State),
     case Received of
-        ok -> lists:foreach(fun started/1, Waiting);
-        {error, Text} -> answered(Waiting, {'Other', Text}, Text)
+        ok ->
+            lists:foreach(fun started/1, Waiting);
+        limited ->
+            Limited = ern_peer:limited(),
+            lists:foreach(fun({From, Body}) -> _ = ern_peer:failed(From, Body, Limited, "") end,
+                          Waiting);
+        {error, Text} ->
+            answered(Waiting, {'Other', Text}, Text)
     end,
     ended(Ref, State1).
 
@@ -403,7 +412,7 @@ unit_received(Arrived, Declared, Reach, #state{next = Next, env = Env} = State) 
     {Unit, Taken} = ern_arrival:name(Next),
     case ern_arrival:received(Unit, Arrived, Declared, Reach, Prelude) of
         ok -> {ok, State#state{next = Taken, env = Prelude}};
-        {error, _} = Error -> {Error, State#state{env = Prelude}}
+        Failed -> {Failed, State#state{env = Prelude}}
     end.
 
 key({function, Hash}) -> {hash, Hash};

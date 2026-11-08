@@ -27,7 +27,7 @@
          spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
          pick/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
          hold_utilization/3, drop_utilization/1, frame/2, restart_told/1, watchers_told/1,
-         failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
+         limited/0, failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
 
@@ -484,9 +484,9 @@ drop_utilization(Node) ->
 %% any other process doing nothing: a process of the runtime's own, a
 %% foreign one, and one that has ended since the peer sent it. A restart of
 %% the peer's process that sent the frame is told to this node's service
-%% monitors of it and answered once every delivery has ended, and that
-%% answer is handed to the restarting process of this node that waits for
-%% it.
+%% monitors of it and answered once every delivery has ended, which the
+%% worker waits for, and that answer is handed to the restarting process of
+%% this node that waits for it.
 %%
 %% A find, a spawn or a compute is asked of the run in progress, and one
 %% that comes while none is answers `Unreachable`: between two runs of
@@ -496,7 +496,8 @@ drop_utilization(Node) ->
 %% to the exchange.
 -spec frame(pid(), term()) ->
           ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}
-          | {exchange, identity()} | {adapted, ern_rt:address(), term()}.
+          | {exchange, identity()} | {adapted, ern_rt:address(), term()}
+          | {restart_waits, [pid()], fun(() -> term())}.
 frame(_From, {find, Name, Hash, Alias})
   when is_binary(Name), is_binary(Hash), is_reference(Alias) ->
     Answer = case ern_rt:asked_of_run({offered, Name, Hash}) of
@@ -569,14 +570,20 @@ frame(_From, {kill, Pid}) when is_pid(Pid), node(Pid) =:= node() ->
 %% the wraps of the service monitors it holds and answers once every
 %% delivery has ended, at once where it holds none": the restart of From,
 %% the process that sent the frame, told to this node's service monitors
-%% of it (ern_rt:peer_restarted/2), and answered through the alias it
+%% of it (ern_rt:peer_restarted/1), and answered through the alias it
 %% carries by a frame to its node's gateway, over the connection that
-%% stands, since a loss has ended the wait where none does
+%% stands, since a loss has ended the wait where none does; the worker
+%% waits for the deliveries and then answers
 frame(From, {restarted, Alias}) when is_reference(Alias), node(Alias) =:= node(From) ->
-    Answer = {ern_frame, erlang:self(), {watchers_told, Alias}},
-    ern_rt:peer_restarted(From, fun() ->
-                                    erlang:send({ern_gateway, node(From)}, Answer, [noconnect])
-                                end);
+    Frame = {ern_frame, erlang:self(), {watchers_told, Alias}},
+    Answer = fun() -> erlang:send({ern_gateway, node(From)}, Frame, [noconnect]) end,
+    case ern_rt:peer_restarted(From) of
+        [] ->
+            _ = Answer(),
+            ok;
+        Deliveries ->
+            {restart_waits, Deliveries, Answer}
+    end;
 %% report §12.6, *A restart's frames*: a peer's answer that its watchers have been
 %% told of a restart here, handed to the restarting process through its
 %% alias, which takes one answer (watchers_told/1), as `{watchers_told,
@@ -678,7 +685,8 @@ computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) 
 %% Report §7.4, §12.5, Appendix E.27: a spawn or a compute this node could
 %% not start, its table of processes full, answered as a spawn of its own
 %% faults, with the host's class and reason: a peer's spawn faults for
-%% nothing the peer does.
+%% nothing the peer does; the exchange answers one so too (ern_exchange).
+-spec limited() -> {'Other', binary()}.
 limited() ->
     {'Other', ern_rt:host_cause(error, system_limit)}.
 

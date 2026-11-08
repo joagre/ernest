@@ -46,10 +46,14 @@
 %% Report §12.6: the state of the worker for a peer: the peer's node, the
 %% gateway that hands it the peer's frames and losses, a #kept{} for each
 %% adapted address the peer has sent to while messages to it wait, by the
-%% address, each kept process's address by its pid, how many of the
-%% gateway's messages it has taken, and whether it has run a loss, after
-%% which it ends once it holds nothing (idled/1).
--record(worker, {node, gateway, kept = #{}, addresses = #{}, taken = 0, lost = false}).
+%% address, each kept process's address by its pid, the restarts of the
+%% peer's processes whose deliveries it waits for, each delivery's monitor
+%% naming its restart and each restart its count of deliveries and its
+%% answer (waited/3), how many of the gateway's messages it has taken, and
+%% whether it has run a loss since its connection last opened, after which
+%% it ends once it holds nothing (idled/1).
+-record(worker, {node, gateway, kept = #{}, addresses = #{}, waits = #{}, restarts = #{},
+                 taken = 0, lost = false}).
 
 %% The gateway registered and running, watching the node's connections to
 %% every kind of node, before the node listens, measuring the node as its
@@ -103,10 +107,11 @@ asked(Request) ->
             end
     end.
 
-%% Workers holds a worker for each peer a frame or a loss has come from,
-%% with how many of them it has been handed, until it holds nothing after a
-%% loss (idled/1), Ended each peer that told this node it ends, until its
-%% connection's end or its next telling, Measured the node's measure of how
+%% Workers holds a worker for each peer whose connection opened, with how
+%% many messages it has been handed, until it holds nothing after a loss
+%% (idled/1), Ended each peer that told this node it ends, or that this
+%% node refused as it connected, until its connection's end or its next
+%% telling, Measured the node's measure of how
 %% busy it is, with what the measure keeps (measured/2), Deadline the
 %% moment of the next telling, none while the node lists no peer or once it
 %% ends (armed/2), and Departed whether it has ended (departing/0).
@@ -150,7 +155,7 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
           when is_pid(From), node(From) =/= node(), is_float(Utilization), Utilization >= 0.0,
                is_integer(Interval), Interval >= 1 ->
             ok = ern_peer:hold_utilization(node(From), Utilization, Interval),
-            gateway(Workers, maps:remove(node(From), Ended), Measured, Deadline, Departed);
+            gateway(Workers, going_on(node(From), Ended), Measured, Deadline, Departed);
         %% report §12.6: a peer that ends says so before its connection
         %% closes, so that its end is said as an end and not as a loss
         {ern_frame, From, node_ends} when is_pid(From), node(From) =/= node() ->
@@ -200,6 +205,7 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
             ok = ern_peer:drop_utilization(Node),
             said(case Ended of
                      #{Node := true} -> {ended, Node};
+                     #{Node := refused} -> refused;
                      _ -> Event
                  end),
             gateway(hand(Node, Loss, Workers), maps:remove(Node, Ended), Measured, Deadline,
@@ -215,17 +221,42 @@ gateway(Workers, Ended, Measured, Deadline, Departed) ->
                 #{} ->
                     gateway(Workers, Ended, Measured, Deadline, Departed)
             end;
-        %% report §8.7, Appendix E.27: a peer that connects is told at once,
-        %% so that it holds this node's utilization before an interval has
+        %% report §12.6: a peer that connects has its worker before any of
+        %% its frames, which the host delivers after the connection's
+        %% `nodeup` (net_kernel:monitor_nodes/2); report §7.4, §12.5: one
+        %% whose worker a full table of processes keeps from being made is
+        %% refused, its connection ended and its loss said no more. Report
+        %% §8.7, Appendix E.27: a peer that connects is told at once, so
+        %% that it holds this node's utilization before an interval has
         %% passed, but where the node ends or tells no peer (§11.2)
-        {nodeup, Node, _} = Event ->
-            said(Event),
-            Told = told([Node || is_peer(Node), not Departed, ern_carrier:tells()], Measured),
-            gateway(Workers, Ended, Told, Deadline, Departed);
+        {nodeup, Node, _} = Event when Node =/= node() ->
+            case connected(Node, Workers) of
+                {ok, Workers1} ->
+                    said(Event),
+                    Told = told([Node || is_peer(Node), not Departed, ern_carrier:tells()],
+                                Measured),
+                    gateway(Workers1, Ended, Told, Deadline, Departed);
+                limited ->
+                    ern_carrier:say_later([ern_carrier:named(Node), " was refused: this node's"
+                                           " table of processes is full"]),
+                    _ = erlang:disconnect_node(Node),
+                    gateway(Workers, Ended#{Node => refused}, Measured, Deadline, Departed)
+            end;
+        {nodeup, _, _} ->
+            gateway(Workers, Ended, Measured, Deadline, Departed);
         _ ->
             ern_carrier:say_later("a frame that names no peer's process came to the gateway,"
                                   " and was dropped"),
             gateway(Workers, Ended, Measured, Deadline, Departed)
+    end.
+
+%% Report §12.6: a peer that tells after it said it ends goes on, its word
+%% dropped; one this node refused as it connected stays refused until its
+%% connection's end.
+going_on(Node, Ended) ->
+    case Ended of
+        #{Node := true} -> maps:remove(Node, Ended);
+        #{} -> Ended
     end.
 
 %% Report §8.7, Appendix E.27: the moment of the next telling, Deadline
@@ -343,29 +374,59 @@ said(Event) ->
 noted(Write) ->
     try Write() catch error:badarg -> ok end.
 
-%% Report §12.6: a frame or a loss of Node's handed to the node's worker,
-%% one started where it has none, and counted, so that the worker ends only
-%% once it has taken every message it was handed (idled/1).
+%% Report §12.6: a frame or a loss of Node's handed to the node's worker and
+%% counted, so that the worker ends only once it has taken every message it
+%% was handed (idled/1). A node with no worker is one this node refused as
+%% it connected (connected/2): its frames are dropped unread, and its loss,
+%% which ends the spawns and the exchanges that waited on it, is run here.
 hand(Node, Message, Workers) ->
-    {Worker, Handed} = case Workers of
-                           #{Node := Counted} -> Counted;
-                           #{} -> {started(Node), 0}
-                       end,
-    Worker ! Message,
-    Workers#{Node => {Worker, Handed + 1}}.
+    case Workers of
+        #{Node := {Worker, Handed}} ->
+            Worker ! Message,
+            Workers#{Node := {Worker, Handed + 1}};
+        #{} ->
+            case Message of
+                {lost, Order} -> lost(Node, Order);
+                _ -> ok
+            end,
+            Workers
+    end.
 
-%% The worker for Node, started by this process, its gateway.
-started(Node) ->
-    Gateway = self(),
-    spawn(fun() -> work(Node, Gateway) end).
+%% Report §12.6: the worker for Node, whose connection has opened, started
+%% by this process, its gateway, before any of the connection's frames; or
+%% the one it has, kept across a loss, told that the connection opened
+%% again, counted as a frame is, so that it asks to end only after its next
+%% loss (idled/1). Report §7.4, §12.5: `limited` where the host's full table
+%% of processes keeps the worker from being made.
+connected(Node, Workers) ->
+    case Workers of
+        #{Node := _} ->
+            {ok, hand(Node, connected, Workers)};
+        #{} ->
+            Gateway = self(),
+            try spawn(fun() -> work(Node, Gateway) end) of
+                Worker -> {ok, Workers#{Node => {Worker, 0}}}
+            catch
+                error:system_limit -> limited
+            end
+    end.
 
-%% Report §12.6: the worker for the peer of Node, which Gateway starts for
-%% each peer a frame or a loss comes from, and its tests alone: the peer's
-%% frames, read in the order they came, a spawn or a compute of a function
-%% this node lacks handed to the exchange, which asks the peer for its
-%% reach while the worker goes on with the next frame, and a message to an
-%% adapted address handed to the process kept for the address (§6.5,
-%% handed/4).
+%% Report §8.7: a loss of Node's run, after every frame that came before
+%% it: the spawns that waited on the peer before the gateway learned of the
+%% loss let go, by its place in the order of the node's moments, and then
+%% the exchanges asked of it.
+lost(Node, Order) ->
+    ern_peer:lost(Node, Order),
+    ern_exchange:lost(Node).
+
+%% Report §12.6: the worker for the peer of Node, which Gateway starts as
+%% the peer connects, and its tests alone: the peer's frames, read in the
+%% order they came, a spawn or a compute of a function this node lacks
+%% handed to the exchange, which asks the peer for its reach while the
+%% worker goes on with the next frame, a message to an adapted address
+%% handed to the process kept for the address (§6.5, handed/4), and a
+%% restart of the peer's process answered once the deliveries it started
+%% here have ended, which the worker waits for in its state (waited/3).
 %%
 %% At a loss, the frames before it read, the spawns that waited on the peer
 %% before it are let go, and then the exchanges asked of it, the frames the
@@ -373,8 +434,9 @@ started(Node) ->
 %% it was handed, since nothing else ends at a loss, and the worker reads
 %% the frames of the connection opened again after the loss, so that a
 %% message sent after the loss is applied after one sent before it to the
-%% same address (§6.4). Once it holds no kept process the worker asks the
-%% gateway to end it (idled/1), and ends at the gateway's `stop`.
+%% same address (§6.4). Once it holds no kept process and waits on no
+%% restart the worker asks the gateway to end it (idled/1), until its
+%% connection opens again, and ends at the gateway's `stop`.
 -spec work(node(), pid()) -> ok.
 work(Node, Gateway) ->
     work(#worker{node = Node, gateway = Gateway}).
@@ -385,15 +447,17 @@ work(#worker{node = Node, taken = Taken} = State) ->
             work(idled(framed(From, Body, State#worker{taken = Taken + 1})));
         {applied, Pid} ->
             work(idled(applied(Pid, State)));
+        %% report §8.7: a delivery of a restart's `Restarted` that ended, and
         %% report §6.5: a process kept that ended otherwise than told, with
-        %% the run it was started in, is forgotten, and the next message to
-        %% its address starts another
-        {'DOWN', _, process, Pid, _} ->
-            work(idled(forgotten(Pid, State)));
+        %% the run it was started in, which is forgotten, and the next
+        %% message to its address starts another
+        {'DOWN', MonitorRef, process, Pid, _} ->
+            work(idled(ended(MonitorRef, Pid, State)));
         {lost, Order} ->
-            ern_peer:lost(Node, Order),
-            ern_exchange:lost(Node),
+            lost(Node, Order),
             work(idled(State#worker{taken = Taken + 1, lost = true}));
+        connected ->
+            work(State#worker{taken = Taken + 1, lost = false});
         stop ->
             ok
     end.
@@ -412,16 +476,49 @@ framed(From, Body, #worker{node = Node, kept = Kept, addresses = Addresses} = St
         {exchange, Identity} ->
             ern_exchange:lacking(From, Body, Identity),
             State;
+        {restart_waits, Deliveries, Answer} ->
+            waited(Deliveries, Answer, State);
         _ ->
             outcome(Node, Read),
             State
     end.
 
-%% Report §8.7: a worker that has run a loss and holds no kept process asks
-%% the gateway to end it, with how many of its messages it has taken, since
-%% the gateway alone knows whether it has handed it more.
-idled(#worker{lost = true, kept = Kept, node = Node, gateway = Gateway, taken = Taken} = State)
-  when map_size(Kept) =:= 0 ->
+%% Report §8.7, *A restart*: a restart of the peer's process answered once
+%% each of Deliveries, which tell this node's service monitors of it, has
+%% ended, each monitored here, so that the worker goes on with the next
+%% frame meanwhile and the wait needs no process of its own, which a full
+%% table of the host's could keep from being made.
+waited(Deliveries, Answer, #worker{waits = Waits, restarts = Restarts} = State) ->
+    Restart = make_ref(),
+    Monitored = maps:from_list([{erlang:monitor(process, Delivery), Restart}
+                                || Delivery <- Deliveries]),
+    State#worker{waits = maps:merge(Waits, Monitored),
+                 restarts = Restarts#{Restart => {length(Deliveries), Answer}}}.
+
+%% A process the worker monitors that ended: a restart's delivery, counted
+%% off, its restart answered once none is left, or a process kept.
+ended(MonitorRef, Pid, #worker{waits = Waits, restarts = Restarts} = State) ->
+    case maps:take(MonitorRef, Waits) of
+        {Restart, Waits1} ->
+            case maps:get(Restart, Restarts) of
+                {1, Answer} ->
+                    _ = Answer(),
+                    State#worker{waits = Waits1, restarts = maps:remove(Restart, Restarts)};
+                {Left, Answer} ->
+                    State#worker{waits = Waits1,
+                                 restarts = Restarts#{Restart := {Left - 1, Answer}}}
+            end;
+        error ->
+            forgotten(Pid, State)
+    end.
+
+%% Report §8.7: a worker that has run a loss and holds no kept process and
+%% no restart's wait asks the gateway to end it, with how many of its
+%% messages it has taken, since the gateway alone knows whether it has
+%% handed it more.
+idled(#worker{lost = true, kept = Kept, restarts = Restarts, node = Node, gateway = Gateway,
+              taken = Taken} = State)
+  when map_size(Kept) =:= 0, map_size(Restarts) =:= 0 ->
     Gateway ! {idle, Node, self(), Taken},
     State;
 idled(State) ->
