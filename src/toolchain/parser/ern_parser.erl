@@ -972,8 +972,9 @@ binexpr_loop(Left, [{Operator, Position} | Rest] = Tokens, Min) ->
         {Precedence, Associativity} when Precedence >= Min ->
             NextMin = case Associativity of left -> Precedence + 1; right -> Precedence end,
             {Right, Rest1} = binexpr(Rest, NextMin),
-            %% report §5.7: parentheses change nothing, so a parenthesized
-            %% call is a call the pipe fills, as an unparenthesized one is
+            %% report §5.7: parentheses around the right-hand side change
+            %% nothing, so a parenthesized call is a call the pipe fills, as
+            %% an unparenthesized one is
             Combined = combine(Operator, from_left_operand(Left, Position), Left, Right),
             {Node, _} = spanned({Combined, Rest1}),
             binexpr_loop(Node, Rest1, Min);
@@ -1002,8 +1003,10 @@ precedence('|>') -> {1, left};
 precedence(_) -> none.
 
 %% `x |> f(a)` is `f(x, a)`; `x |> f` is `f(x)`; either call is marked as
-%% a pipe's, since `x` is evaluated before the callee (report §5.1).
-combine('|>', Position, Piped, #e_call{callee = Callee, args = Args}) ->
+%% a pipe's, since `x` is evaluated before the callee (report §5.1). A pipe
+%% on the right, which stands there in parentheses alone, is no call, and
+%% its value is applied: `x |> (a |> f)` is `f(a)(x)` (report §5.7).
+combine('|>', Position, Piped, #e_call{pipe = false, callee = Callee, args = Args}) ->
     #e_call{span = Position, callee = Callee, args = [Piped | Args], pipe = true};
 combine('|>', Position, Piped, Callee) ->
     #e_call{span = Position, callee = Callee, args = [Piped], pipe = true};

@@ -633,7 +633,9 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 `|>` is left-associative and binds loosest, below `||`: `a + b |> f` is `f(a + b)`, `a |> b |> c` is `c(b(a))`.
 
-The right-hand side is an operand (Appendix A). A call is filled: the pipe fills its first-argument slot. Any other operand, a name, a qualified name, a field selection `s.f`, a block, a `match`, or a `receive`, is a value applied to `x`, and one whose value is not a function, or is a function of no parameter, is a type error: `x |> [f]`. Parentheses change nothing: `x |> (f(a))` is `f(x, a)`, and `x |> (f)` is `f(x)`. A construction is such a value and no call (Appendix A), so the pipe does not fill it: `x |> Some` is `Some(x)`, and `x |> Some(2)` and `x |> W(b = 2)` are type errors. A lambda is no operand and must be parenthesized, `x |> (fn(y) = y + 1)`.
+The right-hand side is an operand (Appendix A), or operands joined by operators that bind tighter than `|>` (§2.6). A right-hand side that is a call is filled: the pipe fills its first-argument slot. Any other, a name, a qualified name, a field selection `s.f`, a block, a `match`, a `receive`, or an expression with a binary operator, is a value applied to `x`, and one whose value is not a function, or is a function of no parameter, is a type error: `x |> [f]`. Parentheses around the right-hand side change nothing: `x |> (f(a))` is `f(x, a)`, and `x |> (f)` is `f(x)`. A construction is such a value and no call (Appendix A), so the pipe does not fill it: `x |> Some` is `Some(x)`, and `x |> Some(2)` and `x |> W(b = 2)` are type errors.
+
+A lambda, an `if` and a pipe stand as the right-hand side only in parentheses, and each is then a value applied to `x`: `x |> (fn(y) = y + 1)`. A pipe in parentheses is no call, and the outer pipe does not fill it: `x |> (a |> f)` is `f(a)(x)`.
 
 In a chained call the pipe fills the outermost call: `x |> f(a)(b)` is `f(a)(x, b)`. A function a call computes is applied in writing, `f(a)(x)`. The type of `x` is the target's first parameter type.
 

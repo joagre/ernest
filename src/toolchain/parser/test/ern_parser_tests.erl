@@ -163,8 +163,9 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [#e_var{name = a}]},
                          args = [#e_var{name = x}, #e_var{name = b}]},
                  expression("x |> f(a)(b)")),
-    %% parentheses change nothing: a parenthesized call is a call the pipe
-    %% fills, and a parenthesized callee is the callee
+    %% parentheses around the right-hand side change nothing: a
+    %% parenthesized call is a call the pipe fills, and a parenthesized
+    %% callee is the callee
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
                  expression("x |> (f(a))")),
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
@@ -179,17 +180,39 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
                  expression("x |> (fn(y) = y + 1)")).
 
-%% report §5.7: a parenthesized right-hand side is parsed once, and its
-%% parentheses change nothing, so each level's call is filled by the one
-%% outside it. A regression test: the check parsed it twice at every level,
-%% so that nesting took exponential time, two seconds at a depth of 22.
+%% report §5.7: a pipe in parentheses is no call, and the outer pipe does
+%% not fill it: its value is applied, in the order §5.1 gives; a call whose
+%% callee is such a pipe is filled as any call is. A regression test, of
+%% the fill the parser made of it, `f(x, a)`
+pipe_into_pipe_test() ->
+    ?assertMatch(#e_call{pipe = true, args = [#e_var{name = x}],
+                         callee = #e_call{pipe = true, callee = #e_var{name = f},
+                                          args = [#e_var{name = a}]}},
+                 expression("x |> (a |> f)")),
+    ?assertMatch(#e_call{pipe = true, args = [#e_var{name = x}],
+                         callee = #e_call{pipe = true, callee = #e_var{name = f},
+                                          args = [#e_var{name = a}, #e_var{name = b}]}},
+                 expression("x |> ((a |> f(b)))")),
+    ?assertMatch(#e_call{pipe = true, args = [#e_var{name = x}, #e_var{name = c}],
+                         callee = #e_call{pipe = true, callee = #e_var{name = f},
+                                          args = [#e_var{name = a}]}},
+                 expression("x |> (a |> f)(c)")).
+
+%% report §5.7: a parenthesized right-hand side is parsed once, each
+%% level's pipe a value the one outside it applies. A regression test: the
+%% check parsed it twice at every level, so that nesting took exponential
+%% time, two seconds at a depth of 22.
 pipe_nesting_test_() ->
     {timeout, 5,
      fun() ->
          Source = lists:duplicate(40, "x |> (") ++ "x" ++ lists:duplicate(40, ")"),
-         #e_call{callee = #e_var{name = x}, args = Args} = expression(lists:flatten(Source)),
-         ?assertEqual(40, length(Args))
+         ?assertEqual(40, applications(expression(lists:flatten(Source))))
      end}.
+
+applications(#e_call{pipe = true, callee = Callee, args = [#e_var{name = x}]}) ->
+    1 + applications(Callee);
+applications(#e_var{name = x}) ->
+    0.
 
 %% report §5.1, §5.7: the call a pipe writes is marked, so that x is
 %% evaluated before a computed callee; a written call is not

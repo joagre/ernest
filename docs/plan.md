@@ -287,12 +287,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     host's default log handler writes through the job's standard output, `ern_out`'s, which
     writes text as UTF-8 and bytes as they are, so that a warning it can no longer write ends
     the program as §12.1 says.
-39. **A pipe into a parenthesized pipe**, found 2026-11-09 by the grammar test's seed 7463993
-    in item 37's full run (§5.7, §11.6; the log's *A Write to a Terminal That Is Gone, Built*).
-    The parser reads `f |> (b |> g)` as `g(f, b)`, the inner pipe a call the outer fills, and
-    `ern format` fails on it with status 70. Its decision, for a design session before item 16:
-    whether such a stage is filled, as the parser reads §5.7, or the form is refused or applied,
-    `g(b)(f)`; then the formatter lays out what stands, and a regression test holds the line.
+39. **A pipe into a parenthesized pipe**, done 2026-11-09 (§5.7, §5.1; the log's *A Pipe Into
+    a Parenthesized Pipe*). A pipe in parentheses is a value the outer pipe applies and does
+    not fill: `x |> (a |> f)` is `f(a)(x)`, where the parser read `f(x, a)` and `ern format`
+    failed. §5.7 also says what stands on a pipe's right, operands joined by the operators
+    that bind tighter.
 40. **Where the host's own warnings go**, found 2026-11-09 in item 38's read-back (§11.2,
     §12.1; the log's *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's
     Log Handler at a Terminal That Is Gone, Swept*). The host's default log handler writes its

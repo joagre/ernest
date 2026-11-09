@@ -4123,6 +4123,20 @@ pipe_into_construction_test() ->
     ?assertEqual(Refused, refusal("fn f() : Optional(Int) = 1 |> Some(2)")),
     ?assertEqual(Refused, refusal(Source ++ "fn f() : W = 1 |> W(b = 2)")).
 
+%% report §5.7: a lambda, an `if` and a pipe in parentheses, and an
+%% expression with a binary operator, are values the pipe applies; a pipe
+%% in parentheses is typed as the call it is before it is applied. A
+%% regression test, of the fill of a parenthesized pipe
+pipe_into_value_test() ->
+    Source = "fn h(a : Int) : (Int) -> Int = fn(b) = a - b\n"
+             "fn g(a : Int, b : Int) : Int = a - b\n"
+             "type D = D(Int)\n"
+             "fn D.+(D(a), D(b)) : (Int) -> Int = fn(c) = a + b + c\n",
+    ?assertEqual(ok, ok(Source ++ "fn f() : Int = 10 |> (3 |> h)")),
+    ?assertEqual(ok, ok(Source ++ "fn f(c : Bool) : Int = 10 |> (if c then h(1) else h(2))")),
+    ?assertEqual(ok, ok(Source ++ "fn f() : Int = 10 |> D(1) + D(2)")),
+    ?assertEqual("g takes 2 arguments, not 1", refusal(Source ++ "fn f() : Int = 10 |> (3 |> g)")).
+
 %% report §5.7: the piped value must fit the target's first argument
 pipe_type_test() ->
     ?assertEqual("(String) -> Int",

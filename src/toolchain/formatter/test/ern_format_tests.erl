@@ -55,6 +55,10 @@ specifiers_together_test() ->
 %% Regression tests, of crashes the programs generated from Appendix A found
 written_whole_test() ->
     fixed(["fn f(x) =", "    x |> (g(1)) |> ((h)(2))"]),
+    %% a pipe in parentheses is the stage's callee, a value the pipe applies
+    %% (report §5.7); the form the generated programs' seed 7463993 found
+    fixed(["fn f(x, a) =", "    x |> (a |> g)"]),
+    fixed(["fn f(x, a) =", "    x |> ((a |> g(1)) |> h)(2) |> ((a |> g))"]),
     fixed(["foreign type T(a, a=, a)"]).
 
 %% report §11.6, §11.5: an operand in parentheses stays in them before the

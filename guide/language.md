@@ -607,7 +607,7 @@ Ernest 0.10.0, session 1. :help for help.
 "cba" : String
 ```
 
-`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. Parentheses change nothing, so `x |> (f(a))` is `f(x, a)` too. A lambda is parenthesized, `x |> (fn(y) = y + 1)`, since its body would take in a `|>` after it (§3.2), and a function a call computes is applied by writing its arguments after the call, `adder(3)(x)`, since `x |> adder(3)` is `adder(x, 3)`.
+`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. Parentheses around a call change nothing, so `x |> (f(a))` is `f(x, a)` too. A lambda is parenthesized, `x |> (fn(y) = y + 1)`, since its body would take in a `|>` after it (§3.2), and a function a call computes is applied by writing its arguments after the call, `adder(3)(x)`, since `x |> adder(3)` is `adder(x, 3)`. A pipe in parentheses is a value and no call, so `x |> (3 |> adder)` is `adder(3)(x)`, not `adder(x, 3)`.
 
 ### 2.9 The standard library
 

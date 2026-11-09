@@ -2407,6 +2407,23 @@ evaluation_order_test() ->
         "}\n"),
     ?assertEqual(<<"x\na\nf(a)\nb\n6\ng(1)\nh()\n5\n">>, Output).
 
+%% report §5.7, §5.1: a pipe in parentheses is a value the outer pipe
+%% applies and does not fill, `x |> (a |> f)` being `f(a)(x)`, with x
+%% evaluated first and the inner pipe in its own order; a call whose callee
+%% is such a pipe is filled. A regression test, of the fill, which evaluated
+%% the inner pipe's left side after its right
+pipe_into_pipe_test() ->
+    {ok, Output} = run(
+        "fn show(s : String, n : Int) : Int = { Io.println(s); n }\n"
+        "fn f(a : Int) : ((Int) -> Int) = fn(x) = a - x\n"
+        "fn g(a : Int) : ((Int, Int) -> Int) = fn(x, c) = a - x - c\n"
+        "export fn main() : Unit = {\n"
+        "    let applied = show(\"x\", 10) |> (show(\"a\", 3) |> { Io.println(\"f\"); f });\n"
+        "    Io.println(Int.toString(applied));\n"
+        "    Io.println(Int.toString(10 |> (3 |> g)(5)))\n"
+        "}\n"),
+    ?assertEqual(<<"x\na\nf\n-7\n-12\n">>, Output).
+
 %% report §4.8: `!` negates a Bool, in an expression and in a guard
 not_operator_test() ->
     {ok, Output} = run(
