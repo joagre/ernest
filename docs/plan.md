@@ -53,16 +53,15 @@ items 8, 9, 13, 15, 16, 21, 28, 30, 32, 35 and 36, are discussed early, so that 
 on them.
 
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
-*The Items Left Read Again*):
+*The Items Left Read Again*), items 17, 20, 22, 26, 31, 33 and 34 done by item sessions:
 
-1. Item 34, by an item session, items 17, 20, 22, 26, 31 and 33 done.
-2. One design session for what no test checks: item 36's decision first, since it states the
+1. One design session for what no test checks: item 36's decision first, since it states the
    line items 30 and 32 are weighed against (the log's *Lean at the Limits*), then item 21's,
    item 30's and item 32's, item 19's question whether a hangup is told from a read that fails,
    item 29's sentence of §10, and item 16's proposal with its cold reading.
-3. Items 19, 29, 30, 32, 35 and 36, each a report sentence and its build, and item 21's build
+2. Items 19, 29, 30, 32, 35 and 36, each a report sentence and its build, and item 21's build
    where its decision builds one.
-4. Item 16's build last.
+3. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -272,11 +271,10 @@ reader S reads of its live shell. The release note's line on the installed layou
     Program's TLS at a Full Table*). A `connectTls`, an `accept` over TLS and a `listenTls`
     whose processes the host's TLS cannot start fault their caller with `error:system_limit`,
     where each waited for ever.
-34. **A flake of `broken_exchange_test_`**, seen 2026-11-08 by item 17's `make test-full`,
-    diagnosed and fixed by 2026-11-12. One `has/2` of the test found no line it looked for, and
-    `make test-nodes` passed whole after it, under the same load. `has/2` names neither the part
-    nor the text, so it says what it missed first; the cause is then found under the load of
-    `make test-nodes`.
+34. **A flake of `broken_exchange_test_`**, done 2026-11-09 (§12.7; the log's *The Flake of
+    `broken_exchange_test_`*). The test's program spawned again before the bare node had
+    dropped its first spawn's exchange, which the second joined; the program now waits until
+    the test has seen the drop.
 35. **The first request over TLS at a full table**, found 2026-11-09 by item 33, decided the
     same day (the log's *Lean at the Limits*), built by 2026-11-12. A run's first `listenTls` or
     `connectTls` starts the host's TLS (E.18), and at a full table of processes the host's start

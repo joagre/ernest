@@ -707,10 +707,14 @@ wait_ms() ->
 detector_ms() ->
     ?DETECTOR_MS.
 
-%% Whether Text holds Part.
+%% Whether Text holds Part; a failure names the part it missed and the
+%% text it read.
 -spec has(string(), string()) -> ok.
 has(Text, Part) ->
-    ?assertNotEqual(nomatch, string:find(Text, Part)).
+    case string:find(Text, Part) of
+        nomatch -> erlang:error({not_held, Part, Text});
+        _ -> ok
+    end.
 
 %% A connection to what listens at Port of the loopback interface, in
 %% binary and passive mode, with Options beside: one step.
@@ -6400,6 +6404,8 @@ lost_build(Root) ->
              "fn late(bare : String) : Unit = {\n"
              "    Io.println(\"dialed: \" <> outcome(Peer.utilization(bare, waitMs())));\n"
              "    Io.println(\"late: \" <> outcome(Peer.spawn(bare, waits, 1)));\n"
+             "    // until the test, which has seen the bare node drop the exchange, says so\n"
+             "    let _ = Io.readLine();\n"
              "    let again = Peer.spawn(bare, waits, waitMs());\n"
              "    Io.println(\"again: \" <> outcome(again));\n"
              "    match again {\n"
@@ -6524,17 +6530,24 @@ caught_up(Node) ->
 %% it before.
 %%
 %% Then a peer of the program's, whose first spawn gives up before its
-%% exchange ends, its time a millisecond, which the node then drops at that
-%% time, saying so, spawns the function again and it runs, its fault's
-%% trace naming its frame by its name and the sender's line (Appendix
-%% E.21): the exchanges that broke or ran out of time made nothing that
-%% runs, and the next made it whole. A regression test, written after the
-%% code; that the node made one unit, which a trace once named and names
-%% no more, is not observed, the exchange's state after a loss is
-%% ern_exchange_tests' loss_test's, and the late spawn's process, killed as
-%% its answer arrives, is not observed
+%% exchange ends, its time a millisecond, less than the exchange's two
+%% round trips take, which the node then drops at that time, saying so,
+%% spawns the function again once the test has seen the drop, and it runs,
+%% its fault's trace naming its frame by its name and the sender's line
+%% (Appendix E.21): the exchanges that broke or ran out of time made
+%% nothing that runs, and the next made it whole. A second spawn that came
+%% before the drop would join the first's exchange and lengthen its time
+%% (report §12.7), so that neither spawn was late.
+%%
+%% A regression test, written after the code, and again after the flake
+%% the join made (the log's *The Flake of `broken_exchange_test_`*); that
+%% the node made one unit, which a trace once named and names no more, is
+%% not observed, the exchange's state after a loss is ern_exchange_tests'
+%% loss_test's, and a first spawn whose exchange ends within its time after
+%% its spawner gave up, its process killed as its answer comes, is not
+%% observed
 broken_exchange_test_() ->
-    nodes_test({waits, 9}, fun broken_exchange/1).
+    nodes_test({waits, 10}, fun broken_exchange/1).
 
 broken_exchange(Base) ->
     Root = filename:join(Base, "build"),
@@ -6569,7 +6582,11 @@ broken_exchange(Base) ->
                                        "lacked again: true"]],
     seen(B, err, "the peer z was lost", 2, ?WAIT_MS),
     lists(A, [{"b", B, PortB}]),
-    ?assertEqual(0, (start(A, Program, ["b"]))()),
+    {InputA, WaitA} = started(A, Program, ["b"]),
+    says(B, "the peer a's spawn at Lost.late:" ++ integer_to_list(line_of(Source, "late: "))
+            ++ " was not loaded: its time ran out before the function's reach arrived"),
+    true = port_command(InputA, "dropped\n"),
+    ?assertEqual(0, WaitA()),
     Site = "Lost.late:" ++ integer_to_list(line_of(Source, "let again")),
     says(B, Site ++ " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg,"
                     " spawned by the peer a"),
@@ -6580,8 +6597,6 @@ broken_exchange(Base) ->
     [has(ErrB, Line)
      || Line <- ["the peer z's spawn at Lost.z:1 was not loaded: the spawner's node no longer"
                  " holds the function's reach",
-                 "the peer a's spawn at Lost.late:" ++ integer_to_list(line_of(Source, "late: "))
-                 ++ " was not loaded: its time ran out before the function's reach arrived",
                  "the peer z sent a frame this node cannot read, and its connection was ended",
                  "\n    Lost.waits:" ++ integer_to_list(line_of(Source, "parsed(\"x\") + n"))
                  ++ "\n"]],
