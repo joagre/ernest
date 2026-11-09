@@ -62,8 +62,8 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 2. Items 19, 21, 29, 30, 32, 35 and 36, each a report sentence and its build, done 2026-11-09
    (each item's paragraph below).
 3. Item 37 decided in a design session, and built, done 2026-11-09.
-4. Item 38's build, by an item session.
-5. Item 39 decided in a design session, and built.
+4. Item 38's build, by an item session, done 2026-11-09.
+5. Items 39 and 40 decided in a design session, and built.
 6. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -275,19 +275,24 @@ reader S reads of its live shell. The release note's line on the installed layou
     That Is Gone, Swept*). A stream that can no longer be written ends the program by the hangup's
     signal where it was a terminal as the job started, and with 141 otherwise, and the shell at a
     terminal writes its screen through the job's own ports, so that it says its terminal is gone.
-38. **The host's log handler at a terminal that is gone**, found 2026-11-09 in item 37's build
-    (§12.1, §11.8; the log's *A Write to a Terminal That Is Gone, Built*). The host's default
-    log handler writes its warnings through the host's `user`, and a warning once the terminal
-    has gone halts the host with status 1, where §12.1 gives the hangup's signal. Its build,
-    before item 16's: the handler writes through the job's standard output, `ern_out`'s, which
-    takes text as UTF-8 while a run has set it for bytes, so that a warning it can no longer
-    write ends the program as §12.1 says.
+38. **The host's log handler at a terminal that is gone**, done 2026-11-09 (§12.1, §11.8; the
+    log's *A Write to a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal
+    That Is Gone, Built*). The host's default log handler writes through the job's standard
+    output, `ern_out`'s, which takes text as UTF-8 while a run holds it for bytes, so that a
+    warning it can no longer write ends the program as §12.1 says.
 39. **A pipe into a parenthesized pipe**, found 2026-11-09 by the grammar test's seed 7463993
     in item 37's full run (§5.7, §11.6; the log's *A Write to a Terminal That Is Gone, Built*).
     The parser reads `f |> (b |> g)` as `g(f, b)`, the inner pipe a call the outer fills, and
     `ern format` fails on it with status 70. Its decision, for a design session before item 16:
     whether such a stage is filled, as the parser reads §5.7, or the form is refused or applied,
     `g(b)(f)`; then the formatter lays out what stands, and a regression test holds the line.
+40. **Where the host's own warnings go**, found 2026-11-09 in item 38's read-back (§11.2,
+    §12.1; the log's *The Host's Log Handler at a Terminal That Is Gone, Built*). The host's
+    default log handler writes its warnings and its errors on the job's standard output, among
+    what the program writes there, and the report does not say so, while §11.2 has the runtime
+    write nothing the host says of itself. Its decision, for item 39's design session: whether
+    they go to standard error, as the job's own lines do, or stay, and the sentence of §11.2
+    that says which.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

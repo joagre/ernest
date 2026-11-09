@@ -17,15 +17,31 @@
 -receives({own_process, [finish/1, loop/3, dropping/2]}).
 
 %% Standard output becomes the calling process's group leader, which the
-%% processes it starts inherit; the answer is standard error's device. Which
+%% processes it starts inherit, and the device the host's log handler
+%% writes through (logged/1); the answer is standard error's device. Which
 %% of the two is a terminal is read first, and kept for the job's life, a
 %% persistent term put once.
 -spec take() -> pid().
 take() ->
     persistent_term:put({?MODULE, terminals},
                         [Stream || Stream <- [stdout, stderr], ern_tty:is_terminal(Stream)]),
-    group_leader(device(stdout), self()),
+    Stdout = device(stdout),
+    group_leader(Stdout, self()),
+    logged(Stdout),
     device(stderr).
+
+%% Report §12.1, §11: the host's default log handler writes its warnings and
+%% its errors to the job's standard output through Device, where it wrote
+%% through the host's user, so that a warning the stream can no longer take
+%% ends the job as any write there does. The host fixes a handler's device
+%% as it adds the handler, so the handler is added again, its configuration
+%% kept but its device; an event logged between its removal and its return,
+%% as the job starts, is not written.
+logged(Device) ->
+    {ok, #{config := Config} = Handler} = logger:get_handler_config(default),
+    ok = logger:remove_handler(default),
+    ok = logger:add_handler(default, logger_std_h,
+                            Handler#{config := Config#{type := {device, Device}}}).
 
 %% Report §11.8: whether the stream was a terminal as the job started; no
 %% stream was where the job took none, as a test of a job does not.
@@ -48,11 +64,13 @@ finish(ErrorDevice) when is_pid(ErrorDevice) ->
 finish(_) ->
     ok.
 
-%% A device writes text as UTF-8, and bytes as they are once the runtime
-%% has set its encoding to latin1 (ern_rt's bytes_out/0). Its port is busy
-%% while it holds a byte it has not written, its limits one byte, and the
-%% host holds a writer to a busy port until it is not, as the runtime's
-%% stream's port (ern_rt:stream/2).
+%% A device writes text as UTF-8, whatever its encoding, the host's log
+%% handler's among it while a run holds the device for bytes (logged/1),
+%% and bytes, which file:write gives as Latin-1, as they are once the
+%% runtime has set its encoding to latin1 (ern_rt's bytes_out/0). Its port
+%% is busy while it holds a byte it has not written, its limits one byte,
+%% and the host holds a writer to a busy port until it is not, as the
+%% runtime's stream's port (ern_rt:stream/2).
 device(Stream) ->
     Fd = case Stream of
              stdout -> 1;
@@ -98,10 +116,15 @@ loop(Port, Encoding, Stream) ->
 drained(Port) ->
     write(Port, <<>>).
 
-%% The requests io:format and io:put_chars make, and gone where the stream
-%% could not take what a request wrote; nothing reads from here.
+%% The requests io:format, io:put_chars and file:write make, and gone where
+%% the stream could not take what a request wrote; nothing reads from here.
+%% Text is written as UTF-8, and Latin-1 in the device's encoding (device/1).
 request(Port, Encoding, {put_chars, Given, Chars}) ->
-    case unicode:characters_to_binary(Chars, Given, Encoding) of
+    Written = case Given of
+                  unicode -> unicode;
+                  latin1 -> Encoding
+              end,
+    case unicode:characters_to_binary(Chars, Given, Written) of
         Bytes when is_binary(Bytes) -> write(Port, Bytes);
         _ -> {error, no_translation}
     end;

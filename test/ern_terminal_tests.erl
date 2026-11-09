@@ -286,6 +286,36 @@ write_terminal_gone() ->
              || Line <- binary:split(Said, <<"\n">>, [global, trim])],
     ?assert(lists:member(Lines, [[], [<<"ernest.conf was read again">>]])).
 
+%% report §12.1, §11.8, §11: a warning the host logs is written to the
+%% job's standard output, and one it can no longer write there ends the
+%% program as a write of the program's own does. A program on a node, whose
+%% hangup is a reload, has the host log a warning once its terminal has been
+%% hung up, and then waits for a message none sends; it exits with status
+%% 129, and its standard error, a file, holds no line of the host's, where
+%% the reload's line may stand.
+%%
+%% Written before the code, under which the host wrote its warning on
+%% standard error with its own lines of the write it could not make, and the
+%% program went on.
+log_terminal_gone_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun log_terminal_gone/0).
+
+log_terminal_gone() ->
+    ok = build("fixtures/terminal/warns.ern", "fixtures/terminal"),
+    Base = filename:join(ern_pty:run_dir(), "terminal_log_gone_" ++ os:getpid()),
+    ok = filelib:ensure_path(Base),
+    Node = ern_nodes_tests:made(Base, "node", none),
+    Pipe = filename:join(Base, "written.pipe"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Err = filename:join(Base, "node.err"),
+    {129, _} = pty("exec ../bin/ern run --config-dir " ++ Node ++ " build/terminal/warns.erc "
+                   ++ Pipe ++ " " ++ ern_nodes_tests:wait_ms_text() ++ " 2> " ++ Err,
+                   [{expect, "ready"}, hangup, {put, Pipe}]),
+    {ok, Said} = file:read_file(Err),
+    Lines = [re:replace(Line, ?STAMP, "", [{return, binary}])
+             || Line <- binary:split(Said, <<"\n">>, [global, trim])],
+    ?assert(lists:member(Lines, [[], [<<"ernest.conf was read again">>]])).
+
 %% report §12.1, §11.8, §8.6: a shell on a node, whose hangup is a reload,
 %% ends when its terminal can no longer be written, by the hangup's signal,
 %% status 129, and says so on its standard error, a file. Its inputs come

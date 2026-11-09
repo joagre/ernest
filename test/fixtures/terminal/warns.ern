@@ -1,0 +1,36 @@
+//
+// A warning of the host's at a terminal that is gone, for the terminal
+// tests (report §12.1, §11.8): the program says that it is ready, waits
+// until `cat` has read the named pipe its first argument names to its end,
+// which the test brings about once it has hung the terminal up, and then
+// has the host log a warning, which the host writes to the program's
+// standard output, the terminal that has gone. It then waits for a message
+// none sends, on a node, where no deadlock is found, so that only the
+// warning's write can end it. Its second argument is the milliseconds the
+// wait may take, the test's time for one step.
+//
+
+type Msg = Unsent
+
+foreign fn warn(text : String) : Unit =
+    "logger:warning/1"
+
+export fn main() : Unit receiving Msg =
+    match Os.arguments {
+        [pipe, ms] -> {
+            Io.println("ready");
+            let reader =
+                Os.Command(program = "cat",
+                           arguments = [pipe],
+                           input = <<>>,
+                           environment = [],
+                           workingDirectory = Os.workingDirectory);
+            let _ = Os.run(reader, Optional.withDefault(String.toInt(ms), 0));
+            warn("a warning once the terminal has gone, é ☃");
+            receive {
+                Unsent -> Unit
+            }
+        }
+      | _ ->
+            Unit
+    }

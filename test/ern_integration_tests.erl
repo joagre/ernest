@@ -1533,6 +1533,37 @@ closed_stream() ->
     ?assertEqual({141, <<>>}, sh(Ern ++ " shell < /dev/null >/dev/null 2>&-")),
     ?assertEqual({0, <<>>}, sh(Ern ++ " --version >/dev/null")).
 
+%% report §12.1, §11: a warning the host logs during a run is written on the
+%% job's standard output as UTF-8, while the run's streams take bytes as
+%% they are: a program has the host log a warning whose text goes beyond
+%% Latin-1, and waits until the host's handler has written it.
+%%
+%% Written before the code. It passed while the handler wrote through the
+%% host's own output, and failed once the handler wrote through the job's,
+%% until the device took text as UTF-8 in a run. It does not cover a
+%% warning logged as the program ends, whose write the job's end does not
+%% wait for.
+host_warning_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun host_warning/0).
+
+host_warning() ->
+    Dir = "build/warned",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/warned.ern",
+                         "foreign fn warn(text : String) : Unit = \"logger:warning/1\"\n"
+                         "foreign fn written(handler : Foreign.Term) : Unit =\n"
+                         "    \"logger_std_h:filesync/1\"\n"
+                         "export fn main() : Unit = {\n"
+                         "    warn(\"a warning, caf\\u{e9} \\u{2603}\");\n"
+                         "    written(Foreign.atom(\"default\"))\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/warned.ern"),
+    {0, Output} = sh("sh -c '../bin/ern run " ++ Dir ++ "/warned.erc 2> " ++ Dir ++ "/err'"),
+    ?assertMatch(<<"=WARNING REPORT==== ", _/binary>>, Output),
+    ?assertEqual({match, [<<"a warning, café ☃"/utf8>>]},
+                 re:run(Output, "^a warning.*$", [multiline, {capture, first, binary}])),
+    ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
+
 %% report §11.2: a fault line writes a control character of the cause as
 %% its escape, so that a fault is one line, its trace beneath it. A
 %% regression test: a cause's line feed wrote a second line, which forged
