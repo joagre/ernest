@@ -199,7 +199,7 @@ looked(Count) ->
     called(ern_rt:launch_reaper(), {ern_rt, look, 0}, Count).
 
 %% Report §6.9: until every delivery the runtime started to Recipient, of a
-%% monitor's Down, an alarm or a fault report, has ended. A delivery sends
+%% monitor's Down, an alarm or a subscriber's telling, has ended. A delivery sends
 %% before it ends, so what it delivered is in Recipient's mailbox then.
 -spec delivered(pid()) -> ok.
 delivered(Recipient) ->

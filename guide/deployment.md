@@ -384,7 +384,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 
 Lines that begin with a site and `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
 
-No line says how much memory a process holds: one that waits keeps what it dropped until it runs again or ends, so a server's idle connections can hold their last responses, and `:processes` shows each process's bytes (section 6, report §10).
+No line says how much memory a process holds: one that waits keeps what it dropped until it runs again or ends, so a server's idle connections can hold their last responses, and `:processes` shows each process's bytes (section 6, report §10). A waiting process that references a value the host lets go, as a shell lets go an input's, is collected then, so its bytes can fall after an input ran while it waited.
 
 ## 8. A deployment, end to end
 

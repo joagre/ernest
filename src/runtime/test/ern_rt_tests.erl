@@ -196,6 +196,79 @@ memories(Bytes) ->
     [ern_rt:kill(Address) || Address <- [None, Queued, Kept, Part, Twice, Dropped]],
     Answer.
 
+%% report §10, Appendix E.21: a process that waits holds what it dropped
+%% until it runs again, or until the host lets go a value it references
+%% that lives in no process, a persistent term erased among them, when the
+%% host collects that process alone. Of two processes that wait, each
+%% having dropped a long list, the one that references the term falls once
+%% the host has scanned every process for it, and the one that references
+%% nothing keeps what it holds.
+%%
+%% A test of the host's behavior the sentence states, written after the
+%% sentence. It does not cover a module's constants purged, the other value
+%% the host lets go so.
+waiting_process_collected_test() ->
+    ern_waits:with_room(fun waiting_process_collected/0).
+
+waiting_process_collected() ->
+    Key = {?MODULE, waiting_process_collected},
+    persistent_term:put(Key, lists:seq(1, 1000)),
+    Referencing = erlang:spawn(fun() -> dropped(persistent_term:get(Key)) end),
+    Alone = erlang:spawn(fun() -> dropped(none) end),
+    Both = [Referencing, Alone],
+    [ok = ern_waits:waiting(Pid) || Pid <- Both],
+    [ReferencingBefore, AloneBefore] = [memory_of(Pid) || Pid <- Both],
+    scanned(fun() -> persistent_term:erase(Key) end),
+    [ReferencingAfter, AloneAfter] = [memory_of(Pid) || Pid <- Both],
+    [exit(Pid, kill) || Pid <- Both],
+    ?assert(ReferencingAfter < ReferencingBefore div 4),
+    ?assertEqual(AloneBefore, AloneAfter).
+
+%% A long list made and dropped, then a wait that keeps Held.
+dropped(Held) ->
+    _ = length(lists:seq(1, 200000)),
+    receive stop -> Held end.
+
+memory_of(Pid) ->
+    {memory, Bytes} = erlang:process_info(Pid, memory),
+    Bytes.
+
+%% Until the host's collector of literal areas has none left to release,
+%% Action run once its calls are traced. The collector releases an area,
+%% one at a time, once every process has been scanned for references into
+%% it, and asks for the next, which answers false where there is none
+%% (the host's erts_literal_area_collector).
+scanned(Action) ->
+    [Collector] = [Pid || Pid <- erlang:processes(),
+                          erlang:process_info(Pid, initial_call)
+                              =:= {initial_call, {erts_literal_area_collector, start, 0}}],
+    MFA = {erts_literal_area_collector, release_area_switch, 0},
+    1 = erlang:trace_pattern(MFA, [{[], [], [{return_trace}]}], [local]),
+    erlang:trace(Collector, true, [call]),
+    try
+        _ = Action(),
+        released(Collector, MFA)
+    after
+        erlang:trace(Collector, false, [call]),
+        erlang:trace_pattern(MFA, false, [local]),
+        traces_flushed(Collector)
+    end.
+
+released(Collector, MFA) ->
+    receive
+        {trace, Collector, return_from, MFA, false} -> ok;
+        {trace, Collector, _, _} -> released(Collector, MFA);
+        {trace, Collector, _, _, _} -> released(Collector, MFA)
+    end.
+
+traces_flushed(Pid) ->
+    receive
+        {trace, Pid, _, _} -> traces_flushed(Pid);
+        {trace, Pid, _, _, _} -> traces_flushed(Pid)
+    after 0 ->
+        ok
+    end.
+
 %% report §12.1, §11.2, Appendix E.28: on a node a shell is attached to,
 %% standard output and standard error write what a process of a session
 %% sends them to that session's screen, the row of its root, a process it
@@ -848,11 +921,12 @@ fault_reports_test() ->
                                             || {'FaultReport', _, Site, Cause, Restarted, <<>>,
                                                 'None', 'None', 'None', Time} <- Reports,
                                                is_integer(Time)])},
-               %% every report started is delivered, so one to the first
-               %% subscription would be in the mailbox
+               %% every report given the subscription's courier is
+               %% delivered, so one to the first subscription would be in
+               %% the mailbox
                ern_rt:timed(),
                receive {twice, _} -> ok end,
-               ern_waits:delivered(erlang:self()),
+               ern_rt:wait_for_deliveries(),
                ern_rt:untimed(),
                Self ! {first, receive {first, _} -> true after 0 -> false end}
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
@@ -891,7 +965,8 @@ expected_fault_told_to_no_one_test() ->
                ern_rt:timed(),
                receive {expected, _} -> ok end,
                receive {plain, _} -> ok end,
-               ern_waits:delivered(erlang:self()),
+               %% every report given the subscription's courier delivered
+               ern_rt:wait_for_deliveries(),
                ern_rt:untimed(),
                Self ! {heard, lists:sort([{Site, Restarted}
                                           || {report, {'FaultReport', _, Site, _, Restarted, _,

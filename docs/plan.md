@@ -242,13 +242,10 @@ reader S reads of its live shell. The release note's line on the installed layou
     Holds the Shell* and its *Built*). A node holds the shell of its own build of `ern` from its
     start, so a shell of that build attaches with an exchange that ships nothing, and a node of a
     tree whose shell is not built is refused at its start.
-29. **What a process that waits holds when a value is let go**, found 2026-11-08 by item 24's
-    cold reading, decided 2026-11-09 (§10, E.21; the log's *The Host Says Running*), built by
-    2026-11-12. §10 states the exception: a process that waits holds what it dropped until it
-    runs again, or until the host lets go a value it references that lives in no process, a
-    persistent term erased or a module's constants purged, when the host collects that process
-    alone. E.21's sentence on what a waiting process counts and the deployment guide's §7 follow
-    it, and a test holds the fall and the heap kept.
+29. **What a process that waits holds when a value is let go**, done 2026-11-09 (§10, E.21; the
+    log's *The Host Says Running*, *A Waiting Process Collected*). A process that waits is
+    collected where the host lets go a value it references, which the deployment guide's §7
+    says too, and a test holds the fall and the heap kept.
 30. **The shell at a full table**, done 2026-11-09 (§7.4, §10, §12.1, §12.5, E.1, E.17, E.18,
     E.21, E.23; the log's *The Shell at a Full Table*, *A Full Table's Answers, Built*). A
     subscription's fault reports come through a courier made with it, and a request of `Fs`,
