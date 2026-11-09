@@ -10,6 +10,4 @@ What each file here is, and which is current. The proposal is under discussion: 
 
 The need: a library of Appendix G stands on every job's load path, and a library in a repository of its own is reached only by a load path written by hand, so that being listed is the one easy way to be loaded.
 
-One question stands with the user: whether a version before 1.0.0 is exempt from the proposal's rule that a break takes a new name, as Go exempts one.
-
 It supersedes the log's *Packages* in part, which the log says once the proposal is decided.

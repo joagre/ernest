@@ -13,7 +13,7 @@ From the Go Modules Reference, https://go.dev/ref/mod.
 - **A version before 1 promises nothing.** "A version is considered unstable if its major version is 0 or it has a pre-release suffix. Unstable versions are not subject to compatibility requirements."
 - **The whole build is listed.** "At go 1.17 or higher: The go.mod file includes an explicit `require` directive for each module that provides any package transitively imported by a package or test in the main module." The tool writes those lines.
 
-The proposal takes the minimum, the absence of a lockfile and of an upper bound, and the new name at a break. It differs in one thing: Go's tool walks the graph and takes the highest minimum, and Ernest's root writes each version itself and is refused where one is too early.
+The proposal takes the minimum, the absence of a lockfile and of an upper bound, the new name at a break, and a version before 1 that promises nothing. It differs in one thing: Go's tool walks the graph and takes the highest minimum, and Ernest's root writes each version itself and is refused where one is too early.
 
 ## Elm
 

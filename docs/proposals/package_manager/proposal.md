@@ -58,7 +58,9 @@ The check is one level deep. Every manifest is whole, so the root reads the mani
 
 **A break takes a new name.** A later version under one name keeps what the earlier ones gave. A release that does not is another package, `json2` providing `Json2` (question 3). The two then stand in one build side by side, which one name could not. The rule is the author's promise; the checker holds its interface half.
 
-The rule has no exemption, a version before 1.0 among them, and its cost is plain. Ernest writes a namespace at each use, with no second name for it, so a new name is a change at every line that uses the package. And nothing checks the promise's other half: a package that breaks under its old name is found by the checker or by the tests of whoever loads it.
+The rule binds from 1.0.0. A version before it promises nothing, as Go's does and as a release of Ernest before 1.0 does: a package cannot promise more than the language under it. A line that names such a version claims only that the package was built with it.
+
+The rule's cost is plain. Ernest writes a namespace at each use, with no second name for it, so a new name is a change at every line that uses the package. And nothing checks the promise's other half: a package that breaks under its old name is found by the checker or by the tests of whoever loads it.
 
 Ernest has a line too. `ernest` is the least release the package is written for, and the running `ern` must be that or later. It is a claim in the root's manifest as in any other, since the running `ern` is what it is. Before 1.0 a release may refuse a program the one before accepted, and a package written for an earlier one is then refused by the checker, in its own source.
 
