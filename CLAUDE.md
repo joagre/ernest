@@ -152,7 +152,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 - **A step forward sweeps what it leaves behind.** What a step makes redundant goes in the step's own commit, never left for a review to find: a sentence, a file or a directory, a built proposal, a decided finding, a citation of what went. A done item's paragraph goes too, one line naming its log entry in its place until the milestone's row takes it.
 - **Commit only after the checks pass**, on make's own exit status read in a call of its own, never chained after them with `;` and never on a pipe's, which a `grep` of the output would give. A deletion of tracked files is committed by path at once, or stays staged until the test has run. Push only when the user says so, a proposal's pause excepted (*Tests*).
 - **Every message that reports an item that touched the report, the plan or an error's text ends with a "Report conformance" section**: the sections applied; every place the report was silent and what was done, or "none"; every deliberate omission, with the MVP that lifts it and the error the code gives meanwhile. "Tests green" does not replace it. A report of any other item says in one line that the report was not touched.
-- **Stop after each plan item.** Finish it whole, report it, and wait: the user sees each item's design choices before the next builds on them.
+- **Stop after each plan item.** Finish it whole, report it, and wait: the user sees each item's design choices before the next builds on them. The next step the report names is the plan's next item, in the order the plan gives.
 
 **Closing an item.** Each line names a rule of this file; none adds one.
 
@@ -166,7 +166,7 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 8. The check that fits the item green, `make test-full` where it touched the runtime, the nodes or the emitter, and the conformance section written where it is due (*Tests*, *Done*).
 9. A commit that names its paths. It sweeps what the item made redundant, every sentence elsewhere that says the item still waits among it, in `docs/development.md`'s table, the plan's tables, or an example's header (*Done*, *The repository*).
 10. Where the item was its milestone's last, the same commit sweeps the plan: the milestone's section goes, its row names its proposal and the log entries that argue it, and every sentence of a later milestone that cited the section's items cites the log instead (*Where a sentence goes*, *Done*).
-11. The report to the user, ending with *Report conformance*, then a stop until the user's word; a push only on that word (*Done*).
+11. The report to the user, naming the plan's next item as the next step and ending with *Report conformance*, then a stop until the user's word; a push only on that word (*Done*).
 
 ## Style
 
