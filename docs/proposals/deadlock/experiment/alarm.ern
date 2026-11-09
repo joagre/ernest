@@ -1,0 +1,16 @@
+//
+// Program 4: a foreign function starts a host process that sends main its
+// message after three seconds, and nothing monitors that process.
+//
+
+type MainMsg = Done
+
+foreign fn later(to : Foreign.Term, message : Foreign.Term, ms : Int) : Foreign.Term =
+    "later:send/3"
+
+export fn main() : Unit receiving MainMsg = {
+    let _ = later(Foreign.term(self()), Foreign.atom("Done"), 3000);
+    receive {
+        Done -> Io.println("done")
+    }
+}

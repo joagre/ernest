@@ -1,0 +1,19 @@
+//
+// Program 1: main calls a worker without a limit, and the worker computes
+// for four seconds before it answers.
+//
+
+type WorkerMsg = Compute(Reply(Int))
+
+export fn main() : Unit = {
+    let worker = spawn(fn() = work());
+    Io.println(Int.toString(Address.callForever(worker, Compute)))
+}
+
+fn work() : Unit receiving WorkerMsg =
+    receive {
+        Compute(reply) -> answer(reply, spin(Clock.monotonic() + 4000, 0))
+    }
+
+fn spin(deadline : Int, count : Int) : Int =
+    if Clock.monotonic() >= deadline then count else spin(deadline, count + 1)

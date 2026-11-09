@@ -1,0 +1,17 @@
+//
+// Program 4, watched: the same, with a monitor of the host process.
+//
+
+type MainMsg = Done | Ended(Down)
+
+foreign fn later(to : Foreign.Term, message : Foreign.Term, ms : Int) : Process =
+    "later:send/3"
+
+export fn main() : Unit receiving MainMsg = {
+    let sender = later(Foreign.term(self()), Foreign.atom("Done"), 3000);
+    monitor(sender, Ended);
+    receive {
+        Done -> Io.println("done")
+      | Ended(down) -> Io.println("the sender ended first: " <> Io.show(down.reason))
+    }
+}

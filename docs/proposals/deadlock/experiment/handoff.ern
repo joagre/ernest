@@ -1,0 +1,46 @@
+//
+// Program 2: main calls the second, the second hands main's reply to a
+// worker and then calls main. The worker answers main, and main answers the
+// second.
+//
+
+type MainMsg = AskBack(Reply(Int)) | Finished
+
+type SecondMsg = Ask(Reply(Int))
+
+type WorkerMsg = Work(Reply(Int))
+
+export fn main() : Unit receiving MainMsg = {
+    let me = self();
+    let worker = spawn(fn() = work());
+    let second = spawn(fn() = serve(me, worker));
+    let value = Address.callForever(second, Ask);
+    Io.println("main is answered " <> Int.toString(value));
+    receive {
+        AskBack(reply) -> answer(reply, value + 1)
+    };
+    receive {
+        Finished -> Io.println("all finished")
+    }
+}
+
+fn serve(main : Address(MainMsg), worker : Address(WorkerMsg)) : Unit receiving SecondMsg =
+    receive {
+        Ask(reply) -> {
+            send(worker, Work(reply));
+            let value = Address.callForever(main, AskBack);
+            Io.println("the second is answered " <> Int.toString(value));
+            send(main, Finished)
+        }
+    }
+
+fn work() : Unit receiving WorkerMsg =
+    receive {
+        Work(reply) -> {
+            Io.println("the worker holds main's reply, and computes");
+            answer(reply, spin(Clock.monotonic() + 3000, 0) * 0 + 41)
+        }
+    }
+
+fn spin(deadline : Int, count : Int) : Int =
+    if Clock.monotonic() >= deadline then count else spin(deadline, count + 1)

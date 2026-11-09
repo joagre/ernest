@@ -1,0 +1,15 @@
+//
+// Program 4, the host's timer: the same, by erlang:send_after/3.
+//
+
+type MainMsg = Done
+
+foreign fn sendAfter(ms : Int, to : Foreign.Term, message : Foreign.Term) : Foreign.Term =
+    "erlang:send_after/3"
+
+export fn main() : Unit receiving MainMsg = {
+    let _ = sendAfter(3000, Foreign.term(self()), Foreign.atom("Done"));
+    receive {
+        Done -> Io.println("done")
+    }
+}
