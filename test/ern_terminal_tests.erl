@@ -292,7 +292,8 @@ write_terminal_gone() ->
 %% hangup is a reload, has the host log a warning once its terminal has been
 %% hung up, and then waits for a message none sends; it exits with status
 %% 129, and its standard error, a file, holds no line of the host's, where
-%% the reload's line may stand.
+%% the reload's line may stand. It does not cover a job outside a run, which
+%% the hangup itself ends with the same status.
 %%
 %% Written before the code, under which the host wrote its warning on
 %% standard error with its own lines of the write it could not make, and the

@@ -14,7 +14,7 @@
 -export([take/0, is_terminal/1, finish/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({own_process, [finish/1, loop/3, dropping/2]}).
+-receives({own_process, [finish/1, loop/2, dropping/1]}).
 
 %% Standard output becomes the calling process's group leader, which the
 %% processes it starts inherit, and the device the host's log handler
@@ -64,13 +64,13 @@ finish(ErrorDevice) when is_pid(ErrorDevice) ->
 finish(_) ->
     ok.
 
-%% A device writes text as UTF-8, whatever its encoding, the host's log
-%% handler's among it while a run holds the device for bytes (logged/1),
-%% and bytes, which file:write gives as Latin-1, as they are once the
-%% runtime has set its encoding to latin1 (ern_rt's bytes_out/0). Its port
-%% is busy while it holds a byte it has not written, its limits one byte,
-%% and the host holds a writer to a busy port until it is not, as the
-%% runtime's stream's port (ern_rt:stream/2).
+%% A device writes each request in the encoding the request names: text as
+%% UTF-8, the host's log handler's among it (logged/1), and Latin-1, the
+%% bytes file:write gives, as they are. So it keeps no encoding of its own,
+%% and refuses a run's setting for bytes (ern_rt's bytes_out/0), which it
+%% needs no setting to write. Its port is busy while it holds a byte it has
+%% not written, its limits one byte, and the host holds a writer to a busy
+%% port until it is not, as the runtime's stream's port (ern_rt:stream/2).
 device(Stream) ->
     Fd = case Stream of
              stdout -> 1;
@@ -79,35 +79,32 @@ device(Stream) ->
     spawn(fun() ->
               process_flag(trap_exit, true),
               loop(erlang:open_port({fd, 0, Fd}, [out, binary, {busy_limits_port, {1, 1}}]),
-                   unicode, Stream)
+                   Stream)
           end).
 
-loop(Port, Encoding, Stream) ->
+loop(Port, Stream) ->
     receive
-        {io_request, From, ReplyAs, {setopts, Options}} ->
-            From ! {io_reply, ReplyAs, ok},
-            loop(Port, proplists:get_value(encoding, Options, Encoding), Stream);
         {io_request, From, ReplyAs, Request} ->
-            case request(Port, Encoding, Request) of
+            case request(Port, Request) of
                 gone ->
                     told(Stream),
                     From ! {io_reply, ReplyAs, ok},
-                    dropping(Encoding, Stream);
+                    dropping(Stream);
                 Reply ->
                     From ! {io_reply, ReplyAs, Reply},
-                    loop(Port, Encoding, Stream)
+                    loop(Port, Stream)
             end;
         {finish, From, Ref} ->
             case drained(Port) of
                 ok ->
                     From ! {Ref, finished},
-                    loop(Port, Encoding, Stream);
+                    loop(Port, Stream);
                 gone ->
                     end_job(Stream)
             end;
         {'EXIT', Port, _} ->
             told(Stream),
-            dropping(Encoding, Stream)
+            dropping(Stream)
     end.
 
 %% Waits until what the port was given is written, or the stream has gone:
@@ -116,27 +113,23 @@ loop(Port, Encoding, Stream) ->
 drained(Port) ->
     write(Port, <<>>).
 
-%% The requests io:format, io:put_chars and file:write make, and gone where
-%% the stream could not take what a request wrote; nothing reads from here.
-%% Text is written as UTF-8, and Latin-1 in the device's encoding (device/1).
-request(Port, Encoding, {put_chars, Given, Chars}) ->
-    Written = case Given of
-                  unicode -> unicode;
-                  latin1 -> Encoding
-              end,
-    case unicode:characters_to_binary(Chars, Given, Written) of
+%% The requests io:format, io:put_chars and file:write make, each written in
+%% the encoding it names (device/1), and gone where the stream could not take
+%% what a request wrote; nothing reads from here, and no option is set.
+request(Port, {put_chars, Encoding, Chars}) ->
+    case unicode:characters_to_binary(Chars, Encoding, Encoding) of
         Bytes when is_binary(Bytes) -> write(Port, Bytes);
         _ -> {error, no_translation}
     end;
-request(Port, Encoding, {put_chars, Given, Module, Function, Arguments}) ->
-    request(Port, Encoding, {put_chars, Given, apply(Module, Function, Arguments)});
-request(Port, Encoding, {requests, Requests}) ->
-    lists:foldl(fun(Request, ok) -> request(Port, Encoding, Request);
+request(Port, {put_chars, Encoding, Module, Function, Arguments}) ->
+    request(Port, {put_chars, Encoding, apply(Module, Function, Arguments)});
+request(Port, {requests, Requests}) ->
+    lists:foldl(fun(Request, ok) -> request(Port, Request);
                    (_, Error) -> Error
                 end, ok, Requests);
-request(_, Encoding, getopts) ->
-    [{binary, false}, {encoding, Encoding}];
-request(_, _, _) ->
+request(_, getopts) ->
+    [{binary, false}, {encoding, unicode}];
+request(_, _) ->
     {error, enotsup}.
 
 write(Port, Bytes) ->
@@ -156,24 +149,22 @@ told(Stream) ->
         none -> end_job(Stream)
     end.
 
-%% Report §8.6: what is written to a stream that has gone is dropped, so
-%% that no writer waits or faults for a stream that ended, and the job's
-%% end finds it gone, which ends the job by it in place of what ended it.
-dropping(Encoding, Stream) ->
+%% Report §8.6: what is written to a stream that has gone is dropped, and
+%% every request but getopts is answered ok, a setting among them, so that
+%% no caller waits or faults for a stream that ended; and the job's end
+%% finds it gone, which ends the job by it in place of what ended it.
+dropping(Stream) ->
     receive
-        {io_request, From, ReplyAs, {setopts, Options}} ->
-            From ! {io_reply, ReplyAs, ok},
-            dropping(proplists:get_value(encoding, Options, Encoding), Stream);
         {io_request, From, ReplyAs, getopts} ->
-            From ! {io_reply, ReplyAs, request(none, Encoding, getopts)},
-            dropping(Encoding, Stream);
+            From ! {io_reply, ReplyAs, request(none, getopts)},
+            dropping(Stream);
         {io_request, From, ReplyAs, _} ->
             From ! {io_reply, ReplyAs, ok},
-            dropping(Encoding, Stream);
+            dropping(Stream);
         {finish, _, _} ->
             end_job(Stream);
         _ ->
-            dropping(Encoding, Stream)
+            dropping(Stream)
     end.
 
 %% Report §11.8: the job ends at once and says nothing, by the hangup's

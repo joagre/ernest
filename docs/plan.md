@@ -63,8 +63,10 @@ The items left are built in this order, set 2026-11-08 and read again the same d
    (each item's paragraph below).
 3. Item 37 decided in a design session, and built, done 2026-11-09.
 4. Item 38's build, by an item session, done 2026-11-09.
-5. Items 39 and 40 decided in a design session, and built.
-6. Item 16's build last.
+5. Item 41 diagnosed and fixed, by an item session, so that the shell's area that items 39 and
+   40 run is sound.
+6. Items 39 and 40 decided in a design session, and built.
+7. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -277,9 +279,10 @@ reader S reads of its live shell. The release note's line on the installed layou
     terminal writes its screen through the job's own ports, so that it says its terminal is gone.
 38. **The host's log handler at a terminal that is gone**, done 2026-11-09 (§12.1, §11.8; the
     log's *A Write to a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal
-    That Is Gone, Built*). The host's default log handler writes through the job's standard
-    output, `ern_out`'s, which takes text as UTF-8 while a run holds it for bytes, so that a
-    warning it can no longer write ends the program as §12.1 says.
+    That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*). The
+    host's default log handler writes through the job's standard output, `ern_out`'s, which
+    writes text as UTF-8 and bytes as they are, so that a warning it can no longer write ends
+    the program as §12.1 says.
 39. **A pipe into a parenthesized pipe**, found 2026-11-09 by the grammar test's seed 7463993
     in item 37's full run (§5.7, §11.6; the log's *A Write to a Terminal That Is Gone, Built*).
     The parser reads `f |> (b |> g)` as `g(f, b)`, the inner pipe a call the outer fills, and
@@ -287,12 +290,23 @@ reader S reads of its live shell. The release note's line on the installed layou
     whether such a stage is filled, as the parser reads §5.7, or the form is refused or applied,
     `g(b)(f)`; then the formatter lays out what stands, and a regression test holds the line.
 40. **Where the host's own warnings go**, found 2026-11-09 in item 38's read-back (§11.2,
-    §12.1; the log's *The Host's Log Handler at a Terminal That Is Gone, Built*). The host's
-    default log handler writes its warnings and its errors on the job's standard output, among
-    what the program writes there, and the report does not say so, while §11.2 has the runtime
-    write nothing the host says of itself. Its decision, for item 39's design session: whether
-    they go to standard error, as the job's own lines do, or stay, and the sentence of §11.2
-    that says which.
+    §12.1; the log's *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's
+    Log Handler at a Terminal That Is Gone, Swept*). The host's default log handler writes its
+    warnings and its errors on the job's standard output, among what the program writes there,
+    and the report does not say so, while §11.2 has the runtime write nothing the host says of
+    itself. The job's end does not wait for the handler, so a warning logged as the program
+    ends may not be written. Its decision, for item 39's design session: whether they go to
+    standard error, as the job's own lines do, or stay; whether the job's end waits for the
+    handler to write what it was given, one call to the host's handler; and the sentence of
+    §11.2 that says both.
+41. **A flake of `shell_write_terminal_gone_test_`**, found 2026-11-09 in item 38's sweep
+    (§12.1, §11.8; the log's *The Host's Log Handler at a Terminal That Is Gone, Swept*). It
+    fails two ways, at item 37's commit as after item 38's. The shell says its terminal is gone
+    and ends before the test puts its pipe, which `cat` then never reads; or the node says its
+    reload after the shell's last line, an order the test does not take. Its cause is not
+    found. Its diagnosis first: what the shell writes to its screen once the terminal has hung
+    up, and whether the reload's line may follow the shell's last. Then the fix at its cause,
+    the shell's or the test's, and the shell's area run twenty times without a failure.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
