@@ -296,7 +296,9 @@ reader S reads of its live shell. The release note's line on the installed layou
     fails as §8.4 and §12.5 say. So a run loads at its start the import tables' closure of its
     end's modules alone, TLS loads as the host loads it, and the closer is weighed by its memory
     against a close that loses what it owes at a full table. Each is measured in time and in
-    memory, a bare run's and a node's (the log's *Lean at the Limits*).
+    memory, a bare run's and a node's (the log's *Lean at the Limits*). A node's units, which it
+    loads at its start since a peer's spawn names a hash, stay (the log's *A Node Holds the
+    Shell*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
