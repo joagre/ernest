@@ -9,39 +9,72 @@
 %% Report §11.8: a stream is what it was as the job started, read here as
 %% the job takes its streams, since a terminal that has hung up no longer
 %% answers that it is one.
+%%
+%% Report §11: the module is the job's log handler in the host's place, by
+%% which what the host logs as a warning or worse goes the way the job's
+%% own lines go (log/2).
 -module(ern_out).
 
--export([take/0, is_terminal/1, finish/1]).
+-export([take/0, log/2, is_terminal/1, finish/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [finish/1, loop/2, dropping/1]}).
 
 %% Standard output becomes the calling process's group leader, which the
-%% processes it starts inherit, and the device the host's log handler
-%% writes through (logged/1); the answer is standard error's device. Which
+%% processes it starts inherit; the answer is standard error's device. Which
 %% of the two is a terminal is read first, and kept for the job's life, a
-%% persistent term put once.
+%% persistent term put once. The host's log handler becomes the job's own
+%% (logged/0).
 -spec take() -> pid().
 take() ->
     persistent_term:put({?MODULE, terminals},
                         [Stream || Stream <- [stdout, stderr], ern_tty:is_terminal(Stream)]),
-    Stdout = device(stdout),
-    group_leader(Stdout, self()),
-    logged(Stdout),
+    group_leader(device(stdout), self()),
+    logged(),
     device(stderr).
 
-%% Report §12.1, §11: the host's default log handler writes its warnings and
-%% its errors to the job's standard output through Device, where it wrote
-%% through the host's user, so that a warning the stream can no longer take
-%% ends the job as any write there does. The host fixes a handler's device
-%% as it adds the handler, so the handler is added again, its configuration
-%% kept but its device; an event logged between its removal and its return,
-%% as the job starts, is not written.
-logged(Device) ->
-    {ok, #{config := Config} = Handler} = logger:get_handler_config(default),
+%% Report §11, §11.2: what the host logs as a warning or worse the job
+%% writes on standard error as the host formats it. This module takes the
+%% place of the host's default log handler, under its name and with its
+%% formatter, and stands at warning; an event logged between the host's
+%% removal and its own start, as the job starts, is not written.
+%%
+%% Of the host's filters the handler keeps one, which stops here an event
+%% of a process whose group leader is on another node: the host sends the
+%% event to that node, which writes it. The host's others drop an event
+%% logged under a domain other than the host's own, and so would drop a
+%% warning a library logs under a domain of its own.
+logged() ->
+    {ok, #{formatter := Formatter}} = logger:get_handler_config(default),
     ok = logger:remove_handler(default),
-    ok = logger:add_handler(default, logger_std_h,
-                            Handler#{config := Config#{type := {device, Device}}}).
+    ok = logger:add_handler(default, ?MODULE,
+                            #{level => warning, formatter => Formatter,
+                              filters => [{remote_gl, {fun logger_filters:remote_gl/2, stop}}],
+                              filter_default => log}).
+
+%% The host's call of its handler, in the process that logs: the event's
+%% text is a line the job says later (ern_rt:say_later/2), in the order
+%% logged, so that the logging process waits on no stream, a stream that
+%% has gone ends the job as any line there does (report §12.1), a shell of
+%% its own shows it as it shows a program's standard error, a node writes
+%% it on its own whichever process logged it, and the job's end waits until
+%% it is written (ern_rt:wait_for_later/0).
+%%
+%% The text is the one the host's own handler writes (logger_h_common): a
+%% report that names no function to format it is formatted as the host's
+%% own reports are, a line for each pair, and where Unicode refuses what
+%% the formatter gives, the text is a line that says so. A raise here would
+%% have the host remove the handler for the rest of the job.
+-spec log(logger:log_event(), logger:handler_config()) -> ok.
+log(#{msg := {report, _}, meta := Meta} = Event, HandlerConfig)
+  when not is_map_key(report_cb, Meta) ->
+    log(Event#{meta := Meta#{report_cb => fun logger:format_otp_report/1}}, HandlerConfig);
+log(Event, #{formatter := {Formatter, Config}}) ->
+    Text = case unicode:characters_to_binary(Formatter:format(Event, Config)) of
+               Formatted when is_binary(Formatted) -> Formatted;
+               _ -> <<"FORMATTER ERROR: bad return value\n">>
+           end,
+    ern_rt:say_later(Text, fun ern_cli:error_line/1).
 
 %% Report §11.8: whether the stream was a terminal as the job started; no
 %% stream was where the job took none, as a test of a job does not.
@@ -65,12 +98,12 @@ finish(_) ->
     ok.
 
 %% A device writes each request in the encoding the request names: text as
-%% UTF-8, the host's log handler's among it (logged/1), and Latin-1, the
-%% bytes file:write gives, as they are. So it keeps no encoding of its own,
-%% and refuses a run's setting for bytes (ern_rt's bytes_out/0), which it
-%% needs no setting to write. Its port is busy while it holds a byte it has
-%% not written, its limits one byte, and the host holds a writer to a busy
-%% port until it is not, as the runtime's stream's port (ern_rt:stream/2).
+%% UTF-8, and Latin-1, the bytes file:write gives, as they are. So it keeps
+%% no encoding of its own, and refuses a run's setting for bytes (ern_rt's
+%% bytes_out/0), which it needs no setting to write. Its port is busy while
+%% it holds a byte it has not written, its limits one byte, and the host
+%% holds a writer to a busy port until it is not, as the runtime's stream's
+%% port (ern_rt:stream/2).
 device(Stream) ->
     Fd = case Stream of
              stdout -> 1;

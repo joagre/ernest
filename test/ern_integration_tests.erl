@@ -1533,16 +1533,16 @@ closed_stream() ->
     ?assertEqual({141, <<>>}, sh(Ern ++ " shell < /dev/null >/dev/null 2>&-")),
     ?assertEqual({0, <<>>}, sh(Ern ++ " --version >/dev/null")).
 
-%% report §12.1, §11: a warning the host logs during a run is written on the
-%% job's standard output as UTF-8, while the run's streams take bytes as
-%% they are: a program has the host log a warning whose text goes beyond
-%% Latin-1, and waits until the host's handler has written it.
+%% report §11, §11.2: what the host logs as a warning is written on the
+%% job's standard error as the host formats it, as UTF-8, and nothing of it
+%% on standard output; and what it logged before the job's end is written
+%% before the job ends: a program whose last act has the host log a
+%% warning, its text beyond Latin-1.
 %%
-%% Written before the code. It passed while the handler wrote through the
-%% host's own output, and failed once the handler wrote through the job's,
-%% until the device took text as UTF-8 in a run. It does not cover a
-%% warning logged as the program ends, whose write the job's end does not
-%% wait for.
+%% Written before the code, under which the warning stood on standard
+%% output and the program waited for the host's handler itself. It does not
+%% cover an error the host logs of its own process, which takes the same
+%% way.
 host_warning_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun host_warning/0).
 
@@ -1551,18 +1551,71 @@ host_warning() ->
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/warned.ern",
                          "foreign fn warn(text : String) : Unit = \"logger:warning/1\"\n"
-                         "foreign fn written(handler : Foreign.Term) : Unit =\n"
-                         "    \"logger_std_h:filesync/1\"\n"
                          "export fn main() : Unit = {\n"
-                         "    warn(\"a warning, caf\\u{e9} \\u{2603}\");\n"
-                         "    written(Foreign.atom(\"default\"))\n"
+                         "    Io.println(\"written\");\n"
+                         "    warn(\"a warning, caf\\u{e9} \\u{2603}\")\n"
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/warned.ern"),
     {0, Output} = sh("sh -c '../bin/ern run " ++ Dir ++ "/warned.erc 2> " ++ Dir ++ "/err'"),
-    ?assertMatch(<<"=WARNING REPORT==== ", _/binary>>, Output),
+    ?assertEqual(<<"written\n">>, Output),
+    {ok, Said} = file:read_file(Dir ++ "/err"),
+    ?assertMatch(<<"=WARNING REPORT==== ", _/binary>>, Said),
     ?assertEqual({match, [<<"a warning, café ☃"/utf8>>]},
-                 re:run(Output, "^a warning.*$", [multiline, {capture, first, binary}])),
-    ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
+                 re:run(Said, "^a warning.*$", [multiline, {capture, first, binary}])).
+
+%% report §11: what the host logs as a warning is written as the host's own
+%% handler writes it, and nothing of it on standard output. Text its
+%% formatter gives that Unicode refuses is a line that says so, and the
+%% warnings after it are written; a warning logged under a domain of its
+%% own is written; and a report that names no function to format it is
+%% formatted as the host formats its own, a line for each of its pairs.
+%%
+%% A regression test: the first warning raised in the job's handler, which
+%% the host removed for the rest of the job, writing its notice on standard
+%% output past the job's streams; the host's filters dropped the warning of
+%% a domain of its own; and the report was written as the map it is, its
+%% label a line of it. It does not cover a formatter that crashes, which a
+%% job's host is never given.
+host_formatting_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun host_formatting/0).
+
+host_formatting() ->
+    Dir = "build/host_formatting",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/formatted.ern",
+                         "foreign fn warn(text : String) : Unit = \"logger:warning/1\"\n"
+                         "foreign fn warnOf(format : String, args : List(Int)) : Unit =\n"
+                         "    \"logger:warning/2\"\n"
+                         "foreign fn warnIn(format : String, args : List(Int), "
+                         "meta : Foreign.Term) : Unit =\n"
+                         "    \"logger:warning/3\"\n"
+                         "foreign fn report(report : Foreign.Term) : Unit = \"logger:warning/1\"\n"
+                         "foreign fn mapOf(pairs : List(#(Foreign.Term, Foreign.Term))) : "
+                         "Foreign.Term =\n"
+                         "    \"maps:from_list/1\"\n"
+                         "export fn main() : Unit = {\n"
+                         "    warnOf(\"a char Unicode refuses: ~tc\", [55296]);\n"
+                         "    warn(\"a warning after it\");\n"
+                         "    let mylib = Foreign.atom(\"mylib\");\n"
+                         "    let domain = mapOf([named(\"domain\", Foreign.term([mylib]))]);\n"
+                         "    warnIn(\"a warning of a domain of its own\", [], domain);\n"
+                         "    let label = Foreign.term(#(mylib, Foreign.atom(\"event\")));\n"
+                         "    let pairs = Foreign.term([#(Foreign.atom(\"a\"), 1)]);\n"
+                         "    report(mapOf([named(\"label\", label), named(\"report\", pairs)]))\n"
+                         "}\n"
+                         "fn named(name : String, value : Foreign.Term) : "
+                         "#(Foreign.Term, Foreign.Term) =\n"
+                         "    #(Foreign.atom(name), value)\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/formatted.ern"),
+    ?assertEqual({0, <<>>},
+                 sh("sh -c '../bin/ern run " ++ Dir ++ "/formatted.erc 2> " ++ Dir ++ "/err'")),
+    {ok, Said} = file:read_file(Dir ++ "/err"),
+    ?assertEqual(<<"FORMATTER ERROR: bad return value\n"
+                   "=WARNING REPORT====\na warning after it\n"
+                   "=WARNING REPORT====\na warning of a domain of its own\n"
+                   "=WARNING REPORT====\n    a: 1\n">>,
+                 re:replace(Said, "^(=WARNING REPORT====) .* ===$", "\\1",
+                            [multiline, global, {return, binary}])).
 
 %% report §11.2: a fault line writes a control character of the cause as
 %% its escape, so that a fault is one line, its trace beneath it. A

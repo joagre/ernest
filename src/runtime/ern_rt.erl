@@ -4356,9 +4356,13 @@ say(Line, Outside) ->
 %% certificate and the port map, or one of the host's: the line goes, in
 %% the order its caller says its lines, to a process of the runtime's own,
 %% `ern_say_later`, which says each as say/2 says it, so that a slow reader
-%% of standard error holds up that process alone. It is started by the
-%% first such line and lives the host's life; a launch's end, and the
-%% job's, wait for it to have said what it was given (wait_for_later/0).
+%% of standard error holds up that process alone. The job's log handler
+%% says so every event the host logs through it, from whichever process
+%% logs it, a program's own among them (ern_out:log/2).
+%%
+%% The process is started by a run's start or by the first such line, and
+%% lives the host's life; a launch's end, and the job's, wait for it to
+%% have said what it was given (wait_for_later/0).
 -spec say_later(binary(), fun((binary()) -> term())) -> ok.
 say_later(Line, Outside) ->
     erlang:send(later_sayer(), {say, Line, Outside}),

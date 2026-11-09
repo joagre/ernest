@@ -69,7 +69,7 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 3. Item 37 decided in a design session, and built, done 2026-11-09.
 4. Item 38's build, by an item session, done 2026-11-09.
 5. Item 41 diagnosed and fixed, by an item session, done 2026-11-09.
-6. Items 39 and 40 decided in a design session, and built.
+6. Items 39 and 40 decided in a design session, and built, done 2026-11-09.
 7. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -292,22 +292,26 @@ reader S reads of its live shell. The release note's line on the installed layou
     not fill: `x |> (a |> f)` is `f(a)(x)`, where the parser read `f(x, a)` and `ern format`
     failed. §5.7 also says what stands on a pipe's right, operands joined by the operators
     that bind tighter.
-40. **Where the host's own warnings go**, found 2026-11-09 in item 38's read-back (§11.2,
-    §12.1; the log's *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's
-    Log Handler at a Terminal That Is Gone, Swept*). The host's default log handler writes its
-    warnings and its errors on the job's standard output, among what the program writes there,
-    and the report does not say so, while §11.2 has the runtime write nothing the host says of
-    itself. The job's end does not wait for the handler, so a warning logged as the program
-    ends may not be written. Its decision, for item 39's design session: whether they go to
-    standard error, as the job's own lines do, or stay; whether the job's end waits for the
-    handler to write what it was given, one call to the host's handler; and the sentence of
-    §11.2 that says both.
+40. **Where the host's own warnings go**, done 2026-11-09 (§11, §11.2, §12.1; the log's
+    *Where the Host's Warnings Go*). What the host logs as a warning or worse, a job writes
+    on standard error as the host formats it, where it stood on standard output among what
+    the program wrote. It goes the way the job's own lines go, so a shell of its own shows
+    it as a program's standard error, a node writes it whichever process logged it, and
+    what was logged before the job's end is written before the job ends. §11 also says
+    which of the host's reports are not written.
 41. **A flake of `shell_write_terminal_gone_test_`**, done 2026-11-09 (§12.1, §12.5; the log's
     *The Flake of `shell_write_terminal_gone_test_`*). The hangup's reload says its line on the
     shell's screen, a write that ended the shell before or after the test's own. The test now
     runs a shell on no node, in a session of its own that the hangup's signal does not reach;
     the reload's line is a test of its own, and `shell_terminal_gone_test_` takes that line
     before the shell's last or after it.
+
+42. **A truncated compiled module**, found 2026-11-09 by item 40's reader, for an item session
+    (§11; the log's *Where the Host's Warnings Go*). A `.erc` cut short inside its chunks, `FOR1`,
+    a length and an empty chunk, ends `ern run` with an internal error and status 70, where §11
+    refuses it as `x.erc is not a compiled module`: `ern_cli:compiled/1` takes `beam_lib`'s
+    error and not its raise. The fix takes the raise too, with a regression test on such a
+    file, before MVP 4.15's release.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

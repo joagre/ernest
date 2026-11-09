@@ -1565,17 +1565,19 @@ run_started() ->
 %% about them (ern_signals).
 quiet_signals() ->
     ok = ern_signals:install(),
-    %% the host logs its own note about a signal at notice level, and a
-    %% program's output is not to be mixed with it; a warning or an error
-    %% from the host still comes through, but its reports at its limits
-    %% (limit_filter/2)
+    %% the job's handler stands at warning from the job's start
+    %% (ern_out:logged/0), so the level set here matters only in a host that
+    %% took no streams, a test's, whose handler, the host's own, would write
+    %% the host's note about a signal, logged at notice level; a warning or
+    %% an error from the host still comes through, but its reports at its
+    %% limits (limit_filter/2)
     _ = logger:set_handler_config(default, level, warning),
     _ = logger:add_primary_filter(?MODULE, {fun ?MODULE:limit_filter/2, []}),
     ok.
 
 %% Report §12.1, §7.4, §12.5: the host's own report of a spawn beyond its
-%% limit of processes, which its handler writes to standard output among
-%% what the program wrote there, is dropped: the spawn faults its asker,
+%% limit of processes, which the job would write on standard error as the
+%% host formats it (report §11), is dropped: the spawn faults its asker,
 %% whose fault's line says it (§11.2). So are the reports of what such a
 %% spawn ends in the host's own processes, a supervisor's child it could
 %% not start and a process of the host's the spawn ended, the start of a
