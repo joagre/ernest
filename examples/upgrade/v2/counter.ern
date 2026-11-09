@@ -14,8 +14,9 @@
 //
 // - `count` and its message type are written as the first build writes
 //   them, so each has one hash in both builds, and `Code.running(count)`
-//   finds the processes the first build started (report §8.7, Appendix
-//   E.28).
+//   finds the processes the first build started by `count`'s name and that
+//   type, as it would after a fix in `count` that left the type as it is
+//   (report §8.7, Appendix E.28).
 // - `moving` spawns on a peer a process that moves the peer's counters and
 //   tells the tool how many it moved. The spawn carries to a peer of the
 //   first build what its function names that the peer lacks, `countAloud`,

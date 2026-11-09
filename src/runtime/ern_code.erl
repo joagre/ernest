@@ -16,6 +16,10 @@
 %% its qualified name as text, as a spawn frame names it, and, in the
 %% unit's own row, the units its code calls.
 %%
+%% Appendix E.28: each namespace a unit holds functions under has a row of
+%% the unit's, by which Code.running finds a name's definitions in every
+%% unit that holds one.
+%%
 %% Beside them a unit has rows of its own that its load adds: the
 %% interface chunk the runner read of it and its documentation as it was
 %% loaded (load/4).
@@ -346,6 +350,7 @@ fill(Unit, Md5, Beam, Recorded) ->
             Code = Unit:'$code'(),
             Rows = lists:append([rows(Unit, QualifiedName, Held)
                                  || {QualifiedName, Held} <- Code])
+                ++ [{{namespace, Namespace}, Unit, namespace} || Namespace <- namespaces(Code)]
                 ++ [{{forms, Unit}, Unit, Recorded} || Recorded =/= none]
                 ++ declared_rows(Unit, Recorded),
             Keys = lists:usort([Key || {Key, _, _} <- Rows]),
@@ -353,6 +358,15 @@ fill(Unit, Md5, Beam, Recorded) ->
             true = ets:insert(?TABLE, [{{unit, Unit}, Unit, {Md5, Keys, Calls}} | Rows]),
             summed(Beam)
     end.
+
+%% Appendix E.28: the namespaces a unit's code list names its functions
+%% under, by which Code.running finds the units that hold a definition of
+%% a name, a module's every version and an arrival among them: one for a
+%% unit the build or a load made, and each its definitions' for an
+%% arrival's, which names them by their own (ern_arrival).
+namespaces(Code) ->
+    lists:usort([lists:droplast(QualifiedName)
+                 || {QualifiedName, {function, _, _, _, _, _}} <- Code]).
 
 %% Report §12.7, §11.2: each foreign declaration a unit no file holds
 %% records, by its qualified name as text, which declared/1,2 read: an
@@ -372,7 +386,7 @@ declared_rows(Unit, #recorded{foreign = Foreign}) ->
 %% identity, and a foreign declaration, which has no identity, by its
 %% qualified name (Appendix H) as text, as a peer's frame and an
 %% exchange's unit name it, whatever atoms the node has (§12.7).
-rows(Unit, _, {function, Hash, Function, Arity, Reach}) ->
+rows(Unit, _, {function, Hash, Function, Arity, Reach, _}) ->
     [{{hash, Hash}, Unit, {function, Function, Arity, Reach}}];
 rows(Unit, _, {lambda, Hash, Position, Function, Arity, Reach}) ->
     [{{lambda, Hash, Position}, Unit, {function, Function, Arity, Reach}}];
@@ -436,8 +450,10 @@ spawnable(Key) ->
 %% Report §8.7: the units that hold an identity, a function's or a type's
 %% by `{hash, Hash}` or a binding's by `{binding, QualifiedName, Hash}`, in
 %% the order they were loaded, and by `{hash, Hash}` those that hold a
-%% binding's form; none where this node holds it nowhere.
--spec holders({hash, binary()} | {binding, [atom()], binary()}) -> [module()].
+%% binding's form; none where this node holds it nowhere. By `{namespace,
+%% Namespace}`, those that hold functions under it (namespaces/1).
+-spec holders({hash, binary()} | {binding, [atom()], binary()} | {namespace, [atom()]}) ->
+          [module()].
 holders(Key) ->
     lists:uniq([Unit || {_, Unit, _} <- lookup(Key)]).
 
@@ -738,7 +754,7 @@ function(Unit, QualifiedName) ->
             none
     end.
 
-held_function({function, _, Function, Arity, _}) -> [{Function, Arity}];
+held_function({function, _, Function, Arity, _, _}) -> [{Function, Arity}];
 held_function({binding, _, {_, Function}}) -> [{Function, 0}];
 held_function({foreign, _, _, Function, Arity}) -> [{Function, Arity}];
 held_function(_) -> [].
@@ -852,7 +868,7 @@ written_name(QualifiedName, Held, Unit, Code) ->
 %% holds; none for a foreign function, which has no form.
 recorded_name(Unit, Held) ->
     Hash = case Held of
-               {function, FunctionHash, _, _, _} -> FunctionHash;
+               {function, FunctionHash, _, _, _, _} -> FunctionHash;
                {binding, BindingHash, _} -> BindingHash;
                _ -> none
            end,
@@ -1004,22 +1020,48 @@ dependencies(Unit) ->
 
 %% Appendix E.28, report §3.11: Code.running, the processes of this node,
 %% the system processes excepted (Appendix E.21), whose stack holds a frame
-%% of the definition of Hash itself: of the function each unit that holds it
-%% runs it by, which its row in the table names (loaded/2), so that a unit
-%% the build loaded and one an arrival or a load made of the same definition
-%% count alike (§8.7). A lambda's and a local function's frames are their
-%% own functions', '$N.P' or a fun, and no definition's; a wait of a timed
-%% receive written in the definition's own body is the definition's. The scan
-%% reads each process's stack once, its input being the node's processes.
+%% of the definition of Hash, or of a definition of one of its names whose
+%% mailbox type has Hash's mailbox type's hash: of the function each unit
+%% that holds such a definition runs it by, which its row in the table
+%% names (loaded/2), so that a unit the build loaded and one an arrival or
+%% a load made of the same definition count alike (§8.7). Its names are
+%% those the units that hold Hash list it under, since the call names Hash
+%% alone, two where two definitions are one (Appendix H); a definition of
+%% one of them is found in the code lists of the units that hold functions
+%% under its namespace, a module's every version among them (namespaces/1).
+%%
+%% A lambda's and a local function's frames are their own functions', '$N.P'
+%% or a fun, and no definition's; a wait of a timed receive written in the
+%% definition's own body is the definition's. The scan reads each process's
+%% stack once, its input being the node's processes.
 %%
 %% Appendix E.28: the host keeps at most the innermost 64 frames of a
 %% stack, which the runtime sets at its start (ern_rt:run_main/3), so a
 %% frame beneath them is not seen.
 -spec running(binary()) -> [pid()].
 running(Hash) ->
+    Names = lists:usort([{QualifiedName, Mailbox}
+                         || Holder <- holders({hash, Hash}),
+                            {QualifiedName, Held, Mailbox} <- listed(Holder), Held =:= Hash,
+                            Mailbox =/= none]),
+    Hashes = lists:usort([Hash | [Held || {QualifiedName, Mailbox} <- Names,
+                                          Unit <- holders({namespace,
+                                                           lists:droplast(QualifiedName)}),
+                                          {Named, Held, HeldMailbox} <- listed(Unit),
+                                          {Named, HeldMailbox} =:= {QualifiedName, Mailbox}]]),
     Functions = #{{Unit, Function, Arity} => true
-                  || {_, Unit, {function, Function, Arity, _}} <- lookup({hash, Hash})},
+                  || Held <- Hashes,
+                     {_, Unit, {function, Function, Arity, _}} <- lookup({hash, Held})},
     [Pid || map_size(Functions) > 0, Pid <- ern_rt:processes(), runs(Pid, Functions)].
+
+%% Each function Unit's code list names, by its qualified name, with its
+%% hash and its mailbox type's.
+listed(Unit) ->
+    case erlang:function_exported(Unit, '$code', 0) of
+        true -> [{QualifiedName, Hash, Mailbox}
+                 || {QualifiedName, {function, Hash, _, _, _, Mailbox}} <- Unit:'$code'()];
+        false -> []
+    end.
 
 %% Whether Pid's stack holds a frame of one of Functions; a process that
 %% has ended holds none.

@@ -1583,7 +1583,7 @@ is_kept(Binds, BuildsFunctions) ->
 lasting(_ErlangModule, _Binds, true) ->
     true;
 lasting(ErlangModule, declarations, false) ->
-    lists:any(fun({_, {function, _, _, _, _}}) -> true;
+    lists:any(fun({_, {function, _, _, _, _, _}}) -> true;
                  ({_, {foreign, _, _, _, _}}) -> true;
                  (_) -> false
               end, ErlangModule:'$code'());

@@ -461,7 +461,7 @@ far : Address(Counter.ClientMsg)
 
 `Upgrade` carries the loop the counter is to run next, a function of the counter's own type, and the loop switches to it with a tail call, keeping the tally (the guide's §4.6). A function cannot cross to another node as a value, so a type that carries one is *bound* to its node, and `Peer.spawn` refuses the loop that receives it (§8.4). The spawn of chapter 2 carried `count` as code, by its hash, and this spawn would have to carry a function as a message's value, which nothing does.
 
-The fix will come through the door as a new loop beside `count`, since chapter 8 finds the counters by `count`'s hash, which a fix inside its reach, in `handle`, would change; `count` then stays as it is until no counter runs it (the guide's §8.9).
+The fix will come through the door as a new loop beside `count`, and `count` stays until no counter runs it (the guide's §8.9).
 
 So the counter's messages are two types: `ClientMsg`, what a client sends, which crosses, and `CounterMsg`, which wraps each client message in `Client` and adds the door. `start` spawns the loop and answers an *adapted address*, an `Address(ClientMsg)` whose messages reach the counter as `Client(...)` (§5.5), and the client, `apply`, knows nothing of the door. Such an address crosses to another node though it holds `Client`, since its function never leaves the node that made it. A message to the address from elsewhere takes one step more: it is wrapped on that node, by a process the runtime keeps for the address, before the counter sees it (the guide's §8.2).
 
@@ -571,15 +571,15 @@ Counter, compiled again
 "apples: 2" : String
 ```
 
-`Code.running(f)` lists the processes on this node that are running `f`, by the hash of its definition, within the limits the guide's §8.9 states, so the two lists are the two versions side by side. It is a *form*, written as a call and read by the compiler by a rule of its own, `f` the name of a top-level `fn` (the guide's §8.9).
+`Code.running(f)` lists the processes on this node that are running `f`, or an earlier definition of its name whose message type is `f`'s, within the limits the guide's §8.9 states, so the two lists are the two versions side by side. It is a *form*, written as a call and read by the compiler by a rule of its own, `f` the name of a top-level `fn` (the guide's §8.9).
 
 `move` sends each counter on the old loop its `Upgrade`, `next` a function of this node's that never crosses, and the counter switches to `countGuarded` with its tally in hand. The `report` in between was answered after the `Upgrade`: a `send` puts its message in the mailbox before it returns, and the shell runs an input only once the one before it has ended (the guide's §1.2, §4.1). The lists then read the other way round, the same address in each, which is what shows where the process now runs.
 
 `Client(Inc(=amount)) when amount < 0` names one field and guards the clause (the guide's §2.6). A negative amount is now passed over, and the tally stands.
 
-That is the first claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source unchanged, since it is how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
+That is the first claim of *Why Ernest* at its peak: the same process, new code, its state kept, told by a message of its own type. `count` stays in the source, since its name and its message type are how the counters still on it are found, until `Code.running(count)` is empty on every node and it may go; nothing a node has loaded is unloaded while it runs, so a node reloaded without end grows with its versions (the guide's §8.9, the deployment guide's §4.2).
 
-The fix is a new loop beside the old for the reason chapter 6 gave: a fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash, and `Code.running(count)` would find none of the counters. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `kill` (the guide's §8.9).
+A fix inside `count`'s reach, in `handle`, which it calls, would change `count`'s hash and leave the counters found, since their message type stands. A change to `CounterMsg` would hide them, since nothing of the new type can be sent to them. `:processes` still lists such a counter by its site, and it is then moved only through an address of its own type the program kept, or ended by `kill` (the guide's §8.9).
 
 Then on `foo`, which never had `countGuarded` or `move`, from a shell *attached* to it: its inputs run on `foo`, and the terminal and the files stay with the node it starts from, `ops`, which `foo` lists without an address, since the shell dials in (the deployment guide's §6). In your own terminal, `ops` made with no `--listen`, since it only dials:
 

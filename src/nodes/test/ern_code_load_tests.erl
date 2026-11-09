@@ -976,3 +976,63 @@ running_program() ->
     "    else receive {\n"
     "        _ -> ended(left - 1)\n"
     "    }\n".
+
+%% Appendix E.28: a definition of the named function's qualified name whose
+%% mailbox type is its own, on whichever version of its module the node
+%% holds, is found: a build whose fix in the loop's callee gives the loop a
+%% hash of its own finds the counter the program's build started, and so
+%% does a function of that build that is one with the loop (Appendix H),
+%% while a build whose message type changed finds none. A regression test,
+%% written after the code: before it the fixed build found none. It does
+%% not cover a version a shell's reload makes or an arrival, which the
+%% table reads alike (ern_code:namespaces/1)
+running_by_name_test() ->
+    Dir = tmp(),
+    Fixed = filename:join(Dir, "fixed"),
+    Changed = filename:join(Dir, "changed"),
+    Counter = fun(Step, Type, Reset, Rest) ->
+                      ["export type Msg = Get(Reply(Int))", Type, " | Stop\n\n"
+                       "fn step(n : Int) : Int = n + ", Step, "\n\n",
+                       loop("count", Reset), Rest]
+              end,
+    write(Dir, "plug/counter.ern", Counter("1", "", "", "")),
+    write(Fixed, "plug/counter.ern",
+          Counter("2", "", "",
+                  ["\n", loop("tally", ""),
+                   "\nlet said : Unit = {\n"
+                   "    Io.println(\"fixed \" <> Int.toString(List.size(Code.running(count))));\n"
+                   "    Io.println(\"tally \" <> Int.toString(List.size(Code.running(tally))))\n"
+                   "}\n"])),
+    write(Changed, "plug/counter.ern",
+          Counter("2", " | Reset", "      | Reset -> count(0)\n",
+                  "\nlet said : Unit =\n"
+                  "    Io.println(\"changed \"\n"
+                  "               <> Int.toString(List.size(Code.running(count))))\n")),
+    built(Fixed, "plug/counter.ern"),
+    built(Changed, "plug/counter.ern"),
+    Main = write(Dir, "main.ern",
+                 ["export fn main() : Unit = {\n"
+                  "    let counter = spawn(fn() = Plug.Counter.count(0));\n"
+                  "    let _ = Address.call(counter, Plug.Counter.Get, 5000);\n"
+                  "    Io.println(Io.show(Code.load(Path(\"", Fixed, "/plug/counter.erc\"))));\n"
+                  "    Io.println(Io.show(Code.load(Path(\"", Changed, "/plug/counter.erc\"))));\n"
+                  "    send(counter, Plug.Counter.Stop)\n"
+                  "}\n"]),
+    built(Dir, "plug/counter.ern"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"fixed 1">>, <<"tally 1">>, <<"Right(Unit)">>, <<"changed 0">>,
+                  <<"Right(Unit)">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
+%% A counter's loop named Name, which answers its count and calls step,
+%% with Reset's clause where it is given.
+loop(Name, Reset) ->
+    ["export fn ", Name, "(n : Int) : Unit receiving Msg =\n"
+     "    receive {\n"
+     "        Get(reply) -> {\n"
+     "            answer(reply, n);\n"
+     "            ", Name, "(step(n))\n"
+     "        }\n",
+     Reset,
+     "      | Stop -> Unit\n"
+     "    }\n"].

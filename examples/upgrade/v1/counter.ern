@@ -12,9 +12,9 @@
 //   `count` is handed its new loop, and switches to it with a tail call
 //   (report §6.10).
 // - The second build writes `count` and its message type as this build
-//   does, so a definition of either has one hash in both builds, by which
-//   the second build's tool finds the processes this build started (report
-//   §8.7, §11.1).
+//   does, so a definition of either has one hash in both builds; the
+//   second build's tool finds the processes this build started by `count`'s
+//   name and that type (report §8.7, Appendix E.28).
 //
 // Run it from examples/ as a node, b, made with ern config (guide §8.1);
 // the second build's first comment runs the tool beside it, and then stops

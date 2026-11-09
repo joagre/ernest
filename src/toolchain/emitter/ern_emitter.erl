@@ -924,14 +924,16 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% Report §8.7: what the unit holds, which the code table reads as the
 %% unit loads (ern_code): each definition by its qualified name, with its
 %% hash, from its canonical form, and the function that holds it, a
-%% function with its reach, or for a binding the key its value is kept
-%% under (§8.5); each binding whose initializer is a ground term with its
-%% getter and its value, by which a unit an exchange makes holds it where
-%% it reads it, and a peer's spawn finds it valued (§4.6, §11.1,
-%% ern_arrival); each foreign declaration's implementation and its
-%% function, which the canonical forms name by its qualified name alone;
-%% and each lambda and local fn a spawn on a peer starts, by its identity,
-%% with its entry and its reach.
+%% function with its reach and its mailbox type's hash, by which
+%% Code.running finds the definitions of its name at that type (Appendix
+%% E.28), or for a binding the key its value is kept under (§8.5); each
+%% binding whose initializer is a ground term with its getter and its
+%% value, by which a unit an exchange makes holds it where it reads it,
+%% and a peer's spawn finds it valued (§4.6, §11.1, ern_arrival); each
+%% foreign declaration's implementation and its function, which the
+%% canonical forms name by its qualified name alone; and each lambda and
+%% local fn a spawn on a peer starts, by its identity, with its entry and
+%% its reach.
 %%
 %% Under the namespace the forms name what it declares under, the unit
 %% holds the namespace its spawn sites name its declarations under, by
@@ -966,9 +968,11 @@ code(Placed, ForeignPlaced, Entries,
                                  position = Position} <- Entries]).
 
 definition_code(Position, #definition{kind = function, qualified_name = QualifiedName, hash = Hash},
-                Prepared, #emit_context{unit = #unit{reaches = Reaches} = Unit}) ->
+                {_, Form} = Prepared, #emit_context{unit = #unit{reaches = Reaches} = Unit}) ->
+    {_, {function, Scheme, _, _}} = sourced(Form),
     {form_name(QualifiedName, Unit),
-     {function, Hash, function_name(Position), arity(Prepared), maps:get(QualifiedName, Reaches)}};
+     {function, Hash, function_name(Position), arity(Prepared), maps:get(QualifiedName, Reaches),
+      ern_canonical:mailbox_hash(Scheme)}};
 definition_code(Position, #definition{kind = binding, qualified_name = QualifiedName, hash = Hash},
                 _, #emit_context{unit = #unit{name = ErlangModule} = Unit}) ->
     {form_name(QualifiedName, Unit), {binding, Hash, {ErlangModule, function_name(Position)}}};
@@ -2102,9 +2106,7 @@ site_name(Declaration, #unit{site_namespace = SiteNamespace}) ->
 %% Report §8.7, Appendix H: a service's message type's hash, of its
 %% canonical form.
 service_hash({service, Type}) ->
-    erl_syntax:abstract(crypto:hash(sha256,
-                                    ern_canonical:bytes({ernest_type,
-                                                         ern_canonical:form_version(), Type}))).
+    erl_syntax:abstract(ern_canonical:type_hash(Type)).
 
 %%
 %% Operators, report §4.8

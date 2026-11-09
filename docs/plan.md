@@ -59,8 +59,8 @@ The items left are built in this order, set 2026-11-08 and read again the same d
    29 decided, each in its paragraph below, and item 16's proposal read against its owners and
    stated in the report (the log's *Lean at the Limits*, *What `running` Finds*, *The Shell at
    a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*).
-2. Items 19, 21, 29, 30, 32, 35 and 36, each a report sentence and its build: 35 and 36
-   together, the E.18 sentences; 30 and 32 together, the full table's; 21 at the stronger effort.
+2. Items 19, 21, 29, 30, 32, 35 and 36, each a report sentence and its build, done 2026-11-09
+   (each item's paragraph below).
 3. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -205,20 +205,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     *The Runtime at the Limit of Open Files*). A run loads at its start the toolchain's own Erlang
     of the run's side with the host's modules it calls, a unit loads with the modules it calls, and
     TLS loaded whole at its first request, which item 36 turned; every request at the limit answers the host's refusal.
-21. **A process a fix leaves out of reach**, raised by the release review before 0.8.0 (the
-    log's *The Release Review Before 0.8.0*, L1), moved here from the `:trace` proposal on
-    2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*), decided 2026-11-09 (E.28, §6.5, Appendix
-    H; the log's *What `running` Finds*), built by 2026-11-12 at the stronger effort. No way to
-    send to a `Process` is added: §6.5 stands, and a kill is what the operator does.
-
-    `Code.running(f)` answers the processes whose stack holds a frame of a definition of `f`'s qualified name whose
-    mailbox type is `f`'s, by Appendix H's type hash, on whichever version of its module the node
-    holds, so a fix in a loop's reach or in its body leaves its old processes findable while their
-    message type stands.
-
-    A unit's code list carries each function's mailbox type's hash, the soundness note's I1
-    clause follows in the same commit, and the guides' three passages that teach the limit teach
-    the changed message type instead.
+21. **A process a fix leaves out of reach**, done 2026-11-09 (E.28, §6.5, Appendix H; the log's
+    *What `running` Finds*, *What `running` Finds, Built*). `Code.running(f)` finds the
+    processes of a definition of `f`'s name whose mailbox type is `f`'s, on any version the node
+    holds, so a fix in a loop's reach or its body leaves its old processes found, and the guides
+    and the tour teach the changed message type as the limit.
 22. **The sockets load on nike**, done 2026-11-08 (the log's *The Sockets Load on One
     Scheduler*). Its steps were the host's socket buffers, kept on each scheduler, and the load
     runs on one, its warm-up and its bound unchanged.

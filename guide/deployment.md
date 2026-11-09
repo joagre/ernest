@@ -295,7 +295,7 @@ Counter, compiled again
 > :quit
 ```
 
-`:reload` finds that the source of `b`'s `Counter` has changed, and `b` compiles the second build from the text the shell sends. `Counter.moved()` runs on `b`, and the shell prints its value with its type: `Code.running` lists the processes running the old loop, `count`, by the hash of its definition, which both builds write alike, here the counter `serve` started, and `moved` sends each the `Upgrade` that hands it `countAloud`. Asked again, it finds none.
+`:reload` finds that the source of `b`'s `Counter` has changed, and `b` compiles the second build from the text the shell sends. `Counter.moved()` runs on `b`, and the shell prints its value with its type: `Code.running` lists the processes running the old loop, `count`, by its name and its message type, which both builds write alike, here the counter `serve` started, and `moved` sends each the `Upgrade` that hands it `countAloud`. Asked again, it finds none.
 
 The tool, the second build's `main`, makes the move from a node of its own, for every peer at once: it moves a counter of its own first, then spawns on each peer a process that moves the peer's counters and tells it how many, one line a peer; the spawn carries `countAloud` to a peer at the first build, which lacks it and keeps it. Section 8 runs it, and a peer it could not start on is a line with the failure, `c: Io.Unreachable`.
 

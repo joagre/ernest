@@ -118,8 +118,10 @@ export foreign fn load(path : Path) : Either(Io.Error, Unit) =
 export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))) =
     "ern_code:hashes/1"
 
-/// The addresses of the processes on this node whose stack holds a frame of `f`
-/// itself at the moment of the call, in unspecified order. `f` is the name of a
+/// The addresses of the processes on this node whose stack holds a frame of `f`,
+/// or of an earlier definition of its name whose mailbox type is `f`'s, on any
+/// version of its module the node holds, at the moment of the call, in
+/// unspecified order (report Appendix E.28). `f` is the name of a
 /// top-level `fn` of any arity whose result type is `Unit`; where it receives,
 /// `receiving m`, `m` holds no type variable, and every process listed has the
 /// mailbox type `m`. For one that receives nothing, and for one that is
@@ -129,7 +131,7 @@ export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))
 ///
 /// The list is a snapshot: a process may have left `f`, or ended, by the time
 /// it is sent to. The host keeps at most the innermost 64 frames of a stack, so
-/// a process whose frame of `f` lies beneath them is not listed. `running` is
+/// a process whose such frame lies beneath them is not listed. `running` is
 /// called where it is named, and is no value (report §3.11).
 ///
 /// ### Examples

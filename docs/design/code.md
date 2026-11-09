@@ -10,7 +10,7 @@ A definition is known by the hash of its canonical form, on every node and in ev
 
 Nothing is evaluated because code arrived: a binding's value is its node's own, and a received definition reads it where the node holds it or is refused before it runs (the log's *The Module Peer*, *What the Outline Asked*). The shell's code is no exception: a node holds its own build's shell from its start, as it holds its build, and a shell of another build crosses to the node it attaches to as a program's code does (§8.7, §11.2; the log's *The Shell Attaches as a Program Spawns*, *A Node Holds the Shell*).
 
-A lookup is by hash and never by a name: two nodes that hold one hash hold one definition, whatever each build calls it, and two builds that differ in a definition hold two.
+A lookup is by hash and never by a name: two nodes that hold one hash hold one definition, whatever each build calls it, and two builds that differ in a definition hold two. `Code.running` is the one exception, on its own node, where a name's earlier definitions are found at a mailbox type's hash (*Loading at run time*).
 
 ## Hashes and identities
 
@@ -28,7 +28,7 @@ Where the program is a node, the namespace's atom carries the node's public key 
 
 A unit is a compiled module of the host's that holds definitions, one per source module in a build, one for the definitions one exchange brought, one per load; a unit names its functions by their position, so that it adds one name to the host's, its own (§10, §11.1).
 
-A node's code table, kept by a holder of its own for the host's life (`ern_code`), is read from each unit's `'$code'/0` as the unit loads, a node's start loading the shell's units of its build of `ern`, its load path's and the standard library's (§8.7, §11.2). It maps each function's hash to its unit, function, arity and reach; each lambda or local function a spawn may start to its entry, the function of its unit that runs it over its captures; each type to its hash; and each binding by its identity to the key its value is kept under and the unit that holds its form by its hash, which the exchange ships for a lambda written in it.
+A node's code table, kept by a holder of its own for the host's life (`ern_code`), is read from each unit's `'$code'/0` as the unit loads, a node's start loading the shell's units of its build of `ern`, its load path's and the standard library's (§8.7, §11.2). It maps each function's hash to its unit, function, arity and reach; each lambda or local function a spawn may start to its entry, the function of its unit that runs it over its captures; each type to its hash; each binding by its identity to the key its value is kept under and the unit that holds its form by its hash, which the exchange ships for a lambda written in it; and each namespace to the units that hold functions under it.
 
 A constant (§4.6) is held by its form's hash, since one form is one value, with the value itself and the getter of the unit that lists it, under `{constant, Hash}`, which a read of the binding is compiled to and no node need evaluate. Each foreign declaration maps to the host's module and function it names, and the unit's own row holds the units its code calls, by which the reach's bindings and foreign declarations are read in the units that hold them (§8.5, §8.7, §11.1; the log's *The Code Table, Built*).
 
@@ -72,7 +72,9 @@ Units are off the host's code path, loaded whole by the runtime at an arrival or
 
 The evaluator is the runtime's one way of evaluating a load, a shell's `:load` and `:reload` evaluating each module in one ([`shell.md`](shell.md)): a process of the runtime's own that heads a spawn chain of its own, that ends once every binding has its value or lives on where it owns what a binding opened ([`runtime.md`](runtime.md)'s *The process model*), that a deadlock faults in place of its caller while the caller waits, and that a `Code.load`'s settler kills with the load where its caller ends first ([`runtime.md`](runtime.md)) (§8.6, Appendix E.28; `ern_rt:evaluate/2`, `evaluate_load/2`; the log's *The Argument's Four Decisions*, *Sites, Sessions and Their Names*).
 
-`Code.running(f)` is a form the compiler reads: it answers the addresses of the processes on this node whose stack holds a frame of `f` itself at the moment of the call, read from the host's stacks through the code table, which knows `f`'s unit and function from its hash; the host keeps the innermost sixty-four frames, which the runtime sets at its start, so a process whose frame of `f` lies beneath them is not listed (§3.11, §10, Appendix E.28). A program moves the processes it lists by its own `send` to each, as §6.10 moves them: the runtime moves nothing.
+`Code.running(f)` is a form the compiler reads: it answers the addresses of the processes on this node whose stack holds, at the moment of the call, a frame of the definition `f` reaches, or of a definition of one of its names whose mailbox type has the same hash, on any version or arrival the node holds (§3.11, Appendix E.28; the log's *What `running` Finds*). A program moves the processes it lists by its own `send` to each, as §6.10 moves them: the runtime moves nothing.
+
+The call names `f` by its hash alone, so its names are those the units that hold it list it under, and a name's definitions are read from the code lists of the units that hold functions under its namespace, each function listed with its mailbox type's hash (the log's *What `running` Finds, Built*). The stacks are the host's, read through the code table; the host keeps the innermost sixty-four frames, which the runtime sets at its start, so a process whose frame lies beneath them is not listed (§10).
 
 ## The host's counts
 

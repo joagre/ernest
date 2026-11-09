@@ -38,7 +38,8 @@
 %% or the hash of what it names.
 -module(ern_canonical).
 
--export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, module/4, module/5,
+-export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, type_hash/1,
+         mailbox_hash/1, module/4, module/5,
          interface/2, declared_type/4, stripped/1, session_source/2, recorded_source/1, lambdas/2,
          unit_reaches/2, scheme_arity/1, references/1, verified/2, is_verified/1, encode/1,
          read/1]).
@@ -51,6 +52,8 @@
 
 -define(FORM_VERSION, 2).
 -define(CHUNK, <<"ErnC">>).
+%% Appendix H: the form of the prelude's type Never.
+-define(NEVER_FORM, {applied, {named, ['Never']}, []}).
 
 %% The operators the runtime applies itself at their operand's type, which
 %% their form holds (Appendix H).
@@ -133,6 +136,45 @@ hashed(Forms) ->
 member_hash(GroupHash, Position) ->
     hash({ernest_member, ?FORM_VERSION, GroupHash, Position}).
 
+%% Report Appendix H, §8.7: the hash of a type's form, a service's message
+%% type's among them.
+-spec type_hash(term()) -> binary().
+type_hash(Form) ->
+    hash({ernest_type, ?FORM_VERSION, Form}).
+
+%% Appendix E.28, Appendix H: the hash of the mailbox type a function's
+%% scheme declares, by which Code.running finds the definitions of a name
+%% at it: `Never`'s for a function that receives nothing or is
+%% process-only (§3.9), as Code.running types the addresses it answers
+%% (ern_typecheck:is_running_never/2), and none for a mailbox type that
+%% holds a type variable, which no Code.running names (ern_bound).
+-spec mailbox_hash(term()) -> binary() | none.
+mailbox_hash({scheme, Quantified, {arrow, _, Effect, _}, _}) ->
+    case Effect of
+        none ->
+            type_hash(?NEVER_FORM);
+        {variable, Number} ->
+            case lists:keyfind(Number, 1, Quantified) of
+                {_, Restrictions} ->
+                    case lists:member(process_only, Restrictions) of
+                        true -> type_hash(?NEVER_FORM);
+                        false -> none
+                    end;
+                false ->
+                    none
+            end;
+        _ ->
+            case holds_variable(Effect) of
+                true -> none;
+                false -> type_hash(Effect)
+            end
+    end.
+
+holds_variable({variable, _}) -> true;
+holds_variable(Term) when is_tuple(Term) -> holds_variable(tuple_to_list(Term));
+holds_variable(Terms) when is_list(Terms) -> lists:any(fun holds_variable/1, Terms);
+holds_variable(_) -> false.
+
 %%
 %% A module
 %%
@@ -200,7 +242,7 @@ module(Namespace, Typed, Env, Standard, FormNamespace) ->
       functions => maps:from_list(
                      lists:append([functions(maps:get(QualifiedName, ByName), Walked, Reaches)
                                     || {QualifiedName, _, {_, Walked}} <- Opened])),
-      services => maps:from_list([{Type, hash({ernest_type, ?FORM_VERSION, close(Form, Closing)})}
+      services => maps:from_list([{Type, type_hash(close(Form, Closing))}
                                   || {_, _, {_, Walked}} <- Opened,
                                      {Type, Form} <- Walked#walk.services]),
       shims => shims(Namespace, Typed, Standard)}.

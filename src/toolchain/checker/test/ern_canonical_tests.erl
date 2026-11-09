@@ -673,6 +673,28 @@ service_type_hash_test() ->
     ?assertNotEqual(maps:get({tcon, ['T', 'Msg'], []}, Services),
                     maps:get({tcon, ['T', 'Msg'], []}, Changed)).
 
+%% Appendix E.28, Appendix H: a function's mailbox type's hash, by which
+%% Code.running finds the definitions of a name at it, that of `{ernest_type,
+%% 2, Type}` as a service's message type's is; Never's for a function that
+%% receives nothing, one that is process-only and one that receives Never;
+%% and none for one whose mailbox type holds a type variable. A regression
+%% test, written after the code
+mailbox_hash_test() ->
+    Text = "type Msg = Stop\n"
+           "fn stop() : Unit receiving Msg = receive { Stop -> Unit }\n"
+           "fn pure(n : Int) : Int = n\n"
+           "fn skip() = receive { _ -> Unit }\n"
+           "fn never() : Unit receiving Never = Unit\n"
+           "fn listed(n : Int) : Unit receiving List(m) = Unit\n",
+    Mailbox = fun(Name) ->
+                  {function, Scheme, _, _} = form(Text, Name),
+                  ern_canonical:mailbox_hash(Scheme)
+              end,
+    Never = sha({ernest_type, 2, applied('Never')}),
+    ?assertEqual(sha({ernest_type, 2, {applied, {hash, hash(Text, 'Msg')}, []}}), Mailbox(stop)),
+    ?assertEqual([Never, Never, Never], [Mailbox(Name) || Name <- [pure, skip, never]]),
+    ?assertEqual(none, Mailbox(listed)).
+
 %% report §8.7, §11.1: a function's reach names each binding and each
 %% foreign declaration of a program it references, through every function it
 %% calls, its own module's and another's, whose interface holds it; a
