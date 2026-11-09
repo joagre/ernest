@@ -56,9 +56,10 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 *The Items Left Read Again*):
 
 1. Item 34, by an item session, items 17, 20, 22, 26, 31 and 33 done.
-2. One design session for what no test checks: item 21's decision, item 30's, item 32's, item
-   36's, item 19's question whether a hangup is told from a read that fails, item 29's sentence
-   of §10, and item 16's proposal with its cold reading.
+2. One design session for what no test checks: item 36's decision first, since it states the
+   line items 30 and 32 are weighed against (the log's *Lean at the Limits*), then item 21's,
+   item 30's and item 32's, item 19's question whether a hangup is told from a read that fails,
+   item 29's sentence of §10, and item 16's proposal with its cold reading.
 3. Items 19, 29, 30, 32, 35 and 36, each a report sentence and its build, and item 21's build
    where its decision builds one.
 4. Item 16's build last.
