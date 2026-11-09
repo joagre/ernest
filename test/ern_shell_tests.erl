@@ -3380,6 +3380,43 @@ reload_keeps_previous_versions() ->
     ?assertMatch({_, _}, binary:match(Output, <<"no process has faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"previous version is">>)).
 
+%% Appendix E.28, report §11.2: after a reload whose fix in a loop's callee
+%% gives the loop a hash of its own, Code.running of the loop at the prompt
+%% finds a process of the previous version, its message type standing,
+%% and after a reload that changes the message type it finds none. A
+%% regression test, written after the code; it does not cover a reload at
+%% an attached prompt, which compiles the version as this one does
+reload_running_by_name_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_running_by_name/0).
+
+reload_running_by_name() ->
+    Dir = scratch("ern_reload_running_"),
+    Counter = fun(Type, Step, Reset) ->
+                  ["export type Msg = Get(Reply(Int))", Type, "\n\n"
+                   "fn step(n : Int) : Int = n + ", Step, "\n\n"
+                   "export fn count(n : Int) : Unit receiving Msg =\n"
+                   "    receive {\n"
+                   "        Get(reply) -> {\n"
+                   "            answer(reply, n);\n"
+                   "            count(step(n))\n"
+                   "        }\n", Reset,
+                   "    }\n"]
+              end,
+    ok = file:write_file(filename:join(Dir, "counter.ern"), Counter("", "1", "")),
+    InputFile = filename:join(Dir, "session.in"),
+    Running = "List.size(Code.running(Counter.count))\n",
+    ok = file:write_file(InputFile,
+                         [":load Counter\n", "let first = spawn(fn() = Counter.count(0))\n",
+                          "Address.call(first, Counter.Get, 1000)\n",
+                          write_source(Dir, "counter.ern", Counter("", "2", "")), ":reload\n",
+                          Running,
+                          write_source(Dir, "counter.ern",
+                                       Counter(" | Reset", "2", "      | Reset -> count(0)\n")),
+                          ":reload\n", Running]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Some(0) : Optional(Int)\n">>)),
+    ?assertEqual([1, 0], answers(Output, 1)).
+
 %% report §11.2, §6.10: a reload reaches the session's declarations as it
 %% reaches a dependent module: a function declared at the prompt that calls
 %% a changed function is compiled again as a new version of its input, and

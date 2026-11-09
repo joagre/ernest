@@ -983,9 +983,10 @@ running_program() ->
 %% hash of its own finds the counter the program's build started, and so
 %% does a function of that build that is one with the loop (Appendix H),
 %% while a build whose message type changed finds none. A regression test,
-%% written after the code: before it the fixed build found none. It does
-%% not cover a version a shell's reload makes or an arrival, which the
-%% table reads alike (ern_code:namespaces/1)
+%% written after the code: before it the fixed build found none. A
+%% shell's reload is ern_shell_tests' reload_running_by_name_test_; an
+%% arrival, which the table reads alike (ern_code:namespaces/1), is not
+%% covered
 running_by_name_test() ->
     Dir = tmp(),
     Fixed = filename:join(Dir, "fixed"),

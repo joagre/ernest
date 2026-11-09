@@ -61,7 +61,8 @@ The items left are built in this order, set 2026-11-08 and read again the same d
    a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*).
 2. Items 19, 21, 29, 30, 32, 35 and 36, each a report sentence and its build, done 2026-11-09
    (each item's paragraph below).
-3. Item 16's build last.
+3. Item 37 decided in a design session, and built.
+4. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -267,6 +268,13 @@ reader S reads of its live shell. The release note's line on the installed layou
     *Lean at the Limits*, *TLS as the Host Loads It*). The host's TLS loads as the host loads it,
     a handshake at the limit of open files failing, and a socket's closer is made as the socket
     ends, in its writer's room, the connection reset where the table refuses it.
+37. **A write to a terminal that is gone**, found 2026-11-09 in item 19's read-back, decided in
+    a design session before item 16's build (§12.1, §11.8; the log's *A Write to a Terminal
+    That Is Gone*). Keys that can no longer be read end the program with 129, and a write that
+    fails on the terminal with 141, so a program under a terminal that closes ends with either.
+    The decision is whether that write ends by the hangup's signal as the keys do, recommended
+    by principles 1 and 2. Its build is §12.1's and §11.8's sentences after a cold reading, the
+    runtime's end of a stream, and a terminal test that hangs up a program that writes.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
