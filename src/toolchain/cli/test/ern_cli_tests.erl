@@ -431,12 +431,12 @@ single_file_cycle_test() ->
     ?assertEqual(2, length(binary:matches(Said, <<"ern build: module cycle: A, B\n">>))),
     ?assertEqual(nomatch, binary:match(Said, <<"first">>)).
 
-%% report §11.1, §11.5: a single file's build given no source root, whose
-%% module therefore takes the working directory's, helps an unknown
-%% qualified name with the source root nearer the file under which its
-%% module's source is; given one, it does not. A regression test, written
-%% after the code: the error had no help, and only --verbose said the
-%% source root
+%% report §4.2, §11.1: a single file's build given no source root, whose
+%% module therefore takes the working directory's, `Src.Main`, resolves
+%% `Net.Http` from the module's place to its sibling `Src.Net.Http`, and
+%% asks for that module compiled first, as a build given the working
+%% directory does. A regression test, written after the code: the name
+%% named nothing, with a help naming a nearer source root
 nearer_source_root_test() ->
     Dir = pair(tmp()),
     in_directory(Dir, fun() ->
@@ -444,9 +444,9 @@ nearer_source_root_test() ->
                           ?assertEqual(1, build_err(["--source-root", ".", "src/main.ern"]))
                       end),
     Said = unicode:characters_to_binary(?capturedOutput),
-    Help = <<"this module is Src.Main; --source-root src makes it Main">>,
-    ?assertEqual(1, length(binary:matches(Said, Help))),
-    ?assertEqual(2, length(binary:matches(Said, <<"unknown name Net.Http.parse">>))).
+    ?assertEqual(2, length(binary:matches(Said, <<"compile Src.Net.Http first, which Src.Main"
+                                                  " uses">>))),
+    ?assertEqual(nomatch, binary:match(Said, <<"unknown name">>)).
 
 %% report §11.2: a `.erc` opened as a module keeps §11.1's path shape, which
 %% is checked before its path is held to its namespace, and refused as
@@ -1424,6 +1424,25 @@ module_under_taken_namespace_test() ->
                                       <<"fs/entry.ern stands under the standard library's"
                                         " namespace Fs\n">>)).
 
+%% report §4.2: no segment of a module namespace, at any depth, is a taken
+%% one: `fides/io.ern` takes the standard library's `Io`,
+%% `fides/ernest.ern` the toolchain's `Ernest`, and `fides/io/x.ern` stands
+%% under `Io`, each refused as `io.ern` is and alone. A regression test,
+%% written after the code
+taken_at_depth_test() ->
+    Dir = tmp(),
+    write(Dir, "src/fides/io.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/fides/ernest.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/fides/io/x.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/main.ern", hello()),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Output, Refusal))
+     || Refusal <- [<<"fides/io.ern takes the standard library's namespace Io\n">>,
+                    <<"fides/ernest.ern takes the toolchain's namespace Ernest\n">>,
+                    <<"fides/io/x.ern stands under the standard library's namespace Io\n">>]],
+    ?assert(filelib:is_regular(Dir ++ "/build/main.erc")).
+
 %% report §4.2: a prelude type without members takes no namespace, so a
 %% program's modules may be named after it: `Down.describe` is the module's
 %% function, and `Down(...)` still builds the prelude's type. `never.ern`'s
@@ -1522,7 +1541,7 @@ member_reached_through_its_namespace_test() ->
                                         " an expression reaches through `compare`\n">>)).
 
 %% report §4.2: a module calls the module of its own type's name by the
-%% qualified name the two share, `Epx.Window.open` in `epx.ern` beside its
+%% qualified name the two share, `Window.open` in `epx.ern` beside its
 %% private type `Window`, which has no member `open`. A regression test,
 %% written after the code: the checker took the function for the type's
 %% member, and the compiler crashed
@@ -1532,7 +1551,7 @@ parent_calls_its_child_test() ->
           "type Window = Window(id : Int)\n"
           "\n"
           "export fn main() : Unit = {\n"
-          "    let window = Window(id = Epx.Window.open());\n"
+          "    let window = Window(id = Window.open());\n"
           "    Io.println(Io.show(window))\n"
           "}\n"),
     write(Dir, "src/epx/window.ern", "export fn open() : Int = 42\n"),
@@ -1599,20 +1618,211 @@ shared_namespace_requirement_test() ->
                                         " declare\n">>)).
 
 %% report §4.2: a module under the parent's namespace is reached from the
-%% parent by its whole qualified name, its functions, its types, and its
-%% constructors alike
+%% parent by its last segment, the shortest resolving form, its functions,
+%% its types, and its constructors alike
 nested_module_test() ->
     Dir = tmp(),
     write(Dir, "src/main/stack.ern",
           "export type Item = Item(Int)\n"
           "export fn push(i : Item) : Int = match i { Item(n) -> n + 1 }\n"),
     write(Dir, "src/main.ern",
-          "fn count(i : Main.Stack.Item) : Int = Main.Stack.push(i)\n"
+          "fn count(i : Stack.Item) : Int = Stack.push(i)\n"
           "export fn main() : Unit =\n"
-          "    Io.println(Int.toString(count(Main.Stack.Item(1))))\n"),
+          "    Io.println(Int.toString(count(Stack.Item(1))))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"2\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §4.2: a qualified name resolves from the writer's namespace
+%% outward, its first segment climbing and the rest descending. In
+%% `Top.Shell.Complete`, `Command.parse` is the sibling's function,
+%% `Region.Region` the sibling's type, and its constructor in an expression
+%% and a pattern, `..Command` a fill from the sibling, `Shell.attach` the
+%% parent's function and `Int.toString` the standard library's; `Top`
+%% reaches its grandchild by `Shell.Complete.run`. A regression test,
+%% written after the code; it does not cover a module of a load path root,
+%% which the climb asks of as it asks of a source
+relative_lookup_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top.ern", "export fn main() : Unit = Io.println(Shell.Complete.run())\n"),
+    write(Dir, "src/top/shell.ern",
+          "export fn attach() : String = \"attach\"\n"
+          "\n"
+          "export fn parsed() : String = Command.parse()\n"),
+    write(Dir, "src/top/shell/command.ern", "export fn parse() : String = \"parse\"\n"),
+    write(Dir, "src/top/shell/region.ern", "export type Region = Region(Int)\n"),
+    write(Dir, "src/top/shell/complete.ern",
+          "type Parsing = Parsing(parse : () -> String)\n"
+          "\n"
+          "fn width(region : Region.Region) : Int = match region { Region.Region(n) -> n }\n"
+          "\n"
+          "export fn run() : String = {\n"
+          "    let filled = Parsing(..Command);\n"
+          "    filled.parse() <> \" \" <> Shell.attach() <> \" \" <> Shell.parsed() <> \" \"\n"
+          "        <> Int.toString(width(Region.Region(3)))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/top.erc"])),
+    ?assertEqual(<<"parse attach parse 3\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §5.6, §11.1: a fill names a module's namespace, `..Net.Http`,
+%% and the module is a dependency as any module a qualified name names. A
+%% regression test, written after the fix: the build took the namespace
+%% before the name for the module's, found none, and the fill lacked every
+%% field
+fill_from_a_module_test() ->
+    Dir = tmp(),
+    write(Dir, "src/net/http.ern", "export fn parse() : String = \"parse\"\n"),
+    write(Dir, "src/main.ern",
+          "type Parsing = Parsing(parse : () -> String)\n"
+          "\n"
+          "export fn main() : Unit = {\n"
+          "    let filled = Parsing(..Net.Http);\n"
+          "    Io.println(filled.parse())\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"parse\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §4.2: where two namespaces hold a first segment, the nearer wins.
+%% In `Top.Shell.User`, `Util.name` is `Top.Shell.Util`'s, and `Top.Util`,
+%% whose first segment is found at the root, reaches the farther
+%% `Top.Util`; the root's `Util`, which `Main` reaches by `Util.name`, no
+%% name in `Top.Shell` reaches. A regression test, written after the code
+nearer_namespace_wins_test() ->
+    Dir = tmp(),
+    write(Dir, "src/util.ern", "export fn name() : String = \"root\"\n"),
+    write(Dir, "src/top/util.ern", "export fn name() : String = \"top\"\n"),
+    write(Dir, "src/top/shell/util.ern", "export fn name() : String = \"shell\"\n"),
+    write(Dir, "src/top/shell/user.ern",
+          "export fn both() : String = Util.name() <> \" \" <> Top.Util.name()\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = Io.println(Util.name() <> \" \" <> Top.Shell.User.both())\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"root shell top\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §4.2: the climb finds a module namespace and never a type's, and
+%% a namespace holds a module at some depth. In `Top.User`, beside `Top`'s
+%% type `Stack` with its member `compare`, `Stack.name` is the root module
+%% `Stack`'s; `top/util/`, which holds no module, is no namespace, so
+%% `Util.name` climbs past it to the root's `Util`; and `top/net/`, which
+%% holds `http.ern` alone, is `Top.Net`, which `Net.Http.get` reaches. A
+%% regression test, written after the code
+climb_finds_modules_test() ->
+    Dir = tmp(),
+    write(Dir, "src/stack.ern", "export fn name() : String = \"module\"\n"),
+    write(Dir, "src/util.ern", "export fn name() : String = \"root\"\n"),
+    write(Dir, "src/top.ern",
+          "export type Stack = Stack(Int)\n"
+          "\n"
+          "export fn Stack.compare(left : Stack, right : Stack) : Ordering = Equal\n"),
+    write(Dir, "src/top/util/notes.txt", "no module\n"),
+    write(Dir, "src/top/net/http.ern", "export fn get() : String = \"http\"\n"),
+    write(Dir, "src/top/user.ern",
+          "export fn main() : Unit =\n"
+          "    Io.println(Stack.name() <> \" \" <> Util.name() <> \" \" <> Net.Http.get())\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/top/user.erc"])),
+    ?assertEqual(<<"module root http\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §4.2, §11.5: a name written longer than its shortest resolving
+%% form is an error at the name, which names it whole, with a help line
+%% that writes the short one: a type's, a constructor's in a pattern, a
+%% fill's namespace and a function's alike, `Shell.Region` as
+%% `Top.Shell.Region`. A regression test, written after the code
+too_long_name_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top/shell/command.ern", "export fn parse() : String = \"parse\"\n"),
+    write(Dir, "src/top/shell/region.ern", "export type Region = Region(Int)\n"),
+    write(Dir, "src/top/shell/user.ern",
+          "type Parsing = Parsing(parse : () -> String)\n"
+          "\n"
+          "fn width(region : Shell.Region.Region) : Int =\n"
+          "    match region { Top.Shell.Region.Region(n) -> n }\n"
+          "\n"
+          "export fn run() : String = {\n"
+          "    let filled = Parsing(..Top.Shell.Command);\n"
+          "    Top.Shell.Command.parse() <> Int.toString(width(Region.Region(3)))\n"
+          "}\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    Long = <<" is written longer than its shortest resolving form\n">>,
+    [?assertMatch({_, _}, binary:match(Output, <<"user.ern:", Where/binary, ": ", Name/binary,
+                                                 Long/binary>>))
+     || {Where, Name} <- [{<<"3:19">>, <<"Top.Shell.Region.Region">>},
+                          {<<"4:20">>, <<"Top.Shell.Region.Region">>},
+                          {<<"7:28">>, <<"Top.Shell.Command">>},
+                          {<<"8:5">>, <<"Top.Shell.Command.parse">>}]],
+    [?assertMatch({_, _}, binary:match(Output, <<"help: write `", Short/binary, "`\n">>))
+     || Short <- [<<"Region.Region">>, <<"Command">>, <<"Command.parse">>]],
+    ?assertNot(filelib:is_regular(Dir ++ "/build/top/shell/user.erc")).
+
+%% report §4.2: a module's own value is written qualified only where a
+%% binding hides its plain name, and then in its shortest form: in
+%% `Top.Shell.User`, `User.name` beside a parameter `name`, and
+%% `Top.Shell.User.name` is an error whose help writes `User.name`. A
+%% regression test, written after the code
+own_value_shortest_test() ->
+    Dir = tmp(),
+    Shown = "fn name() : String = \"user\"\n"
+            "\n"
+            "fn shown(name : String) : String = name <> User.name()\n"
+            "\n",
+    write(Dir, "src/top/shell/user.ern",
+          Shown ++ "fn longer(name : String) : String = name <> Top.Shell.User.name()\n"
+                   "\n"
+                   "export fn main() : Unit = Io.println(shown(\"a\") <> longer(\"b\"))\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"user.ern:5:45: Top.Shell.User.name is written"
+                                                " longer than its shortest resolving form\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"help: write `User.name`\n">>)),
+    write(Dir, "src/top/shell/user.ern",
+          Shown ++ "export fn main() : Unit = Io.println(shown(\"a\"))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/top/shell/user.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"\nauser\n">>)).
+
+%% report §4.2, §11.5: a help that writes the source's code back writes
+%% each name as the source does, in its shortest form: `compare(Util.one,
+%% Util.two)` for `Int.compare(Util.one, Util.two)` in `Top.User`. A
+%% regression test, written after the fix: the help wrote `Top.Util.one`,
+%% which the build refuses as too long
+help_writes_names_as_written_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top/util.ern", "export let one : Int = 1\n\nexport let two : Int = 2\n"),
+    write(Dir, "src/top/user.ern",
+          "export fn later() : Bool = Int.compare(Util.one, Util.two) == Greater\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"help: write `compare(Util.one, Util.two)`\n">>)).
+
+%% report §11.1, §4.2: a `.erc` records each qualifier its source writes
+%% with the namespace it resolves to, and a module is recompiled when one
+%% would now resolve to another: `Top.Shell.Util` added beside
+%% `Top.Shell.User` takes `Util.name` from `Top.Util`, though neither the
+%% source nor `Top.Util` changed. A regression test, written after the code;
+%% it does not cover a name that would now resolve to none
+recompiled_on_resolution_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top/util.ern", "export fn name() : String = \"top\"\n"),
+    write(Dir, "src/top/shell/user.ern", "export fn main() : Unit = Io.println(Util.name())\n"),
+    Args = ["--build-root", Dir ++ "/build", Dir ++ "/src"],
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    User = Dir ++ "/build/top/shell/user.erc",
+    {ok, Before} = file:read_file(User),
+    ?assertMatch({ok, #{resolved := [{['Io'], ['Io']}, {['Util'], ['Top', 'Util']}]}},
+                 ern_interface:read(Before)),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    ?assertEqual({ok, Before}, file:read_file(User)),
+    write(Dir, "src/top/shell/util.ern", "export fn name() : String = \"shell\"\n"),
+    ?assertEqual(0, ern_cli:ern(["build" | Args])),
+    {ok, After} = file:read_file(User),
+    ?assertMatch({ok, #{resolved := [{['Io'], ['Io']}, {['Util'], ['Top', 'Shell', 'Util']}]}},
+                 ern_interface:read(After)),
+    ?assertEqual(0, ern_cli:ern(["run", User])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"shell\n">>)).
 
 %% report §8.6, §7.4, §11.2: ern reports a deadlock as the entry process's
 %% fault and exits 1
@@ -1727,7 +1937,7 @@ abstract_constructor_outside_test() ->
 %% type whose name differs only in case from a child module's segment does
 %% not take that module's namespace: `STACK` in main.ern beside
 %% main/stack.ern compiles, `STACK.negate` is main's own member, which
-%% prefix `-` reaches (§4.5), and `Main.Stack.one` is the child module's. A
+%% prefix `-` reaches (§4.5), and `Stack.one` is the child module's. A
 %% regression test, written after the code; single-file mode is not covered.
 case_distinct_names_test() ->
     Dir = tmp(),
@@ -1738,7 +1948,7 @@ case_distinct_names_test() ->
           "export fn STACK.negate(s : STACK) : Int = match s { STACK(n) -> n }\n"
           "export fn main() : Unit = Io.println(Int.toString(\n"
           "    -STACK(3) * 100 + -STACK(4) * 10\n"
-          "    + Main.Stack.one()))\n"),
+          "    + Stack.one()))\n"),
     write(Dir, "src/main/stack.ern", "export fn one() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
@@ -3039,25 +3249,26 @@ doc_example_names_no_module_test() ->
                    "Top.one example 3: passed\n">>,
                  iolist_to_binary(?capturedOutput)).
 
-%% report §11.2, §4.1: a private declaration's doc example, compiled inside
-%% its module, may name a module as an exported declaration's may, and its
-%% program initializes it; one that names a module that uses the
-%% documented module fails as a cycle, since the example's module is the
-%% documented one. A regression test, written after the code: the first
-%% example failed with `unknown name`; it does not cover a cycle through a
-%% module between the two
+%% report §11.2, §4.1, §4.2: a private declaration's doc example, compiled
+%% inside its module, may name a module as an exported declaration's may,
+%% from the module's place, `Child` for `Top.Child`, and its program
+%% initializes it; one that names a module that uses the documented module
+%% fails as a cycle, since the example's module is the documented one. A
+%% regression test, written after the code: the first example failed with
+%% `unknown name`; it does not cover a cycle through a module between the
+%% two
 private_doc_example_names_a_module_test() ->
     Dir = tmp(),
     write(Dir, "src/top.ern",
           "/// Three.\n"
           "///\n"
           "/// ```ernest\n"
-          "/// Top.Child.twice(three())\n"
+          "/// Child.twice(three())\n"
           "/// // => 6\n"
           "/// ```\n"
           "///\n"
           "/// ```ernest\n"
-          "/// Top.User.four()\n"
+          "/// User.four()\n"
           "/// ```\n"
           "fn three() : Int = 3\n"
           "\n"

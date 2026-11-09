@@ -77,7 +77,7 @@ cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
                        <- lists:enumerate([{Where, Block, example_line(DocLine, Offset)}
                                            || {Where, Doc, DocLine} <- Docs,
                                               {Offset, Block} <- fences(Doc)])],
-    Naming = {ern_build:compiled_dependencies(LoadPath), Load},
+    Naming = {ern_build:compiled_dependencies(LoadPath), Load, LoadPath},
     Compiled = [example(Name, Block, Start, example_module(Where, Index, Namespace, Interfaces,
                                                            Source, Loaded),
                         Naming)
@@ -305,9 +305,10 @@ taken(_Line) ->
 
 %% One example, its case and the units its program initializes, and the
 %% unit its compiling loaded, or none, compiled in its module, the modules
-%% it names found and loaded by Naming, the finding on the load path and
-%% the run's load (named/3); Start is the line of the module's source its
-%% first line stands on, or none. Report §11.2, Appendix E.0 shape rule 6:
+%% it names found and loaded by Naming, the finding on the load path, the
+%% run's load and the load path its names resolve on (named/3, checked/3);
+%% Start is the line of the module's source its first line stands on, or
+%% none. Report §11.2, Appendix E.0 shape rule 6:
 %% an example that does not compile fails with the diagnostic's message,
 %% the first of its errors, and the help that qualifies a name the
 %% documented module exports (qualifying/2), or with the refusal of a
@@ -493,12 +494,17 @@ parts_at(Expected, Got, At) ->
 %% those of the modules it names, with the units its program initializes,
 %% the top first (named/3).
 checked(Text, #example_module{namespace = Namespace, interfaces = Interfaces} = Module,
-        Naming) ->
+        {_, _, LoadPath} = Naming) ->
     case ern_parser:parse_string(Text) of
-        {ok, Declarations} ->
+        {ok, Parsed} ->
+            %% report §4.2: each qualified name resolved from the module's
+            %% place, the documented module's inside it and the root outside
+            #build_module{declarations = Declarations} = Resolved =
+                ern_build:resolved_module(#build_module{namespace = Namespace}, Parsed,
+                                          ern_build:namespace_test(hd(Namespace), none, LoadPath)),
             case named(Declarations, Module, Naming) of
                 {ok, Uses, Named} ->
-                    case ern_typecheck:check(Namespace, Declarations, Interfaces ++ Named) of
+                    case ern_build:checked(Resolved, Interfaces ++ Named) of
                         {ok, Typed, Interface, Env} -> {ok, Typed, Interface, Env, Uses};
                         {error, _} = Error -> Error
                     end;
@@ -518,7 +524,7 @@ checked(Text, #example_module{namespace = Namespace, interfaces = Interfaces} = 
 %% module the run would refuse, a cycle through the documented module
 %% among them.
 named(Declarations, #example_module{namespace = Namespace, uses = Uses, waiting = Waiting},
-      {Find, Load}) ->
+      {Find, Load, _LoadPath}) ->
     Named = Find(Declarations) -- [Namespace],
     try lists:foldl(fun(Module, Acc) -> Load(Module, Waiting, Acc) end, Uses, Named) of
         Loaded -> {ok, Loaded, interfaces(Loaded -- Uses)}

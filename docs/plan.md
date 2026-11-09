@@ -70,7 +70,7 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 4. Item 38's build, by an item session, done 2026-11-09.
 5. Item 41 diagnosed and fixed, by an item session, done 2026-11-09.
 6. Items 39 and 40 decided in a design session, and built, done 2026-11-09.
-7. Item 16's build last.
+7. Item 16's build last, done 2026-11-09.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -85,6 +85,10 @@ line, and each of the two checks its verdicts against the archive and answers wi
 keeps, as `docs/clean_room.md`'s *The answer* says (the log's *Both Applications at the
 Milestone's End*). All three are told item 16's rule, which each plans for its floor's rise. ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
 log's *The Floors and the Releases*).
+
+The release's note tells a program with a tree of modules to write each qualified name in its
+shortest form from its module's place, as each error's help writes it, and to rename a module
+named after a taken namespace at any depth (§4.2; the log's *Relative Names, Built*).
 
 Between items 1 and 2 the repository's layout was built, in one commit, so that items 2 to 21
 build in the layout that stays and the archive ernest-httpd rehearses on holds it (the log's
@@ -177,19 +181,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     runs it; `Ansi.clearBelow` and `Ansi.clearScreen` are literals. The first attach to a node
     took about three seconds on nike, the node compiling the shell, until item 28 had a node hold
     the shell of its own build.
-16. **Relative names**, feedback 204, decided 2026-11-02 and read against its owners 2026-11-09
-    (§4.2, §11.1, §11.2, Appendix F; the log's *Relative Names*), the report stating it the same
-    day, built last in the milestone at the stronger effort. A qualified name resolves from the
+16. **Relative names**, feedback 204, done 2026-11-09 (§4.2, §11.1, §11.2, §11.5, Appendix F;
+    the log's *Relative Names* and *Relative Names, Built*). A qualified name resolves from the
     writer's namespace outward and is written in its shortest resolving form, a taken namespace
-    is refused as a segment at any depth, and §11.1 recompiles a module a qualified name of whose
-    source would now resolve elsewhere.
-
-    The build: the checker's resolution and the too-long-name error with its
-    help, `ern build`'s scan and `:load`'s, the refusal at depth run over the repository's
-    programs and the three applications' by their tests, `tools/site/code.ern` renamed, the
-    shell's 139 sites written short, the guide's §7.1, `src/shell/README.md`, `CHANGES.md`'s line
-    for a program with a tree of modules, and a test for each sentence. The proposal under
-    `docs/proposals/relative_names/` is the record until then.
+    is refused as a segment at any depth, and a module is recompiled, by the build and by
+    `:reload`, where a qualified name of its source would now resolve elsewhere.
 
     The three other repositories take the rule at their floor's rise (MVP 4.4's item 4), each by
     its own session, since a program's sources are its own session's (`docs/clean_room.md`): a

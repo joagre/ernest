@@ -131,10 +131,11 @@ segments_free_uses(Segments, Bound) ->
 param_names(Params) -> lists:append([bound_names(Pattern) || #param{pattern = Pattern} <- Params]).
 
 %% Report §11.5: an expression as a help writes it in the fix for the text
-%% at hand, a name, a field of one, or a number, and `...` for any other.
+%% at hand, a name, a field of one, or a number, and `...` for any other; a
+%% name as the source writes it, which is its shortest form (§4.2).
 -spec help_text(tuple()) -> string().
-help_text(#e_var{namespace = Namespace, name = Name}) ->
-    ern_namespace:text(Namespace ++ [Name]);
+help_text(#e_var{written = Written, name = Name}) ->
+    ern_namespace:text(Written ++ [Name]);
 help_text(#e_selection{expr = Expr, field = Field}) ->
     case help_text(Expr) of
         "..." -> "...";

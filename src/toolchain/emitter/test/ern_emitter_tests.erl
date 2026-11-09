@@ -571,12 +571,12 @@ units_from_forms(Root, Files, LoadPath) ->
     Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot) || File <- Files],
     {_, Made} =
         lists:foldl(
-          fun(#build_module{namespace = Namespace, declarations = Declarations,
-                            dependencies = Dependencies}, {Interfaces, Acc}) ->
+          fun(#build_module{namespace = Namespace, dependencies = Dependencies} = Module,
+              {Interfaces, Acc}) ->
                   Given = ern_build:dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                           Roots, SourceRoot),
                   {ok, Typed, Interface, Env} =
-                      ern_typecheck:check(Namespace, Declarations, [I || {_, I} <- Given]),
+                      ern_build:checked(Module, [I || {_, I} <- Given]),
                   Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
                   Build = #{standard => Standard, code => true,
                             deps => [{Dependency, <<>>} || {Dependency, _} <- Given]},

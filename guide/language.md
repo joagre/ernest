@@ -2004,7 +2004,7 @@ export fn main() : Unit =
     }
 ```
 
-`main.ern` names the constructor `Shop.Order.Order` by its whole name, as it names the function.
+`main.ern` stands at the root, so it names the constructor `Shop.Order.Order` by its whole name, as it names the function.
 
 Compile file-by-file and run:
 
@@ -2027,9 +2027,11 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one or more lowercase words joined by `_`, and the namespace capitalizes each word and drops the `_`, `ordered_set.ern` for `OrderedSet`. A directory adds a namespace segment: `shop/order.ern` is `Shop.Order`, a module apart from `shop_order.ern`'s `ShopOrder`.
 
-The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory. A module may not take, nor stand under, a namespace the prelude or the standard library has, nor `Ernest`, the toolchain's own: `io.ern`, `fs/entry.ern`, `ernest.ern` and `ernest/shell.ern` are refused (report §4.2, report §11.1). The namespace of a library of the toolchain's own, `Time` or `Http` (report Appendix G), is not taken: a program's module of its name hides the library, which stands last on the load path (report §4.2).
+The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory. No segment of a module's namespace, at any depth, may be a namespace the prelude or the standard library has, nor `Ernest`, the toolchain's own: `io.ern`, `fs/entry.ern`, `shop/io.ern`, `ernest.ern` and `ernest/shell.ern` are refused (report §4.2, report §11.1). The namespace of a library of the toolchain's own, `Time` or `Http` (report Appendix G), is not taken: a program's module of its name hides the library, which stands last on the load path (report §4.2).
 
 **Declarations use local names.** In `shop/order.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Shop.Order.parse`, and the code inside by its plain name (report §4.2).
+
+**A qualified name resolves from the module's place.** Its first segment is looked up beside the module, then beside each namespace the module stands in, and last at the root; the segments after it descend from there. In `shop/cart.ern`, `Order.parse` is its sibling's `Shop.Order.parse`, and `Io.println` is the standard library's. Where two namespaces hold the first segment, the nearer wins. A name is written in its shortest form: `Shop.Order.parse` in `shop/cart.ern` is an error whose help writes `Order.parse`. A diagnostic, a trace and `ern doc` print a name whole (report §4.2).
 
 **`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructors are visible only in its own module (§7.2). An exported declaration's type, and the fields of an exported type that is not abstract, may name only exported types. A function's mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
 
@@ -2072,7 +2074,7 @@ Checks.add example 1: passed
 
 It then runs the module's doc examples as cases (report §11.2). A doc example is an `ernest` block in a declaration's doc block, the `///` lines above it (below), and is named by the declaration, `Checks.add example 1`. One whose last line is `// => v`, alone on its line, passes where `Io.show` of its value is `v`; one without the line is reported `compiled` where it compiles.
 
-An exported declaration's example is compiled in a module of its own, as a caller's code is, so it writes the module's names as a caller writes them, `Checks.add(1, 2)`; a private declaration's is compiled inside the module, and writes them bare, as `add`'s does above. An example with `// =>` runs as a test does, at the mailbox type its code fixes, so it may send to `self()` and receive; `Never` where it fixes none (report §11.2).
+An exported declaration's example is compiled in a module of its own at the root, as a caller's code is, so it writes the module's names as a caller writes them, `Checks.add(1, 2)`; a private declaration's is compiled inside the module, and writes them bare, as `add`'s does above, and other modules' from the module's place. An example with `// =>` runs as a test does, at the mailbox type its code fixes, so it may send to `self()` and receive; `Never` where it fixes none (report §11.2).
 
 `Test.faults(run, cause)` tests that a call faults: `Test.Passed` where `run` faults with `cause`, and otherwise `Test.Failed` naming what came instead, `expected the fault division by zero, got a return`. `run` runs in a process of its own, whose fault no job reports, `ern test`, `ern run` or the shell, since the test's answer carries it (report Appendix E.24). `Test.until(run, ms)` runs a test again until it passes or the milliseconds end, answering the last outcome, for an effect the test cannot otherwise wait on, what a server did with a `Down` (§5.2).
 

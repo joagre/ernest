@@ -362,7 +362,7 @@ fn typesDeclared(found : List(Token)) : List(String) =
 export fn html(info : String,
                lines : List(String),
                given : Buttons,
-               links : Map(String, String)) : List(Site.Template.Line) = {
+               links : Map(String, String)) : List(Template.Line) = {
     let code = String.join(lines, "\n");
     match language(info) {
         "ernest" when given == Signature -> pre("code signature", given, colored(code, links))
@@ -371,15 +371,15 @@ export fn html(info : String,
       | "ernest-prelude" -> pre("code", given, colored(code, links))
       | "ernest-rejected" -> pre("code rejected", given, colored(code, links))
       | "console" when isTranscript(lines) -> pre("transcript", given, transcript(lines))
-      | "console" -> pre("console", given, Site.Template.escaped(code))
-      | _ -> pre("code", given, Site.Template.escaped(code))
+      | "console" -> pre("console", given, Template.escaped(code))
+      | _ -> pre("code", given, Template.escaped(code))
     }
 }
 
 // The `<pre>` begins at its line's indentation and holds its body from the
 // line's start (site/templates/README.md); a signature's says that the
 // script gives it no tools, not even Copy.
-fn pre(class : String, given : Buttons, body : String) : List(Site.Template.Line) = {
+fn pre(class : String, given : Buttons, body : String) : List(Template.Line) = {
     let shell = match given {
         CopyAlone -> ""
       | Paste -> " data-shell=\"paste\""
@@ -388,7 +388,7 @@ fn pre(class : String, given : Buttons, body : String) : List(Site.Template.Line
     };
     let open = "<pre class=\"" <> class <> "\"" <> shell <> "><code>";
     match String.split(open <> body <> "</code></pre>", "\n") {
-        first :: rest -> Site.Template.Line(first) :: List.map(rest, Site.Template.Verbatim)
+        first :: rest -> Template.Line(first) :: List.map(rest, Template.Verbatim)
       | [] -> []
     }
 }
@@ -407,12 +407,12 @@ fn transcriptLine(line : String) : String =
     match String.stripPrefix(line, "> ") {
         Some(input) ->
             "<span class=\"input\"><span class=\"prompt\">&gt; </span>"
-                <> Site.Template.escaped(input)
+                <> Template.escaped(input)
                 <> "</span>"
       | None when line == "" ->
             ""
       | None ->
-            "<span class=\"tok-output\">" <> Site.Template.escaped(line) <> "</span>"
+            "<span class=\"tok-output\">" <> Template.escaped(line) <> "</span>"
     }
 
 // The code with each lexeme of a class in a span of it, as the lexer reads
@@ -530,7 +530,7 @@ fn span(class : String, text : String) : String =
     "<span class=\"" <> class <> "\">" <> written(text) <> "</span>"
 
 fn written(text : String) : String =
-    Site.Template.escaped(text)
+    Template.escaped(text)
 
 // The classes the stylesheet colors: the reserved words and `true` and
 // `false`, the types' and the constructors' names, the literals of text,

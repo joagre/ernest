@@ -2269,6 +2269,24 @@ example.ern:3:16: Example.Box is the module's own Box, which no binding hides
   | = help: write `Box`
 ```
 
+### A name written longer than its shortest resolving form (§4.2, §11.5)
+
+```ernest-rejected
+// shop/cart.ern
+fn count() : Int = 1
+
+export fn twice(count : Int) : Int = count + Shop.Cart.count()
+```
+
+```console
+$ ern build shop/cart.ern
+shop/cart.ern:4:46: Shop.Cart.count is written longer than its shortest resolving form
+3 |
+4 | export fn twice(count : Int) : Int = count + Shop.Cart.count()
+  |                                              ^^^^^^^^^^^^^^^
+  | = help: write `Cart.count`
+```
+
 ### A fill that lacks a field (§5.6)
 
 ```ernest-rejected

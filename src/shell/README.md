@@ -14,7 +14,7 @@ Start at `main` in `ernest/shell.ern`. The file reads top to bottom, in seven pa
 6. **The local half**: `localHalf`, on the shell's own node, which holds the terminal and the operator's files.
 7. **The front end**: the foreign functions through which the shell reaches the host.
 
-Then read the modules in any order. A file's path under the source root, `src/shell/`, gives its module's name: `ernest/shell/command.ern` there, `src/shell/ernest/shell/command.ern` in the repository, is `Ernest.Shell.Command`. The shell stands under `Ernest`, a namespace no program's module may take (report §4.2), so that a program's own `Shell` is no clash. Each module but `Ernest.Shell` has its tests at the foot of its file.
+Then read the modules in any order. A file's path under the source root, `src/shell/`, gives its module's name: `ernest/shell/command.ern` there, `src/shell/ernest/shell/command.ern` in the repository, is `Ernest.Shell.Command`. The shell stands under `Ernest`, a namespace no program's module may take (report §4.2), so that a program's own `Shell` is no clash. A module's source names another by its shortest form from its place, `Command.wordEnd` in `Ernest.Shell.Complete` for `Ernest.Shell.Command.wordEnd` (report §4.2), and this page names each whole. Each module but `Ernest.Shell` has its tests at the foot of its file.
 
 ## The processes
 

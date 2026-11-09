@@ -618,6 +618,41 @@ load_and_reload_dependents() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape, compiled again\n"
                                                 "Main, compiled again\n> 30\n">>)).
 
+%% report §11.2, §4.2, §11.1: `:load` resolves a module's names from its
+%% place, as `ern build` does, and an input's at the root: `Top.Shell.User`
+%% writes `Util.name`, `Top.Util`'s, and the prompt names it whole. Once
+%% `Top.Shell.Util` is written beside it, `:reload` loads that module and
+%% compiles `Top.Shell.User` again, though its source is as it was, and a
+%% second finds nothing to do. A regression test, written after the code
+load_resolves_from_its_place_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_resolves_from_its_place/0).
+
+load_resolves_from_its_place() ->
+    Dir = fresh_home(),
+    ok = filelib:ensure_path(filename:join(Dir, "src/top/shell")),
+    ok = file:write_file(filename:join(Dir, "src/top/util.ern"),
+                         "export fn name() : String = \"top\"\n"),
+    ok = file:write_file(filename:join(Dir, "src/top/shell/user.ern"),
+                         "export fn both() : String = Util.name()\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Top.Shell.User\nTop.Shell.User.both()\n",
+                          "let _ = Fs.write(Path(\"src/top/shell/util.ern\"), String.toUtf8(\"",
+                          "export fn name() : String = \\\"shell\\\"\\n\"), 1000)\n",
+                          ":reload\nTop.Shell.User.both()\n:reload\n"]),
+    Ern = filename:absname("../bin/ern"),
+    {0, Output} = ern_pty:sh(
+        "cd " ++ Dir ++ " && " ++ Ern ++ " shell --source-root src < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Top.Util, compiled from src/top/util.ern\n"
+                                                "Top.Shell.User, compiled from"
+                                                " src/top/shell/user.ern\n"
+                                                "> \"top\" : String\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Top.Shell.Util, compiled from"
+                                                " src/top/shell/util.ern\n"
+                                                "Top.Shell.User, compiled again\n"
+                                                "> \"shell\" : String\n"
+                                                "> no source has changed\n">>)).
+
 %% report §11.2, §11.1: `:reload` reads what a loaded module's compiled form
 %% records as it was loaded, never its file again: the shell over a built
 %% program, `Main` using `Shape` and `Other`, `other.erc` taken away once

@@ -20,7 +20,7 @@
 %% per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check/5, check_string/2, type_state/1, scope_state/2, set_type_state/2,
+-export([check/3, check/4, check/5, check_string/2, type_state/1, scope_state/2, set_type_state/2,
          prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
          prelude_env/0, seeded/2, without_interface/2, with_interfaces/2, lookup_type/2,
          identity/2, position/2, reach/2,
@@ -99,7 +99,11 @@
               signature = [], definition, private_types = #{}, private_values = #{},
               identities = #{},
               reaches = #{}, positions = #{}, terms = #{}, shims = #{}, foreign = #{},
-              declaring = #{}, uses = #{}, binder = none, definition_type}).
+              declaring = #{}, uses = #{}, binder = none, definition_type, shortest = []}).
+%% shortest: the shortest form of the module's own namespace from its own
+%% place (report §4.2), which a name of the module's that a binding hides is
+%% written qualified in, and in no longer form (own_shortest/4)
+%%
 %% definition_type: the type of the definition whose uses post_checks/3
 %% supplies, once it is inferred, whose variables are those a signature
 %% could name, which a requirement's error reads (open_help/3)
@@ -235,21 +239,44 @@
 
 %% On success: the typed declarations, the module's interface, and the
 %% environment, which the compiler needs for the layouts of private types.
+%% Report §4.2: a module checked alone, which no module stands beside, has
+%% its names resolved first, its own namespace and those it stands in alone
+%% below the root; a name written longer than its shortest form is an
+%% error beside the checker's.
 -spec check([atom()], [tuple()], [#interface{}]) ->
           {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
 check(Namespace, Parsed, Interfaces) ->
-    check(Namespace, Parsed, Interfaces, #{}, prelude_env()).
+    IsNamespace = fun(Candidate) -> lists:prefix(Candidate, Namespace) end,
+    {Declarations, _, TooLong} = ern_resolve:resolved(Parsed, Namespace, IsNamespace),
+    Shortest = ern_resolve:shortest(Namespace, Namespace, IsNamespace),
+    case {check(Namespace, Declarations, Interfaces, Shortest), TooLong} of
+        {{ok, _, _, _} = Checked, []} -> Checked;
+        {{ok, _, _, _}, _} -> {error, TooLong};
+        {{error, Diagnostics}, _} -> {error, lists:sort(TooLong ++ Diagnostics)}
+    end.
+
+%% Report §4.2: a module whose names the build resolved (ern_resolve),
+%% Shortest the shortest form of its own namespace.
+-spec check([atom()], [tuple()], [#interface{}], [atom()]) ->
+          {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
+check(Namespace, Declarations, Interfaces, Shortest) ->
+    checked(Namespace, Declarations, Interfaces, #{}, prelude_env(), Shortest).
 
 %% Report §11.2: the shell's session is a scope of its own, looked in after
 %% the input's own declarations and before the prelude. Its three maps take
 %% an unqualified name, as a module's own do, to the qualified name of the
 %% input that declared it. The prelude's environment is given, prelude_env/0's
 %% as the shell builds it once for its host, and not built for each input.
+%% An input stands directly under the root and its names resolve there
+%% (§11.2), as written.
 -spec check([atom()], [tuple()], [#interface{}], session_scope(), env()) ->
           {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
 check(Namespace, Parsed, Interfaces, SessionScope, Prelude) ->
+    checked(Namespace, Parsed, Interfaces, SessionScope, Prelude, Namespace).
+
+checked(Namespace, Parsed, Interfaces, SessionScope, Prelude, Shortest) ->
     Declarations = builtin_operators(Namespace, Parsed),
-    Seeded = (seeded(Interfaces, Prelude))#env{namespace = Namespace},
+    Seeded = (seeded(Interfaces, Prelude))#env{namespace = Namespace, shortest = Shortest},
     Env = Seeded#env{session_scope = SessionScope},
     try
         one_clause(Parsed),
@@ -911,9 +938,8 @@ lookup_type_name(Span, ['Prelude'], Name, #env{types = Types, local_types = Loca
     end;
 lookup_type_name(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
-lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = Types} = Env) ->
+lookup_type_name(Span, Namespace, Name, #env{types = Types} = Env) ->
     ernest_qualified(Span, "type", Namespace, Name, Env),
-    Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Types of
         #{QualifiedName := #type_info{params = Params}} -> {QualifiedName, length(Params)};
@@ -4643,6 +4669,7 @@ infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
     %% report §11.2: a name the session declared resolves to the input that
     %% declared it, which its referent records; its namespace stays as written
     {Scheme, Referent, Env1} = lookup_value(Span, Namespace, Name, Env),
+    own_shortest(Expr, Env1),
     {Closed, Requirement, TypeState1} = used_instance(Scheme, Referent, Env1),
     {Type, TypeState} = open_effect(Closed, TypeState1),
     Who = case Scheme of
@@ -5673,11 +5700,11 @@ declared_field_text(#e_constructor{span = Span, namespace = Namespace, name = Na
     ern_types:format_scheme(Scheme#scheme{type = lists:nth(Index, Params), requirement = []},
                             Env#env.type_state).
 
-%% The span of a construction's written constructor, `Point` or
-%% `Shape.Circle`, which labels what fixed a field's type.
-constructor_name_span(#e_constructor{span = Span, namespace = Namespace, name = Name}) ->
+%% The span of a construction's constructor as the source writes it,
+%% `Point` or `Shape.Circle`, which labels what fixed a field's type.
+constructor_name_span(#e_constructor{span = Span, written = Written, name = Name}) ->
     {Line, Column, _} = ern_diagnostic:span(Span),
-    {Line, Column, {Line, Column + length(ern_namespace:text(Namespace ++ [Name]))}}.
+    {Line, Column, {Line, Column + length(ern_namespace:text(Written ++ [Name]))}}.
 
 %% Report §5.6: `..` takes the unlisted fields from a value that has them,
 %% so its type has one constructor.
@@ -6890,30 +6917,29 @@ ernest_qualified(_Span, _What, _Namespace, _Name, _Env) ->
     ok.
 
 %% Report §4.2: a module's own qualified name is written where a binding
-%% hides the plain name, and nowhere else, as `Prelude.` is.
+%% hides the plain name, and nowhere else, as `Prelude.` is; the span is
+%% the name's as the use writes it, which is the use's own.
 own_qualified(Span, Namespace, Name, #env{locals = Locals}) ->
     case is_map_key(Name, Locals) of
         true ->
             ok;
         false ->
             Plain = atom_to_list(Name),
-            Written = ern_namespace:text(Namespace ++ [Name]),
-            {Line, Column, _} = ern_diagnostic:span(Span),
-            fail({Line, Column, {Line, Column + length(Written)}},
-                 Written ++ " is written only where a binding hides " ++ Plain, [],
+            fail(Span, ern_namespace:text(Namespace ++ [Name])
+                       ++ " is written only where a binding hides " ++ Plain, [],
                  "nothing here hides it; write `" ++ Plain ++ "`")
     end.
 
-%% Report §4.2: a module's own type or constructor, which no binding can
-%% hide, is written by its plain name.
--spec written_plain(ern_diagnostic:span(), [atom()], [atom()]) -> no_return().
-written_plain(Span, OwnNamespace, Plain) ->
-    Written = ern_namespace:text(OwnNamespace ++ Plain),
-    PlainText = ern_namespace:text(Plain),
-    {Line, Column, _} = ern_diagnostic:span(Span),
-    fail({Line, Column, {Line, Column + length(Written)}},
-         Written ++ " is the module's own " ++ PlainText ++ ", which no binding hides", [],
-         "write `" ++ PlainText ++ "`").
+%% Report §4.2, §11.5: where a binding hides it, a module's own name is
+%% written in the shortest form of the module's namespace, and a longer
+%% form is an error whose help writes that one.
+own_shortest(#e_var{span = Span, namespace = OwnNamespace, written = [_ | _] = Written,
+                    name = Name},
+             #env{namespace = OwnNamespace, shortest = Shortest}) when Written =/= Shortest ->
+    throw({type_error, ern_resolve:too_long(Span, Written ++ [Name], OwnNamespace ++ [Name],
+                                            Shortest ++ [Name])});
+own_shortest(_, _) ->
+    ok.
 
 %% Report §4.2: `Prelude.` is written where the module hides the prelude's
 %% name, and nowhere else, where the plain name is the one way to write it.
@@ -7114,10 +7140,9 @@ lookup_constructor(Span, ['Prelude'], Name,
 lookup_constructor(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
 lookup_constructor(Span, Namespace, Name,
-                   #env{namespace = OwnNamespace, constructors = Constructors, types = Types,
+                   #env{constructors = Constructors, types = Types,
                         local_types = LocalTypes} = Env) ->
     ernest_qualified(Span, "constructor", Namespace, Name, Env),
-    Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Constructors of
         #{QualifiedName := ConstructorInfo} ->

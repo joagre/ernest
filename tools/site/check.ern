@@ -23,8 +23,7 @@ export fn checked(out : Path) : Either(String, Unit) = {
     let read <-
         List.tryMap(anchored,
                     fn(file) =
-                        Either.map(Site.Run.bytesOf(out <> Path(file)),
-                                   fn(bytes) = #(file, bytes)));
+                        Either.map(Run.bytesOf(out <> Path(file)), fn(bytes) = #(file, bytes)));
     let anchors =
         Map.fromList(List.map(read,
                               fn(#(file, bytes)) = #(file, Set.fromList(valuesOf(bytes, "id")))));
@@ -61,7 +60,7 @@ fn unresolvedOf(file : String,
                 link : String,
                 held : Set(String),
                 anchors : Map(String, Set(String))) : Optional(String) =
-    if Site.Links.isElsewhere(link) then
+    if Links.isElsewhere(link) then
         None
     else {
         let #(path, fragment) = match String.splitOnce(link, "#") {
@@ -137,7 +136,7 @@ fn unescaped(value : Bytes) : Bytes =
 
 // Every file under a directory, by its path there, `guide/1.html`.
 fn filesUnder(directory : Path, prefix : String) : Either(String, List(String)) = {
-    let entries <- Site.Run.listed(directory);
+    let entries <- Run.listed(directory);
     let found <- List.tryMap(entries, fn(entry) = {
         let name = Optional.withDefault(Path.name(entry.path), "");
         match entry.kind {

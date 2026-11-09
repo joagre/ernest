@@ -13,7 +13,8 @@
          compiled_in_order/3,
          report_errors/3, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
          module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
-         compiled_dependencies/1, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/0,
+         resolved_module/3, namespace_test/3, compiled_dependencies/1, source_root/3,
+         build_root/2, is_stdlib_root/1, checked/2, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
          relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1,
@@ -109,9 +110,7 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                     andalso sweep(absolute(Path), SourceRoot, BuildRoot, Say),
                 {0, Compiled};
             Reported ->
-                [report_failure(Job, Options, Failure,
-                                nearer_roots(Failure, Diagnostics, SourceRoot, IsRootGiven),
-                                ErrorDevice)
+                [report_failure(Job, Options, Failure, Diagnostics, ErrorDevice)
                  || {Failure, Diagnostics} <- Reported],
                 {1, Compiled}
         end
@@ -166,49 +165,6 @@ advice(source_root, File, Name) ->
     ["; name ", Name, "'s source root with --source-root, or remove ", shown(File)];
 advice(kept, _File, Name) ->
     [", and a build writes over no other module's file; remove it to build ", Name, " there"].
-
-%% Report §11.1, §11.5: a module's errors, each unknown qualified name
-%% given the help, where the build was given no source root and the error
-%% has none, of a source root nearer the module's file under which the
-%% name's module is a source, `this module is Src.Main; --source-root src
-%% makes it Main`; a failure that is no file's as it is.
-nearer_roots(File, Diagnostics, SourceRoot, false) when is_list(File) ->
-    [nearer_root(Diagnostic, File, SourceRoot) || Diagnostic <- Diagnostics];
-nearer_roots(_Failure, Diagnostics, _SourceRoot, _IsRootGiven) ->
-    Diagnostics.
-
-nearer_root(#diagnostic{unknown_namespace = [_ | _] = Namespace, help = undefined} = Diagnostic,
-            File, SourceRoot) ->
-    case relative(File, SourceRoot) of
-        outside ->
-            Diagnostic;
-        Relative ->
-            Components = filename:split(filename:rootname(Relative)),
-            Directories = lists:droplast(Components),
-            Roots = [lists:sublist(Directories, Depth)
-                     || Depth <- lists:seq(1, length(Directories))],
-            case [Root || Root <- Roots,
-                          names_a_source(Namespace, filename:join([SourceRoot | Root]))] of
-                [] ->
-                    Diagnostic;
-                [Root | _] ->
-                    Module = ern_namespace:namespace(Components),
-                    Nearer = ern_namespace:namespace(lists:nthtail(length(Root), Components)),
-                    Help = ["this module is ", ern_namespace:text(Module), "; --source-root ",
-                            shown(filename:join([SourceRoot | Root])), " makes it ",
-                            ern_namespace:text(Nearer)],
-                    Diagnostic#diagnostic{help = lists:flatten(Help)}
-            end
-    end;
-nearer_root(Diagnostic, _File, _SourceRoot) ->
-    Diagnostic.
-
-%% Whether a prefix of Namespace is a module whose source lies under Root.
-names_a_source([], _Root) ->
-    false;
-names_a_source(Namespace, Root) ->
-    filelib:is_regular(filename:join(Root, ern_namespace:module_path(Namespace) ++ ".ern"))
-        orelse names_a_source(lists:droplast(Namespace), Root).
 
 %% Report §11.1, §11.2: what --verbose writes with, a line on the job's
 %% ErrorDevice for each decision as the job makes it, where Options hold
@@ -465,20 +421,23 @@ module_of(File, SourceRoot, Mode) ->
         orelse fail(Shown ++ ": " ++ ern_namespace:host_name_text(
                                             "the module's Erlang name, `ern@` and its path,",
                                             ErlangModule)),
-    %% report §4.2: a module namespace is never a taken namespace, the
-    %% prelude's, the standard library's or the toolchain's, nor under one,
-    %% but in the toolchain's own source root that provides it, and the
-    %% shell's root provides `Ernest` alone; the message names whose it is,
-    %% the prelude's where two take it
-    [First | Under] = Namespace,
-    Taken = case Under of
-                [] -> " takes ";
-                _ -> " stands under "
-            end,
-    case provided(First, SourceRoot) of
-        provided -> ok;
-        {taken, Whose} -> fail(Shown ++ Taken ++ Whose ++ " namespace " ++ atom_to_list(First));
-        not_ernest -> fail(Shown ++ " is in the shell's source root, which provides Ernest alone")
+    %% report §4.2: no segment of a module namespace, at any depth, is a
+    %% taken namespace, the prelude's, the standard library's or the
+    %% toolchain's, but in the toolchain's own source root that provides
+    %% it, and the shell's root provides `Ernest` alone; the message names
+    %% the first such segment and whose it is, the prelude's where two take
+    %% it, and says the module takes it where it is the module's last
+    case provided(Namespace, SourceRoot) of
+        provided ->
+            ok;
+        {taken, Whose, Segment, Under} ->
+            Taken = case Under of
+                        [] -> " takes ";
+                        _ -> " stands under "
+                    end,
+            fail(Shown ++ Taken ++ Whose ++ " namespace " ++ atom_to_list(Segment));
+        not_ernest ->
+            fail(Shown ++ " is in the shell's source root, which provides Ernest alone")
     end,
     #build_module{namespace = Namespace, file = File, relative = Relative}.
 
@@ -678,20 +637,116 @@ source_parsed(#build_module{file = File}) ->
 %% functions checked against the members of its parent's type of its name,
 %% the parent's declarations read from Declared, which holds the build's
 %% parsed modules by file, where the build parses it.
-parsed_module(#build_module{file = File} = Module, Source, SourceRoot,
+parsed_module(#build_module{namespace = Namespace, file = File} = Module, Source, SourceRoot,
               {DependencyRoots, Declared}) ->
     case Source of
-        {ok, Declarations} ->
+        {ok, Parsed} ->
+            %% report §4.2: each qualified name resolved from the module's
+            %% place, before its dependencies are found by the names
+            #build_module{declarations = Declarations} = Resolved =
+                resolved_module(Module, Parsed,
+                                namespace_test(hd(Namespace), SourceRoot, DependencyRoots)),
             TypeMembers = fun(Parent, Type) ->
                               type_members(Parent, Type, SourceRoot, DependencyRoots, Declared)
                           end,
-            member_clash(Module#build_module{declarations = Declarations}, TypeMembers),
+            member_clash(Resolved, TypeMembers),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
             Dependencies = dependencies(Declarations, SourceRoot, DependencyRoots, TypeMembers)
-                -- [Module#build_module.namespace],
-            Module#build_module{declarations = Declarations, dependencies = Dependencies};
+                -- [Namespace],
+            Resolved#build_module{dependencies = Dependencies};
         {error, Diagnostic} -> throw({errors, File, [Diagnostic]});
         {cli_error, _} = Refused -> throw(Refused)
+    end.
+
+%% Report §4.2, §11.1: Module with Parsed, its declarations, each qualified
+%% name resolved from its namespace where IsNamespace says which namespaces
+%% below the root hold a module, with what the `.erc` records of each, the
+%% shortest form of its own namespace and the error of each name written
+%% longer than its shortest form, which checked/2 reports.
+-spec resolved_module(#build_module{}, [tuple()], ern_resolve:is_namespace()) ->
+          #build_module{}.
+resolved_module(#build_module{namespace = Namespace} = Module, Parsed, IsNamespace) ->
+    {Declarations, Resolved, TooLong} = ern_resolve:resolved(Parsed, Namespace, IsNamespace),
+    Module#build_module{declarations = Declarations, resolved = Resolved, too_long = TooLong,
+                        shortest = ern_resolve:shortest(Namespace, Namespace, IsNamespace)}.
+
+%% Report §4.2: the function that answers whether a namespace below the
+%% root, which begins with First, holds a module: a source at its path
+%% under the source root, or a compiled module at its path under a root of
+%% DependencyRoots, or one in its directory there, at any depth; a doc
+%% example's module has no source root, `none` (§11.2). A taken namespace
+%% stands at the root alone, so none at depth holds one; and only the roots
+%% that hold First's directory are looked in, none where a module at the
+%% root stands among no directories of its name.
+-spec namespace_test(atom(), file:filename() | none, [file:filename()]) ->
+          ern_resolve:is_namespace().
+namespace_test(First, SourceRoot, DependencyRoots) ->
+    Top = ern_namespace:module_path([First]),
+    Roots = [{SourceRoot, source} || SourceRoot =/= none,
+                                     is_source_directory(filename:join(SourceRoot, Top))]
+        ++ [{Root, compiled} || Root <- DependencyRoots, filelib:is_dir(filename:join(Root, Top))],
+    Taken = ['Ernest' | given_namespaces()],
+    fun(Namespace) ->
+        Path = ern_namespace:module_path(Namespace),
+        not lists:member(lists:last(Namespace), Taken)
+            andalso lists:any(fun({Root, Kind}) -> holds_module(filename:join(Root, Path), Kind)
+                              end, Roots)
+    end.
+
+%% Whether a module's file stands at Path, or in the directory at Path at
+%% any depth: a source, read through a shell's access where one is given
+%% (read_through/2), or a compiled module. A name that begins with a dot
+%% and a link to a directory are passed over, as a build passes them over
+%% (report §11.1).
+holds_module(Path, source) ->
+    is_source(Path ++ ".ern") orelse holds_in(Path, source);
+holds_module(Path, compiled) ->
+    filelib:is_regular(Path ++ ".erc") orelse holds_in(Path, compiled).
+
+holds_in(Dir, Kind) ->
+    lists:any(fun({Name, file}) -> filename:extension(Name) =:= extension(Kind);
+                 ({Name, directory}) -> holds_in(filename:join(Dir, Name), Kind)
+              end, [Entry || {Name, _} = Entry <- entries(Dir, Kind), not is_dot_name(Name)]).
+
+extension(source) -> ".ern";
+extension(compiled) -> ".erc".
+
+%% A directory's files and directories, each by its name, the shell's
+%% through its access for a source; none where it is no directory.
+entries(Dir, source) ->
+    case get(?SOURCES) of
+        #{entries := Entries} -> Entries(Dir);
+        undefined -> local_entries(Dir)
+    end;
+entries(Dir, compiled) ->
+    local_entries(Dir).
+
+local_entries(Dir) ->
+    case file:list_dir(Dir) of
+        {ok, Names} ->
+            [{Name, Kind} || Name <- Names, Path <- [filename:join(Dir, Name)],
+                             Kind <- entry_kind(Path)];
+        {error, _} ->
+            []
+    end.
+
+entry_kind(Path) ->
+    case is_link(Path) andalso filelib:is_dir(Path) of
+        true -> [];
+        false ->
+            case {filelib:is_regular(Path), filelib:is_dir(Path)} of
+                {true, _} -> [file];
+                {_, true} -> [directory];
+                _ -> []
+            end
+    end.
+
+%% Whether a directory of the source root is there, the shell's through
+%% its access.
+is_source_directory(Dir) ->
+    case get(?SOURCES) of
+        #{is_directory := IsDirectory} -> IsDirectory(Dir);
+        undefined -> filelib:is_dir(Dir)
     end.
 
 %% Report §4.2, §11.5: the module of a type's name shares the type's
@@ -880,7 +935,7 @@ named_modules(Declarations, Skip, IsModule, TypeMembers) ->
 %% value's lowercase name can name a type's member.
 references(#e_var{namespace = Namespace, name = Name}) -> [{Namespace, Name}];
 references(#e_constructor{namespace = Namespace, name = Name, base = Base, args = Args}) ->
-    [{Namespace, Name} | references(Base) ++ references(Args)];
+    [{Namespace, Name} | base_references(Base) ++ references(Args)];
 references(#p_constructor{namespace = Namespace, name = Name, args = Args}) ->
     [{Namespace, Name} | references(Args)];
 references(#t_named{namespace = Namespace, name = Name, args = Args}) ->
@@ -889,6 +944,15 @@ references(Node) when is_tuple(Node) ->
     lists:append([references(Child) || Child <- tuple_to_list(Node)]);
 references(Nodes) when is_list(Nodes) -> lists:append([references(Child) || Child <- Nodes]);
 references(_) -> [].
+
+%% Report §5.6, §11.1: the name after `..` names a namespace where it is a
+%% qualified name of type names alone, `..Net.Http`, whose path is the whole
+%% name; any other base is an expression.
+base_references(#e_constructor{namespace = Namespace, name = Name, args = none,
+                               base = undefined}) ->
+    [{Namespace ++ [Name], Name}];
+base_references(Base) ->
+    references(Base).
 
 %% The members this module's types declare, `T.name` as {[T], name}.
 local_members(Declarations) ->
@@ -978,19 +1042,27 @@ shell_root() ->
 own_roots() ->
     [{stdlib_root(), "the standard library's"}, {shell_root(), "the shell's"}].
 
-%% Report §4.2: whether a module's source root provides the namespace its
-%% first segment, First, names: the standard library's provides the
-%% prelude's and its own, every one but the toolchain's, `Ernest`; the
-%% shell's provides `Ernest` alone; and any other root every namespace
-%% that is not taken. A taken one is named with whose it is, the prelude's
-%% where two take it.
-provided(First, SourceRoot) ->
+%% Report §4.2: whether a module's source root provides its namespace: the
+%% standard library's provides the prelude's and its own, every one but
+%% the toolchain's, `Ernest`; the shell's provides `Ernest` and what stands
+%% under it alone; and any other root every namespace no segment of which
+%% is taken. A taken segment is named with whose it is, the prelude's where
+%% two take it, and with the segments under it.
+provided([First | Under], SourceRoot) ->
     case {is_stdlib_root(SourceRoot), is_shell_root(SourceRoot), First} of
-        {true, _, 'Ernest'} -> {taken, "the toolchain's"};
+        {true, _, 'Ernest'} -> {taken, "the toolchain's", First, Under};
         {true, _, _} -> provided;
         {false, true, 'Ernest'} -> provided;
         {false, true, _} -> not_ernest;
-        {false, false, _} -> taken_by(First)
+        {false, false, _} -> taken_segment([First | Under])
+    end.
+
+taken_segment([]) ->
+    provided;
+taken_segment([Segment | Under]) ->
+    case taken_by(Segment) of
+        {taken, Whose} -> {taken, Whose, Segment, Under};
+        provided -> taken_segment(Under)
     end.
 
 taken_by(First) ->
@@ -1038,7 +1110,7 @@ build(#build_module{namespace = Namespace}, Interfaces, _SourceRoot, _Dependency
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     {Interfaces#{Namespace => Interface}, {Namespace, [], fun(_) -> Beam end}};
 build(#build_module{namespace = Namespace, file = File, relative = Relative,
-                    declarations = Declarations, dependencies = Dependencies} = Module,
+                    dependencies = Dependencies, resolved = Resolved} = Module,
       Interfaces, SourceRoot, [BuildRoot | _] = DependencyRoots, Emit, Against, Namespaces, Say) ->
     DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                  DependencyRoots, SourceRoot),
@@ -1049,17 +1121,18 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
     OutputBase = filename:join(BuildRoot, filename:rootname(Relative)),
     Erc = OutputBase ++ ".erc",
     Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
-    case Emit =:= erc andalso current(Erc, SourceHash, SourcePath, DependencyHashes, Against,
-                                      Given) of
+    case Emit =:= erc andalso current(Erc, {SourceHash, SourcePath, Resolved}, DependencyHashes,
+                                      Against, Given) of
         {true, Interface} ->
             {Interfaces#{Namespace => Interface}, none};
         false ->
-            case ern_typecheck:check(Namespace, Declarations, Given) of
+            case checked(Module, Given) of
                 {ok, Typed, Interface, Env} ->
                     Standard = is_stdlib_root(SourceRoot),
                     Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
                     Build = Against#{source_hash => SourceHash, source_path => SourcePath,
-                                     deps => DependencyHashes, standard => Standard,
+                                     deps => DependencyHashes, resolved => Resolved,
+                                     standard => Standard,
                                      source => list_to_binary(filename:basename(Relative)),
                                      canonical => Canonical},
                     Referenced = referenced(Canonical, Namespace, Namespaces),
@@ -1075,6 +1148,21 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
                 {error, Diagnostics} ->
                     throw({errors, File, Diagnostics})
             end
+    end.
+
+%% Report §4.2, §11.5: a parsed module checked against the interfaces
+%% Given, its names resolved as its parse resolved them, and each name
+%% written longer than its shortest form an error beside the checker's,
+%% which checks it as resolved all the same.
+-spec checked(#build_module{}, [#interface{}]) ->
+          {ok, [tuple()], #interface{}, ern_typecheck:env()}
+          | {error, [ern_diagnostic:diagnostic()]}.
+checked(#build_module{namespace = Namespace, declarations = Declarations, shortest = Shortest,
+                      too_long = TooLong}, Given) ->
+    case {ern_typecheck:check(Namespace, Declarations, Given, Shortest), TooLong} of
+        {{ok, _, _, _} = Checked, []} -> Checked;
+        {{ok, _, _, _}, _} -> {error, TooLong};
+        {{error, Diagnostics}, _} -> {error, lists:sort(TooLong ++ Diagnostics)}
     end.
 
 %% Report §11.1: the modules of the build, of Namespaces, that a module's
@@ -1410,15 +1498,16 @@ is_number_text(Text) ->
     Text =/= [] andalso lists:all(fun(Char) -> Char >= $0 andalso Char =< $9 end, Text).
 
 %% Report §11.1: whether a .erc is current, and its interface where it is:
-%% current when the source and its path from the build root, and the build
-%% of the compiler, which Against holds with the standard library's hash,
-%% are those the .erc was built from, and it was compiled against the
+%% current when the source and its path from the build root, the namespace
+%% each qualifier of the source resolves to (§4.2), and the build of the
+%% compiler, which Against holds with the standard library's hash, are
+%% those the .erc was built from, and it was compiled against the
 %% dependencies' interfaces and the standard library as they are.
-current(Erc, SourceHash, SourcePath, DependencyHashes,
+current(Erc, {SourceHash, SourcePath, Resolved}, DependencyHashes,
         #{stdlib := StdlibHash, compiler := CompilerBuild}, DependencyInterfaces) ->
     case read_erc(Erc) of
         {ok, #{interface := Interface, source_hash := SourceHash, source_path := SourcePath,
-               compiler := CompilerBuild} = Chunk} ->
+               resolved := Resolved, compiler := CompilerBuild} = Chunk} ->
             case is_compiled_against(Chunk, DependencyHashes, DependencyInterfaces,
                                      StdlibHash) of
                 true -> {true, Interface};
@@ -1454,8 +1543,8 @@ is_compiled_against(_, _, _, _) ->
 compiler_modules() ->
     [ern_ast, ern_bitspec, ern_bound, ern_canonical, ern_chunk, ern_compile, ern_descriptor,
      ern_diagnostic, ern_docs, ern_emitter, ern_exhaust, ern_format, ern_interface, ern_lexer,
-     ern_literal, ern_namespace, ern_parser, ern_prelude, ern_pretty, ern_scope, ern_tree,
-     ern_typecheck, ern_types, ern_build].
+     ern_literal, ern_namespace, ern_parser, ern_prelude, ern_pretty, ern_resolve, ern_scope,
+     ern_tree, ern_typecheck, ern_types, ern_build].
 
 %% Report §11.1, §11.2: the build of ern, its version and a hash of the
 %% modules that compile, so that a compiler changed under one version is
@@ -1631,8 +1720,8 @@ compile_source(File, SourceRoot, LoadPath, Interfaces, Units) ->
           | {error, file:filename(), [ern_diagnostic:diagnostic()]}.
 compile_source(File, SourceRoot, LoadPath, Interfaces, Units, SiteNamespace) ->
     try
-        [#build_module{namespace = Namespace, relative = Relative, declarations = Declarations,
-                       dependencies = Dependencies}] =
+        [#build_module{namespace = Namespace, relative = Relative, dependencies = Dependencies,
+                       resolved = Resolved} = Module] =
             compile_order([module_of(absolute(File), SourceRoot)], SourceRoot, LoadPath),
         DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                      LoadPath, SourceRoot),
@@ -1641,11 +1730,13 @@ compile_source(File, SourceRoot, LoadPath, Interfaces, Units, SiteNamespace) ->
                         || {Dependency, DependencyInterface} <- DependencyInterfaces]),
         Hash = crypto:hash(sha256, source_bytes(File)),
         Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
-        case ern_typecheck:check(Namespace, Declarations, Given) of
+        case checked(Module, Given) of
             {ok, Typed, Interface, Env} ->
                 %% the dependencies are recorded as `ern build` records them, so
-                %% the shell loads them before the module (report §11.2)
-                Build = #{source_hash => Hash, deps => DependencyHashes,
+                %% the shell loads them before the module, and the namespace
+                %% each qualifier resolved to, by which a reload finds it
+                %% changed (report §11.2, §11.1)
+                Build = #{source_hash => Hash, deps => DependencyHashes, resolved => Resolved,
                           source => list_to_binary(filename:basename(Relative)), units => Units},
                 Sites = case SiteNamespace of
                             own -> #{};
@@ -1792,12 +1883,15 @@ read(File) ->
 %% Report §11.2: the files of the source root a shell's load reads, which
 %% are its operator's: a shell's session reads them through its local half,
 %% on the shell's own node, which holds them, by the access the session
-%% gives for its load's work, Access reading a file and saying whether one
-%% is there, and naming a file from the operator's working directory; every
-%% other job reads its own disk.
+%% gives for its load's work, Access reading a file, saying whether a file
+%% or a directory is there, listing a directory's entries, each a file or a
+%% directory, for the climb (report §4.2), and naming a file from the
+%% operator's working directory; every other job reads its own disk.
 -spec read_through(#{read := fun((file:filename()) -> {ok, binary()} | {error, term()}),
-                is_regular := fun((file:filename()) -> boolean()),
-                working_directory := file:filename()}, fun(() -> Result)) -> Result.
+                     is_regular := fun((file:filename()) -> boolean()),
+                     is_directory := fun((file:filename()) -> boolean()),
+                     entries := fun((file:filename()) -> [{file:filename(), file | directory}]),
+                     working_directory := file:filename()}, fun(() -> Result)) -> Result.
 read_through(Access, Work) ->
     Previous = put(?SOURCES, Access),
     try

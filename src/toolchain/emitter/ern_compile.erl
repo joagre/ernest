@@ -67,6 +67,7 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% `ern` reports as its own failure (report §11).
 -spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env(),
               #{source_hash := binary(), source_path => binary(),
+                resolved => [{[atom()], [atom()]}],
                 deps := [{[atom()], binary()}], compiler => binary(),
                 stdlib => binary() | none, source => binary(),
                 session_offset => non_neg_integer(), form_namespace => [atom()],

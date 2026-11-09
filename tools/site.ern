@@ -67,36 +67,36 @@ fn generated(root : Path,
     let _ <- absent(out);
     let shell <- shellRead(config);
     let templates <- templatesRead(root <> Path("site/templates"));
-    let library <- Site.Library.read(root);
-    let logText <- Site.Run.textOf(root <> Path("docs/log/README.md"));
-    let log <- Site.Links.logEntries(logText);
-    let unrunnable <- Site.Run.unrunnableRead(root);
+    let library <- Library.read(root);
+    let logText <- Run.textOf(root <> Path("docs/log/README.md"));
+    let log <- Links.logEntries(logText);
+    let unrunnable <- Run.unrunnableRead(root);
     let assets <- rootCopied(root <> Path("site/root"), out);
     let _ <- logosCopied(root, out);
     let run =
-        Site.Run.Run(=root,
-                     =out,
-                     =version,
-                     =tag,
-                     =templates,
-                     =assets,
-                     declarations = Site.Library.declarations(library),
-                     =log,
-                     shellPath = shell.path,
-                     lifetime = spoken(shell.lifetime),
-                     =unrunnable);
+        Run.Run(=root,
+                =out,
+                =version,
+                =tag,
+                =templates,
+                =assets,
+                declarations = Library.declarations(library),
+                =log,
+                shellPath = shell.path,
+                lifetime = spoken(shell.lifetime),
+                =unrunnable);
     // The library's pages are written first, so that the pages it read go
     // then, which every later collection of the run would otherwise copy.
-    let _ <- Site.Library.library(run, library);
-    let taught <- Site.Book.guide(run);
-    let _ <- Site.Book.tour(run);
-    let _ <- Site.Report.report(run, taught);
-    let _ <- Site.Document.documents(run);
-    let _ <- Site.Document.projects(run);
+    let _ <- Library.library(run, library);
+    let taught <- Book.guide(run);
+    let _ <- Book.tour(run);
+    let _ <- Report.report(run, taught);
+    let _ <- Document.documents(run);
+    let _ <- Document.projects(run);
     let _ <- homeWritten(run);
     let _ <- shellWritten(run, shell);
     let _ <- notFoundWritten(run);
-    Site.Check.checked(out)
+    Check.checked(out)
 }
 
 //
@@ -108,12 +108,12 @@ fn generated(root : Path,
 // counter typed into the shell and sent to the container's second node,
 // from site/example.md, which ern_tour_tests runs (site.md *The
 // homepage*). Its footer names home.html, its text the site's own.
-fn homeWritten(run : Site.Run.Run) : Either(String, Unit) = {
+fn homeWritten(run : Run.Run) : Either(String, Unit) = {
     let source = "guide/why.md";
-    let blocks <- Site.Run.documentOf(run.root, source);
-    let anchors <- Site.Links.headingAnchors(source, blocks);
+    let blocks <- Run.documentOf(run.root, source);
+    let anchors <- Links.headingAnchors(source, blocks);
     let headings = List.filterMap(blocks, fn(block) = match block {
-        Markdown.Heading(=text) -> Some(Site.Html.plain(text))
+        Markdown.Heading(=text) -> Some(Html.plain(text))
       | _ -> None
     });
     let anchored =
@@ -125,32 +125,32 @@ fn homeWritten(run : Site.Run.Run) : Either(String, Unit) = {
         let anchor <-
             Either.fromOptional(Map.get(anchored, name),
                                 source <> ": the claim " <> name <> " has no heading of its own");
-        Site.Run.filled(run,
-                        "fragments/claim.html",
-                        [#("anchor", Site.Template.Plain(anchor)),
-                         #("name", Site.Template.Plain(name)),
-                         #("sentence_html", Site.Run.labeled(sentence))])
+        Run.filled(run,
+                   "fragments/claim.html",
+                   [#("anchor", Template.Plain(anchor)),
+                    #("name", Template.Plain(name)),
+                    #("sentence_html", Run.labeled(sentence))])
     });
-    let example <- Site.Run.documentOf(run.root, "site/example.md");
-    let code = List.filterMap(Site.Code.copied(example), fn(each) = match each.block {
-        Markdown.Code() -> Some(Site.Code.Placed(..each, given = Site.Code.Paste))
+    let example <- Run.documentOf(run.root, "site/example.md");
+    let code = List.filterMap(CodeBlock.copied(example), fn(each) = match each.block {
+        Markdown.Code() -> Some(CodeBlock.Placed(..each, given = CodeBlock.Paste))
       | _ -> None
     });
-    let page <- Site.Run.linkPage(run, "site/example.md", "/", code);
-    let shown <- Site.Run.linkedAll(run, code, page);
+    let page <- Run.linkPage(run, "site/example.md", "/", code);
+    let shown <- Run.linkedAll(run, code, page);
     let main <-
-        Site.Run.filled(run,
-                        "home.html",
-                        [#("claims_html", Site.Run.markup(lines)),
-                         #("example_html", Site.Template.Markup(Site.Html.body(shown, 0, []))),
-                         #("icons", Site.Template.Plain(run.assets.icons))]);
-    Site.Run.pageWritten(run,
-                         Site.Run.Output(address = "/",
-                                         title = "Ernest",
-                                         description = homeDescription,
-                                         room = None,
-                                         =main,
-                                         source = Some("site/templates/home.html")))
+        Run.filled(run,
+                   "home.html",
+                   [#("claims_html", Run.markup(lines)),
+                    #("example_html", Template.Markup(Html.body(shown, 0, []))),
+                    #("icons", Template.Plain(run.assets.icons))]);
+    Run.pageWritten(run,
+                    Run.Output(address = "/",
+                               title = "Ernest",
+                               description = homeDescription,
+                               room = None,
+                               =main,
+                               source = Some("site/templates/home.html")))
 }
 
 // Why's claims, the list after its line "What Ernest adds is where the
@@ -164,10 +164,10 @@ fn claimsOf(source : String,
         _ :: Markdown.Items(=items) :: _ ->
             List.tryMap(items, fn(item) = match item {
                 [Markdown.Paragraph(Markdown.Strong(name) :: Markdown.Text(following) :: rest)] -> {
-                    let named = Site.Html.plain(name);
+                    let named = Html.plain(name);
                     let sentence = Markdown.Text(String.trimStart(following)) :: rest;
                     Right(#(Optional.withDefault(String.stripSuffix(named, "."), named),
-                            Site.Run.firstSentence(sentence)))
+                            Run.firstSentence(sentence)))
                 }
               | _ ->
                     Left(source <> ": a claim is its bold name and its sentences")
@@ -180,7 +180,7 @@ fn claimsOf(source : String,
 fn isClaimsLead(block : Markdown.Block) : Bool =
     match block {
         Markdown.Paragraph(inlines) ->
-            String.startsWith(Site.Html.plain(inlines), "What Ernest adds is where the parts meet")
+            String.startsWith(Html.plain(inlines), "What Ernest adds is where the parts meet")
       | _ ->
             false
     }
@@ -207,23 +207,23 @@ type Shell =
 
 // The shell's page, shell.html, its numbers the configuration's, so that
 // it says what the server enforces (site.md *The templates*).
-fn shellWritten(run : Site.Run.Run, shell : Shell) : Either(String, Unit) = {
+fn shellWritten(run : Run.Run, shell : Shell) : Either(String, Unit) = {
     let main <-
-        Site.Run.filled(run,
-                        "shell.html",
-                        [#("lifetime", Site.Template.Plain(spoken(shell.lifetime))),
-                         #("warning", Site.Template.Plain(spoken(shell.warning))),
-                         #("memory", Site.Template.Plain(Int.toString(shell.memory))),
-                         #("at_once", Site.Template.Plain(Int.toString(shell.atOnce))),
-                         #("starts", Site.Template.Plain(Int.toString(shell.starts))),
-                         #("within", Site.Template.Plain(spoken(shell.within)))]);
-    Site.Run.pageWritten(run,
-                         Site.Run.Output(address = "/shell/",
-                                         title = Site.Run.titled("Shell"),
-                                         description = shellDescription,
-                                         room = Some("Shell"),
-                                         =main,
-                                         source = Some("site/templates/shell.html")))
+        Run.filled(run,
+                   "shell.html",
+                   [#("lifetime", Template.Plain(spoken(shell.lifetime))),
+                    #("warning", Template.Plain(spoken(shell.warning))),
+                    #("memory", Template.Plain(Int.toString(shell.memory))),
+                    #("at_once", Template.Plain(Int.toString(shell.atOnce))),
+                    #("starts", Template.Plain(Int.toString(shell.starts))),
+                    #("within", Template.Plain(spoken(shell.within)))]);
+    Run.pageWritten(run,
+                    Run.Output(address = "/shell/",
+                               title = Run.titled("Shell"),
+                               description = shellDescription,
+                               room = Some("Shell"),
+                               =main,
+                               source = Some("site/templates/shell.html")))
 }
 
 // A time in milliseconds as the shell's page says it, in the largest unit
@@ -247,7 +247,7 @@ fn spoken(ms : Int) : String = {
 // shell.
 fn shellRead(config : Path) : Either(String, Shell) = {
     let named = Path.toString(config);
-    let text <- Site.Run.textOf(config);
+    let text <- Run.textOf(config);
     let value <-
         Either.mapLeft(Json.parse(text), fn(error) = named <> " is not JSON: " <> Io.show(error));
     let shell <-
@@ -325,27 +325,25 @@ fn megabytes(value : String) : Optional(Int) = {
 
 // The page served for any unmatched path, page.html with its fixed body
 // and a footer that names no source (site.md *The generation*).
-fn notFoundWritten(run : Site.Run.Run) : Either(String, Unit) = {
+fn notFoundWritten(run : Run.Run) : Either(String, Unit) = {
     let blocks = Markdown.parse(notFoundText);
     let main <-
-        Site.Run.filled(run,
-                        "page.html",
-                        [#("layout", Site.Template.Plain("error-page")),
-                         #("contents_html", Site.Template.Markup([])),
-                         #("book_html", Site.Template.Markup([])),
-                         #("heading_html",
-                           Site.Run.headingHtml([Markdown.Text("Not found")], None)),
-                         #("body_html",
-                           Site.Template.Markup(Site.Html.body(Site.Code.copied(blocks), 0, []))),
-                         #("page_nav_html", Site.Template.Markup([]))]);
-    let description <- Site.Run.described("the 404 page", blocks);
-    Site.Run.pageWritten(run,
-                         Site.Run.Output(address = "/404.html",
-                                         title = Site.Run.titled("Not found"),
-                                         =description,
-                                         room = None,
-                                         =main,
-                                         source = None))
+        Run.filled(run,
+                   "page.html",
+                   [#("layout", Template.Plain("error-page")),
+                    #("contents_html", Template.Markup([])),
+                    #("book_html", Template.Markup([])),
+                    #("heading_html", Run.headingHtml([Markdown.Text("Not found")], None)),
+                    #("body_html", Template.Markup(Html.body(CodeBlock.copied(blocks), 0, []))),
+                    #("page_nav_html", Template.Markup([]))]);
+    let description <- Run.described("the 404 page", blocks);
+    Run.pageWritten(run,
+                    Run.Output(address = "/404.html",
+                               title = Run.titled("Not found"),
+                               =description,
+                               room = None,
+                               =main,
+                               source = None))
 }
 
 //
@@ -365,19 +363,19 @@ fn absent(out : Path) : Either(String, Unit) =
     }
 
 // Every template and fragment under site/templates/, by its path there.
-fn templatesRead(directory : Path) : Either(String, Map(String, Site.Template.Template)) = {
+fn templatesRead(directory : Path) : Either(String, Map(String, Template.Template)) = {
     let pages <- htmlFiles(directory, "");
     let fragments <- htmlFiles(directory <> Path("fragments"), "fragments/");
     let read <- List.tryMap(pages <> fragments, fn(#(name, path)) = {
-        let text <- Site.Run.textOf(path);
-        Either.map(Site.Template.parse("site/templates/" <> name, text),
+        let text <- Run.textOf(path);
+        Either.map(Template.parse("site/templates/" <> name, text),
                    fn(template) = #(name, template))
     });
     Right(Map.fromList(read))
 }
 
 fn htmlFiles(directory : Path, prefix : String) : Either(String, List(#(String, Path))) = {
-    let entries <- Site.Run.listed(directory);
+    let entries <- Run.listed(directory);
     Right(List.filterMap(entries,
                          fn(entry) =
                              match #(entry.kind,
@@ -394,29 +392,29 @@ fn htmlFiles(directory : Path, prefix : String) : Either(String, List(#(String, 
 // digest of their content, written under those names: the stylesheet, the
 // script, and the icons' file, which the icons are gathered into. The
 // vendored files keep their names.
-fn rootCopied(from : Path, out : Path) : Either(String, Site.Run.Assets) = {
+fn rootCopied(from : Path, out : Path) : Either(String, Run.Assets) = {
     let digested = ["assets/css/site.css", "assets/js/site.js"];
     let _ <- treeCopied(from, out, [], digested);
     let stylesheet <- digestCopied(from, out, "assets/css/site.css");
     let script <- digestCopied(from, out, "assets/js/site.js");
     let gathered <- iconsGathered(from <> Path("assets/img/icons"));
     let icons <- digestWritten(out, "assets/img/icons.svg", String.toUtf8(gathered));
-    Right(Site.Run.Assets(=stylesheet, =script, =icons))
+    Right(Run.Assets(=stylesheet, =script, =icons))
 }
 
 fn treeCopied(from : Path,
               to : Path,
               under : List(String),
               left : List(String)) : Either(String, Unit) = {
-    let entries <- Site.Run.listed(from);
-    let _ <- Site.Run.made(to);
+    let entries <- Run.listed(from);
+    let _ <- Run.made(to);
     let _ <- List.tryMap(entries, fn(entry) = {
         let name = Optional.withDefault(Path.name(entry.path), "");
         let relative = under <> [name];
         match entry.kind {
             Fs.Directory -> treeCopied(entry.path, to <> Path(name), relative, left)
           | Fs.File when List.contains(left, String.join(relative, "/")) -> Right(Unit)
-          | Fs.File -> Site.Run.copied(entry.path, to <> Path(name))
+          | Fs.File -> Run.copied(entry.path, to <> Path(name))
           | _ -> Left(Path.toString(entry.path) <> " is neither a file nor a directory")
         }
     });
@@ -427,7 +425,7 @@ fn treeCopied(from : Path,
 // digits of its SHA-1 digest, `site.3f9a2c1e.js`, and the address a page
 // names it by.
 fn digestCopied(from : Path, out : Path, relative : String) : Either(String, String) = {
-    let bytes <- Site.Run.bytesOf(from <> Path(relative));
+    let bytes <- Run.bytesOf(from <> Path(relative));
     digestWritten(out, relative, bytes)
 }
 
@@ -439,7 +437,7 @@ fn digestWritten(out : Path, relative : String, bytes : Bytes) : Either(String, 
             <> digest
             <> "."
             <> Optional.withDefault(Path.extension(Path(relative)), "");
-    let _ <- Site.Run.fileWritten(out <> Path(named), bytes);
+    let _ <- Run.fileWritten(out <> Path(named), bytes);
     Right("/" <> named)
 }
 
@@ -450,7 +448,7 @@ fn digestWritten(out : Path, relative : String, bytes : Bytes) : Either(String, 
 // `fill`, and its children as they are; its line is the stylesheet's
 // `.icon`, which its `stroke` attributes leave to, and its size the page's.
 fn iconsGathered(directory : Path) : Either(String, String) = {
-    let entries <- Site.Run.listed(directory);
+    let entries <- Run.listed(directory);
     let icons =
         List.sortBy(List.filter(entries,
                                 fn(entry) =
@@ -458,7 +456,7 @@ fn iconsGathered(directory : Path) : Either(String, String) = {
                                         && Path.extension(entry.path) == Some("svg")),
                     fn(entry) = Path.toString(entry.path));
     let symbols <- List.tryMap(icons, fn(entry) = {
-        let text <- Site.Run.textOf(entry.path);
+        let text <- Run.textOf(entry.path);
         let id = Optional.withDefault(Path.name(Path.withoutExtension(entry.path)), "");
         symbolOf(Path.toString(entry.path), id, text)
     });
@@ -517,12 +515,12 @@ fn attributeOf(named : String, line : String) : Either(String, #(String, String)
 // the stoat in the header, the favicon, and the image a shared link shows
 // (docs/design/site.md *The look*).
 fn logosCopied(root : Path, out : Path) : Either(String, Unit) = {
-    let _ <- Site.Run.made(out <> Path("assets"));
+    let _ <- Run.made(out <> Path("assets"));
     let _ <-
         List.tryMap(["ernest-mark.svg", "ernest-avatar-64.png", "ernest-social-light.png"],
                     fn(name) =
-                        Site.Run.copied(root <> Path("assets") <> Path(name),
-                                        out <> Path("assets") <> Path(name)));
+                        Run.copied(root <> Path("assets") <> Path(name),
+                                   out <> Path("assets") <> Path(name)));
     Right(Unit)
 }
 

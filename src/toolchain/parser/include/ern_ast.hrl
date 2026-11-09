@@ -68,7 +68,12 @@
 %% Types (syntactic)
 %%
 
--record(t_named, {span, namespace = [], name, args = []}).
+-record(t_named, {span, namespace = [], name, args = [], written = []}).
+%% namespace: the namespace the name resolves to (report §4.2), once the
+%% build has resolved it (ern_resolve), and as written before; written:
+%% the namespace as the source writes it, which a diagnostic's span and
+%% help read. The same on e_var, e_constructor and p_constructor, before
+%% the type the checker gives a node, which is its last field.
 %% equality: true where the source writes the mark, `a=` (report §3, §4.7).
 -record(t_var, {span, name, equality = false}).
 -record(t_tuple, {span, elements}).
@@ -81,7 +86,7 @@
 
 -record(e_literal, {span, kind, value, type}).
 %% kind: int | float | char | string | bool
--record(e_var, {span, namespace = [], name, referent, supplies = [], type}).
+-record(e_var, {span, namespace = [], name, referent, supplies = [], written = [], type}).
 %% referent, which the checker sets (report §4.2): var, a name bound around
 %% it; #own_declaration{}, this module's declaration; #remote_declaration{},
 %% another module's, the two of checker/include/ern_types.hrl; {prelude,
@@ -89,7 +94,7 @@
 %% the name's prefix (report §4.2). supplies, which the checker sets: what the declaration's
 %% requirement is supplied with at this use (report §4.9), and Io.show's or
 %% Io.debug's descriptor (Appendix E.1), each a supply of ern_types.hrl.
--record(e_constructor, {span, namespace = [], name, base, args = none, type}).
+-record(e_constructor, {span, namespace = [], name, base, args = none, written = [], type}).
 %% base: the Expr after `..`, a record update's base or a fill's namespace,
 %% or undefined (report §5.6);
 %% args: none | {positional, Expr} | {named, [#field_set{}]}
@@ -140,7 +145,7 @@
 -record(p_wildcard, {span, type}).
 -record(p_var, {span, name, type}).
 -record(p_literal, {span, kind, value, type}).
--record(p_constructor, {span, namespace = [], name, args = none, type}).
+-record(p_constructor, {span, namespace = [], name, args = none, written = [], type}).
 %% args: none | {positional, Pattern} | {named, [#field_pattern{}]}
 -record(field_pattern, {span, name, pattern}).
 -record(p_tuple, {span, elements, type}).

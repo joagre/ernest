@@ -22,9 +22,9 @@ export type Run =
         out : Path,
         version : String,
         tag : String,
-        templates : Map(String, Site.Template.Template),
+        templates : Map(String, Template.Template),
         assets : Assets,
-        declarations : Map(String, Site.Links.Declaration),
+        declarations : Map(String, Links.Declaration),
         log : Map(String, List(String)),
         shellPath : String,
         lifetime : String,
@@ -43,7 +43,7 @@ export type Output =
            title : String,
            description : String,
            room : Optional(String),
-           main : List(Site.Template.Line),
+           main : List(Template.Line),
            source : Optional(String))
 
 /// A heading of a page's sidebar: its anchor, its level, and its text.
@@ -68,9 +68,9 @@ export fn pageWritten(run : Run, output : Output) : Either(String, Unit) = {
             let date <- committed(run.tag, path);
             filled(run,
                    "fragments/source.html",
-                   [#("tag", Site.Template.Plain(run.tag)),
-                    #("path", Site.Template.Plain(path)),
-                    #("date", Site.Template.Plain(date))])
+                   [#("tag", Template.Plain(run.tag)),
+                    #("path", Template.Plain(path)),
+                    #("date", Template.Plain(date))])
         }
       | None ->
             Right([])
@@ -78,30 +78,30 @@ export fn pageWritten(run : Run, output : Output) : Either(String, Unit) = {
     let lines <-
         filled(run,
                "base.html",
-               [#("title", Site.Template.Plain(output.title)),
-                #("description", Site.Template.Plain(output.description)),
-                #("stylesheet", Site.Template.Plain(run.assets.stylesheet)),
-                #("script", Site.Template.Plain(run.assets.script)),
-                #("icons", Site.Template.Plain(run.assets.icons)),
-                #("shell_path", Site.Template.Plain(run.shellPath)),
-                #("lifetime", Site.Template.Plain(run.lifetime)),
-                #("navigation_html", Site.Template.Markup(navigation)),
-                #("main_html", Site.Template.Markup(output.main)),
-                #("source_html", Site.Template.Markup(source)),
-                #("version", Site.Template.Plain(run.version)),
-                #("tag", Site.Template.Plain(run.tag))]);
+               [#("title", Template.Plain(output.title)),
+                #("description", Template.Plain(output.description)),
+                #("stylesheet", Template.Plain(run.assets.stylesheet)),
+                #("script", Template.Plain(run.assets.script)),
+                #("icons", Template.Plain(run.assets.icons)),
+                #("shell_path", Template.Plain(run.shellPath)),
+                #("lifetime", Template.Plain(run.lifetime)),
+                #("navigation_html", Template.Markup(navigation)),
+                #("main_html", Template.Markup(output.main)),
+                #("source_html", Template.Markup(source)),
+                #("version", Template.Plain(run.version)),
+                #("tag", Template.Plain(run.tag))]);
     let file = if String.endsWith(output.address, "/") then
         output.address <> "index.html"
     else
         output.address;
     let path = run.out <> Path(String.drop(file, 1));
     let _ <- made(Optional.withDefault(Path.parent(path), run.out));
-    fileWritten(path, String.toUtf8(Site.Template.text(lines)))
+    fileWritten(path, String.toUtf8(Template.text(lines)))
 }
 
 // The header's rooms, the page's own marked current
 // (docs/design/site.md *Every page*).
-fn navigationHtml(run : Run, room : Optional(String)) : Either(String, List(Site.Template.Line)) = {
+fn navigationHtml(run : Run, room : Optional(String)) : Either(String, List(Template.Line)) = {
     let rooms =
         [#("Why", "/why/"),
          #("Tour", "/tour/"),
@@ -118,8 +118,8 @@ fn navigationHtml(run : Run, room : Optional(String)) : Either(String, List(Site
                                    "fragments/navigation-current.html"
                                else
                                    "fragments/navigation.html",
-                               [#("href", Site.Template.Plain(address)),
-                                #("name", Site.Template.Plain(name))]));
+                               [#("href", Template.Plain(address)),
+                                #("name", Template.Plain(name))]));
     Right(List.flatMap(links, fn(lines) = lines))
 }
 
@@ -130,16 +130,13 @@ export fn titled(heading : String) : String =
 
 /// The page's `h1`, its heading's text, with its anchor where it has one.
 export fn headingHtml(text : List(Markdown.Inline),
-                      anchor : Optional(Site.Html.Anchor)) : Site.Template.Value =
-    Site.Template.Markup([Site.Template.Line(Site.Html.heading(1,
-                                                               text,
-                                                               Site.Html.Headed(=anchor,
-                                                                                class = None)))])
+                      anchor : Optional(Html.Anchor)) : Template.Value =
+    Template.Markup([Template.Line(Html.heading(1, text, Html.Headed(=anchor, class = None)))])
 
 /// A page's layout: its sidebar beside its text, or, where it has no
 /// sidebar, its text alone.
-export fn layout(sidebar : List(Site.Template.Line)) : Site.Template.Value =
-    Site.Template.Plain(if sidebar == [] then "doc-single" else "doc-layout")
+export fn layout(sidebar : List(Template.Line)) : Template.Value =
+    Template.Plain(if sidebar == [] then "doc-single" else "doc-layout")
 
 /// The sidebar, a page's headings two levels deep, each of the second level
 /// in a group under the first before it, through the fragment `fragment`
@@ -147,25 +144,24 @@ export fn layout(sidebar : List(Site.Template.Line)) : Site.Template.Value =
 export fn sidebar(run : Run,
                   fragment : String,
                   summary : String,
-                  found : List(Entry)) : Either(String, List(Site.Template.Line)) =
+                  found : List(Entry)) : Either(String, List(Template.Line)) =
     if found == [] then
         Right([])
     else {
         let entries <- sidebarEntries(run, found);
         filled(run,
                fragment,
-               [#("summary", Site.Template.Plain(summary)), #("entries_html", markup(entries))])
+               [#("summary", Template.Plain(summary)), #("entries_html", markup(entries))])
     }
 
-fn sidebarEntries(run : Run, found : List(Entry)) : Either(String, List(List(Site.Template.Line))) =
+fn sidebarEntries(run : Run, found : List(Entry)) : Either(String, List(List(Template.Line))) =
     match found {
         [] ->
             Right([])
       | entry :: rest -> {
             let #(under, later) = List.span(rest, fn(next) = next.level > entry.level);
             let values =
-                [#("anchor", Site.Template.Plain(entry.anchor)),
-                 #("label_html", labeled(entry.text))];
+                [#("anchor", Template.Plain(entry.anchor)), #("label_html", labeled(entry.text))];
             let lines <- if under == [] then
                 filled(run, "fragments/contents-entry.html", values)
             else {
@@ -184,7 +180,7 @@ fn sidebarEntries(run : Run, found : List(Entry)) : Either(String, List(List(Sit
 export fn pageNavigation(run : Run,
                          label : String,
                          previous : Optional(Neighbor),
-                         next : Optional(Neighbor)) : Either(String, List(Site.Template.Line)) =
+                         next : Optional(Neighbor)) : Either(String, List(Template.Line)) =
     if previous == None && next == None then
         Right([])
     else {
@@ -192,23 +188,23 @@ export fn pageNavigation(run : Run,
         let later <- neighborHtml(run, "fragments/next.html", next);
         filled(run,
                "fragments/page-nav.html",
-               [#("label", Site.Template.Plain(label)),
-                #("previous_html", Site.Template.Markup(earlier)),
-                #("next_html", Site.Template.Markup(later))])
+               [#("label", Template.Plain(label)),
+                #("previous_html", Template.Markup(earlier)),
+                #("next_html", Template.Markup(later))])
     }
 
 fn neighborHtml(run : Run,
                 fragment : String,
-                neighbor : Optional(Neighbor)) : Either(String, List(Site.Template.Line)) =
+                neighbor : Optional(Neighbor)) : Either(String, List(Template.Line)) =
     match neighbor {
         None ->
             Right([])
       | Some(found) ->
             filled(run,
                    fragment,
-                   [#("href", Site.Template.Plain(found.address)),
+                   [#("href", Template.Plain(found.address)),
                     #("label_html", labeled(found.text)),
-                    #("icons", Site.Template.Plain(run.assets.icons))])
+                    #("icons", Template.Plain(run.assets.icons))])
     }
 
 /// Each element with the one before it and the one after it, for previous
@@ -229,7 +225,7 @@ export fn neighbored(list : List(a)) : List(#(Optional(a), a, Optional(a))) = {
 /// line, passed over.
 export fn described(source : String, blocks : List(Markdown.Block)) : Either(String, String) =
     match firstProse(blocks) {
-        Some(inlines) -> Right(String.trim(Site.Html.plain(firstSentence(inlines))))
+        Some(inlines) -> Right(String.trim(Html.plain(firstSentence(inlines))))
       | None -> Left(source <> ": a page has a paragraph, whose first sentence describes it")
     }
 
@@ -256,7 +252,7 @@ fn ended(inlines : List(Markdown.Inline), following : String) : Optional(List(Ma
         [] ->
             None
       | inline :: rest ->
-            match endedIn(inline, Site.Html.plain(rest) <> following) {
+            match endedIn(inline, Html.plain(rest) <> following) {
                 Some(cut) -> Some([cut])
               | None -> Optional.map(ended(rest, following), fn(later) = inline :: later)
             }
@@ -298,23 +294,23 @@ fn endsSentence(rest : List(Char), following : String) : Bool =
 /// with the declarations its code links, and Copy alone for a block the
 /// bare shell cannot run (site.md *The live shell*).
 export fn linkedAll(run : Run,
-                    placed : List(Site.Code.Placed),
-                    page : Site.Links.Page) : Either(String, List(Site.Code.Placed)) = {
-    let links = Site.Links.named(page);
+                    placed : List(CodeBlock.Placed),
+                    page : Links.Page) : Either(String, List(CodeBlock.Placed)) = {
+    let links = Links.named(page);
     List.tryMap(placed,
                 fn(each) =
-                    Either.map(Site.Links.linked(each.block, page),
+                    Either.map(Links.linked(each.block, page),
                                fn(block) =
-                                   Site.Code.Placed(..each,
+                                   CodeBlock.Placed(..each,
                                                     =block,
                                                     =links,
                                                     given = runnable(run, page.address, each))))
 }
 
 // A block's buttons, Copy alone where site/unrunnable.md lists it.
-fn runnable(run : Run, address : String, each : Site.Code.Placed) : Site.Code.Buttons =
-    match Site.Code.firstOffered(each) {
-        Some(line) when Set.contains(run.unrunnable, #(address, line)) -> Site.Code.CopyAlone
+fn runnable(run : Run, address : String, each : CodeBlock.Placed) : CodeBlock.Buttons =
+    match CodeBlock.firstOffered(each) {
+        Some(line) when Set.contains(run.unrunnable, #(address, line)) -> CodeBlock.CopyAlone
       | _ -> each.given
     }
 
@@ -345,19 +341,19 @@ export fn unrunnableRead(root : Path) : Either(String, Set(#(String, String))) =
 export fn linkPage(run : Run,
                    source : String,
                    address : String,
-                   placed : List(Site.Code.Placed)) : Either(String, Site.Links.Page) = {
+                   placed : List(CodeBlock.Placed)) : Either(String, Links.Page) = {
     let blocks = List.map(placed, fn(each) = each.block);
-    let read <- List.tryMap(Site.Links.targets(blocks, source), fn(path) = {
+    let read <- List.tryMap(Links.targets(blocks, source), fn(path) = {
         let found <- documentOf(run.root, path);
-        Either.map(Site.Links.anchors(path, found), fn(table) = #(path, table))
+        Either.map(Links.anchors(path, found), fn(table) = #(path, table))
     });
-    Right(Site.Links.Page(=source,
-                          =address,
-                          tag = run.tag,
-                          anchors = Map.fromList(read),
-                          declarations = run.declarations,
-                          log = run.log,
-                          declared = Site.Code.declared(placed)))
+    Right(Links.Page(=source,
+                     =address,
+                     tag = run.tag,
+                     anchors = Map.fromList(read),
+                     declarations = run.declarations,
+                     log = run.log,
+                     declared = CodeBlock.declared(placed)))
 }
 
 /// The blocks without the contents list a source keeps for GitHub, its
@@ -404,25 +400,24 @@ export fn isHeadingOf(wanted : Int, block : Markdown.Block) : Bool =
 
 /// A heading's text as a label's value, its links written as their text,
 /// since the label stands in a link of its own.
-export fn labeled(text : List(Markdown.Inline)) : Site.Template.Value =
-    Site.Template.Markup([Site.Template.Line(Site.Html.label(text))])
+export fn labeled(text : List(Markdown.Inline)) : Template.Value =
+    Template.Markup([Template.Line(Html.label(text))])
 
 /// The inlines' HTML, one line, as a value.
-export fn inlined(inlines : List(Markdown.Inline)) : Site.Template.Value =
-    Site.Template.Markup([Site.Template.Line(Site.Html.inlinesHtml(inlines))])
+export fn inlined(inlines : List(Markdown.Inline)) : Template.Value =
+    Template.Markup([Template.Line(Html.inlinesHtml(inlines))])
 
 /// The lines of a list's items as one value.
-export fn markup(lines : List(List(Site.Template.Line))) : Site.Template.Value =
-    Site.Template.Markup(List.flatMap(lines, fn(each) = each))
+export fn markup(lines : List(List(Template.Line))) : Template.Value =
+    Template.Markup(List.flatMap(lines, fn(each) = each))
 
 /// The template or fragment under site/templates/ by its path there, filled
 /// with the values.
 export fn filled(run : Run,
                  name : String,
-                 values : List(#(String,
-                                 Site.Template.Value))) : Either(String, List(Site.Template.Line)) =
+                 values : List(#(String, Template.Value))) : Either(String, List(Template.Line)) =
     match Map.get(run.templates, name) {
-        Some(template) -> Site.Template.fill(template, values)
+        Some(template) -> Template.fill(template, values)
       | None -> Left("site/templates/" <> name <> " is not there")
     }
 

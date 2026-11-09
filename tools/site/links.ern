@@ -17,7 +17,7 @@
 /// library by its qualified name, the log's entries, each title with the
 /// file under docs/log/ and the GitHub anchor of each entry of that title, as
 /// `logEntries` reads them, and the types its own code declares, which
-/// `Site.Code.declared` reads.
+/// `Site.CodeBlock.declared` reads.
 export type Page =
     Page(source : String,
          address : String,
@@ -111,29 +111,28 @@ export fn anchors(path : String,
 /// for one without; in one that numbers none each heading's GitHub anchor.
 export fn headingAnchors(path : String,
                          blocks : List(Markdown.Block)) : Either(String,
-                                                                 List(Optional(Site.Html.Anchor))) =
+                                                                 List(Optional(Html.Anchor))) =
     match shown(path) {
         Some(Slugged(_)) ->
             Either.map(slugged(path, headings(blocks)),
                        fn(slugs) =
                            List.map(slugs,
                                     fn(slug) =
-                                        Some(Site.Html.Anchor(id = slug,
-                                                              label = "Link to this section"))))
+                                        Some(Html.Anchor(id = slug,
+                                                         label = "Link to this section"))))
       | _ ->
             Right(List.map(headings(blocks), numberAnchor))
     }
 
 /// A numbered heading's anchor, its number, and none for a heading that is
 /// not numbered (site.md *Anchors*).
-export fn numberAnchor(text : String) : Optional(Site.Html.Anchor) =
-    Optional.map(number(text),
-                 fn(found) = Site.Html.Anchor(id = found, label = "Link to " <> found))
+export fn numberAnchor(text : String) : Optional(Html.Anchor) =
+    Optional.map(number(text), fn(found) = Html.Anchor(id = found, label = "Link to " <> found))
 
 // The text of each top-level heading, as a GitHub anchor reads it.
 fn headings(blocks : List(Markdown.Block)) : List(String) =
     List.filterMap(blocks, fn(block) = match block {
-        Markdown.Heading(=text) -> Some(Site.Html.plain(text))
+        Markdown.Heading(=text) -> Some(Html.plain(text))
       | _ -> None
     })
 
@@ -325,7 +324,7 @@ export fn linked(block : Markdown.Block, page : Page) : Either(String, Markdown.
 /// its own.
 export fn headingLinked(text : List(Markdown.Inline),
                         page : Page) : Either(String, List(Markdown.Inline)) =
-    match #(text, number(Site.Html.plain(text))) {
+    match #(text, number(Html.plain(text))) {
         #(Markdown.Text(first) :: rest, Some(found)) ->
             match String.stripPrefix(first, "Appendix " <> found) {
                 Some(following) ->
@@ -366,7 +365,7 @@ fn inlineLinked(previous : Optional(Markdown.Inline),
       | Markdown.Emphasis(inlines) when isLogCited(previous) ->
             Either.map(logEntry(page, inlines), fn(place) = [logLink(page, inline, place)])
       | Markdown.Emphasis(inlines) when page.source == "CHANGES.md"
-            && Map.contains(page.log, Site.Html.plain(inlines)) ->
+            && Map.contains(page.log, Html.plain(inlines)) ->
             Either.map(logEntry(page, inlines), fn(place) = [logLink(page, inline, place)])
       | Markdown.Emphasis(inlines) ->
             Either.map(inlinesLinked(inlines, page), fn(linked) = [Markdown.Emphasis(linked)])
@@ -604,7 +603,7 @@ export fn logEntries(log : String) : Either(String, Map(String, List(String))) =
 
 fn indexEntry(inline : Markdown.Inline) : Optional(#(String, String)) =
     match inline {
-        Markdown.Link(=text, =url) -> Some(#(Site.Html.plain(text), url))
+        Markdown.Link(=text, =url) -> Some(#(Html.plain(text), url))
       | _ -> None
     }
 
@@ -618,7 +617,7 @@ fn isLogCited(previous : Optional(Markdown.Inline)) : Bool =
 // The file and anchor of the log's entry a title names, or why there is
 // none: no entry of that title, or several.
 fn logEntry(page : Page, title : List(Markdown.Inline)) : Either(String, String) = {
-    let named = Site.Html.plain(title);
+    let named = Html.plain(title);
     match Map.get(page.log, named) {
         Some([place]) ->
             Right(place)

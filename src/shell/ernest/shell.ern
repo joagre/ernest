@@ -133,7 +133,7 @@ type ReaderMsg = Key(Terminal.Event) | Prompted
 // the shell colors, its local half, and the terminal's columns, which
 // documentation is rendered to the width of (report §11.2).
 type Reading =
-    Reading(editing : Ernest.Shell.Editor.Editing,
+    Reading(editing : Editor.Editing,
             keeping : Bool,
             hinted : Bool,
             last : LastKey,
@@ -234,7 +234,7 @@ type Serving =
 // neither. The defaults print what a prompt is used for whole and stop a
 // value that would scroll the session away.
 fn defaults() : Settings =
-    Settings(depth = 10, length = 100, timing = false, rows = Ernest.Shell.Region.defaultRows)
+    Settings(depth = 10, length = 100, timing = false, rows = Region.defaultRows)
 
 /// The shell: a session beside its local half on this node, at a terminal
 /// or reading lines where standard input is not a terminal or standard
@@ -296,8 +296,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
     monitor(Process.fromAddress(local), LocalEnded);
     let screen = spawn(fn() = match size {
         Some(given) ->
-            screenLoop(Ernest.Shell.Region.new(given),
-                       Showing(destination = None, =local, cut = <<>>))
+            screenLoop(Region.new(given), Showing(destination = None, =local, cut = <<>>))
       | None ->
             plainLoop(Showing(destination = None, =local, cut = <<>>))
     });
@@ -391,7 +390,7 @@ fn startReader(shell : Address(ShellMsg),
     spawn(fn() =
               firstPrompt(shell,
                           screen,
-                          Reading(editing = Ernest.Shell.Editor.start(desk.earlier),
+                          Reading(editing = Editor.start(desk.earlier),
                                   keeping = desk.keeping,
                                   hinted = false,
                                   last = Ordinary,
@@ -434,7 +433,7 @@ let colorAllowed = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
 // cannot be read is said once, and not written, and so is a `HOME` that
 // names no place for it, unset or relative.
 fn readHistory() : #(List(String), Bool, List(String)) =
-    match Ernest.Shell.History.file {
+    match History.file {
         None -> {
             let why = match Os.environment("HOME") {
                 None -> "HOME is not set"
@@ -443,7 +442,7 @@ fn readHistory() : #(List(String), Bool, List(String)) =
             #([], false, ["the history is not kept, since " <> why])
         }
       | Some(path) ->
-            match Ernest.Shell.History.read() {
+            match History.read() {
                 Right(inputs) ->
                     #(inputs, true, [])
               | Left(unkept) ->
@@ -453,14 +452,11 @@ fn readHistory() : #(List(String), Bool, List(String)) =
 
 // Report §11.2: why the history is not kept, its file named where it is
 // one the shell does not read and write.
-fn unkeptReason(unkept : Ernest.Shell.History.Unkept, path : Path) : String =
+fn unkeptReason(unkept : History.Unkept, path : Path) : String =
     match unkept {
-        Ernest.Shell.History.Unreadable(error) ->
-            "it could not be read: " <> trouble(error)
-      | Ernest.Shell.History.Linked ->
-            Path.toString(path) <> " is a link"
-      | Ernest.Shell.History.NotOwn ->
-            Path.toString(path) <> " is not a regular file of the user's own"
+        History.Unreadable(error) -> "it could not be read: " <> trouble(error)
+      | History.Linked -> Path.toString(path) <> " is a link"
+      | History.NotOwn -> Path.toString(path) <> " is not a regular file of the user's own"
     }
 
 // Report §11.2: where the startup files are, the person's first and then
@@ -468,7 +464,7 @@ fn unkeptReason(unkept : Ernest.Shell.History.Unkept, path : Path) : String =
 // names that directory; a file both paths name runs once. Whether they are
 // there, whose they are, and what they hold, is read where they are run.
 fn startupFiles() : List(String) =
-    match #(Optional.map(Ernest.Shell.History.startup, fromWorkingDirectory), configStartup()) {
+    match #(Optional.map(History.startup, fromWorkingDirectory), configStartup()) {
         #(Some(own), Some(configured)) ->
             if isSameFile(own, configured) then [own] else [own, configured]
       | #(Some(own), None) ->
@@ -815,9 +811,7 @@ fn faulted(state : State,
 // as `causeLine` writes it, and beneath them its trace, as `ern run` prints
 // a fault's (§7.3).
 fn sayFault(state : State, screen : Address(ScreenMsg), cause : String, trace : String) : Unit =
-    say(screen,
-        Ernest.Shell.Style.fault(placed(state, "fault: " <> cause) <> indentedTrace(trace),
-                                 state.color))
+    say(screen, Style.fault(placed(state, "fault: " <> cause) <> indentedTrace(trace), state.color))
 
 // Report §11.2: what an input declared, a line each in the order it was
 // written, or else its value with its type, an expression's and the `Left`
@@ -834,8 +828,7 @@ fn printResult(state : State,
                 Unit
             else {
                 let shown = show(value, state.settings.depth, state.settings.length);
-                say(screen,
-                    shown <> Ernest.Shell.Style.quiet(" : " <> typeText(checked), state.color));
+                say(screen, shown <> Style.quiet(" : " <> typeText(checked), state.color));
                 if leavesItUnchanged(checked) then
                     say(screen,
                         "`it` is unchanged: this input did not determine the type of its value")
@@ -950,7 +943,7 @@ fn readerEnd(color : Markdown.Output, down : Down) : String =
             ""
       | other -> {
             let text = "the shell stopped reading the keyboard: " <> downLine(other);
-            Ernest.Shell.Style.fault(text, color) <> "\n"
+            Style.fault(text, color) <> "\n"
         }
     }
 
@@ -973,7 +966,7 @@ fn reportFault(state : State,
         state
     else {
         let text = reportLine(report) <> indentedTrace(report.trace);
-        send(screen, wrap(Ernest.Shell.Style.fault(text, state.color)));
+        send(screen, wrap(Style.fault(text, state.color)));
         State(..state, faults = List.take(report :: state.faults, keptFaults))
     }
 
@@ -1001,7 +994,7 @@ fn saidLine(line : String) : ScreenMsg =
 // Report §11.2, Appendix E.21: a fault's line as `:faults` lists it, the
 // time the fault was met first, as `ern run` stamps a line.
 fn stampedLine(report : Process.FaultReport, color : Markdown.Output) : String =
-    Ernest.Shell.Style.fault(Clock.toString(report.time) <> " " <> reportLine(report), color)
+    Style.fault(Clock.toString(report.time) <> " " <> reportLine(report), color)
 
 // Report §11.2: `:faults` lists the last hundred.
 let keptFaults = 100
@@ -1071,7 +1064,7 @@ fn escapedChar(char : Char) : String =
 
 // A diagnostic, its first line colored as a fault (report §11.2).
 fn diagnose(screen : Address(ScreenMsg), color : Markdown.Output, text : String) : Unit =
-    send(screen, Said(Ernest.Shell.Style.diagnostic(text, color) <> "\n"))
+    send(screen, Said(Style.diagnostic(text, color) <> "\n"))
 
 fn say(screen : Address(ScreenMsg), text : String) : Unit =
     send(screen, Said(text <> "\n"))
@@ -1079,7 +1072,7 @@ fn say(screen : Address(ScreenMsg), text : String) : Unit =
 // Report §11.2: what the shell refuses is red, as a diagnostic's first
 // line is, and what it answers is plain.
 fn refuse(state : State, screen : Address(ScreenMsg), text : String) : Unit =
-    say(screen, Ernest.Shell.Style.fault(placed(state, text), state.color))
+    say(screen, Style.fault(placed(state, text), state.color))
 
 // Report §11.2: where the input being run came from, which its diagnostics
 // name: a line of a startup file, the input beginning in that column, or
@@ -1113,7 +1106,7 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit =
 // Report §11.2: a refusal names what was typed, each control character
 // written as its escape, as a fault's cause is.
 fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next =
-    match Ernest.Shell.Command.parse(input) {
+    match Command.parse(input) {
         Left(text) -> refuseCommand(state, screen, escaped(text))
       | Right(#(action, argument)) -> obey(state, screen, action, argument, argumentColumn(input))
     }
@@ -1121,7 +1114,7 @@ fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next =
 // The column on its line where a command's argument begins, after the
 // command's word and the spaces after it.
 fn argumentColumn(input : String) : Int = {
-    let end = Ernest.Shell.Command.wordEnd(input);
+    let end = Command.wordEnd(input);
     let rest = String.drop(input, end);
     end + String.size(rest) - String.size(String.trimStart(rest)) + 1
 }
@@ -1130,28 +1123,28 @@ fn argumentColumn(input : String) : Int = {
 // and leaves the session as it was.
 fn obey(state : State,
         screen : Address(ScreenMsg),
-        action : Ernest.Shell.Command.Action,
+        action : Command.Action,
         argument : String,
         column : Int) : Next = {
     let State(=session, =color) = state;
     match action {
         // report §11.2: `:quit` leaves every shell, an attached one's node
         // running on
-        Ernest.Shell.Command.Quit ->
+        Command.Quit ->
             Leave
-      | Ernest.Shell.Command.Help ->
-            answerCommand(state, screen, Ernest.Shell.Command.help())
-      | Ernest.Shell.Command.Bindings ->
+      | Command.Help ->
+            answerCommand(state, screen, Command.help())
+      | Command.Bindings ->
             match bindings(session) {
                 [] -> answerCommand(state, screen, ["the session declares nothing yet"])
               | lines -> answerCommand(state, screen, lines)
             }
-      | Ernest.Shell.Command.Type ->
+      | Command.Type ->
             match declaredType(session, argument) {
                 Some(text) -> answerCommand(state, screen, [argument <> " : " <> text])
               | None -> typeOf(state, screen, argument, column)
             }
-      | Ernest.Shell.Command.Forget ->
+      | Command.Forget ->
             match forget(session, argument) {
                 Left(text) ->
                     refuseCommand(state, screen, text)
@@ -1160,33 +1153,33 @@ fn obey(state : State,
                     Continue(State(..state, =session))
                 }
             }
-      | Ernest.Shell.Command.Browse ->
+      | Command.Browse ->
             match browse(session, argument) {
                 Left(text) -> refuseCommand(state, screen, text)
               | Right(lines) -> answerCommand(state, screen, lines)
             }
-      | Ernest.Shell.Command.Doc ->
+      | Command.Doc ->
             match doc(session, argument) {
                 Left(text) ->
                     refuseCommand(state, screen, text)
               | Right(text) ->
                     answerCommand(state, screen, rendered(text, columnsOf(screen), color))
             }
-      | Ernest.Shell.Command.Output ->
+      | Command.Output ->
             match redirectOutput(state.local, screen, argument) {
                 Left(text) -> refuseCommand(state, screen, text)
               | Right(text) -> answerCommand(state, screen, [text])
             }
-      | Ernest.Shell.Command.Settings ->
+      | Command.Settings ->
             Continue(State(..state, settings = set(state, screen, argument)))
-      | Ernest.Shell.Command.Processes ->
+      | Command.Processes ->
             match sessionProcesses() {
                 [] -> answerCommand(state, screen, ["no process of the session's is running"])
               | sites -> answerCommand(state, screen, sites)
             }
       // report §11.2: `:faults` lists each fault's line, its time first as
       // `ern run` stamps a line, without its trace
-      | Ernest.Shell.Command.Faults ->
+      | Command.Faults ->
             match List.reverse(state.faults) {
                 [] ->
                     answerCommand(state, screen, ["no process has faulted"])
@@ -1195,12 +1188,12 @@ fn obey(state : State,
                                   screen,
                                   List.map(reports, fn(report) = stampedLine(report, color)))
             }
-      | Ernest.Shell.Command.Load ->
+      | Command.Load ->
             match load(session, argument) {
                 Left(text) -> diagnoseCommand(state, screen, placed(state, text))
               | Right(#(session, line)) -> answerCommand(State(..state, =session), screen, [line])
             }
-      | Ernest.Shell.Command.Reload ->
+      | Command.Reload ->
             match reload(session) {
                 Left(text) -> diagnoseCommand(state, screen, placed(state, text))
               | Right(#(session, lines)) -> answerCommand(State(..state, =session), screen, lines)
@@ -1286,20 +1279,20 @@ fn set(state : State, screen : Address(ScreenMsg), argument : String) : Settings
     if String.isEmpty(argument) then {
         printLines(screen, settingLines(settings));
         settings
-    } else match Ernest.Shell.Command.setting(argument) {
+    } else match Command.setting(argument) {
         Left(text) -> {
             refuse(state, screen, text);
             settings
         }
-      | Right(Ernest.Shell.Command.Depth(depth)) ->
+      | Right(Command.Depth(depth)) ->
             Settings(..settings, =depth)
-      | Right(Ernest.Shell.Command.Length(length)) ->
+      | Right(Command.Length(length)) ->
             Settings(..settings, =length)
-      | Right(Ernest.Shell.Command.Rows(rows)) -> {
+      | Right(Command.Rows(rows)) -> {
             send(screen, SetRows(rows));
             Settings(..settings, =rows)
         }
-      | Right(Ernest.Shell.Command.Timing(timing)) ->
+      | Right(Command.Timing(timing)) ->
             Settings(..settings, =timing)
     }
 }
@@ -1337,45 +1330,44 @@ type Showing = Showing(destination : Optional(Path), local : Address(LocalMsg), 
 
 // The screen process holds the region of `Ernest.Shell.Region` and writes what
 // it answers; the region itself is pure and draws nothing.
-fn screenLoop(region : Ernest.Shell.Region.Region, showing : Showing) : Unit receiving ScreenMsg =
+fn screenLoop(region : Region.Region, showing : Showing) : Unit receiving ScreenMsg =
     receive {
         Said(text) ->
-            paint(Ernest.Shell.Region.said(region, text), showing)
+            paint(Region.said(region, text), showing)
       | Noted(text) ->
-            paint(Ernest.Shell.Region.noted(region, text), showing)
+            paint(Region.noted(region, text), showing)
       | Wrote(bytes) -> {
             let #(text, cut) = String.fromUtf8Piece(showing.cut <> bytes);
             let showing = Showing(..showing, =cut);
             match showing.destination {
                 None ->
-                    paint(Ernest.Shell.Region.wrote(region, text), showing)
+                    paint(Region.wrote(region, text), showing)
               | Some(path) ->
                     match appendOutput(showing.local, path, text, "the live region") {
                         Right(_) ->
                             screenLoop(region, showing)
                       | Left(why) -> {
-                            let #(region, said) = Ernest.Shell.Region.said(region, why);
-                            send(showing.local,
-                                 Write(text = said, ending = Ernest.Shell.Region.ending(region)));
-                            paint(Ernest.Shell.Region.wrote(region, text),
+                            let #(region, said) = Region.said(region, why);
+                            send(showing.local, Write(text = said, ending = Region.ending(region)));
+                            paint(Region.wrote(region, text),
                                   Showing(..showing, destination = None))
                         }
                     }
             }
         }
       | ShowInput(=text, =cursor, =offered) ->
-            paint(Ernest.Shell.Region.edited(region, text, cursor, offered), showing)
+            paint(Region.edited(region, text, cursor, offered), showing)
       | Entered ->
-            paint(Ernest.Shell.Region.entered(region), showing)
+            paint(Region.entered(region), showing)
       | Taken ->
-            paint(Ernest.Shell.Region.taken(region), showing)
+            paint(Region.taken(region), showing)
       // the size the event carries, the terminal's on the shell's own node
       | Resized(size) ->
-            paint(Ernest.Shell.Region.resized(region, size), showing)
+            paint(Region.resized(region, size), showing)
       | Clear ->
-            paint(Ernest.Shell.Region.cleared(region), showing)
+            paint(Region.cleared(region), showing)
       | SetRows(rows) ->
-            paint(Ernest.Shell.Region.rowsSized(region, rows), showing)
+            paint(Region.rowsSized(region, rows), showing)
       | Redirect(destination) ->
             screenLoop(region, Showing(..showing, =destination))
       | Locate(reply) -> {
@@ -1383,7 +1375,7 @@ fn screenLoop(region : Ernest.Shell.Region.Region, showing : Showing) : Unit rec
             screenLoop(region, showing)
         }
       | Columns(reply) -> {
-            answer(reply, Ernest.Shell.Region.columns(region));
+            answer(reply, Region.columns(region));
             screenLoop(region, showing)
         }
       | Flush(reply) -> {
@@ -1396,10 +1388,9 @@ fn screenLoop(region : Ernest.Shell.Region.Region, showing : Showing) : Unit rec
 // What the region answered written, by the local half, with what ends the
 // region where it stands, and the screen goes on with the region it
 // became.
-fn paint(drawn : #(Ernest.Shell.Region.Region, String),
-         showing : Showing) : Unit receiving ScreenMsg = {
+fn paint(drawn : #(Region.Region, String), showing : Showing) : Unit receiving ScreenMsg = {
     let #(region, bytes) = drawn;
-    send(showing.local, Write(text = bytes, ending = Ernest.Shell.Region.ending(region)));
+    send(showing.local, Write(text = bytes, ending = Region.ending(region)));
     screenLoop(region, showing)
 }
 
@@ -1592,28 +1583,28 @@ fn read(shell : Address(ShellMsg),
             readLoop(shell, screen, Reading(..reading, columns = size.columns))
         }
       | _ ->
-            match Ernest.Shell.Editor.edit(editing, event) {
-                Ernest.Shell.Editor.Edited(edited) ->
+            match Editor.edit(editing, event) {
+                Editor.Edited(edited) ->
                     showing(shell, screen, reading, edited)
-              | Ernest.Shell.Editor.Matching(edited) ->
+              | Editor.Matching(edited) ->
                     matching(shell, screen, reading, edited)
               // report §11.2: another line where the parser cannot finish the
               // input, and the input where it can
-              | Ernest.Shell.Editor.Submit(edited) ->
-                    if continues(Ernest.Shell.Editor.text(edited)) then
-                        showing(shell, screen, reading, Ernest.Shell.Editor.newline(edited))
+              | Editor.Submit(edited) ->
+                    if continues(Editor.text(edited)) then
+                        showing(shell, screen, reading, Editor.newline(edited))
                     else {
                         let keeping = remember(screen, reading.local, edited, keeping);
                         send(screen, Entered);
-                        send(shell, Typed(Ernest.Shell.Editor.text(edited)));
+                        send(shell, Typed(Editor.text(edited)));
                         readLoop(shell,
                                  screen,
                                  Reading(..reading,
-                                         editing = Ernest.Shell.Editor.next(edited),
+                                         editing = Editor.next(edited),
                                          =keeping,
                                          last = Ordinary))
                     }
-              | Ernest.Shell.Editor.Cancel -> {
+              | Editor.Cancel -> {
                     // what was typed stays in the transcript, abandoned, and
                     // in the history to recall and mend
                     let keeping = remember(screen, reading.local, editing, keeping);
@@ -1622,19 +1613,19 @@ fn read(shell : Address(ShellMsg),
                     readLoop(shell,
                              screen,
                              Reading(..reading,
-                                     editing = Ernest.Shell.Editor.next(editing),
+                                     editing = Editor.next(editing),
                                      =keeping,
                                      last = Ordinary))
                 }
-              | Ernest.Shell.Editor.ClearScreen(edited) -> {
+              | Editor.ClearScreen(edited) -> {
                     send(screen, Clear);
                     showing(shell, screen, reading, edited)
                 }
-              | Ernest.Shell.Editor.Completing(edited) ->
+              | Editor.Completing(edited) ->
                     completing(shell, screen, reading, edited)
-              | Ernest.Shell.Editor.Documenting(edited) ->
+              | Editor.Documenting(edited) ->
                     documenting(shell, screen, reading, edited)
-              | Ernest.Shell.Editor.Quit ->
+              | Editor.Quit ->
                     send(shell, InputEnded)
             }
     }
@@ -1646,9 +1637,9 @@ fn read(shell : Address(ShellMsg),
 fn matching(shell : Address(ShellMsg),
             screen : Address(ScreenMsg),
             reading : Reading,
-            edited : Ernest.Shell.Editor.Editing) : Unit receiving ReaderMsg = {
-    let text = Ernest.Shell.Editor.text(edited);
-    match opening(String.slice(text, 0, Ernest.Shell.Editor.cursor(edited))) {
+            edited : Editor.Editing) : Unit receiving ReaderMsg = {
+    let text = Editor.text(edited);
+    match opening(String.slice(text, 0, Editor.cursor(edited))) {
         None ->
             showing(shell, screen, reading, edited)
       | Some(index) -> {
@@ -1673,25 +1664,23 @@ fn matching(shell : Address(ShellMsg),
 fn showing(shell : Address(ShellMsg),
            screen : Address(ScreenMsg),
            reading : Reading,
-           edited : Ernest.Shell.Editor.Editing) : Unit receiving ReaderMsg = {
+           edited : Editor.Editing) : Unit receiving ReaderMsg = {
     let hinted = hint(screen, reading, edited);
     send(screen, shownInput(edited));
     // a key that only begins a sequence, `Escape` and the `[` after
     // it, leaves the last key as it was: `Shift-Tab` twice is two
     // presses, not six keys (report §12.1)
-    let last = if Ernest.Shell.Editor.isMidSequence(edited) then reading.last else Ordinary;
+    let last = if Editor.isMidSequence(edited) then reading.last else Ordinary;
     readLoop(shell, screen, Reading(..reading, editing = edited, =hinted, =last))
 }
 
 // Report §11.2: the first input of a session to take a second line says
 // how it is run, once, above the region rather than on the prompt, where
 // it would move the column the input is typed in.
-fn hint(screen : Address(ScreenMsg),
-        reading : Reading,
-        edited : Ernest.Shell.Editor.Editing) : Bool =
+fn hint(screen : Address(ScreenMsg), reading : Reading, edited : Editor.Editing) : Bool =
     if reading.hinted then
         true
-    else if String.contains(Ernest.Shell.Editor.text(edited), "\n") then {
+    else if String.contains(Editor.text(edited), "\n") then {
         send(screen, Noted("Enter runs a finished input, M-Enter adds a line."));
         true
     } else
@@ -1699,15 +1688,13 @@ fn hint(screen : Address(ScreenMsg),
 
 // What the reader shows is the editor's, since a search shows its own
 // prompt and the input it found rather than the line (report §11.2).
-fn shownInput(editing : Ernest.Shell.Editor.Editing) : ScreenMsg =
+fn shownInput(editing : Editor.Editing) : ScreenMsg =
     under(editing, [])
 
 // The line being typed with rows shown under it, which the next key
 // takes away (report §11.2).
-fn under(editing : Ernest.Shell.Editor.Editing, rows : List(String)) : ScreenMsg =
-    ShowInput(text = Ernest.Shell.Editor.shown(editing),
-              cursor = Ernest.Shell.Editor.shownCursor(editing),
-              offered = rows)
+fn under(editing : Editor.Editing, rows : List(String)) : ScreenMsg =
+    ShowInput(text = Editor.shown(editing), cursor = Editor.shownCursor(editing), offered = rows)
 
 // Report §11.2: `Enter` takes another line where the parser cannot
 // finish the input, and runs what there is on an empty line, so that an
@@ -1739,10 +1726,10 @@ fn rowBefore(input : String, cursor : Int) : String = {
 // takes it, by the local half, which holds the history file.
 fn remember(screen : Address(ScreenMsg),
             local : Address(LocalMsg),
-            editing : Ernest.Shell.Editor.Editing,
+            editing : Editor.Editing,
             keeping : Bool) : Bool = {
-    let line = Ernest.Shell.Editor.text(editing);
-    if !keeping || !Ernest.Shell.Editor.keeps(editing) then
+    let line = Editor.text(editing);
+    if !keeping || !Editor.keeps(editing) then
         keeping
     else match addToHistory(local, line) {
         Right(_) ->
@@ -1768,20 +1755,18 @@ fn addToHistory(local : Address(LocalMsg), input : String) : Either(Io.Error, Un
 fn completing(shell : Address(ShellMsg),
               screen : Address(ScreenMsg),
               reading : Reading,
-              editing : Ernest.Shell.Editor.Editing) : Unit receiving ReaderMsg = {
-    let line = Ernest.Shell.Editor.text(editing);
-    let cursor = Ernest.Shell.Editor.cursor(editing);
+              editing : Editor.Editing) : Unit receiving ReaderMsg = {
+    let line = Editor.text(editing);
+    let cursor = Editor.cursor(editing);
     if !String.startsWith(line, ":") && String.isEmpty(String.trim(rowBefore(line, cursor))) then
         // report §11.2: only spaces before the cursor on its row, so `Tab`
         // indents. Four spaces and no tab: the style guide's rule, and
         // a tab in the line is invisible where spaces are what they
         // look like (§0, principle 3)
-        showing(shell, screen, reading, Ernest.Shell.Editor.insert(editing, indent))
+        showing(shell, screen, reading, Editor.insert(editing, indent))
     else {
         let #(completion, typedWord) =
-            Ernest.Shell.Complete.completion(line,
-                                             cursor,
-                                             fn(path) = listEntries(reading.local, path));
+            Complete.completion(line, cursor, fn(path) = listEntries(reading.local, path));
         offering(shell, screen, reading, completion, typedWord, editing)
     }
 }
@@ -1803,18 +1788,14 @@ let indent = "    "
 fn offering(shell : Address(ShellMsg),
             screen : Address(ScreenMsg),
             reading : Reading,
-            completion : Ernest.Shell.Complete.Completion,
+            completion : Complete.Completion,
             typedWord : String,
-            editing : Ernest.Shell.Editor.Editing) : Unit receiving ReaderMsg = {
-    let line = Ernest.Shell.Editor.text(editing);
-    let #(text, cursor) =
-        Ernest.Shell.Complete.applied(line,
-                                      Ernest.Shell.Editor.cursor(editing),
-                                      typedWord,
-                                      completion);
-    let completed = Ernest.Shell.Editor.withLine(editing, text, cursor);
+            editing : Editor.Editing) : Unit receiving ReaderMsg = {
+    let line = Editor.text(editing);
+    let #(text, cursor) = Complete.applied(line, Editor.cursor(editing), typedWord, completion);
+    let completed = Editor.withLine(editing, text, cursor);
     let hinted = hint(screen, reading, completed);
-    let listed = reading.last == Tabbed || text == line || Ernest.Shell.Complete.isLone(completion);
+    let listed = reading.last == Tabbed || text == line || Complete.isLone(completion);
     let rows = if listed then listing(completion, reading.color) else [];
     send(screen, under(completed, rows));
     readLoop(shell, screen, Reading(..reading, editing = completed, =hinted, last = Tabbed))
@@ -1823,8 +1804,8 @@ fn offering(shell : Address(ShellMsg),
 // Report §11.2: the candidates, a lone one too, a line each with the
 // type they carry, or a command's help line. The region cuts the listing
 // to the rows the screen has.
-fn listing(completion : Ernest.Shell.Complete.Completion, color : Markdown.Output) : List(String) =
-    List.map(completion.candidates, fn(name) = Ernest.Shell.Style.named(name.shown, color))
+fn listing(completion : Complete.Completion, color : Markdown.Output) : List(String) =
+    List.map(completion.candidates, fn(name) = Style.named(name.shown, color))
 
 // Report §11.2: `Shift-Tab` says what the name at the cursor is: its
 // type, the first sentence about it, and the version it appeared in, and
@@ -1834,16 +1815,16 @@ fn listing(completion : Ernest.Shell.Complete.Completion, color : Markdown.Outpu
 fn documenting(shell : Address(ShellMsg),
                screen : Address(ScreenMsg),
                reading : Reading,
-               editing : Ernest.Shell.Editor.Editing) : Unit receiving ReaderMsg = {
+               editing : Editor.Editing) : Unit receiving ReaderMsg = {
     let Reading(=last, =color) = reading;
-    let line = Ernest.Shell.Editor.text(editing);
-    let cursor = Ernest.Shell.Editor.cursor(editing);
+    let line = Editor.text(editing);
+    let cursor = Editor.cursor(editing);
     // report §11.2: the whole name the cursor stands in, and a call is
     // looked for in a command's argument as in any input
-    let name = Ernest.Shell.Complete.wordAt(line, cursor);
+    let name = Complete.wordAt(line, cursor);
     let page = if String.isEmpty(name) then None else documentation(name);
     let skipped = if String.startsWith(line, ":") then
-        Int.min(Ernest.Shell.Command.wordEnd(line), cursor)
+        Int.min(Command.wordEnd(line), cursor)
     else
         0;
     let rows = match page {
@@ -1854,10 +1835,8 @@ fn documenting(shell : Address(ShellMsg),
                 brief(text, version, reading.columns, color)
       | None ->
             match signature(String.slice(line, skipped, cursor)) {
-                Some(#(head, marked, rest)) ->
-                    [head <> Ernest.Shell.Style.emphasis(marked, color) <> rest]
-              | None ->
-                    []
+                Some(#(head, marked, rest)) -> [head <> Style.emphasis(marked, color) <> rest]
+              | None -> []
             }
     };
     send(screen, under(editing, rows));
@@ -1894,8 +1873,7 @@ fn brief(text : String,
       | None ->
             []
     };
-    List.map(List.take(declarations, 1),
-             fn(declaration) = Ernest.Shell.Style.named(declaration, color))
+    List.map(List.take(declarations, 1), fn(declaration) = Style.named(declaration, color))
         <> Markdown.render(sentence, width, color)
         <> Markdown.render(since, width, color)
 }
@@ -2038,7 +2016,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
     // before the history makes it so at a terminal
     let startup = startupFiles();
     let read = List.map(startup, readOwnInputs);
-    Ernest.Shell.History.keepOwn();
+    History.keepOwn();
     let #(earlier, keeping, historyNotes) = match size {
         Some(_) -> readHistory()
       | None -> #([], false, [])
@@ -2195,7 +2173,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
             served(serving)
         }
       | Remember(=input, =reply) -> {
-            answer(reply, Ernest.Shell.History.add(input));
+            answer(reply, History.add(input));
             served(serving)
         }
       // report §11.2: `:output`'s path, tried with an append of nothing,

@@ -1,6 +1,12 @@
 %% A module of a build (report §11.1): its namespace, its file, the path
 %% from the source root, its declarations and the namespaces it depends on.
--record(build_module, {namespace, file, relative, declarations, dependencies = []}).
+%% Report §4.2: once parsed, its declarations are those its names resolved
+%% in, beside the namespace each qualifier its source writes resolved to,
+%% which its `.erc` records, the shortest form of its own namespace, which
+%% the checker holds a name of it written qualified to, and the error of
+%% each name written longer than its shortest form (ern_resolve).
+-record(build_module, {namespace, file, relative, declarations, dependencies = [],
+                       resolved = [], shortest, too_long = []}).
 
 %% The entry point a program is run from (report §8.1): the unit, the
 %% function of it that holds the entry point, named by its number (report

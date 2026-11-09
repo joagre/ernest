@@ -20,8 +20,7 @@
 %%   #enclosing{}, for `Shift-Tab` (§11.2); `undefined` outside both.
 %% unknown_namespace: the namespace of a qualified name that names nothing
 %%   in scope, for the shell to name the `:load` that would put it there
-%%   (§11.2), and for the build to name a nearer source root
-%%   (ern_build:nearer_roots/4, §11.1); `undefined` for every other failure.
+%%   (§11.2); `undefined` for every other failure.
 %% unknown_name: an unqualified name that names nothing, a block `let`'s own
 %%   name in its initializer among them (§5), for a doc example's help to
 %%   write a name its module exports qualified (ern_examples:qualifying/2);

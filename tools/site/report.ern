@@ -23,26 +23,24 @@ type File =
 
 /// The report's three pages and its contents page, each section the guide
 /// cites with its margin line.
-export fn report(run : Site.Run.Run, taught : Site.Book.Taught) : Either(String, Unit) = {
+export fn report(run : Run.Run, taught : Book.Taught) : Either(String, Unit) = {
     let files <-
         List.tryMap(["report/language.md", "report/toolchain.md", "report/library.md"],
                     fn(source) = fileRead(run, source));
     let _ <-
-        List.tryMap(Site.Run.neighbored(files),
-                    fn(neighbors) = fileWritten(run, taught, neighbors));
+        List.tryMap(Run.neighbored(files), fn(neighbors) = fileWritten(run, taught, neighbors));
     contentsWritten(run, files)
 }
 
 // A file of the report read: its title split at its `: `, and its
 // version line, the paragraph after the title, which each file has.
-fn fileRead(run : Site.Run.Run, source : String) : Either(String, File) = {
-    let document <- Site.Run.documentOf(run.root, source);
-    let #(heading, rest) <- Site.Run.titleOf(source, document);
+fn fileRead(run : Run.Run, source : String) : Either(String, File) = {
+    let document <- Run.documentOf(run.root, source);
+    let #(heading, rest) <- Run.titleOf(source, document);
     let #(report, title) <-
-        Either.fromOptional(String.splitOnce(Site.Html.plain(heading), ": "),
+        Either.fromOptional(String.splitOnce(Html.plain(heading), ": "),
                             source <> ": the report's title is its name, `: ` and the file's");
-    let address <-
-        Either.fromOptional(Site.Links.address(source), source <> " has no page of the site");
+    let address <- Either.fromOptional(Links.address(source), source <> " has no page of the site");
     match rest {
         Markdown.Paragraph(version) :: blocks when isVersion(version) ->
             Right(File(=source,
@@ -50,7 +48,7 @@ fn fileRead(run : Site.Run.Run, source : String) : Either(String, File) = {
                        =report,
                        title = [Markdown.Text(title)],
                        =version,
-                       blocks = Site.Run.withoutContents(blocks)))
+                       blocks = Run.withoutContents(blocks)))
       | _ ->
             Left(source <> ": the line after the title is its version line, `For Ernest x.y.z.`")
     }
@@ -65,64 +63,59 @@ fn isVersion(inlines : List(Markdown.Inline)) : Bool =
 // A file's page: the sidebar of its chapters with their sections, the
 // report's name above its title, its version line, its text with each margin
 // line, and the files before and after it.
-fn fileWritten(run : Site.Run.Run,
-               taught : Site.Book.Taught,
+fn fileWritten(run : Run.Run,
+               taught : Book.Taught,
                neighbors : #(Optional(File), File, Optional(File))) : Either(String, Unit) = {
     let #(earlier, file, later) = neighbors;
-    let copied = Site.Code.copied(file.blocks);
-    let page <- Site.Run.linkPage(run, file.source, file.address, copied);
-    let placed <- Site.Run.linkedAll(run, copied, page);
+    let copied = CodeBlock.copied(file.blocks);
+    let page <- Run.linkPage(run, file.source, file.address, copied);
+    let placed <- Run.linkedAll(run, copied, page);
     let lines <- List.tryMap(placed, fn(each) = blockLines(run, taught, each));
     let sidebar <-
-        Site.Run.sidebar(run, "fragments/contents.html", "On this page", entries(file.blocks));
+        Run.sidebar(run, "fragments/contents.html", "On this page", entries(file.blocks));
     let titled <-
-        Site.Run.filled(run,
-                        "fragments/book.html",
-                        [#("href", Site.Template.Plain("/report/")),
-                         #("book", Site.Template.Plain(file.report))]);
+        Run.filled(run,
+                   "fragments/book.html",
+                   [#("href", Template.Plain("/report/")), #("book", Template.Plain(file.report))]);
     let version <-
-        Site.Run.filled(run,
-                        "fragments/version.html",
-                        [#("version_html", Site.Run.inlined(file.version))]);
+        Run.filled(run, "fragments/version.html", [#("version_html", Run.inlined(file.version))]);
     let navigation <-
-        Site.Run.pageNavigation(run,
-                                "Report",
-                                Optional.map(earlier, neighbor),
-                                Optional.map(later, neighbor));
+        Run.pageNavigation(run,
+                           "Report",
+                           Optional.map(earlier, neighbor),
+                           Optional.map(later, neighbor));
     let main <-
-        Site.Run.filled(run,
-                        "page.html",
-                        [#("layout", Site.Run.layout(sidebar)),
-                         #("contents_html", Site.Template.Markup(sidebar)),
-                         #("book_html", Site.Template.Markup(titled)),
-                         #("heading_html", Site.Run.headingHtml(file.title, None)),
-                         #("body_html",
-                           Site.Template.Markup(version <> List.flatMap(lines, fn(each) = each))),
-                         #("page_nav_html", Site.Template.Markup(navigation))]);
-    let description <- Site.Run.described(file.source, file.blocks);
-    Site.Run.pageWritten(run,
-                         Site.Run.Output(address = file.address,
-                                         title = Site.Html.plain(file.title)
-                                             <> " · "
-                                             <> file.report,
-                                         =description,
-                                         room = Some("Report"),
-                                         =main,
-                                         source = Some(file.source)))
+        Run.filled(run,
+                   "page.html",
+                   [#("layout", Run.layout(sidebar)),
+                    #("contents_html", Template.Markup(sidebar)),
+                    #("book_html", Template.Markup(titled)),
+                    #("heading_html", Run.headingHtml(file.title, None)),
+                    #("body_html",
+                      Template.Markup(version <> List.flatMap(lines, fn(each) = each))),
+                    #("page_nav_html", Template.Markup(navigation))]);
+    let description <- Run.described(file.source, file.blocks);
+    Run.pageWritten(run,
+                    Run.Output(address = file.address,
+                               title = Html.plain(file.title) <> " · " <> file.report,
+                               =description,
+                               room = Some("Report"),
+                               =main,
+                               source = Some(file.source)))
 }
 
-fn neighbor(file : File) : Site.Run.Neighbor =
-    Site.Run.Neighbor(address = file.address, text = file.title)
+fn neighbor(file : File) : Run.Neighbor =
+    Run.Neighbor(address = file.address, text = file.title)
 
 // A block's lines, a numbered heading's with its margin line after it where
 // the guide cites its section.
-fn blockLines(run : Site.Run.Run,
-              taught : Site.Book.Taught,
-              each : Site.Code.Placed) : Either(String, List(Site.Template.Line)) =
+fn blockLines(run : Run.Run,
+              taught : Book.Taught,
+              each : CodeBlock.Placed) : Either(String, List(Template.Line)) =
     match each.block {
         Markdown.Heading(=text) -> {
-            let anchor = Site.Links.numberAnchor(Site.Html.plain(text));
-            let heading = Site.Html.body([each], 0, [Site.Html.Headed(=anchor, class = None)]);
+            let anchor = Links.numberAnchor(Html.plain(text));
+            let heading = Html.body([each], 0, [Html.Headed(=anchor, class = None)]);
             let margin <- match anchor {
                 Some(found) -> marginLine(run, taught, found.id)
               | None -> Right([])
@@ -130,14 +123,14 @@ fn blockLines(run : Site.Run.Run,
             Right(heading <> margin)
         }
       | _ ->
-            Right(Site.Html.body([each], 0, []))
+            Right(Html.body([each], 0, []))
     }
 
 // The guide's sections that cite the report's section, each once,
 // "Taught in guide §2.5, §3.6"; none where none cites it.
-fn marginLine(run : Site.Run.Run,
-              taught : Site.Book.Taught,
-              anchor : String) : Either(String, List(Site.Template.Line)) =
+fn marginLine(run : Run.Run,
+              taught : Book.Taught,
+              anchor : String) : Either(String, List(Template.Line)) =
     match Map.get(taught.sections, anchor) {
         Some(sections) -> {
             let links =
@@ -145,16 +138,14 @@ fn marginLine(run : Site.Run.Run,
                          fn(section) =
                              Markdown.Link(text = [Markdown.Text("§" <> section)],
                                            url = "/guide/"
-                                               <> Site.Links.chapter(section)
+                                               <> Links.chapter(section)
                                                <> ".html#"
                                                <> section));
             let joined =
                 List.flatMap(List.indexed(links),
                              fn(#(index, link)) =
                                  if index == 0 then [link] else [Markdown.Text(", "), link]);
-            Site.Run.filled(run,
-                            "fragments/margin-line.html",
-                            [#("links_html", Site.Run.inlined(joined))])
+            Run.filled(run, "fragments/margin-line.html", [#("links_html", Run.inlined(joined))])
         }
       | None ->
             Right([])
@@ -162,11 +153,11 @@ fn marginLine(run : Site.Run.Run,
 
 // The file's numbered chapters and their sections, as the sidebar lists
 // them.
-fn entries(blocks : List(Markdown.Block)) : List(Site.Run.Entry) =
+fn entries(blocks : List(Markdown.Block)) : List(Run.Entry) =
     List.filterMap(blocks, fn(block) = match block {
         Markdown.Heading(=level, =text) when level == 2 || level == 3 ->
-            Optional.map(Site.Links.number(Site.Html.plain(text)),
-                         fn(found) = Site.Run.Entry(anchor = found, =level, =text))
+            Optional.map(Links.number(Html.plain(text)),
+                         fn(found) = Run.Entry(anchor = found, =level, =text))
       | _ ->
             None
     })
@@ -174,58 +165,53 @@ fn entries(blocks : List(Markdown.Block)) : List(Site.Run.Entry) =
 // The report's contents page: its README's opening, the paragraphs before
 // its table of the files, which the list of the files takes the place of,
 // each file with its chapters a line each.
-fn contentsWritten(run : Site.Run.Run, files : List(File)) : Either(String, Unit) = {
+fn contentsWritten(run : Run.Run, files : List(File)) : Either(String, Unit) = {
     let source = "report/README.md";
-    let document <- Site.Run.documentOf(run.root, source);
-    let #(_, rest) <- Site.Run.titleOf(source, document);
+    let document <- Run.documentOf(run.root, source);
+    let #(_, rest) <- Run.titleOf(source, document);
     let #(opening, _) = List.span(rest, fn(block) = match block {
         Markdown.Table() -> false
       | _ -> true
     });
-    let copied = Site.Code.copied(opening);
-    let page <- Site.Run.linkPage(run, source, "/report/", copied);
-    let linked <- Site.Run.linkedAll(run, copied, page);
+    let copied = CodeBlock.copied(opening);
+    let page <- Run.linkPage(run, source, "/report/", copied);
+    let linked <- Run.linkedAll(run, copied, page);
     let rows <- List.tryMap(files, fn(file) = fileEntry(run, file));
     let chapters <-
-        Site.Run.filled(run, "fragments/chapters.html", [#("entries_html", Site.Run.markup(rows))]);
+        Run.filled(run, "fragments/chapters.html", [#("entries_html", Run.markup(rows))]);
     let name = match files {
         file :: _ -> file.report
       | [] -> "Ernest Report"
     };
     let toc <-
-        Site.Run.filled(run,
-                        "toc.html",
-                        [#("heading_html", Site.Run.inlined([Markdown.Text(name)])),
-                         #("opening_html", Site.Template.Markup(Site.Html.body(linked, 0, []))),
-                         #("entries_html", Site.Template.Markup(chapters))]);
-    let description <- Site.Run.described(source, opening);
-    Site.Run.pageWritten(run,
-                         Site.Run.Output(address = "/report/",
-                                         title = Site.Run.titled(name),
-                                         =description,
-                                         room = Some("Report"),
-                                         main = toc,
-                                         source = None))
+        Run.filled(run,
+                   "toc.html",
+                   [#("heading_html", Run.inlined([Markdown.Text(name)])),
+                    #("opening_html", Template.Markup(Html.body(linked, 0, []))),
+                    #("entries_html", Template.Markup(chapters))]);
+    let description <- Run.described(source, opening);
+    Run.pageWritten(run,
+                    Run.Output(address = "/report/",
+                               title = Run.titled(name),
+                               =description,
+                               room = Some("Report"),
+                               main = toc,
+                               source = None))
 }
 
-fn fileEntry(run : Site.Run.Run, file : File) : Either(String, List(Site.Template.Line)) = {
+fn fileEntry(run : Run.Run, file : File) : Either(String, List(Template.Line)) = {
     let lines <-
         List.tryMap(List.filter(entries(file.blocks), fn(entry) = entry.level == 2),
                     fn(entry) =
-                        Site.Run.filled(run,
-                                        "fragments/section.html",
-                                        [#("href",
-                                           Site.Template.Plain(file.address
-                                                                   <> "#"
-                                                                   <> entry.anchor)),
-                                         #("label_html", Site.Run.labeled(entry.text))]));
+                        Run.filled(run,
+                                   "fragments/section.html",
+                                   [#("href", Template.Plain(file.address <> "#" <> entry.anchor)),
+                                    #("label_html", Run.labeled(entry.text))]));
     let listed <-
-        Site.Run.filled(run,
-                        "fragments/sections.html",
-                        [#("entries_html", Site.Run.markup(lines))]);
-    Site.Run.filled(run,
-                    "fragments/chapter.html",
-                    [#("href", Site.Template.Plain(file.address)),
-                     #("label_html", Site.Run.labeled(file.title)),
-                     #("sections_html", Site.Template.Markup(listed))])
+        Run.filled(run, "fragments/sections.html", [#("entries_html", Run.markup(lines))]);
+    Run.filled(run,
+               "fragments/chapter.html",
+               [#("href", Template.Plain(file.address)),
+                #("label_html", Run.labeled(file.title)),
+                #("sections_html", Template.Markup(listed))])
 }

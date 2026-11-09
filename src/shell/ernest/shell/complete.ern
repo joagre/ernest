@@ -54,7 +54,7 @@ export fn completion(line : String,
                      entries : (Path) -> Either(Io.Error,
                                                 List(Fs.Entry))) : #(Completion, String) = {
     let typedWord = word(String.slice(line, 0, cursor));
-    if String.startsWith(line, ":") && cursor <= Ernest.Shell.Command.wordEnd(line) then {
+    if String.startsWith(line, ":") && cursor <= Command.wordEnd(line) then {
         // the command's word as far as the cursor, as a name's is: what
         // follows the cursor stays where it is
         let command = String.slice(line, 0, cursor);
@@ -102,16 +102,14 @@ fn namesFor(typedWord : String) : List(Name) = {
 fn commandWord(typedWord : String, line : String) : Completion = {
     let completion = complete(typedWord, commandNames(), Anything);
     withSpace(completion,
-              Ernest.Shell.Command.wordEnd(line) == String.size(line)
-                  && Ernest.Shell.Command.completes(completion.word) != None)
+              Command.wordEnd(line) == String.size(line)
+                  && Command.completes(completion.word) != None)
 }
 
 fn commandNames() : List(Name) =
-    List.map(Ernest.Shell.Command.commands(),
+    List.map(Command.commands(),
              fn(command) =
-                 Name(text = ":" <> command.name,
-                      kind = Value,
-                      shown = Ernest.Shell.Command.line(command)))
+                 Name(text = ":" <> command.name, kind = Value, shown = Command.line(command)))
 
 // Report §11.2: a lone candidate is completed as far as it goes, so one
 // that takes a value after it, a command with an argument or a setting,
@@ -132,18 +130,17 @@ fn argument(line : String,
             cursor : Int,
             typedWord : String,
             entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : Completion = {
-    let end = Ernest.Shell.Command.wordEnd(line);
+    let end = Command.wordEnd(line);
     let wordIndex = cursor - String.size(typedWord);
     let before = String.slice(line, end, wordIndex);
-    match Ernest.Shell.Command.completes(String.slice(line, 0, end)) {
-        Some(Ernest.Shell.Command.Expressions) ->
+    match Command.completes(String.slice(line, 0, end)) {
+        Some(Command.Expressions) ->
             complete(typedWord, namesFor(typedWord), slot(before))
       // every setting takes a value after it, and `timing`'s is a word
-      | Some(Ernest.Shell.Command.SettingWords) ->
+      | Some(Command.SettingWords) ->
             match String.trim(before) {
                 "" -> {
-                    let names =
-                        argumentNames(Ernest.Shell.Command.SettingWords, typedWord, entries);
+                    let names = argumentNames(Command.SettingWords, typedWord, entries);
                     withSpace(complete(typedWord, names, Anything), cursor == String.size(line))
                 }
               | "timing" -> {
@@ -169,38 +166,38 @@ fn argument(line : String,
 
 // Report §11.2: a module `:browse` or `:load` takes is completed whole,
 // without the dot a name inside it would need.
-fn argumentSlot(completes : Ernest.Shell.Command.Completes) : Slot =
+fn argumentSlot(completes : Command.Completes) : Slot =
     match completes {
-        Ernest.Shell.Command.Modules -> Modules
-      | Ernest.Shell.Command.SourceModules -> Modules
+        Command.Modules -> Modules
+      | Command.SourceModules -> Modules
       | _ -> Anything
     }
 
-fn argumentNames(completes : Ernest.Shell.Command.Completes,
+fn argumentNames(completes : Command.Completes,
                  typedWord : String,
                  entries : (Path) -> Either(Io.Error, List(Fs.Entry))) : List(Name) =
     match completes {
         // a module is listed by its name alone, since every candidate here
         // is a module; the namespaces they are in, `Http` for
         // `Http.Parser`, complete with their dots
-        Ernest.Shell.Command.Modules ->
+        Command.Modules ->
             withNamespaces(List.filterMap(names(), fn(name) = match name {
                 Name(=text, kind = Module) -> Some(Name(=text, kind = Module, shown = text))
               | _ -> None
             }))
-      | Ernest.Shell.Command.SourceModules ->
+      | Command.SourceModules ->
             sourceModules(typedWord, entries)
-      | Ernest.Shell.Command.Expressions ->
+      | Command.Expressions ->
             namesFor(typedWord)
-      | Ernest.Shell.Command.Names ->
+      | Command.Names ->
             namesFor(typedWord)
-      | Ernest.Shell.Command.SessionNames ->
+      | Command.SessionNames ->
             sessionNames()
-      | Ernest.Shell.Command.SettingWords ->
-            List.map(Ernest.Shell.Command.settings,
+      | Command.SettingWords ->
+            List.map(Command.settings,
                      fn(#(setting, value)) =
                          Name(text = setting, kind = Value, shown = setting <> " " <> value))
-      | Ernest.Shell.Command.Paths ->
+      | Command.Paths ->
             []
     }
 

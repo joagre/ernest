@@ -542,12 +542,12 @@ beam_of(Options, Path) ->
             DependencyRoots = [BuildRoot | ern_build:load_path(Options)],
             Module = ern_build:module_of(ern_build:absolute(Path), SourceRoot, file),
             [#build_module{namespace = Namespace, file = File, relative = Relative,
-                           declarations = Declarations, dependencies = Dependencies}] =
+                           dependencies = Dependencies} = Ordered] =
                 ern_build:compile_order([Module], SourceRoot, DependencyRoots),
             Reached = ern_build:dependency_interfaces(Namespace, Dependencies, #{}, DependencyRoots,
                                                       SourceRoot),
             DependencyInterfaces = [DependencyInterface || {_, DependencyInterface} <- Reached],
-            case ern_typecheck:check(Namespace, Declarations, DependencyInterfaces) of
+            case ern_build:checked(Ordered, DependencyInterfaces) of
                 {ok, Typed, Interface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
                               source => list_to_binary(filename:basename(Relative))},

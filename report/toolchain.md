@@ -156,7 +156,9 @@ An Erlang module that a `foreign fn` names (§8.4) is the host's own, the toolch
 
 `ern test` runs the module's doc examples too (Appendix E.0 shape rule 6), after its tests, each as a case named by the declaration it documents and the example's number among that declaration's, `List.take example 2`, the module's own as `List example 1`.
 
-A paragraph of an example, its lines between blank lines, is a declaration where its first token is `type`, `abstract`, `foreign` or `export`, or `let` or `fn` followed by a name. The example's declarations are its paragraphs up to its last declaration, and the paragraphs after that are its body. An example is compiled as those declarations and a function whose body is the rest, in a module of its own that uses the module, a private declaration's inside its module, and fails with the diagnostic's message where it does not compile; the example's module may name any module the module's build root or the load path holds, as a module may (§11.1).
+A paragraph of an example, its lines between blank lines, is a declaration where its first token is `type`, `abstract`, `foreign` or `export`, or `let` or `fn` followed by a name. The example's declarations are its paragraphs up to its last declaration, and the paragraphs after that are its body.
+
+An example is compiled as those declarations and a function whose body is the rest, in a module of its own that uses the module, a private declaration's inside its module, and fails with the diagnostic's message where it does not compile; the example's module may name any module the module's build root or the load path holds, as a module may (§11.1). A module of its own stands directly under the root and holds no module, so a qualified name in the example resolves at the root, and one compiled inside its module resolves from the module's namespace (§4.2).
 
 An example whose last line is `// => v`, on a line of its own, runs in a process whose mailbox type is that of the function it is compiled into, an open one being `Never`, as a test runs, and fails where `Io.show` of its value is not `v`, `expected v, got w`, which says where the two differ as `Test.equal`'s failure does (Appendix E.24). One without that line is compiled and not run, and its case's line says `compiled` where it compiles. A case passes where its line says `passed` or `compiled`.
 
@@ -432,7 +434,6 @@ Other errors are placed and told as follows.
 - A selector its operand's type lacks is reported at the selector, naming a constructor without the field.
 - A value a module exports under the name of a member of the type whose namespace it shares (§4.2) is reported at the value's declaration, naming the type and the module that declares it: `Main.Stack.compare is a member of the type Stack in the module Main`.
 - A name written longer than its shortest resolving form (§4.2) is reported at the name, with a help line that writes the short one.
-- A qualified name that names nothing, in a build given no `--source-root`, has a help line where a source root nearer the module's file holds the name's module: `this module is Src.Main; --source-root src makes it Main`.
 - An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
 
 A printed type elides an effect variable bound to none (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as none, but within a parameter's type, where it is printed: `fn ignore(f : () -> Unit receiving e) : Int = 5` prints as `(() -> Unit receiving e) -> Int`, and `fn pair() = fn(x) = #(x, x)` as `() -> (a) -> #(a, a)`.

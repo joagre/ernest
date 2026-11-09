@@ -17,23 +17,23 @@ export type Anchor = Anchor(id : String, label : String)
 export type Headed = Headed(anchor : Optional(Anchor), class : Optional(String))
 
 /// The page's top-level blocks, each code block with the buttons the
-/// generator decided it gets (`Site.Code.placed`) and the declarations its
+/// generator decided it gets (`Site.CodeBlock.placed`) and the declarations its
 /// code links, a heading `shift` levels above the level its source writes
 /// and with what `headed` gives it, one for each heading in order; a
 /// heading past the list's end has neither an anchor nor a class.
-export fn body(blocks : List(Site.Code.Placed),
+export fn body(blocks : List(CodeBlock.Placed),
                shift : Int,
-               headed : List(Headed)) : List(Site.Template.Line) = {
+               headed : List(Headed)) : List(Template.Line) = {
     let #(_, pieces) = List.mapFold(blocks, headed, fn(left, each) = match each.block {
         Markdown.Heading(=level, =text) -> {
             let #(given, rest) = match left {
                 first :: later -> #(first, later)
               | [] -> #(Headed(anchor = None, class = None), [])
             };
-            #(rest, [Site.Template.Line(heading(level - shift, text, given))])
+            #(rest, [Template.Line(heading(level - shift, text, given))])
         }
       | Markdown.Code(=info, =lines) ->
-            #(left, Site.Code.html(info, lines, each.given, each.links))
+            #(left, CodeBlock.html(info, lines, each.given, each.links))
       | block ->
             #(left, html(block, shift, each.links))
     });
@@ -44,14 +44,14 @@ export fn body(blocks : List(Site.Code.Placed),
 /// links; a code block in another block gets no button but Copy.
 export fn html(block : Markdown.Block,
                shift : Int,
-               links : Map(String, String)) : List(Site.Template.Line) =
+               links : Map(String, String)) : List(Template.Line) =
     match block {
         Markdown.Heading(=level, =text) ->
-            [Site.Template.Line(heading(level - shift, text, Headed(anchor = None, class = None)))]
+            [Template.Line(heading(level - shift, text, Headed(anchor = None, class = None)))]
       | Markdown.Paragraph(inlines) ->
-            [Site.Template.Line("<p>" <> inlinesHtml(inlines) <> "</p>")]
+            [Template.Line("<p>" <> inlinesHtml(inlines) <> "</p>")]
       | Markdown.Code(=info, =lines) ->
-            Site.Code.html(info, lines, Site.Code.CopyAlone, links)
+            CodeBlock.html(info, lines, CodeBlock.CopyAlone, links)
       | Markdown.Quote(blocks) ->
             enclosed("<blockquote>",
                      List.flatMap(blocks, fn(inner) = html(inner, shift, links)),
@@ -61,9 +61,9 @@ export fn html(block : Markdown.Block,
                      List.flatMap(items, fn(item) = listItem(item, shift, links)),
                      if start == None then "</ul>" else "</ol>")
       | Markdown.Rule ->
-            [Site.Template.Line("<hr>")]
+            [Template.Line("<hr>")]
       | Markdown.Raw(lines) ->
-            List.map(lines, Site.Template.Verbatim)
+            List.map(lines, Template.Verbatim)
       | Markdown.Table(=columns, =rows) ->
             table(columns, rows)
     }
@@ -72,15 +72,15 @@ export fn html(block : Markdown.Block,
 export fn inline(inline : Markdown.Inline) : String =
     match inline {
         Markdown.Text(text) ->
-            Site.Template.escaped(text)
+            Template.escaped(text)
       | Markdown.CodeSpan(code) ->
-            "<code>" <> Site.Template.escaped(code) <> "</code>"
+            "<code>" <> Template.escaped(code) <> "</code>"
       | Markdown.Emphasis(inlines) ->
             "<em>" <> inlinesHtml(inlines) <> "</em>"
       | Markdown.Strong(inlines) ->
             "<strong>" <> inlinesHtml(inlines) <> "</strong>"
       | Markdown.Link(=text, =url) ->
-            "<a href=\"" <> Site.Template.escaped(url) <> "\">" <> inlinesHtml(text) <> "</a>"
+            "<a href=\"" <> Template.escaped(url) <> "\">" <> inlinesHtml(text) <> "</a>"
       | Markdown.Break ->
             "<br>"
     }
@@ -128,15 +128,15 @@ export fn heading(level : Int, text : List(Markdown.Inline), headed : Headed) : 
             "<"
                 <> tag
                 <> " id=\""
-                <> Site.Template.escaped(id)
+                <> Template.escaped(id)
                 <> "\""
                 <> class
                 <> ">"
                 <> inlinesHtml(text)
                 <> "<a class=\"anchor\" href=\"#"
-                <> Site.Template.escaped(id)
+                <> Template.escaped(id)
                 <> "\" aria-label=\""
-                <> Site.Template.escaped(label)
+                <> Template.escaped(label)
                 <> "\">#</a></"
                 <> tag
                 <> ">"
@@ -157,14 +157,14 @@ fn listOpening(start : Optional(Int)) : String =
 // tight.
 fn listItem(blocks : List(Markdown.Block),
             shift : Int,
-            links : Map(String, String)) : List(Site.Template.Line) =
+            links : Map(String, String)) : List(Template.Line) =
     match blocks {
         [Markdown.Paragraph(inlines)] ->
-            [Site.Template.Line("<li>" <> inlinesHtml(inlines) <> "</li>")]
+            [Template.Line("<li>" <> inlinesHtml(inlines) <> "</li>")]
       | Markdown.Paragraph(inlines) :: rest ->
-            Site.Template.Line("<li>" <> inlinesHtml(inlines))
+            Template.Line("<li>" <> inlinesHtml(inlines))
                 :: indented(List.flatMap(rest, fn(inner) = html(inner, shift, links)))
-                    <> [Site.Template.Line("</li>")]
+                    <> [Template.Line("</li>")]
       | _ ->
             enclosed("<li>", List.flatMap(blocks, fn(inner) = html(inner, shift, links)), "</li>")
     }
@@ -172,7 +172,7 @@ fn listItem(blocks : List(Markdown.Block),
 // A table in the wrapper that scrolls one wider than the page; a column's
 // alignment is a class of its cells, since the site's pages hold no style.
 fn table(columns : List(Markdown.Column),
-         rows : List(List(List(Markdown.Inline)))) : List(Site.Template.Line) = {
+         rows : List(List(List(Markdown.Inline)))) : List(Template.Line) = {
     let classes = List.map(columns, fn(column) = alignment(column.alignment));
     let head =
         enclosed("<thead>",
@@ -189,18 +189,18 @@ fn table(columns : List(Markdown.Column),
 
 fn row(tag : String,
        classes : List(String),
-       cells : List(List(Markdown.Inline))) : List(Site.Template.Line) =
+       cells : List(List(Markdown.Inline))) : List(Template.Line) =
     enclosed("<tr>",
              List.map(List.zip(classes, cells),
                       fn(#(class, cell)) =
-                          Site.Template.Line("<"
-                                                 <> tag
-                                                 <> class
-                                                 <> ">"
-                                                 <> inlinesHtml(cell)
-                                                 <> "</"
-                                                 <> tag
-                                                 <> ">")),
+                          Template.Line("<"
+                                            <> tag
+                                            <> class
+                                            <> ">"
+                                            <> inlinesHtml(cell)
+                                            <> "</"
+                                            <> tag
+                                            <> ">")),
              "</tr>")
 
 fn alignment(aligned : Markdown.Alignment) : String =
@@ -211,10 +211,8 @@ fn alignment(aligned : Markdown.Alignment) : String =
     }
 
 // An element's lines between its tags, a level in.
-fn enclosed(open : String,
-            inner : List(Site.Template.Line),
-            close : String) : List(Site.Template.Line) =
-    Site.Template.Line(open) :: indented(inner) <> [Site.Template.Line(close)]
+fn enclosed(open : String, inner : List(Template.Line), close : String) : List(Template.Line) =
+    Template.Line(open) :: indented(inner) <> [Template.Line(close)]
 
-fn indented(lines : List(Site.Template.Line)) : List(Site.Template.Line) =
-    List.map(lines, fn(line) = Site.Template.indented("    ", line))
+fn indented(lines : List(Template.Line)) : List(Template.Line) =
+    List.map(lines, fn(line) = Template.indented("    ", line))

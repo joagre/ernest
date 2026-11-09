@@ -76,7 +76,7 @@ library(Dir) ->
     write(Lib, "plug/greet.ern",
           "let started : Unit = Io.println(\"Greet's bindings evaluated\")\n\n"
           "export fn greet(name : String) : Unit =\n"
-          "    Io.println(Plug.Util.shout(Plug.Util.greeting <> \" \" <> name))\n"),
+          "    Io.println(Util.shout(Util.greeting <> \" \" <> name))\n"),
     write(Lib, "plug/bad.ern",
           "let worker : Address(Int) =\n"
           "    spawn(fn() : Unit receiving Int = receive {\n"
@@ -432,8 +432,8 @@ load_evaluator_lives_on_test() ->
     write(Lib, "plug/opener.ern",
           "let opened : Unit =\n"
           "    match Tcp.listen(\"127.0.0.1\", 0) {\n"
-          "        Right(listener) -> send(Plug.Registry.holder,"
-          " Plug.Registry.Opened(=listener, evaluator = self()))\n"
+          "        Right(listener) -> send(Registry.holder,"
+          " Registry.Opened(=listener, evaluator = self()))\n"
           "      | Left(_) -> Unit\n"
           "    }\n"),
     built(Lib, "plug/registry.ern"),
@@ -483,7 +483,7 @@ load_evaluator_ends_test() ->
           "    }\n\n"
           "export let holder : Address(Msg) = spawn(waiting)\n"),
     write(Lib, "plug/teller.ern",
-          "let told : Unit = send(Plug.Registry.holder, Plug.Registry.Told(Process.current()))\n"),
+          "let told : Unit = send(Registry.holder, Registry.Told(Process.current()))\n"),
     built(Lib, "plug/registry.ern"),
     built(Lib, "plug/teller.ern"),
     Main = write(Dir, "main.ern",
@@ -586,7 +586,7 @@ load_under_a_running_wrap_test() ->
           "    }\n"
           "})\n\n"
           "let spinning : Unit = Address.callForever(watcher, fn(reply) = Ready(reply))\n\n"
-          "let handed : Unit = send(Plug.Hold.holder, Plug.Hold.Keep(fn() = 42))\n\n"
+          "let handed : Unit = send(Hold.holder, Hold.Keep(fn() = 42))\n\n"
           "let broken : Int = 1 / List.size([])\n"),
     built(Lib, "plug/hold.ern"),
     built(Lib, "plug/watch.ern"),
@@ -685,7 +685,7 @@ other_interface_test() ->
     Dir = tmp(),
     Lib = filename:join(Dir, "lib"),
     write(Lib, "plug/base.ern", "export fn one() : Int = 1\n"),
-    write(Lib, "plug/user.ern", "export fn two() : Int = Plug.Base.one() + 1\n"),
+    write(Lib, "plug/user.ern", "export fn two() : Int = Base.one() + 1\n"),
     built(Lib, "plug/base.ern"),
     built(Lib, "plug/user.ern"),
     %% Base built again with another interface, User left as it was compiled
@@ -704,7 +704,7 @@ another_build_test() ->
     Dir = tmp(),
     Lib = filename:join(Dir, "lib"),
     write(Lib, "plug/base.ern", "export fn one() : Int = 1\n"),
-    write(Lib, "plug/user.ern", "export fn two() : Int = Plug.Base.one() + 1\n"),
+    write(Lib, "plug/user.ern", "export fn two() : Int = Base.one() + 1\n"),
     built(Lib, "plug/base.ern"),
     built(Lib, "plug/user.ern"),
     [Base, User] = [filename:join(Lib, Leaf) || Leaf <- ["plug/base.erc", "plug/user.erc"]],
@@ -734,12 +734,12 @@ load_path_cycle_test() ->
     [Lib, App, Earlier] = [filename:join(Dir, Leaf) || Leaf <- ["lib", "app", "earlier"]],
     write(Lib, "plug/b.ern", "export fn twice(x : Int) : Int = x * 2\n"),
     built(Lib, "plug/b.ern"),
-    A = write(App, "plug/a.ern", "export fn four() : Int = Plug.B.twice(2)\n"),
+    A = write(App, "plug/a.ern", "export fn four() : Int = B.twice(2)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", App, "--load-path", Lib, A])),
     write(Earlier, "plug/a.ern", "export fn four() : Int = 4\n"),
     built(Earlier, "plug/a.ern"),
     B = write(Lib, "plug/b.ern", "export fn twice(x : Int) : Int = x * 2\n\n"
-                                 "export fn eight() : Int = Plug.A.four() * 2\n"),
+                                 "export fn eight() : Int = A.four() * 2\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Lib, "--load-path", Earlier, B])),
     Main = write(Dir, "main.ern",
                  "export fn main() : Unit = {\n"
@@ -792,7 +792,7 @@ load_ground_test() ->
     write(Dir, "plug/word.ern", Word("3", "first")),
     write(Lib, "plug/word.ern", Word("7", "second")),
     write(Lib, "plug/user.ern",
-          "let told : Unit = Io.println(\"user \" <> Int.toString(Plug.Word.limit * 2))\n"),
+          "let told : Unit = Io.println(\"user \" <> Int.toString(Word.limit * 2))\n"),
     built(Lib, "plug/word.ern"),
     built(Lib, "plug/user.ern"),
     Main = write(Dir, "main.ern",

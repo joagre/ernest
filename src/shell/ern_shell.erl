@@ -3518,6 +3518,7 @@ unit(#session{units = Units}, Namespace) ->
 %%
 
 %% Report §11.2: every module the session loaded whose source has changed,
+%% or one of whose qualified names would now resolve elsewhere (§11.1),
 %% compiled and loaded as a version of its own, a unit beside the previous
 %% version's, which a process still running it and a binding that holds a
 %% function of it keep. Every changed module is compiled before any is
@@ -3533,7 +3534,7 @@ reload_changed(#session{source_hashes = SourceHashes, source_expected = Expected
     ChangedSources = [{Namespace, File}
                || {Namespace, LoadedHash, {ok, File}} <- Sources,
                   {ok, Hash} <- [source_hash(Session, File)],
-                  Hash =/= LoadedHash],
+                  Hash =/= LoadedHash orelse is_resolved_otherwise(Session, Namespace)],
     SourcelessLines = sourceless(Session, [Namespace || {Namespace, _, none} <- Sources,
                                                         is_map_key(Namespace, Expected)]),
     case ChangedSources of
@@ -3544,6 +3545,19 @@ reload_changed(#session{source_hashes = SourceHashes, source_expected = Expected
                 {ok, Needed, Compiled} -> reloaded(Session, Needed, Compiled, SourcelessLines);
                 {error, Text} -> {'Left', iolist_to_binary([Text, "nothing was reloaded\n"])}
             end
+    end.
+
+%% Report §11.1, §11.2: whether a qualified name of a loaded module would
+%% now resolve to another namespace than its compiled form records, a
+%% module added or gone beside it, where `ern build` recompiles it (§4.2).
+is_resolved_otherwise(#session{source_root = SourceRoot} = Session, Namespace) ->
+    case recorded(Session, Namespace) of
+        #{resolved := Resolved} ->
+            IsNamespace = ern_build:namespace_test(hd(Namespace), SourceRoot, load_path(Session)),
+            ern_resolve:qualifiers([Written || {Written, _} <- Resolved], Namespace, IsNamespace)
+                =/= Resolved;
+        #{} ->
+            false
     end.
 
 %% Report §11.2: the modules loaded, what the changed ones have come to
@@ -3834,7 +3848,8 @@ first_qualified([{Root, Erc} | Candidates], Module, Digest, Against) ->
 %% The compiled form Erc at the module's path under Root, where it
 %% qualifies: of this module, compiled from this source by the path it
 %% records from Root, the source's digest the one it records, never a
-%% time, which two machines keep by two clocks; and compiled against the
+%% time, which two machines keep by two clocks, each qualifier resolving
+%% to the namespace it records (§4.2); and compiled against the
 %% interfaces and the standard library of Against, by the build of `ern`
 %% it holds, as the build's own recompile rule compares them (§11.1), so
 %% that a form another build of `ern` wrote keeps no defect this one has
@@ -3846,12 +3861,13 @@ qualified_form(Root, Erc, Module, Digest, Against) ->
         {error, _} -> none
     end.
 
-compiled_against(Root, Erc, Beam, #build_module{namespace = Namespace, file = File}, Digest,
+compiled_against(Root, Erc, Beam,
+                 #build_module{namespace = Namespace, file = File, resolved = Resolved}, Digest,
                  {DependencyHashes, DependencyInterfaces,
                   #{stdlib := StdlibHash, compiler := CompilerBuild}}) ->
     case ern_interface:read(Beam) of
         {ok, #{interface := #interface{namespace = Namespace}, source_path := SourcePath,
-               source_hash := Digest, compiler := CompilerBuild} = Chunk} ->
+               source_hash := Digest, resolved := Resolved, compiler := CompilerBuild} = Chunk} ->
             Source = filename:join(Root, unicode:characters_to_list(SourcePath)),
             case ern_build:absolute(Source) =:= ern_build:absolute(File)
                 andalso ern_build:is_compiled_against(Chunk, DependencyHashes,
@@ -4541,6 +4557,8 @@ source_hash(Session, File) ->
 source_access(#session{working_directory = Cwd} = Session) ->
     #{read => fun(File) -> source_read(Session, File) end,
       is_regular => fun(File) -> is_source(Session, File) end,
+      is_directory => fun(Dir) -> is_source_directory(Session, Dir) end,
+      entries => fun(Dir) -> source_entries(Session, Dir) end,
       working_directory => Cwd}.
 
 %% A source's bytes as the local half reads them, as `Fs.read` answers, or
@@ -4563,6 +4581,34 @@ is_source(#session{local = Local}, File) ->
         {'Left', 'NotAFile'} -> false;
         {'Left', _} -> true
     end.
+
+%% Report §4.2: whether a directory is there, as `Fs.stat` answers, by
+%% which the build finds the namespaces a module's names may resolve in.
+is_source_directory(#session{local = Local}, Dir) ->
+    case asked(Local, fun(Reply) -> {'Stat', path(Dir), Reply} end) of
+        {'Right', {'Entry', _, _, _, 'Directory', _, _}} -> true;
+        _ -> false
+    end.
+
+%% Report §4.2, §11.1: a directory's files and directories, each by its
+%% name, as `Fs.list` answers: a link read as the file it leads to, and a
+%% link to a directory passed over, as a build passes it over; none where
+%% the directory cannot be listed.
+source_entries(#session{local = Local} = Session, Dir) ->
+    case asked(Local, fun(Reply) -> {'ListEntries', path(Dir), Reply} end) of
+        {'Right', Entries} ->
+            [{Name, Kind} || {'Entry', {'Path', Path}, _, _, EntryKind, _, _} <- Entries,
+                             Name <- [filename:basename(unicode:characters_to_list(Path))],
+                             Kind <- entry_kind(Session, filename:join(Dir, Name), EntryKind)];
+        _ ->
+            []
+    end.
+
+entry_kind(_Session, _Path, 'File') -> [file];
+entry_kind(_Session, _Path, 'Directory') -> [directory];
+entry_kind(Session, Path, 'Link') ->
+    [file || is_source(Session, Path)];
+entry_kind(_Session, _Path, _) -> [].
 
 %% Report §11.2: the local half's answer to Request, a call it answers
 %% once the file system has, or `Left(Timeout)`: it waits as long as the
