@@ -318,6 +318,43 @@ log_terminal_gone() ->
              || Line <- binary:split(Said, <<"\n">>, [global, trim])],
     ?assert(lists:member(Lines, [[], [<<"ernest.conf was read again">>]])).
 
+%% report §12.1, §11.8, §8.6: a shell whose terminal can no longer be
+%% written ends by the hangup's signal, status 129, though no hangup's
+%% signal reached it, and says so on its standard error, a file. It runs in
+%% a session of its own, so that the hangup signals only the terminal's
+%% session, whose leader ignores it. Its inputs come from a file, so that no
+%% keys are read, and the one it runs writes to the screen once the
+%% terminal has been hung up. The shell runs in a subshell that execs it, so
+%% that the leader's note of the signal that ends it goes to the leader's
+%% own standard error, the terminal that has gone. Outside the process group
+%% the harness kills at its bound, the shell is bounded by its input's own
+%% wait and the end of its inputs after it.
+%%
+%% A regression test, written after the code, under which the shell wrote
+%% its screen through the host's own output, which said that its writer had
+%% crashed, and the shell ended with status 0.
+shell_write_terminal_gone_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun shell_write_terminal_gone/0).
+
+shell_write_terminal_gone() ->
+    Base = filename:join(ern_pty:run_dir(), "terminal_shell_write_gone_" ++ os:getpid()),
+    Home = filename:join(Base, "home"),
+    ok = filelib:ensure_path(Home),
+    Pipe = filename:join(Base, "written.pipe"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Inputs = filename:join(Base, "inputs"),
+    Reader = ["Os.Command(program = \"cat\", arguments = [\"", Pipe, "\"], input = <<>>,"
+              " environment = [], workingDirectory = Os.workingDirectory)"],
+    Written = ["Io.println(\"ready\"); let _ = Os.run(", Reader, ", ",
+               ern_nodes_tests:wait_ms_text(), "); Io.println(\"written\")"],
+    ok = file:write_file(Inputs, ["{ ", Written, " }\n"]),
+    Err = filename:join(Base, "shell.err"),
+    {129, _} = pty("trap '' HUP; (HOME=" ++ Home ++ " exec setsid ../bin/ern shell < "
+                   ++ Inputs ++ " 2> " ++ Err ++ ")",
+                   [{expect, "ready"}, hangup, {put, Pipe}]),
+    {ok, Said} = file:read_file(Err),
+    ?assertEqual(<<"the shell ends: its terminal is gone\n">>, Said).
+
 %% report §12.1, §11.8, §8.6, §12.5: a shell on a node, whose hangup is a
 %% reload, ends when its terminal can no longer be written, by the hangup's
 %% signal, status 129, and says so on its standard error, a file. Its inputs
@@ -326,16 +363,12 @@ log_terminal_gone() ->
 %% shell's node says on the shell's screen (§12.1), and which is lost there,
 %% so the file holds the shell's line alone.
 %%
-%% A regression test, written after the code, under which the shell wrote
-%% its screen through the host's own output, which said that its writer had
-%% crashed, and the shell went on. It does not cover an input's own write
-%% once the terminal has gone, which on a node the reload's line always comes
-%% before; the two reach the terminal by one path, the screen's local half.
-shell_write_terminal_gone_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun shell_write_terminal_gone/0).
+%% A regression test, written after the code, under which the shell went on.
+shell_reload_terminal_gone_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun shell_reload_terminal_gone/0).
 
-shell_write_terminal_gone() ->
-    Base = filename:join(ern_pty:run_dir(), "terminal_shell_write_gone_" ++ os:getpid()),
+shell_reload_terminal_gone() ->
+    Base = filename:join(ern_pty:run_dir(), "terminal_shell_reload_gone_" ++ os:getpid()),
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
     Node = ern_nodes_tests:made(Base, "node", none),

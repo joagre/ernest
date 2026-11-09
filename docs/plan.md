@@ -300,9 +300,10 @@ reader S reads of its live shell. The release note's line on the installed layou
     §11.2 that says both.
 41. **A flake of `shell_write_terminal_gone_test_`**, done 2026-11-09 (§12.1, §12.5; the log's
     *The Flake of `shell_write_terminal_gone_test_`*). The hangup's reload says its line on the
-    shell's screen, a write that ended the shell before or after the test's own; the reload's
-    line is now the test's write, and `shell_terminal_gone_test_` takes that line before the
-    shell's last or after it.
+    shell's screen, a write that ended the shell before or after the test's own. The test now
+    runs a shell on no node, in a session of its own that the hangup's signal does not reach;
+    the reload's line is a test of its own, and `shell_terminal_gone_test_` takes that line
+    before the shell's last or after it.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
