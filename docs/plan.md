@@ -209,7 +209,7 @@ reader S reads of its live shell. The release note's line on the installed layou
 20. **The runtime at the host's limit of descriptors**, done 2026-11-08 (§12, E.18, E.23; the log's
     *The Runtime at the Limit of Open Files*). A run loads at its start the toolchain's own Erlang
     of the run's side with the host's modules it calls, a unit loads with the modules it calls, and
-    TLS loads whole at its first request; every request at the limit answers the host's refusal.
+    TLS loaded whole at its first request, which item 36 turned; every request at the limit answers the host's refusal.
 21. **A process a fix leaves out of reach**, raised by the release review before 0.8.0 (the
     log's *The Release Review Before 0.8.0*, L1), moved here from the `:trace` proposal on
     2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*), decided 2026-11-09 (E.28, §6.5, Appendix
@@ -287,25 +287,14 @@ reader S reads of its live shell. The release note's line on the installed layou
     `broken_exchange_test_`*). The test's program spawned again before the bare node had
     dropped its first spawn's exchange, which the second joined; the program now waits until
     the test has seen the drop.
-35. **The first request over TLS at a full table**, found 2026-11-09 by item 33, decided the
-    same day (the log's *Lean at the Limits*), built by 2026-11-12. A run's first `listenTls` or
-    `connectTls` starts the host's TLS (E.18), and at a full table of processes the host's start
-    ends the run, never answers, or ends the host's logger (`docs/otp_bugs.md`, 17), where E.18
-    has it answer `Left(Other(text))`. E.18 states that such a start may end the run, or never
-    answer and hold every later `Tcp` request, and `docs/otp_bugs.md`'s 17 is filed. The host's
-    TLS started at each run's start was weighed and refused.
-36. **What a run holds for a limit, read again**, raised 2026-11-09 by item 35, decided the same
-    day (§12, E.18, E.21; the log's *Lean at the Limits*), built by 2026-11-12 with item 35.
-    Item 20's load at the start stays whole: a bare run holds about 0.55 MB for eight host
-    modules a program without sockets or peers never calls, and a node nothing, against a list
-    of the end's modules. A node's units stay (the log's *A Node Holds the Shell*).
-
-    The host's TLS loads as the host loads it, and E.18 states that at the limit of open files a
-    handshake whose code the host has not loaded fails as one the far end closed does,
-    `Left(Closed)`; §12's sentence on the whole load, E.18's `the host could not load m` and
-    `tls_loaded_whole_test` go. A socket's closer is made at the close, and where the table of
-    processes refuses it the socket closes with a linger of no time, what the far end has not
-    taken dropped and the connection reset, which E.18 states; E.21 counts the writer alone.
+35. **The first request over TLS at a full table**, done 2026-11-09 (E.18; the log's *Lean at
+    the Limits*, *TLS as the Host Loads It*). E.18 states that a run's first request over TLS at a
+    full table of processes may end the run or never answer, the host's defect in
+    `docs/otp_bugs.md`'s 17, whose filing is the user's.
+36. **What a run holds for a limit, read again**, done 2026-11-09 (§12, E.18, E.21; the log's
+    *Lean at the Limits*, *TLS as the Host Loads It*). The host's TLS loads as the host loads it,
+    a handshake at the limit of open files failing, and a socket's closer is made as the socket
+    ends, in its writer's room, the connection reset where the table refuses it.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

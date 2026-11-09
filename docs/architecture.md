@@ -205,7 +205,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | a request's worker | `fs` | | does one `Fs` request (E.17) |
 | a listener's or a socket's process | `tcp` (`opened/4`) | `ern_held`, as opened | a listener or a socket (E.18) |
 | a connect's or an accept's worker | `tcp` (`spawn_counted/1`) | `ern_held`, as a source | one connect or accept (E.18) |
-| a closer | a socket (`lingering/4`) | | closes a host socket once the far end has taken its bytes (E.18) |
+| a closer | a socket as it ends (`close_socket/2`) | | closes a host socket once the far end has taken its bytes (`lingering/5`, E.18) |
 | a running program's process | `os` | `ern_held`, as opened | owns the program's `ern_exec` port (E.23) |
 | the code table's holder | `ern_code`, at the table's first use | | holds `ern_code` and `ern_code_sums` for the host's life |
 | the carrier's acceptor | the host's `net_kernel`, as the carrier listens (`ern_tls_dist:accept/1`) | a link to `net_kernel` | takes each peer's connection, and makes a process for each that shakes hands with the peer and hands the connection to the host (*A node*) |
@@ -253,7 +253,7 @@ A reference tags each launch, held with its runner, its reaper, its killer, its 
 - A write by a process whose root has a row of `ern_screens` goes through that row's sink instead (`ern_rt:screen/2`, `drop_screens/1`, `screen_of/1`), and the same row keeps the process from `stdin` and the terminal (`is_kept_from_terminal/1`) and has its `Os.exit` fault it (`exit_program/1`, §12.1, §11.2). A session marks its own processes in their rows, which `processes/0` leaves out (`own/1`, `disown/1`, E.21).
 - `ern_fs`, `ern_tty` and `ern_tcp` are the processes behind `Fs`, `Terminal` and `Tcp` (E.17, E.16, E.18), each speaking its module's message types.
 - The terminal reads keys through standard input in `stty`'s raw mode, which a shell the first subscription opens sets and holds, the settings it found kept until the end or the host's, when it gives them back. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
-- A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken hands its host socket to a closer, `lingering/4`.
+- A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken, or one over TLS, hands its host socket as it ends to a closer it makes then, `close_socket/2`.
 - `ern_os` (E.23) answers `Start` and `StartTerminal` with the program's process, which owns a port of `ern_exec` (`src/runtime/c_src/ern_exec.c`), its `run` mode with pipes or its `terminal` mode under a pseudo-terminal. Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
 - `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§12.5, §11.2).
 

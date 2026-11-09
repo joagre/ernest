@@ -614,6 +614,73 @@ export fn main() : Unit receiving Down =
                  re:run(Said, "\\A[0-9T:.-]+Z Limit\\.knocked:[0-9]+ faulted: division by zero\n"
                               "    erlang:'div'/2\n    Limit\\.knocked:[0-9]+\n\\z")).
 
+%% report Appendix E.18, §12: at the operating system's limit of open files,
+%% a `connectTls` whose dial takes the last file, the host's TLS started
+%% before by a `listenTls`, fails its handshake, which needs code the host
+%% has not loaded, with the host's reason, `Left(Other("undef"))`.
+%%
+%% A regression test, written after the code, which loaded the host's TLS
+%% whole at its first request. It does not cover an accepted socket's
+%% handshake in the same window, which answers its read `Left(Closed)`.
+tls_window_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun tls_window/0).
+
+tls_window() ->
+    Dir = "build/tls_window",
+    ok = filelib:ensure_path(Dir ++ "/"),
+    #{server := {Certificate, Key}} = ern_tcp_tests:pki(),
+    {ok, _} = file:copy(Certificate, Dir ++ "/cert.pem"),
+    {ok, _} = file:copy(Key, Dir ++ "/key.pem"),
+    ok = file:write_file(Dir ++ "/window.ern", <<"
+// Listeners opened until the host refuses one, which is said, each kept, so
+// that the run's files stay at the operating system's limit.
+fn filled(listeners : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.ListenerMsg)) =
+    match Tcp.listen(\"127.0.0.1\", 0) {
+        Right(listener) -> filled(listener :: listeners)
+      | Left(error) -> {
+            Io.println(\"listen: \" <> Io.show(error));
+            listeners
+        }
+    }
+
+// The listener closed, once it has ended.
+fn closed(listener : Address(Tcp.ListenerMsg)) : Unit receiving Down = {
+    monitor(Process.fromAddress(listener), fn(down) = down);
+    Tcp.closeListener(listener);
+    receive { _ -> Unit }
+}
+
+// A connect over TLS to the port, its dial taking the one file a close
+// freed.
+fn tried(port : Int) : Unit receiving Down =
+    match filled([]) {
+        first :: _ -> {
+            closed(first);
+            match Tcp.connectTls(\"127.0.0.1\", port, Tcp.Unverified, 5000) {
+                Right(_) -> Io.println(\"connectTls: connected\")
+              | Left(error) -> Io.println(\"connectTls: \" <> Io.show(error))
+            }
+        }
+      | [] -> Unit
+    }
+
+export fn main() : Unit receiving Down =
+    match Tcp.listenTls(\"127.0.0.1\", 0, Path.join([\"cert.pem\"]), Path.join([\"key.pem\"])) {
+        Right(door) -> match Tcp.port(door) {
+            Right(port) -> tried(port)
+          | Left(error) -> Io.println(Io.show(error))
+        }
+      | Left(error) -> Io.println(Io.show(error))
+    }
+">>),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/window.ern"),
+    {Status, Output} = sh("sh -c 'cd " ++ Dir ++ " && ulimit -n 64"
+                          " && ../../../bin/ern run window.erc 2> stderr.txt'"),
+    ?assertEqual({0, ["listen: Io.Other(\"too many open files\")",
+                      "connectTls: Io.Other(\"undef\")", ""]},
+                 {Status, string:split(unicode:characters_to_list(Output), "\n", all)}),
+    ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/stderr.txt")).
+
 %% report §8.6, §12.4, §11.2: the host's interrupt ends a running program at once,
 %% printing nothing of its own, with status 128 plus the signal's number.
 %% The run is started from here rather than by a shell, which would start

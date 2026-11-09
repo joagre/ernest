@@ -628,7 +628,7 @@ The emulator's own `Too many processes` report is printed for each refused spawn
 
 ## 13. At the limit of open files the code server answers `nofile`, and the application controller "no such file or directory"
 
-Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); Ernest loads what its runtime calls at a run's start (report §12), and the host's TLS whole at its first use, which meets this where the limit has been reached first.
+Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); Ernest loads what its runtime calls at a run's start (report §12), and the host's TLS as the host loads it, so a handshake at the limit fails (report E.18; the log's *Lean at the Limits*).
 
 **Title:** code:ensure_loaded/1 answers {error,nofile} and application:load/1 "no such file or directory" when the process has no file descriptor left
 
@@ -830,7 +830,7 @@ The reasons `ssl:connect/4` and its kin give a caller who catches their raise (1
 
 ## 17. An application started at a full process table ends the emulator, or never answers
 
-Not filed. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's first request over TLS starts the host's TLS, and plan item 35 takes it.
+Not filed, its filing the user's. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's first request over TLS starts the host's TLS, and report E.18 states that the start may end the run or never answer (the log's *Lean at the Limits*).
 
 **Title:** application:ensure_all_started/1 at a full process table terminates the application controller or the logger, or hangs
 

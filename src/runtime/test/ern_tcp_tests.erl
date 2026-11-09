@@ -780,7 +780,7 @@ closed_socket_sends_what_it_took() ->
     {ok, Port} = inet:port(Listen),
     Self = self(),
     %% the far end takes the bytes late: once the closer the socket hands
-    %% its host socket to, made with the socket, has looked twice and found
+    %% its host socket to, made as it ends, has looked twice and found
     %% nothing taken
     Peer = spawn(fun() ->
                      {ok, Connection} = gen_tcp:accept(Listen),
@@ -865,12 +865,11 @@ quiet() ->
 %% report Appendix E.21, E.18: a socket's memory counts its writer's, which
 %% holds the bytes it wrote until it runs again, where the socket's own
 %% process has let them go and no line of `:processes` would show them
-%% otherwise, and its closer's, which is there before the socket closes,
-%% so that a close at a full table needs no room (§12.5). A regression
-%% test, written after the code; the closer's presence is one of the fix,
-%% which spawned it at the close. It does not cover a socket over TLS,
-%% whose writer is the same process.
-socket_memory_counts_its_own_processes_test() ->
+%% otherwise; and the socket holds no closer before it ends, which it makes
+%% as it ends. A regression test, written after the code; the closer's
+%% absence after the code too, which made it with the socket. It does not
+%% cover a socket over TLS, whose writer is the same process.
+socket_memory_counts_its_writer_test() ->
     Size = 1 bsl 20,
     Self = self(),
     ok = ern_waits:with_room(fun() ->
@@ -896,13 +895,16 @@ socket_memory_counts_its_own_processes_test() ->
                Process = ern_rt:process_of(Socket),
                erlang:garbage_collect(Process),
                {binary, Own} = erlang:process_info(Process, binary),
-               {memory, Closer} = erlang:process_info(closer_of(Process), memory),
+               {monitored_by, Watching} = erlang:process_info(Process, monitored_by),
+               Closers = [Pid || Pid <- Watching, is_pid(Pid),
+                                 erlang:process_info(Pid, current_function)
+                                     =:= {current_function, {ern_tcp, closer, 1}}],
                {'Some', {'Status', _, _, _, Memory}} = ern_rt:status(Process),
-               Self ! {counted, {Own, Memory >= Size + Closer}},
+               Self ! {counted, {Own, Closers, Memory >= Size}},
                Peer ! close
            end)
          end),
-    ?assertEqual({[], true}, wait(counted)).
+    ?assertEqual({[], [], true}, wait(counted)).
 
 %% report Appendix E.18, §10: the host's process of a connection over TLS
 %% hibernates after a millisecond's wait, and so holds no bytes a write
@@ -1344,23 +1346,6 @@ listen_tls_refused_test() ->
                   Refused(Dir, "NotAFile")],
                  wait(listened)).
 
-%% report Appendix E.18, §12: a run's first request over TLS loads the
-%% host's TLS whole, every module of ssl and of the applications it starts
-%% with it, before the request is made, so that a handshake at the limit
-%% of open files finds its code. A regression test, written after the fix:
-%% the first handshake at the limit answered `Left(Closed)`. It does not
-%% cover the handshake at the limit itself, nor a load the limit refuses.
-tls_loaded_whole_test() ->
-    #{server := Files} = pki(),
-    Self = self(),
-    ok = quietly(fun() -> Self ! {listened, listen_tls(0, Files)} end),
-    ?assertMatch({'Right', _}, wait(listened)),
-    Modules = lists:append([Modules || Application <- [crypto, asn1, public_key, ssl],
-                                       {ok, Modules} <- [application:get_key(Application,
-                                                                             modules)]]),
-    ?assertNotEqual([], Modules),
-    ?assertEqual([], [Module || Module <- Modules, not erlang:module_loaded(Module)]).
-
 %% report Appendix E.17, E.18: `connectTls` to a port where nothing listens
 %% answers `Left(Refused)`, as `connect` does; to one whose far end does not
 %% shake hands within its milliseconds `Left(Timeout)`; a file of
@@ -1546,7 +1531,7 @@ tls_closed_socket_sends_what_it_took() ->
     #{server := Server} = pki(),
     Self = self(),
     %% the far end takes the bytes late: once the closer the socket hands
-    %% its host socket to, made with the socket, has looked twice and found
+    %% its host socket to, made as it ends, has looked twice and found
     %% nothing taken
     {FarEnd, FarPort} = tls_far_end(Server, fun(Accepted) ->
                                            receive {go, Closer} -> ok end,
@@ -1563,12 +1548,11 @@ tls_closed_socket_sends_what_it_took() ->
                Self ! {written, write(Socket, binary:copy(<<1>>, Size))},
                Self ! {host_sockets, [HostSocket]},
                SocketPid = ern_rt:process_of(Socket),
-               Closer = closer_of(SocketPid),
                SocketRef = erlang:monitor(process, SocketPid),
                ern_rt:send(Socket, 'Close'),
                ern_rt:timed(),
                receive {'DOWN', SocketRef, process, _, _} -> ern_rt:untimed() end,
-               FarEnd ! {go, Closer}
+               FarEnd ! {go, closer_of(SocketPid)}
            end),
     ?assertEqual({'Right', 'Unit'}, wait(written)),
     HostSockets = wait(host_sockets),
@@ -1580,13 +1564,11 @@ tls_closed_socket_sends_what_it_took() ->
     Bound = ?LINGER_IDLE div 5 + ?TLS_CLOSE + ?LINGER_IDLE,
     ?assertEqual(HostSockets, gone(HostSockets, Bound)).
 
-%% The closer a socket's process made as it began, which watches it and
-%% waits for its host socket (ern_tcp:closer/1).
+%% The closer a socket's process made as it ended, its one child still
+%% alive, the writer having ended before it (ern_tcp:close_socket/2).
 closer_of(SocketPid) ->
-    {monitored_by, Watching} = erlang:process_info(SocketPid, monitored_by),
-    [Closer] = [Pid || Pid <- Watching, is_pid(Pid),
-                       erlang:process_info(Pid, current_function)
-                           =:= {current_function, {ern_tcp, closer, 1}}],
+    [Closer] = [Pid || Pid <- erlang:processes(),
+                       erlang:process_info(Pid, parent) =:= {parent, SocketPid}],
     Closer.
 
 %% Every byte the far end over TLS reads, and how the connection then ends.

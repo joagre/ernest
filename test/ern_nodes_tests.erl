@@ -1768,16 +1768,15 @@ export fn main() : Unit = {
                  lines_said(finished([?ERN, " run --config-dir ", Node, " ",
                                       filename:join([Base, "build", "checker.erc"]), " 2>&1"]))).
 
-%% report Appendix E.18, §7.4, §12.5: a socket closed at a full table of
-%% processes lingers over what it has not sent, its closer made with it,
-%% so that a far end that reads takes every byte and then the close.
+%% report Appendix E.18, §7.4, §12.5: a socket closed at a table of
+%% processes its program filled lingers over what it has not sent, its
+%% closer made once its writer has ended, in the writer's room, so that a
+%% far end that reads takes every byte and then the close.
 %%
-%% A regression test, written after the fix, of the close at a full table.
-%% It does not hold the defect, a closer spawned at the close, which the
-%% old code passed where a process of the host's had ended between the
-%% fill and the close, as it did in each of five runs; ern_tcp_tests finds the
-%% closer before the close. Nor does it cover the linger's bounds at a
-%% full table, which ern_tcp_tests holds with room
+%% A regression test, written after the code, of the close at a full table.
+%% It does not cover the reset where another process takes the writer's
+%% room before the closer is made, which no program can time, nor the
+%% linger's bounds at a full table, which ern_tcp_tests holds with room
 full_table_close_lingers_test_() ->
     nodes_test({waits, 2}, fun full_table_close_lingers/1).
 
