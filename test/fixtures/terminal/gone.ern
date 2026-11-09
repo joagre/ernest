@@ -1,0 +1,14 @@
+//
+// A terminal that is gone, for the terminal tests (report §12.1, §11.8):
+// the program subscribes to the keys, says that it has, and waits for a
+// key, until the terminal is hung up under it.
+//
+
+type Msg = Key(Terminal.Event)
+
+export fn main() : Unit receiving Msg = {
+    Io.println(Io.show(Terminal.subscribe(Key)));
+    receive {
+        _ -> Unit
+    }
+}

@@ -61,14 +61,16 @@
 %% program's process group, so that it outlives the host where the host is
 %% ended: told to hold, it keeps the settings `stty -g` reads, sets the mode
 %% and says so, and given anything more or its input's end, it gives the
-%% settings back and ends; let go before it was told to hold, it ends.
+%% settings back and ends; let go before it was told to hold, it ends. A
+%% give-back fails only where the terminal is gone, and stty's word of it
+%% is not written on the program's standard error (§12.1).
 -define(HOLD, "trap '' HUP INT QUIT TERM\n"
               "read hold <&3 || exit 0\n"
               "found=$(\"$1\" -g) || exit 1\n"
               "\"$1\" raw -echo opost\n"
               "echo held >&4\n"
               "read done <&3\n"
-              "\"$1\" \"$found\"\n").
+              "\"$1\" \"$found\" 2>/dev/null\n").
 %% The key of the terminal's process's dictionary that holds the holder's
 %% port while it holds the terminal.
 -define(HOLDER, '$ern_holder').
@@ -553,8 +555,8 @@ read_loop(Tty, Open, Partial) ->
                     ern_rt:input_not_utf8(),
                     Tty ! closed
             end;
-        eof -> Tty ! closed;
-        {error, _} -> Tty ! closed;
+        eof -> gone(Tty);
+        {error, _} -> gone(Tty);
         limited ->
             ern_rt:input_unreadable(system_limit),
             Tty ! closed
@@ -562,6 +564,13 @@ read_loop(Tty, Open, Partial) ->
 
 keys(_, []) -> ok;
 keys(Tty, Chars) -> Tty ! {chars, Chars}.
+
+%% Report §12.1: the terminal gone, hung up, failed or closed under the
+%% program. A terminal in the keys' mode sends no end of input, and the
+%% host's read of one hung up answers it.
+gone(Tty) ->
+    ern_rt:terminal_gone(),
+    Tty ! closed.
 
 %% What has arrived after what was pending. A paste under way is read on
 %% from where it stopped, so that each of its characters is read once

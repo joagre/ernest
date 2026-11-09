@@ -9,6 +9,10 @@
 
 -define(CLEAR, <<"\e[2J\e[H">>).
 
+%% The time a line of the runtime's begins with where its stream is no
+%% terminal (report §11.2).
+-define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
+
 %% report §12.1, Appendix E.16: every key pressed reaches the subscriber, a character
 %% as itself, an arrow whole rather than as Escape and two characters, and
 %% an Escape that stands alone as the key; nothing is echoed. The terminal
@@ -209,6 +213,52 @@ full_port_table() ->
     ?assertEqual(1, ern_pty:count(Screen, <<"status 1">>)),
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-(echo|icanon)([ \t;\r\n]|$)",
                                  [{capture, none}])).
+
+%% report §12.1, §11.8, §8.6: keys the host can no longer read end the
+%% program by the hangup's signal, with no fault: a program subscribed to
+%% the keys, its terminal hung up under it, exits with status 129 and
+%% writes nothing on its standard error, a file, whether its failed read or
+%% the hangup came first.
+%%
+%% A regression test, written after the code, under which the program
+%% exited 1 or 129 by the scheduler's order. It does not cover a terminal
+%% whose read fails while it is still there, a device failing, which no
+%% test can make.
+terminal_gone_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun terminal_gone/0).
+
+terminal_gone() ->
+    ok = build("fixtures/terminal/gone.ern", "fixtures/terminal"),
+    Err = filename:join(ern_pty:run_dir(), "terminal_gone_" ++ os:getpid() ++ ".err"),
+    {129, _} = pty("exec ../bin/ern run build/terminal/gone.erc 2> " ++ Err,
+                   [{expect, "Right(Unit)"}, hangup]),
+    ?assertEqual({ok, <<>>}, file:read_file(Err)).
+
+%% report §12.1, §11.8, §8.6: a shell on a node, whose hangup is a reload,
+%% ends when its terminal is hung up, by the hangup's signal, status 129,
+%% its keys no longer read, and says so on its standard error, a file, after
+%% the node's line of the reload where the hangup came first.
+%%
+%% A regression test, written after the code, under which the shell's keys
+%% ended and the shell went on with no terminal, holding its node.
+shell_terminal_gone_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun shell_terminal_gone/0).
+
+shell_terminal_gone() ->
+    Base = filename:join(ern_pty:run_dir(), "terminal_shell_gone_" ++ os:getpid()),
+    Home = filename:join(Base, "home"),
+    ok = filelib:ensure_path(Home),
+    Node = ern_nodes_tests:made(Base, "node", none),
+    Err = filename:join(Base, "shell.err"),
+    {129, _} = pty("HOME=" ++ Home ++ " exec ../bin/ern shell --config-dir " ++ Node
+                   ++ " 2> " ++ Err,
+                   [{expect, "> "}, hangup]),
+    {ok, Said} = file:read_file(Err),
+    Lines = [re:replace(Line, ?STAMP, "", [{return, binary}])
+             || Line <- binary:split(Said, <<"\n">>, [global, trim])],
+    ?assert(lists:member(Lines, [[<<"the shell ends: its terminal is gone">>],
+                                 [<<"ernest.conf was read again">>,
+                                  <<"the shell ends: its terminal is gone">>]])).
 
 %% report §12.1, Appendix E.16: the game is played by the arrows, `Escape`
 %% leaves, and the board's rows each start at the left, which full raw mode

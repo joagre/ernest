@@ -25,7 +25,7 @@
 %% sum, to which the harness's run is held too (ern_nodes_tests:collected/2),
 %% and a step that fails is told by its own bound before the test's runs
 %% out.
--spec run(string(), [tuple()], [option()]) -> {integer() | timeout, binary()}.
+-spec run(string(), [tuple() | hangup], [option()]) -> {integer() | timeout, binary()}.
 run(Command, Steps, Options) ->
     {Status, Data, Unmet} = tried(Command, Steps, Options),
     ?assertEqual([], Unmet),
@@ -35,7 +35,8 @@ run(Command, Steps, Options) ->
 %% program that never answered among them: the harness stops at the first
 %% step it cannot meet (fixtures/pty/pty.ern), and `Unmet` holds its line
 %% naming the steps left, none where it met them all.
--spec tried(string(), [tuple()], [option()]) -> {integer() | timeout, binary(), [binary()]}.
+-spec tried(string(), [tuple() | hangup], [option()]) ->
+          {integer() | timeout, binary(), [binary()]}.
 tried(Command, Steps, Options) ->
     Arguments = ["--timeout", integer_to_list(ern_nodes_tests:wait_ms())]
                 ++ lists:append([["--step", step(Step)] || Step <- Steps])
@@ -68,7 +69,8 @@ step({expect, Text}) ->
     "expect:" ++ Text;
 step({resize, Size}) -> "resize:" ++ Size;
 step({send, Hex}) -> "send:" ++ Hex;
-step({put, Path}) -> "put:" ++ Path.
+step({put, Path}) -> "put:" ++ Path;
+step(hangup) -> "hangup".
 
 status(<<"timeout">>) -> timeout;
 status(Text) -> binary_to_integer(Text).

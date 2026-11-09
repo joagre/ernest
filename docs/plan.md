@@ -197,15 +197,10 @@ reader S reads of its live shell. The release note's line on the installed layou
     socket, the gateway's worker for a peer as the connection opens, and a peer's restart is
     waited for in the worker. An arrival, a checker and the shell's input at a full table each
     answer `error:system_limit`.
-19. **A keys read that fails**, found 2026-11-04 by item 1, decided 2026-11-09 (§12.1, §12.3,
-    §11.8; the log's *A Terminal That Is Gone*), built by 2026-11-12. Keys the host can no
-    longer read end the program as a stream that can no longer be written does (§8.6), with the
-    hangup's status, since a subscription is granted on a terminal alone and an error reading
-    it is the terminal gone; the error is not told from a hangup, and need not be. A line that
-    cannot be read keeps its fault, its input being any stream.
-
-    The shell on a node, whose hangup is a reload, ends by this rule when its terminal closes, and `the shell ends:` says
-    so. A terminal test closes the master over a subscribed program and over such a shell.
+19. **A keys read that fails**, done 2026-11-09 (§12.1, §12.3, §11.8; the log's *A Terminal That
+    Is Gone*, *A Terminal That Is Gone, Built*). Keys the host can no longer read, their read
+    failing or answering the end of input, end the program by the hangup's signal, and a shell
+    on a node, whose hangup is a reload, says that its terminal is gone.
 20. **The runtime at the host's limit of descriptors**, done 2026-11-08 (§12, E.18, E.23; the log's
     *The Runtime at the Limit of Open Files*). A run loads at its start the toolchain's own Erlang
     of the run's side with the host's modules it calls, a unit loads with the modules it calls, and

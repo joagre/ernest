@@ -157,18 +157,22 @@ not_a_terminal_test() ->
     ?assertEqual({'Left', 'NotATerminal'}, wait(answer)),
     ?assertEqual({'Some', <<"line">>}, wait(line)).
 
-%% report §8.6, §12.1: at the end of input no key can come, so a program
-%% that waits only for keys is in a deadlock and faults. A regression test:
-%% the subscription went on counting as a source, and the program waited
-%% for ever. It ran a program with its standard input closed until such an
-%% input came to refuse the subscription; the keys here end instead
+%% report §8.6, §12.1: keys whose read answers the end of input, or fails,
+%% a terminal hung up under the program, end it as a stream that can no
+%% longer be written does, with no fault, though its entry process waits
+%% for ever. A regression test: before it, the end of input closed the
+%% keys and the program was found deadlocked, and a failed read ended it
+%% so too; the terminal's harness holds the host's own hangup
+%% (ern_terminal_tests).
 keys_at_end_of_input_test() ->
-    ?assertMatch({fault, <<"deadlock">>, _},
-                 ern_rt:run_main(fun() ->
-                                     subscribe(ern_rt:system_process(terminal)),
-                                     ern_waits:forever()
-                                 end, <<"main">>,
-                                 #{stdout => fun(_) -> ok end, keys => fun() -> eof end})).
+    Program = fun() -> subscribe(ern_rt:system_process(terminal)), ern_waits:forever() end,
+    ?assertEqual({gone, terminal},
+                 ern_rt:run_main(Program, <<"main">>,
+                                 #{stdout => fun(_) -> ok end, keys => fun() -> eof end})),
+    ?assertEqual({gone, terminal},
+                 ern_rt:run_main(Program, <<"main">>,
+                                 #{stdout => fun(_) -> ok end,
+                                   keys => fun() -> {error, eio} end})).
 
 %% report §12.1: the terminal applies each subscriber's wrap itself, in
 %% order, so a wrap that does not finish delays that subscriber's keys and

@@ -1618,6 +1618,9 @@ report_outcome(_ErrorDevice, _Site, {exit, Status}) -> Status;
 %% not, is the job's refusal, said in the job's line form with status 1
 report_outcome(_ErrorDevice, _Site, {refused, Text}) ->
     ern_build:fail(unicode:characters_to_list(Text));
+%% report §12.1, §11.8: keys that can no longer be read, by the hangup's
+%% signal
+report_outcome(_ErrorDevice, _Site, {gone, terminal}) -> ern_signals:ended(sighup);
 %% report §12.1, §11.2: a stream that can no longer be written, as a shell
 %% reports a broken pipe
 report_outcome(_ErrorDevice, _Site, {gone, _Stream}) -> 128 + 13;
@@ -1647,6 +1650,15 @@ report_shell_outcome(ErrorDevice, {fault, Cause, Trace}) ->
                       [ern_show:controls(Cause, line), indented_trace(Trace)]),
             70
     end;
+%% report §12.1, §11.8: keys the shell can no longer read, said as its end.
+%% Its standard error at a terminal is the host's own, which raises where
+%% it is the terminal that has gone, and a line it cannot take changes
+%% nothing, since what began the end stands (§8.6).
+report_shell_outcome(ErrorDevice, {gone, terminal}) ->
+    try io:put_chars(ErrorDevice, "the shell ends: its terminal is gone\n")
+    catch error:badarg -> ok
+    end,
+    ern_signals:ended(sighup);
 %% report §8.5, §11.2: a binding that faulted before the shell began
 report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
     io:format(ErrorDevice, "~ts faulted: ~ts~n~ts",

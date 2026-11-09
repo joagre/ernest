@@ -2,11 +2,13 @@
 %% delivers SIGWINCH to OTP's signal server, which calls this handler; it
 %% forwards the signal to the terminal's process as a message and runs no
 %% loop of its own, as OTP's prim_tty_sighandler does (docs/code_style.md).
+%% Whatever else the signal server is sent, the end of a port a handler
+%% beside this one opened among it, is nothing to this handler.
 -module(ern_tty_signal).
 
 -behaviour(gen_event).
 
--export([init/1, handle_event/2, handle_call/2]).
+-export([init/1, handle_event/2, handle_call/2, handle_info/2]).
 
 -spec init(pid()) -> {ok, pid()}.
 init(Tty) ->
@@ -23,3 +25,7 @@ handle_event(_Signal, Tty) ->
 -spec handle_call(term(), pid()) -> {ok, ok, pid()}.
 handle_call(_Request, Tty) ->
     {ok, ok, Tty}.
+
+-spec handle_info(term(), pid()) -> {ok, pid()}.
+handle_info(_Info, Tty) ->
+    {ok, Tty}.

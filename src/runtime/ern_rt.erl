@@ -55,7 +55,8 @@
          undefined_function/3, undefined_lambda/3, met/3, host_cause/2, fault/1, fault/2, trace/1,
          failure_trace/1, system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
          is_kept_from_terminal/1, own_terminal/1,
-         input_not_utf8/0, input_unreadable/1, by_input/1, read_input/1, run_main/3, say/2,
+         input_not_utf8/0, input_unreadable/1, terminal_gone/0, by_input/1, read_input/1,
+         run_main/3, say/2,
          say_later/2, wait_for_later/0, tables/0, arguments/0,
          exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1,
          initializing/1, site/0,
@@ -3658,13 +3659,23 @@ not_utf8() ->
 input_not_utf8() ->
     end_with_fault(not_utf8()).
 
-%% Report §12.1, §7.4: keys that cannot be read end the program with the
-%% fault of its entry process, Error the host's reason, since no process
-%% asked for them: where their input cannot be opened, the host's table of
-%% ports full, `system_limit` (read_input/1).
+%% Report §12.1, §7.4: keys whose input cannot be opened, the host's table
+%% of ports full, end the program with the fault of its entry process,
+%% Error the host's reason, `system_limit` (read_input/1), since no process
+%% asked for them.
 -spec input_unreadable(term()) -> ok.
 input_unreadable(Error) ->
     unreadable(Error).
+
+%% Report §12.1, §8.6, §11.8: keys the host can no longer read, its read of
+%% the terminal failing, end the program as a stream that can no longer be
+%% written does, with no fault: the runner is told, and its outcome is the
+%% hangup's (ern_cli:report_outcome/3).
+-spec terminal_gone() -> ok.
+terminal_gone() ->
+    {Runner, Launch} = launch_runner(),
+    Runner ! {gone, Launch, terminal},
+    ok.
 
 %% Report §12.3, §11.8: whether a fault's cause is one of standard input's,
 %% which ends a shell as it ends a run, by its input and not by a defect.
@@ -3938,7 +3949,7 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 
 -type outcome() :: ok | killed | {fault, binary(), binary()}
                  | {initializer_fault, binary(), binary(), binary()}
-                 | {exit, 0..255} | {refused, binary()} | {gone, stdout | stderr}
+                 | {exit, 0..255} | {refused, binary()} | {gone, stdout | stderr | terminal}
                  | {signal, sigterm | sighup}.
 
 %% Runs EntryPoint as the entry process. It returns ok where the entry
@@ -3954,7 +3965,8 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% (report §8.5); {exit, Status} where a process called Os.exit, {refused,
 %% Text} where the run could not start, a node whose carrier did not
 %% (refused/1), {gone, Stream} where standard output or standard error
-%% could no longer be written, or {signal, Signal} where the host's
+%% could no longer be written, {gone, terminal} where the keys could no
+%% longer be read (terminal_gone/0), or {signal, Signal} where the host's
 %% termination or hangup ended the program (entry_end/2). Every local
 %% process is then ended with ProgramEnd, and standard output and standard
 %% error are flushed, however the run ended.

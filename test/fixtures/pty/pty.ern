@@ -20,11 +20,14 @@
 //     put:PATH      open the named pipe PATH for writing and close it,
 //                   once the program has opened it for reading, which ends
 //                   the read of it that the program waits in
+//     hangup        hang the terminal up, as closing its window does: the
+//                   program's read of it ends, and it is sent the hangup,
+//                   nothing it writes after arriving
 //
 // Each wait is bounded by MS milliseconds of its own, the caller's time for
 // one wait, so that a wait that fails is told by its own bound: an expect met
-// begins the next wait, and a send, a resize, a put and the program's end
-// share the wait in progress. A program that has not exited within it is
+// begins the next wait, and a send, a resize, a put, a hangup and the
+// program's end share the wait in progress. A program that has not exited within it is
 // killed, and with it the processes still in its process group.
 //
 // Two lines are printed: `status` and the program's exit status, 128 and
@@ -41,7 +44,7 @@
 // program has opened it, and which says how the open went.
 //
 
-type Step = Expect(Bytes) | Send(Bytes) | Resize(Terminal.Size) | Put(String)
+type Step = Expect(Bytes) | Send(Bytes) | Resize(Terminal.Size) | Put(String) | Hangup
 
 type Options =
     Options(size : Terminal.Size, screen : Bool, steps : List(Step), command : List(String))
@@ -93,7 +96,7 @@ let defaults =
 
 let usage =
     "usage: ern run pty.erc --timeout MS [--size ROWSxCOLUMNS] [--screen] [--step STEP]..."
-        <> " -- COMMAND, a STEP expect:TEXT, send:HEX, resize:RxC or put:PATH"
+        <> " -- COMMAND, a STEP expect:TEXT, send:HEX, resize:RxC, put:PATH or hangup"
 
 // The milliseconds of one wait, which `--timeout` gives, and the options
 // the rest of the command line gives, the steps in the order given and the
@@ -141,6 +144,7 @@ fn stepOf(argument : String) : Optional(Step) =
       | Some(#("send", hex)) -> Optional.map(Bytes.fromHex(hex), Send)
       | Some(#("resize", size)) -> Optional.map(sizeOf(size), Resize)
       | Some(#("put", path)) -> Some(Put(path))
+      | None when argument == "hangup" -> Some(Hangup)
       | _ -> None
     }
 
@@ -242,6 +246,10 @@ fn take(run : Run, step : Step) : Stepped receiving HarnessMsg =
             let ms = remaining(run);
             awaitPut(run, spawn(fn() = openPipe(path, harness, ms)))
         }
+      | Hangup -> {
+            Os.closeInput(run.program);
+            Met(run)
+        }
     }
 
 // An expect: the text found after the cursor, which moves past it, and the
@@ -340,6 +348,7 @@ fn kindOf(step : Step) : String =
       | Send(_) -> "send"
       | Resize(_) -> "resize"
       | Put(_) -> "put"
+      | Hangup -> "hangup"
     }
 
 //
