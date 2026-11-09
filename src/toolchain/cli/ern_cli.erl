@@ -45,16 +45,9 @@ start() ->
     %% reads one
     _ = code:del_path("."),
     Args = init:get_plain_arguments(),
-    %% a job writes through ports of its own, which end it when a stream's
-    %% reader has gone (ern_out); the shell's terminal is the host's own
-    IsShell = case Args of
-                  ["shell" | Rest] -> Rest =:= [] orelse hd(Rest) =/= "--help";
-                  _ -> false
-              end,
-    ErrorDevice = case IsShell andalso ern_tty:is_terminal(stdout) of
-                      true -> standard_error;
-                      false -> ern_out:take()
-                  end,
+    %% a job writes through ports of its own, the shell's screen among them,
+    %% which end it when a stream can no longer be written (ern_out)
+    ErrorDevice = ern_out:take(),
     Status = try
                  persistent_term:put({?MODULE, streams}, fds),
                  %% report §11.1: the build of `ern`, set at the job's start as
@@ -121,9 +114,9 @@ ern(Args) ->
 
 %% Report §11: the first word is the job, and --help and --version stand
 %% alone; a working directory whose name is not UTF-8 the launcher refused
-%% before the host started. ErrorDevice is the error device,
-%% standard_error for the launcher; a test passes its own and reads what
-%% the user would see. The status is 0 or 1, or a program's, which Os.exit
+%% before the host started. ErrorDevice is the error device, ern_out's
+%% for the launcher (start/0); a test passes its own and reads what the
+%% user would see. The status is 0 or 1, or a program's, which Os.exit
 %% or a signal may give (§11.2).
 -spec ern([word()], io:device()) -> 0..255.
 ern(["--help"], _ErrorDevice) ->
@@ -1618,12 +1611,14 @@ report_outcome(_ErrorDevice, _Site, {exit, Status}) -> Status;
 %% not, is the job's refusal, said in the job's line form with status 1
 report_outcome(_ErrorDevice, _Site, {refused, Text}) ->
     ern_build:fail(unicode:characters_to_list(Text));
-%% report §12.1, §11.8: keys that can no longer be read, by the hangup's
-%% signal
-report_outcome(_ErrorDevice, _Site, {gone, terminal}) -> ern_signals:ended(sighup);
-%% report §12.1, §11.2: a stream that can no longer be written, as a shell
-%% reports a broken pipe
-report_outcome(_ErrorDevice, _Site, {gone, _Stream}) -> 128 + 13;
+%% report §12.1, §11.8: keys that can no longer be read, or a stream that
+%% can no longer be written, by the hangup's signal where the terminal has
+%% gone (is_terminal_gone/1), and otherwise as a shell reports a broken pipe
+report_outcome(_ErrorDevice, _Site, {gone, Stream}) ->
+    case is_terminal_gone(Stream) of
+        true -> ern_signals:ended(sighup);
+        false -> 128 + 13
+    end;
 report_outcome(ErrorDevice, Site, killed) ->
     io:put_chars(ErrorDevice, [stamp(is_stamped()), ern_show:controls(Site, line), " killed\n"]),
     1;
@@ -1650,15 +1645,18 @@ report_shell_outcome(ErrorDevice, {fault, Cause, Trace}) ->
                       [ern_show:controls(Cause, line), indented_trace(Trace)]),
             70
     end;
-%% report §12.1, §11.8: keys the shell can no longer read, said as its end.
-%% Its standard error at a terminal is the host's own, which raises where
-%% it is the terminal that has gone, and a line it cannot take changes
-%% nothing, since what began the end stands (§8.6).
-report_shell_outcome(ErrorDevice, {gone, terminal}) ->
-    try io:put_chars(ErrorDevice, "the shell ends: its terminal is gone\n")
-    catch error:badarg -> ok
-    end,
-    ern_signals:ended(sighup);
+%% report §12.1, §11.8: keys the shell can no longer read, or its terminal
+%% that can no longer be written, said as its end; a standard error that is
+%% the terminal that has gone ends `ern` at the line, by the same signal
+%% (ern_out).
+report_shell_outcome(ErrorDevice, {gone, Stream} = Gone) ->
+    case is_terminal_gone(Stream) of
+        true ->
+            io:put_chars(ErrorDevice, "the shell ends: its terminal is gone\n"),
+            ern_signals:ended(sighup);
+        false ->
+            report_outcome(ErrorDevice, <<"Ernest.Shell.main">>, Gone)
+    end;
 %% report §8.5, §11.2: a binding that faulted before the shell began
 report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
     io:format(ErrorDevice, "~ts faulted: ~ts~n~ts",
@@ -1666,6 +1664,12 @@ report_shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
     1;
 report_shell_outcome(ErrorDevice, Other) ->
     report_outcome(ErrorDevice, <<"Ernest.Shell.main">>, Other).
+
+%% Report §12.1, §11.8: whether what ended the run is the terminal gone:
+%% keys that can no longer be read, or a stream that was a terminal as the
+%% job started (ern_out:is_terminal/1).
+is_terminal_gone(terminal) -> true;
+is_terminal_gone(Stream) -> ern_out:is_terminal(Stream).
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the system references.

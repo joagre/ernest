@@ -56,7 +56,8 @@ ended() ->
 %% outcome says, and `ern` ends by it once its output is flushed; the
 %% status that stands for it. A signal that came while an end begun
 %% otherwise waited ended nothing, and is not recorded: what began the end
-%% stands, an Os.exit's status, main's return's 0, or a stream's 141.
+%% stands, an Os.exit's status, main's return's 0, or a stream's, 141 or
+%% the hangup's where the stream was a terminal (ern_out:is_terminal/1).
 -spec ended(sigterm | sighup) -> pos_integer().
 ended(Signal) ->
     persistent_term:put({?MODULE, ended}, Signal),

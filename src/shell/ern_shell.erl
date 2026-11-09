@@ -4596,8 +4596,10 @@ file_error(Error) when is_atom(Error) -> {text, atom_to_list(Error)}.
 version() ->
     list_to_binary(ern_release:version_text()).
 
-%% The screen writes to the terminal itself: standard output is the screen's,
-%% so a screen that printed through it would print to itself.
+%% The screen writes to the job's own standard output, ern_out's, whose
+%% stream that can no longer be written ends the shell through its run
+%% (report §12.1): the program's standard output is the screen's, so a
+%% screen that printed through it would print to itself.
 -spec write(binary()) -> 'Unit'.
 write(Text) ->
     file:write(standard_io, unicode:characters_to_binary(Text)),

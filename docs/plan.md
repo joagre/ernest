@@ -61,8 +61,10 @@ The items left are built in this order, set 2026-11-08 and read again the same d
    a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*).
 2. Items 19, 21, 29, 30, 32, 35 and 36, each a report sentence and its build, done 2026-11-09
    (each item's paragraph below).
-3. Item 37 decided in a design session, and built.
-4. Item 16's build last.
+3. Item 37 decided in a design session, and built, done 2026-11-09.
+4. Item 38's build, by an item session.
+5. Item 39 decided in a design session, and built.
+6. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -268,14 +270,24 @@ reader S reads of its live shell. The release note's line on the installed layou
     *Lean at the Limits*, *TLS as the Host Loads It*). The host's TLS loads as the host loads it,
     a handshake at the limit of open files failing, and a socket's closer is made as the socket
     ends, in its writer's room, the connection reset where the table refuses it.
-37. **A write to a terminal that is gone**, decided 2026-11-09 in the design session, found in
-    item 19's read-back (§12.1, §11.8; the log's *A Write to a Terminal That Is Gone*). A
-    stream that can no longer be written ends the program by the hangup's signal where the
-    stream is a terminal, as keys that can no longer be read do, and with 141 where it is a
-    pipe, a socket or a file; the report's and the deployment guide's sentences are written and
-    read cold. Its build, before item 16's: the runner's and `ern_out`'s end of a stream, each
-    reading a stream's kind as the job starts; the shell's screen; and a terminal test that
-    hangs up a program that writes, holding 129 and no fault written.
+37. **A write to a terminal that is gone**, done 2026-11-09 (§12.1, §11.8; the log's *A Write to
+    a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*). A stream that can no
+    longer be written ends the program by the hangup's signal where it was a terminal as the job
+    started, and with 141 otherwise, and the shell at a terminal writes its screen through the
+    job's own ports, so that it says its terminal is gone.
+38. **The host's log handler at a terminal that is gone**, found 2026-11-09 in item 37's build
+    (§12.1, §11.8; the log's *A Write to a Terminal That Is Gone, Built*). The host's default
+    log handler writes its warnings through the host's `user`, and a warning once the terminal
+    has gone halts the host with status 1 and a crash dump in the working directory. Its build,
+    before item 16's: the handler writes through the job's standard output, `ern_out`'s, which
+    takes text as UTF-8 while a run has set it for bytes, so that a warning it can no longer
+    write ends the program as §12.1 says.
+39. **A pipe into a parenthesized pipe**, found 2026-11-09 by the grammar test's seed 7463993
+    in item 37's full run (§5.7, §11.6; the log's *A Write to a Terminal That Is Gone, Built*).
+    The parser reads `f |> (b |> g)` as `g(f, b)`, the inner pipe a call the outer fills, and
+    `ern format` fails on it with status 70. Its decision, for a design session before item 16:
+    whether such a stage is filled, as the parser reads §5.7, or the form is refused or applied,
+    `g(b)(f)`; then the formatter lays out what stands, and a regression test holds the line.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

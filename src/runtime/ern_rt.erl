@@ -58,7 +58,7 @@
          input_not_utf8/0, input_unreadable/1, terminal_gone/0, by_input/1, read_input/1,
          run_main/3, say/2,
          say_later/2, wait_for_later/0, tables/0, arguments/0,
-         exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1,
+         exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1, stream_gone/1,
          initializing/1, site/0,
          evaluate/2, evaluate_load/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1,
          withdraw_load/2,
@@ -3964,9 +3964,10 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% binding faulted so before EntryPoint ran, Site naming the binding
 %% (report §8.5); {exit, Status} where a process called Os.exit, {refused,
 %% Text} where the run could not start, a node whose carrier did not
-%% (refused/1), {gone, Stream} where standard output or standard error
-%% could no longer be written, {gone, terminal} where the keys could no
-%% longer be read (terminal_gone/0), or {signal, Signal} where the host's
+%% (refused/1), {gone, Stream} where standard output or standard error,
+%% the run's own or the job's (stream_gone/1), could no longer be written,
+%% {gone, terminal} where the keys could no longer be read
+%% (terminal_gone/0), or {signal, Signal} where the host's
 %% termination or hangup ended the program (entry_end/2). Every local
 %% process is then ended with ProgramEnd, and standard output and standard
 %% error are flushed, however the run ended.
@@ -4646,10 +4647,22 @@ entry_process() ->
 %% as the end of its entry process does; none when no run is in progress.
 -spec signal(sigterm | sighup) -> ok | none.
 signal(Signal) ->
+    told_runner(signal, Signal).
+
+%% Report §12.1, §8.6: a stream of the job's own that can no longer be
+%% written, which ern_out finds, ends the run in progress as the run's own
+%% stream that has gone ends it (stream/2); none when no run is in progress.
+-spec stream_gone(stdout | stderr) -> ok | none.
+stream_gone(Stream) ->
+    told_runner(gone, Stream).
+
+%% The runner of the run in progress sent {Tag, Launch, What}, ok, or none
+%% where no run is in progress.
+told_runner(Tag, What) ->
     case ets_lookup(?LAUNCH, launch) of
         [#launch{runner = Runner, tag = Launch}] ->
             case erlang:is_process_alive(Runner) of
-                true -> Runner ! {signal, Launch, Signal}, ok;
+                true -> Runner ! {Tag, Launch, What}, ok;
                 false -> none
             end;
         [] ->
