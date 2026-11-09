@@ -236,8 +236,10 @@ terminal_gone() ->
 
 %% report §12.1, §11.8, §8.6: a shell on a node, whose hangup is a reload,
 %% ends when its terminal is hung up, by the hangup's signal, status 129,
-%% its keys no longer read, and says so on its standard error, a file, after
-%% the node's line of the reload where the hangup came first.
+%% its keys no longer read or the reload's line no longer written on its
+%% screen, and says so on its standard error, a file. The node's line of the
+%% reload stands there at most once, before the shell's line or after it,
+%% since the host's signal server reloads apart from the shell's end.
 %%
 %% A regression test, written after the code, under which the shell's keys
 %% ended and the shell went on with no terminal, holding its node.
@@ -256,9 +258,8 @@ shell_terminal_gone() ->
     {ok, Said} = file:read_file(Err),
     Lines = [re:replace(Line, ?STAMP, "", [{return, binary}])
              || Line <- binary:split(Said, <<"\n">>, [global, trim])],
-    ?assert(lists:member(Lines, [[<<"the shell ends: its terminal is gone">>],
-                                 [<<"ernest.conf was read again">>,
-                                  <<"the shell ends: its terminal is gone">>]])).
+    ?assertEqual([<<"the shell ends: its terminal is gone">>],
+                 Lines -- [<<"ernest.conf was read again">>]).
 
 %% report §12.1, §11.8, §8.6: a stream that can no longer be written ends
 %% the program by the hangup's signal where it was a terminal as the job
@@ -317,15 +318,19 @@ log_terminal_gone() ->
              || Line <- binary:split(Said, <<"\n">>, [global, trim])],
     ?assert(lists:member(Lines, [[], [<<"ernest.conf was read again">>]])).
 
-%% report §12.1, §11.8, §8.6: a shell on a node, whose hangup is a reload,
-%% ends when its terminal can no longer be written, by the hangup's signal,
-%% status 129, and says so on its standard error, a file. Its inputs come
-%% from a file, so that no keys are read, and the one it runs writes to the
-%% screen once the terminal has been hung up.
+%% report §12.1, §11.8, §8.6, §12.5: a shell on a node, whose hangup is a
+%% reload, ends when its terminal can no longer be written, by the hangup's
+%% signal, status 129, and says so on its standard error, a file. Its inputs
+%% come from a file, so that no keys are read, and the one it runs waits for
+%% a message none sends. The write is the node's line of the reload, which a
+%% shell's node says on the shell's screen (§12.1), and which is lost there,
+%% so the file holds the shell's line alone.
 %%
 %% A regression test, written after the code, under which the shell wrote
 %% its screen through the host's own output, which said that its writer had
-%% crashed, and the shell ended with status 0.
+%% crashed, and the shell went on. It does not cover an input's own write
+%% once the terminal has gone, which on a node the reload's line always comes
+%% before; the two reach the terminal by one path, the screen's local half.
 shell_write_terminal_gone_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun shell_write_terminal_gone/0).
 
@@ -334,24 +339,14 @@ shell_write_terminal_gone() ->
     Home = filename:join(Base, "home"),
     ok = filelib:ensure_path(Home),
     Node = ern_nodes_tests:made(Base, "node", none),
-    Pipe = filename:join(Base, "written.pipe"),
-    [] = os:cmd("mkfifo " ++ Pipe),
     Inputs = filename:join(Base, "inputs"),
-    Reader = ["Os.Command(program = \"cat\", arguments = [\"", Pipe, "\"], input = <<>>,"
-              " environment = [], workingDirectory = Os.workingDirectory)"],
-    Written = ["Io.println(\"ready\"); let _ = Os.run(", Reader, ", ",
-               ern_nodes_tests:wait_ms_text(), "); Io.println(\"written\")"],
-    ok = file:write_file(Inputs, ["{ ", Written, " }\n"]),
+    ok = file:write_file(Inputs, "{ Io.println(\"ready\"); receive { Unit -> Unit } }\n"),
     Err = filename:join(Base, "shell.err"),
     {129, _} = pty("HOME=" ++ Home ++ " exec ../bin/ern shell --config-dir " ++ Node
                    ++ " < " ++ Inputs ++ " 2> " ++ Err,
-                   [{expect, "ready"}, hangup, {put, Pipe}]),
+                   [{expect, "ready"}, hangup]),
     {ok, Said} = file:read_file(Err),
-    Lines = [re:replace(Line, ?STAMP, "", [{return, binary}])
-             || Line <- binary:split(Said, <<"\n">>, [global, trim])],
-    ?assert(lists:member(Lines, [[<<"the shell ends: its terminal is gone">>],
-                                 [<<"ernest.conf was read again">>,
-                                  <<"the shell ends: its terminal is gone">>]])).
+    ?assertEqual(<<"the shell ends: its terminal is gone\n">>, Said).
 
 %% report §12.1, Appendix E.16: the game is played by the arrows, `Escape`
 %% leaves, and the board's rows each start at the left, which full raw mode

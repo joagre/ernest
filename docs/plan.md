@@ -63,8 +63,7 @@ The items left are built in this order, set 2026-11-08 and read again the same d
    (each item's paragraph below).
 3. Item 37 decided in a design session, and built, done 2026-11-09.
 4. Item 38's build, by an item session, done 2026-11-09.
-5. Item 41 diagnosed and fixed, by an item session, so that the shell's area that items 39 and
-   40 run is sound.
+5. Item 41 diagnosed and fixed, by an item session, done 2026-11-09.
 6. Items 39 and 40 decided in a design session, and built.
 7. Item 16's build last.
 
@@ -299,14 +298,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     standard error, as the job's own lines do, or stay; whether the job's end waits for the
     handler to write what it was given, one call to the host's handler; and the sentence of
     §11.2 that says both.
-41. **A flake of `shell_write_terminal_gone_test_`**, found 2026-11-09 in item 38's sweep
-    (§12.1, §11.8; the log's *The Host's Log Handler at a Terminal That Is Gone, Swept*). It
-    fails two ways, at item 37's commit as after item 38's. The shell says its terminal is gone
-    and ends before the test puts its pipe, which `cat` then never reads; or the node says its
-    reload after the shell's last line, an order the test does not take. Its cause is not
-    found. Its diagnosis first: what the shell writes to its screen once the terminal has hung
-    up, and whether the reload's line may follow the shell's last. Then the fix at its cause,
-    the shell's or the test's, and the shell's area run twenty times without a failure.
+41. **A flake of `shell_write_terminal_gone_test_`**, done 2026-11-09 (§12.1, §12.5; the log's
+    *The Flake of `shell_write_terminal_gone_test_`*). The hangup's reload says its line on the
+    shell's screen, a write that ended the shell before or after the test's own; the reload's
+    line is now the test's write, and `shell_terminal_gone_test_` takes that line before the
+    shell's last or after it.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
