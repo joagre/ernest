@@ -268,13 +268,14 @@ reader S reads of its live shell. The release note's line on the installed layou
     *Lean at the Limits*, *TLS as the Host Loads It*). The host's TLS loads as the host loads it,
     a handshake at the limit of open files failing, and a socket's closer is made as the socket
     ends, in its writer's room, the connection reset where the table refuses it.
-37. **A write to a terminal that is gone**, found 2026-11-09 in item 19's read-back, decided in
-    a design session before item 16's build (§12.1, §11.8; the log's *A Write to a Terminal
-    That Is Gone*). Keys that can no longer be read end the program with 129, and a write that
-    fails on the terminal with 141, so a program under a terminal that closes ends with either.
-    The decision is whether that write ends by the hangup's signal as the keys do, recommended
-    by principles 1 and 2. Its build is §12.1's and §11.8's sentences after a cold reading, the
-    runtime's end of a stream, and a terminal test that hangs up a program that writes.
+37. **A write to a terminal that is gone**, decided 2026-11-09 in the design session, found in
+    item 19's read-back (§12.1, §11.8; the log's *A Write to a Terminal That Is Gone*). A
+    stream that can no longer be written ends the program by the hangup's signal where the
+    stream is a terminal, as keys that can no longer be read do, and with 141 where it is a
+    pipe, a socket or a file; the report's and the deployment guide's sentences are written and
+    read cold. Its build, before item 16's: the runner's and `ern_out`'s end of a stream, each
+    reading a stream's kind as the job starts; the shell's screen; and a terminal test that
+    hangs up a program that writes, holding 129 and no fault written.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

@@ -103,7 +103,7 @@ A process *faults* when it meets an error it did not expect, a division by zero 
 - the status the program itself chose, where it calls `Os.exit`;
 - 1 when its entry process faults or is killed, and when the program exhausts the host's memory;
 - the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop;
-- 141 when its output can no longer be written, because what read it has ended.
+- 141 when its output, a pipe or a file, can no longer be written; the hangup signal itself, which a shell shows as 129, when its output is a terminal that has gone.
 
 A service manager that restarts on failure restarts every exit status but 0 and no clean stop, so a node stopped by `ern stop` is not restarted and one that crashed is.
 
