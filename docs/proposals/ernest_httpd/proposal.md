@@ -1,6 +1,6 @@
 # The server owns both ends of its socket
 
-Under discussion, for the time after the launch. All of it is tentative, and nothing flows from it into the report, the plan or the log. It states Ernest's side and what Ernest asks of ernest-httpd. The server's side is its own sessions' to design ([`docs/clean_room.md`](../../clean_room.md)).
+Decided with the user on 2026-11-09 and planned as MVP 4.6, after the launch. Nothing here is authoritative. It states Ernest's side and what Ernest asks of ernest-httpd. The server's side is its own sessions' to design ([`docs/clean_room.md`](../../clean_room.md)).
 
 The server's design is https://github.com/joagre/ernest-httpd/blob/main/docs/design.md, cited below as the server's design. It is read from here and never written.
 

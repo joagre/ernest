@@ -33,9 +33,14 @@ Shape*). What the layout proposal still held is made at the same stop, the templ
 and its copies last, and the proposal has gone (the log's *The Layout's Rest First*, *The Template
 Cut Again*, *The Layout's Proposal Read*). The three applications' sessions start next.
 
-The rest of MVP 4.15, what the server taught, follows, then MVP 4.4, the cost, the full review and the launch's release, where the road ends and a
-program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round, follows
-the launch (the log's *MVP 4.3 Becomes MVP 4.5*). Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
+The rest of MVP 4.15, what the server taught, follows. Then comes MVP 4.16, a deadlock's scope
+and its report and packages, before the launch (the log's *MVP 4.16, the Proposals Before the
+Launch*). Then MVP 4.4, the cost, the full review and the launch's release, where the road ends
+and a program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round,
+follows the launch (the log's *MVP 4.3 Becomes MVP 4.5*), and MVP 4.6 after it, the server
+owning both ends of its socket.
+
+Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
 Stays at 0.x*). The back end to BEAM's own instructions that closed the road is not built, decided
 2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
 row of the table at the end, its reasons in the log entries the row names.
@@ -308,6 +313,60 @@ reader S reads of its live shell. The release note's line on the installed layou
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
 
+## MVP 4.16 (a deadlock's scope and its report, and packages), about a week
+
+Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*): two
+proposals built before the launch, so that the full review reads them and the launch shows them.
+It follows MVP 4.15's release, and the checkout then works toward the launch's minor.
+
+The first three items are the deadlock proposal's,
+[`proposals/deadlock/`](proposals/deadlock/README.md), each part named as the proposal numbers
+it.
+
+1. **A deadlock's claim given its scope**, Part 2: "A deadlock of the whole program is found" in
+   the README's list, `guide/why.md`, the tour's chapter 5 and `docs/design/site.md`; the limit
+   stated in Why and guide §5.4; the typed mailbox dropped from Why's argument; the status
+   premise named in `docs/design/runtime.md`'s *The look*; and the proposal's programs held as
+   regression tests. The log's entry that argues the proposal is written with it. The two claims
+   the proposal makes from memory, of Pony's collector and Go's work on leaked goroutines, are
+   checked against their documents or cut. It closes on `make test-docs` and the runtime's
+   target.
+2. **The callee in a deadlock's report**, Part 4: each waiting group's line says on whom it
+   waits, a group split by its callee's site. It cuts a restated clause of §8.6, so its sentences
+   in §8.6 and §12.4 are read cold, and it is decided the day it is built. It touches the runtime
+   and closes on `make test-full`.
+3. **Who waits on whom**, Part 3: `Process.Calling` gains its callee, whether a limit ends the
+   wait and the moment the call began (E.21); `Process.peer` names a process's peer; and
+   `:processes` writes them, with a line for each cycle of calls without limit (§11.2). It
+   reports and never faults. It breaks a match on `Process.Calling`, one site here and four in
+   ernest-httpd, whose session meets it at its floor's rise. It closes on `make test-full`, and
+   `make bench` confirms the call's rows within their noise, before MVP 4.4's item 2 reads the
+   cost.
+
+The other seven are the packages proposal's build order,
+[`proposals/package_manager/`](proposals/package_manager/README.md).
+
+4. **The report's sentences on a package**: a new section at the end of §11, §11's opening,
+   §11.1, §11.2, Appendix F and Appendix G's opening, read cold before the build. The log's
+   entry that argues the proposal is written with them. It supersedes in part *Packages*, *MVP
+   2.7, the Fetcher, and No Server* and *A Library Is Fetched by Its URL*, and records the
+   argument of *A Libs Flag Instead of the Environment* beside the one that won.
+5. **The manifest read and the load path**: every job finds `package.conf` in the directory it
+   is started in and puts the named packages on its load path, `lib/` filled by hand. The look
+   is measured on a job with no manifest before anything is built on it.
+6. **`ern build`'s checks**: each named package's claims held against the root's lines, a
+   package's `src` and `build` as its roots, and the named packages built in their order. The
+   trial's table of refusals is its first test.
+7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
+   section of Appendix G first.
+8. **`ern unpack`**, in Ernest, over the three: an archive's digest checked against its line,
+   and the archive unpacked whole or not at all, one with an entry outside its own directory
+   refused. Where the job's module stands under `Ernest` is decided as the item opens.
+9. **The guide's section on a package.**
+10. **The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
+    manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
+    host part as the proposal's question 5 says.
+
 ## MVP 4.4 (the cost, the full review and the launch's release), about three weeks
 
 Decided with the user on 2026-10-31 (the log's *MVP 4.4, the Road's End*): the road's last
@@ -357,6 +416,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*). As they begin, the
    three floors rise to the launch's minor, each by its own session, since a development build of
    the floor is what an archive before the release is (the log's *The Floors and the Releases*).
+   Each takes its manifest then (MVP 4.16's item 10).
    Ernest's session names the minor, the archive's path and its commit to all three by a message,
    and asks for the reviews, on the user's word.
 5. **The launch's release**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
@@ -365,7 +425,8 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    log's *The Layout Built*); the feedback file and the findings file empty.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
-   release, since the others copy from it; ernest-epx's, not waiting for its milestone 9; and
+   release, since the others copy from it; ernest-epx's, not waiting for its milestone 9, and
+   carrying its host part as a package's (MVP 4.16's item 10); and
    ernest-httpd's, with its readers (the log's *The Floors and the Releases*). Ernest's session
    tells all three the tag by a message, and asks each in turn when the one before it is out.
 
@@ -413,6 +474,26 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    on the node.
 
 It follows the launch since 2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*).
+
+---
+
+## MVP 4.6 (the server owns both ends of its socket), a few days, after the launch
+
+Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*), the
+proposal [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md). The site's script speaks
+the server's wire, its generator reads the server's configuration and its browser test stubs the
+server's socket. Each goes, for a client the server ships.
+
+1. **The ask**, sent to ernest-httpd's session by a message on the user's word, as
+   `docs/clean_room.md` says: a client script served at `/shell/client.js`, the limits the server
+   enforces, a client that is never stale, and its own test. The server's part adds and takes
+   nothing away, so the site that went live at the launch is served on.
+2. **Ernest's side**, once a release of the server's serves the client on the machine. `site.js`'s
+   session calls the client. The generator takes no configuration, and `make site` the tag alone.
+   The shell's page takes its numbers from the client's limits and names no memory. The browser
+   test serves a stub client. `docs/design/site.md` changes in five sections, with the sweep the
+   proposal lists. It goes live with the site of the release that follows, and closes on
+   `make test`, the site's targets and `make test-browser`.
 
 ---
 
@@ -466,5 +547,7 @@ It follows the launch since 2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*).
 | MVP 4.1 | ernest-httpd, an HTTP/1.1 server in Ernest in a repository of its own, which serves ernest-lang.org since 2026-11-02, and what it asked of Ernest: TLS in `Tcp`, a program under a pseudo-terminal in `Os`, the libraries `base64`, `crypto`, `time` and `http`, seventeen lines of feedback decided the days they came, the terminal tests' harness in Ernest, and the release | 2026-11-03 | ernest-httpd 0.1.0, tag `v0.1.0` in its repository; Ernest 0.9.0 | the proposal `docs/proposals/httpd/`, gone with this row, the server's own at https://github.com/joagre/ernest-httpd/blob/v0.1.0/docs/proposals/basic/proposal.md; the log's *TLS in `Tcp` and a Terminal in `Os`*, *WebSocket Is the Server's*, *The Four Libraries*, *A Path Through a File*, *Three Lines From the Server*, *No Numbered Variables*, *A Close, an Exit and a Write*, *An Archive Says Its Commit*, *Two Lines on TLS*, *A Program After Its Exit*, *Four Lines From the Deployment*, *What the Server Taught*, *The Hangup's Order*, *The Error's Place*, *The Harness in Ernest*, *Three Flakes Read* |
 | Ernest 0.9.0 | the server's release: what ernest-httpd asked of Ernest, and the release review before it, 112 lines fixed and 23 decided | 2026-11-03 | tag `v0.9.0` | the log's *The Release Review Before 0.9.0* |
 | MVP 4.2 | the website, built and live with MVP 4.4's item 6: what Ernest is, its characteristics, the three doors, the tour, the guide, the report and the library's pages, generated from a tag by `make site`, the projects' page, the live shell's page side, and the browser test that holds it | 2026-11-06 | | the design note `docs/design/site.md`; the log's *ehttpd and the Website*, *The Tour Written*, *The Generator Before MVP 4.15*, *A Node's Limits*, *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Generator's Third Stage*, *The Pages Read Against the Principles*, *A Release Carries No History*, *The Start Line's Length*, *The Client's Questions*, *The Site Goes Live With 1.0*, *The Mode's Brackets*, *Projects, a Page of Their Own*, *The Browser Test's Flake*, *The Site's Proposal Read* |
+| MVP 4.16 | a deadlock's scope and its report, and packages | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round | | | above |
+| MVP 4.6 | the server owning both ends of its socket | | | above |

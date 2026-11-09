@@ -1,6 +1,6 @@
 # Deadlock: what we claim, and a report of who waits on whom
 
-Under discussion, written 2026-11-06. Its programs were run and its nine questions answered in a design session on 2026-11-09. Nothing here is authoritative, and nothing goes into the report, the plan or the log until it is decided.
+Written 2026-11-06. Its programs were run and its nine questions answered in a design session on 2026-11-09, and it was said to be ready that day. It is planned as MVP 4.16's items 1 to 3. Nothing here is authoritative: the report, the plan and the log say what holds as each item is built.
 
 ## The doubts
 
@@ -133,7 +133,7 @@ Process.peer : (Process) -> Optional(String) // the name of the peer the process
 
 **`callee` means one thing in two types.** `FaultReport`'s `callee` is the callee's site, an `Optional(String)`, since that callee may have ended. This one lives, a site names many processes, and no chain can be followed by a site, so it is a `Process`.
 
-**What it breaks.** A match on `Process.Calling` must take its fields. One site matches it under `src`, `examples` and `tour`, `src/shell/ernest/shell.ern`'s `activity`. It gets a line in `CHANGES.md`.
+**What it breaks.** A match on `Process.Calling` must take its fields. One site matches it under `src`, `examples` and `tour`, `src/shell/ernest/shell.ern`'s `activity`. ernest-httpd names it at four sites, one a pattern and three a value passed, and its session meets the change at its floor's rise. It gets a line in `CHANGES.md`.
 
 **What it changes besides.** E.21's paragraphs on `status` and its doc blocks, from which the manual page is written; `docs/design/runtime.md`'s line on a process's call, which gains the start; and the glossary.
 
@@ -259,10 +259,10 @@ Each has its verdict here until the log's entry takes it. None is kept for later
 
 ## Then
 
-Three items, for an item session, once this is said to be ready. Their places in the plan are recommended here and decided with the plan's line.
+Three items, for an item session: MVP 4.16's items 1 to 3, placed with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*). All three stand before the launch.
 
-- **Item 1, the documents of Part 2.** They need only `make test-docs`. MVP 4.4, before its full review, since the launch is when the claim is read most and the review reads the documents as they will ship.
-- **Item 2, the callee in a deadlock's report, Part 4.** It cuts a clause of §8.6, and a change there is built the day it is decided, after its cold reading. So it is decided when its item opens, in MVP 4.4 before the full review, where the launch's readers see `Mutual`'s cycle in Why. It touches the runtime and closes on `make test-full`.
-- **Item 3, the report of Part 3.** E.21's type and `Process.peer`, the start time in the call's mark, the shell's lines and their tests. MVP 4.5 is its home, since `:trace f` is the same operator's prompt, and it follows the launch. It touches the runtime, so it closes on `make test-full`, and `make bench` confirms the call's rows within their noise.
+- **Item 1, the documents of Part 2.** The launch is when the claim is read most, and the full review reads the documents as they will ship. It closes on `make test-docs`, and on the runtime's target for the programs it holds as tests.
+- **Item 2, the callee in a deadlock's report, Part 4.** It cuts a clause of §8.6, and a change there is built the day it is decided, after its cold reading. So it is decided when its item opens. The launch's readers then see `Mutual`'s cycle in Why. It touches the runtime and closes on `make test-full`.
+- **Item 3, the report of Part 3.** E.21's type and `Process.peer`, the start time in the call's mark, the shell's lines and their tests. MVP 4.4's cost analysis then reads the call's mark with its start time in it, and the full review reads E.21 and the shell whole. It touches the runtime, so it closes on `make test-full`, and `make bench` confirms the call's rows within their noise.
 
 Each item's report sentences are read cold before its build (CLAUDE.md's *Before code*), and the log's entry arguing Parts 1 to 6 is written with item 1.

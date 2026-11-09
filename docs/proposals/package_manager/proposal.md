@@ -1,6 +1,6 @@
 # Packages
 
-Under discussion. All of it is tentative, and nothing flows from it into the report, the plan or the log. It answers seven questions in order, each with its argument and its verdict, so that the whole can be inspected at once. [`trial.md`](trial.md) tries it on what exists, and [`other_systems.md`](other_systems.md) says what other systems do.
+Decided with the user on 2026-11-09 and planned as MVP 4.16's items 4 to 10. Nothing here is authoritative: the report states a package once the first of them is built. It answers seven questions in order, each with its argument and its verdict, so that the whole can be inspected at once. [`trial.md`](trial.md) tries it on what exists, and [`other_systems.md`](other_systems.md) says what other systems do.
 
 ## The whole of it
 
@@ -127,7 +127,7 @@ A release archive, downloaded by hand, with its URL and its SHA-256 on its line.
 
 **The digest** is the archive's, on the line. Without it the same manifest could build other code tomorrow, where a release was replaced. A line without one is refused, and the refusal says the digest of the archive under `lib/`, so the author writes it once, having seen it. The digest of the definitions (Appendix H) was weighed and set aside: it moves with the form's version, so every line would be rewritten at each release, and it covers no host code.
 
-**`ern unpack`**, named for what it does, since it fetches nothing, takes each named package that is not under `lib/` at its line's version. It checks its archive's digest against the line and unpacks it as `lib/<name>/`. The archive holds one directory, `name-version`, whose `VERSION` says that version. A `lib/<name>` that holds another version is replaced whole, and a link there is removed and not followed. The archive stays where it was put.
+**`ern unpack`**, named for what it does, since it fetches nothing, takes each named package that is not under `lib/` at its line's version. It checks its archive's digest against the line and unpacks it as `lib/<name>/`. The archive holds one directory, `name-version`, whose `VERSION` says that version. An archive with an entry that stands outside that directory, by its path or through a link, is refused, and nothing of it is unpacked. A `lib/<name>` that holds another version is replaced whole, and a link there is removed and not followed. The archive stays where it was put.
 
 A package is unpacked whole or not at all, as a file a job writes is (§11): a job that ends as it unpacks leaves `lib/<name>` as it was. The job takes no argument.
 
@@ -247,5 +247,5 @@ Read against each owner below, from both sides, on 2026-11-09. What the reading 
 
 **The way of working.**
 
-- What this proposal says was weighed and set aside goes to the log when it is decided, and the trial is its experiment (CLAUDE.md's *Proposals*).
+- What this proposal says was weighed and set aside goes to the log with the first step, the report's sentences, and the trial is its experiment (CLAUDE.md's *Proposals*).
 - A job written in Ernest stands under `Ernest`, which the shell's source root alone provides today (§4.2). Where `ern unpack` stands is decided when it is built.
