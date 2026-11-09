@@ -254,31 +254,20 @@ reader S reads of its live shell. The release note's line on the installed layou
     persistent term erased or a module's constants purged, when the host collects that process
     alone. E.21's sentence on what a waiting process counts and the deployment guide's §7 follow
     it, and a test holds the fall and the heap kept.
-30. **The shell at a full table**, found 2026-11-08 by item 18, decided 2026-11-09 (§7.4, §10,
-    §12.1, §12.5, E.1, E.17, E.18, E.21, E.23; the log's *The Shell at a Full Table*), built by
-    2026-11-12. A subscription's fault reports come through a courier made with the
-    subscription, as the terminal's keys do, so that none is lost to a full table; a one-shot
-    delivery keeps its process of its own.
-
-    A request of `Fs`, `Tcp` or `Os` that the table of processes leaves no room to serve answers `Left(Other("error:system_limit"))`, as one the
-    table of ports refuses answers a value, and item 1's faults at those requests and item 33's
-    three TLS faults turn to it; a program's own `spawn` beyond the limit stays a fault. The
-    shell's test of an input at a full table gets its history back with the build.
+30. **The shell at a full table**, done 2026-11-09 (§7.4, §10, §12.1, §12.5, E.1, E.17, E.18,
+    E.21, E.23; the log's *The Shell at a Full Table*, *A Full Table's Answers, Built*). A
+    subscription's fault reports come through a courier made with it, and a request of `Fs`,
+    `Tcp`, `Os` or `Terminal` the table of processes leaves no room to serve answers
+    `Left(Other("error:system_limit"))`; the shell lives at a full table.
 31. **The carrier's acceptor at a full table**, done 2026-11-08 (§12.5; the log's *The
     Carrier's Acceptor at a Full Table*). A node runs the host's TLS distribution through a
     module of its own, `ern_tls_dist`, whose acceptor takes each connection before it makes the
     connection's process, closes one that any step leaves no room for and says so, and at the
     limit of open files tries again once a dial's time has passed.
-32. **A dial from a full table**, found 2026-11-08 by item 31, decided 2026-11-09 (§12.5, §11.8;
-    the log's *Lean at the Limits*), built by 2026-11-12. A node whose table of processes is full
-    ends when an operation of its own first reaches a peer it is not connected to, as a program
-    that exhausts the host's memory ends (§10): at once, every process with it, the host's one
-    line written to standard error, status 1, its peers seeing a loss; the runner's filter drops
-    the host's reports of it, whose reason is the limit.
-
-    §12.5 says so beside the accepted
-    connection it closes, and §11.8 names the dial beside memory. The node's own `net_kernel`
-    was weighed and refused. `docs/otp_bugs.md`'s 12 is the report, whose filing is the user's.
+32. **A dial from a full table**, done 2026-11-09 (§12.5, §11.8; the log's *Lean at the
+    Limits*, *A Full Table's Answers, Built*). A node whose table of processes has room for no
+    process ends when it dials a peer, its connections lost before the host ends it with
+    status 1. `docs/otp_bugs.md`'s 12 is the report, whose filing is the user's.
 33. **A program's TLS at a full table**, done 2026-11-09 (§7.4, §12.5, E.18; the log's *A
     Program's TLS at a Full Table*). A `connectTls`, an `accept` over TLS and a `listenTls`
     whose processes the host's TLS cannot start fault their caller with `error:system_limit`,

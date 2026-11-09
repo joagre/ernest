@@ -76,16 +76,17 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({foreign_wait, [computed_answer/3, exit_program/1, refused/1, restart_taken/1,
-                          end_with_program/0, waited_deliveries/1, tell_service_monitors/0,
+                          end_with_program/0, waited_deliveries/1, waited_reports/0,
+                          tell_service_monitors/0,
                           say/2, waited_settler/2]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
                          evaluated_lives/1, sleep_until/1]}).
--receives({answered_at_once, [spawn_with_monitors/4, ask_monitor/2, demonitor/1, spawned/7,
-                              kill_all/1, opened/3, asked_of_run/1, unwatched/2,
+-receives({answered_at_once, [spawn_with_monitors/4, faults/1, ask_monitor/2, demonitor/1,
+                              spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2, captured/1]}).
 -receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
                          killer/0, wait_for_ends/1, ended_program/0, counted_link/3,
-                         delivery_ended/1,
+                         delivery_ended/1, fault_courier/0, courier_ended/1,
                          write_loop/2, stream_loop/2, is_taken/3, collect/3, written_back/3,
                          dropping/0, stdin_loop/2, taken/1,
                          clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
@@ -243,8 +244,8 @@
 
 %% Report §6.9, §6.5, Appendix E.18, E.21, E.23: what stands for a row in
 %% a process of the runtime's own that runs a program's function for
-%% another process, a delivery, the terminal's courier and the process kept
-%% for an adapted address, held in its dictionary under ?ACTING
+%% another process, a delivery, a courier and the process kept for an
+%% adapted address, held in its dictionary under ?ACTING
 %% (acting_for/1): the process it acts for, its recipient, which
 %% Process.current answers, whose address self answers, whose monitor a
 %% monitor there is, which its spawns are chained to, and which owns what
@@ -489,7 +490,7 @@ kept_loop(Address, Worker) ->
     end.
 
 %% Report §6.9, §6.5: the calling process of the runtime's own, a delivery,
-%% the terminal's courier (ern_tty) or a process kept for an adapted
+%% a courier (ern_tty, fault_courier/0) or a process kept for an adapted
 %% address, made to act for Recipient, the process it delivers to, where
 %% Recipient is on this node: what the function it runs opens, spawns or
 %% asks of the runtime is Recipient's, as if Recipient had done it itself
@@ -1191,7 +1192,7 @@ kill(Pid) ->
 %% them: the prelude's kill and a peer's (kill/1, ern_peer:frame/2), a
 %% delivery ended with its recipient (abandoned/1), an end's teller cut
 %% short (cut_short/2), a compute's process its second note ends
-%% (drop_note/1), the terminal's courier (ern_tty), what a refused load
+%% (drop_note/1), a courier (ern_tty, courier_ended/1), what a refused load
 %% started (kill_all/1), and a deadlock's fault or a system process's
 %% given to the entry process (found_fault/2).
 %%
@@ -1360,6 +1361,12 @@ reaper_loop(Reaper, Wait) ->
             reaper_loop(Reaper);
         {new_run, Pid, Ref} ->
             reaper_loop(new_run(Pid, Ref, Reaper));
+        {faults, From, Ref, Address} ->
+            subscribed_to_faults(From, Ref, Address),
+            reaper_loop(Reaper);
+        {reports_flushed, From, Ref} ->
+            reports_flushed(From, Ref),
+            reaper_loop(Reaper);
         {tell_service_monitors, Pid, Ref} ->
             Pid ! {Ref, told, delivered_restart(Pid, Reaper)},
             reaper_loop(Reaper);
@@ -1615,7 +1622,7 @@ demonitored(Pid, Caller, From, Ref, #reaper{monitors = Monitors, monitoring = Mo
 %% the end its new run makes is a new one, which the end tells if it waits
 %% (told/3).
 new_run(Pid, Ref, Reaper) ->
-    ets:delete(?FAULTS, Pid),
+    faults_ended(Pid),
     ets:delete(?TERMINATING, Pid),
     Reaper1 = monitors_canceled(Pid, Reaper),
     abandoned(Pid),
@@ -2130,20 +2137,47 @@ delivery_ended({_, Starter, Pid} = Delivery) ->
     receive {'DOWN', MonitorRef, process, Pid, _} -> ok end.
 
 %% Report §11.2: the shell writes, before it ends, every fault reported to
-%% it until then, which a delivery of the runtime's own carries to it
-%% (report/5). The calling process waits until each delivery to it on its
-%% way as the wait begins has ended: each its rows name then is monitored
-%% and its end waited for. A delivery sends its message before it takes its
-%% row and ends, so that every message one carried is in the caller's
-%% mailbox when the wait returns (§6.4). One started after the wait began
-%% is not waited for, so that a process faulting again and again as the
-%% shell ends, under `restarting(Unlimited, f)`, does not hold up its end.
+%% it until then, which its subscription's courier carries to it
+%% (report/5), and every other message a delivery of the runtime's own
+%% carries. The calling process waits until each delivery to it on its
+%% way as the wait begins has ended, each its rows name then monitored and
+%% its end waited for, and until its courier has delivered what it was
+%% given by then (waited_reports/0).
+%%
+%% A delivery and a courier send their message before they answer or end,
+%% so that every message they carried
+%% is in the caller's mailbox when the wait returns (§6.4). What is on its
+%% way after the wait began is not waited for, so that a process faulting
+%% again and again as the shell ends, under `restarting(Unlimited, f)`,
+%% does not hold up its end.
 %% Report §8.6: the caller waits on what the look cannot see deliver, a
 %% process of the runtime's own, and is marked so (entered_foreign/0).
 -spec wait_for_deliveries() -> ok.
 wait_for_deliveries() ->
     entered_foreign(),
-    try waited_deliveries(deliveries({{erlang:self(), '_', '_'}, '_'})) after left_foreign() end.
+    try
+        waited_deliveries(deliveries({{erlang:self(), '_', '_'}, '_'})),
+        waited_reports()
+    after
+        left_foreign()
+    end.
+
+%% The reports of the caller's subscription to faults the reaper had given
+%% its courier as the wait began, delivered: the courier answers once it
+%% has delivered them, and its end, the program's, ends the wait too.
+waited_reports() ->
+    Ref = make_ref(),
+    launch_reaper() ! {reports_flushed, erlang:self(), Ref},
+    receive
+        {Ref, none} ->
+            ok;
+        {Ref, {flushing, Courier}} ->
+            MonitorRef = erlang:monitor(process, Courier),
+            receive
+                {Ref, flushed} -> erlang:demonitor(MonitorRef, [flush]), ok;
+                {'DOWN', MonitorRef, process, Courier, _} -> ok
+            end
+    end.
 
 waited_deliveries(Deliveries) ->
     lists:foreach(fun({_, _, Pid}) ->
@@ -2456,13 +2490,93 @@ matching_rows(Table, Pattern) ->
     try ets:match_object(Table, Pattern) catch _:_ -> [] end.
 
 %% Appendix E.21: Process.faults, the caller subscribed to every fault of
-%% every process the runtime started, Address being the caller seen through its
-%% wrap. A process holds one subscription, the latest, which ends when it
-%% dies (the reaper's DOWN).
+%% every process the runtime started, Address being the caller seen through
+%% its wrap. A process holds one subscription, the latest, which ends when
+%% it dies or restarts (died/6, new_run/3). The reaper makes the
+%% subscription's courier, so that a kill of the caller as it subscribes
+%% leaves none behind. Report §7.4, §12.5: where the host's table of
+%% processes has no room for the courier, the caller faults with the host's
+%% class and reason, `Fault("error:system_limit")`, as a spawn does.
 -spec faults(address()) -> 'Unit'.
 faults(Address) ->
-    try ets:insert(?FAULTS, {process_of(Address), Address}) catch _:_ -> true end,
-    ?UNIT.
+    Ref = make_ref(),
+    launch_reaper() ! {faults, erlang:self(), Ref, Address},
+    receive
+        {Ref, system_limit} -> erlang:error(system_limit);
+        {Ref, subscribed} -> ?UNIT
+    end.
+
+%% Appendix E.21: a subscription to faults made in the reaper, its row the
+%% subscriber, its address and its courier: the subscriber's own courier
+%% where it holds a subscription, its address the new one, and else one
+%% made now, held by the reaper and acting for the subscriber (§6.5,
+%% reaper_held/2). A subscriber that has ended before its row is written
+%% holds none.
+subscribed_to_faults(From, Ref, Address) ->
+    Subscriber = process_of(Address),
+    case ets_lookup(?FAULTS, Subscriber) of
+        [_] ->
+            ets:update_element(?FAULTS, Subscriber, {2, Address}),
+            From ! {Ref, subscribed};
+        [] ->
+            try reaper_held(erlang:self(), fun() ->
+                                               acting_for(Subscriber),
+                                               fault_courier()
+                                           end) of
+                Courier ->
+                    ets:insert(?FAULTS, {Subscriber, Address, Courier}),
+                    erlang:is_process_alive(Subscriber) orelse faults_ended(Subscriber),
+                    From ! {Ref, subscribed}
+            catch
+                error:system_limit -> From ! {Ref, system_limit}
+            end
+    end.
+
+%% Appendix E.21: a subscription's courier, which delivers each report the
+%% reaper gives it in turn, a source from the moment the reaper counts it
+%% until it is delivered (report/5), and answers a flush once it has
+%% delivered every report given it before (reports_flushed/2).
+fault_courier() ->
+    receive
+        {report, Address, Report} ->
+            deliver(Address, Report),
+            source_end(),
+            fault_courier();
+        {flush, From, Ref} ->
+            From ! {Ref, flushed},
+            fault_courier()
+    end.
+
+%% Report §6.9: a subscription to faults ended, at its subscriber's end or
+%% restart, its courier ended with the reports on their way, which are no
+%% source any more.
+faults_ended(Subscriber) ->
+    case try ets:take(?FAULTS, Subscriber) catch _:_ -> [] end of
+        [{_, _, Courier}] -> courier_ended(Courier);
+        [] -> ok
+    end.
+
+%% A courier ended and waited for by the runtime's kill, which drops the
+%% call its wrap was making (killed/2), its reports' count taken first and
+%% its link to the reaper let go, so that its end ends nothing else.
+courier_ended(Courier) ->
+    try ets:delete(?HELD, {source, Courier}) catch _:_ -> true end,
+    MonitorRef = erlang:monitor(process, Courier),
+    erlang:unlink(Courier),
+    killed(Courier, {ern, killed}),
+    receive {'DOWN', MonitorRef, process, Courier, _} -> ok end.
+
+%% Report §11.2: the courier of From's subscription to faults asked, after
+%% every report the reaper gave it before, to answer From; From is answered
+%% with the courier it waits on, or none where it holds no subscription.
+reports_flushed(From, Ref) ->
+    case ets_lookup(?FAULTS, From) of
+        [{_, _, Courier}] ->
+            Courier ! {flush, From, Ref},
+            From ! {Ref, {flushing, Courier}};
+        [] ->
+            From ! {Ref, none}
+    end.
 
 %% Appendix E.23, report §8.6: Os.termination, the caller subscribed to the
 %% program's end, Address being the caller seen through its wrap. A process
@@ -2485,17 +2599,19 @@ termination(Address) ->
     ?UNIT.
 
 %% Report §11.2, Appendix E.21: a fault, which each subscriber is sent as a
-%% FaultReport, each delivery a process of its own as a monitor's is, and
-%% which `ern run`'s reporter, the runtime's own subscriber, is given as it
-%% happens, before the process's end reaches anyone who waits on it, with
-%% the node of the peer whose spawn started the process, which its line
-%% names (§8.7), or none. The fields are in declared order: process, site,
-%% cause, restarted, trace, the peer's name as the configuration lists it
-%% (§8.7), the site of the callee whose fault a call carried (§6.6), the
-%% name of the peer a compute carried it from (§8.7), and the moment it
-%% was met (Appendix E.15). The reaper reports, so that a delivery is
-%% linked to a process that lives as long as the run; a process that
-%% restarts sends it its fault.
+%% FaultReport through its subscription's courier, counted as a source
+%% before it is sent, and which `ern run`'s reporter, the runtime's own
+%% subscriber, is given as it happens, before the process's end reaches
+%% anyone who waits on it, with the node of the peer whose spawn started
+%% the process, which its line names (§8.7), or none. The fields are in
+%% declared order: process, site, cause, restarted, trace, the peer's name
+%% as the configuration lists it (§8.7), the site of the callee whose fault
+%% a call carried (§6.6), the name of the peer a compute carried it from
+%% (§8.7), and the moment it was met (Appendix E.15).
+%%
+%% The reaper reports, so that the reports reach each courier in the order
+%% they were met; a process that restarts sends it its fault. A courier
+%% that has ended, which no subscriber's end ended, ends its subscription.
 report(Pid, Site, Peer, #fault{cause = Cause, trace = Trace, callee = Callee, peer = From,
                                time = Time}, Restarted) ->
     Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace, ern_peer:name(Peer),
@@ -2504,10 +2620,15 @@ report(Pid, Site, Peer, #fault{cause = Cause, trace = Trace, callee = Callee, pe
         none -> ok;
         Reporter -> Reporter(Report, Peer)
     end,
-    Subscribers = [Address || {_, Address} <- matching_rows(?FAULTS, '_')],
-    lists:foreach(fun(Address) ->
-                      counted_link(Address, fun() -> deliver(Address, Report) end)
-                  end, Subscribers).
+    lists:foreach(fun({Subscriber, Address, Courier}) ->
+                      case erlang:is_process_alive(Courier) of
+                          true ->
+                              source_begin(Courier),
+                              Courier ! {report, Address, Report};
+                          false ->
+                              ets:delete(?FAULTS, Subscriber)
+                      end
+                  end, matching_rows(?FAULTS, '_')).
 
 optional(none) -> 'None';
 optional(Value) -> {'Some', Value}.
@@ -2570,7 +2691,7 @@ answered_compute({faulted, Fault}, Alias) ->
 %% expected, is reported to no job and told no subscriber, since the
 %% test's answer carries it.
 died(Pid, Site, Peer, Expected, ExitReason, Fault) ->
-    ets:delete(?FAULTS, Pid),
+    faults_ended(Pid),
     ets:delete(?TERMINATING, Pid),
     case {Fault, reason(ExitReason), Expected} of
         %% report §8.7: a fault a compute carried to its caller is reported

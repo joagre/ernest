@@ -150,11 +150,10 @@ loop(Subscribers, Reader, Pending, Size) ->
 %% then is echoed (§12.1). The subscribers, the reader and the size then.
 %% Report §7.4, §12.5: where the host's table of processes is full, so that
 %% a new subscriber's courier or the first subscription's reader cannot be
-%% made, the caller faults with the host's class and reason,
-%% `Fault("error:system_limit")`, and where the host's table of ports is
-%% full, so that the holder's port cannot be opened, it answers the host's
-%% refusal, `Left(Other(text))`, claiming nothing either way, this process
-%% living on.
+%% made, the subscription answers `Left(Other("error:system_limit"))`, and
+%% where the host's table of ports is full, so that the holder's port
+%% cannot be opened, the host's refusal, `Left(Other(text))`, claiming
+%% nothing either way, this process living on.
 subscription(Address, Reply, Subscribers, Reader, Size) ->
     case held_by_another(Address) of
         true ->
@@ -179,15 +178,15 @@ subscription(Address, Reply, Subscribers, Reader, Size) ->
                             ern_rt:answer(Reply, Answer),
                             {Subscribers, Reader, Size}
                     end;
-                {taken, Cause} ->
-                    ern_rt:refuse(Reply, Cause),
+                {refused, Answer} ->
+                    ern_rt:answer(Reply, Answer),
                     {Subscribers, Reader, Size}
             end
     end.
 
 %% The courier of a subscriber, its own where it holds a subscription, and
 %% else one made now, which waits until it is told where it delivers
-%% (subscribe/5); or the host's cause where it cannot be made.
+%% (subscribe/5); or the full table's answer where it cannot be made.
 couriered(Address, Subscribers) ->
     Pid = ern_rt:process_of(Address),
     case lists:keyfind(Pid, 1, Subscribers) of
@@ -200,7 +199,7 @@ couriered(Address, Subscribers) ->
                                   end) of
                 Courier -> {ok, Courier}
             catch
-                error:system_limit -> {taken, ern_rt:host_cause(error, system_limit)}
+                error:system_limit -> {refused, {'Left', ern_io:limited()}}
             end
     end.
 
@@ -344,7 +343,7 @@ start_reader({unstarted, Open}) ->
     try erlang:spawn_link(fun() -> receive read -> read_loop(Tty, Open) end end) of
         Reader -> started_reader(Reader)
     catch
-        error:system_limit -> {taken, ern_rt:host_cause(error, system_limit)}
+        error:system_limit -> {refused, {'Left', ern_io:limited()}}
     end;
 start_reader(Reader) ->
     %% running, or `closed` at the end of input, which no reader reopens

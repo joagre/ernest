@@ -25,11 +25,11 @@ loop() ->
     end.
 
 %% Report §7.4, §12.5: a request whose process the host's full table of
-%% processes keeps from being made faults its caller with the host's class
-%% and reason, `Fault("error:system_limit")`, this process living on.
+%% processes keeps from being made answers `Left(Other("error:system_limit"))`,
+%% this process living on.
 limited(Message) ->
     [Reply] = [Field || Field <- tuple_to_list(Message), ern_rt:is_reply(Field)],
-    ern_rt:refuse(Reply, ern_rt:host_cause(error, system_limit)).
+    ern_rt:answer(Reply, {'Left', ern_io:limited()}).
 
 %% Report Appendix E.17: a path that holds U+0000 names no file, and the
 %% request is answered so before any work.

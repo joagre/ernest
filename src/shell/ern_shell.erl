@@ -4552,11 +4552,16 @@ source_read(#session{local = Local}, File) ->
     end.
 
 %% Whether a regular file is there, as `Fs.stat` answers, its links
-%% followed.
+%% followed. One the stat cannot tell of, refused or at a full table of
+%% the shell's own node (report §12.5), is taken as there, so that its
+%% read says why it could not be read rather than that no module is there.
 is_source(#session{local = Local}, File) ->
     case asked(Local, fun(Reply) -> {'Stat', path(File), Reply} end) of
         {'Right', {'Entry', _, _, _, 'File', _, _}} -> true;
-        _ -> false
+        {'Right', _} -> false;
+        {'Left', 'NotFound'} -> false;
+        {'Left', 'NotAFile'} -> false;
+        {'Left', _} -> true
     end.
 
 %% Report §11.2: the local half's answer to Request, a call it answers

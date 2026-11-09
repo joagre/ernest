@@ -574,7 +574,9 @@ host_named(Host) ->
 %% ends with the reason `wait_pending`. The node's own start comes as a
 %% connection too, and is none, and so does the end of a connection to the
 %% node an attached shell's session runs on, which the shell's own line
-%% says (§11.2 *The attached shell*, attaching/1).
+%% says (§11.2 *The attached shell*, attaching/1). So is the node's own end
+%% where the host's process of its connections ends, by its name on the
+%% carrier, since the host no longer names the node then (§12.5).
 -spec said(term()) -> iodata() | none.
 said({nodeup, Node, _}) when Node =:= node() ->
     none;
@@ -583,14 +585,21 @@ said({nodeup, Node, _}) ->
 said({ended, Node}) ->
     ended_line(Node, [named(Node), " ended"]);
 said({nodedown, Node, Info}) ->
+    case name((configuration())#configuration.public_key) of
+        Node -> none;
+        _ -> lost(Node, Info)
+    end;
+said(_) ->
+    none.
+
+%% The line of a peer's connection lost, for the reason Info gives.
+lost(Node, Info) ->
     ended_line(Node, case proplists:get_value(nodedown_reason, Info) of
                          net_tick_timeout -> [named(Node), " was lost: it fell silent"];
                          wait_pending -> [named(Node), "'s connection was replaced by another"
                                                        " from the same node"];
                          _ -> [named(Node), " was lost: it closed"]
-                     end);
-said(_) ->
-    none.
+                     end).
 
 %% The line of a connection's end, none for the node an attached shell's
 %% session runs on (attaching/1).

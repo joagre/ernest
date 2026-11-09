@@ -1574,7 +1574,16 @@ quiet_signals() ->
 %% (ern_tls_dist). Report §12, §11.2: so is its loader's report of a file
 %% it could not read, a module's at the limit of open files among them: the
 %% load's caller answers or faults.
+%%
+%% Report §12.5, §11.8: the host's process of a node's connections, ended
+%% by a spawn beyond the limit as the node dials, ends the host after it,
+%% and its report and every one after it, of what the host ends on its
+%% way, are dropped: the host's line says it.
 -spec limit_filter(logger:log_event(), term()) -> logger:filter_return().
+limit_filter(#{msg := {report, #{label := {gen_server, terminate}, name := net_kernel,
+                                 reason := {system_limit, _}}}}, _) ->
+    ok = logger:set_primary_config(level, none),
+    stop;
 limit_filter(#{msg := {"~s~n", ["Too many processes\n"]},
                meta := #{error_logger := #{emulator := true}}}, _) ->
     stop;

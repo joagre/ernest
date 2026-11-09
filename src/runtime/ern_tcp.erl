@@ -133,12 +133,11 @@ with_ssl(unstarted, Reply, Request) ->
 
 %% A worker of its own for a request, which Work carries out and answers.
 %% Report §7.4, §12.5: where the host's table of processes is full, it
-%% cannot be made, and the request's caller faults with the host's class
-%% and reason, `Fault("error:system_limit")`, the process that took the
-%% request living on.
+%% cannot be made, and the request answers `Left(Other("error:system_limit"))`,
+%% the process that took the request living on.
 requested(Work, Reply) ->
     try erlang:spawn(Work)
-    catch error:system_limit -> answered(Reply, limited())
+    catch error:system_limit -> ern_rt:answer(Reply, limited())
     end.
 
 %% The same for a request that waits, its worker counted as a source before
@@ -150,17 +149,13 @@ counted_request(Work, Reply) ->
             ern_rt:source_begin(Worker),
             Worker ! go
     catch
-        error:system_limit -> answered(Reply, limited())
+        error:system_limit -> ern_rt:answer(Reply, limited())
     end.
 
 %% Report §7.4, §12.5: the answer of a request whose process the host's
 %% full table of processes keeps from being made.
 limited() ->
-    {fault, ern_rt:host_cause(error, system_limit)}.
-
-%% An answer, or the caller faulted (limited/0).
-answered(Reply, {fault, Cause}) -> ern_rt:refuse(Reply, Cause);
-answered(Reply, Answer) -> ern_rt:answer(Reply, Answer).
+    {'Left', ern_io:limited()}.
 
 %% A listener or a socket, linked to the TCP process and recorded as opened
 %% before its address is given out (report §8.6), under the function that
@@ -232,13 +227,12 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
                              failed(Transport, Error)
                      end
              end,
-    answered(Reply, Answer).
+    ern_rt:answer(Reply, Answer).
 
 %% What Open answers with the listener or the socket it opens over the
 %% host's Socket. Report §7.4, §12.5: where the host's table of processes
 %% is full, so that its process cannot be made (opened/7), the host's
-%% socket is closed, and the request's caller faults with the host's class
-%% and reason.
+%% socket is closed, and the request answers as at a full table (limited/0).
 held_open(Open, Transport, Socket) ->
     try {'Right', Open(Socket)}
     catch
@@ -584,9 +578,9 @@ attempt(Transport, Try, Open, Deadline, Reply) ->
         _ -> end_source(Reply, Answer)
     end.
 
-%% Report §7.4, §12.5: a request's failure, its `Io.Error`, or the caller
-%% faulted with the host's class and reason where the host's TLS could not
-%% start a process of its own for the full table of processes: a
+%% Report §7.4, §12.5: a request's failure, its `Io.Error`, which is the
+%% full table's (limited/0) where the host's TLS could not start a process
+%% of its own for the full table of processes: a
 %% listener's trackers, or a connection's supervisor or one of its two
 %% children. The host raises a failed match of the start's answer for it,
 %% which guarded/1 gives as the error (docs/otp_bugs.md, 15).
@@ -601,7 +595,7 @@ failed(Transport, Error) ->
 %% The answer to a request counted as a source, given before its count
 %% ends, so that no deadlock is found between the two (report §8.6).
 end_source(Reply, Answer) ->
-    answered(Reply, Answer),
+    ern_rt:answer(Reply, Answer),
     ern_rt:source_end().
 
 %% A listener answers each Accept by a worker of its own, so that a slow

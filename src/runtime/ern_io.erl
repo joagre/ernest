@@ -6,7 +6,7 @@
 -module(ern_io).
 
 -export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, helper_reason/1,
-         path_error/2, other/2]).
+         path_error/2, other/2, limited/0]).
 
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).
@@ -96,6 +96,13 @@ other(Error, Describe) when is_atom(Error) ->
     end;
 other(Error, _) ->
     printed(Error).
+
+%% Report §12.5, Appendix E.1: Io.Error for a request of Fs, Tcp, Os or
+%% Terminal that the host's table of processes leaves no room to serve,
+%% `Other("error:system_limit")`, the host's class and reason.
+-spec limited() -> {'Other', binary()}.
+limited() ->
+    {'Other', ern_rt:host_cause(error, system_limit)}.
 
 printed(Error) ->
     {'Other', unicode:characters_to_binary(io_lib:format("~p", [Error]))}.

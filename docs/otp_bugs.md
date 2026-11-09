@@ -534,7 +534,7 @@ An escape meets the same rule: `["\u12"]` raises `{unexpected_sequence, <<"\\u12
 
 ## 12. A connection accepted or dialed at a full table of processes ends the distribution
 
-Not filed. Found on 2026-11-08 (the log's *A Node's Own Processes at a Full Table*), the dial on the same day (the log's *The Carrier's Acceptor at a Full Table*); a node's own acceptor over `inet_tls_dist` closes a connection it cannot serve (`ern_tls_dist`), and plan item 32 takes the dial, which no distribution module reaches.
+Not filed, its filing the user's. Found on 2026-11-08 (the log's *A Node's Own Processes at a Full Table*), the dial on the same day (the log's *The Carrier's Acceptor at a Full Table*); a node's own acceptor over `inet_tls_dist` closes a connection it cannot serve (`ern_tls_dist`), and report §12.5 states that the dial, which no distribution module reaches, ends the node (the log's *A Full Table's Answers, Built*).
 
 **Title:** net_kernel terminates, and with it the emulator, when a connection is accepted or dialed while the process table is full
 
@@ -732,7 +732,7 @@ OTP 29, erts 17.1.1, kernel 11.0.4, on Linux x86_64.
 
 ## 15. `ssl` raises a failed match, or answers `{dtls_upgrade, notsup}`, when the process table is full
 
-Not filed. Found on 2026-11-08 (the log's *The Carrier's Acceptor at a Full Table*), the raises on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a node's acceptor reads the handshake's answer as the full table (`ern_tls_dist`), and a program's TLS reads the raise so (`ern_tcp`).
+Not filed. Found on 2026-11-08 (the log's *The Carrier's Acceptor at a Full Table*), the raises on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a node's acceptor reads the handshake's answer as the full table (`ern_tls_dist`), and a program's TLS reads the raise so and answers the full table as a value (`ern_tcp`, the log's *The Shell at a Full Table*).
 
 **Title:** ssl:connect/4, ssl:listen/2 and ssl:transport_accept/2 raise badmatch, and ssl:handshake/3 answers {error,{dtls_upgrade,notsup}}, when the process table is full
 

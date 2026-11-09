@@ -1581,12 +1581,12 @@ export fn main() : Unit receiving Down = {
     has(Err, "Input.main:22 faulted: error:system_limit").
 
 %% report §7.4, §12.5, §7.3: at a full table of processes, which a node's
-%% `limits` makes small, every spawn the runtime makes for a request
-%% answers its asker with `Fault("error:system_limit")`, the process that
-%% took the request living on: the reaper's spawn, the per-request
-%% processes of `Fs`, `Tcp` and `Os`, and the clock's delivery of an
-%% alarm, whose recipient faults at its wait. A probe takes each step at
-%% the full table, asking the entry process for it, and faults, and
+%% `limits` makes small, the process that took a request lives on: the
+%% reaper's spawn, and the clock's delivery of an alarm, whose recipient
+%% faults at its wait, fault with `Fault("error:system_limit")`, and the
+%% per-request processes of `Fs`, `Tcp` and `Os` answer
+%% `Left(Other("error:system_limit"))`. A probe takes each step at the
+%% full table, asking the entry process for it, and where it faults
 %% `restarting` runs it again in the same process, so that the table stays
 %% full; each kind is asked twice, the process that took it answering
 %% again. Report §10: a `kill` needs no room, so a kill at the full table
@@ -1605,7 +1605,8 @@ export fn main() : Unit receiving Down = {
 %% A regression test, written after the fix: the reaper and the system
 %% processes died of the host's `system_limit`, and the node hung; a kill
 %% faulted where the table was full; and the checker's refusal was said as
-%% the foreign function's raise. It does
+%% the foreign function's raise. The answers of `Fs`, `Tcp` and `Os` are
+%% a regression test too, written after the code, which faulted. It does
 %% not cover a listener's accept, whose worker is made as a connect's is, a
 %% process kept for an adapted address, which needs a peer, the terminal's
 %% subscription, or a deadlock at a full table, which a node does not look
@@ -1750,12 +1751,15 @@ export fn main() : Unit = {
     0 = built(["--build-root", filename:join(Base, "build"), Source]),
     ?assertEqual(0, (start(Node, filename:join([Base, "build", "full.erc"]), []))()),
     {Out, Err} = said(Node),
-    ?assertEqual(["step " ++ integer_to_list(Step) || Step <- lists:seq(0, 12)]
+    Limited = "Left(Io.Other(\"error:system_limit\"))",
+    ?assertEqual(lists:append([["step " ++ integer_to_list(Step)]
+                               ++ [Limited || Step >= 2, Step =< 9]
+                               || Step <- lists:seq(0, 12)])
                  ++ ["after the kill: None", "spawned", ""],
                  string:split(Out, "\n", all)),
     Faults = [Line || Line <- string:split(Err, "\n", all),
                       string:find(Line, "faulted") =/= nomatch],
-    ?assertEqual(lists:duplicate(12, "Full.main:19 faulted, restarted: error:system_limit"),
+    ?assertEqual(lists:duplicate(4, "Full.main:19 faulted, restarted: error:system_limit"),
                  [string:find(Line, "Full.") || Line <- Faults]),
     ?assertEqual(nomatch, string:find(Err, "Too many processes")),
     ?assertEqual({1, ["Ending.main faulted: error:system_limit",
@@ -1856,15 +1860,16 @@ export fn main() : Unit receiving Down =
 
 %% report §7.4, §12.5, Appendix E.18: a request over TLS at a full table of
 %% processes, which leaves room for its own worker but not for the host's
-%% TLS, faults its caller with `Fault("error:system_limit")`, the host's
-%% own reports not written: a `connectTls`, whose connection's processes
+%% TLS, answers `Left(Other("error:system_limit"))`, the host's own
+%% reports not written: a `connectTls`, whose connection's processes
 %% the host's TLS cannot start, an `accept` on a listener over TLS, which
 %% starts them as it takes the connection, and a `listenTls` after the
 %% first, whose listener's trackers it cannot start. Each run leaves one,
 %% two or three processes free, which reach the host's start in turn.
 %%
 %% A regression test, written after the fix: each such request waited for
-%% ever, its worker ended by the host's raise unanswered. It does not cover
+%% ever, its worker ended by the host's raise unanswered; the answer is a
+%% regression test too, written after the code, which faulted. It does not cover
 %% a run's first request over TLS at a full table, which starts the host's
 %% TLS there (docs/otp_bugs.md, 17), nor a handshake, which over TLS 1.2 and 1.3
 %% makes no process once the connection's are made
@@ -1940,12 +1945,153 @@ fn requested(door : Address(Tcp.ListenerMsg), port : Int) : Unit = {
                         Certificate, " ", Key, " 2>&1"])}
             end || {Request, Free} <- Cases],
     try
-        [?assertEqual({Request, Free, {1, ["FullTls.main faulted: error:system_limit"]}},
+        [?assertEqual({Request, Free, {0, ["Left(Io.Other(\"error:system_limit\"))"]}},
                       {Request, Free, lines_said(Run())})
          || {Request, Free, Run} <- Runs]
     after
         exit(Server, kill)
     end.
+
+%% report Appendix E.21, §10, §12.5: a subscriber to faults is given each
+%% report at a full table of processes, through its subscription's courier,
+%% made with the subscription: a process under `restarting` that fills the
+%% table and faults past it, keeping the table full as it restarts, is
+%% reported twice as restarted and once as ended, each in turn.
+%%
+%% A regression test, written after the code, whose delivery of each report
+%% was a process of its own, which the full table refused, faulting the
+%% subscriber at its wait. It does not cover a wrap that does not finish,
+%% which delays its subscriber's reports alone
+fault_reports_at_a_full_table_test_() ->
+    nodes_test({waits, 2}, fun fault_reports_at_a_full_table/1).
+
+fault_reports_at_a_full_table(Base) ->
+    Node = made(Base, "node", none),
+    edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "reports.ern"), <<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// The processes the table has room for.
+fn room() : Int =
+    systemInfo(Foreign.atom(\"process_limit\")) - systemInfo(Foreign.atom(\"process_count\"))
+
+// Count processes spawned, each waiting for ever.
+fn filled(count : Int) : Unit =
+    if count > 0 then {
+        let _ = spawn(fn() = waited());
+        filled(count - 1)
+    } else
+        Unit
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// The table filled, then one spawn past it, which faults.
+fn overfilled() : Unit = {
+    filled(room());
+    let _ = spawn(fn() = waited());
+    Unit
+}
+
+// Each report said as it comes, until the one that ended the process.
+fn said() : Unit receiving Process.FaultReport =
+    receive {
+        report -> {
+            Io.println(report.cause <> \", restarted \" <> Io.show(report.restarted));
+            if report.restarted then said() else Unit
+        }
+    }
+
+export fn main() : Unit receiving Process.FaultReport = {
+    Process.faults(fn(report) = report);
+    let _ = spawn(restarting(RestartLimit(restarts = 2, within = 60000), fn() = overfilled()));
+    said()
+}
+">>),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    {0, Lines} = lines_said(finished([?ERN, " run --config-dir ", Node, " ",
+                                      filename:join([Base, "build", "reports.erc"]),
+                                      " 2> /dev/null"])),
+    ?assertEqual(["error:system_limit, restarted true", "error:system_limit, restarted true",
+                  "error:system_limit, restarted false"], Lines).
+
+%% report §12.5, §11.8: a node whose table of processes is full ends when
+%% it dials a peer: `c`, a node of 1024 processes connected to `a`, fills
+%% its table and asks `b` how busy it is, and ends with status 1, the
+%% host's line written to standard error after the node's own lines. Its
+%% program may answer the dial as at a loss and the node may say that it
+%% lost `a` before the end, and `a` says that it lost `c`.
+%%
+%% A regression test, written after the code, which wrote the host's
+%% reports of the refused spawn and of the host's end to standard output,
+%% and said that the node lost itself. It does not cover a dial with room
+%% to begin and none to serve its connection, which ern_tls_dist closes
+%% (*What it says*).
+dial_from_a_full_table_test_() ->
+    nodes_test({waits, 7}, fun dial_from_a_full_table/1).
+
+dial_from_a_full_table(Base) ->
+    A = made(Base, "a", 0),
+    B = made(Base, "b", 0),
+    C = made(Base, "c", none),
+    lists(A, [{"c", C, none}]),
+    lists(B, [{"c", C, none}]),
+    WaitA = bare_started(A, []),
+    WaitB = bare_started(B, []),
+    lists(C, [{"a", A, bound_port(A)}, {"b", B, bound_port(B)}]),
+    edit(C, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "dial.ern"), [<<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// The processes the table has room for.
+fn room() : Int =
+    systemInfo(Foreign.atom(\"process_limit\")) - systemInfo(Foreign.atom(\"process_count\"))
+
+// Count processes spawned, each waiting for ever.
+fn filled(count : Int) : Unit =
+    if count > 0 then {
+        let _ = spawn(fn() = waited());
+        filled(count - 1)
+    } else
+        Unit
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// Whether the peer answered how busy it is.
+fn asked(peer : String) : String =
+    match Peer.utilization(peer, waitMs()) {
+        Right(_) -> peer <> \" answered\"
+      | Left(error) -> peer <> \": \" <> Io.show(error)
+    }
+
+export fn main() : Unit = {
+    Io.println(asked(\"a\"));
+    filled(room());
+    Io.println(\"full\");
+    Io.println(asked(\"b\"))
+}
+">>, wait_ms_declaration()]),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    {Status, Said} = finished([?ERN, " run --config-dir ", C, " ",
+                               filename:join([Base, "build", "dial.erc"]),
+                               " 2> ", C, ".err"]),
+    {ok, Err} = file:read_file(C ++ ".err"),
+    ?assertEqual(1, Status),
+    ?assert(lists:member(Said, ["a answered\nfull\n", "a answered\nfull\nb: Io.Unreachable\n"])),
+    Host = "Kernel pid terminated (application_controller)"
+           " (\"{application_terminated,kernel,shutdown}\")",
+    Lines = string:trim(unstamped(binary_to_list(Err)), trailing),
+    [Connected | Rest] = string:split(Lines, "\n", all),
+    ?assertEqual("the peer a connected", Connected),
+    ?assert(lists:member(Rest, [[Host], ["the peer a was lost: it closed", Host]])),
+    says(A, "the peer c was lost"),
+    stop(A, WaitA),
+    stop(B, WaitB).
 
 %% A server over TLS in the test's own host, at the port it answers, which
 %% shakes hands with each connection in a process of its own, so that no

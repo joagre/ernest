@@ -2272,23 +2272,25 @@ input_fault_status() ->
 %% to bind answers its fault, `fault: error:system_limit`, with no trace,
 %% and the session goes on to its next prompt and ends with status 0. The
 %% first run fills the table from a `let`, whose holder the session then
-%% cannot compile, so that the name is not bound. The second fills it from
-%% a process the input asks, which fills it again once the input has ended,
-%% its call on the input ending then, and says so; the next input is typed
-%% after that, and its compiler cannot start.
+%% cannot compile, so that the name is not bound.
 %%
-%% The second run keeps no history, since its append at a full table faults
-%% the local half, and waits to keep it until that append no longer ends
-%% the shell (the log's *A Node's Own Processes at a Full Table*).
+%% The second fills it from
+%% a process the input asks, which fills it again once the input has ended,
+%% its call on the input ending then, and says so, and faults, restarted,
+%% its report given to the session at the full table through its
+%% subscription's courier (Appendix E.21). The next input is typed after
+%% that: its append to the history answers the full table's value, and the
+%% shell says once that the history is not kept, and its compiler cannot
+%% start. A `:load` then says that its source could not be read.
 %%
 %% A regression test, written after the fix: the shell faulted, a failure
-%% of `ern` itself, at each. It does not cover a full table as the input's
-%% own process is spawned, which the compiler's process, ended just
-%% before, leaves room for, nor a fault report the session cannot be given
-%% at a full table, which ends the shell (the log's *A Node's Own Processes
-%% at a Full Table*)
+%% of `ern` itself, at each. The report, the history and the load after the
+%% code too, which faulted the session or its local half, and said a
+%% source it could not stat was no module. It does not cover a full table
+%% as the input's own process is spawned, which the compiler's process,
+%% ended just before, leaves room for
 input_at_a_full_table_test_() ->
-    ern_nodes_tests:counted_test({waits, 12}, fun input_at_a_full_table/0).
+    ern_nodes_tests:counted_test({waits, 14}, fun input_at_a_full_table/0).
 
 input_at_a_full_table() ->
     ConfigDir = filename:join(fresh_home(), ".ernest"),
@@ -2296,7 +2298,10 @@ input_at_a_full_table() ->
     ern_nodes_tests:edit(ConfigDir, fun(Conf) ->
                                         Conf#{<<"limits">> => #{<<"processes">> => 1024}}
                                     end),
-    Shell = "../bin/ern shell --config-dir " ++ ConfigDir,
+    Sources = filename:join(filename:dirname(ConfigDir), "src"),
+    ok = filelib:ensure_path(Sources),
+    ok = file:write_file(filename:join(Sources, "present.ern"), "export fn f() : Int = 1\n"),
+    Shell = "../bin/ern shell --config-dir " ++ ConfigDir ++ " --source-root " ++ Sources,
     Declared = ["foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"",
                 "fn room() : Int = systemInfo(Foreign.atom(\"process_limit\"))"
                 " - systemInfo(Foreign.atom(\"process_count\"))",
@@ -2319,18 +2324,25 @@ input_at_a_full_table() ->
                " filled(room()); answer(reply, Unit);"
                " let _ = Address.call(asker, fn(r) = r, "
                ++ integer_to_list(ern_nodes_tests:wait_ms()) ++ ");"
-               " filled(room()); Io.println(\"the table is \" <> \"full\"); filling() } }"],
+               " filled(room()); Io.println(\"the table is \" <> \"full\");"
+               " fault(\"the filler \" <> \"faults\") } }"],
     Steps = lists:append([[{send, hex(Input ++ "\r")}, {expect, "> "}]
                           || Input <- Declared ++ Filling])
-        ++ [{send, hex("{ let me = self(); Address.callForever(spawn(fn() = filling()),"
+        ++ [{send, hex("{ let me = self(); Address.callForever(spawn(restarting("
+                       "RestartLimit(restarts = 1, within = 60000), fn() = filling())),"
                        " fn(reply) = Fill(=reply, asker = me)) }\r")},
             {expect, "the table is full"},
+            {expect, "the filler faults"},
             {send, hex("1 + 1\r")},
             {expect, "fault: error:system_limit"},
             {expect, "> "},
+            {send, hex(":load Present\r")},
+            {expect, "present.ern: error:system_limit"},
             {send, hex(":quit\r")}],
-    Compiled = pty("HOME=. " ++ Shell, [{expect, "> "} | Steps], {30, 200}),
+    Compiled = pty("HOME=" ++ filename:dirname(ConfigDir) ++ " " ++ Shell,
+                   [{expect, "> "} | Steps], {30, 200}),
     ?assertEqual(nomatch, binary:match(Compiled, <<"2 : Int">>)),
+    ?assertEqual(1, ern_pty:count(Compiled, <<"the history is not kept: error:system_limit">>)),
     ?assertEqual(nomatch, binary:match(Compiled, <<"foreign function">>)).
 
 %% report §11.2: `:load` refuses a module whose dependency has no source
