@@ -17,7 +17,7 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({ernest_wait, [waits/0, run_test/3, returned/2]}).
--receives({own_process, [in_runtime/2, read_input/2, cases_launch/6]}).
+-receives({own_process, [host_end/0, in_runtime/2, read_input/2, cases_launch/6]}).
 
 %%
 %% Entry
@@ -50,12 +50,15 @@ start() ->
     ErrorDevice = ern_out:take(),
     Status = try
                  persistent_term:put({?MODULE, streams}, fds),
+                 persistent_term:put({?MODULE, stamped},
+                                     not ern_out:is_terminal(stderr) andalso not is_journal()),
                  %% report §11.1: the build of `ern`, set at the job's start as
                  %% every persistent term is set at a launch (docs/design/runtime.md)
                  _ = ern_build:compiler_build(),
                  ern(Args, ErrorDevice)
              catch
                  Class:Error:Trace ->
+                     host_end(),
                      %% the host's text of the exception, which may end in a
                      %% line break or not, ends the line
                      Text = erl_error:format_exception(Class, Error, Trace),
@@ -63,6 +66,7 @@ start() ->
                                [string:trim(Text, trailing)]),
                      70
              end,
+    host_end(),
     %% report §12.5, §11.2: the lines a node's gateway or its checks said
     %% since its last launch's end are written before the job ends
     ok = ern_rt:wait_for_later(),
@@ -72,6 +76,19 @@ start() ->
     end,
     ok = ern_out:finish(ErrorDevice),
     halt(Status).
+
+%% Report §12.5, §11.8: a node's dial from a full table of processes ends
+%% the host, which writes its line and exits with status 1 once its kernel
+%% has ended, since the host's process of connections and each supervisor
+%% above it is permanent, restarted by none. From the moment that process
+%% has ended (limit_filter/2), the job waits for the host's end: it ends
+%% with no status of its own, and reports nothing it meets meanwhile, a
+%% process of the host's gone among it.
+host_end() ->
+    case persistent_term:get({?MODULE, host_ends}, false) of
+        true -> receive after infinity -> ok end;
+        false -> ok
+    end.
 
 %% Report §12.5: the launcher's first start of the host, where its arguments
 %% hold `--config-dir`, since the host takes a node's carrier only as it
@@ -1408,11 +1425,11 @@ reporting_options(RunOptions, ErrorDevice) ->
 
 %% Report §11.2, §12.5: whether a line on standard error begins with its
 %% time: where the program writes to the process's own standard error, and
-%% that is neither a terminal nor a journal.
+%% that was neither a terminal nor a journal as the job started (§11.8),
+%% which start/0 reads once.
 -spec is_stamped() -> boolean().
 is_stamped() ->
-    persistent_term:get({?MODULE, streams}, device) =:= fds
-        andalso not ern_tty:is_terminal(stderr) andalso not is_journal().
+    persistent_term:get({?MODULE, stamped}, false).
 
 %% Report §11.2: whether standard error is a service manager's journal,
 %% which systemd says by JOURNAL_STREAM, the device and inode of the
@@ -1571,10 +1588,13 @@ quiet_signals() ->
 %% Report §12.5, §11.8: the host's process of a node's connections, ended
 %% by a spawn beyond the limit as the node dials, ends the host after it,
 %% and its report and every one after it, of what the host ends on its
-%% way, are dropped: the host's line says it.
+%% way, are dropped: the host's line says it. The filter runs in that
+%% process as it ends, before any process can see the loss, and the job's
+%% end waits for the host's from then on (host_end/0).
 -spec limit_filter(logger:log_event(), term()) -> logger:filter_return().
 limit_filter(#{msg := {report, #{label := {gen_server, terminate}, name := net_kernel,
                                  reason := {system_limit, _}}}}, _) ->
+    persistent_term:put({?MODULE, host_ends}, true),
     ok = logger:set_primary_config(level, none),
     stop;
 limit_filter(#{msg := {"~s~n", ["Too many processes\n"]},

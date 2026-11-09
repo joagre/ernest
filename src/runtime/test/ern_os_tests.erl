@@ -891,9 +891,12 @@ found_node_file_test() ->
 %% the signal 0 asking whether the process lives: this host's process
 %% lives, a process number nothing holds names none, and the first process
 %% lives and is the superuser's, which a test run as another user is not
-%% allowed to signal
+%% allowed to signal; a helper that ends without saying, here at a signal
+%% number it refuses, answers failed. The last is a regression test,
+%% written after the code: the wait took no such end, and waited for ever
 signal_test() ->
     ?assertEqual(sent, ern_os:signal(0, list_to_integer(os:getpid()))),
+    ?assertEqual(failed, ern_os:signal(1000, list_to_integer(os:getpid()))),
     Port = open_port({spawn_executable, os:find_executable("true")}, [exit_status]),
     {os_pid, Gone} = erlang:port_info(Port, os_pid),
     receive {Port, {exit_status, 0}} -> ok end,

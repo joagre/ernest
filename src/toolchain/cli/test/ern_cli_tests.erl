@@ -3526,6 +3526,24 @@ no_deadlock_while_the_end_waits() ->
     ?assertEqual(143, ern_err(["test", Dir ++ "/build/ending.erc"])),
     ?assertEqual(nomatch, binary:match(iolist_to_binary(?capturedOutput), <<"deadlock">>)).
 
+%% report §11.2, §11.8: `ern` ends by the signal itself, and by the status
+%% that stands for it where the helper that sends the signal cannot start:
+%% a host of its own, its table of ports full, ends by sigterm's 143. A
+%% regression test, written after the code: the host's refusal of the
+%% helper's port raised, and the host halted with status 1. It does not
+%% cover a helper that starts and then fails, whose answer ern_os's tests
+%% hold.
+died_at_a_full_port_table_test() ->
+    Paths = lists:append([["-pa", filename:dirname(code:which(Module))]
+                          || Module <- [ern_os, ern_signals]]),
+    Ends = "Full = fun F() -> try open_port({fd, 2, 2}, [out]) of _ -> F() "
+           "catch error:system_limit -> full end end, "
+           "full = Full(), ern_signals:die(sigterm, 143).",
+    Host = open_port({spawn_executable, filename:join([code:root_dir(), "bin", "erl"])},
+                     [{args, ["-noshell", "+Q", "1024" | Paths] ++ ["-eval", Ends]},
+                      {env, [{"ERL_CRASH_DUMP_SECONDS", "0"}]}, exit_status]),
+    ?assertEqual(143, receive {Host, {exit_status, Status}} -> Status end).
+
 %% report §11.2, Appendix E.23: under `ern test` Os.arguments is the empty
 %% list, and Os.exit faults the test that calls it and the run goes on.
 %% Written after the code, it found that a test faulting at once was

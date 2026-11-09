@@ -175,10 +175,12 @@ helper() ->
 
 %% Report §12.5: the signal Number sent by the helper to the operating
 %% system's process of the process number given, which the host has no
-%% word for: `sent`, `none` where no such process lives, or `others` where
-%% it lives and is another user's; the signal 0 sends nothing, and asks
-%% whether the process lives.
--spec signal(non_neg_integer(), pos_integer()) -> sent | none | others.
+%% word for: `sent`, `none` where no such process lives, `others` where
+%% it lives and is another user's, or `failed` where the helper ended
+%% without saying, killed among it; the signal 0 sends nothing, and asks
+%% whether the process lives. A helper the host cannot start, its table of
+%% ports full, raises as open_port/2 does.
+-spec signal(non_neg_integer(), pos_integer()) -> sent | none | others | failed.
 signal(Number, ProcessNumber) ->
     Port = open_port({spawn_executable, helper()},
                      [{args, ["signal", integer_to_list(Number), integer_to_list(ProcessNumber)]},
@@ -186,7 +188,8 @@ signal(Number, ProcessNumber) ->
     receive
         {Port, {exit_status, 0}} -> sent;
         {Port, {exit_status, 1}} -> none;
-        {Port, {exit_status, 2}} -> others
+        {Port, {exit_status, 2}} -> others;
+        {Port, {exit_status, _}} -> failed
     end.
 
 %% Report §12.5: a node's `ernest.pid` locked by the helper for the node's

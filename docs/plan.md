@@ -271,14 +271,14 @@ reader S reads of its live shell. The release note's line on the installed layou
     a handshake at the limit of open files failing, and a socket's closer is made as the socket
     ends, in its writer's room, the connection reset where the table refuses it.
 37. **A write to a terminal that is gone**, done 2026-11-09 (§12.1, §11.8; the log's *A Write to
-    a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*). A stream that can no
-    longer be written ends the program by the hangup's signal where it was a terminal as the job
-    started, and with 141 otherwise, and the shell at a terminal writes its screen through the
-    job's own ports, so that it says its terminal is gone.
+    a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal
+    That Is Gone, Swept*). A stream that can no longer be written ends the program by the hangup's
+    signal where it was a terminal as the job started, and with 141 otherwise, and the shell at a
+    terminal writes its screen through the job's own ports, so that it says its terminal is gone.
 38. **The host's log handler at a terminal that is gone**, found 2026-11-09 in item 37's build
     (§12.1, §11.8; the log's *A Write to a Terminal That Is Gone, Built*). The host's default
     log handler writes its warnings through the host's `user`, and a warning once the terminal
-    has gone halts the host with status 1 and a crash dump in the working directory. Its build,
+    has gone halts the host with status 1, where §12.1 gives the hangup's signal. Its build,
     before item 16's: the handler writes through the job's standard output, `ern_out`'s, which
     takes text as UTF-8 while a run has set it for bytes, so that a warning it can no longer
     write ends the program as §12.1 says.

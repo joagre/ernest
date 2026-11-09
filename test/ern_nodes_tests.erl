@@ -2026,9 +2026,11 @@ export fn main() : Unit receiving Process.FaultReport = {
 %%
 %% A regression test, written after the code, which wrote the host's
 %% reports of the refused spawn and of the host's end to standard output,
-%% and said that the node lost itself. It does not cover a dial with room
-%% to begin and none to serve its connection, which ern_tls_dist closes
-%% (*What it says*).
+%% and said that the node lost itself; under load the job's own end then
+%% raced the host's, and ended with 0, or with 70 or an error on standard
+%% output at a process of the host's already gone. It does not cover a
+%% dial with room to begin and none to serve its connection, which
+%% ern_tls_dist closes (*What it says*).
 dial_from_a_full_table_test_() ->
     nodes_test({waits, 7}, fun dial_from_a_full_table/1).
 

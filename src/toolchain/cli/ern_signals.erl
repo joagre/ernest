@@ -67,14 +67,18 @@ ended(Signal) ->
 %% flushed, so that a service manager counts a stop it asked for as clean,
 %% and a shell reports 128 plus its number either way. The signal's own
 %% action is restored and the signal sent again, and `ern` waits for the end
-%% it brings; where it could not be sent, the status stands in for it.
+%% it brings; where it could not be sent, the status stands in for it, the
+%% helper that sends it not started among it, the host's table of ports
+%% full (ern_os:signal/2).
 -spec die(sigterm | sighup, integer()) -> no_return().
 die(Signal, Status) ->
     ok = os:set_signal(Signal, default),
     Number = case Signal of sigterm -> 15; sighup -> 1 end,
-    case ern_os:signal(Number, list_to_integer(os:getpid())) of
+    try ern_os:signal(Number, list_to_integer(os:getpid())) of
         sent -> receive after infinity -> ok end;
         _ -> erlang:halt(Status)
+    catch
+        error:_ -> erlang:halt(Status)
     end.
 
 -spec init(term()) -> {ok, []}.

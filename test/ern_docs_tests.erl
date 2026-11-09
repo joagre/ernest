@@ -809,6 +809,24 @@ runtime_tables_test() ->
     ?assertEqual([], [Row || {Row, []} <- lists:zip(Rows, Named)]),
     ?assertEqual(lists:sort(ern_rt:tables()), lists:usort(lists:append(Named))).
 
+%% docs/design/runtime.md, report §8.2, §11.2: the note's list of the
+%% host's persistent terms names each key the toolchain's own Erlang puts
+%% under its module and a name, `{ern_peer, names}`, and no key the code
+%% does not put. A regression test, written after the note, which had
+%% fallen behind the code; a key made as the code runs, a system
+%% process's or a binding's, is named in words, and not read.
+runtime_persistent_terms_test() ->
+    Note = ern_repository:read("docs/design/runtime.md"),
+    [_, From] = binary:split(Note, <<"\nThe host's persistent terms">>),
+    [List | _] = binary:split(From, <<"\n\n## ">>),
+    Named = [{Module, Name}
+             || [Module, Name] <- matches(List, "`\\{(ern_[a-z_]+), ([a-z_]+)\\}`")],
+    Put = [{filename:basename(File, ".erl"), Name}
+           || File <- ern_repository:modules(),
+              [Name] <- matches(ern_repository:read(File),
+                                "persistent_term:put\\(\\{\\?MODULE, ([a-z_]+)\\}")],
+    ?assertEqual(lists:usort(Put), lists:usort(Named)).
+
 %% docs/design/runtime.md, report §12.6: the frames the runtime's code reads
 %% of a peer are seventeen, and the note's list and §12.6's *What passes*, each
 %% of which says so, name every one in the words ?FRAMES gives it. A

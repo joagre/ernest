@@ -3642,3 +3642,17 @@ segment_overflow_cause_test() ->
     ?assertEqual(<<"segment overflow: a 3-byte value does not fit 2 bytes">>,
                  Cause(fun() -> ern_bits:bytes(<<1, 2, 3>>, 16) end)),
     ?assertEqual(<<"segment overflow">>, Cause(fun ern_bits:overflow/0)).
+
+%% report §12.1, §8.6, §11.8: the keys' reader traps exits, and can take its
+%% read's end once the run's end has ended the terminal's process and the
+%% launch's row has gone; it then tells no runner. Each of its ends, a
+%% terminal gone, keys that are not UTF-8 and keys that cannot be read,
+%% answers none outside a run, as a signal and a stream of the job's own
+%% do. A regression test, written after the code: the reader raised there
+%% on the launch's table, which the host reports on standard error. It does
+%% not make the race itself, which no test can order.
+tellers_outside_a_run_test() ->
+    ?assertEqual([none, none, none, none, none],
+                 [ern_rt:terminal_gone(), ern_rt:input_not_utf8(),
+                  ern_rt:input_unreadable(system_limit), ern_rt:signal(sigterm),
+                  ern_rt:stream_gone(stdout)]).

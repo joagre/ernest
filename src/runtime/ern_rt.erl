@@ -521,7 +521,10 @@ launch_field(Position, Default) ->
     end.
 
 %% The launch's runner and the reference that tags it, which the runner's
-%% messages carry.
+%% messages carry, read by a process the launch's end ends before the
+%% launch's row goes, a program's process or a system process; one that
+%% can outlive it, the keys' reader, or that runs outside a run, asks
+%% told_runner/2, which says whether a run is in progress.
 launch_runner() ->
     [#launch{runner = Runner, tag = Launch}] = ets:lookup(?LAUNCH, launch),
     {Runner, Launch}.
@@ -3524,11 +3527,10 @@ own_terminal(Kind) ->
     end.
 
 %% Report §7.3, §12.1: a system process ends the program with a fault of
-%% the entry process, the runner's to report.
+%% the entry process, the runner's to report; none where no run is in
+%% progress, which the keys' reader can meet (terminal_gone/0).
 end_with_fault(Cause) ->
-    {Runner, Launch} = launch_runner(),
-    Runner ! {fault, Launch, Cause},
-    ok.
+    told_runner(fault, Cause).
 
 %% Report §12.1: standard input, read as UTF-8 whatever the host's locale,
 %% as lines and as bytes from one stream, each request taking up where the
@@ -3655,7 +3657,7 @@ not_utf8() ->
 
 %% Report §12.1, §7.4: keys that are not UTF-8 end the program with the
 %% fault of its entry process, since no process asked for them.
--spec input_not_utf8() -> ok.
+-spec input_not_utf8() -> ok | none.
 input_not_utf8() ->
     end_with_fault(not_utf8()).
 
@@ -3663,19 +3665,20 @@ input_not_utf8() ->
 %% of ports full, end the program with the fault of its entry process,
 %% Error the host's reason, `system_limit` (read_input/1), since no process
 %% asked for them.
--spec input_unreadable(term()) -> ok.
+-spec input_unreadable(term()) -> ok | none.
 input_unreadable(Error) ->
     unreadable(Error).
 
 %% Report §12.1, §8.6, §11.8: keys the host can no longer read, its read of
 %% the terminal failing, end the program as a stream that can no longer be
 %% written does, with no fault: the runner is told, and its outcome is the
-%% hangup's (ern_cli:report_outcome/3).
--spec terminal_gone() -> ok.
+%% hangup's (ern_cli:report_outcome/3); none where no run is in progress.
+%% The keys' reader traps exits, and can take its read's end before the
+%% end of the terminal's process that the run's end makes, once the
+%% launch's row has gone (ern_tty:read_loop/2).
+-spec terminal_gone() -> ok | none.
 terminal_gone() ->
-    {Runner, Launch} = launch_runner(),
-    Runner ! {gone, Launch, terminal},
-    ok.
+    told_runner(gone, terminal).
 
 %% Report §12.3, §11.8: whether a fault's cause is one of standard input's,
 %% which ends a shell as it ends a run, by its input and not by a defect.
