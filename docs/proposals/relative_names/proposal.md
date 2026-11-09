@@ -1,7 +1,8 @@
 # Relative names
 
-A proposal for §4.2. Written 2026-11-02; decided with the user before the report changes,
-and built after the cold reading §3 to §9 ask.
+A proposal for §4.2. Written 2026-11-02; read against every owner it touches and decided with
+the user on 2026-11-09 (the log's *Relative Names*); §4.2, §11.1, §11.2 and Appendix F state it,
+and the build follows the cold reading §3 to §9 ask, as MVP 4.15's item 16.
 
 ## The need
 
@@ -45,6 +46,18 @@ what a program loses is a handful of names, `Test`, `Clock`, `Process` among the
 untaken, as §4.2 has it: a program's `Fides.Http` hides `Http` for its family, which is what
 hiding a library means today.
 
+Decided 2026-11-09, the second: the refusal is at the
+file's name, at build, in one line. The alternative read against it, the language's names found
+first wherever written and a module of such a name at depth reached through its parent, refuses
+nothing but gives one file two lengths of name for no reason the reader sees at the site. Our own
+`tools/site/code.ern`, `Site.Code`, is renamed; the three other repositories hold no such module.
+
+**A type's nested namespace.** A type declared in a module is a nested namespace (§4.2,
+*Type members*), and `List.map` in a module that declares `type List` is the standard library's,
+since a member stands in no expression. The climb looks the first segment up among module
+namespaces alone, never in a type's, so that sentence stays true; added 2026-11-09 by the
+reading against §4.2.
+
 **How far a short name reaches.** Only the first segment climbs; the rest descends. So a
 cousin is reached through the nearest common ancestor's child, `Shell.Command.parse` from
 `Ernest.Other`, and nothing is reached by a path that skips a segment. The recommendation is
@@ -54,7 +67,15 @@ place only once the reader knows the whole tree.
 **Two modules a first segment could name.** The nearer wins, as the inner `let` wins, and
 the farther is out of reach from there by the question above. A module added later can
 change what a name in a neighbor means; the compiler then reports the neighbor's name as
-resolving elsewhere, or as too long, at the next build.
+resolving elsewhere, or as too long, at the next build. For that build to happen, §11.1's
+recompile rule gains a case, found 2026-11-09 by the reading against it: a module is recompiled
+when a qualified name in its source would now resolve to another module than its `.erc` records,
+the `.erc` recording full names already.
+
+**One error where two stood.** §4.2 made a module's own type or constructor written
+qualified an error whose help names the plain form, and `Prelude.x` an error where the plain `x`
+reaches the prelude. The too-long-name error is the rule those two are cases of, so §4.2 states
+it once and the two cite it; added 2026-11-09 by the reading.
 
 **What prints.** A diagnostic, `ern doc`, `:browse`, a fault's trace and a process's site
 print the full name, as today: a reader of a trace has no place to read a relative name

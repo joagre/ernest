@@ -49,18 +49,18 @@ the Server Taught*), built after the site's generator (the log's *The Generator 
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
 names last, since they sweep every site of Ernest once. The eleven decisions for the user, in
-items 8, 9, 13, 15, 16, 21, 28, 30, 32, 35 and 36, are discussed early, so that no build waits
-on them.
+items 8, 9, 13, 15, 16, 21, 28, 30, 32, 35 and 36, were discussed early, so that no build waited
+on them, the last six on 2026-11-09.
 
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*), items 17, 20, 22, 26, 31, 33 and 34 done by item sessions:
 
-1. One design session for what no test checks: item 36's decision first, since it states the
-   line items 30 and 32 are weighed against (the log's *Lean at the Limits*), then item 21's,
-   item 30's and item 32's, item 19's question whether a hangup is told from a read that fails,
-   item 29's sentence of §10, and item 16's proposal with its cold reading.
-2. Items 19, 29, 30, 32, 35 and 36, each a report sentence and its build, and item 21's build
-   where its decision builds one.
+1. One design session for what no test checks, done 2026-11-09: items 36, 21, 30, 32, 19 and
+   29 decided, each in its paragraph below, and item 16's proposal read against its owners and
+   stated in the report (the log's *Lean at the Limits*, *What `running` Finds*, *The Shell at
+   a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*).
+2. Items 19, 21, 29, 30, 32, 35 and 36, each a report sentence and its build: 35 and 36
+   together, the E.18 sentences; 30 and 32 together, the full table's; 21 at the stronger effort.
 3. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -74,7 +74,7 @@ commit that made it.
 ernest-epx's session is told the same archive and item 26's verdict on its
 line, and each of the two checks its verdicts against the archive and answers with any line it
 keeps, as `docs/clean_room.md`'s *The answer* says (the log's *Both Applications at the
-Milestone's End*). ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
+Milestone's End*). All three are told item 16's rule, which each plans for its floor's rise. ernest-template and ernest-epx stay on floor 0.9 until MVP 4.4's item 4 (the
 log's *The Floors and the Releases*).
 
 Between items 1 and 2 the repository's layout was built, in one commit, so that items 2 to 21
@@ -168,15 +168,27 @@ reader S reads of its live shell. The release note's line on the installed layou
     runs it; `Ansi.clearBelow` and `Ansi.clearScreen` are literals. The first attach to a node
     took about three seconds on nike, the node compiling the shell, until item 28 had a node hold
     the shell of its own build.
-16. **Relative names**, feedback 204, decided 2026-11-02: a qualified name resolves from the
-    writer's own namespace outward, as a relative path resolves from its directory, so that
-    `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse` and `Region.Region` in
-    `Ernest.Shell.Complete` names its sibling's; a name written longer than its shortest
-    resolving form is an error whose help names the short one, as `Prelude.x` is (§4.2), and
-    Appendix H's canonical form keeps the full name. The lookup is C++'s and C#'s, with no
-    import; a proposal under `docs/proposals/relative_names/` first, with how far a short name
-    reaches, then §4.2 after the cold reading, the checker, the diagnostics, `ern doc`, the
-    shell's completion, and the shell's own sites written short.
+16. **Relative names**, feedback 204, decided 2026-11-02 and read against its owners 2026-11-09
+    (§4.2, §11.1, §11.2, Appendix F; the log's *Relative Names*), the report stating it the same
+    day, built last in the milestone at the stronger effort. A qualified name resolves from the
+    writer's namespace outward and is written in its shortest resolving form, a taken namespace
+    is refused as a segment at any depth, and §11.1 recompiles a module a qualified name of whose
+    source would now resolve elsewhere.
+
+    The build: the checker's resolution and the too-long-name error with its
+    help, `ern build`'s scan and `:load`'s, the refusal at depth run over the repository's
+    programs and the three applications' by their tests, `tools/site/code.ern` renamed, the
+    shell's 139 sites written short, the guide's §7.1, `src/shell/README.md`, `CHANGES.md`'s line
+    for a program with a tree of modules, and a test for each sentence. The proposal under
+    `docs/proposals/relative_names/` is the record until then.
+
+    The three other repositories take the rule at their floor's rise (MVP 4.4's item 4), each by
+    its own session, since a program's sources are its own session's (`docs/clean_room.md`): a
+    name written longer than its shortest form written short, and no module named as a taken
+    namespace at depth. On 2026-11-09 none of the three holds either, ernest-httpd's 13 modules
+    standing flat under `src/`, so each builds under the rule as it is; Ernest's session tells
+    them the rule at the milestone's end all the same, and each session puts it in its own
+    `docs/plan.md` as an item of its floor's rise, where it is checked.
 17. **`or` inside a pattern**, done 2026-11-08 (§5.10, §11.5; the log's *An `or` Stands Between
     Patterns* and *An `or` Inside a Pattern Refused*). The parser refuses it at the alternatives
     it joins, and in a clause its help writes the clause's alternatives out whole.
@@ -185,23 +197,33 @@ reader S reads of its live shell. The release note's line on the installed layou
     socket, the gateway's worker for a peer as the connection opens, and a peer's restart is
     waited for in the worker. An arrival, a checker and the shell's input at a full table each
     answer `error:system_limit`.
-19. **A keys read that fails**, found 2026-11-04 by item 1, decided and built by 2026-11-12: a
-    read of the terminal's keys that the host answers with an error closes the keys and faults
-    nothing, where §12.1 has a standard input that cannot be read fault the entry process. A
-    terminal's hangup may come that way, as `eio`, beside the hangup's signal, which §8.6 ends
-    the program by, so faulting there would turn the hangup's end into a fault. Whether the
-    error is told from a hangup, or §12.1 says the keys end at one, is decided first.
+19. **A keys read that fails**, found 2026-11-04 by item 1, decided 2026-11-09 (§12.1, §12.3,
+    §11.8; the log's *A Terminal That Is Gone*), built by 2026-11-12. Keys the host can no
+    longer read end the program as a stream that can no longer be written does (§8.6), with the
+    hangup's status, since a subscription is granted on a terminal alone and an error reading
+    it is the terminal gone; the error is not told from a hangup, and need not be. A line that
+    cannot be read keeps its fault, its input being any stream.
+
+    The shell on a node, whose hangup is a reload, ends by this rule when its terminal closes, and `the shell ends:` says
+    so. A terminal test closes the master over a subscribed program and over such a shell.
 20. **The runtime at the host's limit of descriptors**, done 2026-11-08 (§12, E.18, E.23; the log's
     *The Runtime at the Limit of Open Files*). A run loads at its start the toolchain's own Erlang
     of the run's side with the host's modules it calls, a unit loads with the modules it calls, and
     TLS loads whole at its first request; every request at the limit answers the host's refusal.
-21. **A process a fix leaves out of reach**, a decision for the user, raised by the release
-    review before 0.8.0 (the log's *The Release Review Before 0.8.0*, L1), moved here from the
-    `:trace` proposal on 2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*). A fix inside a loop's
-    reach changes the hash of the function the running processes run, so `Code.running` no longer
-    finds them, and a process found by its site alone can be killed and not moved, since a
-    `Process` cannot be sent to (§6.5). Whether the operator gets a way to reach such a process
-    is decided against §6.5's decision that an address is the permission to send.
+21. **A process a fix leaves out of reach**, raised by the release review before 0.8.0 (the
+    log's *The Release Review Before 0.8.0*, L1), moved here from the `:trace` proposal on
+    2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*), decided 2026-11-09 (E.28, §6.5, Appendix
+    H; the log's *What `running` Finds*), built by 2026-11-12 at the stronger effort. No way to
+    send to a `Process` is added: §6.5 stands, and a kill is what the operator does.
+
+    `Code.running(f)` answers the processes whose stack holds a frame of a definition of `f`'s qualified name whose
+    mailbox type is `f`'s, by Appendix H's type hash, on whichever version of its module the node
+    holds, so a fix in a loop's reach or in its body leaves its old processes findable while their
+    message type stands.
+
+    A unit's code list carries each function's mailbox type's hash, the soundness note's I1
+    clause follows in the same commit, and the guides' three passages that teach the limit teach
+    the changed message type instead.
 22. **The sockets load on nike**, done 2026-11-08 (the log's *The Sockets Load on One
     Scheduler*). Its steps were the host's socket buffers, kept on each scheduler, and the load
     runs on one, its warm-up and its bound unchanged.
@@ -226,47 +248,37 @@ reader S reads of its live shell. The release note's line on the installed layou
     start, so a shell of that build attaches with an exchange that ships nothing, and a node of a
     tree whose shell is not built is refused at its start.
 29. **What a process that waits holds when a value is let go**, found 2026-11-08 by item 24's
-    cold reading, decided by 2026-11-12. §10 says the host does not collect a process that waits,
-    so that it holds what it dropped. A process that waits and references a value the host lets
-    go, a persistent term erased as a shell lets an input's values go, is collected then: in a
-    bare host its heap fell from 636,374 words to 2,819, and one that references nothing kept
-    its heap. §10 states the exception, E.21's sentence on what a waiting process counts and the
-    deployment guide's §7 follow it, and a test holds it (the log's *The Host Says Running*).
-30. **The shell at a full table**, a decision for the user, found 2026-11-08 by item 18,
-    decided and built by 2026-11-12. A full table of processes still ends the shell as a
-    failure of `ern`, status 70, by item 1's rule applied to the shell's own processes: a fault
-    report the session cannot be given faults it at its wait (§7.4), which a runaway input meets
-    at its first fault; and an `Fs` request faults the local half, a history's append at each
-    `Enter` at a terminal and the sources `:load` and `:reload` read.
+    cold reading, decided 2026-11-09 (§10, E.21; the log's *The Host Says Running*), built by
+    2026-11-12. §10 states the exception: a process that waits holds what it dropped until it
+    runs again, or until the host lets go a value it references that lives in no process, a
+    persistent term erased or a module's constants purged, when the host collects that process
+    alone. E.21's sentence on what a waiting process counts and the deployment guide's §7 follow
+    it, and a test holds the fall and the heap kept.
+30. **The shell at a full table**, found 2026-11-08 by item 18, decided 2026-11-09 (§7.4, §10,
+    §12.1, §12.5, E.1, E.17, E.18, E.21, E.23; the log's *The Shell at a Full Table*), built by
+    2026-11-12. A subscription's fault reports come through a courier made with the
+    subscription, as the terminal's keys do, so that none is lost to a full table; a one-shot
+    delivery keeps its process of its own.
 
-    The recommendation, by principles 5 and 1: a subscription's fault reports come through a
-    courier made with the subscription, as the terminal's keys do (§12.1), so that none is lost
-    to a full table; and `Fs` at a full table of processes answers the host's refusal,
-    `Left(Other(text))`, as it does at a full table of ports (E.1, §12.5). Both change what
-    item 1 decided for those two (the log's *A Node's Limits*, *A Node's Own Processes at a
-    Full Table*).
-
-    The shell's test of an input at a full table keeps no history until this item is built,
-    and its build gives the test its history again.
+    A request of `Fs`, `Tcp` or `Os` that the table of processes leaves no room to serve answers `Left(Other("error:system_limit"))`, as one the
+    table of ports refuses answers a value, and item 1's faults at those requests and item 33's
+    three TLS faults turn to it; a program's own `spawn` beyond the limit stays a fault. The
+    shell's test of an input at a full table gets its history back with the build.
 31. **The carrier's acceptor at a full table**, done 2026-11-08 (§12.5; the log's *The
     Carrier's Acceptor at a Full Table*). A node runs the host's TLS distribution through a
     module of its own, `ern_tls_dist`, whose acceptor takes each connection before it makes the
     connection's process, closes one that any step leaves no room for and says so, and at the
     limit of open files tries again once a dial's time has passed.
-32. **A dial from a full table**, a decision for the user, found 2026-11-08 by item 31, decided
-    and built by 2026-11-12. A node whose table of processes is full ends when it dials a peer:
-    the host's `net_kernel` spawns its check of the dial in its own process before any
-    distribution module is called, and the refused spawn ends it, the kernel and the node, a
-    crash dump written (`docs/otp_bugs.md`, 12). §12.5 has such a connection closed as it
-    opens, and said.
+32. **A dial from a full table**, found 2026-11-08 by item 31, decided 2026-11-09 (§12.5, §11.8;
+    the log's *Lean at the Limits*), built by 2026-11-12. A node whose table of processes is full
+    ends when an operation of its own first reaches a peer it is not connected to, as a program
+    that exhausts the host's memory ends (§10): at once, every process with it, the host's one
+    line written to standard error, status 1, its peers seeing a loss; the runner's filter drops
+    the host's reports of it, whose reason is the limit.
 
-    The recommendation, turned on 2026-11-09 (the log's *Lean at the Limits*), by principle 5:
-    §12.5 states that such a dial ends the node, with a line of its own and no crash dump, and
-    `docs/otp_bugs.md`'s 12 is filed. Its alternative, by principle 1, is the node's own
-    `net_kernel`, loaded at its start with that spawn and the dial's own caught, as its
-    `do_spawn/3` already catches a spawn, a module borrowed for each major release of OTP until
-    OTP takes the fix. No count of the table before a dial is sound, since the host's own
-    processes fill it beside the program's.
+    §12.5 says so beside the accepted
+    connection it closes, and §11.8 names the dial beside memory. The node's own `net_kernel`
+    was weighed and refused. `docs/otp_bugs.md`'s 12 is the report, whose filing is the user's.
 33. **A program's TLS at a full table**, done 2026-11-09 (§7.4, §12.5, E.18; the log's *A
     Program's TLS at a Full Table*). A `connectTls`, an `accept` over TLS and a `listenTls`
     whose processes the host's TLS cannot start fault their caller with `error:system_limit`,
@@ -282,21 +294,18 @@ reader S reads of its live shell. The release note's line on the installed layou
     has it answer `Left(Other(text))`. E.18 states that such a start may end the run, or never
     answer and hold every later `Tcp` request, and `docs/otp_bugs.md`'s 17 is filed. The host's
     TLS started at each run's start was weighed and refused.
-36. **What a run holds for a limit, read again**, a decision for the user, raised 2026-11-09 by
-    item 35, decided and built by 2026-11-12. Item 20 has every run load at its start its run
-    side's Erlang with every host module their import tables name, about 19 ms and 0.9 MB of
-    code more than before, and a run's first request over TLS load TLS whole, about 100 ms and
-    6 MB, half of which a handshake never loads. Item 18 makes each socket's closer with it, a
-    process and 2.6 KB a socket.
+36. **What a run holds for a limit, read again**, raised 2026-11-09 by item 35, decided the same
+    day (§12, E.18, E.21; the log's *Lean at the Limits*), built by 2026-11-12 with item 35.
+    Item 20's load at the start stays whole: a bare run holds about 0.55 MB for eight host
+    modules a program without sockets or peers never calls, and a node nothing, against a list
+    of the end's modules. A node's units stay (the log's *A Node Holds the Shell*).
 
-    The recommendation, by principle 1 as item 35 reads it: what the end uses, a fault's report
-    and a refusal's answer among it, exists from the start, and any other request at a limit
-    fails as §8.4 and §12.5 say. So a run loads at its start the import tables' closure of its
-    end's modules alone, TLS loads as the host loads it, and the closer is weighed by its memory
-    against a close that loses what it owes at a full table. Each is measured in time and in
-    memory, a bare run's and a node's (the log's *Lean at the Limits*). A node's units, which it
-    loads at its start since a peer's spawn names a hash, stay (the log's *A Node Holds the
-    Shell*).
+    The host's TLS loads as the host loads it, and E.18 states that at the limit of open files a
+    handshake whose code the host has not loaded fails as one the far end closed does,
+    `Left(Closed)`; §12's sentence on the whole load, E.18's `the host could not load m` and
+    `tls_loaded_whole_test` go. A socket's closer is made at the close, and where the table of
+    processes refuses it the socket closes with a linger of no time, what the far end has not
+    taken dropped and the connection reset, which E.18 states; E.21 counts the writer alone.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

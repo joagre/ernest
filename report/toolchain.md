@@ -82,11 +82,20 @@ A top-level binding whose initializer is a constant (§4.6) is compiled to that 
 
 The compiler makes a unit from its definitions' forms and what the module adds that is no definition's, the source's lines beside them, which give its code its lines and its spawn sites theirs (§6.9); a definition that arrives (§8.7) is compiled so from its code frame (§12.7). A build's units are one per source module. A node reads its build's units from its build directory at its start alone, and a compiled module after it through `Code.load` (Appendix E.28) or a shell's `:load` (§11.2). A node reads a definition's form from its `.erc` when a peer first asks for it (§8.7); where the `.erc` has been written over since the node started, the spawn fails with `Other`.
 
-The `.erc` carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. It also records the path from `build-root` to its source and the digest of its source.
+The `.erc` carries the module's documentation too: every doc block of §2.2, each declaration's signature, and each function's parameter list as the module writes it. On the BEAM that is the EEP 48 `Docs` chunk, which the host's own documentation tools read. It also records the path from `build-root` to its source, the digest of its source, and the module each qualified name in its source resolved to (§4.2).
 
 Given `src-dir`, `ern build` compiles every `.ern` under it in dependency order, each module after those it uses and otherwise in the order of their paths, mirroring the source tree into `build-root` and creating directories as needed. A cycle among the modules (§4.1), through the load path's modules as among the sources, is reported with the modules in it, and no build holds one. A module that does not compile does not stop the others: every module is compiled but one that uses a module that failed, and every failure is reported. A module so left uncompiled is reported in a line of its own, `Main is not compiled, since it uses Util, which failed`.
 
-A module is recompiled when its source or the path from `build-root` to it has changed, when the interface of a module it depends on has changed, when the hash of another module's definition that its forms reference has changed, when any interface of the standard library has changed, or when it was compiled by another build of `ern`, another version or the same version's code changed; a change confined to a dependency's bodies recompiles only a dependent whose forms reference a definition whose hash the change changed.
+A module is recompiled in these cases, and otherwise found current:
+
+- its source, or the path from `build-root` to it, has changed;
+- the interface of a module it depends on has changed;
+- the hash of another module's definition that its forms reference has changed;
+- a qualified name in its source would now resolve (§4.2) to another module, or to none, than its `.erc` records;
+- an interface of the standard library has changed;
+- it was compiled by another build of `ern`, another version or the same version's code changed.
+
+A change confined to a dependency's bodies recompiles only a dependent whose forms reference a definition whose hash the change changed.
 
 A module outside the source root is read from its `.erc` under `build-root`, then under each `--load-path` root, and then under the build of each library of the toolchain's own (Appendix G), found by namespace as §11.2 finds it. Cross-module references link at load, against `.erc` files under `build-root`, the `--load-path` roots and the builds of the toolchain's libraries.
 
@@ -222,7 +231,7 @@ What a program writes to standard output and standard error is shown in a live r
 
 **Color.** At a terminal, and where the environment's `NO_COLOR` is unset or empty, the shell colors what it says: a fault report, a diagnostic's first line, and every refusal of a command in red, what the shell answers being plain, the type after a printed value dimmed, a name bold in a completion listing and a `Shift-Tab` brief, the parameter a signature marks in cyan, and in documentation a heading and strong emphasis bold, emphasis in italics, and a code span in cyan. A color takes no column. Elsewhere, and in `ern build`'s diagnostics, nothing is colored.
 
-**Scope.** The session's declarations are a scope. An unqualified name is looked up first among the names bound around it, then in the input's own declarations, then in the session's, then in the prelude (§4.2).
+**Scope.** The session's declarations are a scope. An unqualified name is looked up first among the names bound around it, then in the input's own declarations, then in the session's, then in the prelude (§4.2). The session's namespace stands directly under the root and holds no module, so a qualified name in an input resolves at the root (§4.2).
 
 A type the session declares prints unqualified, except one a later declaration of its name has shadowed, which prints under the input that declared it: `$Input2.T` for the `T` of the second input entered at the prompt, and `$Startup2.T` for that of the second input checked from the startup files, which the session's count leaves out. A later input may declare a member of a type the session declares, `fn Coin.+` after `type Coin`, and the member is the session's; it belongs to the latest declaration of the type's name, and a type declared again starts with no members.
 
@@ -415,6 +424,7 @@ Other errors are placed and told as follows.
 - An `or` inside a pattern (§5.10) is reported at the alternatives it joins, ``an `or` stands between a clause's whole patterns``. In a clause the help line writes the clause's alternatives out whole: ``write the clause's alternatives out: `#(Paste, _) or #(Load, _)` `` for `#(Paste or Load, _)`.
 - A selector its operand's type lacks is reported at the selector, naming a constructor without the field.
 - A value a module exports under the name of a member of the type whose namespace it shares (§4.2) is reported at the value's declaration, naming the type and the module that declares it: `Main.Stack.compare is a member of the type Stack in the module Main`.
+- A name written longer than its shortest resolving form (§4.2) is reported at the name, with a help line that writes the short one.
 - A qualified name that names nothing, in a build given no `--source-root`, has a help line where a source root nearer the module's file holds the name's module: `this module is Src.Main; --source-root src makes it Main`.
 - An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
 
@@ -422,7 +432,7 @@ A printed type elides an effect variable bound to none (§3.9). An effect variab
 
 The compiler shows the two inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=`, and a process-only effect variable that occurs in no value position `e+`: `equal : (a=, a=) -> Bool`, `skip : () -> Unit receiving e+`. An effect variable that occurs in a value position is not marked: `self : () -> Address(m) receiving m`. A printed type is not an annotation, and no mark can be written in one (§4.7).
 
-A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use and those a pattern the message shows binds.
+A type name is printed whole, as §4.2 prints a name in a diagnostic: the module's own types and the prelude's unqualified, and other modules' by their whole name. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use and those a pattern the message shows binds.
 
 An error at a rejected call site is reported at the first argument whose type breaks the restriction, names the argument's place, `the first argument of drop`, and labels the callee with its type, which carries the restriction. Where the callee is not a name, `pair()(r)`, or a later use breaks the restriction, the error is reported at the function's name and shows its type. `ern doc` prints restrictions the same way. A declaration's printed type ends in its requirement as declared, `(List(a)) -> OrderedSet.Set(a) needs a.compare`, in a diagnostic, in `ern doc` (§11.4), and in the shell's `:type` and its completion listing (§11.2) alike.
 
