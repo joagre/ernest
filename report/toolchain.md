@@ -100,7 +100,8 @@ A module is recompiled in these cases, and otherwise found current:
 - the hash of another module's definition that its forms reference has changed;
 - a qualified name in its source would now resolve (§4.2) to another module, or to none, than its `.erc` records;
 - an interface of the standard library has changed;
-- it was compiled by another build of `ern`, another version or the same version's code changed.
+- it was compiled by another build of `ern`, another version or the same version's code changed;
+- its `.erc` is no compiled module (§11).
 
 A change confined to a dependency's bodies recompiles only a dependent whose forms reference a definition whose hash the change changed.
 

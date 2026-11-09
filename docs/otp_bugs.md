@@ -868,3 +868,37 @@ Each start answers `{error, Reason}`, `Reason` holding the refused spawn's `syst
 **Affected versions**
 
 OTP 29, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.
+
+## 18. `beam_lib:chunks/2,3` raises, and `beam_lib:md5/1` answers `{'EXIT', _}`, for a module whose atom chunk it cannot read
+
+Not filed. Found on 2026-11-09 (the log's *A Compiled Module the Host Cannot Read*); Ernest reads a chunk and a digest through `ern_chunk`, which takes both answers as the error.
+
+**Title:** beam_lib:chunks/2,3 raises badmatch, and beam_lib:md5/1 returns {'EXIT', ...}, for a malformed atom chunk
+
+**Describe the bug**
+
+`beam_lib:chunks/2,3` and `beam_lib:md5/1` are specified to answer `{ok, _}` or `{error, beam_lib, Reason}`. For bytes whose atom chunk does not parse, `extract_module/2` raises: an `AtU8` chunk of no bytes, a name in it that is not UTF-8, or a name longer than the chunk. `scan_beam1/2` catches the raise with `catch` and passes on only a tuple tagged `error`, so it returns the `'EXIT'` tuple as a result. `read_chunk_data/3`'s match `{ok, Module, Chunks} = scan_beam(...)` then raises `badmatch`. `read_chunk_data/2` catches throws alone, so `chunks/2` raises, and `md5/1`, which calls under `catch`, returns the `'EXIT'` tuple.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    Bad = <<"FOR1", 12:32, "BEAM", "AtU8", 0:32>>,
+    io:format("~P~n", [try beam_lib:chunks(Bad, [atoms]) catch C:R -> {raised, C, R} end, 7]),
+    io:format("~P~n", [beam_lib:md5(Bad), 7]),
+    halt().'
+```
+
+It prints `{raised,error,{badmatch,{'EXIT',...}}}` and `{'EXIT',{{badmatch,{'EXIT',...}},[...]}}`.
+
+**Expected behavior**
+
+Both answer `{error, beam_lib, {invalid_chunk, File, "AtU8"}}`, a reason the spec names.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, stdlib 8.1.1, on Linux x86_64.
+
+**Additional context**
+
+A file cut short at any length is answered with an error. Of the 10,384 copies of a compiled module of 2,596 bytes with one byte set to 0, 127, 128 or 255, 19 raised, each in the atom chunk.

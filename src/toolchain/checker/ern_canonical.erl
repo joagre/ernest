@@ -1373,10 +1373,10 @@ encode(#recorded{} = Recorded) ->
 %% build of `ern` that recorded less, reads as an error that says so.
 -spec read(binary()) -> {ok, #recorded{}} | {error, string()}.
 read(Beam) ->
-    case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)], [allow_missing_chunks]) of
-        {ok, {_, [{_, missing_chunk}]}} ->
+    case ern_chunk:read(Beam, ?CHUNK) of
+        missing ->
             {error, "the module holds no canonical forms"};
-        {ok, {_, [{_, Chunk}]}} ->
+        {ok, Chunk} ->
             case ern_chunk:term(Chunk) of
                 {ok, {?FORM_VERSION, #recorded{definitions = Definitions} = Recorded}}
                   when is_list(Definitions) ->
@@ -1384,6 +1384,6 @@ read(Beam) ->
                 _ ->
                     {error, "the canonical forms are of another version of the form"}
             end;
-        {error, beam_lib, _} ->
+        error ->
             {error, "not a compiled module"}
     end.

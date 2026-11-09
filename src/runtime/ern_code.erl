@@ -563,9 +563,9 @@ forms(Unit) ->
 %% Whether Bytes, a file's, are the code of the loaded Unit, as the host
 %% digests it.
 holds_code(Unit, Bytes) ->
-    case beam_lib:md5(Bytes) of
-        {ok, {_, Md5}} -> erlang:module_loaded(Unit) andalso Unit:module_info(md5) =:= Md5;
-        {error, _, _} -> false
+    case ern_chunk:md5(Bytes) of
+        {ok, Md5} -> erlang:module_loaded(Unit) andalso Unit:module_info(md5) =:= Md5;
+        error -> false
     end.
 
 %% Report §11.2: a build's unit's forms, read from its `.erc` at the first

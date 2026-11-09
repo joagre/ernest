@@ -6,9 +6,20 @@
 %% host has room left for, so that no one chunk can be what fills it. A
 %% compressed chunk, as the canonical forms are written (§11.1), is
 %% inflated first and its bytes read the same way.
+%%
+%% A chunk's bytes and the module's digest are read here too, through the
+%% host's reader. It answers bytes that are no compiled module with its
+%% error, but for a module whose atoms it cannot read: there the reader
+%% raises, and the digest answers the raise as a value
+%% (docs/otp_bugs.md, 18). Both are taken as the error.
 -module(ern_chunk).
 
--export([term/1]).
+-export([term/1, read/2, md5/1]).
+
+%% Report §11: the host's digest answers its raise as a value its
+%% specification leaves out (docs/otp_bugs.md, 18), which Dialyzer would
+%% report.
+-dialyzer({no_match, md5/1}).
 
 %% Deflate's own greatest ratio of inflated to compressed bytes: a match
 %% copies at most 258 bytes and is coded in no fewer than two bits, so no
@@ -29,6 +40,30 @@ term(<<131, Body/binary>>) ->
     plain(Body);
 term(_) ->
     error.
+
+%% Report §11: the chunk Name of the compiled module Beam, its bytes or its
+%% file, `missing` where the module holds no such chunk, and `error` where
+%% Beam is no compiled module, without the host's text of the error, which
+%% quotes the bytes it was given.
+-spec read(binary() | file:filename(), binary()) -> {ok, binary()} | missing | error.
+read(Beam, Name) ->
+    try beam_lib:chunks(Beam, [binary_to_list(Name)], [allow_missing_chunks]) of
+        {ok, {_, [{_, missing_chunk}]}} -> missing;
+        {ok, {_, [{_, Chunk}]}} -> {ok, Chunk};
+        {error, beam_lib, _} -> error
+    catch
+        error:{badmatch, {'EXIT', _}} -> error
+    end.
+
+%% Report §11: the host's digest of the compiled module Beam, or `error`
+%% where Beam is none.
+-spec md5(binary()) -> {ok, binary()} | error.
+md5(Beam) ->
+    case beam_lib:md5(Beam) of
+        {ok, {_, Md5}} -> {ok, Md5};
+        {error, beam_lib, _} -> error;
+        {'EXIT', {{badmatch, {'EXIT', _}}, _}} -> error
+    end.
 
 %% What deflate inflates is bounded by its ratio whatever the size claims,
 %% so the stream is inflated whole and must be the size it claimed.

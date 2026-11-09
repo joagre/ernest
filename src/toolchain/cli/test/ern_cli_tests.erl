@@ -243,21 +243,76 @@ many_tests() ->
 
 %% report §11: a `.erc` that is no compiled module is refused by `ern doc`,
 %% `ern run` and `ern test` alike, by its name, and so is a module the host
-%% compiled from Erlang. A regression test: `ern doc` failed with status
-%% 70, and a run's refusal quoted the file's bytes; the release review found
-%% the second quoting the host module's bytes
+%% compiled from Erlang, and one whose atom chunk is empty. A regression
+%% test: `ern doc` failed with status 70, and a run's refusal quoted the
+%% file's bytes; the release review found the second quoting the host
+%% module's bytes, and a later reader the empty atom chunk ending each job
+%% with status 70
 not_a_compiled_module_test() ->
     Dir = tmp(),
     Junk = write(Dir, "junk.erc", "garbage\n"),
     {ok, Host} = file:read_file(code:which(lists)),
     Beam = write(Dir, "lists.erc", Host),
+    Empty = write(Dir, "empty.erc", empty_atoms()),
     lists:foreach(fun({Job, Erc}) ->
                       ?assertEqual(1, ern_err([Job, Erc])),
                       Said = unicode:characters_to_binary(?capturedOutput),
                       Line = iolist_to_binary(["ern ", Job, ": ", Erc,
                                                " is not a compiled module\n"]),
                       ?assertMatch({Job, Erc, {_, _}}, {Job, Erc, binary:match(Said, Line)})
-                  end, [{Job, Erc} || Job <- ["doc", "run", "test"], Erc <- [Junk, Beam]]).
+                  end, [{Job, Erc} || Job <- ["doc", "run", "test"], Erc <- [Junk, Beam, Empty]]).
+
+%% report §11.1, §11.2, §11.5: a `.erc` whose atom chunk is empty is no
+%% compiled module to a build and to a run: a module's own is compiled
+%% again, a dependency's on the load path is refused as the build refuses
+%% any file that is no module, and so is a run's dependency, each named
+%% from the working directory. A regression test: each job ended with
+%% status 70, and a run named a dependency it refused by its absolute path
+empty_atoms_build_test() ->
+    Dir = tmp(),
+    write(Dir, "src/dep.ern", "export fn f() : String = \"one\"\n"),
+    write(Dir, "src/top.ern", "export fn main() : Unit = Io.println(Dep.f())\n"),
+    write(Dir, "app/top.ern", "export fn main() : Unit = Io.println(Dep.f())\n"),
+    in_directory(Dir, fun() ->
+                          write(".", "src/dep.erc", empty_atoms()),
+                          ?assertEqual(0, build_err(["src"])),
+                          {ok, Dep} = file:read_file("src/dep.erc"),
+                          ?assertMatch({ok, _}, ern_interface:read(Dep)),
+                          write(".", "src/dep.erc", empty_atoms()),
+                          ?assertEqual(1, ern_err(["run", "src/top.erc"])),
+                          write(".", "lib/dep.erc", empty_atoms()),
+                          ?assertEqual(1, build_err(["--load-path", "lib", "app"]))
+                      end),
+    Said = unicode:characters_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Said, <<"ern run: src/dep.erc: not a compiled module\n">>)),
+    ?assertMatch({_, _}, binary:match(Said, <<"ern build: compile Dep first, which Top uses:"
+                                              " lib/dep.erc: not a compiled module\n">>)).
+
+%% report §11, §11.2, §11.5: a `.erc` the host refuses to load, one whose
+%% code is zeros, is named from the working directory, as the user named
+%% it, and the host's own report of the refusal is not written. A
+%% regression test: the refusal named it by its absolute path
+cannot_load_named_test() ->
+    Dir = tmp(),
+    Source = write(Dir, "top.ern", "export fn main() : Unit = Io.println(\"top\")\n"),
+    ?assertEqual(0, build_err(["--source-root", Dir, Source])),
+    Erc = filename:join(Dir, "top.erc"),
+    {ok, Beam} = file:read_file(Erc),
+    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+    {ok, Zeroed} = beam_lib:build_module([zeroed_code(Chunk) || Chunk <- Chunks]),
+    ok = file:write_file(Erc, Zeroed),
+    ?assertEqual("ern run: cannot load top.erc: badfile\n1\n",
+                 os:cmd("cd " ++ Dir ++ " && " ++ filename:absname("bin/ern")
+                        ++ " run top.erc 2>&1; echo $?")).
+
+%% A chunk of a compiled module, its code made zeros of its length.
+zeroed_code({"Code", Code}) -> {"Code", binary:copy(<<0>>, byte_size(Code))};
+zeroed_code(Chunk) -> Chunk.
+
+%% A compiled module whose atom chunk is empty: the header, then the
+%% chunk's name and a size of no bytes.
+empty_atoms() ->
+    <<"FOR1", 12:32, "BEAM", "AtU8", 0:32>>.
 
 %% report §11.1: a name that is not UTF-8, of a `.ern` or of a directory
 %% that holds one, is an error; one of another file is passed over. A

@@ -17,15 +17,14 @@ chunk_name() ->
 %% without the chunk.
 -spec read(binary() | file:filename()) -> {ok, tuple()} | {error, string()}.
 read(Beam) ->
-    case beam_lib:chunks(Beam, [binary_to_list(chunk_name())]) of
-        {ok, {_, [{_, Chunk}]}} ->
+    case ern_chunk:read(Beam, chunk_name()) of
+        {ok, Chunk} ->
             %% data alone, since a `.erc` may come from anywhere (ern_chunk)
             case ern_chunk:term(Chunk) of
                 {ok, {docs_v1, _, ernest, _, _, _, _} = Docs} -> {ok, Docs};
                 _ -> {error, "the documentation chunk is of another compiler version"}
             end;
-        %% the host's text of the error quotes the bytes it was given
-        {error, beam_lib, _} ->
+        _ ->
             {error, "the module has no documentation chunk"}
     end.
 

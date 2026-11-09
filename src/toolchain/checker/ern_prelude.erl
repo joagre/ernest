@@ -908,9 +908,9 @@ stdlib_interface(File, Held) ->
                {ok, Bytes} -> Bytes;
                {error, Reason} -> broken(File, file:format_error(Reason))
            end,
-    Chunk = case beam_lib:chunks(Beam, [binary_to_list(ern_interface:chunk_name())]) of
-                {ok, {_, [{_, Found}]}} -> binary:copy(Found);
-                {error, beam_lib, _} -> broken(File, "not a compiled module")
+    Chunk = case ern_chunk:read(Beam, ern_interface:chunk_name()) of
+                {ok, Found} -> binary:copy(Found);
+                _ -> broken(File, "not a compiled module")
             end,
     case Held of
         #{File := {Chunk, _} = Same} ->

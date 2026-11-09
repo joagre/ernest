@@ -36,8 +36,8 @@ encode(Facts, Interface) ->
 %% `ern` wrote in this format (ern_cli).
 -spec read(binary() | file:filename()) -> {ok, chunk()} | {error, string()}.
 read(Beam) ->
-    case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)]) of
-        {ok, {_, [{_, Chunk}]}} ->
+    case ern_chunk:read(Beam, ?CHUNK) of
+        {ok, Chunk} ->
             %% data alone, since a `.erc` may come from anywhere (ern_chunk)
             try ern_chunk:term(Chunk) of
                 {ok, #{format := ?FORMAT,
@@ -49,8 +49,7 @@ read(Beam) ->
             catch _:_ ->
                 {error, "compiled by another build of ern"}
             end;
-        %% the host's text of the error quotes the bytes it was given
-        {error, beam_lib, _} ->
+        _ ->
             {error, "not a compiled module"}
     end.
 

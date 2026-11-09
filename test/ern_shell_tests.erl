@@ -2399,6 +2399,28 @@ load_unreadable_dependency() ->
     ?assertMatch({_, _}, binary:match(Output, <<"dep.erc: not a compiled module">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
+%% report §11.2: a compiled form on the load path whose atom chunk is empty
+%% is no compiled module to the shell: a name of its module is unknown with
+%% no `:load` proposed, and `:load` of a module that uses it refuses it as
+%% it refuses any file that is no module. A regression test: the help and
+%% the load each faulted the shell, which ended with status 70
+load_empty_atoms_dependency_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_empty_atoms_dependency/0).
+
+load_empty_atoms_dependency() ->
+    Dir = scratch("ern_dep_"),
+    ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Empty.f()\n"),
+    ok = file:write_file(filename:join(Dir, "empty.erc"), <<"FOR1", 12:32, "BEAM", "AtU8", 0:32>>),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Empty.f()\n:load Top\n1\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown name Empty.f">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<":load Empty">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"compile Empty first, which Top uses: ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"empty.erc: not a compiled module">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"fault">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
+
 %% report §11.2: `:load` of a module whose dependency does not compile
 %% gives the dependency's diagnostic and says the module is not loaded. A
 %% regression test: it gave the build's advice, "compile Dep first", with

@@ -2340,9 +2340,9 @@ is_form_loadable(Session, Relative) ->
         [File | _] ->
             case file:read_file(File) of
                 {ok, Beam} ->
-                    case beam_lib:md5(Beam) of
-                        {ok, {_, _}} -> true;
-                        {error, beam_lib, _} -> false
+                    case ern_chunk:md5(Beam) of
+                        {ok, _} -> true;
+                        error -> false
                     end;
                 {error, _} ->
                     false

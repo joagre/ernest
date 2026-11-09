@@ -71,6 +71,8 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 5. Item 41 diagnosed and fixed, by an item session, done 2026-11-09.
 6. Items 39 and 40 decided in a design session, and built, done 2026-11-09.
 7. Item 16's build last, done 2026-11-09.
+8. Item 42's fix, by an item session, done 2026-11-09.
+9. Item 43, by an item session.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -302,12 +304,24 @@ reader S reads of its live shell. The release note's line on the installed layou
     the reload's line is a test of its own, and `shell_terminal_gone_test_` takes that line
     before the shell's last or after it.
 
-42. **A truncated compiled module**, found 2026-11-09 by item 40's reader, for an item session
-    (§11; the log's *Where the Host's Warnings Go*). A `.erc` cut short inside its chunks, `FOR1`,
-    a length and an empty chunk, ends `ern run` with an internal error and status 70, where §11
-    refuses it as `x.erc is not a compiled module`: `ern_cli:compiled/1` takes `beam_lib`'s
-    error and not its raise. The fix takes the raise too, with a regression test on such a
-    file, before MVP 4.15's release.
+42. **A compiled module whose atoms the host cannot read**, done 2026-11-09 (§11, §11.1, §11.2,
+    §11.5; the log's *A Compiled Module the Host Cannot Read*). A `.erc` whose atom chunk is
+    empty, as item 40's reader made one, is no compiled module to every job, as junk is: §11's
+    refusal where a job is given it, compiled again where a build finds it as a module's own,
+    and refused where it stands for a dependency. A run names a file it refuses from the
+    working directory, as §11.5 names one, and writes nothing of the emulator's report of a
+    module it could not load, as §11 says. The host's reader raised, `docs/otp_bugs.md`'s 18,
+    whose filing is the user's.
+43. **A compiled module the host cannot load**, found 2026-11-09 by item 42's read-back, for an
+    item session before MVP 4.15's release (§11, §11.2; the log's *A Compiled Module the Host
+    Cannot Read*). A `.erc` whose code chunk is missing, or holds no code, is refused by
+    `ern run` and `ern test` as `cannot load x.erc: badfile`, in the host's word, and
+    `ern doc` writes its page, where §11 refuses a `.erc` that is no compiled module as
+    `x.erc is not a compiled module`. The fix answers the load's `badfile` with §11's refusal,
+    at the one site where the host loads the file. The item decides whether `ern doc`, which
+    loads nothing, refuses such a file too, or §11 says that a page is read from the chunks it
+    needs; recommended the second, since a page needs no code and only a load would find code
+    that is not code.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

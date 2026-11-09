@@ -1455,9 +1455,9 @@ error_line(Line) ->
 %% host compiled from another language holds no interface, and is none.
 compiled(File) ->
     Beam = ern_build:read(File),
-    case beam_lib:chunks(Beam, [binary_to_list(ern_interface:chunk_name())]) of
-        {error, beam_lib, _} -> ern_build:fail(File ++ " is not a compiled module");
-        {ok, _} -> Beam
+    case ern_chunk:read(Beam, ern_interface:chunk_name()) of
+        {ok, _} -> Beam;
+        _ -> ern_build:fail(File ++ " is not a compiled module")
     end.
 
 %% Report §11.2: a file given to run that is no `.erc`, and a module's
@@ -1584,8 +1584,9 @@ quiet_signals() ->
 %% socket's processes over TLS and a node's handshake among them: the
 %% operation answers, and the node says a connection it refused
 %% (ern_tls_dist). Report §12, §11.2: so is its loader's report of a file
-%% it could not read, a module's at the limit of open files among them: the
-%% load's caller answers or faults.
+%% it could not read, a module's at the limit of open files among them, and
+%% the emulator's of a module it could not load: the load's caller answers
+%% or faults, as a run says `cannot load`.
 %%
 %% Report §12.5, §11.8: the host's process of a node's connections, ended
 %% by a spawn beyond the limit as the node dials, ends the host after it,
@@ -1616,6 +1617,9 @@ limit_filter(#{msg := {"Error in process " ++ _, [_ | Args]},
         _ -> ignore
     end;
 limit_filter(#{msg := {report, #{label := {erl_prim_loader, file_error}}}}, _) ->
+    stop;
+limit_filter(#{msg := {"~s~n", ["beam/beam_load.c(" ++ _]},
+               meta := #{error_logger := #{emulator := true}}}, _) ->
     stop;
 limit_filter(_Event, _) ->
     ignore.
@@ -2121,7 +2125,8 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) 
 loaded_unit(ErlangModule, File, Beam, Chunk) ->
     case ern_code:load(ErlangModule, File, Beam, Chunk) of
         ok -> ok;
-        {error, Error} -> ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(Error))
+        {error, Error} -> ern_build:fail("cannot load " ++ ern_build:shown(File) ++ ": "
+                                              ++ atom_to_list(Error))
     end.
 
 %% Report §11.1, §4.1: a module whose load waits on its own load uses
@@ -2239,7 +2244,7 @@ held_chunk(Namespace, File, Beam) ->
         {ok, #{interface := #interface{namespace = Held}}} ->
             ern_build:fail(ern_build:held_another(File, Held, Namespace, rebuild));
         {error, Error} ->
-            ern_build:fail(File ++ ": " ++ Error)
+            ern_build:fail(ern_build:shown(File) ++ ": " ++ Error)
     end.
 
 %% Report §11.2, §11.1: a compiled form another build of `ern` wrote,

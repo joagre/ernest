@@ -65,3 +65,29 @@ compressed_bound_test() ->
     <<131, Inner/binary>> = term_to_binary(lists:duplicate(1000, 0), [compressed]),
     Nested = zlib:compress(Inner),
     ?assertEqual(error, ern_chunk:term(<<131, 80, (byte_size(Inner)):32, Nested/binary>>)).
+
+%% report §11: a compiled module whose atoms the host cannot read, its atom
+%% chunk empty, a name in it not UTF-8, or a name running past the chunk, is
+%% no compiled module to a chunk's read and to the host's digest alike, as
+%% bytes that are no module are; a module's chunk is read, and a chunk it
+%% does not hold is missing. A regression test: the host's reader raised
+%% and its digest answered the raise as a value (docs/otp_bugs.md, 18)
+unreadable_atoms_test() ->
+    lists:foreach(fun(Atoms) ->
+                      Module = module(Atoms),
+                      ?assertEqual({Atoms, error}, {Atoms, ern_chunk:read(Module, <<"ErnI">>)}),
+                      ?assertEqual({Atoms, error}, {Atoms, ern_chunk:md5(Module)})
+                  end, [<<>>, <<1:32, 1, 16#FF>>, <<-1:32/signed, 16#50, "ab">>]),
+    ?assertEqual(error, ern_chunk:read(<<"not a module">>, <<"ErnI">>)),
+    ?assertEqual(error, ern_chunk:md5(<<"not a module">>)),
+    {ok, Host} = file:read_file(code:which(lists)),
+    ?assertMatch({ok, <<_:32/signed, _/binary>>}, ern_chunk:read(Host, <<"AtU8">>)),
+    ?assertEqual(missing, ern_chunk:read(Host, <<"ErnI">>)),
+    ?assertEqual({ok, lists:module_info(md5)}, ern_chunk:md5(Host)).
+
+%% A compiled module of one chunk, the atoms Atoms, padded as the host pads
+%% a chunk.
+module(Atoms) ->
+    Padding = (4 - byte_size(Atoms) rem 4) rem 4,
+    Chunk = <<"AtU8", (byte_size(Atoms)):32, Atoms/binary, 0:(8 * Padding)>>,
+    <<"FOR1", (4 + byte_size(Chunk)):32, "BEAM", Chunk/binary>>.
