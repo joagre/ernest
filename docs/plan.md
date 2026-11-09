@@ -48,19 +48,19 @@ What building and deploying ernest-httpd showed of Ernest, decided 2026-11-02 (t
 the Server Taught*), built after the site's generator (the log's *The Generator Before MVP
 4.15*). The items stand in build order, set 2026-11-03, each group done with one look at its
 area: the runtime, the standard library's readings, the libraries, the nodes, and relative
-names last, since they sweep every site of Ernest once. The ten decisions for the user, in
-items 8, 9, 13, 15, 16, 21, 28, 30, 32 and 35, are discussed early, so that no build waits on
-them.
+names last, since they sweep every site of Ernest once. The eleven decisions for the user, in
+items 8, 9, 13, 15, 16, 21, 28, 30, 32, 35 and 36, are discussed early, so that no build waits
+on them.
 
 The items left are built in this order, set 2026-11-08 and read again the same day (the log's
 *The Items Left Read Again*):
 
 1. Item 34, by an item session, items 17, 20, 22, 26, 31 and 33 done.
 2. One design session for what no test checks: item 21's decision, item 30's, item 32's, item
-   35's, item 19's question whether a hangup is told from a read that fails, item 29's sentence
+   36's, item 19's question whether a hangup is told from a read that fails, item 29's sentence
    of §10, and item 16's proposal with its cold reading.
-3. Items 19, 29, 30, 32 and 35, each a report sentence and its build, and item 21's build where
-   its decision builds one.
+3. Items 19, 29, 30, 32, 35 and 36, each a report sentence and its build, and item 21's build
+   where its decision builds one.
 4. Item 16's build last.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -260,12 +260,13 @@ reader S reads of its live shell. The release note's line on the installed layou
     crash dump written (`docs/otp_bugs.md`, 12). §12.5 has such a connection closed as it
     opens, and said.
 
-    The recommendation, by principle 1: the node loads at its start the host's `net_kernel`
-    with that spawn and the dial's own caught, as its `do_spawn/3` already catches a spawn, so
-    that the dial fails as a refused one does; a module borrowed for each major release of OTP,
-    the floor's, until OTP takes the fix. Its alternative, by principle 5, is §12.5 stating that
-    such a dial ends the node, with a line of its own and no crash dump. No count of the table
-    before a dial is sound, since the host's own processes fill it beside the program's.
+    The recommendation, turned on 2026-11-09 (the log's *Lean at the Limits*), by principle 5:
+    §12.5 states that such a dial ends the node, with a line of its own and no crash dump, and
+    `docs/otp_bugs.md`'s 12 is filed. Its alternative, by principle 1, is the node's own
+    `net_kernel`, loaded at its start with that spawn and the dial's own caught, as its
+    `do_spawn/3` already catches a spawn, a module borrowed for each major release of OTP until
+    OTP takes the fix. No count of the table before a dial is sound, since the host's own
+    processes fill it beside the program's.
 33. **A program's TLS at a full table**, done 2026-11-09 (§7.4, §12.5, E.18; the log's *A
     Program's TLS at a Full Table*). A `connectTls`, an `accept` over TLS and a `listenTls`
     whose processes the host's TLS cannot start fault their caller with `error:system_limit`,
@@ -275,19 +276,26 @@ reader S reads of its live shell. The release note's line on the installed layou
     `make test-nodes` passed whole after it, under the same load. `has/2` names neither the part
     nor the text, so it says what it missed first; the cause is then found under the load of
     `make test-nodes`.
-35. **The first request over TLS at a full table**, a decision for the user, found 2026-11-09
-    by item 33, decided and built by 2026-11-12. A run's first `listenTls` or `connectTls`
-    starts the host's TLS (E.18), and at a full table of processes the host's start ends the
-    run, never answers, or ends the host's logger (`docs/otp_bugs.md`, 17), where E.18 has it
-    answer `Left(Other(text))`.
+35. **The first request over TLS at a full table**, found 2026-11-09 by item 33, decided the
+    same day (the log's *Lean at the Limits*), built by 2026-11-12. A run's first `listenTls` or
+    `connectTls` starts the host's TLS (E.18), and at a full table of processes the host's start
+    ends the run, never answers, or ends the host's logger (`docs/otp_bugs.md`, 17), where E.18
+    has it answer `Left(Other(text))`. E.18 states that such a start may end the run, or never
+    answer and hold every later `Tcp` request, and `docs/otp_bugs.md`'s 17 is filed. The host's
+    TLS started at each run's start was weighed and refused.
+36. **What a run holds for a limit, read again**, a decision for the user, raised 2026-11-09 by
+    item 35, decided and built by 2026-11-12. Item 20 has every run load at its start its run
+    side's Erlang with every host module their import tables name, about 19 ms and 0.9 MB of
+    code more than before, and a run's first request over TLS load TLS whole, about 100 ms and
+    6 MB, half of which a handshake never loads. Item 18 makes each socket's closer with it, a
+    process and 2.6 KB a socket.
 
-    The recommendation, by principle 1: the runtime starts the host's TLS at each run's start,
-    before the table can fill, as item 1 had what the end uses exist from the start (the log's
-    *A Node's Limits*), its code still loaded whole at the first request (§12). It costs a bare
-    run about 10 ms, a node about 5 ms, and 22 processes. Its alternative, by principle 5, is
-    E.18 stating that such a request may end the run, which cannot state the start that never
-    answers. No count of the table before the start is sound (the log's *A Program's TLS at a
-    Full Table*).
+    The recommendation, by principle 1 as item 35 reads it: what the end uses, a fault's report
+    and a refusal's answer among it, exists from the start, and any other request at a limit
+    fails as §8.4 and §12.5 say. So a run loads at its start the import tables' closure of its
+    end's modules alone, TLS loads as the host loads it, and the closer is weighed by its memory
+    against a close that loses what it owes at a full table. Each is measured in time and in
+    memory, a bare run's and a node's (the log's *Lean at the Limits*).
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
