@@ -117,12 +117,16 @@ on a path the rehearsal has walked.
    `docs/clean_room.md` says: a client script served at `/shell/client.js`, the limits the server
    enforces, a client that is never stale, and its own test. The server's part goes into the
    release its item 5 makes for the launch, and its rehearsal of the switch (MVP 4.4's item 6)
-   serves the client on scratch ports, so that the switch walks the client's path.
+   serves the client on scratch ports, so that the switch walks the client's path. The server's
+   proposal for its client, read by each session against the other's on 2026-11-10, holds the
+   interface as the proposal's decision 7 states it (the log's *The Client's Interface Agreed*),
+   and waits on the user's word that it is ready; nothing of it stands in the server's design
+   until then, and item 2 begins after that word and after MVP 4.16.
 2. **Ernest's side**, built against the rehearsal's server once it serves the client. `site.js`'s
-   session calls the client. The generator takes no configuration, and `make site` the tag alone.
+   session imports the client, an ES module, on demand. The generator takes no configuration, and `make site` the tag alone.
    The shell's page takes its numbers from the client's limits and names no memory. The browser
-   test serves a stub client. `docs/design/site.md` changes in five sections, with the sweep the
-   proposal lists. It goes live with the launch's switch, and closes on `make test`, the site's
+   test serves a stub client that speaks the agreed interface. `docs/design/site.md` changes in five sections, citing the server's
+   design's *The client* for the interface, with the sweep the proposal lists. It goes live with the launch's switch, and closes on `make test`, the site's
    targets and `make test-browser`.
 
 ---

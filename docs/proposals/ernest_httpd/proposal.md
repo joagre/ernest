@@ -34,16 +34,16 @@ Four things, each the server's to design and to state in its own design. The ser
 
 1. **A client.** A script the server ships and serves on the site's own host, at the path the site names for it, `/shell/client.js`, which the operator writes into the server's configuration. It holds no element of a page and no terminal.
 
-   It opens the socket and speaks the messages. It offers a session by what it means: start with a size, keys, a resize, extend, stop. It tells output, the session attached and whether this browser joined it, the warning with its seconds, and each end by its name: expired, taken over, unavailable, stopped, or lost, which is every other close. A stop asked for before the session is attached is the client's to order.
+   It opens the socket and speaks the messages. It offers a session by what it means: start with a size, keys, a resize, extend, stop. It tells output, the session attached and whether this browser joined it, the warning with the milliseconds left, and each end by its name: expired, taken over, unavailable, stopped, or lost, which is every other close. A stop asked for before the session is attached is the client's to order.
 2. **The limits.** The client answers the limits the server enforces, without a session: the lifetime without a key, the warning before the end, the most sessions at once, and the starts an address may make and their window.
 3. **Never stale.** A page loaded whole runs the client of the server it talks to, and never one a browser kept from the server before it.
 4. **Its own test.** The client against a server the test starts itself, on the machine it runs on, in the server's repository.
 
-The client's interface is then the one thing the two share, stated in the server's design and cited from the site's design note by its address.
+The client's interface is then the one thing the two share, stated in the server's design, its section *The client*, and cited from the site's design note by that address. Decision 7 states it as agreed.
 
 ## What changes in Ernest
 
-**`site.js`.** The session's part calls the client, which it loads from `/shell/client.js`, a path it names once. It names no WebSocket, no message and no close code. The seven states stay, and the page words each: connecting from the page's start of a session, running from the client's word that it is attached, and the five ends the client names. A terminal or a client that does not load is *disconnected*, as a lost connection is.
+**`site.js`.** The session's part imports the client, an ES module, from `/shell/client.js`, a path it names once, when a session is first started; the shell's page imports it at its load, for its numbers. A page the panel's navigation keeps is one document, so the client is fetched once for it. It names no WebSocket, no message and no close code. The seven states stay, and the page words each: connecting from the page's start of a session, running from the client's word that it is attached, and the five ends the client names. A terminal or a client that does not load is *disconnected*, as a lost connection is.
 
 **The generator.** `tools/site.ern` takes no configuration and nothing in its place: `site root out version tag`. `Shell`, `shellRead`, `member`, `integer`, `memoryOf`, `megabytes` and the use of `Json` go, and `spoken` goes to the script. `data-shell-path` and `data-lifetime` go from the script's element, with `base.html`'s two tokens and `Site.Run.Run`'s two fields for them.
 
@@ -51,7 +51,7 @@ The client's interface is then the one thing the two share, stated in the server
 
 **`make site`.** `CONFIG` goes, and `make site` takes the tag alone. `libs/json` leaves what the generator's build needs.
 
-**The browser test.** The fixture serves a stub client at `/shell/client.js`, a script with the client's interface whose states the test sets. The stub socket goes, with the front port that parted the shell's path from the pages and the frames' codec. The test still holds the panel, the paste, the states and the navigation in a browser, and it now holds the shell page's numbers.
+**The browser test.** The fixture serves a stub client at `/shell/client.js`, a module with the client's interface whose states the test sets. The stub socket goes, with the front port that parted the shell's path from the pages and the frames' codec. The test still holds the panel, the paste, the states and the navigation in a browser, and it now holds the shell page's numbers.
 
 **The design note.** `docs/design/site.md` changes in five sections.
 
@@ -118,6 +118,7 @@ Decided with the user on 2026-11-09, each with what decided it.
 4. **After the launch**, as *The order* says. Before it, the switch would bring a client, a new response and a new script on a path the rehearsal did not walk, in the weeks that hold the server's reset under load, its floor's rise, its review and its release. The server's log argues the rehearsal on principle 1.
 5. **The client's path is the site's.** The addresses a page names are the site's, *The root*'s, so the site names `/shell/client.js` once and the operator writes it into the server's configuration. A path the generator was given would build a site for one path, and the third line of *What it buys* would not hold.
 6. **A container's memory is no limit of the server's.** The server enforces no memory: its command does, and its design keeps the command a program's words and knows no container. A client that answered the memory would have the server read its own command's flag, which is what the generator does today, moved. So the number leaves the page, and the ask names five limits.
+7. **The interface, agreed with the server's session on 2026-11-10** (the log's *The Client's Interface Agreed*), read by each session against the other's proposal on the user's word, and stated in the server's proposal until its design's *The client* owns it. The client is an ES module with named exports and nothing on `window`: `limits`, the five in the configuration's units, milliseconds and counts, written by the server at the module's head; and `start(rows, columns, told)`, which answers a session with `keys`, `resize`, `extend` and `stop`, and tells the page by `told`'s four functions, `output`, `attached` with whether this browser joined, `warning` with the milliseconds left, and `ended` once with `expired`, `takenOver`, `unavailable`, `stopped` or `lost`. Keys and output are bytes. A size outside 1 to 65535, or a `told` whose four are not each a function, faults at the call. `site.js` imports it on demand, so that a page fetches it only for a session or for the shell page's numbers, one fetch per document under `no-store`, and the stub speaks the same names.
 
 ## What it meets
 
