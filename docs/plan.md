@@ -74,7 +74,8 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 8. Item 42's fix, by an item session, done 2026-11-09.
 9. Item 43, by an item session, done 2026-11-10.
 10. Item 44, by an item session, done 2026-11-10.
-11. Item 45, by an item session.
+11. Item 45, by an item session, done 2026-11-10.
+12. Item 46, by an item session.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -330,13 +331,20 @@ reader S reads of its live shell. The release note's line on the installed layou
     *Lean at the Limits*, and no check measures a load first, since only the atoms are counted
     cheaply. The atoms' end is OTP's documented one; the other three limits, which OTP's system
     limits page names nowhere, are `docs/otp_bugs.md`'s 19, whose filing is the user's.
-45. **A flake of `os_signal_after_an_unread_exit_test`**, found 2026-11-10 by item 43's
-    `make test-full`, for an item session before MVP 4.15's release (E.23; the log's *A Compiled
-    Module the Host Cannot Load*). Seen once in two full runs, `Right(Unit)` where E.23 answers
-    `Closed` to a signal to a program that has exited though no read has taken its exit. The
-    cause is not found, and the item diagnoses it under `make test-full`'s load. A window to
-    read first: the host's kernel closes an exiting process's files before the process can be
-    reaped, so the child may say `gone` before the helper can learn of the shell's exit.
+45. **A flake of `os_signal_after_an_unread_exit_test`**, done 2026-11-10 (E.23; the log's *The
+    Flake of `os_signal_after_an_unread_exit_test`*). The host closes an exiting program's files
+    before it reports the exit, so the shell's child said `gone` while the signal still went to
+    the exiting shell, answered `Right(Unit)`. The runtime did what E.23 says, and the test now
+    sends the signal until it answers `Closed`. Decided: the report states no order of the
+    host's, since Ernest departs from none (principle 1).
+46. **A write and a resize after an exit no read has taken**, found 2026-11-10 by item 45's
+    probe, for an item session before MVP 4.15's release (E.23; the log's *The Flake of
+    `os_signal_after_an_unread_exit_test`*). Where a process the program started holds the
+    program's input open, a write once the program has exited answers `Right(Unit)`, its bytes
+    taken by the pipe; where one holds its terminal, a resize does too. E.23 answers
+    `Left(Closed)` to both, as it does a signal. The shape of the fix: the helper learns of the
+    exit when the host reports it, whatever the outputs, and drops the input then, and a resize
+    is answered by the helper, as a signal is.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

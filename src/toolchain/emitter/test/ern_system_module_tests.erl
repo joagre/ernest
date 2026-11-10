@@ -515,9 +515,11 @@ os_signal_to_the_program_alone_test() ->
                  Output).
 
 %% Appendix E.23: a signal to a program that has exited answers Closed
-%% though no read has yet taken its exit: the shell has exited once its
-%% child reads the end of the pipe the shell held, and the child holds the
-%% output open, so no exit status has come
+%% though no read has yet taken its exit, which no read asks for here. The
+%% child says `gone` on reading the end of the pipe the shell held, which
+%% the host closes as the shell exits but before it reports the exit, so
+%% the signal is sent until it answers Closed: each one sent before reaches
+%% a shell that takes no signal any longer, as its status of 0 shows
 os_signal_after_an_unread_exit_test() ->
     Dir = ern_emitter_tests:scratch(),
     Fifo = filename:join(Dir, "fifo"),
@@ -528,13 +530,18 @@ os_signal_after_an_unread_exit_test() ->
          "        Right(Os.Stdout(b)) -> gone(p, text <> String.fromUtf8Lossy(b))\n"
          "      | other -> text <> Io.show(other)\n"
          "    }\n"
+         "fn closed(p : Address(Os.ProgramMsg)) : Either(Io.Error, Unit) =\n"
+         "    match Os.signal(p, Os.Interrupt) {\n"
+         "        Right(_) -> closed(p)\n"
+         "      | other -> other\n"
+         "    }\n"
          "export fn main() : Unit =\n"
          "    match Os.start(command(\"sh\",\n"
          "        [\"-c\", \"mkfifo $0; (read line < $0; echo gone) &\"\n"
          "        <> \" exec 4> $0; echo started\", \"", Fifo, "\"])) {\n"
          "        Right(p) -> {\n"
          "            let text = gone(p, \"\");\n"
-         "            let sent = Os.signal(p, Os.Interrupt);\n"
+         "            let sent = closed(p);\n"
          "            Io.println(Io.show(sent) <> \" \" <> rest(p, text))\n"
          "        }\n"
          "      | Left(e) -> Io.println(Io.show(e))\n"
