@@ -2106,6 +2106,10 @@ load_past_atoms() ->
                          [["export fn d", integer_to_list(N), "() : Int = ", integer_to_list(N),
                            "\n"] || N <- lists:seq(1, 500)]),
     0 = build("--source-root " ++ Dir ++ "/big " ++ Dir ++ "/big/big.ern"),
+    %% the test's premise, that Big's code names its functions by their places
+    {ok, Big} = file:read_file(Dir ++ "/big/big.erc"),
+    {ok, {_, [{atoms, Atoms}]}} = beam_lib:chunks(Big, [atoms]),
+    ?assert(lists:keymember('$500', 2, Atoms)),
     ok = file:write_file(Dir ++ "/past.ern",
                          "foreign fn host(item : Foreign.Term) : Int = \"erlang:system_info/1\"\n"
                          "fn fill(prefix : String, from : Int, to : Int) : Unit =\n"
