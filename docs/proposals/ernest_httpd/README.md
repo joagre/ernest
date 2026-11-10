@@ -1,6 +1,6 @@
 # ernest-httpd: the server owns both ends of its socket
 
-What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6, after the launch. Nothing in it is authoritative.
+What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6, before the launch since 2026-11-10. Nothing in it is authoritative.
 
 | File | What it is | Status |
 |---|---|---|

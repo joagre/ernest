@@ -24,11 +24,11 @@ library or the libraries is driven by a need met in use and recorded as
 `docs/language_feedback.md` records one.
 
 MVP 4.16 comes next, a deadlock's scope and its report, packages and the flake hunt, before the
-launch (the log's *MVP 4.16, the Proposals Before the
+launch (the log's *MVP 4.16, the Proposals Before the Launch*). Then MVP 4.6, the server owning
+both ends of its socket, moved before the launch on 2026-11-10 (the log's *MVP 4.6 Before the
 Launch*). Then MVP 4.4, the cost, the full review and the launch's release, where the road ends
 and a program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round,
-follows the launch (the log's *MVP 4.3 Becomes MVP 4.5*), and MVP 4.6 after it, the server
-owning both ends of its socket.
+follows the launch (the log's *MVP 4.3 Becomes MVP 4.5*).
 
 Ernest stays at 0.x until someone outside the project depends on it, as MVP 4.4's opening
 says.
@@ -101,6 +101,31 @@ The other seven are the packages proposal's build order,
     as it opens, as `docs/clean_room.md`'s *The reading here* says. A verdict that builds becomes
     an item of this milestone or of MVP 4.4, before the launch's review, and one that does not
     goes to the log, its line leaving the feedback file.
+
+## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
+
+Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*), the
+proposal [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md), and moved before the
+launch on 2026-11-10, once the server's reset under load was fixed and the three floors stood at
+0.10 (the log's *MVP 4.6 Before the Launch*). The site's script speaks the server's wire, its
+generator reads the server's configuration and its browser test stubs the server's socket. Each
+goes, for a client the server ships. The order keeps the proposal's: the server's part first,
+which adds and takes nothing away, and no day but the launch's switch changes both repositories,
+on a path the rehearsal has walked.
+
+1. **The ask**, sent to ernest-httpd's session by a message on 2026-11-10, as
+   `docs/clean_room.md` says: a client script served at `/shell/client.js`, the limits the server
+   enforces, a client that is never stale, and its own test. The server's part goes into the
+   release its item 5 makes for the launch, and its rehearsal of the switch (MVP 4.4's item 6)
+   serves the client on scratch ports, so that the switch walks the client's path.
+2. **Ernest's side**, built against the rehearsal's server once it serves the client. `site.js`'s
+   session calls the client. The generator takes no configuration, and `make site` the tag alone.
+   The shell's page takes its numbers from the client's limits and names no memory. The browser
+   test serves a stub client. `docs/design/site.md` changes in five sections, with the sweep the
+   proposal lists. It goes live with the launch's switch, and closes on `make test`, the site's
+   targets and `make test-browser`.
+
+---
 
 ## MVP 4.4 (the cost, the full review and the launch's release), about three weeks
 
@@ -206,7 +231,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    *The Site's Proposal Read*); `docs/design/site.md`'s *The root* lists them then.
 
    ernest-httpd rehearses the switch on the machine,
-   under a second unit on scratch ports, with Ernest 0.10.0's archive, so that the
+   under a second unit on scratch ports, with Ernest 0.10.0's archive and, once its part of MVP
+   4.6 serves the client, with the client, so that the
    switch at the launch swaps one archive for another on a path already walked; then, with its
    release of item 5 made, it switches once, the machine serving its one page meanwhile. Its
    container, two nodes capped at 128 processes, 128 MiB and one core, was built 2026-11-04
@@ -227,26 +253,6 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    Erlang's `recon_trace` has one; the runtime has no tracing hook today, so the design decides
    how a function of a unit is traced by its position and what the bound is. Built after MVP 4.0,
    on the node.
-
----
-
-## MVP 4.6 (the server owns both ends of its socket), a few days, after the launch
-
-Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*), the
-proposal [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md). The site's script speaks
-the server's wire, its generator reads the server's configuration and its browser test stubs the
-server's socket. Each goes, for a client the server ships.
-
-1. **The ask**, sent to ernest-httpd's session by a message on the user's word, as
-   `docs/clean_room.md` says: a client script served at `/shell/client.js`, the limits the server
-   enforces, a client that is never stale, and its own test. The server's part adds and takes
-   nothing away, so the site that went live at the launch is served on.
-2. **Ernest's side**, once a release of the server's serves the client on the machine. `site.js`'s
-   session calls the client. The generator takes no configuration, and `make site` the tag alone.
-   The shell's page takes its numbers from the client's limits and names no memory. The browser
-   test serves a stub client. `docs/design/site.md` changes in five sections, with the sweep the
-   proposal lists. It goes live with the site of the release that follows, and closes on
-   `make test`, the site's targets and `make test-browser`.
 
 ---
 

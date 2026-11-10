@@ -1,6 +1,6 @@
 # The server owns both ends of its socket
 
-Decided with the user on 2026-11-09 and planned as MVP 4.6, after the launch. Nothing here is authoritative. It states Ernest's side and what Ernest asks of ernest-httpd. The server's side is its own sessions' to design ([`docs/clean_room.md`](../../clean_room.md)).
+Decided with the user on 2026-11-09 and planned as MVP 4.6, after the launch, and moved before it on 2026-11-10 (the log's *MVP 4.6 Before the Launch*). Nothing here is authoritative. It states Ernest's side and what Ernest asks of ernest-httpd. The server's side is its own sessions' to design ([`docs/clean_room.md`](../../clean_room.md)).
 
 The server's design is https://github.com/joagre/ernest-httpd/blob/main/docs/design.md, cited below as the server's design. It is read from here and never written.
 
@@ -67,13 +67,13 @@ The client's interface is then the one thing the two share, stated in the server
 
 ## The order
 
-It is built after the launch, the server's part first.
+It is built before the launch, the server's part first.
 
-1. The launch stands as planned. Its site is built with `CONFIG`, and the server's rehearsal and switch walk the path they have.
-2. The ask goes to the server's session by a message, on the user's word. The server's part adds and takes nothing away: a server that serves the client and answers the limits still speaks the wire to the site that went live.
-3. Once a release of the server's serves the client on the machine, Ernest's side is built, and goes live with the site of the release that follows.
+1. The ask goes to the server's session by a message, on the user's word. The server's part adds and takes nothing away: a server that serves the client and answers the limits still speaks the wire to the site as it stands, so it goes into the release the server makes for the launch, and the server's rehearsal of the switch serves the client on scratch ports.
+2. Ernest's side is built against the rehearsal's server once it serves the client, and goes live with the launch's switch.
+3. The switch is the one day both repositories change, on the path the rehearsal walked.
 
-No day needs both repositories to change. The wire is then the server's alone, to keep or to change.
+The wire is then the server's alone, to keep or to change.
 
 ## What it buys
 
