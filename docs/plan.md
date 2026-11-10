@@ -171,11 +171,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    Ernest's session names the minor, the archive's path and its commit to all three by a message,
    and asks for the reviews, on the user's word.
 
-   The template's rise, which its session makes when told the item is reached, is four changes,
-   found under 0.10.0 on 2026-11-10: `Os.command("git", ["ls-files", pattern])` at `tools/docs.ern`'s
-   `Os.run`, `ERN_VERSION` in its Makefile, the `ern` version under its README's *Building*, and
-   a dated entry in its TEMPLATE_LOG.md; the rules of relative names, `kill` and the pipe touch
-   nothing in it.
+   The template rose to floor 0.10 on 2026-11-10, before this item, on the user's word, by its
+   own session: `Os.command("git", ["ls-files", pattern])` at `tools/docs.ern`'s `Os.run`,
+   `ERN_VERSION` in its Makefile, the `ern` version under its README's *Building*, and a dated
+   entry in its TEMPLATE_LOG.md, the other rules of 0.10.0 touching nothing in it; ernest-httpd
+   takes the file from that tag, and ernest-epx stays at 0.9 until this item (the log's *The
+   Release Review Before 0.10.0*, its last paragraph).
 5. **The launch's release**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
