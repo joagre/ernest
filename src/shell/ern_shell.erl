@@ -2305,7 +2305,7 @@ load_suffix(Session, Text) ->
 
 load_help(Session, Segments) ->
     Modules = [lists:sublist(Segments, Length) || Length <- lists:seq(length(Segments), 1, -1)],
-    case lists:search(fun(Module) -> is_loadable(Session, Module) end, Modules) of
+    case lists:search(fun(Module) -> is_unloaded_module(Session, Module) end, Modules) of
         {value, Module} ->
             Name = lists:join(".", Module),
             case kept({refused, unicode:characters_to_binary(Name)}, none) of
@@ -2318,9 +2318,11 @@ load_help(Session, Segments) ->
 
 %% Whether a module of these segments is not loaded and could be: its
 %% source under the source root, or its compiled form on the load path,
-%% the first there, which a load makes a unit of its own where the host
-%% holds another unit of its name (compiled_unit/3).
-is_loadable(#session{source_root = SourceRoot, interfaces = Interfaces} = Session, Segments) ->
+%% the first there, a compiled module whose code the host will load (§11),
+%% which a load makes a unit of its own where the host holds another unit
+%% of its name (compiled_unit/3).
+is_unloaded_module(#session{source_root = SourceRoot, interfaces = Interfaces} = Session,
+                   Segments) ->
     Name = lists:flatten(lists:join(".", Segments)),
     Loaded = [ern_namespace:text(Namespace)
               || #interface{namespace = Namespace} <- Interfaces
@@ -2340,9 +2342,11 @@ is_form_loadable(Session, Relative) ->
         [File | _] ->
             case file:read_file(File) of
                 {ok, Beam} ->
-                    case ern_chunk:md5(Beam) of
-                        {ok, _} -> true;
-                        error -> false
+                    case ern_interface:read(Beam) of
+                        {ok, #{interface := #interface{namespace = Held}}} ->
+                            ern_chunk:is_loadable(ern_namespace:erlang_module(Held), Beam);
+                        {error, _} ->
+                            false
                     end;
                 {error, _} ->
                     false
@@ -3853,8 +3857,9 @@ first_qualified([{Root, Erc} | Candidates], Module, Digest, Against) ->
 %% interfaces and the standard library of Against, by the build of `ern`
 %% it holds, as the build's own recompile rule compares them (§11.1), so
 %% that a form another build of `ern` wrote keeps no defect this one has
-%% fixed. A file that cannot be read is none, and the module is compiled
-%% from its source.
+%% fixed; and code the host will load as the module's unit, as the build's
+%% rule asks it too (§11). A file that cannot be read is none, and the
+%% module is compiled from its source.
 qualified_form(Root, Erc, Module, Digest, Against) ->
     case file:read_file(Erc) of
         {ok, Beam} -> compiled_against(Root, Erc, Beam, Module, Digest, Against);
@@ -3871,7 +3876,8 @@ compiled_against(Root, Erc, Beam,
             Source = filename:join(Root, unicode:characters_to_list(SourcePath)),
             case ern_build:absolute(Source) =:= ern_build:absolute(File)
                 andalso ern_build:is_compiled_against(Chunk, DependencyHashes,
-                                                      DependencyInterfaces, StdlibHash) of
+                                                      DependencyInterfaces, StdlibHash)
+                andalso ern_chunk:is_loadable(ern_namespace:erlang_module(Namespace), Beam) of
                 true -> {ok, Erc, Beam, Digest};
                 false -> none
             end;
@@ -4509,9 +4515,10 @@ source_of(#session{source_root = SourceRoot} = Session, Namespace) ->
 
 %% Report §11.2, §11.8: a module's compiled form on the load path, or
 %% none; one that cannot be read is refused with the file and the host's
-%% reason, as the build refuses a file it cannot read, and one that holds
-%% another module as `ern run` refuses it, the file named from the working
-%% directory (§11.5).
+%% reason, as the build refuses a file it cannot read, one that holds
+%% another module as `ern run` refuses it, and one whose code the host
+%% will not load as `ern run` refuses a dependency so (§11), the file
+%% named from the working directory (§11.5).
 compiled_of(Session, Namespace) ->
     Relative = ern_namespace:module_path(Namespace) ++ ".erc",
     case [Candidate || Dir <- load_path(Session), Candidate <- [filename:join(Dir, Relative)],
@@ -4522,7 +4529,15 @@ compiled_of(Session, Namespace) ->
                     case ern_interface:read(Beam) of
                         {ok, #{interface := #interface{namespace = Namespace},
                                source_hash := Hash}} ->
-                            {ok, File, Beam, Hash};
+                            case ern_chunk:is_loadable(ern_namespace:erlang_module(Namespace),
+                                                       Beam) of
+                                true ->
+                                    {ok, File, Beam, Hash};
+                                false ->
+                                    {error, unicode:characters_to_binary(
+                                              [ern_build:shown(File),
+                                               ": not a compiled module"])}
+                            end;
                         {ok, #{interface := #interface{namespace = Held}}} ->
                             {error, unicode:characters_to_binary(
                                       ern_build:held_another(File, Held, Namespace, rebuild))};

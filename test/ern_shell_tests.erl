@@ -2421,6 +2421,40 @@ load_empty_atoms_dependency() ->
     ?assertEqual(nomatch, binary:match(Output, <<"fault">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
+%% report §11, §11.2: a compiled form whose code the host will not load,
+%% its code chunk gone, is no compiled module to the shell: beside its
+%% source, `:load` compiles the source; with none, a name of its module is
+%% unknown with no `:load` proposed, and `:load` refuses it by its file,
+%% the session going on. A regression test: each `:load` faulted the
+%% shell, which ended with status 70
+load_code_not_loadable_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun load_code_not_loadable/0).
+
+load_code_not_loadable() ->
+    Dir = scratch("ern_gone_"),
+    ok = file:write_file(filename:join(Dir, "top.ern"), "export fn f() : Int = 41\n"),
+    ok = file:write_file(filename:join(Dir, "gone.ern"), "export fn g() : Int = 42\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir
+                        ++ " " ++ Dir),
+    ok = file:delete(filename:join(Dir, "gone.ern")),
+    lists:foreach(fun(Leaf) ->
+                      Erc = filename:join(Dir, Leaf),
+                      {ok, Beam} = file:read_file(Erc),
+                      {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+                      {ok, Gone} = beam_lib:build_module([Chunk || {Id, _} = Chunk <- Chunks,
+                                                                   Id =/= "Code"]),
+                      ok = file:write_file(Erc, Gone)
+                  end, ["top.erc", "gone.erc"]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Top\nTop.f()\nGone.g()\n:load Gone\n1\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"41 : Int">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown name Gone.g">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<":load Gone puts">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"gone.erc: not a compiled module">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"fault">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
+
 %% report §11.2: `:load` of a module whose dependency does not compile
 %% gives the dependency's diagnostic and says the module is not loaded. A
 %% regression test: it gave the build's advice, "compile Dep first", with

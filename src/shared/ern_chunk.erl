@@ -11,10 +11,11 @@
 %% host's reader. It answers bytes that are no compiled module with its
 %% error, but for a module whose atoms it cannot read: there the reader
 %% raises, and the digest answers the raise as a value
-%% (docs/otp_bugs.md, 18). Both are taken as the error.
+%% (docs/otp_bugs.md, 18). Both are taken as the error. So is whether the
+%% host will load the module's code, which only its loader can tell.
 -module(ern_chunk).
 
--export([term/1, read/2, md5/1]).
+-export([term/1, read/2, md5/1, is_loadable/2]).
 
 %% Report §11: the host's digest answers its raise as a value its
 %% specification leaves out (docs/otp_bugs.md, 18), which Dialyzer would
@@ -63,6 +64,19 @@ md5(Beam) ->
         {ok, {_, Md5}} -> {ok, Md5};
         {error, beam_lib, _} -> error;
         {'EXIT', {{badmatch, {'EXIT', _}}, _}} -> error
+    end.
+
+%% Report §11: whether the host will load the compiled module Beam as the
+%% unit Unit, asked of its loader, which prepares the code and loads
+%% nothing. A `.erc` whose code it will not load is no compiled module to
+%% a job that loads it or builds its source (§11.1). The host's prepared
+%% code is opaque, so any answer but its refusal of the code is taken as
+%% code it will load; a refusal of another kind is its load's to say.
+-spec is_loadable(module(), binary()) -> boolean().
+is_loadable(Unit, Beam) ->
+    case erlang:prepare_loading(Unit, Beam) of
+        {error, badfile} -> false;
+        _ -> true
     end.
 
 %% What deflate inflates is bounded by its ratio whatever the size claims,

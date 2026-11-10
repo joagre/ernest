@@ -289,25 +289,92 @@ empty_atoms_build_test() ->
                                               " lib/dep.erc: not a compiled module\n">>)).
 
 %% report §11, §11.2, §11.5: a `.erc` the host refuses to load, one whose
-%% code is zeros, is named from the working directory, as the user named
-%% it, and the host's own report of the refusal is not written. A
-%% regression test: the refusal named it by its absolute path
+%% code is zeros, is refused as no compiled module and named from the
+%% working directory, as the user named it, and the host's own report of
+%% the refusal is not written. A regression test: the refusal named it by
+%% its absolute path, and then in the host's word, `cannot load top.erc:
+%% badfile`
 cannot_load_named_test() ->
     Dir = tmp(),
     Source = write(Dir, "top.ern", "export fn main() : Unit = Io.println(\"top\")\n"),
     ?assertEqual(0, build_err(["--source-root", Dir, Source])),
     Erc = filename:join(Dir, "top.erc"),
     {ok, Beam} = file:read_file(Erc),
-    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
-    {ok, Zeroed} = beam_lib:build_module([zeroed_code(Chunk) || Chunk <- Chunks]),
-    ok = file:write_file(Erc, Zeroed),
-    ?assertEqual("ern run: cannot load top.erc: badfile\n1\n",
+    ok = file:write_file(Erc, damaged(zeros, Beam)),
+    ?assertEqual("ern run: top.erc is not a compiled module\n1\n",
                  os:cmd("cd " ++ Dir ++ " && " ++ filename:absname("bin/ern")
                         ++ " run top.erc 2>&1; echo $?")).
 
-%% A chunk of a compiled module, its code made zeros of its length.
-zeroed_code({"Code", Code}) -> {"Code", binary:copy(<<0>>, byte_size(Code))};
-zeroed_code(Chunk) -> Chunk.
+%% report §11, §11.4: a `.erc` whose code the host will not load, its code
+%% chunk gone, empty or zeros, is no compiled module to `ern run` and
+%% `ern test`, which refuse it by its name, and `ern doc` writes its page,
+%% read from its documentation. A regression test: a run and a test
+%% refused it in the host's word, `cannot load top.erc: badfile`
+code_not_loadable_test() ->
+    Dir = tmp(),
+    Source = write(Dir, "top.ern", "/// The top.\nexport fn main() : Unit = Io.println(\"top\")\n"),
+    ?assertEqual(0, build_err(["--source-root", Dir, Source])),
+    Erc = filename:join(Dir, "top.erc"),
+    {ok, Beam} = file:read_file(Erc),
+    lists:foreach(fun(Damage) ->
+                      ok = file:write_file(Erc, damaged(Damage, Beam)),
+                      lists:foreach(fun(Job) ->
+                                        ?assertEqual({Damage, Job, 1},
+                                                     {Damage, Job, ern_err([Job, Erc])}),
+                                        Said = unicode:characters_to_binary(?capturedOutput),
+                                        Line = iolist_to_binary(["ern ", Job, ": ", Erc,
+                                                                 " is not a compiled module\n"]),
+                                        ?assertMatch({Damage, Job, {_, _}},
+                                                     {Damage, Job, binary:match(Said, Line)})
+                                    end, ["run", "test"]),
+                      ?assertEqual({Damage, 0}, {Damage, ern_err(["doc", Erc])}),
+                      ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                          ?capturedOutput),
+                                                        <<"# Ernest module Top\n">>))
+                  end, [gone, empty, zeros]).
+
+%% report §11, §11.1, §11.5: a `.erc` whose code the host will not load is
+%% no compiled module to the build of its source, which compiles it again
+%% and writes nothing of the host's report of its code; a dependency's on
+%% the load path is read for its interface alone, so that the build of a
+%% module that uses it stands, and a run refuses it, named from the
+%% working directory. A regression test: the build found the module current
+code_not_loadable_build_test() ->
+    Dir = tmp(),
+    write(Dir, "src/dep.ern", "export fn f() : String = \"one\"\n"),
+    write(Dir, "lib/dep.ern", "export fn f() : String = \"one\"\n"),
+    write(Dir, "app/top.ern", "export fn main() : Unit = Io.println(Dep.f())\n"),
+    in_directory(Dir, fun() ->
+                          ?assertEqual(0, build_err(["src"])),
+                          ?assertEqual(0, build_err(["lib"])),
+                          ok = file:delete("lib/dep.ern"),
+                          {ok, Beam} = file:read_file("src/dep.erc"),
+                          ok = file:write_file("src/dep.erc", damaged(gone, Beam)),
+                          ok = file:write_file("lib/dep.erc", damaged(gone, Beam)),
+                          ?assertEqual(0, build_err(["--load-path", "lib", "app"])),
+                          ?assertEqual(1, ern_err(["run", "--load-path", "lib", "app/top.erc"]))
+                      end),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"ern run: lib/dep.erc: not a compiled module\n">>)),
+    Said = os:cmd("cd " ++ Dir ++ " && " ++ filename:absname("bin/ern")
+                  ++ " build --verbose src 2>&1; echo $?"),
+    ?assertEqual("source root src\nbuild root src\n"
+                 "compiled Dep from src/dep.ern to src/dep.erc\n0\n", Said),
+    {ok, Built} = file:read_file(filename:join(Dir, "src/dep.erc")),
+    ?assert(ern_chunk:is_loadable('ern@dep', Built)).
+
+%% A compiled module whose code the host will not load: its code chunk
+%% gone, empty, or zeros of its length.
+damaged(Damage, Beam) ->
+    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+    {ok, Damaged} = beam_lib:build_module([Chunk || {Id, Code} <- Chunks,
+                                                    Chunk <- damaged_chunk(Damage, Id, Code)]),
+    Damaged.
+
+damaged_chunk(gone, "Code", _) -> [];
+damaged_chunk(empty, "Code", _) -> [{"Code", <<>>}];
+damaged_chunk(zeros, "Code", Code) -> [{"Code", binary:copy(<<0>>, byte_size(Code))}];
+damaged_chunk(_, Id, Chunk) -> [{Id, Chunk}].
 
 %% A compiled module whose atom chunk is empty: the header, then the
 %% chunk's name and a size of no bytes.

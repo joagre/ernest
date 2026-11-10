@@ -176,6 +176,20 @@ unit_load_fills_table_test() ->
     code:purge(Unit),
     code:delete(Unit).
 
+%% report §11, §11.2: a compiled form whose code the host will not load,
+%% its code chunk gone, is no code the host holds, where the host holds a
+%% unit of its name. A regression test: the host's digest of it was taken
+%% for granted, and a load of it beside a held unit faulted
+held_without_code_test() ->
+    Beam = loaded(['Tableheld'], ?SOURCE),
+    ?assert(ern_code:is_held('ern@tableheld', Beam)),
+    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+    {ok, Gone} = beam_lib:build_module([Chunk || {Id, _} = Chunk <- Chunks, Id =/= "Code"]),
+    ?assertNot(ern_code:is_held('ern@tableheld', Gone)),
+    ern_code:unloaded('ern@tableheld'),
+    code:purge('ern@tableheld'),
+    code:delete('ern@tableheld').
+
 %% report §8.7, §11.1: what another unit's code reaches of this node's by
 %% hash: a function its unit exports, with its unit, its function and its
 %% reach, and a type, which has no function, by the unit that holds it; a

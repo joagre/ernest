@@ -158,9 +158,12 @@ compiled_file(Namespace, LoadPath) ->
 %% Appendix E.28: a compiled form read, of the namespace Expected or of
 %% any: a file of this `ern`, whose interface and forms it can read and
 %% which this build of `ern` wrote (§11.1), which holds that namespace,
-%% each of its definitions its hash, and compiled against the standard
-%% library the node holds; else `Invalid`. A path that names no file is
-%% `NotFound`, and a file the host cannot read its reason (Appendix E.1).
+%% each of its definitions its hash, compiled against the standard
+%% library the node holds, and whose code the host will load as the
+%% module's unit (§11), asked here and not at the load, which may make the
+%% unit from its forms instead (place/2); else `Invalid`. A path that
+%% names no file is `NotFound`, and a file the host cannot read its reason
+%% (Appendix E.1).
 found(File, Expected) ->
     Beam = case file:read_file(File) of
                {ok, Bytes} -> Bytes;
@@ -176,6 +179,7 @@ found(File, Expected) ->
                 andalso ern_canonical:is_verified(Definitions)
                 andalso lists:member(maps:get(stdlib, Chunk, none),
                                      [none, ern_build:stdlib_hash()])
+                andalso ern_chunk:is_loadable(ern_namespace:erlang_module(Namespace), Beam)
                 orelse refuse('Invalid'),
             #found{namespace = Namespace, file = File, beam = Beam, chunk = Chunk,
                    recorded = Recorded};

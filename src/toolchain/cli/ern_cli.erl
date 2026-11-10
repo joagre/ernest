@@ -226,6 +226,9 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
     %% report §12.5, §11.2: the job's own standard error, where a line of the
     %% toolchain's own goes while no launch's takes it (error_line/1)
     persistent_term:put({?MODULE, error_device}, ErrorDevice),
+    %% report §11: the host's report of an outcome the job says in a line
+    %% of its own is not written, in every job (limit_filter/2)
+    _ = logger:add_primary_filter(?MODULE, {fun ?MODULE:limit_filter/2, []}),
     Name = "ern " ++ Job,
     {Own, Program} = case Job of
                          "run" -> program_words(Spec, Args, []);
@@ -1569,10 +1572,9 @@ quiet_signals() ->
     %% (ern_out:logged/0), so the level set here matters only in a host that
     %% took no streams, a test's, whose handler, the host's own, would write
     %% the host's note about a signal, logged at notice level; a warning or
-    %% an error from the host still comes through, but its reports at its
-    %% limits (limit_filter/2)
+    %% an error from the host still comes through, but the reports the job
+    %% says in lines of its own (limit_filter/2, installed by job/6)
     _ = logger:set_handler_config(default, level, warning),
-    _ = logger:add_primary_filter(?MODULE, {fun ?MODULE:limit_filter/2, []}),
     ok.
 
 %% Report §12.1, §7.4, §12.5: the host's own report of a spawn beyond its
@@ -1583,10 +1585,13 @@ quiet_signals() ->
 %% not start and a process of the host's the spawn ended, the start of a
 %% socket's processes over TLS and a node's handshake among them: the
 %% operation answers, and the node says a connection it refused
-%% (ern_tls_dist). Report §12, §11.2: so is its loader's report of a file
-%% it could not read, a module's at the limit of open files among them, and
-%% the emulator's of a module it could not load: the load's caller answers
-%% or faults, as a run says `cannot load`.
+%% (ern_tls_dist).
+%%
+%% Report §12, §11.2: so are the host's loader's report of a file it could
+%% not read, a module's at the limit of open files among them, and the
+%% emulator's of a module it could not load, or whose code the build or a
+%% load asked of it (ern_chunk:is_loadable/2): the caller answers or
+%% faults, as a run says the file is no compiled module.
 %%
 %% Report §12.5, §11.8: the host's process of a node's connections, ended
 %% by a spawn beyond the limit as the node dials, ends the host after it,
@@ -2114,19 +2119,26 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) 
                               same_interface(Namespace, Dependency, Hash)
                           end, DependencyHashes),
             same_stdlib(Namespace, Chunk, StdlibHash),
-            loaded_unit(ErlangModule, File, Beam, Chunk),
+            loaded_unit(ErlangModule, File, Beam, Chunk, {Reader, Waiting} =:= {program, []}),
             [ErlangModule | Loaded1]
     end.
 
 %% Report §11.2: a module loaded from its file, or taken as the host holds
 %% it, and in the code table as it loads (§8.7), with the interface chunk
 %% read as it was checked, which what reads the module's interface later
-%% reads (ern_code:load/4).
-loaded_unit(ErlangModule, File, Beam, Chunk) ->
+%% reads (ern_code:load/4). Report §11: a file whose code the host will not
+%% load is no compiled module, the one the program was given refused as
+%% §11 refuses one, and another as a chunk it cannot read is (held_chunk/3).
+loaded_unit(ErlangModule, File, Beam, Chunk, IsGiven) ->
     case ern_code:load(ErlangModule, File, Beam, Chunk) of
-        ok -> ok;
-        {error, Error} -> ern_build:fail("cannot load " ++ ern_build:shown(File) ++ ": "
-                                              ++ atom_to_list(Error))
+        ok ->
+            ok;
+        {error, badfile} when IsGiven ->
+            ern_build:fail(ern_build:shown(File) ++ " is not a compiled module");
+        {error, badfile} ->
+            ern_build:fail(ern_build:shown(File) ++ ": not a compiled module");
+        {error, Error} ->
+            ern_build:fail("cannot load " ++ ern_build:shown(File) ++ ": " ++ atom_to_list(Error))
     end.
 
 %% Report §11.1, §4.1: a module whose load waits on its own load uses

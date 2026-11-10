@@ -905,16 +905,11 @@ is_free(Unit) ->
     not erlang:module_loaded(Unit) andalso not erlang:check_old_code(Unit).
 
 %% Report §11.2: whether the host holds this very code as the unit's
-%% current code.
+%% current code; bytes whose digest the host cannot take, a `.erc` whose
+%% code it will not load (§11), are none it holds.
 -spec is_held(module(), binary()) -> boolean().
 is_held(Unit, Beam) ->
-    case erlang:module_loaded(Unit) of
-        true ->
-            {ok, {_, Md5}} = beam_lib:md5(Beam),
-            Unit:module_info(md5) =:= Md5;
-        false ->
-            false
-    end.
+    erlang:module_loaded(Unit) andalso ern_chunk:md5(Beam) =:= {ok, Unit:module_info(md5)}.
 
 %% Report §11.2: a unit of a name of its own, for a module whose Erlang
 %% name the node holds code of, as a reload's version and a compiled module

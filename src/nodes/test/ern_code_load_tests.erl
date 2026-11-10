@@ -697,6 +697,46 @@ other_interface_test() ->
     built(Dir, "main.ern"),
     ?assertEqual([<<"Left(Io.Invalid)">>], ran(filename:rootname(Main) ++ ".erc")).
 
+%% Appendix E.28, report §11: a compiled form whose code the host will not
+%% load, its code chunk gone, is Invalid, where the host holds no code of
+%% its name and where it holds another unit of it, beside which the load
+%% would make one from the form's definitions; and Code.hashes answers its
+%% definitions, which its forms give. A regression test: the first
+%% answered Other in the host's word, `badfile`, and the second faulted
+%% the caller
+code_not_loadable_test() ->
+    Dir = tmp(),
+    [Good, Damaged] = [filename:join(Dir, Leaf) || Leaf <- ["good", "damaged"]],
+    write(Good, "damage/held.ern", "export fn f() : Int = 1\n"),
+    write(Damaged, "damage/held.ern", "export fn f() : Int = 2\n"),
+    write(Damaged, "damage/fresh.ern", "export fn f() : Int = 3\n"),
+    built(Good, "damage/held.ern"),
+    built(Damaged, "damage/held.ern"),
+    built(Damaged, "damage/fresh.ern"),
+    [Held, Fresh] = [filename:join(Damaged, Leaf) || Leaf <- ["damage/held.erc",
+                                                              "damage/fresh.erc"]],
+    lists:foreach(fun(File) ->
+                      {ok, Beam} = file:read_file(File),
+                      {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+                      {ok, Gone} = beam_lib:build_module([Chunk || {Id, _} = Chunk <- Chunks,
+                                                                   Id =/= "Code"]),
+                      ok = file:write_file(File, Gone)
+                  end, [Held, Fresh]),
+    Main = write(Dir, "main.ern",
+                 "fn shown(path : String) : Unit =\n"
+                 "    Io.println(Io.show(Code.load(Path(path))))\n\n"
+                 "export fn main() : Unit = {\n"
+                 "    shown(\"" ++ Fresh ++ "\");\n"
+                 "    shown(\"" ++ Good ++ "/damage/held.erc\");\n"
+                 "    shown(\"" ++ Held ++ "\");\n"
+                 "    Io.println(Io.show(Either.map(Code.hashes(Path(\"" ++ Held ++ "\")),"
+                 " List.size)))\n"
+                 "}\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Io.Invalid)">>, <<"Right(Unit)">>, <<"Left(Io.Invalid)">>,
+                  <<"Right(1)">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
 %% Appendix E.28, report §11.1: a compiled form another build of `ern`
 %% wrote is Invalid, the module loaded and a module it uses alike, and the
 %% form this build wrote loads. Written with the code

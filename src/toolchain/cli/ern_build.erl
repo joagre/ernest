@@ -1121,8 +1121,8 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
     OutputBase = filename:join(BuildRoot, filename:rootname(Relative)),
     Erc = OutputBase ++ ".erc",
     Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
-    case Emit =:= erc andalso current(Erc, {SourceHash, SourcePath, Resolved}, DependencyHashes,
-                                      Against, Given) of
+    case Emit =:= erc andalso current(Namespace, Erc, {SourceHash, SourcePath, Resolved},
+                                      DependencyHashes, Against, Given) of
         {true, Interface} ->
             {Interfaces#{Namespace => Interface}, none};
         false ->
@@ -1501,19 +1501,27 @@ is_number_text(Text) ->
 %% current when the source and its path from the build root, the namespace
 %% each qualifier of the source resolves to (§4.2), and the build of the
 %% compiler, which Against holds with the standard library's hash, are
-%% those the .erc was built from, and it was compiled against the
-%% dependencies' interfaces and the standard library as they are.
-current(Erc, {SourceHash, SourcePath, Resolved}, DependencyHashes,
+%% those the .erc was built from, it was compiled against the dependencies'
+%% interfaces and the standard library as they are, and the host will
+%% load its code as the module's unit (§11).
+current(Namespace, Erc, {SourceHash, SourcePath, Resolved}, DependencyHashes,
         #{stdlib := StdlibHash, compiler := CompilerBuild}, DependencyInterfaces) ->
-    case read_erc(Erc) of
-        {ok, #{interface := Interface, source_hash := SourceHash, source_path := SourcePath,
-               resolved := Resolved, compiler := CompilerBuild} = Chunk} ->
-            case is_compiled_against(Chunk, DependencyHashes, DependencyInterfaces,
-                                     StdlibHash) of
-                true -> {true, Interface};
-                false -> false
+    case file:read_file(Erc) of
+        {ok, Beam} ->
+            case ern_interface:read(Beam) of
+                {ok, #{interface := Interface, source_hash := SourceHash,
+                       source_path := SourcePath, resolved := Resolved,
+                       compiler := CompilerBuild} = Chunk} ->
+                    case is_compiled_against(Chunk, DependencyHashes, DependencyInterfaces,
+                                             StdlibHash)
+                        andalso ern_chunk:is_loadable(ern_namespace:erlang_module(Namespace),
+                                                      Beam) of
+                        true -> {true, Interface};
+                        false -> false
+                    end;
+                _ -> false
             end;
-        _ -> false
+        {error, _} -> false
     end.
 
 %% Report §11.1, §11.2: whether a compiled module, as its interface chunk

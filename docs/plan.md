@@ -72,7 +72,9 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 6. Items 39 and 40 decided in a design session, and built, done 2026-11-09.
 7. Item 16's build last, done 2026-11-09.
 8. Item 42's fix, by an item session, done 2026-11-09.
-9. Item 43, by an item session.
+9. Item 43, by an item session, done 2026-11-10.
+10. Item 44, by an item session.
+11. Item 45, by an item session.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -312,16 +314,29 @@ reader S reads of its live shell. The release note's line on the installed layou
     working directory, as §11.5 names one, and writes nothing of the emulator's report of a
     module it could not load, as §11 says. The host's reader raised, `docs/otp_bugs.md`'s 18,
     whose filing is the user's.
-43. **A compiled module the host cannot load**, found 2026-11-09 by item 42's read-back, for an
-    item session before MVP 4.15's release (§11, §11.2; the log's *A Compiled Module the Host
-    Cannot Read*). A `.erc` whose code chunk is missing, or holds no code, is refused by
-    `ern run` and `ern test` as `cannot load x.erc: badfile`, in the host's word, and
-    `ern doc` writes its page, where §11 refuses a `.erc` that is no compiled module as
-    `x.erc is not a compiled module`. The fix answers the load's `badfile` with §11's refusal,
-    at the one site where the host loads the file. The item decides whether `ern doc`, which
-    loads nothing, refuses such a file too, or §11 says that a page is read from the chunks it
-    needs; recommended the second, since a page needs no code and only a load would find code
-    that is not code.
+43. **A compiled module the host cannot load**, done 2026-11-10 (§11, §11.1, §11.2, E.28; the
+    log's *A Compiled Module the Host Cannot Load*). A `.erc` whose code the host will not load
+    is no compiled module to a job that loads it or builds its source: `ern build` compiles it
+    again, `ern run`, `ern test` and the shell refuse it by its file, and `Code.load` answers
+    `Left(Invalid)`, asked as each file is read, so that the answer does not hang on how the
+    unit is made. `ern doc`, `Code.hashes` and a build's reading of a dependency take only what
+    they read. Decided with the user: the build asks the host's loader of its own modules'
+    code, about 10 ms a megabyte of compiled code, by principle 1.
+44. **A load past the host's atoms**, found 2026-11-10 by item 43's probe, for an item session
+    before MVP 4.15's release (§11.2, §10; the log's *A Compiled Module the Host Cannot Load*).
+    A load whose module brings more atoms than the host has room for ends the host, `no more
+    index entries in atom_tab`, status 1, and so does the build's check of a module's code,
+    where §11.2 says a load past one of the host's limits fails as one the node cannot load.
+    §11.2 is to state the host's end, as §10 states exhausted memory, the shape *Lean at the
+    Limits* decides, with a test in a host of its own, as `ern_integration_tests` fills the
+    atoms. The item decides whether it goes to `docs/otp_bugs.md`.
+45. **A flake of `os_signal_after_an_unread_exit_test`**, found 2026-11-10 by item 43's
+    `make test-full`, for an item session before MVP 4.15's release (E.23; the log's *A Compiled
+    Module the Host Cannot Load*). Seen once in two full runs, `Right(Unit)` where E.23 answers
+    `Closed` to a signal to a program that has exited though no read has taken its exit. The
+    cause is not found, and the item diagnoses it under `make test-full`'s load. A window to
+    read first: the host's kernel closes an exiting process's files before the process can be
+    reaped, so the child may say `gone` before the helper can learn of the shell's exit.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

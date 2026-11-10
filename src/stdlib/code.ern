@@ -79,10 +79,11 @@
 /// counting as ended, and until the program's end where it owns a table
 /// (report §11.2, Appendix E.28).
 ///
-/// A file that is no `.erc` of this `ern`, one compiled against another
-/// interface than the node holds, a module of a cycle through the load path
-/// (report §4.1), a directory, and a file at a module's path that holds another
-/// module (report §11.2) answer `Left(Invalid)`; a path with no file, and a
+/// A file that is no `.erc` of this `ern`, one whose code the host will not load
+/// among them, one compiled against another interface than the node holds, a
+/// module of a cycle through the load path (report §4.1), a directory, and a
+/// file at a module's path that holds another module (report §11.2) answer
+/// `Left(Invalid)`; a path with no file, and a
 /// module the load path lacks, `Left(NotFound)`; and a file the host cannot
 /// read answers the host's error, `Left(Denied)` among them.
 ///
@@ -107,7 +108,8 @@ export foreign fn load(path : Path) : Either(Io.Error, Unit) =
 /// name and its hash, the digest in lowercase hexadecimal, in the order the
 /// module declares them. A foreign declaration has no hash and is left out. A
 /// file that is no `.erc` of this `ern` answers `Left(Invalid)`, and a path that
-/// names no file `Left(NotFound)`.
+/// names no file `Left(NotFound)`. A file whose code alone the host will not load
+/// answers its definitions all the same, which its forms give (report §11).
 ///
 /// ### Examples
 ///
