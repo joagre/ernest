@@ -77,6 +77,9 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 11. Item 45, by an item session, done 2026-11-10.
 12. Item 46, by an item session, done 2026-11-10.
 13. Item 47, by an item session, done 2026-11-10.
+14. The release review before 0.10.0, opened 2026-11-10 over `7e7cdee1`, its lines in
+    [`findings.md`](findings.md): the code's fix lines by agents, the report's and the guides'
+    in a design session, and fifteen decisions with the user, D1 to D15, related lines in one.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
