@@ -120,8 +120,8 @@ on a path the rehearsal has walked.
    serves the client on scratch ports, so that the switch walks the client's path. The server's
    proposal for its client, read by each session against the other's on 2026-11-10, holds the
    interface as the proposal's decision 7 states it (the log's *The Client's Interface Agreed*),
-   and waits on the user's word that it is ready; nothing of it stands in the server's design
-   until then, and item 2 begins after that word and after MVP 4.16.
+   ready the same day, so that the server's design's *The client* owns it; item 2 begins after
+   MVP 4.16, when a server serves the client, which the server's session says by message.
 2. **Ernest's side**, built against the rehearsal's server once it serves the client. `site.js`'s
    session imports the client, an ES module, on demand. The generator takes no configuration, and `make site` the tag alone.
    The shell's page takes its numbers from the client's limits and names no memory. The browser
