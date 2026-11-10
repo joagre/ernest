@@ -17,21 +17,9 @@ and a feature declined in a dated entry of the log; nothing stands between.
 **Ernest 0.9.0 is the last release**, of 2026-11-03, the server's: what ernest-httpd asked of
 Ernest on its way to serving the site, and the release review before it, which read two days'
 diff, its 112 lines fixed and 23 decided (the log's *The Release Review Before 0.9.0* and the
-entries MVP 4.1's row names). No promise of
+entries MVP 4.1's row names), and the checkout works toward 0.10.0. No promise of
 stability is made, and a change to the language, the standard library or the libraries is driven
 by a need met in use and recorded as `docs/language_feedback.md` records one.
-
-The server is released and so is what shaped Ernest on its way, and the checkout works toward
-0.10.0.
-
-MVP 4.2, the website, is built, and goes live with MVP 4.4's release, its item 6 (the log's
-*Ernest Stays at 0.x*).
-
-The repository's layout is built, between MVP 4.15's items 1 and 2, and the three other
-repositories have taken their shape (the log's *The Layout Built*, *The Other Repositories'
-Shape*). What the layout proposal still held is made at the same stop, the template's CLAUDE.md
-and its copies last, and the proposal has gone (the log's *The Layout's Rest First*, *The Template
-Cut Again*, *The Layout's Proposal Read*). The three applications' sessions start next.
 
 The rest of MVP 4.15, what the server taught, follows. Then comes MVP 4.16, a deadlock's scope
 and its report, packages and the flake hunt, before the launch (the log's *MVP 4.16, the Proposals Before the
@@ -40,10 +28,8 @@ and a program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's
 follows the launch (the log's *MVP 4.3 Becomes MVP 4.5*), and MVP 4.6 after it, the server
 owning both ends of its socket.
 
-Ernest stays at 0.x until someone outside the project depends on it (the log's *Ernest
-Stays at 0.x*). The back end to BEAM's own instructions that closed the road is not built, decided
-2026-10-30 (the log's *No Back End to BEAM's Own Instructions*). A finished milestone is a
-row of the table at the end, its reasons in the log entries the row names.
+Ernest stays at 0.x until someone outside the project depends on it, as MVP 4.4's opening
+says.
 
 ---
 
@@ -82,6 +68,14 @@ The items left are built in this order, set 2026-11-08 and read again the same d
     in a design session, and eighteen decisions with the user, D1 to D18, related lines in one.
     Item 48 came between, ernest-httpd's line, built the day it came, since the site's switch
     waits on it.
+15. The two proposals the milestone built, `docs/proposals/relative_names/` and
+    `docs/proposals/errors_across_libraries/`, read with the user and swept before the release,
+    as CLAUDE.md's rule for a built proposal says, decided and done 2026-11-10 (the log's *A
+    Built Proposal's Sweep Is an Item*). Each proposal's rules were the report's and its
+    reasons the log's; resolution as a pass of its own is a row of `architecture.md`'s table,
+    each proposal's table of other systems and the second's cost are the log entry's, and the
+    first's diagnostics are `docs/diagnostics.md`'s. No design note was needed, and both
+    directories went.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -101,26 +95,11 @@ The release's note tells a program with a tree of modules to write each qualifie
 shortest form from its module's place, as each error's help writes it, and to rename a module
 named after a taken namespace at any depth (§4.2; the log's *Relative Names, Built*).
 
-Between items 1 and 2 the repository's layout was built, in one commit, so that items 2 to 21
-build in the layout that stays and the archive ernest-httpd rehearses on holds it (the log's
-*The Repository's Layout*, *The Layout's Independent Reading*, *The Layout Built*, *The Layout's
-Renames*, *The Log by Day*, *The README Recut*). Its proposal went once read (the log's *The
-Layout's Proposal Read*).
-
-At the same stop ernest-template, ernest-epx and ernest-httpd took their shape, a commit in each
-(the log's *One Stop for the Layout*, *The Other Repositories' Shape*). No floor rose and none
-of them released: the changes wait on `main` for MVP 4.4's item 5.
-
-CLAUDE.md is redrafted, 2026-11-06: its owner table names `docs/README.md` once, and its length
-stays, since the plain register cut no words (the log's *CLAUDE.md Redrafted*). The template's is
-cut again from it, ernest-epx's and ernest-httpd's are the template's whole, and each of the three
-has the template's new `docs/full_review.md`, a commit in each (the log's *The Layout's Rest
-First*, *The Template Cut Again*).
-
-The three applications' sessions start next, and each adds what it alone has to its
-`docs/full_review.md`: ernest-epx a reader who tries its window on a screen, and ernest-httpd what
-reader S reads of its live shell. The release note's line on the installed layout waits for MVP
-4.4's item 5.
+Between items 1 and 2 the repository's layout was built, and the three other repositories
+took their shape at the same stop, done 2026-11-06 (the log's *The Repository's Layout*, *The
+Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md
+Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*). None of the three released:
+the changes wait on `main` for MVP 4.4's item 5.
 
 1. **The runtime at the host's limits**, done 2026-11-04 (the log's *A Node's Limits*, *A Node's
    Schedulers*, *The Hangup's Order* and *ernest-httpd's Lines 18 to 21*).
@@ -176,8 +155,7 @@ reader S reads of its live shell. The release note's line on the installed layou
     of every operation of its protocol on the resource, so `Http.writeRequest`,
     `Http.writeResponse` and `Http.writeChunk` stand beside its reads, `ReadError` is
     `SocketError`, and a program over `Http` meets `Io.Error` only where it opens the connection.
-    The proposal under `docs/proposals/errors_across_libraries/` is its record. Built the same
-    day. ernest-httpd meets the rename at its first build against 0.10.0, before its rehearsal
+    Built the same day. ernest-httpd meets the rename at its first build against 0.10.0, before its rehearsal
     of the switch, and its `smoke.ern` writes its requests with `writeRequest` by its own
     session, told at the milestone's end.
 14. **The libraries' shims read against E.0 rule 1**, done 2026-11-07 (E.0 rule 1, G.6, G.8,
@@ -366,9 +344,6 @@ reader S reads of its live shell. The release note's line on the installed layou
     to its own limit, with no option, and E.18 says what the system does past it. The host's
     low 16 bits are `docs/otp_bugs.md`'s 20th.
 
-Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
-started with no input.
-
 ## MVP 4.16 (a deadlock's scope and its report, packages, and the flake hunt), about a week
 
 Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*): two
@@ -442,9 +417,9 @@ Decided with the user on 2026-10-31 (the log's *MVP 4.4, the Road's End*): the r
 milestone before a program, so that the review reads a language that ernest-httpd,
 the website and the operator's prompt have used. After it the road is a program's.
 
-Its release is the next minor of 0.x, decided with the user on 2026-11-05. 1.0 has no date: it
-comes when someone outside this project depends on Ernest, so that a break would cost them
-something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
+Its release is the next minor of 0.x, decided with the user on 2026-11-05. Ernest stays at 0.x
+until someone outside this project depends on it, so that a break would cost them something,
+and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
 1. **The promise**, dropped 2026-11-05 (the log's *Ernest Stays at 0.x*).
 2. **The cost.** The fault row made readable first, a median over runs with more iterations,
@@ -501,7 +476,6 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*). As they begin, the
    three floors rise to the launch's minor, each by its own session, since a development build of
    the floor is what an archive before the release is (the log's *The Floors and the Releases*).
-   Each takes its manifest then (MVP 4.16's item 10).
    Ernest's session names the minor, the archive's path and its commit to all three by a message,
    and asks for the reviews, on the user's word.
 5. **The launch's release**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
@@ -510,8 +484,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    log's *The Layout Built*); the feedback file and the findings file empty.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
-   release, since the others copy from it; ernest-epx's, not waiting for its milestone 9, and
-   carrying its host part as a package's (MVP 4.16's item 10); and
+   release, since the others copy from it; ernest-epx's, not waiting for its milestone 9; and
    ernest-httpd's, with its readers (the log's *The Floors and the Releases*). Ernest's session
    tells all three the tag by a message, and asks each in turn when the one before it is out.
    The message names every line of the application's that the release answers, MVP 4.16's item
@@ -520,21 +493,13 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    answer* says.
 
    The release review decides the segmentation fault of the host in the typed programs, moved
-   from MVP 4.15's item 23. On 2026-11-07, one run of `make test-full` on nike ended in a
-   segmentation fault of the host in `make -C test typed`, after 30 seconds. No core was kept,
-   and a host that dies prints no seed. The fault did not come again in 172 runs of the target,
-   up to 24 at once with fixed seeds, nor in three runs of `make test-full`. Ernest loads no
-   native code into the host, so the fault is OTP 29's (erts 17.1.1).
-
-   The target runs with core dumps on, so the next fault leaves its core in `test/`. That core
-   is read with `gdb` and its stack goes to `docs/otp_bugs.md` and to the OTP team. Where none
-   comes by the review, the review decides whether the watch stays.
+   from MVP 4.15's item 23 (the log's *The Items Left Read Again*): the target runs with core
+   dumps on, so the next fault leaves its core in `test/`, whose stack goes to `docs/otp_bugs.md`
+   and to the OTP team, and where none comes by the review, the review decides whether the
+   watch stays.
 6. **The site live at ernest-lang.org**, last, so that each project it lists builds on the release
-   it names, moved from MVP 4.2 on 2026-11-04 (the log's *The Site
-   Goes Live With 1.0*), and with the launch's release since 2026-11-05 (the log's *Ernest Stays
-   at 0.x*): `make site` from that tag, the copy of `build/site/` to the host, and
-   the smoke test against the live site. The Website of the repository's About is the address
-   already (the log's *The Release Cleanup*).
+   it names (the log's *The Site Goes Live With 1.0*, *Ernest Stays at 0.x*): `make site` from
+   that tag, the copy of `build/site/` to the host, and the smoke test against the live site.
 
    Before it, the generator writes `/robots.txt` and `/sitemap.xml`, the second naming
    ernest-lang.org alone, which the site's proposal decided and MVP 4.2 did not build (the log's
@@ -543,9 +508,9 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    ernest-httpd rehearses the switch on the machine,
    under a second unit on scratch ports, with the archive of MVP 4.15's release, so that the
    switch at the launch swaps one archive for another on a path already walked; then, with its
-   release of item 5 made, it switches once, the machine serving its one page meanwhile. Its container with its two nodes was built 2026-11-04 on the archive
-   from 612faac8: caps of 128 processes and 128 MiB, and one core, the user's choice from its
-   measure, 3.2 s from start to the homepage's example answered against 6.7 s at half a core.
+   release of item 5 made, it switches once, the machine serving its one page meanwhile. Its
+   container, two nodes capped at 128 processes, 128 MiB and one core, was built 2026-11-04
+   (the log's *A Node's Schedulers*).
 
 ---
 
@@ -553,7 +518,8 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
-Round, Decided Again*): of its eight items one remains, three moved into MVP 4.0's shell, where
+Round, Decided Again*), and following the launch since 2026-11-05 (the log's *MVP 4.3 Becomes
+MVP 4.5*): of its eight items one remains, three moved into MVP 4.0's shell, where
 the operator's prompt is, and four were dropped with their verdicts in the log.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -561,8 +527,6 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    Erlang's `recon_trace` has one; the runtime has no tracing hook today, so the design decides
    how a function of a unit is traced by its position and what the bound is. Built after MVP 4.0,
    on the node.
-
-It follows the launch since 2026-11-05 (the log's *MVP 4.3 Becomes MVP 4.5*).
 
 ---
 
