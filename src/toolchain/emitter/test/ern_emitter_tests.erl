@@ -576,7 +576,7 @@ units_from_forms(Root, Files, LoadPath) ->
                   Given = ern_build:dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                           Roots, SourceRoot),
                   {ok, Typed, Interface, Env} =
-                      ern_build:checked(Module, [I || {_, I} <- Given]),
+                      ern_build:checked(Module, [I || {_, I} <- Given], SourceRoot, Roots),
                   Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
                   Build = #{standard => Standard, code => true,
                             deps => [{Dependency, <<>>} || {Dependency, _} <- Given]},
@@ -4044,9 +4044,7 @@ work_makes_no_atoms() ->
         "    receive { Ended(_) -> Unit };\n"
         "    let _ = Clock.alarm(1, Tick);\n"
         "    receive { Tick(_) -> Unit };\n"
-        "    let _ = Os.run(Os.Command(program = \"true\", arguments = [], input = <<>>,\n"
-        "        environment = [], workingDirectory = Os.workingDirectory),\n"
-        "        5000);\n"
+        "    let _ = Os.run(Os.command(\"true\", []), 5000);\n"
         "    let _ = Fs.write(Path(\"", Dir, "/f\"), <<1>>, 1000);\n"
         "    let _ = Fs.read(Path(\"", Dir, "/f\"), 1000);\n"
         "    match Tcp.listen(\"127.0.0.1\", 0) {\n"

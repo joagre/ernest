@@ -555,7 +555,7 @@ beam_of(Options, Path) ->
             Reached = ern_build:dependency_interfaces(Namespace, Dependencies, #{}, DependencyRoots,
                                                       SourceRoot),
             DependencyInterfaces = [DependencyInterface || {_, DependencyInterface} <- Reached],
-            case ern_build:checked(Ordered, DependencyInterfaces) of
+            case ern_build:checked(Ordered, DependencyInterfaces, SourceRoot, DependencyRoots) of
                 {ok, Typed, Interface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
                               source => list_to_binary(filename:basename(Relative))},

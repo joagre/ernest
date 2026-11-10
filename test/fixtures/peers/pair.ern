@@ -114,24 +114,14 @@ fn started(build : String) : Either(String, Address(Os.ProgramMsg)) = {
                                   #("public-key", secondKey),
                                   #("peers", Json.Array([peer]))]));
     let _ <- written(["b", "ernest.conf"], Json.format(conf));
-    let program <-
-        shown(Os.start(Os.Command(program = "ern",
-                                  arguments = ["run", "--config-dir", "b", file],
-                                  input = <<>>,
-                                  environment = [],
-                                  workingDirectory = Os.workingDirectory)));
+    let program <- shown(Os.start(Os.command("ern", ["run", "--config-dir", "b", file])));
     let _ <- said(program, String.toUtf8("offered"), <<>>);
     Right(program)
 }
 
 // The status the second node ended with, stopped by `ern stop`.
 fn stopped(program : Address(Os.ProgramMsg)) : Either(String, Int) = {
-    let stop =
-        Os.Command(program = "ern",
-                   arguments = ["stop", "--config-dir", "b"],
-                   input = <<>>,
-                   environment = [],
-                   workingDirectory = Os.workingDirectory);
+    let stop = Os.command("ern", ["stop", "--config-dir", "b"]);
     let _ <- shown(Os.run(stop, Harness.waitMs()));
     ended(program)
 }

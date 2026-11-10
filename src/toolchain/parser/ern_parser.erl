@@ -491,9 +491,9 @@ member([{ident, Position, Variable}, {'.', _}, {ident, NamePosition, Name} | Res
     %% report §11.5: the error covers the member as written, `a.zero`
     {Line, Column, _, _} = Position,
     {_, _, End, _} = NamePosition,
-    NoMember = "`" ++ atom_to_list(Name) ++ "` is not a member: a requirement names "
+    Unnamed = "`" ++ atom_to_list(Name) ++ "` is not what a requirement names: "
         ++ members_text(requirement),
-    lists:member(Name, [compare, negate, show]) orelse fail({Line, Column, End}, NoMember),
+    lists:member(Name, [compare, negate, show]) orelse fail({Line, Column, End}, Unnamed),
     spanned({#member{span = Position, member_of = Variable, name = Name}, Rest});
 member([{ident, Position, Variable}, {'.', _}, Token | Rest]) ->
     %% report §2.6: the message names the six operators that may be

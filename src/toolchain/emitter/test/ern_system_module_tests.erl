@@ -57,9 +57,8 @@ os_run(Program, Arguments, Input, Ms) ->
          "        <> \"|\" <> Io.show(String.fromUtf8(f.stderr))\n"
          "  | Left(e) -> Io.show(e)\n"
          "}\n"
-         "export fn main() : Unit = Io.println(show(Os.run(Os.Command(program = ",
-         Program, ", arguments = ", Arguments, ", input = ", Input,
-         ", environment = [], workingDirectory = Os.workingDirectory), ", Ms, ")))\n"]).
+         "export fn main() : Unit = Io.println(show(Os.run(Os.Command(..Os.command(",
+         Program, ", ", Arguments, "), input = ", Input, "), ", Ms, ")))\n"]).
 
 %% Appendix E.23: the exit status, the output and the standard error, apart
 os_run_status_and_streams_test() ->
@@ -119,9 +118,8 @@ os_run_dies_with_its_caller_test() ->
         "type Msg = Started\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let me = self();\n"
-        "    let w = spawn(fn() = match Os.start(Os.Command(program = \"sh\",\n"
-        "        arguments = [\"-c\", \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>,\n"
-        "        environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "    let w = spawn(fn() = match Os.start(Os.command(\"sh\",\n"
+        "        [\"-c\", \"sleep 1; touch " ++ Mark ++ "\"])) {\n"
         "        Right(p) -> { send(me, Started); let _ = Os.read(p, 5000); Unit }\n"
         "      | Left(_) -> Unit\n"
         "    });\n"
@@ -147,8 +145,7 @@ os_run_leaves_no_process_test() ->
         "  | _ :: rest -> receive { Ended(_) -> ended(rest) }\n"
         "}\n"
         "export fn main() : Unit receiving Msg = {\n"
-        "    let command = Os.Command(program = \"true\", arguments = [], input = <<>>,\n"
-        "        environment = [], workingDirectory = Os.workingDirectory);\n"
+        "    let command = Os.command(\"true\", []);\n"
         "    let ran = Os.run(command, 5000);\n"
         "    let left = Process.owned(Process.current());\n"
         "    List.forEach(left, fn(p) = monitor(p, Ended));\n"
@@ -214,9 +211,8 @@ drain() ->
 os_start_reads_in_order_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [drain(),
-        "export fn main() : Unit = match Os.start(Os.Command(program = \"sh\",\n"
-        "    arguments = [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"],\n"
-        "    input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "export fn main() : Unit = match Os.start(Os.command(\"sh\",\n"
+        "    [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"])) {\n"
         "    Right(p) -> drain(p)\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
@@ -241,9 +237,8 @@ os_start_output_waits_for_a_read_test() ->
         "}\n"
         "fn marked() : Bool = Either.isRight(Fs.stat(Path(\"", Mark, "\"), 1000))\n"
         "fn writer(mark : String) : Address(Os.ProgramMsg) =\n"
-        "    match Os.start(Os.Command(program = \"sh\",\n"
-        "        arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch \" <> mark],\n"
-        "        input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "    match Os.start(Os.command(\"sh\",\n"
+        "        [\"-c\", \"head -c 1000000 /dev/zero; touch \" <> mark])) {\n"
         "        Right(p) -> p\n"
         "      | Left(e) -> fault(Io.show(e))\n"
         "    }\n"
@@ -271,9 +266,8 @@ os_start_write_then_close_test() ->
         "    Right(Os.Stdout(b)) -> collect(p, got <> b)\n"
         "  | _ -> got\n"
         "}\n"
-        "export fn main() : Unit = match Os.start(Os.Command(program = \"cat\",\n"
-        "    arguments = [], input = String.toUtf8(\"a\"),\n"
-        "    environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "export fn main() : Unit = match Os.start(Os.Command(..Os.command(\"cat\", []),\n"
+        "    input = String.toUtf8(\"a\"))) {\n"
         "    Right(p) -> {\n"
         "        let taken = Os.write(p, String.toUtf8(\"b\"), 5000);\n"
         "        Os.closeInput(p);\n"
@@ -295,8 +289,7 @@ os_program_is_a_process_test() ->
         [
         "type Msg = Ended(Down)\n"
         "fn started(script : String) : Address(Os.ProgramMsg) receiving Msg =\n"
-        "    match Os.start(Os.Command(program = \"sh\", arguments = [\"-c\", script],\n"
-        "        input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "    match Os.start(Os.command(\"sh\", [\"-c\", script])) {\n"
         "        Right(p) -> p\n"
         "      | Left(_) -> fault(\"not started\")\n"
         "    }\n"
@@ -329,9 +322,8 @@ os_program_is_a_process_test() ->
 %% regression test: before the rule, the start's time killed the program
 os_read_time_limit_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        "export fn main() : Unit = match Os.start(Os.Command(program = \"sh\",\n"
-        "    arguments = [\"-c\", \"sleep 0.3; echo late\"], input = <<>>,\n"
-        "    environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "export fn main() : Unit = match Os.start(Os.command(\"sh\",\n"
+        "    [\"-c\", \"sleep 0.3; echo late\"])) {\n"
         "    Right(p) -> {\n"
         "        Io.println(Io.show(Os.read(p, 50)));\n"
         "        Io.println(Io.show(Os.read(p, 5000)));\n"
@@ -353,18 +345,12 @@ os_read_time_limit_test() ->
 ran() ->
     "fn ran(program : String, arguments : List(String),\n"
     "       environment : List(#(String, String)), directory : Path) : String =\n"
-    "    match Os.run(Os.Command(=program, =arguments, input = <<>>, =environment,\n"
+    "    match Os.run(Os.Command(..Os.command(program, arguments), =environment,\n"
     "                            workingDirectory = directory), 5000) {\n"
     "        Right(f) -> Int.toString(f.status) <> \" \"\n"
     "            <> String.trim(String.fromUtf8Lossy(f.stdout))\n"
     "      | Left(e) -> Io.show(e)\n"
     "    }\n".
-
-%% A command that inherits the environment and the working directory.
-inheriting() ->
-    "fn command(program : String, arguments : List(String)) : Os.Command =\n"
-    "    Os.Command(=program, =arguments, input = <<>>, environment = [],\n"
-    "               workingDirectory = Os.workingDirectory)\n".
 
 %% What a running program wrote from here, and its exit status.
 rest() ->
@@ -475,9 +461,9 @@ os_command_refusals_test() ->
 %% it handles is its own; once it has exited the answer is Closed
 os_signal_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        [inheriting(), rest(),
+        [rest(),
          "fn ended(signal : Os.Signal) : String =\n"
-         "    match Os.start(command(\"sleep\", [\"10\"])) {\n"
+         "    match Os.start(Os.command(\"sleep\", [\"10\"])) {\n"
          "        Right(p) -> {\n"
          "            let sent = Os.signal(p, signal);\n"
          "            let last = Os.read(p, 5000);\n"
@@ -491,7 +477,7 @@ os_signal_test() ->
          "    Io.println(ended(Os.Termination));\n"
          "    Io.println(ended(Os.Hangup));\n"
          "    Io.println(ended(Os.Interrupt));\n"
-         "    match Os.start(command(\"sh\",\n"
+         "    match Os.start(Os.command(\"sh\",\n"
          "        [\"-c\", \"trap 'exit 7' HUP; echo ready;\"\n"
          "         <> \" sleep 10 > /dev/null 2>&1 & wait\"])) {\n"
          "        Right(p) -> {\n"
@@ -515,9 +501,9 @@ os_signal_to_the_program_alone_test() ->
     Dir = ern_emitter_tests:scratch(),
     Fifo = filename:join(Dir, "fifo"),
     {ok, Output} = ern_emitter_tests:run(
-        [inheriting(), rest(),
+        [rest(),
          "export fn main() : Unit =\n"
-         "    match Os.start(command(\"sh\", [\"-c\", \"mkfifo $0; trap 'echo > $0' TERM;\"\n"
+         "    match Os.start(Os.command(\"sh\", [\"-c\", \"mkfifo $0; trap 'echo > $0' TERM;\"\n"
          "        <> \" (trap 'echo child-term; exit' TERM; echo ready; read line < $0;\"\n"
          "        <> \" echo child-saw) & wait; wait\", \"", Fifo, "\"])) {\n"
          "        Right(p) -> {\n"
@@ -542,9 +528,9 @@ os_signal_after_an_unread_exit_test() ->
     Dir = ern_emitter_tests:scratch(),
     Fifo = filename:join(Dir, "fifo"),
     {ok, Output} = ern_emitter_tests:run(
-        [inheriting(), rest(), read_to(), closed(),
+        [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
-         "    match Os.start(command(\"sh\",\n"
+         "    match Os.start(Os.command(\"sh\",\n"
          "        [\"-c\", \"mkfifo $0; (read line < $0; echo gone) &\"\n"
          "        <> \" exec 4> $0; echo started\", \"", Fifo, "\"])) {\n"
          "        Right(p) -> {\n"
@@ -564,9 +550,9 @@ os_signal_after_an_unread_exit_test() ->
 %% the shell has exited, and its status is 0
 os_write_after_an_unread_exit_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        [inheriting(), rest(), read_to(), closed(),
+        [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
-         "    match Os.start(command(\"sh\", [\"-c\", \"trap '' INT; exec 3<&0;\"\n"
+         "    match Os.start(Os.command(\"sh\", [\"-c\", \"trap '' INT; exec 3<&0;\"\n"
          "        <> \" sleep 1000 <&3 >/dev/null 2>&1 & echo started\"])) {\n"
          "        Right(p) -> {\n"
          "            let text = readTo(p, \"\\n\", \"\");\n"
@@ -585,9 +571,9 @@ os_write_after_an_unread_exit_test() ->
 %% is not covered
 os_write_to_an_input_a_child_holds_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        [inheriting(), rest(), read_to(),
+        [rest(), read_to(),
          "export fn main() : Unit =\n"
-         "    match Os.start(command(\"sh\", [\"-c\", \"exec 3<&0;\"\n"
+         "    match Os.start(Os.command(\"sh\", [\"-c\", \"exec 3<&0;\"\n"
          "        <> \" (read line <&3; echo got $line) & exec 0<&- 3<&-; echo ready; wait\"])) {\n"
          "        Right(p) -> {\n"
          "            let text = readTo(p, \"\\n\", \"\");\n"
@@ -605,9 +591,9 @@ os_write_to_an_input_a_child_holds_test() ->
 %% `closeInput` makes ends the run, as the program has exited
 os_resize_after_an_unread_exit_test() ->
     {ok, Output} = ern_emitter_tests:run(
-        [inheriting(), rest(), read_to(), closed(),
+        [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
-         "    match Os.startTerminal(command(\"sh\", [\"-c\", \"trap '' HUP INT;\"\n"
+         "    match Os.startTerminal(Os.command(\"sh\", [\"-c\", \"trap '' HUP INT;\"\n"
          "        <> \" sleep 1000 & echo started\"]), Terminal.Size(rows = 24, columns = 80)) {\n"
          "        Right(p) -> {\n"
          "            let text = readTo(p, \"\\r\\n\", \"\");\n"
@@ -822,8 +808,7 @@ opened_processes_are_live_test() ->
         "                let pl = Process.fromAddress(l);\n"
         "                let pc = Process.fromAddress(c);\n"
         "                Io.println(Io.show(#(site(pl), site(pc), listed(pl), listed(pc))));\n"
-        "                match Os.start(Os.Command(program = \"cat\", arguments = [],"
-        " input = <<>>, environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "                match Os.start(Os.command(\"cat\", [])) {\n"
         "                    Right(p) -> Io.println(site(Process.fromAddress(p)))\n"
         "                  | Left(e) -> Io.println(Io.show(e))\n"
         "                }\n"
@@ -855,8 +840,7 @@ owned_test() ->
         "    Right(l) -> match Either.andThen(Tcp.port(l), fn(port) ="
         " Tcp.connect(\"127.0.0.1\", port, 1000)) {\n"
         "        Right(c) -> {\n"
-        "            let _ = Os.start(Os.Command(program = \"cat\", arguments = [],"
-        " input = <<>>, environment = [], workingDirectory = Os.workingDirectory));\n"
+        "            let _ = Os.start(Os.command(\"cat\", []));\n"
         "            send(main, Opened(listener = Process.fromAddress(l), socket = c));\n"
         "            receive { _ -> Unit }\n"
         "        }\n"
@@ -1053,8 +1037,7 @@ os_write_waits_test() ->
         "  | _ -> n\n"
         "}\n"
         "fn written() : Address(Os.ProgramMsg) receiving Msg =\n"
-        "    match Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>,\n"
-        "        environment = [], workingDirectory = Os.workingDirectory)) {\n"
+        "    match Os.start(Os.command(\"cat\", [])) {\n"
         "        Right(p) -> {\n"
         "            let me = self();\n"
         "            let _ = spawn(fn() = {\n"

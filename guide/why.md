@@ -30,13 +30,11 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 }
 ```
 
-`Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed. What crosses is code and what the function captured, never a node's values: a top-level binding whose initializer is no constant has its value on the node that evaluated it alone, so a function that names one is not started on a bare node, the spawn answering `Left(Io.NotLoaded)` and the peer saying which binding, and nothing refuses it before the run (the guide's §8.1).
+`Peer.spawn` waits at most 5000 milliseconds for the peer, and answers `Left` with the reason where it cannot reach it. The tour's chapter 2 runs this spawn, on a bare node started for it, and shows what each terminal printed. What crosses is code and what the function captured, never a node's values: a top-level binding whose initializer is no constant has its value on the node that evaluated it alone (the guide's §8.1).
 
 So a counter whose messages carry no function may run on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
 
-A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and again every `utilization-interval` milliseconds of its `ernest.conf`, 5000 by default. A connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7, Appendix E.27).
-
-The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst goes whole to the one that last reported itself less busy. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
+A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason (the guide's §8.1, report Appendix E.27):
 
 ```ernest-fragment
 match Peer.compute(fn() = render(scene, row), 5000) {
@@ -47,7 +45,7 @@ match Peer.compute(fn() = render(scene, row), 5000) {
 
 Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was the less busy of two peers drawn at random when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
 
-On one node the message type's hash finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The hash is what finds the processes such a message is for: `Code.running(f)` lists, typed, the processes of the node that run `f`, or a version of it before a fix, by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
+On one node the message type's hash finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The hash is what finds the processes such a message is for: `Code.running(f)` lists, typed, the processes of the node that run `f`, or another version of it with the same message type, by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -72,9 +70,7 @@ send(counter, Upgrade(next = countTwice))
 
 `=next` is `next = next`, the field bound to a variable of its own name (the guide's §2.6). `next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place. A module compiled again with a changed message type is a new version of it, beside the old, as the shell session below shows.
 
-A counter run under `restarting` restarts with the function its process was started with, so a counter moved to `countTwice` runs `count` again after its next fault; how a service under `restarting` takes new code is the deployment guide's §5.3.
-
-In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it. Nothing is purged: every version a node has loaded stays for the node's life, so a node reloaded without end grows with its versions, and the deployment guide's §4.2 says when a node is restarted.
+In the shell the versions are visible. `:reload` compiles again every module edited since it was loaded; a module so compiled is a new version beside the old, and a binding made under the old keeps it.
 
 Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` between the two spawns. Both processes run. A message of the new type to the old process is refused by the compiler, with the reason. `Counter.Inc(1)` is refused the same way, every constructor being the new type's.
 
@@ -380,7 +376,7 @@ A requirement names nothing outside that set, and a member is declared in its ty
 $ ern shell
 Ernest 0.10.0, session 1. :help for help.
 > fn hashed(x : a) : Int needs a.hash = 0
-input 1:1:30: `hash` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
+input 1:1:30: `hash` is not what a requirement names: `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
 1 | fn hashed(x : a) : Int needs a.hash = 0
   |                              ^^^^^^
 > fn String.negate(s : String) : String = s
@@ -419,7 +415,9 @@ $ ern run unique.erc
 
 `sorted` and `unique` are not two ways to one thing. A requirement asks for what every element type has of its own, and a record carries what the caller chooses.
 
-What sets a requirement apart from a class, an interface or a trait is that it names a closed set, `compare`, `negate`, the six operators and `show`, which no program adds to: a type's members are declared in its own module, and `show`, which is no member, every value has through `Io.show` (report §4.9). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and that closed set is the whole of what a type can promise. A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The guide's §7 teaches them.
+A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for two things: the set it names is closed, `compare`, `negate`, the six operators and `show`, which no program adds to, and a type's member is declared in its type's own module alone (report §4.9). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and that closed set is the whole of what a type can promise.
+
+`show` is no member a type declares, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report Appendix E.1). The guide's §7 teaches requirements.
 
 ### Little else
 

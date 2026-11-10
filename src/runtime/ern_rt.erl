@@ -54,8 +54,9 @@
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, met/3, host_cause/2, fault/1, fault/2, trace/1,
          failure_trace/1, system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
-         is_kept_from_terminal/1, own_terminal/1,
+         is_kept_from_terminal/1, own_terminal/1, disown_terminal/0,
          input_not_utf8/0, input_unreadable/1, terminal_gone/0, by_input/1, read_input/1,
+         input_opened/1, input_taken/1,
          run_main/3, say/2,
          say_later/2, later_sayer/0, wait_for_later/0, tables/0, arguments/0,
          exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1, stream_gone/1,
@@ -3574,6 +3575,15 @@ own_terminal(Kind) ->
             end
     end.
 
+%% Report §12.1: the claim for keys given back by a first subscription
+%% refused after it claimed, whose input or mode the host could not give
+%% (ern_tty:claimed/2), so that a refused subscription claims nothing. A
+%% read of a line in the moment between the claim and this faults as at a
+%% granted subscription, the two having asked at once.
+-spec disown_terminal() -> true.
+disown_terminal() ->
+    ets:delete_object(?LAUNCH, {reading, keys}).
+
 %% Report §7.3, §12.1: a system process ends the program with a fault of
 %% the entry process, the runner's to report; none where no run is in
 %% progress, which the keys' reader can meet (terminal_gone/0).
@@ -3747,12 +3757,20 @@ by_input(Cause) ->
 -spec read_input(fun(() -> port() | pid())) ->
           {data, binary()} | eof | {error, term()} | limited.
 read_input(Open) ->
-    try Open() of
+    case input_opened(Open) of
+        limited -> limited;
         Input -> input_taken(Input)
-    catch
-        error:system_limit -> limited
     end.
 
+%% The input opened for one request, which the keys' reader opens before
+%% the terminal's mode is set (ern_tty:claimed/2), or `limited`.
+-spec input_opened(fun(() -> port() | pid())) -> port() | pid() | limited.
+input_opened(Open) ->
+    try Open() catch error:system_limit -> limited end.
+
+%% What arrived on an input opened for one request, as read_input/1
+%% answers it, the input closed.
+-spec input_taken(port() | pid()) -> {data, binary()} | eof | {error, term()}.
 input_taken(Input) ->
     First = receive
                 {Input, {data, Bytes}} -> {data, Bytes};
@@ -5117,19 +5135,20 @@ withdraw_load(Evaluators, Units) ->
     Sites.
 
 %% Report §8.5, §11.2: a top-level binding's value, which '$init'/0 put.
-%% One that has none, since a binding before it faulted when the shell
-%% loaded its module, faults its reader (§7.4).
+%% One that has none, since its load did not finish, a faulting reload's
+%% or a refused load's, whose evaluator or caller may have been killed
+%% with nothing faulting, faults its reader (§7.4).
 -spec binding(term()) -> term().
 binding(Key) ->
     case persistent_term:get(Key, '$unevaluated') of
-        '$unevaluated' -> fault(<<"the binding has no value, since one before it faulted">>);
+        '$unevaluated' -> fault(<<"the binding has no value, since its load did not finish">>);
         Value -> Value
     end.
 
 %% Report §8.7: a top-level binding's value, kept under Key, in the run in
 %% progress, as a peer's spawn finds it (ern_code:absent_binding/2): its
 %% value where the initializers of its unit have run, and absent where they
-%% have not, or where a binding before it faulted (§8.5, §11.2).
+%% have not, or where its load did not finish (§8.5, §11.2).
 -spec binding_value(module(), term()) -> {value, term()} | absent.
 binding_value(Unit, Key) ->
     case is_initialized(Unit) of

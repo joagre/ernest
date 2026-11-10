@@ -28,13 +28,7 @@
 /// A program run to its end, and its exit status:
 ///
 /// ```ernest
-/// Either.map(Os.run(Os.Command(program = "sh",
-///                              arguments = ["-c", "exit 3"],
-///                              input = <<>>,
-///                              environment = [],
-///                              workingDirectory = Os.workingDirectory),
-///                   5000),
-///            fn(finished) = finished.status)
+/// Either.map(Os.run(Os.command("sh", ["-c", "exit 3"]), 5000), fn(finished) = finished.status)
 /// // => Right(3)
 /// ```
 ///
@@ -49,8 +43,9 @@
 
 /// A program to run: its name, its arguments, the bytes it reads first as its
 /// input, the variables set over the environment it inherits, and the
-/// directory it runs in. A command that changes neither gives `environment =
-/// []` and `workingDirectory = Os.workingDirectory`.
+/// directory it runs in. `Os.command` makes the command of a program and its
+/// arguments alone, which a command with input, with a variable set or in
+/// another directory updates.
 ///
 /// ### Examples
 ///
@@ -80,12 +75,7 @@ export type Command =
 ///
 /// ```ernest
 /// {
-///     let program <-
-///         Os.start(Os.Command(program = "echo",
-///                             arguments = ["hi"],
-///                             input = <<>>,
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let program <- Os.start(Os.command("echo", ["hi"]));
 ///     let first <- Os.read(program, 5000);
 ///     let second <- Os.read(program, 5000);
 ///     Right(#(first, second))
@@ -132,11 +122,7 @@ export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 /// `signal`, `closeInput` and `give` take:
 ///
 /// ```ernest
-/// Os.start(Os.Command(program = "cat",
-///                     arguments = [],
-///                     input = <<>>,
-///                     environment = [],
-///                     workingDirectory = Os.workingDirectory))
+/// Os.start(Os.command("cat", []))
 /// ```
 export abstract type ProgramMsg =
     Read(ms : Int, reply : Reply(Either(Io.Error, Output)))
@@ -317,6 +303,32 @@ export fn termination(wrap : (Reply(Unit)) -> m) : Unit receiving m =
 foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
     "ern_rt:termination/1"
 
+/// The command of `program` and its `arguments` alone: empty input, no variable
+/// set over the environment, and `Os.workingDirectory` as its directory. A
+/// command with input, with a variable set or in another directory updates it
+/// (report §5.6).
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let command = Os.command("make", ["test"]);
+///     #(command.input, command.environment, command.workingDirectory == Os.workingDirectory)
+/// }
+/// // => #(<<>>, [], true)
+/// ```
+///
+/// A command with a variable set:
+///
+/// ```ernest
+/// Os.Command(..Os.command("sh", ["-c", "locale"]), environment = [#("LANG", "C")]).environment
+/// // => [#("LANG", "C")]
+/// ```
+///
+/// since 0.10.0
+export fn command(program : String, arguments : List(String)) : Command =
+    Command(=program, =arguments, input = <<>>, environment = [], =workingDirectory)
+
 /// Starts the program and answers its address, or `Left` with why it could not
 /// start.
 ///
@@ -358,12 +370,7 @@ foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
 ///
 /// ```ernest
 /// {
-///     let cat <-
-///         Os.start(Os.Command(program = "cat",
-///                             arguments = [],
-///                             input = String.toUtf8("hi"),
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let cat <- Os.start(Os.Command(..Os.command("cat", []), input = String.toUtf8("hi")));
 ///     Os.closeInput(cat);
 ///     Os.read(cat, 5000)
 /// }
@@ -410,11 +417,7 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) = {
 /// ```ernest
 /// {
 ///     let sh <-
-///         Os.startTerminal(Os.Command(program = "sh",
-///                                     arguments = ["-c", "set -- $(stty size); exit $2"],
-///                                     input = <<>>,
-///                                     environment = [],
-///                                     workingDirectory = Os.workingDirectory),
+///         Os.startTerminal(Os.command("sh", ["-c", "set -- $(stty size); exit $2"]),
 ///                          Terminal.Size(rows = 24, columns = 80));
 ///     Os.read(sh, 5000)
 /// }
@@ -450,12 +453,7 @@ export fn startTerminal(command : Command,
 /// ```ernest
 /// {
 ///     let sh <-
-///         Os.startTerminal(Os.Command(program = "sh",
-///                                     arguments = ["-c",
-///                                                  "read line; set -- $(stty size); exit $1"],
-///                                     input = <<>>,
-///                                     environment = [],
-///                                     workingDirectory = Os.workingDirectory),
+///         Os.startTerminal(Os.command("sh", ["-c", "read line; set -- $(stty size); exit $1"]),
 ///                          Terminal.Size(rows = 24, columns = 80));
 ///     let _ <- Os.resize(sh, Terminal.Size(rows = 30, columns = 100));
 ///     let _ <- Os.write(sh, <<10>>, 5000);
@@ -470,12 +468,7 @@ export fn startTerminal(command : Command,
 ///
 /// ```ernest
 /// {
-///     let cat <-
-///         Os.start(Os.Command(program = "cat",
-///                             arguments = [],
-///                             input = <<>>,
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let cat <- Os.start(Os.command("cat", []));
 ///     Os.resize(cat, Terminal.Size(rows = 24, columns = 80))
 /// }
 /// // => Left(Io.NotATerminal)
@@ -511,12 +504,7 @@ export fn resize(program : Address(ProgramMsg), size : Terminal.Size) : Either(I
 ///
 /// ```ernest
 /// {
-///     let sh <-
-///         Os.start(Os.Command(program = "sh",
-///                             arguments = ["-c", "echo no >&2; exit 1"],
-///                             input = <<>>,
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let sh <- Os.start(Os.command("sh", ["-c", "echo no >&2; exit 1"]));
 ///     let first <- Os.read(sh, 5000);
 ///     let last <- Os.read(sh, 5000);
 ///     kill(Process.fromAddress(sh));
@@ -547,12 +535,7 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 ///
 /// ```ernest
 /// {
-///     let cat <-
-///         Os.start(Os.Command(program = "cat",
-///                             arguments = [],
-///                             input = <<>>,
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let cat <- Os.start(Os.command("cat", []));
 ///     let _ <- Os.write(cat, String.toUtf8("hi"), 5000);
 ///     Os.read(cat, 5000)
 /// }
@@ -583,12 +566,7 @@ export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either
 ///
 /// ```ernest
 /// {
-///     let sleeper <-
-///         Os.start(Os.Command(program = "sleep",
-///                             arguments = ["10"],
-///                             input = <<>>,
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let sleeper <- Os.start(Os.command("sleep", ["10"]));
 ///     let _ <- Os.signal(sleeper, Os.Termination);
 ///     let ended <- Os.read(sleeper, 5000);
 ///     kill(Process.fromAddress(sleeper));
@@ -615,12 +593,7 @@ export fn signal(program : Address(ProgramMsg), signal : Signal) : Either(Io.Err
 ///
 /// ```ernest
 /// {
-///     let wc <-
-///         Os.start(Os.Command(program = "wc",
-///                             arguments = ["-c"],
-///                             input = <<1, 2>>,
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let wc <- Os.start(Os.Command(..Os.command("wc", ["-c"]), input = <<1, 2>>));
 ///     Os.closeInput(wc);
 ///     Either.map(Os.read(wc, 5000), fn(output) = match output {
 ///         Os.Stdout(bytes) -> String.trim(String.fromUtf8Lossy(bytes))
@@ -643,12 +616,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit =
 ///
 /// ```ernest
 /// {
-///     let program <-
-///         Os.start(Os.Command(program = "sleep",
-///                             arguments = ["1"],
-///                             input = <<>>,
-///                             environment = [],
-///                             workingDirectory = Os.workingDirectory));
+///     let program <- Os.start(Os.command("sleep", ["1"]));
 ///     let reader = spawn(fn() = match Os.read(program, 5000) {
 ///         _ -> Unit
 ///     });
@@ -680,12 +648,7 @@ export fn give(program : Address(ProgramMsg), owner : Process) : Unit =
 /// ### Examples
 ///
 /// ```ernest
-/// Either.map(Os.run(Os.Command(program = "cat",
-///                              arguments = [],
-///                              input = String.toUtf8("hi"),
-///                              environment = [],
-///                              workingDirectory = Os.workingDirectory),
-///                   5000),
+/// Either.map(Os.run(Os.Command(..Os.command("cat", []), input = String.toUtf8("hi")), 5000),
 ///            fn(finished) = String.fromUtf8(finished.stdout))
 /// // => Right(Some("hi"))
 /// ```

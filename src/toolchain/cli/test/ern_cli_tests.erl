@@ -1824,6 +1824,53 @@ nearer_namespace_wins_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"root shell top\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §4.2, §11.5: a qualified name unknown in the nearer namespace its
+%% first segment found, where a module of that segment stands at the root,
+%% which is out of reach from the writer, has a help naming the hiding
+%% module: `Util.g` in `Top.Shell` is `Top.Shell.Util`'s, and the root's
+%% `Util` declares it
+hidden_root_module_help_test() ->
+    Dir = tmp(),
+    write(Dir, "src/util.ern", "export fn g() : Int = 1\n"),
+    write(Dir, "src/top/shell/util.ern", "export fn f() : Int = 2\n"),
+    write(Dir, "src/top/shell.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Util.g()))\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"shell.ern:1:51: unknown name"
+                                                " Top.Shell.Util.g\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"help: `Util` here is `Top.Shell.Util`; the root's"
+                                                " `Util` is out of reach from `Top.Shell`\n">>)).
+
+%% report §4.2, §11.5: the root holds the libraries of the toolchain's own,
+%% each under a root of the load path, and a type's name is helped as a
+%% value's: `Json.Value` in `Top.Shell`, beside `top/shell/json/`, which
+%% holds a module and so is `Top.Shell.Json`, names the root's `Json` no
+%% more
+hidden_library_help_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top/shell/json/pretty.ern", "export fn pretty() : String = \"pretty\"\n"),
+    write(Dir, "src/top/shell.ern", "export fn valued(value : Json.Value) : Int = 0\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"shell.ern:1:26: unknown type"
+                                                " Top.Shell.Json.Value\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"help: `Json` here is `Top.Shell.Json`; the root's"
+                                                " `Json` is out of reach from `Top.Shell`\n">>)).
+
+%% report §4.2, §11.5: where no module of the first segment stands at the
+%% root, nothing is out of reach, and the unknown name has no help
+hidden_nothing_test() ->
+    Dir = tmp(),
+    write(Dir, "src/top/shell/util.ern", "export fn f() : Int = 2\n"),
+    write(Dir, "src/top/shell.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Util.g()))\n"),
+    ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"shell.ern:1:51: unknown name"
+                                                " Top.Shell.Util.g\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"help:">>)).
+
 %% report §4.2: the climb finds a module namespace and never a type's, and
 %% a namespace holds a module at some depth. In `Top.User`, beside `Top`'s
 %% type `Stack` with its member `compare`, `Stack.name` is the root module

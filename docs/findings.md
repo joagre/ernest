@@ -6,7 +6,7 @@ Twelve readers, each a session of its own given its brief and its files, all on 
 
 ## The lines
 
-A line is `fix`, made in the review's round; `decide`, with the user, in the batch the last section names; `felt`, a line of `docs/language_feedback.md`; or `dropped`, with the reason; and `done` with the date once made. S1 and S2 are the session's own.
+A line is `fix`, made in the review's round; `decide`, with the user, in the batch the last section names; `felt`, a line of `docs/language_feedback.md`; or `dropped`, with the reason; and `done` with the date once made. S1 to S4 are the sessions' own.
 
 ### The report
 
@@ -27,23 +27,23 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - U3 — the cookie stands on a node's command line, which `ps` shows, in the deployment guide's §2.2 and the questions, and in no report section. fix: one sentence in §12.5, which the two guides cite. done 2026-11-10.
 - K5, C4 — an empty `workingDirectory` answers `Left(Other(": NotFound"))`, a line naming no directory, where E.23 makes an empty variable name `Invalid`. fix: `Invalid`, refused before the helper; E.23's sentence names it. done 2026-11-10 in the runtime; E.23's sentence done 2026-11-10.
 - P10 — §11.1's "a node reads its build's units from its build directory at its start alone". fix: the build's and the shell's, at its start and never after. done 2026-11-10.
-- P2 — `Test.capture` captures a service's writes under `ern run`, which E.24 says it does not. decide, D2.
-- P3, K1 — §7.4 and §12.5 make a full table at a `Terminal` request a value, where §12.1 and §12.3 fault the entry process at the subscription. decide, D4.
+- P2 — `Test.capture` captures a service's writes under `ern run`, which E.24 says it does not. decide, D2. decided 2026-11-10: E.24 states the head by job; the report's sentence done 2026-11-10.
+- P3, K1 — §7.4 and §12.5 make a full table at a `Terminal` request a value, where §12.1 and §12.3 fault the entry process at the subscription. decide, D4. decided 2026-11-10: a subscription the table leaves no room for is a value, a key after it the entry process's fault; §12.1 and §12.3 and the runtime done 2026-11-10.
 - P5 — §12.5's listener retries after 7 seconds at the limit of open files, against §0's "retries nothing". decide, D5.
-- P6, K15 — a root module a nearer namespace hides is out of reach, and the diagnostic says only `unknown name Top.Shell.Util.g`. decide, D8.
-- P13 — `String.fromUtf8Piece(<<245>>)` holds a byte that begins no character as a piece not yet finished. decide, D9.
-- P18, K8 — every node holds the shell's units from its start. decide, D6.
-- P1 — `Os.Command`'s five fields cost every program that starts one two features it does not use (§0 principle 5). decide, D7.
+- P6, K15 — a root module a nearer namespace hides is out of reach, and the diagnostic says only `unknown name Top.Shell.Util.g`. decide, D8. decided 2026-11-10: the rule stands; the help names the hiding module; done 2026-11-10.
+- P13 — `String.fromUtf8Piece(<<245>>)` holds a byte that begins no character as a piece not yet finished. decide, D9. decided 2026-11-10: dropped, decided in the log's *Text from Bytes* (principle 2).
+- P18, K8 — every node holds the shell's units from its start. decide, D6. decided 2026-11-10: dropped, decided in the log's *A Node Holds the Shell* and *Lean at the Limits*.
+- P1 — `Os.Command`'s five fields cost every program that starts one two features it does not use (§0 principle 5). decide, D7. decided 2026-11-10: `Os.command` in E.23 and at its 53 sites; done 2026-11-10.
 - P4, K2 — E.18 states that a run's first TLS call at a full table may never answer, against shape rule 8. dropped: decided in the log's *A Program's TLS at a Full Table* and *Lean at the Limits*; the defect is OTP's (`docs/otp_bugs.md`, 17).
 - P7 — a file named after a taken namespace is refused at any depth. dropped: decided in the log's *Relative Names*; the release's note tells a program to rename such a module.
 - P8 — a load past one of the host's limits ends the node. dropped: decided in the log's *A Load Past the Host's Limits*.
 - P11 — text and octets have `drop` without `take`. dropped: decided in the log's *A Text after Its Prefix*.
-- S7 — §11.2 parts an example by its paragraphs' first tokens, and `ern test` takes the longest run of first paragraphs that parses as declarations, so an example whose body holds a blank line passes there and would not by the report's rule (C501's round, run by the session). decide, D17.
+- S7 — §11.2 parts an example by its paragraphs' first tokens, and `ern test` takes the longest run of first paragraphs that parses as declarations, so an example whose body holds a blank line passes there and would not by the report's rule (C501's round, run by the session). decide, D17. decided 2026-11-10: §11.2 states the parse rule; done 2026-11-10.
 
 ### The argument
 
-- K6 — "so a process reads it only with its value" does not follow while a refused load leaves its evaluated bindings without a value. decide, D10.
-- K7 — the `Code.running` paragraph rests on a mailbox type's hash, which a function that receives nothing does not have. decide, D11.
+- K6 — "so a process reads it only with its value" does not follow while a refused load leaves its evaluated bindings without a value. decide, D10. decided 2026-11-10: the read faults as §7.4 says, stated in §11.2, E.28 and the argument; done 2026-11-10.
+- K7 — the `Code.running` paragraph rests on a mailbox type's hash, which a function that receives nothing does not have. decide, D11. decided 2026-11-10: E.28 says the definitions at `Never` count; done 2026-11-10.
 
 ### The guide, the tour, the README and the questions
 
@@ -85,10 +85,10 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - L9 — *Why Ernest*'s first program writes `Upgrade(=next)` before the guide teaches the pun. fix: a clause under the block. done 2026-11-10.
 - L14 — the tour's chapter 2 session stands in the README, the guide's §1.4 and the tour, and no test holds the guide's copy. fix: a test holds it. done 2026-11-10.
 - L16 — the questions restate *Why Ernest*'s closed-set paragraph. fix: the questions point at it. done 2026-11-10.
-- U8, M15 — `Code.running`'s "earlier definition" and its printed type in §8.9. decide, D11.
-- L3, M6 — `show` is "no member" in three documents, and the compiler's message lists it among what a requirement names. decide, D12.
-- M9, M12 — *Why Ernest*'s code-travels claim carries the guide's operational rules; its requirements section never grants the likeness to a type class. decide, D13.
-- M11, N6 — the trace frame `Process.run:259`. decide, D1.
+- U8, M15 — `Code.running`'s "earlier definition" and its printed type in §8.9. decide, D11. decided 2026-11-10: the guide's "another version" and the printed type is not the rule; done 2026-11-10.
+- L3, M6 — `show` is "no member" in three documents, and the compiler's message lists it among what a requirement names. decide, D12. decided 2026-11-10: the message "is not what a requirement names" and the clause on what `Io.show` reads from the type; done 2026-11-10.
+- M9, M12 — *Why Ernest*'s code-travels claim carries the guide's operational rules; its requirements section never grants the likeness to a type class. decide, D13. decided 2026-11-10: both; done 2026-11-10.
+- M11, N6 — the trace frame `Process.run:259`. decide, D1. decided 2026-11-10: the guide's §6.3 says a library frame names the library's source's line; done 2026-11-10.
 - L11, L12, L13 — a pipe in parentheses, a sibling that never waits, a `Down` with no order: tripped on, each stated. dropped: no change asked.
 - L15 — the `other.ern` refusal twice. dropped: a test holds the two.
 - L17 — a prompt's `let` and a peer's `NotLoaded` stated in four places. dropped: the tour and the guides teach, and a teaching document restates (CLAUDE.md, *Restating*).
@@ -110,8 +110,8 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - C13 — `ern_code` drops the mailbox hash from a function's row and reads it again from every holder at each `Code.running`. dropped: a name finds a definition's other versions only through its unit's code list, so keeping the hash in the row removes no read of those lists, and a row holding a name and a mailbox for every function is a cost every run pays for a rare call (the log's *Lean at the Limits*).
 - C14 — `wait_for_deliveries/0` waits for the fault courier too. fix: the name says so. done 2026-11-10 by the glossary's **Delivery**, which names the reports; the name stands in the shell's foreign declaration and its design note.
 - C2 — the helper kills the program's group only once both outputs have ended, so after `Os.signal` a child holding the output outlives the program, against E.23's "killed with it". decide, D3.
-- C15 — a terminal with no `stty` is subscribed with no mode set. decide, D4.
-- C16 — one host reason, two texts, by which table was full. decide, D4.
+- C15 — a terminal with no `stty` is subscribed with no mode set. decide, D4. decided 2026-11-10: a subscription whose mode cannot be set answers `Left(Other(text))`; §12.1 and the runtime done 2026-11-10.
+- C16 — one host reason, two texts, by which table was full. decide, D4. decided 2026-11-10: dropped, E.1's rule gives each text.
 - C17 — `kill(Process.fromAddress(program))` at every probe. dropped: decided in the log's *`kill` Takes a `Process`*, its cost stated there.
 - C18 — `Terminal.Size(24, 80)` refused for named fields. dropped: the rule, its message clear.
 - C1-S — `Fs.makeTempDir`'s directory stands with the mask's mode before its own. dropped: E.17 states the order, nothing can be written there in the window, and the host makes no directory with a mode.
@@ -146,8 +146,8 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - C211 — `segment_value` names two things in the formatter and the emitter. fix: `hugging_segment/1` in the formatter. done 2026-11-10.
 - C212, C213 — `too_long_or_not/5` and four names around one idea in `ern_resolve`. fix. done 2026-11-10.
 - C214 — `docs/code_style.md`'s **HelpText** names `ern_parser:pattern_text/1`, which the parser does not export. fix: the entry. done 2026-11-10.
-- C216 — `Process.live()` lists a run's judge. decide, D1.
-- C218 — `List.length` is an unknown name with no help. decide, D14.
+- C216 — `Process.live()` lists a run's judge. decide, D1. decided 2026-11-10: E.21 says `live` lists the entry process; done 2026-11-10.
+- C218 — `List.length` is an unknown name with no help. decide, D14. decided 2026-11-10: dropped, a help names a fix the compiler knows.
 - C215, C217 — `ern_rt:caller_site/0` a declaration's target only; a probe polling `Process.status`. dropped: by design, noted by the reader.
 
 ### The standard library and the shell
@@ -161,8 +161,8 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - C308 — a filter-only comprehension as an `if`, and a source that is a device refused as "is a directory". fix: a `case`; "is not a regular file". done 2026-11-10.
 - S3 — an input whose compile meets a full table loses its namespace number, two atoms each time, which no collection reclaims (C301's round). fix: `spawnInput` answers the session, and the number goes back to `free`. done 2026-11-10, C302 undone the same way.
 - C309 — `Os.signal`'s `Left(Closed)` after the exit, and a program that handles the signal, have no test. fix. done 2026-11-10.
-- C303 — `Process.run`'s judge is a plain spawn at the library's line, listed by `Process.live()` and framed in a fault's trace. decide, D1.
-- C312 — `environment = [], workingDirectory = Os.workingDirectory` at 52 sites. decide, D7.
+- C303 — `Process.run`'s judge is a plain spawn at the library's line, listed by `Process.live()` and framed in a fault's trace. decide, D1. decided 2026-11-10: E.21 states the judge and the library's frame, as the log's *A Worker's Value or Its End Built* decided; done 2026-11-10.
+- C312 — `environment = [], workingDirectory = Os.workingDirectory` at 52 sites. decide, D7. decided 2026-11-10: `Os.command`, with P1; done 2026-11-10.
 - C310 — what was kept: C301 and C308. dropped: those lines hold it.
 - C311 — `Fs.makeTempDir` before its mode, and `rand:bytes`. dropped: as C1-S.
 - C313 — `kill(Process.fromAddress(...))` at 25 sites. dropped: as C17.
@@ -180,7 +180,7 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - C409, C410 — "regression tests, written with the code", and a comment's history of the replaced shim. fix. done 2026-11-10.
 - C411 — no case splits the empty line's `\r\n` across the carried bytes with the limit spent. fix: one case. done 2026-11-10.
 - S5, S6 — a header name holding U+007F is accepted, the host's table reading DEL as a token character, and the head's empty line passes `line = 1`, where `decode_packet` checks no size on a buffer that is exactly CRLF (C401's round). fix: each refused in Ernest around the host, as G.11's token and limit say. done 2026-11-10: a method's and a name's DEL refused in the shim, where the Ernest cost a browser's head 2 µs in 9; an empty first line held to its limit; the head's last empty line under a limit of one is unreachable, since no first line fits in one byte.
-- C407 — `cookies` keeps a name's and a value's spaces and an empty name. decide, D15.
+- C407 — `cookies` keeps a name's and a value's spaces and an empty name. decide, D15. decided 2026-11-10: RFC 6265bis's reading; G.11 and the library done 2026-11-10.
 - C412 — a byte-a-packet client rescans its buffer within the limits. dropped: bounded as G.11 states.
 - C401-L4 — a broken JSON literal's position is built before a guard may drop it. dropped: an error path.
 
@@ -207,8 +207,9 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 ### The machines and the review's documents
 
 - S1 — without clang, `make sanitize` ends on the shell's `clang: not found`, where `make test-browser` says what it lacks with status 2. fix: the same. done 2026-11-10.
+- S4 — the decisions' sentences read cold (the design session's own): the no-value cause said "since one before it faulted" where a refused load's evaluator or caller was killed and nothing faulted; G.11 cited RFC 6265bis for a reading the draft does not give; §11.2's example rule was wider than `ern_examples:declared/3`. fix: the cause `since its load did not finish`, the citation gone, the rule "empty lines, short of its last paragraph"; the sentences and the cause's text done 2026-11-10.
 - S2 — `docs/reviews/full.md` puts `findings.md` "beside this one", in `docs/reviews/`, where CLAUDE.md's owner table and every review put it in `docs/`. fix: `docs/findings.md`. done 2026-11-10.
-- B1 — the bench: `String.stripPrefix` costs 4.9 times `string:prefix/2` in all three runs, three walks of the prefix where the host's one, new at 0.10.0. The host's function is not exact: over 1,000,000 random texts it differs in 135, answering `nomatch` for a whole pair of regional indicators, U+1F1EA U+1F1EA before U+1F1F8, and the rest for a prefix that ends inside a conjunct, U+0915 U+094D of U+0915 U+094D U+0915, against `string:to_graphemes/1`'s own clusters. decide, D18; the host's two answers to `docs/otp_bugs.md`.
+- B1 — the bench: `String.stripPrefix` costs 4.9 times `string:prefix/2` in all three runs, three walks of the prefix where the host's one, new at 0.10.0. The host's function is not exact: over 1,000,000 random texts it differs in 135, answering `nomatch` for a whole pair of regional indicators, U+1F1EA U+1F1EA before U+1F1F8, and the rest for a prefix that ends inside a conjunct, U+0915 U+094D of U+0915 U+094D U+0915, against `string:to_graphemes/1`'s own clusters. decide, D18; the host's two answers to `docs/otp_bugs.md`. decided 2026-11-10: the Ernest stays, the host's function inexact both ways; `docs/otp_bugs.md`'s 21st done 2026-11-10.
 
 ### Felt
 
@@ -232,24 +233,24 @@ Each line is a feedback entry, decided by MVP 4.16's item 12.
 
 Each is argued with the user, the argument before the verdict, after the log is searched and the program run. A batch holds lines that one decision settles; the rest stand alone.
 
-- **D1, `Process.run`'s judge and a library's frame in a trace:** C303, C216, M11, N6.
-- **D2, a service's writes in a capture under `ern run`:** P2.
+- **D1, `Process.run`'s judge and a library's frame in a trace:** C303, C216, M11, N6. Decided 2026-11-10: as the log's *A Worker's Value or Its End Built* decided, stated in E.21 and the guide.
+- **D2, a service's writes in a capture under `ern run`:** P2. Decided 2026-11-10: E.24 states the head by job.
 - **D3, a program's group at its exit:** C2.
-- **D4, a terminal's subscription the host cannot serve, and the texts of a full table:** P3, K1, C15, C16.
+- **D4, a terminal's subscription the host cannot serve, and the texts of a full table:** P3, K1, C15, C16. Decided 2026-11-10: a subscription the table leaves no room for, or whose mode cannot be set, is a value; a key after it faults the entry process (§7.4); the texts stay E.1's.
 - **D5, the listener's retry against §0's *Time*:** P5, sharpening the log's *The Carrier's Acceptor at a Full Table*.
-- **D6, the shell's units from a node's start:** K8, P18, sharpening the log's *A Node Holds the Shell* against *Lean at the Limits*.
-- **D7, `Os.Command`'s two inherited fields:** P1, C312, sharpening feedback 184's verdict.
-- **D8, a root module a nearer one hides:** P6, K15.
-- **D9, a piece that can begin no character:** P13.
-- **D10, a refused load's window in the argument:** K6.
-- **D11, what `Code.running` lists:** K7, U8, M15.
-- **D12, `show` in a requirement:** L3, M6.
-- **D13, *Why Ernest*'s claims:** M9, M12.
-- **D14, the newcomer's names:** the eleven N lists apart, N13's bindings beside functions, C218's unknown `List.length`.
-- **D15, a cookie's spaces and an empty name:** C407.
+- **D6, the shell's units from a node's start:** K8, P18, sharpening the log's *A Node Holds the Shell* against *Lean at the Limits*. Decided 2026-11-10: dropped, the two entries stand with their measurements.
+- **D7, `Os.Command`'s two inherited fields:** P1, C312, sharpening feedback 184's verdict. Decided 2026-11-10: `Os.command(program, arguments)`, since principle 5's sentence outranks E.0 rule 4's refusal of a shortening; the record stays the one form of a command whole.
+- **D8, a root module a nearer one hides:** P6, K15. Decided 2026-11-10: the rule stands (*Relative Names*); the help names the hiding module.
+- **D9, a piece that can begin no character:** P13. Decided 2026-11-10: dropped (*Text from Bytes*).
+- **D10, a refused load's window in the argument:** K6. Decided 2026-11-10: the read faults as §7.4 says; §11.2, E.28, §7.4 and the argument say so.
+- **D11, what `Code.running` lists:** K7, U8, M15. Decided 2026-11-10: the definitions at `Never` count; the guide follows.
+- **D12, `show` in a requirement:** L3, M6. Decided 2026-11-10: the message says what a requirement names; the documents say what `Io.show` reads from the type.
+- **D13, *Why Ernest*'s claims:** M9, M12. Decided 2026-11-10: both.
+- **D14, the newcomer's names:** the eleven N lists apart, N13's bindings beside functions, C218's unknown `List.length`. Decided 2026-11-10: the names stand (*Names Read as a Newcomer Reads Them*, *The Library's Lines*); E.0 rule 2 says what the host gives at start is a value; C218 dropped.
+- **D15, a cookie's spaces and an empty name:** C407. Decided 2026-11-10: RFC 6265bis's reading.
 - **D16, `Http`'s first line read by the host or by Ernest:** C402. Decided 2026-11-10: the shim stays under E.0 rule 1, since Ernest alone cost 6.3 times the host on the first line and took the smallest head past the line; the Ernest closes the host's DEL and its empty line.
-- **D17, an example's paragraphs:** S7, §11.2's first-token rule against `ern test`'s longest run that parses (`ern_examples:declared/3`), and the site's first-token rule with C503's continuation.
-- **D18, `String.stripPrefix` past E.0 rule 1's line:** B1. The host's `string:prefix/2` cannot be its shim, being inexact both ways; the Ernest at 4.9 times stays, said in the log, or an adapter compares the bytes and reads the boundary at the prefix's end from its last grapheme and what follows, every boundary before it the prefix's own.
+- **D17, an example's paragraphs:** S7, §11.2's first-token rule against `ern test`'s longest run that parses (`ern_examples:declared/3`), and the site's first-token rule with C503's continuation. Decided 2026-11-10: §11.2 states the parse rule, which the site's first-token reading approximates and its tests hold over the repository's blocks.
+- **D18, `String.stripPrefix` past E.0 rule 1's line:** B1. The host's `string:prefix/2` cannot be its shim, being inexact both ways; the Ernest at 4.9 times stays, said in the log, or an adapter compares the bytes and reads the boundary at the prefix's end from its last grapheme and what follows, every boundary before it the prefix's own. Decided 2026-11-10: the Ernest stays; `docs/otp_bugs.md`'s 21st.
 
 ## The readers' lists
 

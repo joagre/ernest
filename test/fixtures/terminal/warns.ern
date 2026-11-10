@@ -21,12 +21,7 @@ export fn main() : Unit receiving Msg =
     match Os.arguments {
         [pipe, ms] -> {
             Io.printlnError("ready");
-            let reader =
-                Os.Command(program = "cat",
-                           arguments = [pipe],
-                           input = <<>>,
-                           environment = [],
-                           workingDirectory = Os.workingDirectory);
+            let reader = Os.command("cat", [pipe]);
             let step = Optional.withDefault(String.toInt(ms), 0);
             let _ = Os.run(reader, step);
             warn("a warning once the terminal has gone, é ☃");

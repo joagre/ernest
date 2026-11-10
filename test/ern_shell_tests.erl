@@ -1291,9 +1291,8 @@ fault_while_typing_test_() ->
 fault_while_typing() ->
     Pipe = scratch_name("ern_typing_"),
     [] = os:cmd("mkfifo " ++ Pipe),
-    Late = "spawn(fn() = { let _ = Os.run(Os.Command(program = \"cat\","
-           " arguments = [\"" ++ Pipe ++ "\"], input = <<>>, environment = [],"
-           " workingDirectory = Os.workingDirectory), 60000); let _ = 1 / 0; Unit })\r",
+    Late = "spawn(fn() = { let _ = Os.run(Os.command(\"cat\", [\"" ++ Pipe ++ "\"]), 60000);"
+           " let _ = 1 / 0; Unit })\r",
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex(Late)},
@@ -3260,8 +3259,7 @@ owned_said() ->
            "    #(Ets.new(), Proxy.start(s, 100))\n"
            "let a = 1\n"
            "Io.println(\"a rebound\")\n"
-           "let p <- Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>,"
-           " environment = [], workingDirectory = Os.workingDirectory))\n"
+           "let p <- Os.start(Os.command(\"cat\", []))\n"
            "let l3 <- Tcp.listen(\"127.0.0.1\", 0)\n"
            "let #(c, d) <- Either.map(Either.andThen(Tcp.port(l3), fn(port) ="
            " Tcp.connect(\"127.0.0.1\", port, 1000)), fn(c) = #(1, c))\n"
@@ -4928,7 +4926,7 @@ reload_keeps_unchanged_values() ->
                                                 " compiled to its value has it, and the rest keep"
                                                 " the values of the previous version\n">>)),
     %% the input's fault, its trace beneath it, a frame a line
-    NoValue = <<"fault: the binding has no value, since one before it faulted">>,
+    NoValue = <<"fault: the binding has no value, since its load did not finish">>,
     ?assertMatch({match, _}, re:run(Output, ["> ", NoValue,
                                              "\n(    [^\n]*\n)*> 20 : Int\n> 6 : Int\n"])).
 
@@ -4966,7 +4964,7 @@ reload_keeps_ground_values() ->
                                                 " or which are new, are without a value, but one"
                                                 " compiled to its value has it, and the rest keep"
                                                 " the values of the previous version\n">>)),
-    NoValue = <<"fault: the binding has no value, since one before it faulted">>,
+    NoValue = <<"fault: the binding has no value, since its load did not finish">>,
     ?assertMatch({_, _}, binary:match(Output, <<"> 6 : Int\n> \"new\" : String\n> 12 : Int\n> ",
                                                 NoValue/binary>>)).
 
@@ -5583,8 +5581,8 @@ load_evaluates_bindings() ->
                                             " are new, are without a value")),
     ?assertMatch({_, _}, binary:match(Output, <<"> 30 : Int">>)),
     %% one the previous version did not have has no value
-    ?assertMatch({_, _}, binary:match(Output, <<"the binding has no value, since one before it"
-                                                " faulted">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"the binding has no value, since its load did"
+                                                " not finish">>)).
 
 %% A directory of its own under the run's (ern_pty:run_dir/0), for a
 %% test's sources or a home. The operating system's pid as well as the

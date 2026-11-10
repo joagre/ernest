@@ -499,7 +499,7 @@ A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.co
 
 ### 4.9 Requirements
 
-A `fn` declaration may end in a *requirement*: `needs` and the members it names, after the result type and before `=`. `fn fromList(list : List(a)) : Set(a) needs a.compare = ...` names the member `compare` of the type `a` stands for (§4.5, §3.10); `needs a.+` names an operator, and a requirement names several with commas, `needs a.+, a.*`. A requirement names `compare`, `negate`, an operator of §2.6, or `show`, which is no member but `Io.show` and `Io.debug` (Appendix E.1), and nothing else: `needs a.zero` is an error at the declaration, `` `zero` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show` ``.
+A `fn` declaration may end in a *requirement*: `needs` and the members it names, after the result type and before `=`. `fn fromList(list : List(a)) : Set(a) needs a.compare = ...` names the member `compare` of the type `a` stands for (§4.5, §3.10); `needs a.+` names an operator, and a requirement names several with commas, `needs a.+, a.*`. A requirement names `compare`, `negate`, an operator of §2.6, or `show`, which is no member but `Io.show` and `Io.debug` (Appendix E.1), and nothing else: `needs a.zero` is an error at the declaration, `` `zero` is not what a requirement names: `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show` ``.
 
 The variable is a type variable of the signature that stands in a value position (§3.9); one in effect positions alone, and one the signature does not name, are errors at the declaration, `b is no type variable of the signature`. A variable that stands in the result type alone may carry one. A requirement names a variable's member once; naming it twice is an error, `the requirement names a.compare twice`. A type has one member of each name.
 
@@ -907,7 +907,7 @@ Beside the list, these faults are raised. A failure in the runtime faults the pr
 
 A fault in a function adapting an address faults the target with its own cause (§6.5). A restarting function called where the runtime applies a function for another process faults with `Fault("restart in a function the runtime applies")` (§6.9). The causes the runtime raises at its boundaries, a foreign function's raise or a value that does not match its declared type, a terminal claimed the other way or held by the shell, and a standard input that is not UTF-8 or cannot be read, are §12.3's.
 
-A deadlock faults the entry process with `Fault("deadlock")`, or in its place a load's evaluator that waits (§8.6, Appendix E.28) or, under `ern test`, the process of the test that runs (§11.2). A use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2).
+A deadlock faults the entry process with `Fault("deadlock")`, or in its place a load's evaluator that waits (§8.6, Appendix E.28) or, under `ern test`, the process of the test that runs (§11.2). A use of a binding a faulting reload or a refused load left without a value faults its reader with `Fault("the binding has no value, since its load did not finish")` (§11.2).
 
 ## 8. Programs
 

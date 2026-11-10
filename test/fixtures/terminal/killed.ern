@@ -22,12 +22,7 @@ export fn main() : Unit receiving Msg =
 fn killed() : Unit =
     match Os.environment("ERN_HOST") {
         Some(host) -> {
-            let command =
-                Os.Command(program = "kill",
-                           arguments = ["-KILL", host],
-                           input = <<>>,
-                           environment = [],
-                           workingDirectory = Os.workingDirectory);
+            let command = Os.command("kill", ["-KILL", host]);
             Io.println(Io.show(Os.run(command, 30000)))
         }
       | None ->

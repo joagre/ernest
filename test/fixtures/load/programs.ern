@@ -32,34 +32,12 @@ fn work(left : Int) : Unit =
     }
 
 fn once() : Unit = {
-    let _ =
-        Os.run(Os.Command(program = "cat",
-                          arguments = [],
-                          input = String.toUtf8("hi"),
-                          environment = [],
-                          workingDirectory = Os.workingDirectory),
-               5000);
-    let _ =
-        Os.run(Os.Command(program = "no-such-program-ern",
-                          arguments = [],
-                          input = <<>>,
-                          environment = [],
-                          workingDirectory = Os.workingDirectory),
-               5000);
-    match Os.start(Os.Command(program = "sleep",
-                              arguments = ["10"],
-                              input = <<>>,
-                              environment = [],
-                              workingDirectory = Os.workingDirectory)) {
+    let _ = Os.run(Os.Command(..Os.command("cat", []), input = String.toUtf8("hi")), 5000);
+    let _ = Os.run(Os.command("no-such-program-ern", []), 5000);
+    match Os.start(Os.command("sleep", ["10"])) {
         Right(process) -> kill(Process.fromAddress(process))
       | Left(_) -> Unit
     };
-    let _ =
-        Os.run(Os.Command(program = "sleep",
-                          arguments = ["10"],
-                          input = <<>>,
-                          environment = [],
-                          workingDirectory = Os.workingDirectory),
-               1);
+    let _ = Os.run(Os.command("sleep", ["10"]), 1);
     Unit
 }

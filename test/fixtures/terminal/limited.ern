@@ -2,8 +2,10 @@
 // The terminal at a full table of ports, for the terminal tests (report
 // §12.1, §12.5): a node whose `limits` makes the table small fills it with
 // listeners, and its subscription is refused with the host's words; once a
-// listener is closed, the next is granted, its holder taking the port given
-// back, and the first read of the keys finds none to open.
+// listener is closed, the next is refused too, its holder taking the port
+// given back and its first read finding none to open; once a second is
+// closed, the next is granted, the holder and the first read taking one
+// each.
 //
 
 type Msg = Key(Terminal.Event) | Ended(Down)
@@ -30,14 +32,13 @@ export fn main() : Unit receiving Msg = {
     let listeners = filled([]);
     Io.println(Io.show(Terminal.subscribe(Key)));
     match listeners {
-        listener :: _ -> {
-            closed(listener);
+        first :: second :: _ -> {
+            closed(first);
             Io.println(Io.show(Terminal.subscribe(Key)));
-            receive {
-                _ -> Unit
-            }
+            closed(second);
+            Io.println(Io.show(Terminal.subscribe(Key)))
         }
-      | [] ->
+      | _ ->
             Unit
     }
 }

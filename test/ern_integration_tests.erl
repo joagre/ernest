@@ -538,10 +538,6 @@ fn filled(listeners : List(Address(Tcp.ListenerMsg))) : List(Address(Tcp.Listene
         }
     }
 
-fn cat() : Os.Command =
-    Os.Command(program = \"cat\", arguments = [], input = <<>>, environment = [],
-               workingDirectory = Os.workingDirectory)
-
 // What an open answered, its socket or its listener left out.
 fn opened(answer : Either(Io.Error, Address(m))) : Either(Io.Error, Unit) =
     Either.map(answer, fn(_) = Unit)
@@ -564,10 +560,11 @@ fn knocked(door : Address(Tcp.ListenerMsg), port : Int) : Unit receiving Down = 
     Io.println(\"read: \" <> Io.show(Either.map(Fs.read(Path.join([\"limit.ern\"]), 5000),
                                                fn(_) = Unit)));
     Io.println(\"list: \" <> Io.show(Either.map(Fs.list(Path.join([\".\"]), 5000), fn(_) = Unit)));
-    Io.println(\"start: \" <> Io.show(opened(Os.start(cat()))));
+    let cat = Os.command(\"cat\", []);
+    Io.println(\"start: \" <> Io.show(opened(Os.start(cat))));
     let size = Terminal.Size(rows = 24, columns = 80);
-    Io.println(\"startTerminal: \" <> Io.show(opened(Os.startTerminal(cat(), size))));
-    Io.println(\"run: \" <> Io.show(Either.map(Os.run(cat(), 5000), fn(_) = Unit)));
+    Io.println(\"startTerminal: \" <> Io.show(opened(Os.startTerminal(cat, size))));
+    Io.println(\"run: \" <> Io.show(Either.map(Os.run(cat, 5000), fn(_) = Unit)));
     Io.println(\"encode: \" <> Base64.encode(<<1, 2, 3>>));
     Io.println(\"parse: \" <> Io.show(Either.map(Json.parse(\"[1]\"), Json.encode)));
     Io.println(\"listenTls: \" <> Io.show(tls()));
@@ -1015,8 +1012,7 @@ given_environment() ->
             " echo \\\"${EMU-unset}\\\"; echo \\\"$ERL_LIBS\\\";"
             " echo \\\"$ERL_CRASH_DUMP_SECONDS\\\";"
             " trap 'echo caught' FPE; kill -FPE $$; echo survived\";\n"
-            "    let command = Os.Command(program = \"sh\", arguments = [\"-c\", script],"
-            " input = <<>>, environment = [], workingDirectory = Os.workingDirectory);\n"
+            "    let command = Os.command(\"sh\", [\"-c\", script]);\n"
             "    match Os.run(command, ", ern_nodes_tests:wait_ms_text(), ") {\n"
             "        Right(finished) ->\n"
             "            Io.print(String.fromUtf8Lossy(finished.stdout))\n"
@@ -1053,8 +1049,7 @@ terminal_program() ->
             "    let size = Terminal.Size(rows = 24, columns = 80);\n"
             "    let script = \"read line; set -- $(stty size);"
             " echo \\\"$1 $2 $line\\\"; exit 3\";\n"
-            "    let command = Os.Command(program = \"sh\", arguments = [\"-c\", script],"
-            " input = <<>>, environment = [], workingDirectory = Os.workingDirectory);\n"
+            "    let command = Os.command(\"sh\", [\"-c\", script]);\n"
             "    match Os.startTerminal(command, size) {\n"
             "        Right(sh) -> {\n"
             "            match Process.status(Process.fromAddress(sh)) {\n"
@@ -1068,8 +1063,7 @@ terminal_program() ->
             "        }\n"
             "      | Left(error) -> Io.println(Io.show(error))\n"
             "    };\n"
-            "    match Os.start(Os.Command(program = \"cat\", arguments = [], input = <<>>,\n"
-            "        environment = [], workingDirectory = Os.workingDirectory)) {\n"
+            "    match Os.start(Os.command(\"cat\", [])) {\n"
             "        Right(cat) -> Io.println(Io.show(Os.resize(cat, size)))\n"
             "      | Left(error) -> Io.println(Io.show(error))\n"
             "    };\n"

@@ -14,7 +14,7 @@
          report_errors/3, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
          module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
          resolved_module/3, namespace_test/3, compiled_dependencies/1, source_root/3,
-         build_root/2, is_stdlib_root/1, checked/2, stdlib_hash/0,
+         build_root/2, is_stdlib_root/1, checked/4, stdlib_hash/0,
          dependency_interfaces/5, load_path/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
          relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1,
@@ -1126,7 +1126,7 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
         {true, Interface} ->
             {Interfaces#{Namespace => Interface}, none};
         false ->
-            case checked(Module, Given) of
+            case checked(Module, Given, SourceRoot, DependencyRoots) of
                 {ok, Typed, Interface, Env} ->
                     Standard = is_stdlib_root(SourceRoot),
                     Canonical = ern_canonical:module(Namespace, Typed, Env, Standard),
@@ -1153,13 +1153,33 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
 %% Report §4.2, §11.5: a parsed module checked against the interfaces
 %% Given, its names resolved as its parse resolved them, and each name
 %% written longer than its shortest form an error beside the checker's,
-%% which checks it as resolved all the same.
--spec checked(#build_module{}, [#interface{}]) ->
+%% which checks it as resolved all the same. A name unknown where a nearer
+%% namespace hid one at the root, under SourceRoot or a root of
+%% DependencyRoots, is helped so (ern_resolve:out_of_reach/4).
+-spec checked(#build_module{}, [#interface{}], file:filename() | none, [file:filename()]) ->
           {ok, [tuple()], #interface{}, ern_typecheck:env()}
           | {error, [ern_diagnostic:diagnostic()]}.
 checked(#build_module{namespace = Namespace, declarations = Declarations, shortest = Shortest,
-                      too_long = TooLong}, Given) ->
-    ern_typecheck:check_resolved(Namespace, Declarations, Given, Shortest, TooLong).
+                      too_long = TooLong, resolved = Resolved}, Given, SourceRoot,
+        DependencyRoots) ->
+    case ern_typecheck:check_resolved(Namespace, Declarations, Given, Shortest, TooLong) of
+        {error, Diagnostics} ->
+            AtRoot = fun(Segment) -> at_root(Segment, SourceRoot, DependencyRoots) end,
+            {error, [ern_resolve:out_of_reach(Diagnostic, Namespace, Resolved, AtRoot)
+                     || Diagnostic <- Diagnostics]};
+        Checked ->
+            Checked
+    end.
+
+%% Report §4.2: whether a module stands at the root under the first segment
+%% Segment, a source under SourceRoot or a compiled module under a root of
+%% DependencyRoots, at its path or in its directory, as namespace_test/3
+%% answers below the root.
+at_root(Segment, SourceRoot, DependencyRoots) ->
+    Path = ern_namespace:module_path([Segment]),
+    Roots = [{SourceRoot, source} || SourceRoot =/= none]
+        ++ [{Root, compiled} || Root <- DependencyRoots],
+    lists:any(fun({Root, Kind}) -> holds_module(filename:join(Root, Path), Kind) end, Roots).
 
 %% Report §11.1: the modules of the build, of Namespaces, that a module's
 %% forms name by name, a prelude name or an operator's resolution among
@@ -1734,7 +1754,7 @@ compile_source(File, SourceRoot, LoadPath, Interfaces, Units, SiteNamespace) ->
                         || {Dependency, DependencyInterface} <- DependencyInterfaces]),
         Hash = crypto:hash(sha256, source_bytes(File)),
         Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
-        case checked(Module, Given) of
+        case checked(Module, Given, SourceRoot, LoadPath) of
             {ok, Typed, Interface, Env} ->
                 %% the dependencies are recorded as `ern build` records them, so
                 %% the shell loads them before the module, and the namespace

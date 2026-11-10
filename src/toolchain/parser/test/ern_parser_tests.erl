@@ -1346,7 +1346,7 @@ requirement_test() ->
                                    #member{member_of = a, name = show}]} =
         declaration("fn f(x : a, y : b) : a receiving m needs a.compare, b.+, a.show = x"),
     #fn_declaration{requirement = []} = declaration("fn f(x : a) : a = x"),
-    ?assertEqual("`zero` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`,"
+    ?assertEqual("`zero` is not what a requirement names: `+`, `-`, `*`, `/`, `%`, `<>`,"
                  " `compare`, `negate` or `show`",
                  refusal("fn f(x : a) : a needs a.zero = x")),
     %% the member underlined whole: a regression test

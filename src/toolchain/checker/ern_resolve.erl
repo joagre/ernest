@@ -10,7 +10,8 @@
 %% reads each name whole, as it did before names were relative. The pass
 %% asks the build which namespaces below the root hold a module,
 %% IsNamespace, since only the build reads the roots; the root holds every
-%% first segment no nearer namespace does, and is never asked of.
+%% first segment no nearer namespace does, and is asked of only for the help
+%% of a name unknown where a nearer namespace hid it (out_of_reach/4).
 %%
 %% A type or a constructor of the module's own namespace written qualified
 %% is refused here, since no binding hides one (§4.2). `Prelude.` and a
@@ -18,7 +19,7 @@
 %% for them read which binding hides a name.
 -module(ern_resolve).
 
--export([resolved/3, qualifiers/3, shortest/3, too_long/4, name_span/2]).
+-export([resolved/3, qualifiers/3, shortest/3, too_long/4, out_of_reach/4, name_span/2]).
 
 -export_type([is_namespace/0]).
 
@@ -272,6 +273,39 @@ too_long(Span, Written, Whole, Short) ->
                 message = ern_namespace:text(Whole)
                           ++ " is written longer than its shortest resolving form",
                 help = "write `" ++ ern_namespace:text(Short) ++ "`"}.
+
+%% Report §4.2, §11.5: Diagnostic, a qualified name unknown in the namespace
+%% its qualifier resolved to, with a help naming the module that hides one
+%% at the root: where the qualifier's first segment was found nearer than
+%% the root, and AtRoot says a module of that segment stands there, out of
+%% reach from OwnNamespace. Resolved holds each qualifier the source writes
+%% with the namespace it resolved to; a name whose first segment was found
+%% at the root asks nothing more.
+-spec out_of_reach(ern_diagnostic:diagnostic(), [atom()], [{[atom()], [atom()]}],
+                   fun((atom()) -> boolean())) -> ern_diagnostic:diagnostic().
+out_of_reach(#diagnostic{unknown_namespace = [_ | _] = Namespace, help = undefined} = Diagnostic,
+             OwnNamespace, Resolved, AtRoot) ->
+    %% the shortest qualifier of the namespace, since a longer is an error
+    %% of its own
+    case lists:sort([{length(Written), Written} || {Written, Found} <- Resolved,
+                                                   Found =:= Namespace]) of
+        [{Length, [First | _]} | _] when Length < length(Namespace) ->
+            Hiding = lists:sublist(Namespace, length(Namespace) - Length + 1),
+            case AtRoot(First) of
+                true ->
+                    Segment = atom_to_list(First),
+                    Diagnostic#diagnostic{help = "`" ++ Segment ++ "` here is `"
+                                                 ++ ern_namespace:text(Hiding) ++ "`; the root's `"
+                                                 ++ Segment ++ "` is out of reach from `"
+                                                 ++ ern_namespace:text(OwnNamespace) ++ "`"};
+                false ->
+                    Diagnostic
+            end;
+        _ ->
+            Diagnostic
+    end;
+out_of_reach(Diagnostic, _OwnNamespace, _Resolved, _AtRoot) ->
+    Diagnostic.
 
 %% The span of a name as the source writes it, Written, from where its
 %% node begins (report §11.5).

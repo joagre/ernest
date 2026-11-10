@@ -504,7 +504,7 @@ checked(Text, #example_module{namespace = Namespace, interfaces = Interfaces} = 
                                           ern_build:namespace_test(hd(Namespace), none, LoadPath)),
             case named(Declarations, Module, Naming) of
                 {ok, Uses, Named} ->
-                    case ern_build:checked(Resolved, Interfaces ++ Named) of
+                    case ern_build:checked(Resolved, Interfaces ++ Named, none, LoadPath) of
                         {ok, Typed, Interface, Env} -> {ok, Typed, Interface, Env, Uses};
                         {error, _} = Error -> Error
                     end;

@@ -165,12 +165,7 @@ fn fail(text : String) : a = {
 // still in its process group, the reader first, whose read would fault on
 // the killed program.
 fn drive(options : Options, ms : Int) : Unit receiving HarnessMsg = {
-    let command =
-        Os.Command(program = "/bin/sh",
-                   arguments = ["-c", String.join(options.command, " ")],
-                   input = <<>>,
-                   environment = [],
-                   workingDirectory = Os.workingDirectory);
+    let command = Os.command("/bin/sh", ["-c", String.join(options.command, " ")]);
     match Os.startTerminal(command, options.size) {
         Left(error) ->
             fail("/bin/sh cannot start: " <> Io.show(error))
@@ -295,12 +290,7 @@ fn awaitPut(run : Run, putter : Address(Never)) : Stepped receiving HarnessMsg =
 // `sh`, whose open waits until the program has opened the pipe for
 // reading; a path that names no named pipe is not opened.
 fn openPipe(path : String, harness : Address(HarnessMsg), ms : Int) : Unit = {
-    let opener =
-        Os.Command(program = "/bin/sh",
-                   arguments = ["-c", "test -p \"$1\" && : > \"$1\"", "sh", path],
-                   input = <<>>,
-                   environment = [],
-                   workingDirectory = Os.workingDirectory);
+    let opener = Os.command("/bin/sh", ["-c", "test -p \"$1\" && : > \"$1\"", "sh", path]);
     match Os.run(opener, ms) {
         Right(Os.Finished(status = 0)) -> send(harness, Opened)
       | _ -> send(harness, Unopened)

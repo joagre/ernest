@@ -977,3 +977,34 @@ A backlog past what the option can carry is refused with `{error, einval}`, or p
 **Affected versions**
 
 OTP 29, erts 17.1.1, on Linux x86_64.
+
+## 21. `string:prefix/2` disagrees with `string:to_graphemes/1` on where a prefix may end
+
+Not filed. Found on 2026-11-10 by the release review's bench (the log's *The Release Review Before 0.10.0*); Ernest keeps `String.stripPrefix` in Ernest over its own graphemes (E.5).
+
+**Title:** string:prefix/2 answers nomatch for a prefix that is a whole grapheme cluster, and matches a prefix that ends inside one
+
+**Describe the bug**
+
+`string:prefix/2` is documented as grapheme-aware: it matches the prefix against the string's grapheme clusters, as `string:to_graphemes/1` splits them. It disagrees with `to_graphemes/1` both ways. A pair of regional indicators is one cluster to `to_graphemes/1`, and `prefix/2` answers `nomatch` for a prefix that is exactly that pair. A consonant, a virama and a consonant are one cluster to `to_graphemes/1`, and `prefix/2` matches a prefix that ends after the virama, inside the cluster. Over 1,000,000 random texts and prefixes from an alphabet of combining marks, ZWJ, regional indicators, Hangul jamo and Devanagari, the two disagreed on 135.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    io:format("~p ~p~n", [string:prefix(<<"\x{1F1EA}\x{1F1EA}\x{1F1F8}"/utf8>>, <<"\x{1F1EA}\x{1F1EA}"/utf8>>),
+                          string:to_graphemes(<<"\x{1F1EA}\x{1F1EA}\x{1F1F8}"/utf8>>)]),
+    io:format("~p ~p~n", [string:prefix(<<"\x{915}\x{94D}\x{915}"/utf8>>, <<"\x{915}\x{94D}"/utf8>>),
+                          string:to_graphemes(<<"\x{915}\x{94D}\x{915}"/utf8>>)]),
+    halt().'
+```
+
+It prints `nomatch [[127466,127466],127480]`, where the prefix is the first cluster whole, and `<<224,164,149>> [[2325,2381,2325]]`, where the prefix ends inside the one cluster.
+
+**Expected behavior**
+
+`prefix/2` matches a prefix exactly where it is a run of the string's leading grapheme clusters as `to_graphemes/1` gives them: the first case answers `<<"\x{1F1F8}"/utf8>>`, and the second `nomatch`.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, on Linux x86_64.

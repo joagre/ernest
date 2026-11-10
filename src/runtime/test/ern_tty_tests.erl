@@ -174,6 +174,119 @@ keys_at_end_of_input_test() ->
                                  #{stdout => fun(_) -> ok end,
                                    keys => fun() -> {error, eio} end})).
 
+%% report §12.1, §12.5: a first subscription whose input a full table of
+%% ports leaves no room to open answers the host's refusal, and claims
+%% nothing, so a line can still be read. The terminal's process is one of
+%% the test's, whose input the host always refuses. A regression test,
+%% written after the code, which the old code failed: the subscription was
+%% granted, and its first read faulted the entry process
+first_input_refused_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Tty = erlang:spawn(fun() ->
+                                      ern_tty:loop(fun() -> erlang:error(system_limit) end, true)
+                                  end),
+               Self ! {answer, subscribe(Tty)},
+               ReadLine = fun(Reply) -> {'ReadLine', Reply} end,
+               Self ! {line, ern_rt:call_forever(ern_rt:system_process(stdin), ReadLine)},
+               exit(Tty, kill)
+           end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => fun() -> "line\n" end}),
+    Refused = {'Left', {'Other', <<"a system limit was hit, probably not enough ports">>}},
+    ?assertEqual({'Some', Refused}, wait(answer)),
+    ?assertEqual({'Some', <<"line">>}, wait(line)).
+
+%% report §12.1, §12.5: a key a full table of ports leaves no room to read
+%% after the subscription faults the entry process: the first input, opened
+%% at the subscription, gives its key, whose delivery races the end, and
+%% the next is refused. A regression test, written after the code, which
+%% the old code passed too; the terminal's harness cannot make the host
+%% refuse a read after the first, since the first gives its port back as it
+%% ends
+key_after_subscription_unreadable_test() ->
+    Self = self(),
+    Open = fun() ->
+               case erlang:put(opened, true) of
+                   undefined ->
+                       Reader = erlang:self(),
+                       erlang:spawn_link(fun() -> Reader ! {erlang:self(), {data, <<"a">>}} end);
+                   true ->
+                       erlang:error(system_limit)
+               end
+           end,
+    ?assertMatch({fault, <<"the standard input could not be read: system_limit">>, _},
+                 ern_rt:run_main(
+                   fun() ->
+                       Tty = erlang:spawn(fun() -> ern_tty:loop(Open, true) end),
+                       Self ! {tty, Tty},
+                       Self ! {answer, subscribe(Tty)},
+                       ern_waits:forever()
+                   end, <<"main">>, #{stdout => fun(_) -> ok end})),
+    exit(wait(tty), kill),
+    ?assertEqual({'Some', {'Right', 'Unit'}}, wait(answer)).
+
+%% report §12.1: a terminal whose mode cannot be set, since the host has no
+%% stty, refuses the subscription naming why, and keys that come from no
+%% terminal need no mode. A regression test, written after the code, under
+%% which the subscription was granted with no mode set; it does not cover
+%% the subscription's answer, since no test can take the system's stty away
+no_stty_test() ->
+    ?assertEqual({refused, {'Left', {'Other', <<"the terminal's mode could not be set:"
+                                                " no stty at /bin/stty or /usr/bin/stty">>}}},
+                 ern_tty:holder(true, false)),
+    ?assertEqual({ok, none}, ern_tty:holder(false, false)),
+    ?assertEqual(ok, ern_tty:raw_mode(none)).
+
+%% report §12.1: a terminal whose settings stty cannot read refuses the
+%% subscription with stty's words of why; the holder is given a stty of
+%% the test's own, which reads and sets nothing. A regression test, written
+%% after the code, under which the subscription was granted with no mode
+%% set
+unreadable_settings_test() ->
+    Stty = fake_stty(scratch("ern_tty_unreadable_"),
+                     "echo \"stty: 'standard input': Inappropriate ioctl for device\" >&2\n"
+                     "exit 1\n"),
+    {ok, Holder} = ern_tty:holder(true, Stty),
+    ?assertEqual({refused, {'Left', {'Other', <<"the terminal's mode could not be set: stty:"
+                                                " 'standard input': Inappropriate ioctl for"
+                                                " device">>}}},
+                 ern_tty:raw_mode(Holder)).
+
+%% report §12.1: a terminal whose mode stty cannot set refuses the
+%% subscription with stty's words of why, and the settings it read are
+%% given back first; the test's stty writes down each call. A regression
+%% test, written after the code, under which the subscription was granted
+unset_mode_given_back_test() ->
+    Dir = scratch("ern_tty_unset_"),
+    Calls = filename:join(Dir, "calls"),
+    Stty = fake_stty(Dir,
+                     ["echo \"$*\" >> '", Calls, "'\n"
+                      "case \"$1\" in\n"
+                      "  -g) echo saved;;\n"
+                      "  raw) echo 'stty: unable to perform all requested operations' >&2;"
+                      " exit 1;;\n"
+                      "esac\n"]),
+    {ok, Holder} = ern_tty:holder(true, Stty),
+    ?assertEqual({refused, {'Left', {'Other', <<"the terminal's mode could not be set: stty:"
+                                                " unable to perform all requested"
+                                                " operations">>}}},
+                 ern_tty:raw_mode(Holder)),
+    ?assertEqual({ok, <<"-g\nraw -echo opost\nsaved\n">>}, file:read_file(Calls)).
+
+%% A stty of a test's own, a shell script of Body, written in Dir.
+fake_stty(Dir, Body) ->
+    Path = filename:join(Dir, "stty"),
+    ok = file:write_file(Path, ["#!/bin/sh\n", Body]),
+    ok = file:change_mode(Path, 8#755),
+    Path.
+
+scratch(Prefix) ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        Prefix ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    Dir.
+
 %% report §12.1: the terminal applies each subscriber's wrap itself, in
 %% order, so a wrap that does not finish delays that subscriber's keys and
 %% no other's

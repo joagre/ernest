@@ -186,12 +186,15 @@ killed_host_restored() ->
 %% report §12.1, §12.5: at a full table of ports, which a node's `limits`
 %% makes small, a subscription answers the host's refusal,
 %% `Left(Other(text))`, and claims nothing; once a port is given back the
-%% next is granted, its holder taking the port, and the keys' first read,
-%% which finds no port to open, faults the entry process as an input that
-%% cannot be read; the terminal is given back at the end. A regression
-%% test, written after the code: the terminal's process died of the host's
+%% next is refused too, its holder taking the port and the keys' first
+%% input finding none to open; once a second is, the next is granted, and
+%% the program ends with the terminal given back. A regression test,
+%% written after the code: the terminal's process died of the host's
 %% `system_limit` as it opened `stty`, and so did the keys' reader as it
-%% opened its input
+%% opened its input; and then the second subscription was granted, and the
+%% keys' first read faulted the entry process. A key the table leaves no
+%% room to read after the first is ern_tty_tests' to hold, since the first
+%% read gives its port back as it ends
 full_port_table_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun full_port_table/0).
 
@@ -204,13 +207,12 @@ full_port_table() ->
     {0, Screen} = pty("../bin/ern run --config-dir " ++ Node
                       ++ " build/terminal/limited.erc; echo status $?; stty -a",
                       [{expect, "Right(Unit)"}]),
-    [Refused, Granted, Faulted | _] = lines(Screen),
-    ?assertEqual(<<"Left(Io.Other(\"a system limit was hit, probably not enough ports\"))">>,
-                 Refused),
+    [Refused, RefusedAgain, Granted | _] = lines(Screen),
+    Refusal = <<"Left(Io.Other(\"a system limit was hit, probably not enough ports\"))">>,
+    ?assertEqual(Refusal, Refused),
+    ?assertEqual(Refusal, RefusedAgain),
     ?assertEqual(<<"Right(Unit)">>, Granted),
-    ?assertEqual(<<"Limited.main faulted: the standard input could not be read: system_limit">>,
-                 Faulted),
-    ?assertEqual(1, ern_pty:count(Screen, <<"status 1">>)),
+    ?assertEqual(1, ern_pty:count(Screen, <<"status 0">>)),
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-(echo|icanon)([ \t;\r\n]|$)",
                                  [{capture, none}])).
 
@@ -341,8 +343,7 @@ shell_write_terminal_gone() ->
     Pipe = filename:join(Base, "written.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Inputs = filename:join(Base, "inputs"),
-    Reader = ["Os.Command(program = \"cat\", arguments = [\"", Pipe, "\"], input = <<>>,"
-              " environment = [], workingDirectory = Os.workingDirectory)"],
+    Reader = ["Os.command(\"cat\", [\"", Pipe, "\"])"],
     Written = ["Io.println(\"ready\"); let _ = Os.run(", Reader, ", ",
                ern_nodes_tests:wait_ms_text(), "); Io.println(\"written\")"],
     ok = file:write_file(Inputs, ["{ ", Written, " }\n"]),

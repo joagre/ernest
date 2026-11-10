@@ -1147,12 +1147,12 @@ fn isNamed(header : Header, lowered : String) : Bool =
     String.toLower(header.name) == lowered
 
 /// The pairs of every `Cookie` header in `headers`, RFC 6265's, in order:
-/// each value parted at `;`, each part trimmed of the white space around it
-/// and parted at its first `=`, the cookie's name before it and its value
-/// after.
+/// each value parted at `;`, each part parted at its first `=`, the cookie's
+/// name before it and its value after, each trimmed of the white space
+/// around it.
 ///
-/// A part with no `=` is dropped. A value is kept as written, its quotes
-/// among them.
+/// A part with no `=` or with an empty name is dropped. A value is
+/// otherwise kept as written, its quotes among them.
 ///
 /// ### Examples
 ///
@@ -1165,9 +1165,15 @@ fn isNamed(header : Header, lowered : String) : Bool =
 /// since 0.10.0
 export fn cookies(fields : List(Header)) : List(#(String, String)) =
     List.flatMap(headers(fields, "Cookie"),
-                 fn(value) =
-                     List.filterMap(String.split(value, ";"),
-                                    fn(part) = String.splitOnce(String.trim(part), "=")))
+                 fn(value) = List.filterMap(String.split(value, ";"), cookiePair))
+
+// Report Appendix G.11: a part of a `Cookie` value as the cookie's name and
+// its value, each trimmed; `None` where the part has no `=` or no name.
+fn cookiePair(part : String) : Optional(#(String, String)) =
+    Optional.andThen(String.splitOnce(part, "="), fn(#(name, value)) = {
+        let name = String.trim(name);
+        if name == "" then None else Some(#(name, String.trim(value)))
+    })
 
 /// The value of the first cookie named `name` in the `Cookie` headers of
 /// `headers`, as `cookies` reads them, the names compared exactly; `None`
@@ -2427,11 +2433,17 @@ let cookiesRead =
 
 // report Appendix G.11
 let cookieParts =
-    Test.Case(name = "a cookie's part is trimmed and parted at its first =, its quotes kept",
+    Test.Case(name = "a cookie's part is parted at its first =, its name and its value trimmed, "
+                  <> "one with no = or no name dropped, its quotes kept",
               run = fn() =
                   Test.equal(cookies([Header(name = "Cookie",
-                                             value = " a=1 ;b=x=y;  ; flag ;c=\"q;\";d=")]),
-                             [#("a", "1"), #("b", "x=y"), #("c", "\"q"), #("d", "")]))
+                                             value = " a = 1 ;b=x=y;  ; flag ;=2; = 3;e= x y ;"
+                                                 <> "c=\"q;\";d= ")]),
+                             [#("a", "1"),
+                              #("b", "x=y"),
+                              #("e", "x y"),
+                              #("c", "\"q"),
+                              #("d", "")]))
 
 // report Appendix G.11
 let cookieFound =

@@ -186,18 +186,13 @@ The *host* is the Erlang runtime Ernest runs on and the operating system under i
 
 ```ernest
 export fn main() : Unit =
-    match Os.run(Os.Command(program = "echo",
-                            arguments = ["hi"],
-                            input = <<>>,
-                            environment = [],
-                            workingDirectory = Os.workingDirectory),
-                 5000) {
+    match Os.run(Os.command("echo", ["hi"]), 5000) {
         Right(finished) -> Io.print(String.fromUtf8Lossy(finished.stdout))
       | Left(error) -> Io.printlnError(Io.show(error))
     }
 ```
 
-`Os.Command(program = ..., ...)` builds a value by naming its fields (§2.4), and `Right(finished)` and `Left(error)` are the two cases of `Either` (§2.7); `<<>>` is the empty bytes (§2.1), `finished.stdout` a field of the record `Os.run` answers (§2.4), and `String.fromUtf8Lossy` the text the bytes hold, a byte that is not UTF-8 shown as U+FFFD. A command names the variables it sets over the environment the program inherits, here none, and the directory the program runs in, here the one this program was started in. `Os.run`'s last argument, `5000`, is how many milliseconds the program may take, after which it kills the program and answers `Left(Io.Timeout)`.
+`Os.command(program, arguments)` is the command of a program and its arguments alone: its input is empty, it sets no variable over the environment the program inherits, and the program runs in the directory this program was started in. A command with input, with a variable set or in another directory updates the field by name, `Os.Command(..Os.command("sh", arguments), environment = [#("LANG", "C")])` (§2.4). `Right(finished)` and `Left(error)` are the two cases of `Either` (§2.7), `finished.stdout` is a field of the record `Os.run` answers (§2.4), and `String.fromUtf8Lossy` is the text the bytes hold, a byte that is not UTF-8 shown as U+FFFD. `Os.run`'s last argument, `5000`, is how many milliseconds the program may take, after which it kills the program and answers `Left(Io.Timeout)`.
 
 ```console
 $ ern run echo.erc
@@ -1746,6 +1741,8 @@ the worker spawned at Faults.main:10 faulted: division by zero
 
 Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace ends with the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
+A frame of the standard library's own Ernest names its line in the library's source, `Process.run:259` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
 Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults no process, but one waiting in `Address.callForever` on one of its processes (§8.2, report §8.7). A fault in a process that a `callForever` waits on faults the caller with the same cause, and the caller's line names the callee's spawn site after the cause, `, the fault of the callee` and the site; a `Down` of the caller carries the cause alone (report §6.6, report §11.2).
@@ -2233,7 +2230,7 @@ Members.Date(year = 2026, month = 10, day = 2)
 
 `Date` gets its order from its declaration. `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, a `Bool`, is refused at the declaration (report §3.5).
 
-`shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. `Io.show`'s own type says so, `(a) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
+`shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report Appendix E.1). `Io.show`'s own type says so, `(a) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
 
 **A module built on a requirement.** The standard library's `OrderedSet` keeps a set's elements in the order of their type's `compare`, and each of its functions that needs the order declares `needs a.compare`. A program uses it without naming an order:
 
@@ -3079,7 +3076,7 @@ A service `Registry`, with `type Msg = Register((Int) -> Int)` and a binding `re
 
 ### 8.9 A service moved to new code
 
-A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f`, or of an earlier definition of its name whose message type is `f`'s, at that moment, among the innermost 64 frames the host keeps, so a process whose such frame lies deeper is not listed (report §3.11, Appendix E.28).
+A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f`, or of another version of its name with the same message type, at that moment, among the innermost 64 frames the host keeps, so a process whose such frame lies deeper is not listed (report §3.11, Appendix E.28). Its printed type, `(a) -> List(Address(m))` at `:type Code.running`, is not the rule, which report Appendix E.28 states.
 
 The move's limits are four: the same message type, the same state type, a frame of `f` among the innermost 64, and no `restarting` around the process, whose restart runs the old loop (report §6.9; the deployment guide's §5.3). A tool moves every counter by sending each its `Upgrade`:
 

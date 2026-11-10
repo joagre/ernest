@@ -26,17 +26,19 @@
 %%
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
-%% exercise. The reading itself is driven through a pseudo-terminal by
+%% exercise, with holder/2 and raw_mode/1 over a stty of a test's own. The
+%% reading itself is driven through a pseudo-terminal by
 %% test/ern_terminal_tests.erl; loop/2 takes the input
 %% as ern_rt's stdin does, the host's standard input but in a test, and
 %% whether keys can come, which a test's keys say they can.
 -module(ern_tty).
 
--export([loop/2, size/0, restore/1, is_terminal/1, more/2, decode/1, flush/1]).
+-export([loop/2, size/0, raw_mode/1, restore/1, holder/2, is_terminal/1, more/2, decode/1,
+         flush/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [refusing/0, loop/4, couriered/2, courier/1, unsubscribe/3,
-                         start_reader/1, held/2, given_back/0, restore/1]}).
+                         reader_opened/1, held/2, given_back/0, restore/1, bidden/2]}).
 
 %% What waits for more to arrive: the characters of an escape that may
 %% still grow into a sequence, or a paste under way, its text so far
@@ -64,10 +66,14 @@
 %% settings back and ends; closed before it was told to hold, it ends. A
 %% give-back fails only where the terminal is gone, and stty's word of it
 %% is not written on the program's standard error (§12.1).
+%%
+%% Where the settings cannot be read or the mode set, stty's words of it
+%% are said in place of `held`, the settings it read given back, and the
+%% holder ends, so that the subscription answers why (raw_mode/1).
 -define(HOLD, "trap '' HUP INT QUIT TERM\n"
               "read hold <&3 || exit 0\n"
-              "found=$(\"$1\" -g) || exit 1\n"
-              "\"$1\" raw -echo opost\n"
+              "found=$(\"$1\" -g 2>&4) || exit 1\n"
+              "\"$1\" raw -echo opost 2>&4 || { \"$1\" \"$found\" 2>/dev/null; exit 1; }\n"
               "echo held >&4\n"
               "read done <&3\n"
               "\"$1\" \"$found\" 2>/dev/null\n").
@@ -153,9 +159,10 @@ loop(Subscribers, Reader, Pending, Size) ->
 %% Report §7.4, §12.5: where the host's table of processes is full, so that
 %% a new subscriber's courier or the first subscription's reader cannot be
 %% made, the subscription answers `Left(Other("error:system_limit"))`, and
-%% where the host's table of ports is full, so that the holder's port
-%% cannot be opened, the host's refusal, `Left(Other(text))`, claiming
-%% nothing either way, this process living on.
+%% where the host's table of ports is full, so that the holder's port or
+%% the reader's first input cannot be opened, the host's refusal,
+%% `Left(Other(text))`; and where the mode cannot be set, `Left(Other(text))`
+%% naming why (§12.1). Each claims nothing, this process living on.
 subscription(Address, Reply, Subscribers, Reader, Size) ->
     case held_by_another(Address) of
         true ->
@@ -332,13 +339,13 @@ size() ->
 %%
 %% The reader is made first, linked, so that it ends with the terminal's
 %% process at the program's end and takes no key meant for what follows,
-%% and it reads once the mode is set; then the holder's port, and only then
-%% the claim. Report §7.4, §12.5: where the host's table of processes, or
-%% of ports, is full, the one or the other cannot be made, and nothing is
-%% claimed.
+%% and it reads once the mode is set; then the holder's port, then the
+%% claim, and only then the reader's first input (claimed/2). Report §7.4,
+%% §12.5: where the host's table of processes, or of ports, is full, one of
+%% them cannot be made, and nothing is claimed.
 start_reader({unstarted, Open}) ->
     Tty = self(),
-    try erlang:spawn_link(fun() -> receive read -> read_loop(Tty, Open) end end) of
+    try erlang:spawn_link(fun() -> reader(Tty, Open) end) of
         Reader -> started_reader(Reader)
     catch
         error:system_limit -> {refused, {'Left', ern_io:limited()}}
@@ -347,28 +354,15 @@ start_reader(Reader) ->
     %% running, or `closed` at the end of input, which no reader reopens
     {ok, Reader}.
 
-%% The terminal claimed for keys, its mode set, and the reader let read; or
-%% the holder's port refused, or the claim, the reader and the holder ended
+%% The terminal claimed for keys and the reader let read (claimed/2); or
+%% the holder refused, or the claim taken, the reader and the holder ended
 %% (unmade/1).
 started_reader(Reader) ->
     case hold() of
         {ok, Holder} ->
             case ern_rt:own_terminal(keys) of
                 ok ->
-                    %% report §8.6: a subscription is a source that can
-                    %% still deliver, and it is counted before the mode is
-                    %% set rather than after: while this process waits for
-                    %% the holder to set it, it is waiting with an empty
-                    %% mailbox and would be read as quiet, though the
-                    %% answer to Subscribe is a computation whose
-                    %% completion delivers a message
-                    ern_rt:source_begin(),
-                    raw_mode(Holder),
-                    %% one handler, this run's, which given_back/0 removes
-                    _ = gen_event:delete_handler(erl_signal_server, ern_tty_signal, stop),
-                    ok = gen_event:add_handler(erl_signal_server, ern_tty_signal, self()),
-                    Reader ! read,
-                    {ok, Reader};
+                    claimed(Reader, Holder);
                 {taken, Cause} ->
                     unmade(Holder),
                     unmade(Reader),
@@ -377,6 +371,52 @@ started_reader(Reader) ->
         {refused, Answer} ->
             unmade(Reader),
             {refused, Answer}
+    end.
+
+%% Report §12.1, §12.5: the terminal claimed for keys, the reader's first
+%% input is opened before the mode is set, so that a full table of ports
+%% refuses the subscription rather than fault the entry process at the
+%% first read; the claim comes first, so that no input of a terminal read
+%% as lines is opened for keys. Where the input cannot be opened or the
+%% mode set, the claim is given back and what was made ended.
+claimed(Reader, Holder) ->
+    case reader_opened(Reader) of
+        ok ->
+            %% report §8.6: a subscription is a source that can still
+            %% deliver, and it is counted before the mode is set rather than
+            %% after: while this process waits for the holder to set it, it
+            %% is waiting with an empty mailbox and would be read as quiet,
+            %% though the answer to Subscribe is a computation whose
+            %% completion delivers a message
+            ern_rt:source_begin(),
+            case raw_mode(Holder) of
+                ok ->
+                    %% one handler, this run's, which given_back/0 removes
+                    _ = gen_event:delete_handler(erl_signal_server, ern_tty_signal, stop),
+                    ok = gen_event:add_handler(erl_signal_server, ern_tty_signal, self()),
+                    Reader ! read,
+                    {ok, Reader};
+                {refused, Answer} ->
+                    ern_rt:source_end(),
+                    disowned(Answer, [Reader])
+            end;
+        {refused, Answer} ->
+            disowned(Answer, [Holder, Reader])
+    end.
+
+%% A subscription refused after it claimed the terminal: the claim given
+%% back and what was made for it ended.
+disowned(Answer, Made) ->
+    ern_rt:disown_terminal(),
+    lists:foreach(fun unmade/1, Made),
+    {refused, Answer}.
+
+%% Whether the reader opened its first input, which it says once told to.
+reader_opened(Reader) ->
+    Reader ! open,
+    receive
+        {Reader, opened} -> ok;
+        {Reader, limited} -> ports_full()
     end.
 
 %% What was made for a subscription that is refused, ended: its courier or
@@ -405,33 +445,54 @@ unmade(Process) ->
 %% Report §12.1: while the terminal is claimed for keys, its interrupt is
 %% delivered to every subscriber as `Interrupt`, so raw mode's `-isig`
 %% stays, for a program's subscribers as for the shell.
+%%
 %% Report §12.1: the terminal's settings are kept first, by the holder, so
-%% that the end gives back the ones the program found; where they cannot be
-%% read, the holder ends, and the mode is left as it is, since it could not
-%% be given back. The holder is waited for with no time of the runtime's
-%% own (hold/0).
+%% that the end gives back the ones the program found. Where they cannot be
+%% read, or the mode cannot be set, the holder ends with the mode as it
+%% found it, and the subscription answers `Left(Other(text))`, `text`
+%% stty's words of why, or its status where it said none. No mode is set
+%% for keys that come from no terminal. The holder is waited for with no
+%% time of the runtime's own (hold/0).
+-spec raw_mode(port() | none) -> ok | {refused, {'Left', {'Other', binary()}}}.
 raw_mode(none) ->
-    write(?PASTE_ON);
+    ok;
 raw_mode(Holder) ->
     _ = told(Holder, <<"hold\n">>),
     case held(Holder, <<>>) of
-        true -> _ = erlang:put(?HOLDER, Holder);
-        false -> ok
-    end,
-    write(?PASTE_ON).
+        held ->
+            _ = erlang:put(?HOLDER, Holder),
+            write(?PASTE_ON),
+            ok;
+        {ended, <<>>, Status} ->
+            Ended = <<"stty ended with status ", (integer_to_binary(Status))/binary>>,
+            {refused, mode_unset(Ended)};
+        {ended, Said, _} ->
+            {refused, mode_unset(string:trim(Said, trailing))}
+    end.
 
 %% Whether the holder holds the terminal, which it says once it has set the
-%% mode, or has ended, having found no settings to keep.
+%% mode, or has ended, with what stty said of why and its status.
 held(Holder, Said) ->
     receive
         {Holder, {data, Bytes}} ->
-            case binary:match(<<Said/binary, Bytes/binary>>, <<"\n">>) of
-                nomatch -> held(Holder, <<Said/binary, Bytes/binary>>);
-                _ -> true
+            Saying = <<Said/binary, Bytes/binary>>,
+            case binary:longest_common_suffix([Saying, <<"held\n">>]) of
+                5 -> held;
+                _ -> held(Holder, Saying)
             end;
-        {Holder, {exit_status, _}} ->
-            false
+        {Holder, {exit_status, Status}} ->
+            {ended, Said, Status}
     end.
+
+%% Report §12.1: a subscription whose mode the terminal cannot be put in
+%% answers `Left(Other(text))`, `text` the reason.
+mode_unset(Reason) ->
+    {'Left', {'Other', <<"the terminal's mode could not be set: ", Reason/binary>>}}.
+
+%% Report §7.4, §12.5: a subscription a full table of ports leaves no room
+%% to serve answers the host's refusal of the port, `Left(Other(text))`.
+ports_full() ->
+    {refused, {'Left', ern_io:host_error(system_limit, fun file:format_error/1)}}.
 
 %% Report §11.2, §12.1: a subscriber the terminal is kept from, while a
 %% shell holds it or as a session's process (ern_rt:is_kept_from_terminal/1).
@@ -489,28 +550,33 @@ system_stty() ->
 %% set there would be set on whatever terminal the runtime was started
 %% from. The shell is /bin/sh by its path and stty the system's own, never
 %% one that PATH names, which could be any program in any directory the
-%% PATH lists.
+%% PATH lists; it speaks in the C locale, so that its words of a failure
+%% are text whatever the host's locale (§12.1).
 %%
 %% The holder is waited for with no time of the runtime's own, as the
 %% runtime waits for its helper (ern_os): stty waits on the terminal alone,
 %% which takes a mode once what was written to it has gone out, and a
 %% terminal whose output is stopped holds every writer so. A wait cut short
 %% would leave stty running, to set its mode after the runtime had gone on.
-%% Report §12.5: where the host's table of ports is full, the subscription
-%% answers the host's refusal, `Left(Other(text))`.
 hold() ->
-    case terminal() andalso system_stty() of
-        false ->
-            {ok, none};
-        SttyPath ->
-            try open_port({spawn_executable, "/bin/sh"},
-                          [{args, ["-c", ?HOLD, "sh", SttyPath]}, nouse_stdio, exit_status,
-                           binary]) of
-                Holder -> {ok, Holder}
-            catch
-                error:system_limit ->
-                    {refused, {'Left', ern_io:host_error(system_limit, fun file:format_error/1)}}
-            end
+    holder(terminal(), system_stty()).
+
+%% Report §12.1, §12.5: a terminal with no stty of the system's answers
+%% that its mode cannot be set, and where the host's table of ports is
+%% full the subscription answers the host's refusal, `Left(Other(text))`.
+-spec holder(boolean(), string() | false) ->
+          {ok, port() | none} | {refused, {'Left', {'Other', binary()}}}.
+holder(false, _) ->
+    {ok, none};
+holder(true, false) ->
+    {refused, mode_unset(<<"no stty at /bin/stty or /usr/bin/stty">>)};
+holder(true, SttyPath) ->
+    try open_port({spawn_executable, "/bin/sh"},
+                  [{args, ["-c", ?HOLD, "sh", SttyPath]}, {env, [{"LC_ALL", "C"}]}, nouse_stdio,
+                   exit_status, binary]) of
+        Holder -> {ok, Holder}
+    catch
+        error:system_limit -> ports_full()
     end.
 
 %% The holder told a line, or nothing where it has ended.
@@ -529,35 +595,58 @@ is_terminal(Stream) ->
     catch _:_ -> false
     end.
 
+%% Report §12.1: the keys' reader. Told to open, once the terminal is
+%% claimed for keys, it opens its first input and says whether it could
+%% (claimed/2), and told to read, once the mode is set, it reads. It traps
+%% exits, so that its input's failure is the end of the keys, and the
+%% terminal's process ending is its own end.
+reader(Tty, Open) ->
+    erlang:process_flag(trap_exit, true),
+    bidden(Tty, open),
+    case ern_rt:input_opened(Open) of
+        limited ->
+            Tty ! {erlang:self(), limited};
+        Input ->
+            Tty ! {erlang:self(), opened},
+            bidden(Tty, read),
+            keys_read(Tty, Open, <<>>, ern_rt:input_taken(Input))
+    end.
+
+%% The word the terminal's process bids the reader, or the reader's end
+%% with that process's.
+bidden(Tty, Word) ->
+    receive
+        Word -> ok;
+        {'EXIT', Tty, ExitReason} -> exit(ExitReason)
+    end.
+
 %% Report §12.1: the keys are UTF-8, whatever the host's locale; a
 %% character may arrive in two reads, and bytes that are not UTF-8 end the
-%% program. The reader traps exits, so that its input's failure is the end
-%% of the keys, and the terminal's process ending is its own end.
-read_loop(Tty, Open) ->
-    erlang:process_flag(trap_exit, true),
-    read_loop(Tty, Open, <<>>).
-
+%% program. Report §12.5: a key a full table of ports leaves no room to
+%% read after the subscription faults the entry process.
 read_loop(Tty, Open, Partial) ->
-    case ern_rt:read_input(Open) of
-        {data, Bytes} ->
-            case unicode:characters_to_list(<<Partial/binary, Bytes/binary>>, utf8) of
-                Chars when is_list(Chars) ->
-                    keys(Tty, Chars),
-                    read_loop(Tty, Open, <<>>);
-                {incomplete, Chars, Rest} ->
-                    keys(Tty, Chars),
-                    read_loop(Tty, Open, Rest);
-                {error, Chars, _} ->
-                    keys(Tty, Chars),
-                    ern_rt:input_not_utf8(),
-                    Tty ! closed
-            end;
-        eof -> gone(Tty);
-        {error, _} -> gone(Tty);
-        limited ->
-            ern_rt:input_unreadable(system_limit),
+    keys_read(Tty, Open, Partial, ern_rt:read_input(Open)).
+
+keys_read(Tty, Open, Partial, {data, Bytes}) ->
+    case unicode:characters_to_list(<<Partial/binary, Bytes/binary>>, utf8) of
+        Chars when is_list(Chars) ->
+            keys(Tty, Chars),
+            read_loop(Tty, Open, <<>>);
+        {incomplete, Chars, Rest} ->
+            keys(Tty, Chars),
+            read_loop(Tty, Open, Rest);
+        {error, Chars, _} ->
+            keys(Tty, Chars),
+            ern_rt:input_not_utf8(),
             Tty ! closed
-    end.
+    end;
+keys_read(Tty, _, _, eof) ->
+    gone(Tty);
+keys_read(Tty, _, _, {error, _}) ->
+    gone(Tty);
+keys_read(Tty, _, _, limited) ->
+    ern_rt:input_unreadable(system_limit),
+    Tty ! closed.
 
 keys(_, []) -> ok;
 keys(Tty, Chars) -> Tty ! {chars, Chars}.

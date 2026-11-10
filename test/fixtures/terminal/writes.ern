@@ -11,12 +11,7 @@ export fn main() : Unit =
     match Os.arguments {
         [pipe, ms] -> {
             Io.println("ready");
-            let reader =
-                Os.Command(program = "cat",
-                           arguments = [pipe],
-                           input = <<>>,
-                           environment = [],
-                           workingDirectory = Os.workingDirectory);
+            let reader = Os.command("cat", [pipe]);
             let _ = Os.run(reader, Optional.withDefault(String.toInt(ms), 0));
             Io.println("written")
         }

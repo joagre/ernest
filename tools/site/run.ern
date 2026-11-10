@@ -459,12 +459,7 @@ export fn documentOf(root : Path, path : String) : Either(String, List(Markdown.
 
 // A source's last commit date at the tag, from the checkout's history.
 fn committed(tag : String, path : String) : Either(String, String) = {
-    let command =
-        Os.Command(program = "git",
-                   arguments = ["log", "-1", "--format=%cs", tag, "--", ":(top)" <> path],
-                   input = <<>>,
-                   environment = [],
-                   workingDirectory = Os.workingDirectory);
+    let command = Os.command("git", ["log", "-1", "--format=%cs", tag, "--", ":(top)" <> path]);
     let finished <-
         Either.mapLeft(Os.run(command, 10000), fn(error) = "cannot run git: " <> Io.show(error));
     let date = String.trim(String.fromUtf8Lossy(finished.stdout));

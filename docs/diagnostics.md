@@ -1616,6 +1616,27 @@ example.ern:1:16: unknown name List.count
   |                ^^^^^^^^^^
 ```
 
+### A root module a nearer namespace hides (§4.2, §11.5)
+
+```ernest
+// top/shell/json/pretty.ern
+export fn pretty() : String = "pretty"
+```
+
+```ernest-rejected
+// top/shell.ern
+export fn valued(value : Json.Value) : Int = 0
+```
+
+```console
+$ ern build top/shell.ern
+top/shell.ern:2:26: unknown type Top.Shell.Json.Value
+1 | // top/shell.ern
+2 | export fn valued(value : Json.Value) : Int = 0
+  |                          ^^^^^^^^^^
+  | = help: `Json` here is `Top.Shell.Json`; the root's `Json` is out of reach from `Top.Shell`
+```
+
 ### A name under `Ernest`, the toolchain's own (§4.2)
 
 ```ernest-rejected
@@ -2963,7 +2984,7 @@ fn sum(list : List(a)) : a needs a.zero, a.+ =
 
 ```console
 $ ern build example.ern
-example.ern:1:34: `zero` is not a member: a requirement names `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
+example.ern:1:34: `zero` is not what a requirement names: `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
 1 | fn sum(list : List(a)) : a needs a.zero, a.+ =
   |                                  ^^^^^^
 ```
