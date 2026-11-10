@@ -35,8 +35,9 @@
  *   directory; 'a' the program has taken the bytes of one 'i', or 'd' they
  *   were dropped, one of the two for each 'i' in order, so that a writer
  *   waits while the program is behind and learns whether its bytes were
- *   taken; 'g' the signal of one 'k' was sent, or 'z' the program had
- *   exited and nothing was sent, one of the two for each 'k' in order;
+ *   taken; 'g' the signal of one 'k' was sent or the size of one 'w' set,
+ *   or 'z' nothing was, the program having exited or, for a 'w', its
+ *   terminal hung up, one of the two for each 'k' and each 'w' in order;
  *   'o' bytes of its output; 'r' bytes of its standard error, each
  *   answering one 'n', so that a program no one asks waits on its output;
  *   'x' and a 4-byte big-endian status, once it has exited and both its
@@ -57,11 +58,12 @@
  *
  *   Under a terminal, 'w' and its rows and its columns, each in 2 bytes,
  *   big-endian, sets the terminal's size, which the host tells the
- *   terminal's foreground of. 'e' hangs the terminal up at once, its master
- *   closed: the host sends the program the hangup, the input it has not
- *   taken is dropped, no more of its output is read, and 'x' comes once
- *   it has exited. A terminal that no process holds open any longer ends
- *   its input as the hangup does, since nothing can read it.
+ *   terminal's foreground of, answered as a 'k' is. 'e' hangs the terminal
+ *   up at once, its master closed: the host sends the program the hangup,
+ *   the input it has not taken is dropped, no more of its output is read,
+ *   and 'x' comes once it has exited. A terminal that no process holds
+ *   open any longer ends its input as the hangup does, since nothing can
+ *   read it.
  *
  * With no argument, the helper writes what the host says of the program as
  * it starts: a 'u' frame, the user it runs as in four bytes, big-endian,
@@ -156,9 +158,10 @@ static pid_t program = -1;
 
 /* Report Appendix E.23: the program's exit wakes the helper as it happens.
    SIGCHLD writes a byte to this pipe, which the helper waits on beside the
-   runtime's frames once the program's outputs have ended, so no timer
-   stands between the exit and its report, and an exit that comes between
-   the helper's asking and its wait leaves its byte to be read. */
+   runtime's frames, so that it drops the program's input when the host
+   reports the exit, whatever its outputs, and reports the exit once they
+   have ended, with no timer between; an exit that comes between the
+   helper's asking and its wait leaves its byte to be read. */
 static int exited[2] = {-1, -1};
 
 static void program_exited(int signal_number)
@@ -286,20 +289,6 @@ static void frame(unsigned char tag, const unsigned char *data, size_t size)
     };
     write_all(1, head, sizeof head);
     write_all(1, data, size);
-}
-
-/* Report Appendix E.23: a 'k' frame's signal sent to the program alone,
-   not its group, 'g', or 'z' where the program has exited, which nothing
-   reaches. The host refuses none of the runtime's three signals to a child
-   the helper has not reaped. */
-static void signal_program(int number)
-{
-    if (has_exited()) {
-        frame('z', NULL, 0);
-    } else {
-        kill(program, number);
-        frame('g', NULL, 0);
-    }
 }
 
 /* The name Erlang gives an error, which the runtime describes as it does
@@ -502,6 +491,45 @@ static void drop_input(int *input)
     pending_start = 0;
     pending_size = 0;
     acknowledge(1);
+}
+
+/* Report Appendix E.23: whether the program has exited, as the host
+   reports it, its input dropped where it has, whatever its outputs, so
+   that a write after the exit is answered as one after its input's end. */
+static int exit_seen(int *input)
+{
+    if (!has_exited())
+        return 0;
+    drop_input(input);
+    return 1;
+}
+
+/* Report Appendix E.23: a 'k' frame's signal sent to the program alone,
+   not its group, 'g', or 'z' where the program has exited, which nothing
+   reaches. The host refuses none of the runtime's three signals to a child
+   the helper has not reaped. */
+static void signal_program(int number, int *input)
+{
+    if (exit_seen(input)) {
+        frame('z', NULL, 0);
+    } else {
+        kill(program, number);
+        frame('g', NULL, 0);
+    }
+}
+
+/* Report Appendix E.23: a 'w' frame's size set on the terminal's master,
+   'g', or 'z' where the terminal is hung up, its master closed, or the
+   program has exited, which nothing is told. The host refuses no size of 0
+   to 65535 on a master the helper holds. */
+static void resize_terminal(int master, unsigned rows, unsigned columns, int *input)
+{
+    if (master < 0 || exit_seen(input)) {
+        frame('z', NULL, 0);
+    } else {
+        set_size(master, rows, columns);
+        frame('g', NULL, 0);
+    }
 }
 
 /* Report Appendix E.23: the program's exit, seen and the program not yet
@@ -980,11 +1008,11 @@ int main(int argc, char **argv)
             int highest = 0, out_watched = 0, err_watched = 0, in_watched = 0;
             /* Report Appendix E.23: once both outputs have ended, a hung-up
                terminal's among them, the run ends when the program exits,
-               its input given it until then, unless the runtime lets go of
-               it first; a frame of the runtime's not read whole is dropped */
-            int exit_watched = program_out < 0 && program_err < 0;
+               unless the runtime lets go of it first; a frame of the
+               runtime's not read whole is dropped */
+            int outputs_ended = program_out < 0 && program_err < 0;
 
-            if (exit_watched && has_exited()) {
+            if (outputs_ended && has_exited()) {
                 free(body);
                 drop_input(&program_in);
                 report_exit();
@@ -1006,8 +1034,7 @@ int main(int argc, char **argv)
                 watch(program_in, &writable, &highest);
                 in_watched = 1;
             }
-            if (exit_watched)
-                watch(exited[0], &readable, &highest);
+            watch(exited[0], &readable, &highest);
             /* Report Appendix E.23: select(2), since poll(2) does not serve a
                device on macOS, which a pseudo-terminal's master is */
             if (select(highest + 1, &readable, &writable, NULL, NULL) < 0) {
@@ -1016,6 +1043,14 @@ int main(int argc, char **argv)
                 free(body);
                 kill_program();
                 return 1;
+            }
+
+            /* the exit drops the input before a frame sent after it is
+               read */
+            if (FD_ISSET(exited[0], &readable)) {
+                while (read(exited[0], buffer, sizeof buffer) > 0)
+                    ;
+                exit_seen(&program_in);
             }
 
             if (FD_ISSET(0, &readable)) {
@@ -1067,21 +1102,19 @@ int main(int argc, char **argv)
                         input_ended = 1;
                     else if (body_size > 0 && body[0] == 'n')
                         wanted++;
-                    /* the host refuses no size of 0 to 65535 on a master
-                       the helper holds; one given after the hangup sizes
-                       nothing */
-                    else if (body_size == 5 && body[0] == 'w' && terminal && program_out >= 0)
-                        set_size(program_out, (unsigned)body[1] << 8 | body[2],
-                                 (unsigned)body[3] << 8 | body[4]);
+                    else if (body_size == 5 && body[0] == 'w' && terminal)
+                        resize_terminal(program_out, (unsigned)body[1] << 8 | body[2],
+                                        (unsigned)body[3] << 8 | body[4], &program_in);
                     else if (body_size == 2 && body[0] == 'k')
-                        signal_program(body[1]);
+                        signal_program(body[1], &program_in);
                     free(body);
                     body = NULL;
                     head_got = 0;
                 }
             }
 
-            if (in_watched && FD_ISSET(program_in, &writable)) {
+            /* the exit may have dropped the input since it was watched */
+            if (in_watched && program_in >= 0 && FD_ISSET(program_in, &writable)) {
                 ssize_t wrote = write(program_in, pending + pending_start, pending_size);
                 if (wrote > 0) {
                     pending_start += (size_t)wrote;
@@ -1137,10 +1170,6 @@ int main(int argc, char **argv)
                 close(program_out);
                 program_out = -1;
                 drop_input(&program_in);
-            }
-            if (exit_watched && FD_ISSET(exited[0], &readable)) {
-                while (read(exited[0], buffer, sizeof buffer) > 0)
-                    ;
             }
         }
     }

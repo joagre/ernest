@@ -30,12 +30,12 @@
 
 %% Report Appendix E.23: a running program's own, beside the reads that
 %% wait and what the helper owes them (running/4): the helper's port, its
-%% owner and the owner's monitor, the writes and the signals the helper has
-%% yet to answer, whether it runs under a terminal, which a resize needs,
-%% and whether that terminal is hung up.
+%% owner and the owner's monitor, the writes the helper has yet to answer,
+%% the signals and the resizes it has been asked for and has yet to answer,
+%% and whether the program runs under a terminal, which a resize needs.
 -record(program, {helper :: port(), owner :: pid(), monitor_ref :: reference(),
-                  writes :: queue:queue(), signals = queue:new() :: queue:queue(),
-                  terminal :: boolean(), hung_up = false :: boolean()}).
+                  writes :: queue:queue(), asked = queue:new() :: queue:queue(),
+                  terminal :: boolean()}).
 
 %% A read waiting: its reply, the reference of its caller's monitor, which
 %% names the read to its timer too, and its timer.
@@ -304,12 +304,13 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
 %% place. A request answered lets go of its timer, and a read of its
 %% caller's monitor.
 %%
-%% A signal is answered when the helper says it sent it, `g`, or that the
-%% program had exited, `z`, one for each signal in order, the replies kept
-%% in the program's `signals`: the program's process cannot know the exit
-%% before the helper reads it, which a signal that reached nothing must not
-%% hide (E.23).
-running(#program{helper = Helper, writes = Writes, signals = Signals} = Running, Waiting, Owed,
+%% A signal and a resize are answered when the helper says it sent the
+%% signal or set the size, `g`, or that the program had exited or, for a
+%% resize, its terminal was hung up, `z`, one for each in order, the replies
+%% kept in the program's `asked`: the program's process cannot know the
+%% exit before the helper reads it, which a signal that reached nothing and
+%% a size that told nothing must not hide (E.23).
+running(#program{helper = Helper, writes = Writes, asked = Asked} = Running, Waiting, Owed,
         Kept) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
@@ -331,19 +332,27 @@ running(#program{helper = Helper, writes = Writes, signals = Signals} = Running,
             running(Running#program{writes = Rest}, Waiting, Owed, Kept);
         {'SendSignal', Signal, Reply} ->
             command(Helper, <<"k", (signal_number(Signal))>>),
-            running(Running#program{signals = queue:in(Reply, Signals)}, Waiting, Owed, Kept);
+            running(Running#program{asked = queue:in(Reply, Asked)}, Waiting, Owed, Kept);
         {Helper, {data, <<Tag>>}} when Tag =:= $g; Tag =:= $z ->
-            {{value, Reply}, Rest} = queue:out(Signals),
-            ern_rt:answer(Reply, signaled(Tag)),
-            running(Running#program{signals = Rest}, Waiting, Owed, Kept);
+            {{value, Reply}, Rest} = queue:out(Asked),
+            ern_rt:answer(Reply, made(Tag)),
+            running(Running#program{asked = Rest}, Waiting, Owed, Kept);
         {'Resize', Size, Reply} ->
-            resize(Size, Reply, Running, sized),
-            running(Running, Waiting, Owed, Kept);
+            case sizing(Size, Running) of
+                sized ->
+                    {'Size', Rows, Columns} = Size,
+                    command(Helper, <<"w", Rows:16, Columns:16>>),
+                    running(Running#program{asked = queue:in(Reply, Asked)}, Waiting, Owed,
+                            Kept);
+                Refused ->
+                    ern_rt:answer(Reply, Refused),
+                    running(Running, Waiting, Owed, Kept)
+            end;
         %% report Appendix E.23: under a terminal the end of the input is
         %% the terminal's hangup, which the helper makes at once
         'CloseInput' ->
             command(Helper, <<"e">>),
-            running(Running#program{hung_up = Running#program.terminal}, Waiting, Owed, Kept);
+            running(Running, Waiting, Owed, Kept);
         {'Give', Owner} ->
             running(given_to(Owner, Running), Waiting, Owed, Kept);
         {Helper, {data, <<"x", Status:32>>}} ->
@@ -553,48 +562,48 @@ written($a) -> {'Right', 'Unit'};
 written($d) -> {'Left', 'Closed'}.
 
 %% Report Appendix E.23, §8.6: the host's number for each signal Os.signal
-%% names, as POSIX fixes it; a signal sent, and one the program had exited
-%% before.
+%% names, as POSIX fixes it.
 signal_number('Termination') -> 15;
 signal_number('Hangup') -> 1;
 signal_number('Interrupt') -> 2.
 
-signaled($g) -> {'Right', 'Unit'};
-signaled($z) -> {'Left', 'Closed'}.
+%% Report Appendix E.23: a signal sent or a size set, and one the program's
+%% exit or its terminal's hangup left unmade.
+made($g) -> {'Right', 'Unit'};
+made($z) -> {'Left', 'Closed'}.
 
-%% The writes and the signals still waiting when the program has ended:
-%% the writes' bytes are dropped and the signals sent nowhere, and each is
-%% answered that the program is closed, or why the runtime lost it.
-unanswered(#program{writes = Writes, signals = Signals}, Answer) ->
+%% The writes, the signals and the resizes still waiting when the program
+%% has ended: the writes' bytes are dropped, the signals sent nowhere and
+%% the sizes set on nothing, and each is answered that the program is
+%% closed, or why the runtime lost it.
+unanswered(#program{writes = Writes, asked = Asked}, Answer) ->
     lists:foreach(fun(Write) -> answered_write(Write, Answer) end, queue:to_list(Writes)),
-    lists:foreach(fun(Reply) -> respond(Reply, Answer) end, queue:to_list(Signals)).
+    lists:foreach(fun(Reply) -> respond(Reply, Answer) end, queue:to_list(Asked)).
 
 piece($o, Bytes) -> {'Stdout', Bytes};
 piece($r, Bytes) -> {'Stderr', Bytes}.
 
-%% Report Appendix E.23: a resize's answers, in their order, whatever the
-%% program's state, each but the size's answered here, without the helper:
-%% a program `start` started has no terminal, and answers
-%% `Left(NotATerminal)`, whatever the size; a size the host cannot take
-%% answers `Left(Invalid)`; once the terminal is hung up or the program has
-%% exited, `Left(Closed)`, as a write answers; and once the helper has
-%% failed, its failure. Answer is the last of these the program's state
-%% gives, or `sized`, where the size goes to the helper, a port that has
-%% closed dropping it, and the resize answers `Right(Unit)`.
-resize(_Size, Reply, #program{terminal = false}, _Answer) ->
-    ern_rt:answer(Reply, {'Left', 'NotATerminal'});
+%% Report Appendix E.23: a resize's first two answers, in their order,
+%% whatever the program's state, without the helper: a program `start`
+%% started has no terminal, and answers `Left(NotATerminal)`, whatever the
+%% size; a size the host cannot take answers `Left(Invalid)`. Any other
+%% size is `sized`, the helper's to set or to answer `Left(Closed)`, once
+%% the terminal is hung up or the program has exited, as a signal is.
+sizing(_Size, #program{terminal = false}) ->
+    {'Left', 'NotATerminal'};
+sizing(Size, _Running) ->
+    case is_size(Size) of
+        true -> sized;
+        false -> {'Left', 'Invalid'}
+    end.
+
+%% A resize once the helper has sent its last answer, the exit's or its
+%% failure's: a size it would have set answers Answer, `Left(Closed)` or the
+%% failure.
 resize(Size, Reply, Running, Answer) ->
-    case {is_size(Size), Running, Answer} of
-        {false, _, _} ->
-            ern_rt:answer(Reply, {'Left', 'Invalid'});
-        {true, #program{hung_up = true}, sized} ->
-            ern_rt:answer(Reply, {'Left', 'Closed'});
-        {true, #program{helper = Helper}, sized} ->
-            {'Size', Rows, Columns} = Size,
-            command(Helper, <<"w", Rows:16, Columns:16>>),
-            ern_rt:answer(Reply, {'Right', 'Unit'});
-        {true, _, _} ->
-            respond(Reply, Answer)
+    case sizing(Size, Running) of
+        sized -> respond(Reply, Answer);
+        Refused -> ern_rt:answer(Reply, Refused)
     end.
 
 %% A program whose helper failed: each read, write and signal to come

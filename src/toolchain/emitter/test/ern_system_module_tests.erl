@@ -374,6 +374,24 @@ rest() ->
     "  | other -> text <> Io.show(other)\n"
     "}\n".
 
+%% What a running program wrote from here until it has written a word.
+read_to() ->
+    "fn readTo(p : Address(Os.ProgramMsg), word : String, text : String) : String =\n"
+    "    if String.contains(text, word) then text else match Os.read(p, 5000) {\n"
+    "        Right(Os.Stdout(b)) -> readTo(p, word, text <> String.fromUtf8Lossy(b))\n"
+    "      | other -> text <> Io.show(other)\n"
+    "    }\n".
+
+%% Appendix E.23: the interrupt sent to a running program until it answers
+%% other than `Right(Unit)`, `Left(Closed)` once the program has exited, which
+%% no read asks for meanwhile.
+closed() ->
+    "fn closed(p : Address(Os.ProgramMsg)) : Either(Io.Error, Unit) =\n"
+    "    match Os.signal(p, Os.Interrupt) {\n"
+    "        Right(_) -> closed(p)\n"
+    "      | other -> other\n"
+    "    }\n".
+
 %% An executable script at Path, its text the shell's.
 script(Path, Text) ->
     ok = file:write_file(Path, ["#!/bin/sh\n", Text, "\n"]),
@@ -524,23 +542,13 @@ os_signal_after_an_unread_exit_test() ->
     Dir = ern_emitter_tests:scratch(),
     Fifo = filename:join(Dir, "fifo"),
     {ok, Output} = ern_emitter_tests:run(
-        [inheriting(), rest(),
-         "fn gone(p : Address(Os.ProgramMsg), text : String) : String =\n"
-         "    if String.contains(text, \"gone\") then text else match Os.read(p, 5000) {\n"
-         "        Right(Os.Stdout(b)) -> gone(p, text <> String.fromUtf8Lossy(b))\n"
-         "      | other -> text <> Io.show(other)\n"
-         "    }\n"
-         "fn closed(p : Address(Os.ProgramMsg)) : Either(Io.Error, Unit) =\n"
-         "    match Os.signal(p, Os.Interrupt) {\n"
-         "        Right(_) -> closed(p)\n"
-         "      | other -> other\n"
-         "    }\n"
+        [inheriting(), rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
          "    match Os.start(command(\"sh\",\n"
          "        [\"-c\", \"mkfifo $0; (read line < $0; echo gone) &\"\n"
          "        <> \" exec 4> $0; echo started\", \"", Fifo, "\"])) {\n"
          "        Right(p) -> {\n"
-         "            let text = gone(p, \"\");\n"
+         "            let text = readTo(p, \"gone\", \"\");\n"
          "            let sent = closed(p);\n"
          "            Io.println(Io.show(sent) <> \" \" <> rest(p, text))\n"
          "        }\n"
@@ -548,6 +556,51 @@ os_signal_after_an_unread_exit_test() ->
          "    }\n"]),
     ok = file:del_dir_r(Dir),
     ?assertEqual(<<"Left(Io.Closed) started\ngone\nexit 0\n">>, Output).
+
+%% Appendix E.23: a write to a program that has exited answers Closed
+%% though no read has yet taken its exit, and though a process the program
+%% started holds its input open, as `sleep` does here. The shell ignores
+%% the interrupt, so the signal is sent until it answers Closed, which says
+%% the shell has exited, and its status is 0
+os_write_after_an_unread_exit_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        [inheriting(), rest(), read_to(), closed(),
+         "export fn main() : Unit =\n"
+         "    match Os.start(command(\"sh\", [\"-c\", \"trap '' INT; exec 3<&0;\"\n"
+         "        <> \" sleep 1000 <&3 >/dev/null 2>&1 & echo started\"])) {\n"
+         "        Right(p) -> {\n"
+         "            let text = readTo(p, \"\\n\", \"\");\n"
+         "            let sent = closed(p);\n"
+         "            let written = Os.write(p, <<120>>, 5000);\n"
+         "            Io.println(Io.show(#(sent, written)) <> \" \" <> rest(p, text))\n"
+         "        }\n"
+         "      | Left(e) -> Io.println(Io.show(e))\n"
+         "    }\n"]),
+    ?assertEqual(<<"#(Left(Io.Closed), Left(Io.Closed)) started\nexit 0\n">>, Output).
+
+%% Appendix E.23: a resize and a write to a program under a terminal that
+%% has exited answer Closed though no read has yet taken its exit, and
+%% though a process the program started holds the terminal open, as `sleep`
+%% does here, ignoring the hangup the shell's exit sends it. The hangup
+%% `closeInput` makes ends the run, as the program has exited
+os_resize_after_an_unread_exit_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        [inheriting(), rest(), read_to(), closed(),
+         "export fn main() : Unit =\n"
+         "    match Os.startTerminal(command(\"sh\", [\"-c\", \"trap '' HUP INT;\"\n"
+         "        <> \" sleep 1000 & echo started\"]), Terminal.Size(rows = 24, columns = 80)) {\n"
+         "        Right(p) -> {\n"
+         "            let text = readTo(p, \"\\r\\n\", \"\");\n"
+         "            let sent = closed(p);\n"
+         "            let resized = Os.resize(p, Terminal.Size(rows = 30, columns = 100));\n"
+         "            let written = Os.write(p, <<120>>, 5000);\n"
+         "            Os.closeInput(p);\n"
+         "            Io.println(Io.show(#(sent, resized, written)) <> \" \" <> rest(p, text))\n"
+         "        }\n"
+         "      | Left(e) -> Io.println(Io.show(e))\n"
+         "    }\n"]),
+    ?assertEqual(<<"#(Left(Io.Closed), Left(Io.Closed), Left(Io.Closed)) started\r\nexit 0\n">>,
+                 Output).
 
 %% Appendix E.23, report §8.6: Os.exit ends the program with its status,
 %% from any process, the output written before it flushed; a status

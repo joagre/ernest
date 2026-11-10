@@ -7,16 +7,20 @@
 %% The size a terminal of the tests begins with, `Terminal.Size(24, 80)`.
 -define(SIZE, {'Size', 24, 80}).
 
-%% Appendix E.23, report §7.4: a write, a read and a signal that wait while
-%% the helper ends fault their callers, the runtime's own failure. A
-%% regression test: the process gave them to the port the helper's end had
-%% closed, and crashed with badarg; and of the rule, before which they were
-%% answered `Left(Other(...))`
+%% Appendix E.23, report §7.4: a write, a read, a signal and a resize that
+%% wait while the helper ends fault their callers, the runtime's own
+%% failure, and a resize to a size the host cannot take answers
+%% `Left(Invalid)` as it does while the helper runs. A regression test: the
+%% process gave them to the port the helper's end had closed, and crashed
+%% with badarg; and of the rule, before which they were answered
+%% `Left(Other(...))`. The resize's fault is not a regression test: it was
+%% written before the resize waited on the helper, which it answered
+%% `Right(Unit)` without
 helper_ends_under_a_write_and_a_read_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
+               {'Right', Program} = start_terminal(<<"sleep">>, [<<"3">>], ?SIZE),
                {links, Links} = process_info(Program, links),
                [Helper] = [Link || Link <- Links, is_port(Link)],
                {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
@@ -27,6 +31,10 @@ helper_ends_under_a_write_and_a_read_test() ->
                Program ! {'Read', 5000, {ReadReply, self()}},
                SignalReply = alias(),
                Program ! {'SendSignal', 'Termination', {SignalReply, self()}},
+               ResizeReply = alias(),
+               Program ! {'Resize', {'Size', 30, 100}, {ResizeReply, self()}},
+               InvalidReply = alias(),
+               Program ! {'Resize', {'Size', 65536, 80}, {InvalidReply, self()}},
                PortRef = erlang:monitor(port, Helper),
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
                %% the port closes once the host has seen the helper end
@@ -34,12 +42,16 @@ helper_ends_under_a_write_and_a_read_test() ->
                erlang:resume_process(Program),
                Self ! {write, answer(WriteReply)},
                Self ! {read, answer(ReadReply)},
-               Self ! {signal, answer(SignalReply)}
+               Self ! {signal, answer(SignalReply)},
+               Self ! {resize, answer(ResizeReply)},
+               Self ! {invalid, answer(InvalidReply)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Failed = {fault, <<"the runtime's helper ern_exec failed">>},
     ?assertEqual(Failed, wait(write)),
     ?assertEqual(Failed, wait(read)),
-    ?assertEqual(Failed, wait(signal)).
+    ?assertEqual(Failed, wait(signal)),
+    ?assertEqual(Failed, wait(resize)),
+    ?assertEqual({'Left', 'Invalid'}, wait(invalid)).
 
 %% Appendix E.23: the helper answers each 'i' in order, one taken after the
 %% input's end among them, so that a write returns only once the program

@@ -75,7 +75,7 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 9. Item 43, by an item session, done 2026-11-10.
 10. Item 44, by an item session, done 2026-11-10.
 11. Item 45, by an item session, done 2026-11-10.
-12. Item 46, by an item session.
+12. Item 46, by an item session, done 2026-11-10.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -337,14 +337,13 @@ reader S reads of its live shell. The release note's line on the installed layou
     the exiting shell, answered `Right(Unit)`. The runtime did what E.23 says, and the test now
     sends the signal until it answers `Closed`. Decided: the report states no order of the
     host's, since Ernest departs from none (principle 1).
-46. **A write and a resize after an exit no read has taken**, found 2026-11-10 by item 45's
-    probe, for an item session before MVP 4.15's release (E.23; the log's *The Flake of
-    `os_signal_after_an_unread_exit_test`*). Where a process the program started holds the
-    program's input open, a write once the program has exited answers `Right(Unit)`, its bytes
-    taken by the pipe; where one holds its terminal, a resize does too. E.23 answers
-    `Left(Closed)` to both, as it does a signal. The shape of the fix: the helper learns of the
-    exit when the host reports it, whatever the outputs, and drops the input then, and a resize
-    is answered by the helper, as a signal is.
+46. **A write and a resize after an exit no read has taken**, done 2026-11-10 (E.23; the log's
+    *A Write and a Resize after an Unread Exit*). The helper waits on the program's exit
+    whatever its outputs, and drops the input when the host reports it, so a write after the
+    exit answers `Left(Closed)` though a process the program started holds the input. A resize
+    is the helper's to answer, as a signal is: `Left(Closed)` once the terminal is hung up or
+    the program has exited. E.23's failure sentence names the resize the shim answers alone,
+    one that answers `NotATerminal` or `Invalid`.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
