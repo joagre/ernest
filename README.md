@@ -12,7 +12,7 @@
 
 The home of Ernest is [ernest-lang.org](https://ernest-lang.org).
 
-Ernest is a small BEAM language built around code that travels. It takes Unison's code known by the hash of its definition, Gleam's kind of types and Erlang's processes, and adds what none of them has. A process started on another node brings its code along, each function crossing by its hash, and nothing is installed there first. A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches. And two nodes are two configuration files over one TLS connection, with no cluster to join.
+Ernest is a small BEAM language built around code that travels. A process started on another node brings its code along, each function crossing by its hash, and nothing is installed there first. A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches. And two nodes are two configuration files over one TLS connection, with no cluster to join. Ernest adds these to Unison's code known by the hash of its definition, Gleam's kind of types and Erlang's processes, and none of the three has them.
 
 A counter, whose mailbox type, `CounterMsg`, is in the type of the loop it runs:
 
@@ -30,7 +30,7 @@ export fn count(total : Int) : Unit receiving CounterMsg =
     }
 ```
 
-On a second node, `foo`, which holds none of the counter's code, `Peer.spawn` starts `count`, and the shell counts on it from here. Two configuration directories make the pair, four `ern config` commands of the kind [the tour](tour/README.md) shows:
+On a second node, `foo`, which holds none of the counter's code, `Peer.spawn` starts `count`, and the shell counts on it from here. Two configuration directories make the pair, four `ern config` commands, two for each directory, of the kind [the tour](tour/README.md) shows. `foo` runs in a terminal of its own, started by `ern run --config-dir foo`:
 
 ```console
 $ ern shell --config-dir a
@@ -45,9 +45,9 @@ far : Address(Counter.CounterMsg)
 Some(5) : Optional(Int)
 ```
 
-`foo` compiled `count` and its type before the process started.
+`foo` compiled `count` and its type before the process started. `Peer.spawn` waits at most 5000 milliseconds for `foo`, and `Address.call` at most 1000 for the answer. `let far <-` binds the address inside the spawn's `Right`.
 
-A function that receives runs only in a process whose mailbox takes what it receives, so `count` called from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process that does not own it.
+A function that receives runs only in a process whose mailbox takes what it receives, so `count` called from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make.
 
 ```console
 $ ern build other.ern
@@ -68,7 +68,7 @@ What Ernest adds, which [Why Ernest](guide/why.md) argues:
 - [Abstract types and requirements](guide/why.md#abstract-types-and-requirements)
 - [Little else](guide/why.md#little-else)
 
-The questions a Gleam or Erlang programmer asks first are [answered here](guide/faq.md).
+The questions a Gleam, Erlang or Unison programmer asks first are [answered here](guide/faq.md).
 
 ## Where to begin
 
@@ -105,7 +105,7 @@ OTP 29 is built from its source at [erlang.org/downloads](https://www.erlang.org
 
 Or from a release: download `ern-<version>.tar.gz` and its checksum, `ern-<version>.tar.gz.sha256`, from the [releases page](https://github.com/joagre/ernest/releases), check the archive with `sha256sum -c ern-<version>.tar.gz.sha256`, and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
 
-Two nodes on one machine take four more commands: `ern config --config-dir` makes each node's directory with its key, `ern config --peer-dir` lists one node in the other's file, `ern run --config-dir` starts a node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
+Two nodes on one machine take four more commands, each run once for each node: `ern config --config-dir` makes the node's directory with its key, `ern config --peer-dir` lists the other node in its file, `ern run --config-dir` starts the node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
 
 `make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, as `share/emacs/site-lisp/ernest-mode.el`, and [`editors/emacs/README.md`](editors/emacs/README.md) says how to turn it on.
 

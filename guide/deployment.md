@@ -14,7 +14,7 @@ A node runs on the Erlang runtime, OTP, which this guide calls the host; the hos
 
 How a program is written to be found, placed and upgraded across nodes is the language guide's chapter 8, [*Programming in Ernest*](language.md), which this guide points at and does not repeat. The rules themselves are [the report's](../report/README.md), Ernest's definition, §8.7, §11 and §12 above all, and every section here names the section that owns what it teaches.
 
-The commands of sections 1, 5.3 and 8 and the shell sessions of sections 5.3, 6 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit and the `kill` lines are shown and not run. The numbers quoted were measured on one machine of eight cores, and across three machines wired on one LAN, and each says which.
+The commands of sections 1, 5.3 and 8 and the shell sessions of sections 5.3, 6 and 8 are run as shown, with other directories and ports, each time Ernest is tested; the service manager's unit and the `kill` lines are shown and not run. The numbers quoted were measured on several machines, and each says which.
 
 ## 1. One node
 
@@ -101,7 +101,7 @@ A process *faults* when it meets an error it did not expect, a division by zero 
 
 - 0 when its entry point returns;
 - the status the program itself chose, where it calls `Os.exit`;
-- 1 when its entry process faults or is killed, when the program exhausts the host's memory, and when a load would pass one of the host's limits on code (section 4.2);
+- 1 when its entry process faults or is killed, when the program exhausts the host's memory, when a load would pass one of the host's limits on code (section 4.2), and when it dials a peer with its table of processes full (section 1.2);
 - the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop;
 - 141 when its output, a pipe or a file, can no longer be written; the hangup signal itself, which a shell shows as 129, when its output is a terminal that has gone.
 
@@ -127,6 +127,8 @@ TimeoutStopSec=30
 [Install]
 WantedBy=multi-user.target
 ```
+
+`ern` runs the `erl` it finds on the path, and systemd's path holds `/usr/local/bin` and `/usr/bin` and no directory of a version manager's. For an OTP installed elsewhere, as kerl installs it, `[Service]` names its `bin` first on the path: `Environment=PATH=dir/bin:/usr/local/bin:/usr/bin:/bin`, `dir` the directory OTP was installed in.
 
 systemd keeps both streams in its journal, which stamps every line, and `journalctl -u counter-b` reads them. `systemctl reload counter-b` runs the reload, and `systemctl stop counter-b` sends the termination signal and waits `TimeoutStopSec` for the orderly end, after which it kills what still runs; set it longer than the slowest subscriber's answer. `Restart=on-failure` starts the node again after a crash and after an `Os.exit` with a status other than 0, and not after `ern stop`.
 
@@ -328,7 +330,7 @@ Counter.serve() : Unit receiving Counter.CounterMsg
 
 `:processes` lists `b`'s live processes, each by its spawn site, what it does, `running`, `receiving` or `calling`, and the bytes it holds, here the counter waiting for a message; a process in `Clock.sleep` is `receiving` too (report Appendix E.21). A process that waits is `running` while the host works in it, as the host does in every process of `b` for a moment when code is let go there. A process at work is `running` in listing after listing. `Process.live()` and `Process.status` answer for `b` at its prompt, and `Process.live()`, as `:processes`, leaves out every session's own processes, this one's and another's (report Appendix E.21).
 
-A process's site is the declaration its spawn is written in, with the spawn's line, `Counter.main:59` for the counter the second build's tool spawns. The entry process, which no spawn starts, has the entry point's name and no line, `Counter.serve` above (report §6.9). A site carries the number of the version that spawned it, fixed at the spawn: plain for the build and the first load, and with the version's number for a reload's, `Counter$2.main:59` for that spawn in the module's first reload. A site of a process a session started carries the session, `$Session2.input 3:1`, in every shell's lines and on the node's standard error alike (report §11.2, *Faults*).
+A process's site is the declaration its spawn is written in, with the spawn's line, `Counter.main:60` for the counter the second build's tool spawns. The entry process, which no spawn starts, has the entry point's name and no line, `Counter.serve` above (report §6.9). A site carries the number of the version that spawned it, fixed at the spawn: plain for the build and the first load, and with the version's number for a reload's, `Counter$2.main:60` for that spawn in the module's first reload. A site of a process a session started carries the session, `$Session2.input 3:1`, in every shell's lines and on the node's standard error alike (report §11.2, *Faults*).
 
 A type's number works the other way: the current version prints plain, and a number names a previous one (report §11.2, *Loading and reloading*).
 
@@ -342,7 +344,7 @@ A session ends with its node: where `b` ends, by `ern stop` or by its program's 
 
 An attach that fails is refused with status 1 and a line that names why: `ern shell: the peer b is unreachable` where no connection opens, `ern shell: the peer b did not answer in time` where a connection opens and no session starts within twice a dial's 7 seconds, `ern shell: the peer b is not listed` where `ops` lists no `b`, and `ern shell: the node b could not start the shell:` followed by the reason where the session's root on `b` ends before the session starts.
 
-The shell's code crosses to the node as a program's does, so a node of another release of `ern` on the shell's floor runs it (report §12.7). The start line then names the node's release after the shell's own: a shell of `0.4.1` attached to a node of `0.4.0` says `Ernest 0.4.1, session 1 on ern 0.4.0. :help for help.` (report §11.2). A node that could not compile or load that code answers `ern shell: the node b could not load the shell:` followed by its reason, and one on another floor refuses the connection, as section 2.2 says.
+The shell's code crosses to the node as a program's does, so a node of another release of `ern` on the shell's floor runs it (report §11.2, *The attached shell*). The start line then names the node's release after the shell's own: a shell of `0.4.1` attached to a node of `0.4.0` says `Ernest 0.4.1, session 1 on ern 0.4.0. :help for help.` (report §11.2). A node that could not compile or load that code answers `ern shell: the node b could not load the shell:` followed by its reason, and one on another floor refuses the connection, as section 2.2 says.
 
 An attach takes about half a second on an idle machine of twelve cores, and longer under load, as a shell that is a node takes to start. A node holds the shell of its own build of `ern` from its start, so a shell of that build ships nothing to it. A shell of another build sends what the node lacks of its code, which the node compiles as it compiles any code that crosses (section 4.1) and holds for its life. The first attach of that build takes up to about three seconds on an idle machine of twelve cores and eleven on one of two. The shell waits twice a dial's 7 seconds for it, so on a machine of two cores under load that attach may be refused as one that `did not answer in time`, as above. A later attach of that build ships nothing.
 
@@ -367,7 +369,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `the peer c was refused: it answered the dial of the peer b` | This node dialed the address listed for `b`, and the node there holds `c`'s key. | Check which address is listed beside which key on this node; a copied directory is not the cause, since a copy has the same key and shows as `replaced`. |
 | `the peer b was refused: its certificate names another host than its key gives` | `b`'s certificate and key disagree: a copied or edited directory. | Make `b`'s directory again with `ern config` on `b`'s machine. |
 | `the peer b was refused: it stands on another floor, another release or build of ern or another major release of OTP` | The two run different minor releases of `ern`, different development builds, or different major releases of OTP. | Install one release of each on both. |
-| `the peer b was refused: this node's table of processes is full` | `b` dialed in while this node's table of processes was full, and the connection was closed; the node runs on, and accepts `b` once there is room. Where the node refused it before the TLS handshake gave the key, the line names the address it came from instead, `a connection from 10.0.0.7:53114`. `a connection was refused: this node's table of ports is full` is the same for ports. | Find what holds the processes or ports, `:processes` from an attached shell (section 6); or raise `processes` or `ports` under `limits`, which holds from the node's next start. |
+| `the peer b was refused: this node's table of processes is full` | `b` dialed in while this node's table of processes was full, and the connection was closed; the node runs on, and accepts `b` once there is room. Where the node refused it before the TLS handshake gave the key, the line names the address it came from instead, `a connection from 10.0.0.7:53114`. `a connection was refused: this node's table of ports is full` is the same for ports. A node that dials a peer while its own table of processes has no room ends instead: it may first say that it lost a peer, then the host writes its own line and the node exits with status 1 (section 1.4), and its peers say that they lost it. | Find what holds the processes or ports, `:processes` from an attached shell (section 6); or raise `processes` or `ports` under `limits`, which holds from the node's next start. |
 | `a connection waits: too many open files` | The node's process holds as many files as the operating system lets it open, and a peer's connection waits unaccepted; the node tries again every 7 seconds, and says so once while it waits. `file table overflow` in its place is the machine's own table full. | Find what holds the files, or raise the limit of the node's process: `ulimit -n` in the shell that starts it, or `LimitNOFILE=` in its unit (section 1.5). |
 | `ernest.conf was read again` | A reload succeeded. | None; the peer lines that follow say what changed. |
 | `the peer b was added` / `was removed` / `is now named c` | What the reload changed. | None. |

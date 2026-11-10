@@ -10,23 +10,23 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 
 ### The report
 
-- P9, K4 — Appendix F's *shape rule* says "one of the ten rules"; E.0 has eleven. fix: "one of the rules".
-- P12 — E.21's `Process.run` says nothing of a mailbox type nothing fixed. fix: the type is `f`'s, `Never` where nothing fixed it (§6.2), once the code is read for it.
-- P14 — E.1's `Other(text)` for a file promises Ernest's words, and E.18 states the host's term for `ssl.app`. fix: E.1 names E.18's exception, a file of the host's own.
-- P15 — "a `.erc` whose code the host will not load" names no case, in §11, §11.1 and E.28. fix: §11 names the cases once, a code chunk damaged or compiled for another major release of OTP.
-- P16 — §4.2's "A module namespace may not coincide with a namespace of the prelude or the standard library" is held by the sentence after it. fix: the first goes.
-- P17, K10 — §11.8 and §12.1 end a job "by the hangup's signal" with no status, where SIGPIPE's and SIGINT's are given. fix: the status the code gives, stated in §11.8 and cited from §12.1.
-- P-H — Appendix H's "a pipe whose callee is ... a lambda" reads as the lambda applied to the value, where `1 |> (fn(a) = fn(b) = a + b)(2)` is filled as a chained call. fix: one sentence, the callee being the chained call's head.
-- K3 — §4.2's *Declarations are local* shows `Net.Http.parse`, which *Qualified lookup* refuses inside `Net.Http`. fix: "its shortest resolving form", showing `Http.parse`.
-- K9 — §6.9's restart waits until each service monitor's wrap has placed its message, and §7.4 has a wrap the runtime has no room to apply fault the watcher, placing nothing. fix: §6.9 states what the code does then, as §8.6 says of the end.
-- K11 — §11's "what it logs as it ends the job" against §11.2's and §11.8's "its message". fix: §11 names the one line written.
-- K12 — §8.7 and §12.5 cite each other for the patch-release rule. fix: §12.5 states it, §8.7 cites it.
-- K13 — §11.5's "printed whole ... the module's own types and the prelude's unqualified" reads against §4.2's "print a name whole". fix: §4.2 says it once, §11.5 cites it.
-- K14 — §4.2's "where `Command.parse` resolves" and the root tie decided by load-path order. fix: "resolves to it", and the tie's rule cited where it is stated.
-- K16 — E.24's `Test.faults` "runs `run` as `Process.run` runs a function", where only `Process.run` reports the fault. fix: "as `Process.run` runs one, but marked".
-- U3 — the cookie stands on a node's command line, which `ps` shows, in the deployment guide's §2.2 and the questions, and in no report section. fix: one sentence in §12.5, which the two guides cite.
-- K5, C4 — an empty `workingDirectory` answers `Left(Other(": NotFound"))`, a line naming no directory, where E.23 makes an empty variable name `Invalid`. fix: `Invalid`, refused before the helper; E.23's sentence names it. done 2026-11-10 in the runtime; E.23's sentence in the design session.
-- P10 — §11.1's "a node reads its build's units from its build directory at its start alone". decide, batch D6.
+- P9, K4 — Appendix F's *shape rule* says "one of the ten rules"; E.0 has eleven. fix: "one of the rules". done 2026-11-10.
+- P12 — E.21's `Process.run` says nothing of a mailbox type nothing fixed. fix: the type is `f`'s, `Never` where nothing fixed it (§6.2), once the code is read for it. done 2026-11-10: E.21 says so; the code read, the checker gave the function given to `Process.run` or `Test.faults` no such rule, so a `receive` in one with nothing fixing its mailbox compiled and met the deadlock when run, and is now refused as a spawned function's is, `run_mailbox_is_never_test`.
+- P14 — E.1's `Other(text)` for a file promises Ernest's words, and E.18 states the host's term for `ssl.app`. fix: E.1 names E.18's exception, a file of the host's own. done 2026-11-10.
+- P15 — "a `.erc` whose code the host will not load" names no case, in §11, §11.1 and E.28. fix: §11 names the cases once, a code chunk damaged or compiled for another major release of OTP. done 2026-11-10.
+- P16 — §4.2's "A module namespace may not coincide with a namespace of the prelude or the standard library" is held by the sentence after it. fix: the first goes. done 2026-11-10.
+- P17, K10 — §11.8 and §12.1 end a job "by the hangup's signal" with no status, where SIGPIPE's and SIGINT's are given. fix: the status the code gives, stated in §11.8 and cited from §12.1. done 2026-11-10.
+- P-H — Appendix H's "a pipe whose callee is ... a lambda" reads as the lambda applied to the value, where `1 |> (fn(a) = fn(b) = a + b)(2)` is filled as a chained call. fix: one sentence, the callee being the chained call's head. done 2026-11-10.
+- K3 — §4.2's *Declarations are local* shows `Net.Http.parse`, which *Qualified lookup* refuses inside `Net.Http`. fix: "its shortest resolving form", showing `Http.parse`. done 2026-11-10.
+- K9 — §6.9's restart waits until each service monitor's wrap has placed its message, and §7.4 has a wrap the runtime has no room to apply fault the watcher, placing nothing. fix: §6.9 states what the code does then, as §8.6 says of the end. done 2026-11-10.
+- K11 — §11's "what it logs as it ends the job" against §11.2's and §11.8's "its message". fix: §11 names the one line written. done 2026-11-10.
+- K12 — §8.7 and §12.5 cite each other for the patch-release rule. fix: §12.5 states it, §8.7 cites it. done 2026-11-10.
+- K13 — §11.5's "printed whole ... the module's own types and the prelude's unqualified" reads against §4.2's "print a name whole". fix: §4.2 says it once, §11.5 cites it. done 2026-11-10.
+- K14 — §4.2's "where `Command.parse` resolves" and the root tie decided by load-path order. fix: "resolves to it", and the tie's rule cited where it is stated. done 2026-11-10.
+- K16 — E.24's `Test.faults` "runs `run` as `Process.run` runs a function", where only `Process.run` reports the fault. fix: "as `Process.run` runs one, but marked". done 2026-11-10.
+- U3 — the cookie stands on a node's command line, which `ps` shows, in the deployment guide's §2.2 and the questions, and in no report section. fix: one sentence in §12.5, which the two guides cite. done 2026-11-10.
+- K5, C4 — an empty `workingDirectory` answers `Left(Other(": NotFound"))`, a line naming no directory, where E.23 makes an empty variable name `Invalid`. fix: `Invalid`, refused before the helper; E.23's sentence names it. done 2026-11-10 in the runtime; E.23's sentence done 2026-11-10.
+- P10 — §11.1's "a node reads its build's units from its build directory at its start alone". fix: the build's and the shell's, at its start and never after. done 2026-11-10.
 - P2 — `Test.capture` captures a service's writes under `ern run`, which E.24 says it does not. decide, D2.
 - P3, K1 — §7.4 and §12.5 make a full table at a `Terminal` request a value, where §12.1 and §12.3 fault the entry process at the subscription. decide, D4.
 - P5 — §12.5's listener retries after 7 seconds at the limit of open files, against §0's "retries nothing". decide, D5.
@@ -47,44 +47,44 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 
 ### The guide, the tour, the README and the questions
 
-- U1 — the language guide's §5.5 says `kill` takes any of a process's addresses; it takes a `Process`. fix.
-- U2 — §9.1's list of what compiles a module again lacks §11.1's qualified name that now resolves elsewhere and the `.erc` that is no compiled module, and says one case twice. fix.
-- U4 — the deployment guide never says that a node with a full table of processes ends with status 1 when it dials a peer. fix: §1.4's status 1 and §7's table.
-- U5 — the deployment guide's opening lists the machines its numbers were measured on, and §6 quotes two it does not list. fix: "each says which" alone.
-- U6, U7 — citations left at the old section: §6.3's §7.3 for §7.4, the deployment guide's §6 cites §12.7 for §11.2's *The attached shell*. fix.
-- U9 — §8.6 says a stream may end inside a character, and names neither `String.fromUtf8Piece` nor `fromUtf8Lossy`. fix: one sentence naming `fromUtf8Piece`.
-- M1 — the tour names four of *Why Ernest*'s claims by their old order. fix: each by its title.
-- M2 — the tour writes Gleam's `process.receive(subject)` with one argument. fix: the two-argument form.
-- M3 — the README and *Why Ernest* say Gleam's `process.receive` panics for any subject not owned; the page excepts a named one. fix: "a subject it did not make".
-- M4 — §4.4's "it was closed" among a callee's ends, before any closing is taught. fix: name the kind of process that closes.
-- M5, L10, N8 — §4.1's `fn stop() = kill(Process.fromAddress(self()))` is a `() -> Unit`, with no clause saying why, and `kill` and `fromAddress` not yet taught. fix: the clause, and the two sections cited.
-- M7 — the questions' answer for a Gleam reader maps no everyday type: `Result` to `Either` with its parameters the other way round, `Option`, `Nil`, `Pid`. fix: one line.
-- M8 — *Why Ernest* asserts that `spawn` gives a typed address and never names the handshake a Gleam spawn needs. fix: one sentence.
-- M10 — §7.3's *How `OrderedSet` is written* quotes forty lines for one sentence. fix: `fromList` and `map`.
-- M13 — the tour's terminals: a second and a third, and chapter 1's shell not said quit. fix.
-- M14 — the questions' three systems and three clauses do not match. fix: each its clause.
-- N1 — `Counter.main:59` and `Counter$2.main:59` in the language guide's §9.3 and the deployment guide's §5.3; the spawn is on line 60. fix.
-- N2 — §8.1 says §4.4's `gathered` spawns monitored; it runs each piece under `Process.run`. fix.
-- N3 — the README's two "four commands" count two different sets. fix.
-- N4, N5 — a deadline given with nothing saying what it counts: the README's `Peer.spawn(..., 5000)` and `Address.call(..., 1000)`, with `let far <-` untaught, and §1.3's `Os.run(..., 5000)`. fix.
-- N7 — §3.3's `spawn(fn() = cell(None))`, with `cell` defined nowhere. fix.
-- N9 — §8.1's `board.ern` calls `Proxy.start` eighty lines before a proxy is taught. fix: a pointer.
-- N10 — the rule for a `callForever` caller's fault line stands whole in §4.4, §6.3 and §6.5. fix: stated in §6.3, cited from the others.
-- N11 — §13 *Reading further* names the log for "why Ernest looks as it does" and not *Why Ernest* or the questions. fix.
-- N12 — the README's opening claim opens on what three systems lack. fix: the three additions first.
-- N13 — §1.3's `Os.arguments` is not said to be a binding. fix: the guide's line; the naming rule is D14's.
-- N14 — the README says the questions are a Gleam or Erlang programmer's; they are a Unison programmer's too. fix.
-- N15 — §7.3's "`:doc OrderedSet` lists it", where `:doc` shows documentation. fix.
-- L1 — a host library's timer or unmonitored process that answers after its call returns is the one false deadlock, said only in the deadlock's claim. fix: one sentence where *Why Ernest* and the questions teach foreign code.
-- L2 — *Why Ernest*'s WAN claim does not say it is Erlang's own distribution underneath. fix: the questions' sentence cited.
-- L4 — *Why Ernest* does not say a peer tells its utilization again. fix: every `utilization-interval`.
-- L5 — the README's console needs `foo` running, which it never says. fix.
-- L6 — the deployment guide's systemd unit names no `PATH` for an OTP outside `/usr/local`. fix: one line.
-- L7 — §8.1's trace across a compute reads as one frame printed twice. fix: the sentence says which is the peer's.
-- L8 — the tour explains one run's 0.25 after the fact. fix: "the numbers are one run's".
-- L9 — *Why Ernest*'s first program writes `Upgrade(=next)` before the guide teaches the pun. fix: a clause under the block.
+- U1 — the language guide's §5.5 says `kill` takes any of a process's addresses; it takes a `Process`. fix. done 2026-11-10.
+- U2 — §9.1's list of what compiles a module again lacks §11.1's qualified name that now resolves elsewhere and the `.erc` that is no compiled module, and says one case twice. fix. done 2026-11-10.
+- U4 — the deployment guide never says that a node with a full table of processes ends with status 1 when it dials a peer. fix: §1.4's status 1 and §7's table. done 2026-11-10.
+- U5 — the deployment guide's opening lists the machines its numbers were measured on, and §6 quotes two it does not list. fix: "each says which" alone. done 2026-11-10.
+- U6, U7 — citations left at the old section: §6.3's §7.3 for §7.4, the deployment guide's §6 cites §12.7 for §11.2's *The attached shell*. fix. done 2026-11-10.
+- U9 — §8.6 says a stream may end inside a character, and names neither `String.fromUtf8Piece` nor `fromUtf8Lossy`. fix: one sentence naming `fromUtf8Piece`. done 2026-11-10.
+- M1 — the tour names four of *Why Ernest*'s claims by their old order. fix: each by its title. done 2026-11-10.
+- M2 — the tour writes Gleam's `process.receive(subject)` with one argument. fix: the two-argument form. done 2026-11-10.
+- M3 — the README and *Why Ernest* say Gleam's `process.receive` panics for any subject not owned; the page excepts a named one. fix: "a subject it did not make". done 2026-11-10.
+- M4 — §4.4's "it was closed" among a callee's ends, before any closing is taught. fix: name the kind of process that closes. done 2026-11-10.
+- M5, L10, N8 — §4.1's `fn stop() = kill(Process.fromAddress(self()))` is a `() -> Unit`, with no clause saying why, and `kill` and `fromAddress` not yet taught. fix: the clause, and the two sections cited. done 2026-11-10.
+- M7 — the questions' answer for a Gleam reader maps no everyday type: `Result` to `Either` with its parameters the other way round, `Option`, `Nil`, `Pid`. fix: one line. done 2026-11-10.
+- M8 — *Why Ernest* asserts that `spawn` gives a typed address and never names the handshake a Gleam spawn needs. fix: one sentence. done 2026-11-10.
+- M10 — §7.3's *How `OrderedSet` is written* quotes forty lines for one sentence. fix: `fromList` and `map`. done 2026-11-10.
+- M13 — the tour's terminals: a second and a third, and chapter 1's shell not said quit. fix. done 2026-11-10.
+- M14 — the questions' three systems and three clauses do not match. fix: each its clause. done 2026-11-10.
+- N1 — `Counter.main:59` and `Counter$2.main:59` in the language guide's §9.3 and the deployment guide's §5.3; the spawn is on line 60. fix. done 2026-11-10.
+- N2 — §8.1 says §4.4's `gathered` spawns monitored; it runs each piece under `Process.run`. fix. done 2026-11-10.
+- N3 — the README's two "four commands" count two different sets. fix. done 2026-11-10.
+- N4, N5 — a deadline given with nothing saying what it counts: the README's `Peer.spawn(..., 5000)` and `Address.call(..., 1000)`, with `let far <-` untaught, and §1.3's `Os.run(..., 5000)`. fix. done 2026-11-10.
+- N7 — §3.3's `spawn(fn() = cell(None))`, with `cell` defined nowhere. fix. done 2026-11-10.
+- N9 — §8.1's `board.ern` calls `Proxy.start` eighty lines before a proxy is taught. fix: a pointer. done 2026-11-10.
+- N10 — the rule for a `callForever` caller's fault line stands whole in §4.4, §6.3 and §6.5. fix: stated in §6.3, cited from the others. done 2026-11-10.
+- N11 — §13 *Reading further* names the log for "why Ernest looks as it does" and not *Why Ernest* or the questions. fix. done 2026-11-10.
+- N12 — the README's opening claim opens on what three systems lack. fix: the three additions first. done 2026-11-10.
+- N13 — §1.3's `Os.arguments` is not said to be a binding. fix: the guide's line; the naming rule is D14's. done 2026-11-10.
+- N14 — the README says the questions are a Gleam or Erlang programmer's; they are a Unison programmer's too. fix. done 2026-11-10.
+- N15 — §7.3's "`:doc OrderedSet` lists it", where `:doc` shows documentation. fix. done 2026-11-10.
+- L1 — a host library's timer or unmonitored process that answers after its call returns is the one false deadlock, said only in the deadlock's claim. fix: one sentence where *Why Ernest* and the questions teach foreign code. done 2026-11-10.
+- L2 — *Why Ernest*'s WAN claim does not say it is Erlang's own distribution underneath. fix: the questions' sentence cited. done 2026-11-10.
+- L4 — *Why Ernest* does not say a peer tells its utilization again. fix: every `utilization-interval`. done 2026-11-10.
+- L5 — the README's console needs `foo` running, which it never says. fix. done 2026-11-10.
+- L6 — the deployment guide's systemd unit names no `PATH` for an OTP outside `/usr/local`. fix: one line. done 2026-11-10.
+- L7 — §8.1's trace across a compute reads as one frame printed twice. fix: the sentence says which is the peer's. done 2026-11-10.
+- L8 — the tour explains one run's 0.25 after the fact. fix: "the numbers are one run's". done 2026-11-10.
+- L9 — *Why Ernest*'s first program writes `Upgrade(=next)` before the guide teaches the pun. fix: a clause under the block. done 2026-11-10.
 - L14 — the tour's chapter 2 session stands in the README, the guide's §1.4 and the tour, and no test holds the guide's copy. fix: a test holds it. done 2026-11-10.
-- L16 — the questions restate *Why Ernest*'s closed-set paragraph. fix: the questions point at it.
+- L16 — the questions restate *Why Ernest*'s closed-set paragraph. fix: the questions point at it. done 2026-11-10.
 - U8, M15 — `Code.running`'s "earlier definition" and its printed type in §8.9. decide, D11.
 - L3, M6 — `show` is "no member" in three documents, and the compiler's message lists it among what a requirement names. decide, D12.
 - M9, M12 — *Why Ernest*'s code-travels claim carries the guide's operational rules; its requirements section never grants the likeness to a type class. decide, D13.
@@ -237,7 +237,7 @@ Each is argued with the user, the argument before the verdict, after the log is 
 - **D3, a program's group at its exit:** C2.
 - **D4, a terminal's subscription the host cannot serve, and the texts of a full table:** P3, K1, C15, C16.
 - **D5, the listener's retry against §0's *Time*:** P5, sharpening the log's *The Carrier's Acceptor at a Full Table*.
-- **D6, the shell's units from a node's start:** K8, P18, P10, sharpening the log's *A Node Holds the Shell* against *Lean at the Limits*.
+- **D6, the shell's units from a node's start:** K8, P18, sharpening the log's *A Node Holds the Shell* against *Lean at the Limits*.
 - **D7, `Os.Command`'s two inherited fields:** P1, C312, sharpening feedback 184's verdict.
 - **D8, a root module a nearer one hides:** P6, K15.
 - **D9, a piece that can begin no character:** P13.

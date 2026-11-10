@@ -4399,6 +4399,40 @@ example.ern:1:22: a spawned function runs with mailbox Never and cannot receive
   | = help: the wait can never end, since nothing has the type Never; give the mailbox the messages' type, in a pattern or with `receiving`
 ```
 
+### `receive` in the function given to `Process.run` whose mailbox nothing fixes (§6.8, Appendix E.21)
+
+```ernest-rejected
+export fn main() : Unit = {
+    let r : Either(Reason, Int) = Process.run(fn() = receive { x -> 0 });
+    Io.println(Io.show(r))
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:54: the function given to Process.run runs with mailbox Never and cannot receive
+1 | export fn main() : Unit = {
+2 |     let r : Either(Reason, Int) = Process.run(fn() = receive { x -> 0 });
+  |                                                      ^^^^^^^^^^^^^^^^^^
+  | = help: the wait can never end, since nothing has the type Never; give the mailbox the messages' type, in a pattern or with `receiving`
+```
+
+### `receive` in a function whose mailbox is `Never` as it stands (§6.8)
+
+```ernest-rejected
+fn h(f : () -> Unit receiving Never) : Unit = { let _ = f; Unit }
+export fn g() : Unit = h(fn() = receive { x -> Unit })
+```
+
+```console
+$ ern build example.ern
+example.ern:2:33: a function with mailbox Never cannot receive
+1 | fn h(f : () -> Unit receiving Never) : Unit = { let _ = f; Unit }
+2 | export fn g() : Unit = h(fn() = receive { x -> Unit })
+  |                                 ^^^^^^^^^^^^^^^^^^^^^
+  | = help: give the function another mailbox type with `receiving`; to wait a time, write `Clock.sleep(ms)`
+```
+
 ### `receive` in an entry point whose mailbox nothing fixes (§6.8, §6.2)
 
 ```ernest-rejected

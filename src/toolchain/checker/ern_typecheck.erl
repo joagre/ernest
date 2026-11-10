@@ -45,9 +45,10 @@
 %%
 %% pending, deferred: what the definition being checked leaves for its
 %% end, the #pending_restriction{}s and the deferred records below
-%% mailboxes: the mailbox types of the functions the definition's spawns
-%% and computes are given, each Never at its end where nothing fixed it
-%% (report §6.2, §3.11), and one an enclosing definition holds left for
+%% mailboxes: the mailbox types of the functions the definition's spawns,
+%% computes and runs are given, each with the words a refusal names its
+%% function by, each Never at its end where nothing fixed it (report §6.2,
+%% §3.11, Appendix E.21), and one an enclosing definition holds left for
 %% that one's end (unfixed_mailboxes/2)
 %% receives: each `receive` with a pattern clause whose mailbox type was a
 %% variable where it stood, its span and that type, read as the definition
@@ -2793,30 +2794,44 @@ post_checks(Declaration,
                         definition = Env#env.definition,
                         definition_type = Env#env.definition_type}}.
 
-%% Report §6.2, §3.11: as a definition of type Type ends, each mailbox type
-%% its spawns' and computes' functions were given that is still a variable
-%% of its own, which no annotation names, is Never, a process-only one
-%% among them, since Never is a type; but one each call fixes, which a
-%% parameter's type holds or which is the definition's own mailbox type,
-%% keeps. One an enclosing definition holds stays for that definition's
-%% end, and a variable inside a mailbox type is none of these. Report
-%% §6.8: a `receive` with a pattern clause whose mailbox type is Never now
-%% waits for what cannot come, and is refused; one an enclosing definition
-%% holds is read at that one's end.
+%% Report §6.2, §3.11, Appendix E.21: as a definition of type Type ends,
+%% each mailbox type its spawns', computes' and runs' functions were given
+%% that is still a variable of its own, which no annotation names, is
+%% Never, a process-only one among them, since Never is a type; but one
+%% each call fixes, which a parameter's type holds or which is the
+%% definition's own mailbox type, keeps. One an enclosing definition holds
+%% stays for that definition's end, and a variable inside a mailbox type is
+%% none of these.
+%%
+%% Report §6.8: a `receive` with a pattern clause whose mailbox type is now
+%% Never waits for what cannot come, and is refused, named for the function
+%% whose mailbox type the end made Never, and as one at Never is where the
+%% body made it so; one an enclosing definition holds is read at that one's
+%% end.
 unfixed_mailboxes(Type, #env{mailboxes = Mailboxes, receives = Receives,
                              type_state = TypeState} = Env) ->
     Called = called_variables(Type, TypeState),
-    Unfixed = [{Mailbox, ern_types:unfixed(Mailbox, TypeState)} || Mailbox <- Mailboxes],
-    Never = lists:foldl(fun(Mailbox, Acc) -> bound(?NEVER, Mailbox, Acc) end, Env,
-                        [Mailbox || {Mailbox, own} <- Unfixed,
-                                    {tvar, Id} <- [ern_types:resolve(Mailbox, TypeState)],
-                                    not lists:member(Id, Called)]),
-    TypeState1 = Never#env.type_state,
+    Unfixed = [{Mailbox, What, ern_types:unfixed(Mailbox, TypeState)}
+               || {Mailbox, What} <- Mailboxes],
+    Ended = [{Id, What} || {Mailbox, What, own} <- Unfixed,
+                           {tvar, Id} <- [ern_types:resolve(Mailbox, TypeState)],
+                           not lists:member(Id, Called)],
+    Never = lists:foldl(fun({Id, _}, Acc) -> bound(?NEVER, {tvar, Id}, Acc) end, Env, Ended),
     lists:foreach(fun({Span, Mailbox}) ->
-                      ern_types:resolve(Mailbox, TypeState1) =/= ?NEVER
-                          orelse never_waits(Span, "a spawned function")
+                      case ern_types:resolve(Mailbox, TypeState) of
+                          ?NEVER ->
+                              never_receives(Span, undefined);
+                          {tvar, Id} ->
+                              case lists:keyfind(Id, 1, Ended) of
+                                  {Id, What} -> never_waits(Span, What);
+                                  false -> ok
+                              end;
+                          _ ->
+                              ok
+                      end
                   end, lists:reverse(Receives)),
-    Never#env{mailboxes = [Mailbox || {Mailbox, enclosing} <- Unfixed],
+    TypeState1 = Never#env.type_state,
+    Never#env{mailboxes = [{Mailbox, What} || {Mailbox, What, enclosing} <- Unfixed],
               receives = [Receive || {_, Mailbox} = Receive <- Receives,
                                      ern_types:unfixed(Mailbox, TypeState1) =:= enclosing]}.
 
@@ -2852,36 +2867,43 @@ called_variables(Type, TypeState) ->
             []
     end.
 
-%% Report §6.2, §3.11: the mailbox type of the function a spawn or a
-%% compute is given, at the instance of its name, wherever the name is
-%% used; none for any other name.
+%% Report §6.2, §3.11, Appendix E.21: the mailbox type of the function a
+%% spawn, a compute or a run is given, at the instance of its name,
+%% wherever the name is used, with the words a refusal names the function
+%% by; none for any other name.
 spawned_mailbox(Referent, {tfn, Params, _, _}) ->
     case spawned_position(Referent) of
         none ->
             [];
-        Position ->
+        {Position, What} ->
             case lists:nth(Position, Params) of
-                {tfn, [], Mailbox, _} -> [Mailbox];
+                {tfn, [], Mailbox, _} -> [{Mailbox, What}];
                 _ -> []
             end
     end;
 spawned_mailbox(_, _) ->
     [].
 
-%% Report §6.2, Appendix E.27: the position of the function among the
-%% parameters of `spawn`, `spawnMonitored`, and `Peer`'s spawns and
-%% computes, as the checker resolved the name, after the peer's name where
-%% one is taken.
-spawned_position({prelude, [spawn]}) -> 1;
-spawned_position({prelude, [spawnMonitored]}) -> 1;
+%% Report §6.2, Appendix E.21, E.24, E.27: the position of the function
+%% among the parameters of a name that runs it in a process of its own, as
+%% the checker resolved the name, and the words a refusal names it by:
+%% `spawn`'s, `spawnMonitored`'s, and `Peer`'s spawns' and computes', after
+%% the peer's name where one is taken, are a spawned function, and
+%% `Process.run`'s and `Test.faults`'s are named as given to them.
+spawned_position({prelude, [spawn]}) -> {1, "a spawned function"};
+spawned_position({prelude, [spawnMonitored]}) -> {1, "a spawned function"};
 spawned_position(#remote_declaration{namespace = ['Peer'], member_of = undefined, name = Name}) ->
     case Name of
-        spawn -> 2;
-        spawnMonitored -> 2;
-        computeAt -> 2;
-        compute -> 1;
+        spawn -> {2, "a spawned function"};
+        spawnMonitored -> {2, "a spawned function"};
+        computeAt -> {2, "a spawned function"};
+        compute -> {1, "a spawned function"};
         _ -> none
     end;
+spawned_position(#remote_declaration{namespace = ['Process'], member_of = undefined, name = run}) ->
+    {1, "the function given to Process.run"};
+spawned_position(#remote_declaration{namespace = ['Test'], member_of = undefined, name = faults}) ->
+    {1, "the function given to Test.faults"};
 spawned_position(_) -> none.
 
 %% Report §4.5, §3.9: a `fn` whose result annotation writes an effect
@@ -4691,8 +4713,8 @@ infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
     Supplies = [#pending_member{span = Span, type = Instance, member = Member, need = Need}
                 || {Instance, Member} <- Requirement]
         ++ shown(Span, Referent, Type, Env1),
-    %% report §6.2, §3.11: the mailbox type a spawn's function is given is
-    %% read at the definition's end
+    %% report §6.2, §3.11, Appendix E.21: the mailbox type a spawn's or a
+    %% run's function is given is read at the definition's end
     Mailboxes = spawned_mailbox(Referent, ern_types:resolve(Type, TypeState)),
     %% report §4.2: what the name resolved to is recorded, so that the
     %% emitter reads the decision rather than making it again
@@ -5579,9 +5601,10 @@ never_receives(Span, _) ->
          "give the function another mailbox type with `receiving`; to wait a time, write"
          " `Clock.sleep(ms)`").
 
-%% Report §6.8, §6.2, §8.1, §11.5: a receive whose mailbox the
-%% definition's end makes Never, in a spawned function or in the entry
-%% point, refused at the receive, What naming the function.
+%% Report §6.8, §6.2, §8.1, §11.5, Appendix E.21: a receive whose mailbox
+%% the definition's end makes Never, in the function a spawn or a run is
+%% given or in the entry point, refused at the receive, What naming the
+%% function.
 -spec never_waits(ern_diagnostic:span(), string()) -> no_return().
 never_waits(Span, What) ->
     fail(Span, What ++ " runs with mailbox Never and cannot receive", [],

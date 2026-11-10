@@ -1477,7 +1477,7 @@ connected(Server, Host, Verification) ->
     Answer.
 
 %% report Appendix E.18: a listener holds the largest backlog the host
-%% takes, 65535, which the system lowers to its own limit, Linux's
+%% keeps, 65535, which the kernel lowers to its own limit, Linux's
 %% `net.core.somaxconn`, over TCP and over TLS alike. The host does not
 %% answer its backlog to `inet:getopts`, so the kernel's table is read,
 %% `ss`'s Send-Q of the listening socket, where `ss` is installed. Written

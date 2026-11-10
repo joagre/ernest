@@ -24,8 +24,8 @@
 %% hibernates after a millisecond's wait, the host's shortest timer.
 -define(TLS_WAITS, [{hibernate_after, 1}]).
 
-%% Report Appendix E.18: a listener's backlog, the largest the host takes,
-%% which the system lowers to its own limit. The host keeps a backlog's
+%% Report Appendix E.18: a listener's backlog, the largest the host keeps,
+%% which the kernel lowers to its own limit. The host keeps a backlog's
 %% low 16 bits, so that 65536 listens with none (docs/otp_bugs.md, 20).
 -define(BACKLOG, 65535).
 

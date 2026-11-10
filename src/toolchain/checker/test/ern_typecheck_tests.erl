@@ -2989,7 +2989,12 @@ initializer_call_not_generalized_test() ->
 %% entry point a send gives its type stand. A regression test, written
 %% after the code, where both programs compiled and the first waited for
 %% good, the second for a deadlock; it does not cover a compute, whose
-%% function is read the same way
+%% function is read the same way.
+%%
+%% A `receive` whose mailbox type became Never as the body was inferred,
+%% from the type a parameter expects or an annotation, which the end does
+%% not make so, is refused as one at Never is, naming no spawned function:
+%% a regression test, where it was named one, written after the code
 pattern_receive_at_never_test() ->
     Refused = fun(What) ->
                   {What ++ " runs with mailbox Never and cannot receive",
@@ -3004,6 +3009,14 @@ pattern_receive_at_never_test() ->
                  check("export fn main() : Unit = {\n"
                        "    let p = spawn(fn() = receive { x -> Unit });\n"
                        "    Unit\n}\n")),
+    AtNever = "a function with mailbox Never cannot receive",
+    ?assertEqual(AtNever,
+                 refusal("fn h(f : () -> Unit receiving Never) : Unit = { let _ = f; Unit }\n"
+                         "export fn g() : Unit = h(fn() = receive { x -> Unit })\n")),
+    ?assertEqual(AtNever,
+                 refusal("export fn f() : Unit = {\n"
+                         "    let p : Address(Never) = spawn(fn() = receive { x -> Unit });\n"
+                         "    Unit\n}\n")),
     ?assertEqual(Refused("main"),
                  refusal_and_help("export fn main() = receive { x -> Io.println(\"got\") }\n")),
     ?assertEqual(Refused("main"),
@@ -3021,6 +3034,48 @@ pattern_receive_at_never_test() ->
     ?assertEqual(ok, ok("export fn main() = {\n    let me = self();\n"
                         "    let _ = spawn(fn() = send(me, 1));\n"
                         "    receive { x -> Unit }\n}\n")).
+
+%% report Appendix E.21, E.24, §6.2, §6.8: the function `Process.run` runs,
+%% and so the one `Test.faults` runs, has the mailbox type a spawned
+%% function has, Never where nothing fixed it by the end of the definition
+%% the call is written in, so a `receive` with a pattern clause in it is
+%% refused as a spawned function's is, the message naming the function it
+%% is, and the address `self()` answers in it is an `Address(Never)`.
+%%
+%% One a send to `self()` fixes, one an annotation fixes through the value
+%% the function returns, one a parameter's type holds, and one that is the
+%% definition's own mailbox type keep, whose `receive` stands, and a
+%% function that receives nothing runs at Never. The program of the first
+%% refusal compiled, and deadlocked when run
+run_mailbox_is_never_test() ->
+    Refused = fun(What) ->
+                  {What ++ " runs with mailbox Never and cannot receive",
+                   "the wait can never end, since nothing has the type Never; give the mailbox"
+                   " the messages' type, in a pattern or with `receiving`"}
+              end,
+    Run = "export fn main() : Unit = {\n"
+          "    let r : Either(Reason, Int) = Process.run(fn() = receive { x -> 0 });\n"
+          "    Io.println(Io.show(r))\n}\n",
+    ?assertEqual(Refused("the function given to Process.run"), refusal_and_help(Run)),
+    ?assertMatch({error, [#diagnostic{span = {2, 54, {2, 72}}, labels = []}]}, check(Run)),
+    ?assertEqual(Refused("the function given to Test.faults"),
+                 refusal_and_help("export fn t() : Test.Result =\n"
+                                  "    Test.faults(fn() = receive { x -> Unit }, \"x\")\n")),
+    ?assertEqual("() -> Either(Reason, Address(Never))",
+                 type_of("export fn f() = Process.run(fn() = self())", f)),
+    ?assertEqual(ok, ok("export fn f() : Either(Reason, Int) =\n"
+                        "    Process.run(fn() = { send(self(), 1); receive { n -> n } })\n")),
+    ?assertEqual(ok, ok("export fn f() : Either(Reason, Int) =\n"
+                        "    Process.run(fn() = receive { n -> n })\n")),
+    ?assertEqual(ok, ok("fn f(g : () -> Unit receiving m) : Test.Result = Test.faults(g, \"x\")\n"
+                        "export fn t() : Test.Result =\n"
+                        "    f(fn() = { send(self(), 1); receive { n -> Unit } })\n")),
+    ?assertEqual("() -> Unit receiving e+",
+                 type_of("export fn echo() = match Process.run(fn() = receive { n -> n }) {\n"
+                         "    Right(v) -> send(self(), v)\n"
+                         "  | Left(_) -> Unit\n"
+                         "}\n", echo)),
+    ?assertEqual("() -> Either(Reason, Int)", type_of("export fn f() = Process.run(fn() = 5)", f)).
 
 %% report §6.2, §3.11, §4.6: a spawned function's mailbox type that nothing
 %% fixed by the end of the definition, which no parameter's type holds and

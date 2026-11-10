@@ -34,7 +34,7 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 
 So a counter whose messages carry no function may run on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
 
-A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and a connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7, Appendix E.27).
+A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason. A peer tells the node as it connects, and again every `utilization-interval` milliseconds of its `ernest.conf`, 5000 by default. A connection opens when an operation reaches for the peer or the peer dials in, so where no peer has told it yet the compute answers `Left(Io.Unreachable)` (report §8.7, Appendix E.27).
 
 The draw spreads work among three peers or more with no central choice; with two peers it takes both each time, so a burst goes whole to the one that last reported itself less busy. A fault in `f` is the caller's, with `f`'s cause, and the line the caller's node writes of it names the peer `f` ran on, `, on the peer foo`:
 
@@ -70,7 +70,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 send(counter, Upgrade(next = countTwice))
 ```
 
-`next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place. A module compiled again with a changed message type is a new version of it, beside the old, as the shell session below shows.
+`=next` is `next = next`, the field bound to a variable of its own name (the guide's §2.6). `next` is of the counter's own type, `receiving CounterMsg`, so the type says that the loop a message may install reads this mailbox and no other, and such a message changes the loop and not the messages. A process keeps its mailbox type for life, so a change of the messages is a new process, started beside the old or in its place. A module compiled again with a changed message type is a new version of it, beside the old, as the shell session below shows.
 
 A counter run under `restarting` restarts with the function its process was started with, so a counter moved to `countTwice` runs `count` again after its next fault; how a service under `restarting` takes new code is the deployment guide's §5.3.
 
@@ -138,7 +138,9 @@ count is 8
 
 A fault, a division by zero or a `fault` call, ends the process, and nothing catches it. Whoever monitors the process hears of its end as a `Down` with the reason, wrapped as a message of their own type. A process started under `restarting` runs its function again from its start after a fault, its mailbox emptied and its address kept, so the name `counter` stays good and a request that waited in the mailbox is lost; the guide's §6.5 shows a restart.
 
-A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process that does not own it:
+A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). A Gleam `process.spawn` answers a `Pid`, which takes no message: the child makes a `Subject` with `process.new_subject()` and sends it back to its parent before the parent can send to it.
+
+No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)
@@ -175,9 +177,11 @@ Where foreign code meets the program the type is checked, not trusted. The runti
 
 So a mailbox type holds for messages the host sends to an address the program gave it, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. A foreign function that delivers into its caller's own mailbox is trusted to deliver its declared type, and nothing checks it (the guide's §8.3). The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
 
+A delivery that foreign code arranges after its call has returned, by a host timer or by a host process nothing monitors, is one the runtime cannot see, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
+
 ### A distribution built for a WAN
 
-A node is Ernest started from a configuration directory, with a program or with none. Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
+A node is Ernest started from a configuration directory, with a program or with none. Nodes talk over Erlang's own distribution, set up one way and not through its options ([the questions](faq.md#what-does-built-for-a-wan-mean)). Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
 
 ```json
 {

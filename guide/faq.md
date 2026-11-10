@@ -10,6 +10,8 @@ The function's type says which mailbox it runs in, which being the language buys
 
 What is the same is the types, Hindley-Milner as ML has it, which Gleam made ordinary on the Erlang runtime, and made well, in semantics and in syntax, and the look, which Ernest owes Gleam: `fn`, the pipe `|>`, the update `Con(..x, f = v)` and foreign declarations as the one door to Erlang follow it, its line comment was taken outright, and every other form of Gleam's was weighed against the design principles of report §0 and left out where it only gave a shorter way to write what the language already says (the guide's §11).
 
+Gleam's `Result(value, error)` is `Either(e, a)`, its parameters the other way round: `Ok` is `Right` and `Error` is `Left`. Gleam's `Option` is `Optional`, `Nil` is `Unit`, and `Pid` is `Process` (report §9.1, §9.3).
+
 Nodes are the language too: a node lists its peers by their public keys, a spawn on a peer sends it the definitions it lacks, each known by a hash of its content, and a module keeps every version it has had (the guide's §8, report §8.7, report §11.2). A function generic in a type names what it needs of that type, `needs a.compare` (the guide's §7.3).
 
 Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. What Gleam has that Ernest lacks: a JavaScript target, packages from hex through `gleam add`, labeled arguments on a function, `use`, type aliases, a pattern on a string's prefix, `"inc " <> rest`, and a language server; its opaque type is Ernest's abstract type, and its record of functions the operations record. Gleam's author is named in the acknowledgments.
@@ -78,13 +80,15 @@ Through `foreign fn` and `foreign type`, which are the one door: a `foreign fn` 
 
 The foreign side promises the declared types. A return value that breaks the promise faults the caller when the call returns, a check that walks the value and so costs with its size, and where a program hands an address to foreign code, a message the foreign side sends to it is checked on delivery, so that a compiled `receive` never sees a value of the wrong shape from it (report §8.4). A foreign function that delivers into its caller's own mailbox, declared `receiving M`, is trusted to deliver values of `M` alone, and nothing checks it (report §4.7).
 
+A delivery that foreign code arranges after its call has returned, by a host timer or by a host process nothing monitors, is one the runtime cannot see, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
+
 The standard library stands on the host through such declarations (the guide's §8.5), and an Ernest program is otherwise written in Ernest: it is not an OTP application, no Erlang or Elixir module is built with it, and foreign code reaches it only through what the program hands it, an address or a function (report §8.4).
 
 ### What does "built for a WAN" mean?
 
 That two nodes on two networks are the ordinary case. Nodes talk over Erlang's own distribution, set up one way and not through its options: a node knows a peer by a name, a public key and an address in its own configuration, accepts a connection from a listed key alone, under the name that key gives it, and opens one TLS connection to a peer when an operation first needs it (report §8.3, the guide's §8.1).
 
-A program's nodes talk where its configuration says and nowhere else, so there is no mesh; one port per node is opened, the node's own carrier finding a peer by its listed address, so there is no port mapper, which is also why a plain Erlang node, started without Ernest, cannot be a peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)). The cookie a node's command line carries, which `ps` shows, is the digest of the floor, the same on every node of one and no secret, and grants nothing (the deployment guide's §2.2). A fleet moves to a new minor release of `ern`, or a new major release of OTP, whole, since nodes on two floors never connect (the deployment guide's §5.1).
+A program's nodes talk where its configuration says and nowhere else, so there is no mesh; one port per node is opened, the node's own carrier finding a peer by its listed address, so there is no port mapper, which is also why a plain Erlang node, started without Ernest, cannot be a peer; and the key is the identity, so the configuration is the whole of what an operator reads to know who talks to whom ([the deployment guide](deployment.md)). The cookie a node's command line carries, which `ps` shows, is the digest of the floor, the same on every node of one and no secret, and grants nothing (report §12.5). A fleet moves to a new minor release of `ern`, or a new major release of OTP, whole, since nodes on two floors never connect (the deployment guide's §5.1).
 
 ### How is code replaced in a running program, and why not old and new code?
 
@@ -98,7 +102,7 @@ Across nodes a definition is known by the hash of its form, so two nodes agree o
 
 Because a top-level `let` is where an Ernest program starts its processes: its initializer may spawn, send and call, and a service is such a binding (report §4.6, §6.5). So a binding is the node's, as `Io.println` in a spawned function writes to the peer's terminal, and what the function needs from where it was written is a capture, a parameter or a constant, which cross with the code (report §3.11, §4.6, §8.7; the guide's §8.1).
 
-Three answers exist to the question. Emerald and Obliq keep a moved closure's free names pointing back at the site they live on, each read a round trip. Unison, Cloud Haskell and Spark's `object`s take a top-level definition as code, evaluated once where it runs, which is safe where the top level is pure, as Unison's abilities and Haskell's `IO` type make it. Erlang's funs, Scala's spores and Gleam's `const` make a top-level name the receiving node's, a local an explicit capture and a constant part of the code. Ernest takes the third, since its top level is not pure and a reader from Erlang predicts it.
+Three answers exist to the question. Emerald and Obliq keep a moved closure's free names pointing back at the site they live on, each read a round trip. Unison, Cloud Haskell and Spark's `object`s take a top-level definition as code, evaluated once where it runs, which is safe where the top level is pure, as Unison's abilities and Haskell's `IO` type make it. The third takes a rule from each of three systems: Erlang's funs make a top-level name the receiving node's, Scala's spores make a local an explicit capture, and Gleam's `const` makes a constant part of the code. Ernest takes the third, since its top level is not pure and a reader from Erlang predicts it.
 
 ### Is there a type class, an interface or a trait?
 
@@ -106,7 +110,7 @@ Not as a construct. A type's members are the functions declared under its name i
 
 The `needs` is written, never inferred, and a type's members are declared in its own module, by `fn T.compare` or `derives compare`; `show` is no member, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3).
 
-What sets a requirement apart from a class is that the operations it can name are a closed set no program adds to, so no abstraction stands on a class; *Abstract types and requirements* in [Why Ernest](why.md) says what the closed set rules out, and all three stand in code there, with the refusal of a type that lacks the member and the refusals of an operation outside the set and of a member declared outside its type's module.
+*Abstract types and requirements* in [Why Ernest](why.md) says what sets a requirement apart from a class and what its closed set rules out, and shows all three in code, with the refusal of a type that lacks the member and the refusals of an operation outside the set and of a member declared outside its type's module.
 
 ### Where are ETS, tracing, `observer`, back pressure and releases?
 
