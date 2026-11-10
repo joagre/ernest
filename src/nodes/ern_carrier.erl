@@ -540,13 +540,13 @@ line(Text) ->
 
 %% A peer as a line names it: by its name in `ernest.conf`, or by its key's
 %% digest where it is not listed.
--spec named(atom()) -> iodata().
+-spec named(atom()) -> iolist().
 named(Node) ->
     host_named(lists:last(string:split(atom_to_list(Node), "@"))).
 
 %% A peer as a line names it by the certificate it gave, the DER the host's
 %% TLS answers, before the host's handshake has given its name.
--spec certified(binary()) -> iodata().
+-spec certified(binary()) -> iolist().
 certified(Der) ->
     host_named(host(certificate_key(public_key:pkix_decode_cert(Der, otp)))).
 
@@ -577,7 +577,7 @@ host_named(Host) ->
 %% says (§11.2 *The attached shell*, attaching/1). So is the node's own end
 %% where the host's process of its connections ends, by its name on the
 %% carrier, since the host no longer names the node then (§12.5).
--spec said(term()) -> iodata() | none.
+-spec said(term()) -> iolist() | none.
 said({nodeup, Node, _}) when Node =:= node() ->
     none;
 said({nodeup, Node, _}) ->

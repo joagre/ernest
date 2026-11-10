@@ -260,9 +260,8 @@
 %% that made it, which is dead once that launch has ended, by an earlier
 %% start of the node or as an earlier run of `ern test` over a directory
 %% (§8.7, §11.2), or none where no launch was in progress.
--type address() :: pid()
-                 | {adapted, fun((term()) -> term()), address(), pid(), reference() | none}
-                 | {foreign, pid(), term(), map()}.
+-type address() :: pid() | adapted() | {foreign, pid(), term(), map()}.
+-type adapted() :: {adapted, fun((term()) -> term()), address(), pid(), reference() | none}.
 
 %% Report §8.2: the system processes, by the names the runtime keeps them
 %% under.
@@ -669,7 +668,7 @@ spawn_with_monitors(Function, Site, Monitors, Chain) ->
 %% process, or of the process a process of the runtime's own acts for, a
 %% delivery's recipient or an adapted address's target (acting_for/1), as
 %% Process.current reads it.
--spec self() -> address().
+-spec self() -> pid().
 self() ->
     current().
 
@@ -690,7 +689,7 @@ current() ->
 %% Report §6.5, §8.7, §11.2: the address holds the calling process, its
 %% maker, whose node applies its function, and the launch in progress,
 %% whose end ends the address (adapted_way/2, kept/1).
--spec adapted(address(), fun((term()) -> term())) -> address().
+-spec adapted(address(), fun((term()) -> term())) -> adapted().
 adapted(Target, Function) ->
     {adapted, Function, Target, erlang:self(), launch()}.
 

@@ -24,18 +24,18 @@ For the toolchain's Erlang under `src/`.
 
 - **Every module is `ern_<thing>`**, `<thing>` unique across the repository and not repeating its application, which its directory names; a vendored file keeps its upstream name. A module compiled from Ernest is `ern@<namespace>`, the path with `@` for `/` (report §11.1): `src/stdlib/io.ern` is `ern@io`. The log's *One Token for the Project* says why.
 - **One `-export` list at the top**, in the order the functions appear *(tested)*.
-- **`-spec` on every exported function** *(tested)*, under `test/` as under `src/`; a type shared between modules is a `-type` of its owner.
+- **`-spec` on every exported function**, under `test/` as under `src/`: `erlc +warn_missing_spec` holds it in the toolchain's modules and the shims, and the style test in the tests', whose tests EUnit exports *(tested)*; a type shared between modules is a `-type` of its owner.
 - **Every `receive` that can wait is named by its function under its kind**, in the module's `-receives` attributes after its `-export` list and its includes, `-receives({own_process, [loop/1]}).`, since the deadlock look reads a process that waits in the toolchain's own Erlang as one that waits as Ernest waits (report §8.6) *(tested)*. The kinds are the glossary's **Receives**. A `receive` with `after 0` waits on nothing and is named by none.
 - **A shared record lives in `include/*.hrl`**, any other in its module. The only macros are the few constants that need a name.
 - **Tokens and AST nodes are plain data**, records and tuples, never closures or ETS state. A value of more than three parts is a record, and so is a tuple of more than two that crosses modules: a positional tuple makes its reader count. A map whose keys are fixed is such a value, counted by its keys.
 - **A precondition is `Cond orelse fail(...)` on one line**; two or more conditions are a `case`.
 - **No OTP behavior for the toolchain's own processes, and no rebar3**; a callback module one of OTP's servers calls, a signal handler, is no such process. The log's *No OTP in the Toolchain* says why.
-- **`make` compiles with `+debug_info -Werror`**: a warning is an error.
+- **`make` compiles with `+debug_info -Werror`**, and the toolchain's modules and the shims with `+warn_missing_spec` too: a warning is an error.
 - **Tests are EUnit**, in a root's `test/` under `src/`, or in `test/` when they span roots. A test module is `<module>_tests`, or names what it tests, `ern_grammar_tests`. A test function tests one behavior, is named after it, and has above it a comment naming what it tests: `%% report §x.y`, or a document's path.
 
 ## C
 
-The runtime's helper, `src/runtime/c_src/ern_exec.c`, is C99 and compiles with `-pedantic -Wall -Wextra -Werror`.
+The runtime's helper, `src/runtime/c_src/ern_exec.c`, is C99 and compiles with `-pedantic -Wall -Wextra -Werror` and `-D_FORTIFY_SOURCE=2`, under which the C library ends it where a call would pass a buffer's size or a descriptor set's.
 
 ## Ernest
 

@@ -6,8 +6,8 @@
 # ern_nodes_tests and ern_machine_tests; the deployment guide run on them,
 # ern_deployment_tests; the tour run on them, ern_tour_tests; the manual
 # pages, ern_manual_tests; and the installation and the release,
-# ern_install_tests), the documents and the style, the guide's examples,
-# the site's generator over its fixture, the grammar with the programs
+# ern_install_tests), the documents and the style, the calls xref reads,
+# the guide's examples, the site's generator over its fixture, the grammar with the programs
 # generated from it, the well-typed programs generated and run, and the
 # shell and the terminal, driven through the
 # pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern over
@@ -41,6 +41,7 @@ TOUR = ern_tour_tests
 MANUAL = ern_manual_tests
 INSTALL = ern_install_tests
 DOCS = ern_docs_tests ern_style_tests
+CALLS = ern_calls_tests
 GUIDE = ern_guide_tests
 SITE = ern_site_tests
 SITE_SHELL = ern_site_shell_tests
@@ -49,7 +50,7 @@ GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) $(NODES) \
-	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(GUIDE) $(SITE) $(SITE_SHELL) \
+	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(CALLS) $(GUIDE) $(SITE) $(SITE_SHELL) \
 	  $(BROWSER) $(GRAMMAR) ern_grammar \
 	  $(TYPED) \
 	  $(SHELL_TESTS) ern_pty ern_repository ern_measure)
@@ -168,6 +169,11 @@ build/bench/twins/%.beam: fixtures/bench/%.erl
 
 docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
+
+# The calls of the toolchain's own Erlang, the shims and the units of
+# ../build, read by xref from links under build/calls.
+calls: $(BEAMS) prepare
+	$(call EUNIT,$(CALLS))
 
 guide: $(BEAMS) prepare
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_guide_XXXXXX") && \
@@ -456,7 +462,7 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: integration nodes deployment tour manual install docs guide site site-shell browser \
+.PHONY: integration nodes deployment tour manual install docs calls guide site site-shell browser \
 	site-expected site-unrunnable grammar \
 	typed shell prepare \
 	pty named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \

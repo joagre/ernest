@@ -17,7 +17,7 @@ all: $(HELPER)
 # the installation.
 $(HELPER): ern_exec.c
 	@mkdir -p $(dir $(HELPER))
-	$(CC) -std=c99 -pedantic -O2 -Wall -Wextra -o $(HELPER) ern_exec.c
+	$(CC) -std=c99 -pedantic -O2 -D_FORTIFY_SOURCE=2 -Wall -Wextra -o $(HELPER) ern_exec.c
 
 install: all
 	@sh install.sh install . "$(DESTDIR)" "$(PREFIX)"

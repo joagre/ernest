@@ -49,7 +49,9 @@ ERNEST_SOURCES = src/stdlib/*.ern src/shell/ernest/*.ern src/shell/ernest/shell/
 # The helper that runs a program for Os.run (report Appendix E.23), written
 # in C since the host's ports cannot keep a program's standard error apart,
 # end its input while its output is read, kill it, or run it under a
-# pseudo-terminal.
+# pseudo-terminal. It is built with the C library's checks of a buffer's
+# size and of a descriptor's place in its set, which end it where a call
+# would pass either, so that a test meets such a defect where it is made.
 EXEC = build/runtime/priv/ern_exec
 
 all: $(EXEC)
@@ -72,6 +74,11 @@ beams: $(ROOT_BEAMS) $(SHIM_BEAMS)
 ERLC_FLAGS = +debug_info -Werror -I src -I src/toolchain \
 	-DVERSION='"$(shell cat VERSION)"' -DDEVELOPMENT
 
+# A module of the toolchain's own and a shim say a -spec for every function
+# they export (docs/code_style.md). A test's module cannot, since EUnit
+# exports each of its tests, and the style tests hold it instead.
+$(ROOT_BEAMS) $(SHIM_BEAMS): ERLC_FLAGS += +warn_missing_spec
+
 # One rule for every module: a root's compiles into its ebin, a shim's beside
 # its library's .erc and a test's into its root's test directory. erlc's -MMD
 # records the headers each includes, so that a changed .hrl rebuilds its users.
@@ -85,7 +92,7 @@ build/%.beam: src/$$(subst /ebin/,/,$$*).erl VERSION
 
 $(EXEC): src/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
-	$(CC) -std=c99 -pedantic -O2 -Wall -Wextra -Werror -o $@ $<
+	$(CC) -std=c99 -pedantic -O2 -D_FORTIFY_SOURCE=2 -Wall -Wextra -Werror -o $@ $<
 
 # The standard library written in Ernest: src/stdlib/ compiled by ern build
 # into build/stdlib, where the checker reads its interfaces and a run loads
@@ -292,7 +299,7 @@ tools: lib-ansi lib-markdown lib-crypto lib-json build/tools/ern_site.beam
 
 build/tools/ern_site.beam: tools/site/ern_site.erl
 	@mkdir -p $(@D)
-	@erlc +debug_info -Werror -o $(@D) $<
+	@erlc +debug_info +warn_missing_spec -Werror -o $(@D) $<
 
 # Terminal.width's table in src/stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
@@ -304,9 +311,10 @@ unicode:
 
 # The tests by area, in two runs. `make test` is
 # the light run, for every commit: the applications' unit tests, the
-# library's examples, the tests of the documents and the style, and the
-# site's generator over its fixture. `make test-full` is every area, for
-# the commit that closes an item and for a release. The light run and
+# library's examples, the tests of the documents and the style, the
+# site's generator over its fixture, and the calls xref reads.
+# `make test-full` is every area, for the commit that closes an item and
+# for a release. The light run and
 # the full run's first phase run their jobs side by side, as many at once
 # as the host has cores, each job's output together as it ends. One make
 # runs each phase, since a make started with a -j of its own runs apart
@@ -328,12 +336,12 @@ unicode:
 # target as it is worked on (docs/development.md, *Building*).
 test: all
 	@$(MAKE) -s -C test beams
-	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site
+	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site calls
 
 test-full: all
 	@$(MAKE) -s -C test beams
 	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
-	  test-docs test-site test-grammar test-typed dialyzer
+	  test-docs test-site test-grammar test-typed dialyzer calls
 	@$(MAKE) -s -j1 -k -o all test-shell test-site-shell $(PROGRAM_PARTS)
 
 # The unit tests of the roots under src/, side by side, or of one with
@@ -565,7 +573,10 @@ golden: all $(call test_beams,toolchain/emitter) $(call test_beams,runtime)
 # checks it against the host at each run. A function one of those
 # applications calls in another the table does not hold, os_mon's alarms
 # in sasl, is the host's and not the toolchain's, and is not said as the
-# table is built, where it ended the first run with status 2.
+# table is built, where it ended the first run with status 2. Beside its
+# own warnings, Dialyzer says where a spec admits a return the code never
+# gives, and where a function ends only by raising without a spec that
+# says so.
 DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools \
 		os_mon ssl
 dialyzer: all
@@ -575,7 +586,8 @@ dialyzer: all
 	@for d in build/stdlib build/shell build/libs/*; do (cd $$d && find . -name '*.erc') \
 	  | while read -r f; do m=$${f#./}; \
 	    cp $$d/$$m build/dialyzer/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
-	@dialyzer --plt build/dialyzer.plt $(ROOT_BEAMS) $(SHIM_BEAMS) build/dialyzer/*.beam
+	@dialyzer --plt build/dialyzer.plt -Wextra_return -Werror_handling \
+	  $(ROOT_BEAMS) $(SHIM_BEAMS) build/dialyzer/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and
 # undefined-behavior sanitizers (docs/reviews/release.md): the analyzer
@@ -602,6 +614,11 @@ sanitize: all
 # current, and what the documents name exists.
 xref:
 	@$(MAKE) -s -C test xref
+
+# The calls of the code Dialyzer reads, held by the host's xref
+# (test/ern_calls_tests.erl): each names a function that exists.
+calls: all
+	@$(MAKE) -s -C test calls
 
 # Rewrite the outputs of docs/diagnostics.md, the catalog of the front
 # end's errors, from what the compiler prints, after a change to a message
@@ -677,4 +694,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         version site \
         unicode \
         paragraphs comments \
-        dialyzer sanitize diagnostics
+        dialyzer calls sanitize diagnostics

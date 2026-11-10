@@ -302,23 +302,23 @@ words(Line, HostNames, Word) ->
     end.
 
 %% docs/code_style.md: one `-export` list, in the order the functions appear,
-%% and a `-spec` on every exported function, in the toolchain's modules and
-%% in the tests' and their harnesses'; the vendored getopt keeps its
-%% upstream form. Written after the rule, when six modules had fallen out
-%% of order and one had lost its specs; the tests' modules were read once
-%% the nodes harness's exports were found to have none
+%% in the toolchain's modules and in the tests' and their harnesses'; the
+%% vendored getopt keeps its upstream form. A `-spec` on every exported
+%% function is held here in the modules under test/, since EUnit exports
+%% each of a test module's tests; erlc's +warn_missing_spec holds it in the
+%% rest (the Makefile). Written after the rule, when six modules had fallen
+%% out of order and one had lost its specs; the tests' modules were read
+%% once the nodes harness's exports were found to have none
 exports_test() ->
     Files = [File || File <- ern_repository:modules()
                                  ++ ern_repository:files(["test/*.erl", "test/bench/*.erl",
                                                           "tools/**/*.erl"]),
                      filename:basename(File) =/= "getopt.erl"],
     ?assert(length(Files) > 20),
-    ?assertEqual([],
-                 [{File, Fault} || File <- Files,
-                                   Fault <- export_faults(filename:join(?ROOT, File))]).
+    ?assertEqual([], [{File, Fault} || File <- Files, Fault <- export_faults(File)]).
 
 export_faults(File) ->
-    {ok, Forms} = epp_dodger:quick_parse_file(File),
+    {ok, Forms} = epp_dodger:quick_parse_file(filename:join(?ROOT, File)),
     Lists = [Exported || {attribute, _, export, Exported} <- Forms],
     Exports = lists:append(Lists),
     Specs = [FunctionArity || {attribute, _, spec, {FunctionArity, _}} <- Forms],
@@ -328,7 +328,7 @@ export_faults(File) ->
         ++ [out_of_order
             || Appear =/= [FunctionArity || FunctionArity <- Exports,
                                             lists:member(FunctionArity, Appear)]]
-        ++ [{no_spec, FunctionArity} || FunctionArity <- Exports,
+        ++ [{no_spec, FunctionArity} || lists:prefix("test/", File), FunctionArity <- Exports,
                                         not lists:member(FunctionArity, Specs)].
 
 %% report §8.6, docs/code_style.md: the look reads a process that waits in a

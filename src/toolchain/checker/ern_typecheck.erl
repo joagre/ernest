@@ -6233,6 +6233,8 @@ initializer(Binding, Infer) ->
         throw:{type_errors, _} = Thrown -> self_dependent(Thrown, Binding)
     end.
 
+-spec self_dependent({type_error, ern_diagnostic:diagnostic()}
+                     | {type_errors, [ern_diagnostic:diagnostic()]}, #binding{}) -> no_return().
 self_dependent(Thrown, #binding{span = Span, pattern = Pattern, expr = Expr}) ->
     Own = [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)],
     Rewrite = fun(#diagnostic{unknown_name = Name} = Diagnostic, {Kept, Seen}) ->
@@ -7543,11 +7545,14 @@ unify_message(Rule, Reason, Expected, Actual, _Taken, TypeState) ->
 plural(1) -> "";
 plural(_) -> "s".
 
+-spec fail(ern_diagnostic:position() | ern_diagnostic:span(), io_lib:chars()) -> no_return().
 fail(Span, Message) ->
     throw({type_error, Span, lists:flatten(Message)}).
 
 %% Report §11.2: an unqualified name that names nothing, kept for the
 %% shell, which says when a reload forgot it.
+-spec unknown_name(ern_diagnostic:position() | ern_diagnostic:span(), atom(),
+                   string() | undefined) -> no_return().
 unknown_name(Span, Name, Help) ->
     throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
                                    message = "unknown name " ++ atom_to_list(Name),
@@ -7556,12 +7561,15 @@ unknown_name(Span, Name, Help) ->
 %% Report §11.2: a qualified name that names nothing in scope, its
 %% namespace kept for the shell, which names the `:load` that would put
 %% its module in scope.
+-spec unknown(ern_diagnostic:position() | ern_diagnostic:span(), string(), [atom()]) -> no_return().
 unknown(Span, What, QualifiedName) ->
     throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
                                    message = "unknown " ++ What ++ " "
                                              ++ ern_namespace:text(QualifiedName),
                                    unknown_namespace = lists:droplast(QualifiedName)}}).
 
+-spec fail(ern_diagnostic:position() | ern_diagnostic:span(), io_lib:chars(),
+           [{ern_diagnostic:span(), string()}], string() | undefined) -> no_return().
 fail(Span, Message, Labels, Help) ->
     throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
                                    message = lists:flatten(Message),

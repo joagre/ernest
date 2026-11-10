@@ -653,6 +653,7 @@ respond(Reply, Answer) -> ern_rt:answer(Reply, Answer).
 
 %% The program's owner died: the program is killed with this process,
 %% which ends as a killed process does.
+-spec die_with_owner(#program{}) -> no_return().
 die_with_owner(Running) ->
     stop(Running),
     ern_rt:source_end(),

@@ -162,16 +162,20 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 Beyond what the README's *Installing* needs, the tests need python3: `make test` for the runtime's test of `Os.resize`, whose program under a terminal says its size when told it changed, and `make test-full` besides to signal `ern` in the tests of how it ends and to watch, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux. `make sanitize` needs clang, and `make test-browser` Chrome or Chromium, which it says it lacks, with the status 2, where none is found. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
 
 ```
-make              build the helper, compile the toolchain's Erlang into build/, then
-                  src/stdlib/, src/libs/, src/shell/ and tools/, and write each manual page
-                  that is missing or older than what it is made from
+make              build the helper, with the C library's checks of its buffers and
+                  descriptor sets (-D_FORTIFY_SOURCE=2), compile the toolchain's Erlang
+                  into build/, each function a module or a shim exports given a spec
+                  (+warn_missing_spec), then src/stdlib/, src/libs/, src/shell/ and tools/,
+                  and write each manual page that is missing or older than what it is
+                  made from
 make test         build, then the unit tests of every root, the library's doc
-                  examples, the document and style tests, and the site's generator over
-                  its fixture and over an export of HEAD, side by side: the light run,
-                  about a minute
+                  examples, the document and style tests, the site's generator over
+                  its fixture and over an export of HEAD, and make calls, side by side:
+                  the light run, about a minute
 make test-full    build, then two phases: first the guide's tests, the Emacs mode's, the unit
                   tests, the library's, the documents', the site's, the grammar's, the typed
-                  programs' and the dialyzer's, which builds its PLT once, side by side;
+                  programs', the dialyzer's, which builds its PLT once, and make calls,
+                  side by side;
                   then the shell's, the site's blocks in a bare shell and the six program
                   parts, one after another,
                   each running its own tests as many at once as the host has schedulers: the
@@ -351,8 +355,13 @@ make version V=x.y.z
                   by tools/version.sh, then write every page as make man does
                   (docs/reviews/release.md, step 5)
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
-                  src/stdlib/, src/shell/ and src/libs/; its first run builds
+                  src/stdlib/, src/shell/ and src/libs/, with its warnings of a spec that
+                  admits a return the code never gives and of a function that only
+                  raises without a spec that says so; its first run builds
                   build/dialyzer.plt; part of make test-full
+make calls        the host's xref over what make dialyzer reads: every call names a
+                  function this code or the host's own applications define; about a
+                  second; part of make test
 make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
                   programs' tests with it built under the sanitizers
 make sections     list the report sections no test cites

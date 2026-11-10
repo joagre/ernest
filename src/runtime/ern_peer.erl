@@ -736,7 +736,7 @@ ms({compute, _Alias, _Spawned, _Site, Ms}) ->
 %% are a peer's text, which makes no atom here where none is, and is
 %% written with its controls shown, as a foreign function's name a spawn
 %% gives is.
--spec reach_lacked([{[binary()], binary()}], [#foreign_function{}]) -> iodata() | none.
+-spec reach_lacked([{[binary()], binary()}], [#foreign_function{}]) -> iolist() | none.
 reach_lacked(Bindings, Foreigns) ->
     case [Lacked || Foreign <- Foreigns, Lacked <- [foreign_lacked(Foreign)], Lacked =/= none] of
         [Lacked | _] ->
@@ -757,7 +757,7 @@ reach_lacked(Bindings, Foreigns) ->
 %% and its functions' are atoms here once it answers none. A unit an
 %% exchange makes asks it of each foreign function its definitions call
 %% beyond the reach (ern_arrival).
--spec foreign_lacked(#foreign_function{}) -> iodata() | none.
+-spec foreign_lacked(#foreign_function{}) -> iolist() | none.
 foreign_lacked(#foreign_function{qualified_name = QualifiedName, scheme = Scheme,
                                  host_module = HostModule, host_function = HostFunction}) ->
     Module = ["the module ", ern_show:controls(HostModule, line), ", which ",

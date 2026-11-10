@@ -516,6 +516,7 @@ error_at(Line, Column, Message, Help) ->
 %% Report §11.2, §2.5: a raw string and a block comment may span lines, so
 %% more input can finish one, and the diagnostic says so; a string or a
 %% char literal may not, and an unfinished one is an error whatever follows.
+-spec unfinished_at(pos_integer(), pos_integer(), string()) -> no_return().
 unfinished_at(Line, Column, Message) ->
     throw({lex_error, diagnostic(Line, Column, Message, true)}).
 

@@ -383,6 +383,7 @@ It reads first what every page links to, the library's declarations from `docs/m
 - The same file tests the signals, the streams, `Os`, and that every library's build has its source (`library_builds_test`). Its helpers serve `test/ern_manual_tests.erl`, which holds the manual pages to §11, and `test/ern_install_tests.erl`, which installs into a scratch prefix and from the release archive.
 - `test/ern_measure_tests.erl` holds that `make bench`'s measuring machine reaches every function of the library.
 - **The corpus**: `ast_coverage_test` holds that the examples, the programs, the standard library and the libraries use every AST record, and the checker's tests type-check every example and program.
+- **Calls**: `test/ern_calls_tests.erl` (`make calls`) holds each call of the toolchain's own Erlang, its shims and the compiled standard library, shell and libraries to a function that exists, read by the host's xref.
 - **Generated programs**: `test/ern_grammar_programs_tests.erl` derives programs from Appendix A, read by `test/ern_grammar.erl`. `test/ern_typed_programs_tests.erl` generates well-typed programs and runs each against an interpreter. `src/runtime/test/ern_laws_tests.erl` holds the standard library to its laws on drawn cases ([`soundness.md`](soundness.md)).
 
 ### The documents

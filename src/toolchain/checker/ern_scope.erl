@@ -169,6 +169,8 @@ pattern_names(Pattern) -> [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern
 param_names(Params) ->
     lists:append([pattern_names(Pattern) || #param{pattern = Pattern} <- Params]).
 
+-spec fail(ern_diagnostic:position() | ern_diagnostic:span(), io_lib:chars(),
+           [{ern_diagnostic:span(), string()}], string() | undefined) -> no_return().
 fail(Span, Message, Labels, Help) ->
     throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
                                    message = lists:flatten(Message),

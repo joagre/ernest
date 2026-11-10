@@ -1387,7 +1387,7 @@ left_waiting(Process) ->
 %% Report §11.2, Appendix E.21: a fault's trace as it is printed beneath
 %% the fault's line, a frame a line, each indented by four spaces, a
 %% control character written as its escape.
--spec indented_trace(binary()) -> iodata().
+-spec indented_trace(binary()) -> iolist().
 indented_trace(Trace) ->
     [["    ", ern_show:controls(Frame, line), "\n"]
      || Frame <- binary:split(Trace, <<"\n">>, [global, trim_all])].
@@ -1396,7 +1396,7 @@ indented_trace(Trace) ->
 %% or a node's: its time, in UTC as RFC 3339 writes it, where the lines are
 %% stamped, and nothing where they are not; the time now, or a fault's,
 %% the moment it was met (Appendix E.21).
--spec stamp(boolean()) -> iodata().
+-spec stamp(boolean()) -> iolist().
 stamp(Stamped) ->
     stamp(Stamped, erlang:system_time(millisecond)).
 
@@ -2282,5 +2282,6 @@ same_interface(Namespace, Dependency, Hash) ->
                               ++ ern_namespace:text(Dependency) ++ "; build "
                               ++ Name ++ " again").
 
+-spec usage_fail(io_lib:chars()) -> no_return().
 usage_fail(Message) ->
     throw({cli_usage, lists:flatten(Message)}).
