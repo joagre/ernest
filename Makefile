@@ -312,7 +312,7 @@ unicode:
 # The tests by area, in two runs. `make test` is
 # the light run, for every commit: the applications' unit tests, the
 # library's examples, the tests of the documents and the style, the
-# site's generator over its fixture, and the calls xref reads.
+# site's generator over its fixture, and xref's calls.
 # `make test-full` is every area, for the commit that closes an item and
 # for a release. The light run and
 # the full run's first phase run their jobs side by side, as many at once
@@ -336,12 +336,12 @@ unicode:
 # target as it is worked on (docs/development.md, *Building*).
 test: all
 	@$(MAKE) -s -C test beams
-	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site calls
+	@$(MAKE) -s -j$(JOBS) -O -o all $(APP_JOBS) test-library test-docs test-site xref
 
 test-full: all
 	@$(MAKE) -s -C test beams
 	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
-	  test-docs test-site test-grammar test-typed dialyzer calls
+	  test-docs test-site test-grammar test-typed dialyzer xref
 	@$(MAKE) -s -j1 -k -o all test-shell test-site-shell $(PROGRAM_PARTS)
 
 # The unit tests of the roots under src/, side by side, or of one with
@@ -564,10 +564,19 @@ golden: all $(call test_beams,toolchain/emitter) $(call test_beams,runtime)
 	  -pa $(CURDIR)/build/toolchain/emitter/test \
 	  -eval 'ern_emitter_tests:write_golden(), halt().'
 
-# Dialyzer over the toolchain's Erlang, which holds no test, and over the Erlang
-# the compiler writes for the standard library, the shell and the
-# libraries, each .erc copied into build/dialyzer under its module's name,
-# since Dialyzer reads a module only from a file whose name ends in .beam
+# Each unit of the standard library, the shell and the libraries, its .erc,
+# linked into build/units under its module's name, `ern@` and its path with
+# `@` for `/` (report §11.1), since Dialyzer and xref read a module only
+# from a file whose name ends in .beam.
+UNITS = build/units
+units: all
+	@rm -rf $(UNITS) && mkdir -p $(UNITS)
+	@for d in build/stdlib build/shell build/libs/*; do (cd $$d && find . -name '*.erc') \
+	  | while read -r f; do m=$${f#./}; \
+	    ln -s $(CURDIR)/$$d/$$m $(UNITS)/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
+
+# Dialyzer over the toolchain's Erlang, which holds no test, and over the
+# units of the standard library, the shell and the libraries
 # (docs/reviews/release.md). The table of the host's applications the
 # toolchain calls is built once, into build/dialyzer.plt, and Dialyzer
 # checks it against the host at each run. A function one of those
@@ -579,15 +588,11 @@ golden: all $(call test_beams,toolchain/emitter) $(call test_beams,runtime)
 # says so.
 DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools \
 		os_mon ssl
-dialyzer: all
+dialyzer: units
 	@test -f build/dialyzer.plt || dialyzer --build_plt -Wno_unknown \
 	  --output_plt build/dialyzer.plt --apps $(DIALYZER_APPS)
-	@rm -rf build/dialyzer && mkdir -p build/dialyzer
-	@for d in build/stdlib build/shell build/libs/*; do (cd $$d && find . -name '*.erc') \
-	  | while read -r f; do m=$${f#./}; \
-	    cp $$d/$$m build/dialyzer/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
 	@dialyzer --plt build/dialyzer.plt -Wextra_return -Werror_handling \
-	  $(ROOT_BEAMS) $(SHIM_BEAMS) build/dialyzer/*.beam
+	  $(ROOT_BEAMS) $(SHIM_BEAMS) $(UNITS)/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and
 # undefined-behavior sanitizers (docs/reviews/release.md): the analyzer
@@ -609,16 +614,10 @@ sanitize: all
 	  $(MAKE) -s test-erl APP=runtime && $(MAKE) -s test-programs
 	@if [ -n "$$(ls $(SANITIZE))" ]; then cat $(SANITIZE)/*; exit 1; fi
 
-# The document tests (test/ern_docs_tests.erl): every citation of a live
-# document and of the code names a heading, the contents lists are
-# current, and what the documents name exists.
-xref:
+# The code Dialyzer reads, held by the host's xref (test/ern_xref_tests.erl):
+# each call names a function that exists.
+xref: units
 	@$(MAKE) -s -C test xref
-
-# The calls of the code Dialyzer reads, held by the host's xref
-# (test/ern_calls_tests.erl): each names a function that exists.
-calls: all
-	@$(MAKE) -s -C test calls
 
 # Rewrite the outputs of docs/diagnostics.md, the catalog of the front
 # end's errors, from what the compiler prints, after a change to a message
@@ -694,4 +693,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         version site \
         unicode \
         paragraphs comments \
-        dialyzer calls sanitize diagnostics
+        dialyzer units sanitize diagnostics

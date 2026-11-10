@@ -133,8 +133,8 @@ build/             build products, not in git, an installation holding what it s
                    the standard library's pages in stdlib/ from make doc, and each
                    library's in libs/ too from make man; each root's test/ from the
                    tests that compile it, on no job's code path; release/ from make
-                   release; dialyzer/ and dialyzer.plt from make dialyzer; sanitize/ from
-                   make sanitize. The tests under test/ build beside themselves, in
+                   release; units/ from make units; dialyzer.plt from make dialyzer;
+                   sanitize/ from make sanitize. The tests under test/ build beside themselves, in
                    test/ebin/ and test/build/, as an application's do
 ```
 
@@ -170,11 +170,11 @@ make              build the helper, with the C library's checks of its buffers a
                   made from
 make test         build, then the unit tests of every root, the library's doc
                   examples, the document and style tests, the site's generator over
-                  its fixture and over an export of HEAD, and make calls, side by side:
+                  its fixture and over an export of HEAD, and make xref, side by side:
                   the light run, about a minute
 make test-full    build, then two phases: first the guide's tests, the Emacs mode's, the unit
                   tests, the library's, the documents', the site's, the grammar's, the typed
-                  programs', the dialyzer's, which builds its PLT once, and make calls,
+                  programs', the dialyzer's, which builds its PLT once, and make xref,
                   side by side;
                   then the shell's, the site's blocks in a bare shell and the six program
                   parts, one after another,
@@ -200,7 +200,7 @@ make test-manual  the manual pages against §11, each rendered
 make test-install  the installation and the release archive, installed and run
                   where they are put; after test-manual, which it runs first,
                   since both write the manual pages
-make test-docs    the document tests and the style tests
+make test-docs    the document tests and the style tests, without a build
 make paragraphs   list every prose paragraph past about a hundred words, a list item among
                   them, for its writer to read again for a turn it may hide; test-docs lists
                   them too, and fails on none
@@ -354,19 +354,19 @@ make version V=x.y.z
                   tests hold to it, the documents' start lines and the session fixtures',
                   by tools/version.sh, then write every page as make man does
                   (docs/reviews/release.md, step 5)
-make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
-                  src/stdlib/, src/shell/ and src/libs/, with its warnings of a spec that
+make units        link each unit of src/stdlib/, src/shell/ and src/libs/, its .erc,
+                  into build/units/ under its module's name, which make dialyzer and
+                  make xref read
+make dialyzer     Dialyzer over the toolchain and the units, with its warnings of a spec that
                   admits a return the code never gives and of a function that only
                   raises without a spec that says so; its first run builds
                   build/dialyzer.plt; part of make test-full
-make calls        the host's xref over what make dialyzer reads: every call names a
+make xref         the host's xref over what make dialyzer reads: every call names a
                   function this code or the host's own applications define; about a
                   second; part of make test
 make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
                   programs' tests with it built under the sanitizers
 make sections     list the report sections no test cites
-make xref         the document tests alone, without a build: every citation and
-                  document path resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
 make golden       rewrite test/fixtures/emitted/, the Erlang the compiler emits for each
                   program `golden_names/0` lists: test/fixtures/programs/, hello and

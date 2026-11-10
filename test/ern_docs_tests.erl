@@ -50,7 +50,7 @@
 -define(FRAME_READERS, ["src/nodes/ern_gateway.erl", "src/runtime/ern_peer.erl",
                         "src/nodes/ern_exchange.erl"]).
 
-%% report §11, docs/development.md "Building": `make xref`
+%% report §11, docs/development.md "Building": `make test-docs`
 %% A regression test for the possessive, `the guide's §x.y`, once read as
 %% a bare `§x.y`, the report's, and for `the deployment guide's §x.y`, once
 %% read as the language guide's; it does

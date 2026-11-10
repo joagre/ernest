@@ -41,7 +41,7 @@ TOUR = ern_tour_tests
 MANUAL = ern_manual_tests
 INSTALL = ern_install_tests
 DOCS = ern_docs_tests ern_style_tests
-CALLS = ern_calls_tests
+XREF = ern_xref_tests
 GUIDE = ern_guide_tests
 SITE = ern_site_tests
 SITE_SHELL = ern_site_shell_tests
@@ -50,7 +50,7 @@ GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) $(NODES) \
-	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(CALLS) $(GUIDE) $(SITE) $(SITE_SHELL) \
+	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(XREF) $(GUIDE) $(SITE) $(SITE_SHELL) \
 	  $(BROWSER) $(GRAMMAR) ern_grammar \
 	  $(TYPED) \
 	  $(SHELL_TESTS) ern_pty ern_repository ern_measure)
@@ -170,10 +170,11 @@ build/bench/twins/%.beam: fixtures/bench/%.erl
 docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
 
-# The calls of the toolchain's own Erlang, the shims and the units of
-# ../build, read by xref from links under build/calls.
-calls: $(BEAMS) prepare
-	$(call EUNIT,$(CALLS))
+# The calls of the toolchain's own Erlang, the shims and the units, which
+# the repository's `make units` links under ../build/units before its
+# `make xref` runs these.
+xref: $(BEAMS)
+	$(call EUNIT,$(XREF))
 
 guide: $(BEAMS) prepare
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_guide_XXXXXX") && \
@@ -232,10 +233,6 @@ prepare:
 # (report §11.1).
 pty: prepare
 	@../bin/ern build --source-root fixtures/pty --build-root build/pty fixtures/pty/pty.ern
-
-xref: $(EBIN)/ern_docs_tests.beam
-	erl -noshell -pa $(EBIN) -eval \
-	  'halt(case eunit:test(ern_docs_tests, []) of ok -> 0; _ -> 1 end).'
 
 diagnostics: $(EBIN)/ern_guide_tests.beam $(EBIN)/ern_pty.beam
 	erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
@@ -462,8 +459,8 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: integration nodes deployment tour manual install docs calls guide site site-shell browser \
+.PHONY: integration nodes deployment tour manual install docs xref guide site site-shell browser \
 	site-expected site-unrunnable grammar \
 	typed shell prepare \
-	pty named measured benched xref load service bench $(addprefix bench-,$(BENCH_PARTS)) \
+	pty named measured benched load service bench $(addprefix bench-,$(BENCH_PARTS)) \
 	bench-release bench-machines bench-pick machines clean

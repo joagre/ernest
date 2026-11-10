@@ -347,11 +347,11 @@ reader S reads of its live shell. The release note's line on the installed layou
     one that answers `NotATerminal` or `Invalid`. Decided with the user: a write answers
     `Left(Closed)` once no process holds the program's standard input open, as E.23 now says.
 47. **Four refusals before the release review**, done 2026-11-10 (the log's *The Listings
-    Before a Review*, *The Refusals Before the Release Review, Built*). The helper is built with
-    `-D_FORTIFY_SOURCE=2` and the toolchain's modules and the shims with `erlc
-    +warn_missing_spec`, in every `make`; `make calls` refuses a call to nothing in `make test`;
-    and Dialyzer refuses a spec wider than its code and a function that only raises without
-    saying so, in `make test-full`. None found a defect. Decided with the user: Dialyzer's
+    Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*). The
+    helper is built with `-D_FORTIFY_SOURCE=2` and the toolchain's modules and the shims with
+    `erlc +warn_missing_spec`, in every `make`; `make xref` refuses a call to nothing in `make
+    test`; and Dialyzer refuses a spec wider than its code and a function that only raises
+    without saying so, in `make test-full`. None found a defect. Decided with the user: Dialyzer's
     `-Wmissing_return` is not taken, since each of its 32 warnings is a callee's contract wider
     than its answer.
 
@@ -465,7 +465,7 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    refusals left after MVP 4.15's item 47, each added with the tree cleaned to zero: `xref`'s
    unused exports and its layers, with a short list of the exports called by name, each with
    its reason, and near misses for the checker beside the typed programs. From then on each
-   runs with the checks of its kind: `xref`'s in `make calls`, and the near misses
+   runs with the checks of its kind: `xref`'s in `make xref`, and the near misses
    in `make test-full`.
 
    The listings, which a review runs: `cover` over `make test-full` for the full review, clones

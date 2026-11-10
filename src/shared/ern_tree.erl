@@ -44,7 +44,7 @@ code_path() ->
 
 %% Report §11.2: the toolchain's own Erlang, the .beam files of its code path
 %% and each library's shim beside its .erc. The rest of `build` is no code of
-%% its own: a site's source, Dialyzer's copies and a test's modules.
+%% its own: a site's source, the units' links and a test's modules.
 -spec own_code() -> [file:filename()].
 own_code() ->
     [Beam || Directory <- code_path() ++ libraries(),
