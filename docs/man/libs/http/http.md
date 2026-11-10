@@ -545,18 +545,18 @@ Http.headers([Http.Header(name = "Set-Cookie", value = "a=1"),
 ## Http.cookies
 
 ```ernest
-Http.cookies(headers : List(Header)) : List(#(String, String))
+Http.cookies(fields : List(Header)) : List(#(String, String))
 ```
 
 *Since 0.10.0.*
 
 The pairs of every `Cookie` header in `headers`, RFC 6265's, in order:
-each value parted at `;`, each part trimmed of the white space around it
-and parted at its first `=`, the cookie's name before it and its value
-after.
+each value parted at `;`, each part parted at its first `=`, the cookie's
+name before it and its value after, each trimmed of the white space
+around it.
 
-A part with no `=` is dropped. A value is kept as written, its quotes
-among them.
+A part with no `=` or with an empty name is dropped. A value is
+otherwise kept as written, its quotes among them.
 
 ### Examples
 
@@ -650,13 +650,13 @@ section 8.6). A header's value is written as given.
 
 ### Errors
 
-A head that would not read back as written is a program's own error,
-and faults the caller, its cause naming the header or the status: a
-header's name that is no token, one or more of the ASCII letters and
+A header's name that is no token, one or more of the ASCII letters and
 digits and of ``!#$%&'*+-.^_`|~`` (RFC 9110, section 5.6.2), a header's
 value holding a carriage return, a line feed or U+0000, a status that is
 not three digits, from 100 to 999 (RFC 9112, section 4), and a body that
-is not empty given with a status of 1xx, 204 or 304.
+is not empty given with a status of 1xx, 204 or 304 are each a program's
+own error, and fault the caller, the cause naming the header or the
+status.
 
 ### Examples
 
@@ -749,9 +749,8 @@ once the connection has closed.
 
 ### Errors
 
-Faults where `renderRequest` faults, a header, the method or the target
-that would not read back as written, with its cause, and nothing is
-written.
+Faults where `renderRequest` faults, at a header, the method or the
+target, with its cause, and nothing is written.
 
 ### Examples
 
@@ -785,9 +784,9 @@ A `Left` is `Socket(error)`, as `writeRequest` answers it.
 
 ### Errors
 
-Faults where `renderResponse` faults, a header or the status that would
-not read back as written, or a body given with a status of 1xx, 204 or
-304, with its cause, and nothing is written.
+Faults where `renderResponse` faults, at a header, the status, or a body
+given with a status of 1xx, 204 or 304, with its cause, and nothing is
+written.
 
 ### Examples
 

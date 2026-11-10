@@ -2,6 +2,87 @@
 
 Each release's note, newest first, from 0.7.0 on: what the release is, what a program written for the release before changes, and each change in one line naming the section where it is read.
 
+## 0.10.0, 2026-11-10
+
+Ernest 0.10.0 is the release of what building and running ernest-httpd taught. A node lives at the host's limits, of processes, of ports and of open files, each request past a limit answered with the host's refusal. A qualified name resolves from the writer's namespace outward and is written in its shortest form. `kill` takes a `Process`. `Process.run` answers a worker's value or the reason it ended, and `Test.capture` what a run wrote. A program is started with its environment and its working directory, and sent a signal. Text is read from bytes that are not all UTF-8. `libs/uri` reads a URI reference, and `Http` reads a target and cookies and writes to a socket. A listener takes the largest backlog the host keeps. What the host logs goes to standard error. With it come the sentences of the report that were silent, and what was decided before the release.
+
+A program written for 0.9.0 changes these things. Its modules are built again, since `ern run`, `ern test` and `Code.load` refuse a compiled form another build of `ern` wrote. A node of 0.10.0 and one of 0.9.0 do not connect, as two minor releases never do. `kill` takes a `Process` and `Process.kill` went, so a site that holds an address writes `kill(Process.fromAddress(worker))`. A qualified name is written in its shortest resolving form from its module's place: one written longer is refused, and its help writes the short one. No segment of a module's namespace is a taken one at any depth, so a module at `fides/io.ern` is renamed. `Os.Command` has `environment` and `workingDirectory`, so a command written whole names them, and `Os.command(program, arguments)` writes one with the defaults, updated with `..` for a field it sets.
+
+`Http.ReadError` is `SocketError`. A pipe into a parenthesized pipe is a value applied, `x |> (a |> f)` being `f(a)(x)`, so a program that meant `f(x, a)` writes `x |> f(a)`. An `or` inside a pattern is refused, and the clause's alternatives are written out whole. A `receive` in the function given to `Test.faults`, where nothing fixed its mailbox type, is refused as a spawned function's is. `Terminal.subscribe` answers `Left(Other(text))` where the terminal's mode cannot be set, and a request of `Fs`, `Tcp`, `Os` or `Terminal` at a full table of processes answers `Left(Other("error:system_limit"))`. A job the hangup ends exits with 129, and one whose standard output or standard error can no longer be written with 141.
+
+Until 1.0 a release may refuse a program the previous release accepted. The report of this release is what holds. What changed since 0.9.0 is the report's diff, `git diff v0.9.0 v0.10.0 -- report/`.
+
+What changed:
+
+### The language and the report
+
+- A qualified name resolved from the writer's namespace outward, written in its shortest resolving form, and no segment of a module namespace a taken one at any depth: §4.2, §11.1, §11.5, Appendix F.
+- `kill` taking a `Process`, and a `Process` the identity `kill` ends: §6.5, §6.9, §9.5, Appendix E.21.
+- A pipe's right-hand side, and a lambda, an `if` or a pipe in parentheses a value applied: §5.7, §5.1, Appendix H.
+- An `or` standing between a clause's whole patterns: §5.10, §11.5.
+- A restart going on without a wrap the runtime has no room to apply: §6.9.
+- A request a rule refuses faulting its process, a failure no request stands behind faulting the entry process, and a failure in the runtime faulting with the host's class and reason: §7.4.
+- A refused load's values taken back, and a read of one faulting: §7.4, §11.2, Appendix E.28.
+- The shell's code crossing to the node it attaches to as a program's does, and a top-level binding staying the node's: §4.6, §8.7, §11.2, §12.7.
+- A value reclaimed in two generations, a waiting process collected where the host lets go a value it references, and what a `kill`, a wrap's delivery and a raise cost: §10.
+- A wait of the node's own on what the host does not signal a time the report states: §0.
+- A use site's qualified name in its shortest resolving form, and the root tie by the load path: §4.2.
+- A patch release's floor stated once: §8.7, §12.5.
+- The report's glossary: `authority`, `interrupt`, `percent-encoding`, `termination`, `URI reference`, and `segment` with TCP's: Appendix F.
+
+### The toolchain and the shell
+
+- A word of the command line that is not UTF-8 refused, and a `.erc` whose code the host will not load no compiled module, compiled again by a build and refused by a run: §11, §11.1, §11.2, Appendix E.28.
+- What the host logs as a warning or worse written on standard error, and which of its reports are not written: §11, §11.2, §12.1.
+- The cases a module is recompiled in, a qualified name that would resolve elsewhere among them: §11.1.
+- `--verbose` of `ern run` and `ern test`: §11.2.
+- An example's declarations the longest run of its first paragraphs that parses: §11.2.
+- A node holding the shell of its own build from its start, and the shell's start line: §11.2.
+- A load or an arrival past the host's limits ending the node with status 1: §11.2, §11.8.
+- A reloaded module's two versions, and a peer finding a definition in the latest version whose bindings have their values: §11.2.
+- `:processes` listing each process's memory: §11.2, Appendix E.21.
+- The help lines for a name written longer than its shortest form, and for a root module a nearer one hides: §11.5.
+- A type name printed plain where it is the module's own or the prelude's: §11.5.
+- The formatter's rules for a line opening with a bracket or `else`, and for an item that opens a brace: §11.6.
+- The statuses: the hangup's 129, a stream that is gone's 141, the shell's and an attached shell's: §11.8.
+- The runtime's schedulers, the limit of open files, and what a run loads at its start: §12.
+- Keys the host can no longer read ending the program by the hangup's signal, a subscription claiming the terminal as it is made and giving the claim back where it is refused, and the host's log handler writing through the job's standard output: §12.1.
+- `limits` in `ernest.conf`, the node's limits of processes and ports, what a full table answers, a node that dials from a full table, the carrier's acceptor at the limit of open files, and what a node says: §12.5, Appendix C.
+- The cookie on the node's command line: §12.5.
+- A code frame carrying the host's module and function of each foreign declaration: §12.7.
+- A `Segment`'s form, and a pipe's callee the right-hand side's head: Appendix H.
+
+### The library
+
+- `String.stripPrefix`, `String.stripSuffix`, `String.drop`, `Bytes.drop`: Appendix E.5, E.20.
+- `String.fromUtf8Lossy` and `String.fromUtf8Piece`: Appendix E.5.
+- `Process.run`, `Process.status`'s `memory`, `Process.live`'s processes, a waiting frame's line, and what `Process.faults` delivers: Appendix E.21.
+- `Test.capture`, and `Test.faults` running its function as `Process.run` does, marked: Appendix E.24.
+- `Os.command`, `Os.signal`, `Os.Command`'s `environment` and `workingDirectory`, a program found in the environment it starts with, a write after an exit no read has taken, and an empty `workingDirectory` `Invalid`: Appendix E.23.
+- `Fs.makeTempDir`: Appendix E.17.
+- `Json.encode`, and `format`'s order of an object's members: Appendix G.6.
+- `libs/uri`, `Uri.parse`, `Uri.parseAuthority` and `Uri.decode`: Appendix G.12.
+- `Http.target`, `Http.cookies`, `Http.cookie`, `Http.chunk`, `Http.writeRequest`, `Http.writeResponse`, `Http.writeChunk`, `Http.http11`, `Http.defaultLimits`, `SocketError`, and a head read on from the line under way: Appendix G.11, E.0 shape rule 11.
+- `Code.running` finding the processes of a definition of `f`'s name whose mailbox type is `f`'s, on any version: Appendix E.28.
+- `Code.load` answering `Left(Invalid)` for a `.erc` the host will not load: Appendix E.28.
+- A listener's backlog, and what the kernel does past it: Appendix E.18.
+- A socket's end at a full table, the host's TLS loaded as the host loads it, and a run's first request over TLS at a full table: Appendix E.18.
+- `Float.atan2` at the origin: Appendix E.9.
+- `Terminal.subscribe` where the host cannot serve it: Appendix E.16, §12.1.
+- `Foreign.atom` past the host's atoms: Appendix E.12.
+- `Supervisor`'s restart limit counted as `restarting` counts: Appendix E.22.
+- A value the host gives once as the program starts a value, `Os.arguments`: Appendix E.0 shape rule 2.
+- `Other(text)` holding a file of the host's own as the host writes it: Appendix E.1, E.18.
+- The eleventh shape rule, a library's error that wraps `Io.Error`: Appendix E.0.
+
+### The runtime
+
+- A program's process group killed as the host reports its exit, before its outputs end: Appendix E.23.
+- A restart ending the captures its run began, as the caller's end does, and a capture written back at the run's end: Appendix E.24, §8.6.
+- A `receive` without an `after` the host's own, its waiting frame naming the last call before the wait: Appendix E.21.
+- A socket's closer made with the socket, the gateway's worker as the connection opens, and a peer's restart waited for in the worker: §12.5, Appendix E.18.
+- A stream that can no longer be written ending the program, by the hangup's signal where it was a terminal: §12.1, §11.8.
+
 ## 0.9.0, 2026-11-03
 
 Ernest 0.9.0 is the release of the first program built against an installed Ernest by a repository of its own: ernest-httpd, which serves ernest-lang.org over TLS, and what it asked of Ernest on its way, TLS in `Tcp`, a program under a pseudo-terminal in `Os`, and four libraries, `base64`, `crypto`, `time` and `http`. With it come a constructor shown with its module's name, a read given no time that has run out as it begins, and sentences of the report where it was silent.

@@ -127,6 +127,6 @@ Read from both sides on 2026-11-09.
 - `site/templates/README.md`, which owns what each template binds, and its test.
 - `docs/architecture.md`'s *The site's generator* and its paragraphs on the site's tests, and `docs/development.md`'s on `make site`.
 - `docs/reviews/release.md`, whose check by hand stays.
-- The plan's handover of the site at MVP 4.15's end and MVP 4.4's item 6, and the server's plan's items for the rehearsal and the switch. All stand as they are, since the launch's site is built with `CONFIG`.
+- The site's hand-over to the server at Ernest 0.10.0 (the log's *The Release Review Before 0.10.0*) and the plan's MVP 4.4's item 6, and the server's plan's items for the rehearsal and the switch. All stand as they are, since the launch's site is built with `CONFIG`.
 - `docs/clean_room.md`: the ask goes to the server's session by a message, on the user's word, and the server's proposal is its own. What the ask durably is stands in the server's plan and design, written by its session, and this proposal then cites them by address.
 - The server's design, *What the program does*, *Modules*, *The configuration*, *The static site*, *The connection*, *The shell*, *The sessions* and *The deployment*, its `deploy/config.json`, whose `Content-Security-Policy` admits a script of the site's own host, and its example site's `shell.js` and `shell.html`.

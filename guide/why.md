@@ -417,7 +417,7 @@ $ ern run unique.erc
 
 A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for two things: the set it names is closed, `compare`, `negate`, the six operators and `show`, which no program adds to, and a type's member is declared in its type's own module alone (report §4.9). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and that closed set is the whole of what a type can promise.
 
-`show` is no member a type declares, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report Appendix E.1). The guide's §7 teaches requirements.
+`show` is no member a type declares, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report §12.3). The guide's §7 teaches requirements.
 
 ### Little else
 

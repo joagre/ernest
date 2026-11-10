@@ -158,7 +158,7 @@ A fault, an error, and a refused command are shown in red and a result's type di
 
 ### 1.3 Reading input
 
-A program's first input is its command line. `main`, the *entry point*, the function the program starts with, takes no arguments: the words after the `.erc` file on `ern run`'s line are `Os.arguments`, a list of strings. `Os.arguments` is a top-level binding and not a function, so it is written without parentheses, as `Os.workingDirectory` below is (§2.2). The shell's command line is its own, and in the shell `Os.arguments` is the empty list.
+A program's first input is its command line. `main`, the *entry point*, the function the program starts with, takes no arguments: the words after the `.erc` file on `ern run`'s line are `Os.arguments`, a list of strings. `Os.arguments` is a top-level binding and not a function, so it is written without parentheses, as `Os.workingDirectory` below is. The shell's command line is its own, and in the shell `Os.arguments` is the empty list.
 
 ```ernest
 export fn main() : Unit =
@@ -2230,7 +2230,7 @@ Members.Date(year = 2026, month = 10, day = 2)
 
 `Date` gets its order from its declaration. `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, a `Bool`, is refused at the declaration (report §3.5).
 
-`shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report Appendix E.1). `Io.show`'s own type says so, `(a) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
+`shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report §12.3). `Io.show`'s own type says so, `(a) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
 
 **A module built on a requirement.** The standard library's `OrderedSet` keeps a set's elements in the order of their type's `compare`, and each of its functions that needs the order declares `needs a.compare`. A program uses it without naming an order:
 
@@ -2409,7 +2409,7 @@ export fn map(Set(list) : Set(a), f : (a) -> b receiving e) : Set(b) receiving e
     fromList(List.map(list, f))
 ```
 
-`fromList` declares the requirement, which `List.sort` declares too and is supplied from it. `firstOfEach`, a private helper generic in the element, calls `compare` and so declares the requirement too; the member goes along from `fromList`, which calls it. `map` declares `needs b.compare`, the order of the set it builds.
+`fromList` declares the requirement, which `List.sort` declares too and is supplied from it. `firstOfEach`, a private helper generic in the element, not shown, calls `compare` and so declares the requirement too; the member goes along from `fromList`, which calls it. `map` declares `needs b.compare`, the order of the set it builds.
 
 ### 7.4 Exercises
 

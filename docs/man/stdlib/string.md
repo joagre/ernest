@@ -611,14 +611,20 @@ String.fromUtf8Lossy(bytes : Bytes) : String
 
 *Since 0.10.0.*
 
-The text `bytes` hold in UTF-8, each byte that begins no character shown as
-one U+FFFD.
+The text `bytes` hold in UTF-8, each byte that begins no whole character
+shown as one U+FFFD: a character cut short, by the end of the bytes or by a
+byte that cannot continue it, is one U+FFFD a byte.
 
 ### Examples
 
 ```ernest
 String.fromUtf8Lossy(<<104, 255, 105>>)
 // => "h�i"
+```
+
+```ernest
+String.fromUtf8Lossy(<<104, 226, 130>>)
+// => "h��"
 ```
 
 ## String.fromUtf8Piece

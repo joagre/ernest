@@ -87,20 +87,21 @@ once the program has exited and a socket's once its connection has closed
 counting as ended, and until the program's end where it owns a table
 (report §11.2, Appendix E.28).
 
-A file that is no `.erc` of this `ern`, one compiled against another
-interface than the node holds, a module of a cycle through the load path
-(report §4.1), a directory, and a file at a module's path that holds another
-module (report §11.2) answer `Left(Invalid)`; a path with no file, and a
+A file that is no `.erc` of this `ern`, one whose code the host will not load
+among them, one compiled against another interface than the node holds, a
+module of a cycle through the load path (report §4.1), a directory, and a
+file at a module's path that holds another module (report §11.2) answer
+`Left(Invalid)`; a path with no file, and a
 module the load path lacks, `Left(NotFound)`; and a file the host cannot
 read answers the host's error, `Left(Denied)` among them.
 
 A binding that faults answers `Left(Other(text))`, `text` the fault as
 `ern run` reports it, `Init.bad:3 faulted: division by zero`: nothing is
 loaded, every process the evaluation started is killed, and the evaluator
-ends. So does a load the node cannot make, `text` its reason, a count of the
-host's that the load would pass among them. A deadlock while the evaluator
-waits faults the evaluator and not the caller, and refuses the load so
-(report §8.6).
+ends. So does a load the node cannot make, `text` its reason. A load that
+would pass one of the host's limits on what it loads ends the node (report
+§11.2). A deadlock while the evaluator waits faults the evaluator and not the
+caller, and refuses the load so (report §8.6).
 
 ### Examples
 
@@ -119,7 +120,8 @@ The definitions the compiled module at `path` holds, each as its qualified
 name and its hash, the digest in lowercase hexadecimal, in the order the
 module declares them. A foreign declaration has no hash and is left out. A
 file that is no `.erc` of this `ern` answers `Left(Invalid)`, and a path that
-names no file `Left(NotFound)`.
+names no file `Left(NotFound)`. A file whose code alone the host will not load
+answers its definitions all the same, which its forms give (report §11).
 
 ### Examples
 
@@ -134,8 +136,10 @@ Code.hashes(Path("nowhere/counter.erc"))
 Code.running(f : a) : List(Address(m))
 ```
 
-The addresses of the processes on this node whose stack holds a frame of `f`
-itself at the moment of the call, in unspecified order. `f` is the name of a
+The addresses of the processes on this node whose stack holds a frame of `f`,
+or of an earlier definition of its name whose mailbox type is `f`'s, on any
+version of its module the node holds, at the moment of the call, in
+unspecified order (report Appendix E.28). `f` is the name of a
 top-level `fn` of any arity whose result type is `Unit`; where it receives,
 `receiving m`, `m` holds no type variable, and every process listed has the
 mailbox type `m`. For one that receives nothing, and for one that is
@@ -145,7 +149,7 @@ listed.
 
 The list is a snapshot: a process may have left `f`, or ended, by the time
 it is sent to. The host keeps at most the innermost 64 frames of a stack, so
-a process whose frame of `f` lies beneath them is not listed. `running` is
+a process whose such frame lies beneath them is not listed. `running` is
 called where it is named, and is no value (report §3.11).
 
 ### Examples

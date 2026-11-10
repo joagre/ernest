@@ -164,7 +164,8 @@ Foreign.atom(text : String) : Term
 
 The Erlang atom spelled by `text`. An atom is never freed while the node
 lives, and a node holds only as many as its host allows, so atoms are made
-of the names a shim needs, never of text a program receives.
+of the names a shim needs, never of text a program receives. An atom past
+that number ends the node, as a load past it does (report §11.2).
 
 ### Errors
 

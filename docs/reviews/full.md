@@ -76,7 +76,7 @@ Working the findings follows the same file: a design question, a sentence of the
 
 ## The findings
 
-- The lists become one document, [`docs/findings.md`](../findings.md), beside the plan: a line per finding, by area, each naming its reader's letter and number.
+- The lists become one document, the findings file CLAUDE.md's owner table names, beside the plan while they are open: a line per finding, by area, each naming its reader's letter and number.
 - A line carries its decision: `fix`, `decide`, a milestone's number, planned there, or `dropped`, with the reason; and `done`, with the date, once made.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
 - The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose in a design session; code or a test as one batch by agents, built from a brief that names each line and the shape of its fix (*The models*).

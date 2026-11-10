@@ -101,7 +101,7 @@ A process *faults* when it meets an error it did not expect, a division by zero 
 
 - 0 when its entry point returns;
 - the status the program itself chose, where it calls `Os.exit`;
-- 1 when its entry process faults or is killed, when the program exhausts the host's memory, when a load would pass one of the host's limits on code (section 4.2), and when it dials a peer with its table of processes full (section 1.2);
+- 1 when its entry process faults or is killed, when the program exhausts the host's memory, when a load would pass one of the host's limits on code (section 4.2), and when it dials a peer with its table of processes full (report §12.5);
 - the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop;
 - 141 when its output, a pipe or a file, can no longer be written; the hangup signal itself, which a shell shows as 129, when its output is a terminal that has gone.
 

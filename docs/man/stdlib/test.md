@@ -100,8 +100,9 @@ needs `a.show`, which a call at a known type supplies without writing it
 (report §4.9, §9.4).
 
 Where the two texts begin alike and then differ, the failure says at
-which character, counted from 1: the first that differs, or the one past
-the shorter text's end.
+which character, counted from 1 in the texts as `Io.show` writes them, a
+string's quotes among them: the first that differs, or the one past the
+shorter text's end.
 
 ### Examples
 
@@ -113,6 +114,11 @@ the shorter text's end.
 ```ernest
 Test.equal([1, 2, 3], [1, 2, 4])
 // => Test.Failed("expected [1, 2, 4], got [1, 2, 3], differing at character 8")
+```
+
+```ernest
+Test.equal("abc", "abd")
+// => Test.Failed("expected \"abd\", got \"abc\", differing at character 4")
 ```
 
 ## Test.faults
@@ -206,8 +212,8 @@ where it went (report Appendix E.24).
 
 Where two captures of one chain run at once, the one begun last takes the
 chain's writes until it returns. Where the caller ends before `run`
-returns, a fault among the ways, what was captured is written where it
-would have gone.
+returns, a fault among the ways, or restarts the run that began the
+capture, what was captured is written where it would have gone.
 
 ### Examples
 
