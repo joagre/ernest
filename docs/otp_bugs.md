@@ -902,3 +902,45 @@ OTP 29, erts 17.1.1, stdlib 8.1.1, on Linux x86_64.
 **Additional context**
 
 A file cut short at any length is answered with an error. Of the 10,384 copies of a compiled module of 2,596 bytes with one byte set to 0, 127, 128 or 255, 19 raised, each in the atom chunk.
+
+## 19. A load past the module, export or fun table's limit ends the emulator, and the system limits page names none of the three
+
+Not filed. Found on 2026-11-10 (the log's *A Load Past the Host's Limits*); Ernest's report states the end (§11.2), and the runtime says a limit's four fifths before it.
+
+**Title:** Loading code past the module, export or fun table's limit terminates the emulator, and the system limits page names none of the three limits
+
+**Describe the bug**
+
+The emulator holds at most 65,536 module names, 524,288 export entries and 524,288 fun entries, and gives none back. A load that would pass one of them terminates the emulator with status 1, `no more index entries in module_code (max=65536)`, `export_staged_index (max=524288)` or `fun_staged_index (max=524288)`. `erlang:load_module/2` and `code:load_binary/3` do not answer an error.
+
+The Efficiency Guide's *System Limits* names neither the three limits nor the termination. The atom table's limit is named there, and *Common Caveats* says the emulator terminates when it is reached, so a reader is warned of the atoms alone.
+
+**To Reproduce**
+
+```sh
+erl +S 1 -noshell -eval '
+    {ok, m0000000, Beam} = compile:forms([{attribute, 1, module, m0000000}], [binary]),
+    Load = fun Load(N) ->
+                   Name = iolist_to_binary(io_lib:format("m~7..0B", [N])),
+                   Module = binary_to_atom(Name),
+                   {module, Module} =
+                       erlang:load_module(Module, binary:replace(Beam, <<"m0000000">>, Name)),
+                   Load(N + 1)
+           end,
+    Load(1).'
+echo "status $?"
+```
+
+After about two minutes it prints `no more index entries in module_code (max=65536)` and `status 1`.
+
+**Expected behavior**
+
+A load that would pass a table's limit answers `{error, system_limit}`, as `spawn` raises `system_limit` at the process limit. Failing that, *System Limits* names the three limits and says the emulator terminates past each, as *Common Caveats* says of the atoms.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, on Linux x86_64.
+
+**Additional context**
+
+Modules of 2,000 exported functions each, loaded one after another, end it at the export table, and modules of 2,000 funs each at the fun table, each with its own line above and status 1.

@@ -3,8 +3,9 @@
 %% undone evaluation (ern_code_load), Code.hashes (ern_code:hashes/1), and
 %% Code.running over the processes of a run (ern_code:running/1). A
 %% regression test, written after the code; Code.load past a count of the
-%% host's is not tested, since no test may near the host's limits, and the
-%% loads on nodes, a bare node's among them, are ern_nodes_tests'.
+%% host's ends the host, which ern_integration_tests holds in a host of its
+%% own, and the loads on nodes, a bare node's among them, are
+%% ern_nodes_tests'.
 -module(ern_code_load_tests).
 
 -include_lib("eunit/include/eunit.hrl").

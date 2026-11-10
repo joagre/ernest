@@ -63,7 +63,7 @@ A word of the command line that is not UTF-8 is refused before the job begins, `
 
 A `.erc` a job is given that is no compiled module is refused, `x.erc is not a compiled module`. A `.erc` whose code the host will not load is no compiled module to a job that loads it, `ern run`, `ern test` and the shell, nor to `ern build` where it is the `.erc` of one of its sources (§11.1). Any other job takes of a `.erc` only what it reads: `ern doc` its documentation, and `ern build` a dependency's interface.
 
-What the host logs as a warning or worse, a job writes on standard error as the host formats it, and a shell of its own where it writes what a program writes to standard error (§11.2); what a node's host logs is the node's, whichever process logged it, an attached session's among them (§12.1). What the host logged before a job's end is written before the job ends, but where the host ends the job (§10, §12.5), where the job ends at once, as at the host's interrupt (§8.6), and where standard error can no longer be written.
+What the host logs as a warning or worse, a job writes on standard error as the host formats it, and a shell of its own where it writes what a program writes to standard error (§11.2); what a node's host logs is the node's, whichever process logged it, an attached session's among them (§12.1). What the host logged before a job's end is written before the job ends, but where the host ends the job (§10, §11.2, §12.5), where the job ends at once, as at the host's interrupt (§8.6), and where standard error can no longer be written.
 
 The host's report of an outcome that the program sees as a value or a fault, or that the job says in a line of its own, is not written, nor are its reports of its nodes (§12.5), nor what it logs as it ends the job (§11.8).
 
@@ -317,7 +317,7 @@ What `Tab` and `Shift-Tab` show stands in the region under the input, and the ne
 
 A unit, once loaded, is held for the node's life, but for one `ern test` made over a directory, held for its run; and a session's own, an input's, which the session lets go as **Inputs** says, and at its end as **The attached shell** says.
 
-A load or an arrival that would pass one of the host's limits on what it loads (above) fails as one the node cannot load (§8.7). Nothing of a node's code is on its disk but its build directory and `ern`'s: a node restarted holds its build and the shell's, and is sent the rest again.
+A load or an arrival that would pass one of the host's limits on what it loads (above) ends the node at once, as exhausted memory does (§10), with status 1 (§11.8). The host's message is written to standard error, at the atoms `no more index entries in atom_tab (max=1048576)`. Nothing of a node's code is on its disk but its build directory and `ern`'s: a node restarted holds its build and the shell's, and is sent the rest again.
 
 **Startup and history.** At start the shell says `Ernest v, session n. :help for help.`, `v` the shell's version text (§11.7) and `n` the session's number on its node (**The attached shell**); an attached shell whose node runs another release of `ern` says `Ernest v, session n on ern w. :help for help.`, `w` the node's version text. Keys and a paste that arrive before the first prompt are kept, and are read after it as if typed there.
 
@@ -518,7 +518,7 @@ The shell exits with status 0 when it ends, whatever its inputs did; with the st
 
 An attached shell exits with status 1 where its attach is refused or its node is lost, and with status 0 where the node ended (§11.2). A fault of the shell's own for any other cause is a failure of `ern` itself.
 
-A failure of `ern` itself exits with status 70. A job whose program exhausts the host's memory (§10), or whose node dials a peer with its table of processes full (§12.5), exits with status 1, writing nothing of the host's but its message. A job whose standard output or standard error can no longer be written exits with status 141, 128 plus the number of `SIGPIPE`, where the stream is no terminal; a stream is what it was as the job started.
+A failure of `ern` itself exits with status 70. A job whose program exhausts the host's memory (§10), whose host would pass one of its limits on what it loads (§11.2), or whose node dials a peer with its table of processes full (§12.5), exits with status 1, writing nothing of the host's but its message. A job whose standard output or standard error can no longer be written exits with status 141, 128 plus the number of `SIGPIPE`, where the stream is no terminal; a stream is what it was as the job started.
 
 A job the host's termination or hangup ends, `ern run` among them once the runtime has stopped as §8.6 says, ends by that signal where the signal began the end, and with the status of what began it where the signal cut short an end already begun (§8.6), but for one that comes before the runtime can take signals (§12.4), and so does a job the host's interrupt ends, at once (§8.6): a shell reports its status as 130, 128 plus the number of `SIGINT`. A job whose keys the host can no longer read, or whose terminal can no longer be written, ends by the hangup's signal, on a node as elsewhere (§12.1).
 

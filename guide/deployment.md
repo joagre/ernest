@@ -101,7 +101,7 @@ A process *faults* when it meets an error it did not expect, a division by zero 
 
 - 0 when its entry point returns;
 - the status the program itself chose, where it calls `Os.exit`;
-- 1 when its entry process faults or is killed, and when the program exhausts the host's memory;
+- 1 when its entry process faults or is killed, when the program exhausts the host's memory, and when a load would pass one of the host's limits on code (section 4.2);
 - the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop;
 - 141 when its output, a pipe or a file, can no longer be written; the hangup signal itself, which a shell shows as 129, when its output is a terminal that has gone.
 
@@ -231,7 +231,7 @@ A shell attached to a node sends it a module's source as text, which the node co
 
 A node keeps every *unit* of code it loads, one module as the host counts them, its build's modules, the ones it was sent and the ones a program or a shell attached to it loaded, for its life (report §11.2, *What a node holds*). An input's unit at an attached prompt goes as section 6 says; what it added to the counts stays. The host counts what they add, in four tables it fills and never empties, module names, exported functions, defined functions and *atoms*, its interned names, which every new name in received code adds to, and never gives one back, so a node that is sent new code without end slowly uses the counts up.
 
-The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, and a node says once, at four fifths of one, `the host has used 52429 of its 65536 module names, which it never gives back`. Past a limit the node runs on and serves what it holds; a spawn or a load that would pass it fails, and the program is given the error `Io.Other` as a `Left`, Ernest's failed result.
+The limits are the host's, 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, and a node says once, at four fifths of one, `the host has used 52429 of its 65536 module names, which it never gives back`. A load or a spawn of new code that would pass a limit ends the node at once, every process with it, as running out of memory does: it exits with status 1, and the host writes its own line, `no more index entries in atom_tab (max=1048576)`. The line at four fifths is the time to plan the restart below.
 
 How fast the counts move is a question of how much new code a node is sent, not of how long it runs or how much work it does. A node that runs the same build as its peers is sent almost nothing.
 
@@ -245,7 +245,7 @@ A spawn or a compute a peer asked for that this node did not start is said on th
 
 - `the peer a's spawn at Counter.main:13 was not loaded: the binding Counter.config has no value here`: the function reads a top-level binding whose value lives only where the program that declares it was started. Run that program on this node, or place the work with a compute on a node that runs it.
 - `the peer a's spawn at Counter.main:15 was not loaded: the module counter_host, which Counter.tick calls, is not here`, or `has no function tick/0 here`: the program calls a module of the host's directly, through a foreign declaration, and this node finds no such module among the directories it loads code from, its load path, to which `--load-path` adds a directory and `--libs-dir` the `ebin` of each of the host's applications under one. Install the module there, or the right version of it.
-- `the peer a's spawn at Counter.main:17 was not loaded: this node could not take the code it received: ...`: the host refused to compile or load what arrived, a count of section 4.2 passed among the reasons. Restart the node.
+- `the peer a's spawn at Counter.main:17 was not loaded: this node could not take the code it received: ...`: the host refused to compile or load what arrived. Restart the node.
 - `the peer a's spawn at Counter.main:19 was not loaded: the spawner's node no longer holds the function's reach`: the spawning side let go of the code between asking and sending. Nothing to do here; the spawner sees `Io.Other`.
 
 The program on the spawning side sees each of these as a failed result, a `Left`, with `Io.NotLoaded` for the first two and `Io.Other` for the rest.

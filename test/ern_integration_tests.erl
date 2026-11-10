@@ -2085,6 +2085,50 @@ limits_line() ->
                  re:run(Said, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z the host has used [0-9]+ of"
                               " its [0-9]+ atoms, which it never gives back\n$")).
 
+%% report §11.2: a load that would pass one of the host's limits on what it
+%% loads ends the node at once, with status 1 and the host's message alone
+%% on standard error (§11.8). The program makes the host's atoms but for
+%% room for 100, the names Big defines among them, so that no chunk the
+%% load reads brings a new one, and then loads Big, whose code names its
+%% 500 functions by their places, `$1` to `$500`, past what any unit the
+%% run holds names. A regression test, written after the sentence, since
+%% the end is the host's. It does not cover the host's other three limits,
+%% which no test reaches within its time, nor an arrival, the shell's
+%% loads or a build.
+load_past_atoms_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun load_past_atoms/0).
+
+load_past_atoms() ->
+    Dir = "build/load_past_atoms",
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir ++ "/big"),
+    ok = file:write_file(Dir ++ "/big/big.ern",
+                         [["export fn d", integer_to_list(N), "() : Int = ", integer_to_list(N),
+                           "\n"] || N <- lists:seq(1, 500)]),
+    0 = build("--source-root " ++ Dir ++ "/big " ++ Dir ++ "/big/big.ern"),
+    ok = file:write_file(Dir ++ "/past.ern",
+                         "foreign fn host(item : Foreign.Term) : Int = \"erlang:system_info/1\"\n"
+                         "fn fill(prefix : String, from : Int, to : Int) : Unit =\n"
+                         "    if from > to then Unit else {\n"
+                         "        let _ = Foreign.atom(prefix <> Int.toString(from));\n"
+                         "        fill(prefix, from + 1, to)\n"
+                         "    }\n"
+                         "fn room() : Int =\n"
+                         "    host(Foreign.atom(\"atom_limit\"))\n"
+                         "        - host(Foreign.atom(\"atom_count\"))\n"
+                         "export fn main() : Unit = {\n"
+                         "    fill(\"d\", 1, 500);\n"
+                         "    fill(\"past_\", 1, room() - 100);\n"
+                         "    Io.println(\"loading\");\n"
+                         "    Io.println(Io.show(Code.load(Path(\"" ++ Dir ++ "/big/big.erc\"))))\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/past.ern"),
+    ?assertEqual({1, <<"loading\n">>},
+                 sh("../bin/ern run " ++ Dir ++ "/past.erc 2> " ++ Dir ++ "/err.txt")),
+    %% the host ends its line with a carriage return
+    ?assertEqual({ok, <<"no more index entries in atom_tab (max=1048576)\r\n">>},
+                 file:read_file(Dir ++ "/err.txt")).
+
 %% report §11: the host's termination ends a job that runs no program at
 %% once, by the signal, and the host prints nothing of its own. A regression
 %% test: a build given it stopped where it was, printed the host's report,

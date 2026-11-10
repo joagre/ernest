@@ -73,7 +73,7 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 7. Item 16's build last, done 2026-11-09.
 8. Item 42's fix, by an item session, done 2026-11-09.
 9. Item 43, by an item session, done 2026-11-10.
-10. Item 44, by an item session.
+10. Item 44, by an item session, done 2026-11-10.
 11. Item 45, by an item session.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
@@ -322,14 +322,14 @@ reader S reads of its live shell. The release note's line on the installed layou
     unit is made. `ern doc`, `Code.hashes` and a build's reading of a dependency take only what
     they read. Decided with the user: the build asks the host's loader of its own modules'
     code, about 10 ms a megabyte of compiled code, by principle 1.
-44. **A load past the host's atoms**, found 2026-11-10 by item 43's probe, for an item session
-    before MVP 4.15's release (§11.2, §10; the log's *A Compiled Module the Host Cannot Load*).
-    A load whose module brings more atoms than the host has room for ends the host, `no more
-    index entries in atom_tab`, status 1, and so does the build's check of a module's code,
-    where §11.2 says a load past one of the host's limits fails as one the node cannot load.
-    §11.2 is to state the host's end, as §10 states exhausted memory, the shape *Lean at the
-    Limits* decides, with a test in a host of its own, as `ern_integration_tests` fills the
-    atoms. The item decides whether it goes to `docs/otp_bugs.md`.
+44. **A load past the host's limits**, done 2026-11-10 (§11, §11.2, §11.8, E.12, E.28; the log's
+    *A Load Past the Host's Limits*). A load or an arrival that would pass any of the host's four
+    limits on what it loads ends the node at once, as exhausted memory does, with status 1 and
+    the host's line alone; so does `Foreign.atom` past the atoms. §11.2 said such a load fails
+    as one the node cannot load, which was never built. Decided: the report states the end, by
+    *Lean at the Limits*, and no check measures a load first, since only the atoms are counted
+    cheaply. The atoms' end is OTP's documented one; the other three limits, which OTP's system
+    limits page names nowhere, are `docs/otp_bugs.md`'s 19, whose filing is the user's.
 45. **A flake of `os_signal_after_an_unread_exit_test`**, found 2026-11-10 by item 43's
     `make test-full`, for an item session before MVP 4.15's release (E.23; the log's *A Compiled
     Module the Host Cannot Load*). Seen once in two full runs, `Right(Unit)` where E.23 answers

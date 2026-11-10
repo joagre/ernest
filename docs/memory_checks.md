@@ -52,7 +52,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 
 **The host's code.** OTP keeps an entry for each lambda of each distinct version of a module it loads, for as long as the node lives. It shows as `code` that rises with every new version of a module, and not with a version loaded again. New versions come from the shell's inputs and loads, from code that arrives from peers, and from `Code.load`. The log's *The Shell's Code Memory* has the figures.
 
-**The host's limits.** The host's counts of module names, export entries, lambdas and atoms never fall, and each has a limit, which the runtime says a load nears and which no load passes (report §11.2). The runtime watches them by sums kept beside the code table, a row a count in `ern_code_sums`.
+**The host's limits.** The host's counts of module names, export entries, lambdas and atoms never fall, and each has a limit, which the runtime says a load nears and past which the host ends the node (report §11.2). The runtime watches them by sums kept beside the code table, a row a count in `ern_code_sums`.
 
 **Atoms.** The host never frees an atom, so what makes one is read for as well as counted. A running program makes none from what it is given. The shell makes them of the inputs it runs, and none of text that is typed and not run. The log's *Atoms, Counted* has what each costs.
 

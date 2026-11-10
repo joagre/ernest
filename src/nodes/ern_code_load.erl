@@ -226,8 +226,8 @@ place(#found{namespace = Namespace, beam = Beam, recorded = Recorded,
 %% The units the node did not hold, made, loaded whole by the host's
 %% atomic load, without `-on_load`, and in the code table with what they
 %% record; and the node says where its loads near a limit of the host's
-%% (§11.2). A load the host refuses, a count of its own it would pass
-%% among the reasons, loads none of them.
+%% (§11.2). A load the host refuses loads none of them; one that would
+%% pass a limit of the host's ends the host (§11.2).
 loaded(Placed) ->
     Made = [made(Unit, Placed) || #placed{made = How} = Unit <- Placed, How =/= held],
     case Made of

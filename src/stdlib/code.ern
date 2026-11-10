@@ -90,10 +90,10 @@
 /// A binding that faults answers `Left(Other(text))`, `text` the fault as
 /// `ern run` reports it, `Init.bad:3 faulted: division by zero`: nothing is
 /// loaded, every process the evaluation started is killed, and the evaluator
-/// ends. So does a load the node cannot make, `text` its reason, a count of the
-/// host's that the load would pass among them. A deadlock while the evaluator
-/// waits faults the evaluator and not the caller, and refuses the load so
-/// (report §8.6).
+/// ends. So does a load the node cannot make, `text` its reason. A load that
+/// would pass one of the host's limits on what it loads ends the node (report
+/// §11.2). A deadlock while the evaluator waits faults the evaluator and not the
+/// caller, and refuses the load so (report §8.6).
 ///
 /// ### Examples
 ///

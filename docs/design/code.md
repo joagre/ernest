@@ -78,7 +78,7 @@ The call names `f` by its hash alone, so its names are those the units that hold
 
 ## The host's counts
 
-The host limits what one runtime loads in its life and gives none of it back: 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, as OTP 29 sets them (§11.2).
+The host limits what one runtime loads in its life and gives none of it back: 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, as OTP 29 sets them (§11.2). Nothing measures a load against them before it: a load past one ends the host, as exhausted memory does (§10, §11.2; the log's *A Load Past the Host's Limits*).
 
 The code table keeps the sums the host counts (`ern_code_sums`) and reads them each time units load, a program's at its start, an arrival's, a shell's at an input, a load's and a reload's, saying once on standard error, for each limit in the host's life, where one has reached four fifths of it; a definition spawned onto a node costs about one module name, five exports, a function entry per lambda and an atom, which the deployment guide's §4.2 turns into days (§11.2; the log's *What MVP 3.1 Costs, Measured*). A unit's functions are named by position so that a unit costs one atom for its name and none for its functions beyond the host's own (§10).
 
