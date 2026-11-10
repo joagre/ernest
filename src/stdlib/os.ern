@@ -323,8 +323,8 @@ foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
 /// - `Left(NotFound)`: the program is not found.
 /// - `Left(Denied)`: it may not be run.
 /// - `Left(Invalid)`: a name or an argument no program could be given, one that
-///   holds U+0000 among them, a variable whose name is empty or holds `=`, or a
-///   value or a directory that holds U+0000.
+///   holds U+0000 among them, a variable whose name is empty or holds `=`, a
+///   value or a directory that holds U+0000, or an empty directory.
 /// - `Left(Other(text))`: the program cannot be started in
 ///   `command.workingDirectory`, the directory and the answer `Fs` gives for it
 ///   on one line, `build: NotFound`; or another reason, in the host's words.

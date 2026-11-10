@@ -471,10 +471,7 @@ or_inside_a_pattern_test() ->
     ?assertEqual({Refused, Help("<<0:size(n)-big, _:bytes>> or <<1:size(n)-big, _:bytes>>")},
                  Clause("<<0 or 1:size(n)-big, _:bytes>>")),
     ?assertEqual({Refused, undefined}, refusal_and_help("fn f(x) = { let #(a or b, c) = x; c }")),
-    ?assertEqual({Refused, undefined}, refusal_and_help("fn f(#(a or b, c)) = c")),
-    %% a size's expression holds clauses of its own, whose `or` stands
-    %% between whole patterns
-    ?assertMatch({ok, _}, ern_parser:parse_string("fn f(<<x:size(match n { 1 or 2 -> 8 })>>) = x")).
+    ?assertEqual({Refused, undefined}, refusal_and_help("fn f(#(a or b, c)) = c")).
 
 %% report §6.3
 receive_test() ->

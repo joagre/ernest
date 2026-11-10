@@ -40,7 +40,7 @@
 -module(ern_emitter).
 
 -export([unit/1, source/1, ground_terms/2, function_name/1, held_position/1, caller_sited/1,
-         raiseless/0, site_name/2]).
+         site_arity/1, raiseless/0, site_name/2]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
@@ -80,6 +80,8 @@
 %% (function_value/2), which the shell reads to keep an input (§11.2).
 %% guard: whether the expression being compiled is a clause's Erlang
 %% guard, where a selection reads its field in place (select/4).
+%% in_lambda: whether the expression being compiled stands in a lambda's
+%% body, by which a timed receive's wait is named (wait_prefix/1).
 %% caller_site: in the body of a declaration its caller's site is passed to
 %% (caller_sited/1), the Erlang variable of that site, and else none.
 -record(emit_context, {unit, own, definition, declaration, printing, restrictions = #{},
@@ -614,6 +616,16 @@ head_patterns(Params, {scheme, _, _, Requirement}, Context) ->
 caller_sited(QualifiedName) ->
     QualifiedName =:= ['Process', run].
 
+%% Report Appendix E.21: the parameters a declaration's function takes for
+%% its caller's site after its others, one where it is caller-sited and
+%% none for any other.
+-spec site_arity([atom() | binary()]) -> 0 | 1.
+site_arity(QualifiedName) ->
+    case caller_sited(QualifiedName) of
+        true -> 1;
+        false -> 0
+    end.
+
 %% The site parameter of a caller-sited definition, after its members, and
 %% none for any other.
 caller_site_taken(#definition{qualified_name = QualifiedName}, Context) ->
@@ -905,16 +917,12 @@ exports(Placed, ForeignPlaced, #emit_context{unit = #unit{exported = Exported},
 
 %% The arity of a definition's function, given the definition and its form:
 %% a function's parameters, its requirement's members (report §4.9) and a
-%% caller-sited declaration's site (caller_sited/1), and a binding's getter
+%% caller-sited declaration's site (site_arity/1), and a binding's getter
 %% none.
 arity({#definition{qualified_name = QualifiedName}, Form}) ->
     case sourced(Form) of
         {_, {function, {scheme, _, _, Requirement}, Params, _}} ->
-            Site = case caller_sited(QualifiedName) of
-                       true -> 1;
-                       false -> 0
-                   end,
-            length(Params) + length(Requirement) + Site;
+            length(Params) + length(Requirement) + site_arity(QualifiedName);
         {_, {binding, _, _}} -> 0
     end.
 
@@ -1465,9 +1473,9 @@ name_form(Source, Reference, Supplies, Extra, Context) ->
 %% Report §6.9, Appendix E.21: a caller-sited declaration as a value, a
 %% closure that passes it the site where it is named, as `spawn` as a
 %% value does (prelude_value/4).
-caller_sited_value(Source, Reference, Context) ->
-    {Params, Context1} = fresh_variables(value_arity(Reference, Context) - 1, "Argument",
-                                         Context),
+caller_sited_value(Source, {named, QualifiedName} = Reference, Context) ->
+    Arity = value_arity(Reference, Context) - site_arity(QualifiedName),
+    {Params, Context1} = fresh_variables(Arity, "Argument", Context),
     ArgForms = [erl_syntax:variable(Param) || Param <- Params] ++ [site(Source, Context)],
     {lambda(Params, placed_call(Reference, ArgForms, Context1)), Context1}.
 

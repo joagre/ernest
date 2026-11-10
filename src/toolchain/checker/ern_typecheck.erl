@@ -20,10 +20,10 @@
 %% per definition; checking continues with the next.
 -module(ern_typecheck).
 
--export([check/3, check/4, check/5, check_string/2, type_state/1, scope_state/2, set_type_state/2,
-         prelude_names/1, prelude_values/1, prelude_constructor/2, prelude_constructors/1,
-         prelude_env/0, seeded/2, without_interface/2, with_interfaces/2, lookup_type/2,
-         identity/2, position/2, reach/2,
+-export([check/3, check_resolved/5, check/5, check_string/2, type_state/1, scope_state/2,
+         set_type_state/2, prelude_names/1, prelude_values/1, prelude_constructor/2,
+         prelude_constructors/1, prelude_env/0, seeded/2, without_interface/2, with_interfaces/2,
+         lookup_type/2, identity/2, position/2, reach/2,
          ground_term/2, shim/2, global_scheme/2, is_provided/2, described_type/2,
          let_order/1, settled/2, foreign_implementation/1, fields/2, declared_scheme/3,
          is_running_never/2, declaration_type/2, is_top_let/2, is_foreign/2,
@@ -102,7 +102,7 @@
               declaring = #{}, uses = #{}, binder = none, definition_type, shortest = []}).
 %% shortest: the shortest form of the module's own namespace from its own
 %% place (report §4.2), which a name of the module's that a binding hides is
-%% written qualified in, and in no longer form (own_shortest/4)
+%% written qualified in, and in no longer form (own_shortest/2)
 %%
 %% definition_type: the type of the definition whose uses post_checks/3
 %% supplies, once it is inferred, whose variables are those a signature
@@ -249,18 +249,21 @@ check(Namespace, Parsed, Interfaces) ->
     IsNamespace = fun(Candidate) -> lists:prefix(Candidate, Namespace) end,
     {Declarations, _, TooLong} = ern_resolve:resolved(Parsed, Namespace, IsNamespace),
     Shortest = ern_resolve:shortest(Namespace, Namespace, IsNamespace),
-    case {check(Namespace, Declarations, Interfaces, Shortest), TooLong} of
+    check_resolved(Namespace, Declarations, Interfaces, Shortest, TooLong).
+
+%% Report §4.2, §11.5: a module whose names the build resolved
+%% (ern_resolve), Shortest the shortest form of its own namespace; the
+%% errors of the names written longer than their shortest form, TooLong,
+%% stand beside the checker's, which checks the module as resolved.
+-spec check_resolved([atom()], [tuple()], [#interface{}], [atom()],
+                     [ern_diagnostic:diagnostic()]) ->
+          {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
+check_resolved(Namespace, Declarations, Interfaces, Shortest, TooLong) ->
+    case {checked(Namespace, Declarations, Interfaces, #{}, prelude_env(), Shortest), TooLong} of
         {{ok, _, _, _} = Checked, []} -> Checked;
         {{ok, _, _, _}, _} -> {error, TooLong};
         {{error, Diagnostics}, _} -> {error, lists:sort(TooLong ++ Diagnostics)}
     end.
-
-%% Report §4.2: a module whose names the build resolved (ern_resolve),
-%% Shortest the shortest form of its own namespace.
--spec check([atom()], [tuple()], [#interface{}], [atom()]) ->
-          {ok, [tuple()], #interface{}, env()} | {error, [ern_diagnostic:diagnostic()]}.
-check(Namespace, Declarations, Interfaces, Shortest) ->
-    checked(Namespace, Declarations, Interfaces, #{}, prelude_env(), Shortest).
 
 %% Report §11.2: the shell's session is a scope of its own, looked in after
 %% the input's own declarations and before the prelude. Its three maps take
@@ -5703,8 +5706,7 @@ declared_field_text(#e_constructor{span = Span, namespace = Namespace, name = Na
 %% The span of a construction's constructor as the source writes it,
 %% `Point` or `Shape.Circle`, which labels what fixed a field's type.
 constructor_name_span(#e_constructor{span = Span, written = Written, name = Name}) ->
-    {Line, Column, _} = ern_diagnostic:span(Span),
-    {Line, Column, {Line, Column + length(ern_namespace:text(Written ++ [Name]))}}.
+    ern_resolve:name_span(Span, Written ++ [Name]).
 
 %% Report §5.6: `..` takes the unlisted fields from a value that has them,
 %% so its type has one constructor.

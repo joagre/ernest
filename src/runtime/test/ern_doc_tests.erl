@@ -472,7 +472,7 @@ stdlib_targets_test() ->
                || #interface{namespace = Namespace, values = Values,
                              positions = Positions} <- ern_prelude:stdlib_interfaces(),
                   {QualifiedName, Scheme} <- maps:to_list(Values),
-                  Arity <- [arity(Scheme) + site_arity(QualifiedName)],
+                  Arity <- [arity(Scheme) + ern_emitter:site_arity(QualifiedName)],
                   ErlangModule <- [ern_namespace:erlang_module(Namespace)],
                   ern_code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
                       orelse not is_map_key(QualifiedName, Positions)
@@ -488,11 +488,3 @@ stdlib_targets_test() ->
 arity(#scheme{type = {tfn, Params, _, _}, requirement = Requirement}) ->
     length(Params) + length(Requirement);
 arity(_) -> 0.
-
-%% Report §6.9, Appendix E.21: the site a caller-sited declaration takes
-%% after its parameters (ern_emitter:caller_sited/1).
-site_arity(QualifiedName) ->
-    case ern_emitter:caller_sited(QualifiedName) of
-        true -> 1;
-        false -> 0
-    end.

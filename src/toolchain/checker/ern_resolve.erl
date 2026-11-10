@@ -18,7 +18,7 @@
 %% for them read which binding hides a name.
 -module(ern_resolve).
 
--export([resolved/3, qualifiers/3, shortest/3, too_long/4]).
+-export([resolved/3, qualifiers/3, shortest/3, too_long/4, name_span/2]).
 
 -export_type([is_namespace/0]).
 
@@ -37,10 +37,11 @@
 -spec resolved([tuple()], [atom()], is_namespace()) ->
           {[tuple()], [{[atom()], [atom()]}], [ern_diagnostic:diagnostic()]}.
 resolved(Declarations, OwnNamespace, IsNamespace) ->
-    Qualifiers = resolutions(lists:usort(written(Declarations, [])), OwnNamespace, IsNamespace),
-    Resolved = {OwnNamespace, maps:from_list(Qualifiers)},
+    WithShortest = with_shortest(lists:usort(written(Declarations, [])), OwnNamespace,
+                                 IsNamespace),
+    Resolved = {OwnNamespace, maps:from_list(WithShortest)},
     {Rewritten, Errors} = rewritten(Declarations, Resolved, []),
-    {Rewritten, [{Qualifier, Namespace} || {Qualifier, {Namespace, _}} <- Qualifiers],
+    {Rewritten, [{Qualifier, Namespace} || {Qualifier, {Namespace, _}} <- WithShortest],
      lists:sort(Errors)}.
 
 %% Report §11.1, §11.2: each qualifier of Written, as a `.erc` records them,
@@ -50,7 +51,7 @@ resolved(Declarations, OwnNamespace, IsNamespace) ->
 -spec qualifiers([[atom(), ...]], [atom()], is_namespace()) -> [{[atom()], [atom()]}].
 qualifiers(Written, OwnNamespace, IsNamespace) ->
     [{Qualifier, Namespace}
-     || {Qualifier, {Namespace, _}} <- resolutions(Written, OwnNamespace, IsNamespace)].
+     || {Qualifier, {Namespace, _}} <- with_shortest(Written, OwnNamespace, IsNamespace)].
 
 %% Report §4.2: the shortest form of a namespace from OwnNamespace, which the
 %% checker asks of the module's own, a name of which a module writes
@@ -100,9 +101,9 @@ qualifier([], Acc) -> Acc.
 %% Resolution
 %%
 
-%% Each qualifier of Written with what it resolves to, Probed shared among
-%% them.
-resolutions(Written, OwnNamespace, IsNamespace) ->
+%% Each qualifier of Written with the namespace it resolves to and its
+%% shortest form (qualifier_resolved/4), Probed shared among them.
+with_shortest(Written, OwnNamespace, IsNamespace) ->
     {Qualifiers, _} = lists:mapfoldl(fun(Qualifier, Probed) ->
                                          qualifier_resolved(Qualifier, OwnNamespace, IsNamespace,
                                                             Probed)
@@ -238,15 +239,17 @@ named(type, Span, Written, Name, {OwnNamespace, Qualifiers}, Acc) ->
     case maps:get(Written, Qualifiers) of
         {OwnNamespace, _} ->
             {OwnNamespace, [written_plain(Span, Written, OwnNamespace, Name) | Acc]};
-        Found -> too_long_or_not(Span, Written, Name, Found, Acc)
+        Found -> held_to_shortest(Span, Written, Name, Found, Acc)
     end;
 named(_Kind, Span, Written, Name, {_OwnNamespace, Qualifiers}, Acc) ->
-    too_long_or_not(Span, Written, Name, maps:get(Written, Qualifiers), Acc).
+    held_to_shortest(Span, Written, Name, maps:get(Written, Qualifiers), Acc).
 
-too_long_or_not(Span, Written, Name, {Namespace, [_ | _] = Shortest}, Acc)
+%% The namespace Written resolves to, held to its shortest form where it
+%% has one (held/4): an error beside it where Written is longer.
+held_to_shortest(Span, Written, Name, {Namespace, [_ | _] = Shortest}, Acc)
   when length(Shortest) < length(Written) ->
     {Namespace, [too_long(Span, Written ++ Name, Namespace ++ Name, Shortest ++ Name) | Acc]};
-too_long_or_not(_Span, _Written, _Name, {Namespace, _}, Acc) ->
+held_to_shortest(_Span, _Written, _Name, {Namespace, _}, Acc) ->
     {Namespace, Acc}.
 
 %% Report §4.2: a module's own type or constructor, which no binding can
@@ -262,14 +265,18 @@ written_plain(Span, Written, OwnNamespace, Plain) ->
 %% Report §11.5: a name written longer than its shortest resolving form,
 %% reported at the name as written, Written, which the message names whole,
 %% with a help line that writes the short one.
--spec too_long(term(), [atom()], [atom()], [atom()]) -> ern_diagnostic:diagnostic().
+-spec too_long(ern_diagnostic:position() | ern_diagnostic:span(), [atom()], [atom()],
+               [atom()]) -> ern_diagnostic:diagnostic().
 too_long(Span, Written, Whole, Short) ->
     #diagnostic{span = name_span(Span, Written),
                 message = ern_namespace:text(Whole)
                           ++ " is written longer than its shortest resolving form",
                 help = "write `" ++ ern_namespace:text(Short) ++ "`"}.
 
-%% The span of a name as the source writes it, from where its node begins.
+%% The span of a name as the source writes it, Written, from where its
+%% node begins (report §11.5).
+-spec name_span(ern_diagnostic:position() | ern_diagnostic:span(), [atom()]) ->
+          ern_diagnostic:span().
 name_span(Span, Written) ->
     {Line, Column, _} = ern_diagnostic:span(Span),
     {Line, Column, {Line, Column + length(ern_namespace:text(Written))}}.

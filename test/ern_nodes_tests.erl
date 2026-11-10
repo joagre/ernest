@@ -2302,6 +2302,45 @@ accept_at(Base, Left, Named) ->
      || Text <- [StoreOut, StoreErr],
         Part <- ["Too many processes", "REPORT", "Error in", "system_limit"]].
 
+%% report §12.5: a connection a peer opens while the node's table of ports
+%% is full is closed as the acceptor would take it, the node saying so in a
+%% line that names no peer, and the node accepts the next once room is
+%% made: the keeper, connected, fills the store's ports with listeners, the
+%% desk's dial fails, and once the keeper closes them the desk's next spawn
+%% starts. The store may hold twice as many files as ports, so that its
+%% table of ports is what fills. A regression test, written after the code;
+%% it does not cover a full table of ports met after the connection is
+%% taken, which no later step of the connection's opens a port for.
+accept_at_a_full_port_table_test_() ->
+    nodes_test({waits, 11}, fun accept_at_a_full_port_table/1).
+
+accept_at_a_full_port_table(Base) ->
+    {Store, Keeper, Desk} = accepting_nodes(Base, <<"ports">>),
+    {_, WaitStore} = launched(Store, ["ulimit -n 2048; exec ", ?ERN, " run --config-dir ",
+                                      Store, " ", filename:join([Base, "build", "store.erc"])]),
+    prints(Store, "ready"),
+    {Keep, WaitKeeper} = started(Keeper, filename:join([Base, "build", "keeper.erc"]),
+                                 ["files"]),
+    prints(Keeper, "filled"),
+    {Dial, WaitDesk} = started(Desk, filename:join([Base, "build", "desk.erc"]), []),
+    prints(Desk, "full: "),
+    Refused = "a connection was refused: this node's table of ports is full",
+    says(Store, Refused),
+    true = port_command(Keep, "free\n"),
+    prints(Keeper, "freed"),
+    true = port_command(Dial, "again\n"),
+    ?assertEqual(0, WaitDesk()),
+    true = port_command(Keep, "end\n"),
+    ?assertEqual(0, WaitKeeper()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    {StoreOut, StoreErr} = said(Store),
+    ?assertEqual(["full: Io.Unreachable", "after: Right", ""], string:split(Out, "\n", all)),
+    {_, Lines} = lines_said({0, StoreErr}),
+    ?assertEqual([Refused], [Line || Line <- Lines, string:find(Line, "refused") =/= nomatch]),
+    [?assertEqual(nomatch, string:find(Text, Part))
+     || Text <- [StoreOut, StoreErr], Part <- ["REPORT", "Error in", "system_limit"]].
+
 %% report §12, §12.5: a connection a peer opens while the node holds as many
 %% files as the operating system lets it waits unaccepted, the node saying
 %% so once and spending under a tenth of the wait on a processor, where the
@@ -2353,11 +2392,12 @@ processor_ticks(Dir) ->
     Fields = string:lexemes(After, " "),
     list_to_integer(lists:nth(12, Fields)) + list_to_integer(lists:nth(13, Fields)).
 
-%% The store, listening, its table of processes held at the least limit
-%% where Limit names it, and the keeper and the desk, which each dial it,
-%% their programs built: the store's fillers of processes and of files; the
-%% keeper, which fills the store's processes or its files as its argument
-%% says, then frees them at its first line of input and ends at its second;
+%% The store, listening, the table Limit names, of processes or of ports,
+%% held at the least limit, and the keeper and the desk, which each dial
+%% it, their programs built: the store's fillers of processes and of files,
+%% the second's listeners holding ports too; the keeper, which fills the
+%% store's processes or its files as its argument says, then frees them at
+%% its first line of input and ends at its second;
 %% and the desk, which spawns on the store, then, at its line of input,
 %% once more, or twice where the first dial fails.
 accepting_nodes(Base, Limit) ->

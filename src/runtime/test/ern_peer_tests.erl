@@ -599,7 +599,7 @@ computed_restarting_test() ->
     Main = fun() ->
                true = register(ern_gateway, self()),
                %% the restart asks the gateway, which this process stands in
-               %% for, for the notes before it (ern_rt:fresh_run/0), and is
+               %% for, for the notes before it (ern_rt:fresh_run/1), and is
                %% answered as the gateway answers
                Answer = fun Answer(Alias) ->
                             receive

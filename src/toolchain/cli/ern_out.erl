@@ -15,7 +15,7 @@
 %% own lines go (log/2).
 -module(ern_out).
 
--export([take/0, log/2, is_terminal/1, finish/1]).
+-export([take/0, logged/0, log/2, is_terminal/1, finish/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [finish/1, loop/2, dropping/1]}).
@@ -30,21 +30,27 @@ take() ->
     persistent_term:put({?MODULE, terminals},
                         [Stream || Stream <- [stdout, stderr], ern_tty:is_terminal(Stream)]),
     group_leader(device(stdout), self()),
-    logged(),
+    ok = logged(),
     device(stderr).
 
 %% Report §11, §11.2: what the host logs as a warning or worse the job
 %% writes on standard error as the host formats it. This module takes the
 %% place of the host's default log handler, under its name and with its
 %% formatter, and stands at warning; an event logged between the host's
-%% removal and its own start, as the job starts, is not written.
+%% removal and its own start, as the job starts, is not written. The
+%% process the handler says each event through is started first, while
+%% the job has room for it (log/2). The launcher's first start takes the
+%% handler too, so that nothing the host logs reaches the standard output
+%% that carries the flags alone (ern_cli:node_flags/0).
 %%
 %% Of the host's filters the handler keeps one, which stops here an event
 %% of a process whose group leader is on another node: the host sends the
 %% event to that node, which writes it. The host's others drop an event
 %% logged under a domain other than the host's own, and so would drop a
 %% warning a library logs under a domain of its own.
+-spec logged() -> ok.
 logged() ->
+    _ = ern_rt:later_sayer(),
     {ok, #{formatter := Formatter}} = logger:get_handler_config(default),
     ok = logger:remove_handler(default),
     ok = logger:add_handler(default, ?MODULE,
@@ -64,7 +70,10 @@ logged() ->
 %% report that names no function to format it is formatted as the host's
 %% own reports are, a line for each pair, and where Unicode refuses what
 %% the formatter gives, the text is a line that says so. A raise here would
-%% have the host remove the handler for the rest of the job.
+%% have the host remove the handler for the rest of the job, so the process
+%% that says the line runs from the handler's start (logged/0), and a full
+%% table of processes, which keeps a process from being made, raises
+%% nothing here (report §12.5).
 -spec log(logger:log_event(), logger:handler_config()) -> ok.
 log(#{msg := {report, _}, meta := Meta} = Event, HandlerConfig)
   when not is_map_key(report_cb, Meta) ->

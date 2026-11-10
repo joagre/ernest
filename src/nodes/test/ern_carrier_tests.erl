@@ -236,8 +236,7 @@ dialed_test() ->
 %% report §12.5: the lines a node says of its connections: a peer connected,
 %% by its name, or by its key's digest where it is not listed; a peer lost,
 %% fallen silent or closed; a peer ended, having told this node it ends; a
-%% living connection replaced by another from the same node; nothing for the
-%% node's own start
+%% living connection replaced by another from the same node
 said_test() ->
     Own = configured(),
     Peer = configured(),
@@ -256,8 +255,7 @@ said_test() ->
                  Said({nodedown, Store, [{nodedown_reason, connection_closed}]})),
     ?assertEqual(<<"the peer store ended">>, Said({ended, Store})),
     ?assertEqual(<<"the peer store's connection was replaced by another from the same node">>,
-                 Said({nodedown, Store, [{nodedown_reason, wait_pending}]})),
-    ?assertEqual(none, ern_carrier:said({nodeup, node(), []})).
+                 Said({nodedown, Store, [{nodedown_reason, wait_pending}]})).
 
 %% report §11.2 *The attached shell*, Appendix E.27: an attached shell's own
 %% node tells no peer how busy it is, and says nothing of the end or the

@@ -79,7 +79,9 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 13. Item 47, by an item session, done 2026-11-10.
 14. The release review before 0.10.0, opened 2026-11-10 over `7e7cdee1`, its lines in
     [`findings.md`](findings.md): the code's fix lines by agents, the report's and the guides'
-    in a design session, and fifteen decisions with the user, D1 to D15, related lines in one.
+    in a design session, and eighteen decisions with the user, D1 to D18, related lines in one.
+    Item 48 came between, ernest-httpd's line, built the day it came, since the site's switch
+    waits on it.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -357,6 +359,12 @@ reader S reads of its live shell. The release note's line on the installed layou
     without saying so, in `make test-full`. None found a defect. Decided with the user: Dialyzer's
     `-Wmissing_return` is not taken, since each of its 32 warnings is a callee's contract wider
     than its answer.
+48. **A listener's backlog**, ernest-httpd's line 27, feedback 248, done 2026-11-10 (E.18; the
+    log's *A Listener's Backlog*). A listener took the host's backlog, 5, and Linux's syncookies
+    reset a TLS connection past it whose first data took two segments, which the program never
+    saw. A listener now takes the largest backlog the host takes, 65535, which the system lowers
+    to its own limit, with no option, and E.18 says what the system does past it. The host's
+    low 16 bits are `docs/otp_bugs.md`'s 20th.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
@@ -366,7 +374,7 @@ started with no input.
 Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*): two
 proposals built before the launch, so that the full review reads them and the launch shows them.
 It follows MVP 4.15's release, and the checkout then works toward the launch's minor. Its item 11,
-the flake hunt, stands apart from the two.
+the flake hunt, stands apart from the two, and its item 12, the feedback, is taken first.
 
 The first three items are the deadlock proposal's,
 [`proposals/deadlock/`](proposals/deadlock/README.md), each part named as the proposal numbers
@@ -420,6 +428,13 @@ The other seven are the packages proposal's build order,
     again in warm hosts beside busy loops, for as long as it is given, writes each failing test
     with its output, and ends the loops by their numbers. It runs on the user's word alone, in
     neither review, and `docs/development.md` names it.
+12. **The feedback of the release review before 0.10.0, and the applications'**, feedback 237 to
+    247, decided with the user 2026-11-10 (the log's *The Review's Feedback After Its Release*):
+    one design session right after MVP 4.15's release, each line weighed alone against the
+    principles and E.0. The same session reads every line the applications' feedback files hold
+    as it opens, as `docs/clean_room.md`'s *The reading here* says. A verdict that builds becomes
+    an item of this milestone or of MVP 4.4, before the launch's review, and one that does not
+    goes to the log, its line leaving the feedback file.
 
 ## MVP 4.4 (the cost, the full review and the launch's release), about three weeks
 
@@ -499,6 +514,10 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    carrying its host part as a package's (MVP 4.16's item 10); and
    ernest-httpd's, with its readers (the log's *The Floors and the Releases*). Ernest's session
    tells all three the tag by a message, and asks each in turn when the one before it is out.
+   The message names every line of the application's that the release answers, MVP 4.16's item
+   12's among them, each by Ernest's number. Each application checks every verdict against the
+   release before its own, and answers with any line it keeps, as `docs/clean_room.md`'s *The
+   answer* says.
 
    The release review decides the segmentation fault of the host in the typed programs, moved
    from MVP 4.15's item 23. On 2026-11-07, one run of `make test-full` on nike ended in a

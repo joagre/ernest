@@ -83,16 +83,15 @@ fn generated(root : Path,
                 declarations = Library.declarations(library),
                 =log,
                 shellPath = shell.path,
-                lifetime = spoken(shell.lifetime),
+                lifetimeText = spoken(shell.lifetime),
                 =unrunnable);
-    // The library's pages are written first, so that the pages it read go
-    // then, which every later collection of the run would otherwise copy.
-    let _ <- Library.library(run, library);
-    let taught <- Book.guide(run);
-    let _ <- Book.tour(run);
-    let _ <- Report.report(run, taught);
-    let _ <- Document.documents(run);
-    let _ <- Document.projects(run);
+    // The library's pages first (site.md *The generation*).
+    let _ <- Library.written(run, library);
+    let taught <- Book.guideWritten(run);
+    let _ <- Book.tourWritten(run);
+    let _ <- Report.written(run, taught);
+    let _ <- Document.written(run);
+    let _ <- Document.projectsWritten(run);
     let _ <- homeWritten(run);
     let _ <- shellWritten(run, shell);
     let _ <- notFoundWritten(run);
@@ -111,15 +110,13 @@ fn generated(root : Path,
 fn homeWritten(run : Run.Run) : Either(String, Unit) = {
     let source = "guide/why.md";
     let blocks <- Run.documentOf(run.root, source);
-    let anchors <- Links.headingAnchors(source, blocks);
-    let headings = List.filterMap(blocks, fn(block) = match block {
-        Markdown.Heading(=text) -> Some(Html.plain(text))
-      | _ -> None
-    });
-    let anchored =
-        Map.fromList(List.filterMap(List.zip(headings, anchors),
-                                    fn(#(text, anchor)) =
-                                        Optional.map(anchor, fn(found) = #(text, found.id))));
+    let placed <- Links.anchored(source, CodeBlock.copied(blocks));
+    let anchored = Map.fromList(List.filterMap(placed, fn(each) = match #(each.block, each.headed) {
+        #(Markdown.Heading(=text), Some(CodeBlock.Headed(anchor = Some(found)))) ->
+            Some(#(Html.plain(text), found.id))
+      | _ ->
+            None
+    }));
     let claims <- claimsOf(source, blocks);
     let lines <- List.tryMap(List.take(claims, claimsShown), fn(#(name, sentence)) = {
         let anchor <-
@@ -142,7 +139,7 @@ fn homeWritten(run : Run.Run) : Either(String, Unit) = {
         Run.filled(run,
                    "home.html",
                    [#("claims_html", Run.markup(lines)),
-                    #("example_html", Template.Markup(Html.body(shown, 0, []))),
+                    #("example_html", Template.Markup(Html.body(shown, 0))),
                     #("icons", Template.Plain(run.assets.icons))]);
     Run.pageWritten(run,
                     Run.Output(address = "/",
@@ -334,7 +331,7 @@ fn notFoundWritten(run : Run.Run) : Either(String, Unit) = {
                     #("contents_html", Template.Markup([])),
                     #("book_html", Template.Markup([])),
                     #("heading_html", Run.headingHtml([Markdown.Text("Not found")], None)),
-                    #("body_html", Template.Markup(Html.body(CodeBlock.copied(blocks), 0, []))),
+                    #("body_html", Template.Markup(Html.body(CodeBlock.copied(blocks), 0))),
                     #("page_nav_html", Template.Markup([]))]);
     let description <- Run.described("the 404 page", blocks);
     Run.pageWritten(run,

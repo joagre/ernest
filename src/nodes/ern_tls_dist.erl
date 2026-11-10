@@ -28,9 +28,9 @@
 %% (docs/otp_bugs.md, 15), which Dialyzer would report.
 -dialyzer({no_match, no_room/1}).
 
-%% The protocol of a TLS connection as the host names it, which its
+%% The transport of a TLS connection as the host names it, which its
 %% `accept` message and its listener's address carry.
--define(PROTOCOL, tls).
+-define(TRANSPORT, tls).
 
 -spec childspecs() -> {ok, [supervisor:child_spec()]}.
 childspecs() ->
@@ -214,7 +214,7 @@ no_room(_) -> false.
 certified(Acceptor, Kernel, Family, TlsSocket) ->
     case ssl:peercert(TlsSocket) of
         {ok, Der} ->
-            Kernel ! {accept, self(), TlsSocket, Family, ?PROTOCOL},
+            Kernel ! {accept, self(), TlsSocket, Family, ?TRANSPORT},
             handed(Acceptor, Kernel, TlsSocket, ern_carrier:certified(Der));
         {error, _} ->
             ssl:close(TlsSocket)

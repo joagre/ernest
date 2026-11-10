@@ -203,6 +203,35 @@ readme_counter_is_the_tours_test() ->
     ?assertEqual(string:chomp(ern_repository:read("tour/2/counter.ern")),
                  iolist_to_binary(lists:join(<<"\n">>, Code))).
 
+%% README.md, guide/language.md: the guide's §1.4 shows the tour's
+%% chapter 2 session as the README's console shows it, line for line, so
+%% that the session the guide shows is the one ern_tour_tests runs as the
+%% README's. A regression test, written after the guide's console; it
+%% finds the console in the section the guide numbers 1.4, wherever it
+%% stands, and does not cover the prose around either console.
+guide_session_is_the_readmes_test() ->
+    Readme = binary:split(ern_repository:read("README.md"), <<"\n">>, [global]),
+    Guide = binary:split(ern_repository:read("guide/language.md"), <<"\n">>, [global]),
+    {_, [_ | Section]} =
+        lists:splitwith(fun(Line) -> binary:match(Line, <<"### 1.4 ">>) =/= {0, 8} end, Guide),
+    {Own, _} = lists:splitwith(fun(Line) -> not is_heading(Line) end, Section),
+    ?assertEqual(console(<<"$ ern shell --config-dir a">>, Readme), console(none, Own)).
+
+%% The lines of the first `console` block of Lines whose first line is
+%% First, or of the first one where First is none.
+console(First, Lines) ->
+    {_, [_ | Rest]} = lists:splitwith(fun(Line) -> Line =/= <<"```console">> end, Lines),
+    {Console, After} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
+    case Console of
+        [First | _] -> Console;
+        _ when First =:= none -> Console;
+        _ -> console(First, tl(After))
+    end.
+
+is_heading(<<"## ", _/binary>>) -> true;
+is_heading(<<"### ", _/binary>>) -> true;
+is_heading(_) -> false.
+
 %% report/, guide/language.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
 %% linked to its heading, which `make contents` writes

@@ -34,7 +34,7 @@ encode(Facts, Interface) ->
 %% as an error, which makes the module stale (report §11.1) and which a
 %% run refuses in §11.2's words, as it refuses a form another build of
 %% `ern` wrote in this format (ern_cli).
--spec read(binary() | file:filename()) -> {ok, chunk()} | {error, string()}.
+-spec read(binary()) -> {ok, chunk()} | {error, string()}.
 read(Beam) ->
     case ern_chunk:read(Beam, ?CHUNK) of
         {ok, Chunk} ->

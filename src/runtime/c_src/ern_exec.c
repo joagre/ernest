@@ -244,7 +244,11 @@ static void watch(int fd, fd_set *set, int *highest)
         *highest = fd;
 }
 
-/* The program and every process of its group, killed and reaped. */
+/* The program and every process of its group, killed and reaped. The
+   program is killed by its own number too: under pipes it can leave its
+   group for another of its session's, its parent's among them, which the
+   group's kill then misses, and the wait would last until it ended by
+   itself (report Appendix E.23: kill stops it). */
 static void kill_program(void)
 {
     if (program > 0) {
@@ -331,7 +335,7 @@ static int fail(unsigned char tag, int error, int status)
     return status;
 }
 
-/* A run's last frame sent, 'x', 'f' or 't': what the runtime sends after
+/* A run's last frame sent, 'x', 'f', 'p' or 't': what the runtime sends after
    it is read and dropped until the runtime lets go of the run, the end of
    fd 0, and the helper then exits with Status. The runtime may send a frame
    before it has read the last, a request for output or the hangup among

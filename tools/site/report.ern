@@ -16,14 +16,14 @@
 type File =
     File(source : String,
          address : String,
-         report : String,
+         name : String,
          title : List(Markdown.Inline),
          version : List(Markdown.Inline),
          blocks : List(Markdown.Block))
 
 /// The report's three pages and its contents page, each section the guide
 /// cites with its margin line.
-export fn report(run : Run.Run, taught : Book.Taught) : Either(String, Unit) = {
+export fn written(run : Run.Run, taught : Book.Taught) : Either(String, Unit) = {
     let files <-
         List.tryMap(["report/language.md", "report/toolchain.md", "report/library.md"],
                     fn(source) = fileRead(run, source));
@@ -37,7 +37,7 @@ export fn report(run : Run.Run, taught : Book.Taught) : Either(String, Unit) = {
 fn fileRead(run : Run.Run, source : String) : Either(String, File) = {
     let document <- Run.documentOf(run.root, source);
     let #(heading, rest) <- Run.titleOf(source, document);
-    let #(report, title) <-
+    let #(name, title) <-
         Either.fromOptional(String.splitOnce(Html.plain(heading), ": "),
                             source <> ": the report's title is its name, `: ` and the file's");
     let address <- Either.fromOptional(Links.address(source), source <> " has no page of the site");
@@ -45,7 +45,7 @@ fn fileRead(run : Run.Run, source : String) : Either(String, File) = {
         Markdown.Paragraph(version) :: blocks when isVersion(version) ->
             Right(File(=source,
                        =address,
-                       =report,
+                       =name,
                        title = [Markdown.Text(title)],
                        =version,
                        blocks = Run.withoutContents(blocks)))
@@ -67,7 +67,7 @@ fn fileWritten(run : Run.Run,
                taught : Book.Taught,
                neighbors : #(Optional(File), File, Optional(File))) : Either(String, Unit) = {
     let #(earlier, file, later) = neighbors;
-    let copied = CodeBlock.copied(file.blocks);
+    let copied <- Links.anchored(file.source, CodeBlock.copied(file.blocks));
     let page <- Run.linkPage(run, file.source, file.address, copied);
     let placed <- Run.linkedAll(run, copied, page);
     let lines <- List.tryMap(placed, fn(each) = blockLines(run, taught, each));
@@ -76,7 +76,7 @@ fn fileWritten(run : Run.Run,
     let titled <-
         Run.filled(run,
                    "fragments/book.html",
-                   [#("href", Template.Plain("/report/")), #("book", Template.Plain(file.report))]);
+                   [#("href", Template.Plain("/report/")), #("book", Template.Plain(file.name))]);
     let version <-
         Run.filled(run, "fragments/version.html", [#("version_html", Run.inlined(file.version))]);
     let navigation <-
@@ -97,7 +97,7 @@ fn fileWritten(run : Run.Run,
     let description <- Run.described(file.source, file.blocks);
     Run.pageWritten(run,
                     Run.Output(address = file.address,
-                               title = Html.plain(file.title) <> " · " <> file.report,
+                               title = Html.plain(file.title) <> " · " <> file.name,
                                =description,
                                room = Some("Report"),
                                =main,
@@ -111,20 +111,13 @@ fn neighbor(file : File) : Run.Neighbor =
 // the guide cites its section.
 fn blockLines(run : Run.Run,
               taught : Book.Taught,
-              each : CodeBlock.Placed) : Either(String, List(Template.Line)) =
-    match each.block {
-        Markdown.Heading(=text) -> {
-            let anchor = Links.numberAnchor(Html.plain(text));
-            let heading = Html.body([each], 0, [Html.Headed(=anchor, class = None)]);
-            let margin <- match anchor {
-                Some(found) -> marginLine(run, taught, found.id)
-              | None -> Right([])
-            };
-            Right(heading <> margin)
-        }
-      | _ ->
-            Right(Html.body([each], 0, []))
-    }
+              each : CodeBlock.Placed) : Either(String, List(Template.Line)) = {
+    let margin <- match each.headed {
+        Some(CodeBlock.Headed(anchor = Some(found))) -> marginLine(run, taught, found.id)
+      | _ -> Right([])
+    };
+    Right(Html.body([each], 0) <> margin)
+}
 
 // The guide's sections that cite the report's section, each once,
 // "Taught in guide §2.5, §3.6"; none where none cites it.
@@ -180,14 +173,14 @@ fn contentsWritten(run : Run.Run, files : List(File)) : Either(String, Unit) = {
     let chapters <-
         Run.filled(run, "fragments/chapters.html", [#("entries_html", Run.markup(rows))]);
     let name = match files {
-        file :: _ -> file.report
+        file :: _ -> file.name
       | [] -> "Ernest Report"
     };
     let toc <-
         Run.filled(run,
                    "toc.html",
                    [#("heading_html", Run.inlined([Markdown.Text(name)])),
-                    #("opening_html", Template.Markup(Html.body(linked, 0, []))),
+                    #("opening_html", Template.Markup(Html.body(linked, 0))),
                     #("entries_html", Template.Markup(chapters))]);
     let description <- Run.described(source, opening);
     Run.pageWritten(run,

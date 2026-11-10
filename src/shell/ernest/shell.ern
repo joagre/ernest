@@ -698,7 +698,7 @@ fn execute(state : State,
                           inputProcess,
                           started,
                           printing)
-              | Left(cause) ->
+              | Left(#(session, cause)) ->
                     faulted(State(..state, =session, =serial),
                             screen,
                             causeLine(cause, None, None),
@@ -2478,10 +2478,13 @@ foreign fn going() : List(#(Process, List(String))) =
 foreign fn letGo() : Unit =
     "ern_shell:let_go/0"
 
+// Report §11.2, §7.4: the input started in a process of its own, or the
+// fault of a full table that left it no room, beside the session with the
+// input's number given back.
 foreign fn spawnInput(session : Session,
                       checked : Checked,
                       serial : Int,
-                      address : Address(Outcome)) : Either(String, Address(Never)) =
+                      address : Address(Outcome)) : Either(#(Session, String), Address(Never)) =
     "ern_shell:spawn_input/4"
 
 foreign fn show(value : Value, depth : Int, length : Int) : String =

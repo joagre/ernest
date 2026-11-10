@@ -42,11 +42,11 @@ term(<<131, Body/binary>>) ->
 term(_) ->
     error.
 
-%% Report §11: the chunk Name of the compiled module Beam, its bytes or its
-%% file, `missing` where the module holds no such chunk, and `error` where
-%% Beam is no compiled module, without the host's text of the error, which
+%% Report §11: the chunk Name of the compiled module Beam, its bytes,
+%% `missing` where the module holds no such chunk, and `error` where Beam
+%% is no compiled module, without the host's text of the error, which
 %% quotes the bytes it was given.
--spec read(binary() | file:filename(), binary()) -> {ok, binary()} | missing | error.
+-spec read(binary(), binary()) -> {ok, binary()} | missing | error.
 read(Beam, Name) ->
     try beam_lib:chunks(Beam, [binary_to_list(Name)], [allow_missing_chunks]) of
         {ok, {_, [{_, missing_chunk}]}} -> missing;

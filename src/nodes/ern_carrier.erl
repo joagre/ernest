@@ -504,9 +504,11 @@ names_own_host(#'OTPCertificate'{tbsCertificate = Tbs} = Certificate) ->
     Hosts =:= [host(certificate_key(Certificate))].
 
 %% The DER of a certificate's SubjectPublicKeyInfo, as the certificate holds
-%% it.
-certificate_key(Certificate) ->
-    Der = public_key:pkix_encode('OTPCertificate', Certificate, otp),
+%% it, read from the certificate's own DER. The host's TLS gives the rule a
+%% certificate decoded, which is encoded back to its DER first.
+certificate_key(#'OTPCertificate'{} = Certificate) ->
+    certificate_key(public_key:pkix_encode('OTPCertificate', Certificate, otp));
+certificate_key(Der) ->
     #'Certificate'{tbsCertificate = Tbs} = public_key:pkix_decode_cert(Der, plain),
     public_key:der_encode('SubjectPublicKeyInfo', Tbs#'TBSCertificate'.subjectPublicKeyInfo).
 
@@ -548,11 +550,13 @@ named(Node) ->
 %% TLS answers, before the host's handshake has given its name.
 -spec certified(binary()) -> iolist().
 certified(Der) ->
-    host_named(host(certificate_key(public_key:pkix_decode_cert(Der, otp)))).
+    host_named(host(certificate_key(Der))).
 
-%% Report §12.5: the line of a peer refused as its connection opens, since
-%% the full table of processes leaves no room to serve it, Named as a line
-%% names it (named/1, certified/1).
+%% Report §12.5: the line of a connection refused as it opens, since the
+%% full table of processes leaves no room to serve it, Named: by its peer
+%% as a line names one (named/1, certified/1), or, before the TLS handshake
+%% gives the peer's key, as `a connection`, from the address it came from
+%% where the host still gives it (ern_tls_dist).
 -spec table_full(iodata()) -> ok.
 table_full(Named) ->
     say_later([Named, " was refused: this node's table of processes is full"]).
@@ -571,15 +575,12 @@ host_named(Host) ->
 %% connection closed after the peer told this node it ends; a peer lost,
 %% and whether it fell silent, which the detector found, or closed; and a
 %% living connection replaced by another from the same node, which the host
-%% ends with the reason `wait_pending`. The node's own start comes as a
-%% connection too, and is none, and so does the end of a connection to the
-%% node an attached shell's session runs on, which the shell's own line
-%% says (§11.2 *The attached shell*, attaching/1). So is the node's own end
-%% where the host's process of its connections ends, by its name on the
+%% ends with the reason `wait_pending`. The end of a connection to the
+%% node an attached shell's session runs on is none, which the shell's own
+%% line says (§11.2 *The attached shell*, attaching/1). So is the node's own
+%% end where the host's process of its connections ends, by its name on the
 %% carrier, since the host no longer names the node then (§12.5).
 -spec said(term()) -> iolist() | none.
-said({nodeup, Node, _}) when Node =:= node() ->
-    none;
 said({nodeup, Node, _}) ->
     [named(Node), " connected"];
 said({ended, Node}) ->

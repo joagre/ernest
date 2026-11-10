@@ -144,6 +144,11 @@ export fn right(count : Int) : String =
 fn move(count : Int, direction : String) : String =
     if count < 1 then "" else sequence(Int.toString(count) <> direction)
 
+// `clearBelow` and `clearScreen` are literals, not calls of `sequence`, so
+// that each is a constant (report §4.6), which crosses to another node with
+// the code that names it (the log's *The Shell Attaches as a Program
+// Spawns*).
+
 /// The sequence that erases from the cursor to the end of the screen.
 ///
 /// ### Examples

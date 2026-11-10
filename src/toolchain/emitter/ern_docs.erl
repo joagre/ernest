@@ -15,7 +15,7 @@ chunk_name() ->
 %% A compiled module's documentation. A chunk of another format, from
 %% another version of the compiler, reads as an error, and so does a module
 %% without the chunk.
--spec read(binary() | file:filename()) -> {ok, tuple()} | {error, string()}.
+-spec read(binary()) -> {ok, tuple()} | {error, string()}.
 read(Beam) ->
     case ern_chunk:read(Beam, chunk_name()) of
         {ok, Chunk} ->

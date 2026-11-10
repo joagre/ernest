@@ -25,7 +25,7 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - K14 — §4.2's "where `Command.parse` resolves" and the root tie decided by load-path order. fix: "resolves to it", and the tie's rule cited where it is stated.
 - K16 — E.24's `Test.faults` "runs `run` as `Process.run` runs a function", where only `Process.run` reports the fault. fix: "as `Process.run` runs one, but marked".
 - U3 — the cookie stands on a node's command line, which `ps` shows, in the deployment guide's §2.2 and the questions, and in no report section. fix: one sentence in §12.5, which the two guides cite.
-- K5, C4 — an empty `workingDirectory` answers `Left(Other(": NotFound"))`, a line naming no directory, where E.23 makes an empty variable name `Invalid`. fix: `Invalid`, refused before the helper; E.23's sentence names it.
+- K5, C4 — an empty `workingDirectory` answers `Left(Other(": NotFound"))`, a line naming no directory, where E.23 makes an empty variable name `Invalid`. fix: `Invalid`, refused before the helper; E.23's sentence names it. done 2026-11-10 in the runtime; E.23's sentence in the design session.
 - P10 — §11.1's "a node reads its build's units from its build directory at its start alone". decide, batch D6.
 - P2 — `Test.capture` captures a service's writes under `ern run`, which E.24 says it does not. decide, D2.
 - P3, K1 — §7.4 and §12.5 make a full table at a `Terminal` request a value, where §12.1 and §12.3 fault the entry process at the subscription. decide, D4.
@@ -38,6 +38,7 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - P7 — a file named after a taken namespace is refused at any depth. dropped: decided in the log's *Relative Names*; the release's note tells a program to rename such a module.
 - P8 — a load past one of the host's limits ends the node. dropped: decided in the log's *A Load Past the Host's Limits*.
 - P11 — text and octets have `drop` without `take`. dropped: decided in the log's *A Text after Its Prefix*.
+- S7 — §11.2 parts an example by its paragraphs' first tokens, and `ern test` takes the longest run of first paragraphs that parses as declarations, so an example whose body holds a blank line passes there and would not by the report's rule (C501's round, run by the session). decide, D17.
 
 ### The argument
 
@@ -82,7 +83,7 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - L7 — §8.1's trace across a compute reads as one frame printed twice. fix: the sentence says which is the peer's.
 - L8 — the tour explains one run's 0.25 after the fact. fix: "the numbers are one run's".
 - L9 — *Why Ernest*'s first program writes `Upgrade(=next)` before the guide teaches the pun. fix: a clause under the block.
-- L14 — the tour's chapter 2 session stands in the README, the guide's §1.4 and the tour, and no test holds the guide's copy. fix: a test holds it.
+- L14 — the tour's chapter 2 session stands in the README, the guide's §1.4 and the tour, and no test holds the guide's copy. fix: a test holds it. done 2026-11-10.
 - L16 — the questions restate *Why Ernest*'s closed-set paragraph. fix: the questions point at it.
 - U8, M15 — `Code.running`'s "earlier definition" and its printed type in §8.9. decide, D11.
 - L3, M6 — `show` is "no member" in three documents, and the compiler's message lists it among what a requirement names. decide, D12.
@@ -96,18 +97,18 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 
 ### The runtime and its helper
 
-- C1 — a restart ends the process's subscriptions and not its captures, so a `Test.capture` whose `run` faulted in a restarting process swallows every later write until the program ends, and its collector grows. fix: the restart lets the captures go as the caller's end does, the capture's row keeping its caller; E.24 says a restart ends a capture, as §6.9 begins a run afresh.
-- C3 — `captured/1` waits on the collector with no monitor. fix: a monitor, the caller faulted on its `DOWN`.
-- C5 — `limited` names four shapes in five modules, and `ern_peer:limited/0` copies `ern_io`'s. fix: the copy goes, `limited` the value alone.
-- C6 — `taken/1` and `taken/2` in `ern_rt` name two things. fix: `input_taken/1`.
-- C7 — each write reads the writer's row twice, and `docs/design/runtime.md` counts the screens' lookup alone. fix: the root read once; the note's count.
-- C8 — `gone/1` sends through `launch_runner/0` as `told_runner/2` does. fix: `told_runner(gone, Name)`.
-- C9 — `kill_program` kills the group and then the program, which leads its group. fix: the second kill goes.
-- C10 — `wait_for_let_go`'s comment lacks `'p'`. fix.
-- C11 — `ern_tty`'s "a kill from outside among the ways, which gave the settings back", where a KILL gives nothing back. fix: "where it could".
-- C12 — three words for ending what a refused subscription made in `ern_tty`, and `let_go` meaning three things across the runtime. fix: one word each.
-- C13 — `ern_code` drops the mailbox hash from a function's row and reads it again from every holder at each `Code.running`. fix: the row keeps it.
-- C14 — `wait_for_deliveries/0` waits for the fault courier too. fix: the name says so.
+- C1 — a restart ends the process's subscriptions and not its captures, so a `Test.capture` whose `run` faulted in a restarting process swallows every later write until the program ends, and its collector grows. fix: the restart lets the captures go as the caller's end does, the capture's row keeping its caller; E.24 says a restart ends a capture, as §6.9 begins a run afresh. done 2026-11-10 in the runtime, narrower: a restart ends the captures its run began, and one begun before an inline `restarting` stands, since ending it would leave its `captured` a dead collector; E.24's sentence in the design session.
+- C3 — `captured/1` waits on the collector with no monitor. fix: a monitor, the caller faulted on its `DOWN`. done 2026-11-10.
+- C5 — `limited` names four shapes in five modules, and `ern_peer:limited/0` copies `ern_io`'s. fix: the copy goes, `limited` the value alone. done 2026-11-10.
+- C6 — `taken/1` and `taken/2` in `ern_rt` name two things. fix: `input_taken/1`. done 2026-11-10.
+- C7 — each write reads the writer's row twice, and `docs/design/runtime.md` counts the screens' lookup alone. fix: the root read once; the note's count. done 2026-11-10.
+- C8 — `gone/1` sends through `launch_runner/0` as `told_runner/2` does. fix: `told_runner(gone, Name)`. done 2026-11-10.
+- C9 — `kill_program` kills the group and then the program, which leads its group. dropped: under pipes a program may join another group of its session, the helper's among them, which the group's kill misses, so the second kill stays; its comment now says so and `kill_reaches_a_program_out_of_its_group_test_` holds it (E.23's "`kill` stops it", principle 1).
+- C10 — `wait_for_let_go`'s comment lacks `'p'`. fix. done 2026-11-10.
+- C11 — `ern_tty`'s "a kill from outside among the ways, which gave the settings back", where a KILL gives nothing back. fix: "where it could". done 2026-11-10.
+- C12 — three words for ending what a refused subscription made in `ern_tty`, and `let_go` meaning three things across the runtime. fix: one word each. done 2026-11-10.
+- C13 — `ern_code` drops the mailbox hash from a function's row and reads it again from every holder at each `Code.running`. dropped: a name finds a definition's other versions only through its unit's code list, so keeping the hash in the row removes no read of those lists, and a row holding a name and a mailbox for every function is a cost every run pays for a rare call (the log's *Lean at the Limits*).
+- C14 — `wait_for_deliveries/0` waits for the fault courier too. fix: the name says so. done 2026-11-10 by the glossary's **Delivery**, which names the reports; the name stands in the shell's foreign declaration and its design note.
 - C2 — the helper kills the program's group only once both outputs have ended, so after `Os.signal` a child holding the output outlives the program, against E.23's "killed with it". decide, D3.
 - C15 — a terminal with no `stty` is subscribed with no mode set. decide, D4.
 - C16 — one host reason, two texts, by which table was full. decide, D4.
@@ -117,47 +118,49 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 
 ### The nodes and the command line
 
-- C101 — §12.5's accept at a full table of ports has no test. fix: a nodes test over `accepting_nodes(Base, <<"ports">>)`.
-- C102 — in a job that starts no run, the host's first warning at a full table of processes raises inside the log handler, which the host then removes. fix: the sayer started in `ern_out:take/0`.
-- C103 — the node's own `nodeup` is filtered in the gateway and in the carrier. fix: the carrier's clause, comment and test line go.
-- C104 — `limit_filter/2` drops reports that are no limit's. fix: named for what it drops.
-- C105 — `Ended` in `ern_gateway` holds peers that never ended, and `ended/3` means a `DOWN`. fix: named for what each holds.
-- C106 — `?PROTOCOL` is the frames' version in the carrier and the transport's name in `ern_tls_dist`. fix: `?TRANSPORT` in the second.
-- C107 — a peer's certificate is decoded three times for one field. fix: one plain decode.
-- C108 — the carrier's comment says a refused connection's line names a peer, where `opened/4` names none. fix.
-- C109 — `quiet_signals/0`'s comment gives a test as the one case, and the launcher's first start is the one that matters. fix.
-- C110 — `ern_chunk:read/2` takes a file name no caller passes. fix: bytes alone.
+- C101 — §12.5's accept at a full table of ports has no test. fix: a nodes test over `accepting_nodes(Base, <<"ports">>)`. done 2026-11-10.
+- C102 — in a job that starts no run, the host's first warning at a full table of processes raises inside the log handler, which the host then removes. fix: the sayer started in `ern_out:take/0`. done 2026-11-10.
+- C103 — the node's own `nodeup` is filtered in the gateway and in the carrier. fix: the carrier's clause, comment and test line go. done 2026-11-10.
+- C104 — `limit_filter/2` drops reports that are no limit's. fix: named for what it drops. done 2026-11-10.
+- C105 — `Ended` in `ern_gateway` holds peers that never ended, and `ended/3` means a `DOWN`. fix: named for what each holds. done 2026-11-10.
+- C106 — `?PROTOCOL` is the frames' version in the carrier and the transport's name in `ern_tls_dist`. fix: `?TRANSPORT` in the second. done 2026-11-10.
+- C107 — a peer's certificate is decoded three times for one field. fix: one plain decode. done 2026-11-10.
+- C108 — the carrier's comment says a refused connection's line names a peer, where `opened/4` names none. fix. done 2026-11-10.
+- C109 — `quiet_signals/0`'s comment gives a test as the one case, and the launcher's first start is the one that matters. fix. done 2026-11-10.
+- C110 — `ern_chunk:read/2` takes a file name no caller passes. fix: bytes alone. done 2026-11-10.
 - C111 — before the handshake proves a key, idle connections can hold every slot for the dial's time. dropped: the host's own acceptor has the same bound, and nothing regressed.
+- S4 — in the launcher's first start the host's own handler writes a warning or an error on standard output before `ern-node-flags`, and `bin/ern` drops every flag (C101's round, C109's rest). fix: `node_flags/0` takes the handler as `ern_out:logged/0` does. done 2026-11-10.
 
 ### The compiler
 
-- C201 — the `#env{}` comment names `own_shortest/4`; it is `/2`. fix.
-- C202 — `inner_or/1`'s comment and a parser test reason from a `match` in a size, which §5.11 refuses. fix: the comment says a size holds no pattern of the clause's; the test's example goes.
-- C203 — `binexpr_loop/3`'s comment says a pipe fills a parenthesized call, which `combine/4` no longer does. fix: the comment goes.
-- C204 — `#emit_context{}`'s comment lacks `in_lambda`. fix.
-- C205 — the checker's answer joined with the too-long errors in two modules. fix: in `ern_typecheck:check` once.
-- C206 — the caller-site arity in three places. fix: `ern_emitter:site_arity/1`.
-- C207 — one span formula in `ern_resolve` and `ern_typecheck`. fix: `ern_resolve:name_span/2` exported.
-- C208 — `mailbox_hash/1` nests three cases. fix: one case over two tests.
-- C209 — `namespace = Namespace, written = Namespace` at 13 sites. fix: `qualified/2`.
-- C210 — `too_long/…`'s spec types its span as `term()`. fix.
-- C211 — `segment_value` names two things in the formatter and the emitter. fix: `hugging_segment/1` in the formatter.
-- C212, C213 — `too_long_or_not/5` and four names around one idea in `ern_resolve`. fix.
-- C214 — `docs/code_style.md`'s **HelpText** names `ern_parser:pattern_text/1`, which the parser does not export. fix: the entry.
+- C201 — the `#env{}` comment names `own_shortest/4`; it is `/2`. fix. done 2026-11-10.
+- C202 — `inner_or/1`'s comment and a parser test reason from a `match` in a size, which §5.11 refuses. fix: the comment says a size holds no pattern of the clause's; the test's example goes. done 2026-11-10.
+- C203 — `binexpr_loop/3`'s comment says a pipe fills a parenthesized call, which `combine/4` no longer does. fix: the comment goes. done 2026-11-10.
+- C204 — `#emit_context{}`'s comment lacks `in_lambda`. fix. done 2026-11-10.
+- C205 — the checker's answer joined with the too-long errors in two modules. fix: in `ern_typecheck:check` once. done 2026-11-10, as `check_resolved/5`, since `check/5` is the shell's.
+- C206 — the caller-site arity in three places. fix: `ern_emitter:site_arity/1`. done 2026-11-10.
+- C207 — one span formula in `ern_resolve` and `ern_typecheck`. fix: `ern_resolve:name_span/2` exported. done 2026-11-10.
+- C208 — `mailbox_hash/1` nests three cases. fix: one case over two tests. done 2026-11-10.
+- C209 — `namespace = Namespace, written = Namespace` at 13 sites. fix: `qualified/2`. done 2026-11-10, as `namespaced/2`, since `qualified/1` and `/3` read a name from tokens.
+- C210 — `too_long/…`'s spec types its span as `term()`. fix. done 2026-11-10.
+- C211 — `segment_value` names two things in the formatter and the emitter. fix: `hugging_segment/1` in the formatter. done 2026-11-10.
+- C212, C213 — `too_long_or_not/5` and four names around one idea in `ern_resolve`. fix. done 2026-11-10.
+- C214 — `docs/code_style.md`'s **HelpText** names `ern_parser:pattern_text/1`, which the parser does not export. fix: the entry. done 2026-11-10.
 - C216 — `Process.live()` lists a run's judge. decide, D1.
 - C218 — `List.length` is an unknown name with no help. decide, D14.
 - C215, C217 — `ern_rt:caller_site/0` a declaration's target only; a probe polling `Process.status`. dropped: by design, noted by the reader.
 
 ### The standard library and the shell
 
-- C301 — the shell's help after an unknown name offers `:load Foo` for a `.erc` that holds another module, which `:load` refuses. fix: `is_form_loadable/2` over `compiled_of/2`.
-- C302 — a declaring input whose spawn alone meets a full table stays loaded and recorded for the session's life. fix: the catch undoes the three records, as `withdraw_load/2` undoes a load's.
-- C304 — `fromUtf8Lossy`'s page and E.5 say a byte that begins no character is one U+FFFD; a character the bytes end inside is one a byte. fix: the page and E.5.
-- C305 — `Test.equal`'s character count is over the texts as shown, quotes included. fix: the page and E.24 say so.
-- C306 — four top-level `let`s of the shell became functions with no comment why. fix: one comment citing the log's *The Shell Attaches as a Program Spawns*.
-- C307 — `test.ern`'s `wanted` and `got` beside `expected` and `actual`. fix: `expectedText`, `actualText`. Its `faulted` stays: the log's *The Release Review Before 0.9.0* made a participle with an effect a verb.
-- C308 — a filter-only comprehension as an `if`, and a source that is a device refused as "is a directory". fix: a `case`; "is not a regular file".
-- C309 — `Os.signal`'s `Left(Closed)` after the exit, and a program that handles the signal, have no test. fix.
+- C301 — the shell's help after an unknown name offers `:load Foo` for a `.erc` that holds another module, which `:load` refuses. fix: `is_form_loadable/2` over `compiled_of/2`. done 2026-11-10.
+- C302 — a declaring input whose spawn alone meets a full table stays loaded and recorded for the session's life. fix: the catch undoes the three records, as `withdraw_load/2` undoes a load's. done 2026-11-10.
+- C304 — `fromUtf8Lossy`'s page and E.5 say a byte that begins no character is one U+FFFD; a character the bytes end inside is one a byte. fix: the page and E.5. done 2026-11-10.
+- C305 — `Test.equal`'s character count is over the texts as shown, quotes included. fix: the page and E.24 say so. done 2026-11-10.
+- C306 — four top-level `let`s of the shell became functions with no comment why. fix: one comment citing the log's *The Shell Attaches as a Program Spawns*. done 2026-11-10.
+- C307 — `test.ern`'s `wanted` and `got` beside `expected` and `actual`. fix: `expectedText`, `actualText`. Its `faulted` stays: the log's *The Release Review Before 0.9.0* made a participle with an effect a verb. done 2026-11-10.
+- C308 — a filter-only comprehension as an `if`, and a source that is a device refused as "is a directory". fix: a `case`; "is not a regular file". done 2026-11-10.
+- S3 — an input whose compile meets a full table loses its namespace number, two atoms each time, which no collection reclaims (C301's round). fix: `spawnInput` answers the session, and the number goes back to `free`. done 2026-11-10, C302 undone the same way.
+- C309 — `Os.signal`'s `Left(Closed)` after the exit, and a program that handles the signal, have no test. fix. done 2026-11-10.
 - C303 — `Process.run`'s judge is a plain spawn at the library's line, listed by `Process.live()` and framed in a fault's trace. decide, D1.
 - C312 — `environment = [], workingDirectory = Os.workingDirectory` at 52 sites. decide, D7.
 - C310 — what was kept: C301 and C308. dropped: those lines hold it.
@@ -167,45 +170,49 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 
 ### The libraries
 
-- C401 — a head whose last line the host cannot read waits for the next byte, so `readRequest` answers `Socket(Timeout)` at its deadline where G.11 says `Protocol(Malformed)`. fix: where the field reader answers more and the bytes hold a line feed, ask again with a byte that begins no fold, and answer `Malformed` where that is unreadable.
-- C402 — the first line's shim does work the Ernest does again. fix: the first line read in Ernest as a chunk's line is, the shim's half going.
-- C403 — `taken` two things, a parameter `headers` hiding the function, a local `sized` hiding the top-level one. fix: each renamed.
-- C404 — `libs/ansi` writes the introducer two ways. fix: a comment naming the log's *The Shell Attaches as a Program Spawns*.
-- C405 — two checks in `renderResponse` as statements beside four `check` functions. fix: `checkStatus` and `checkBodiless`.
-- C406 — a silent default for a case said not to come, in `chunk` and `dayName`. fix: a fault with its cause.
-- C408 — `renderResponse`'s page says a head that would not read back faults; two such heads are written. fix: the page names the four checks.
-- C409, C410 — "regression tests, written with the code", and a comment's history of the replaced shim. fix.
-- C411 — no case splits the empty line's `\r\n` across the carried bytes with the limit spent. fix: one case.
+- C401 — a head whose last line the host cannot read waits for the next byte, so `readRequest` answers `Socket(Timeout)` at its deadline where G.11 says `Protocol(Malformed)`. fix: where the field reader answers more and the bytes hold a line feed, ask again with a byte that begins no fold, and answer `Malformed` where that is unreadable. done 2026-11-10, wider: a field `headerOf` refuses is refused at once too.
+- C402 — the first line's shim does work the Ernest does again. decide, D16. done 2026-11-10: the shim kept, its comment saying what the host contributes, the host's DEL and its empty line closed around it.
+- C403 — `taken` two things, a parameter `headers` hiding the function, a local `sized` hiding the top-level one. fix: each renamed. done 2026-11-10.
+- C404 — `libs/ansi` writes the introducer two ways. fix: a comment naming the log's *The Shell Attaches as a Program Spawns*. done 2026-11-10.
+- C405 — two checks in `renderResponse` as statements beside four `check` functions. fix: `checkStatus` and `checkBodiless`. done 2026-11-10.
+- C406 — a silent default for a case said not to come, in `chunk` and `dayName`. fix: a fault with its cause. done 2026-11-10, `monthName` among them.
+- C408 — `renderResponse`'s page says a head that would not read back faults; two such heads are written. fix: the page names the four checks. done 2026-11-10.
+- C409, C410 — "regression tests, written with the code", and a comment's history of the replaced shim. fix. done 2026-11-10.
+- C411 — no case splits the empty line's `\r\n` across the carried bytes with the limit spent. fix: one case. done 2026-11-10.
+- S5, S6 — a header name holding U+007F is accepted, the host's table reading DEL as a token character, and the head's empty line passes `line = 1`, where `decode_packet` checks no size on a buffer that is exactly CRLF (C401's round). fix: each refused in Ernest around the host, as G.11's token and limit say. done 2026-11-10: a method's and a name's DEL refused in the shim, where the Ernest cost a browser's head 2 µs in 9; an empty first line held to its limit; the head's last empty line under a limit of one is unreachable, since no first line fits in one byte.
 - C407 — `cookies` keeps a name's and a value's spaces and an empty name. decide, D15.
 - C412 — a byte-a-packet client rescans its buffer within the limits. dropped: bounded as G.11 states.
 - C401-L4 — a broken JSON literal's position is built before a guard may drop it. dropped: an error path.
 
 ### The site's generator
 
-- C501 — a link that begins with `/` is read as relative and led to a GitHub path that does not exist, silently. fix: refused, with the text the reader gives.
-- C502 — a page that opens with a bold label is described by the label, `§1.5.`. fix: the label passed over.
-- C503 — a block holding a blank line inside a body is offered for copying alone. fix: a paragraph counts as a declaration only where its first token stands at the first column.
-- C504 — the code and the design note cite §11.3 for §11.2's reading of an example. fix.
-- C505 — five exports no other module uses. fix: each made private.
-- C506, C507, C508, C509 — `lifetime`, `lines`, `Shown` and `Owner` each name more than one thing. fix: `lifetimeText`, `summaries` and `others`, `Anchored`, `Cited`.
-- C510 — `Document.tested : Bool` chooses where `Book` passes a function. fix: `Document.placing`.
-- C511 — a heading list paired by position, built four ways. fix: a `Placed` carries its `Headed`.
-- C512 — page writers named as nouns beside participles. fix: participles throughout.
-- C513 — a module page finds its first sentence twice and its signatures twice. fix.
-- C514 — `found`, `heading`, `report` and `page` hold what their names do not say. fix.
-- C515 — a link to a directory goes to `blob/`. fix: `tree/`.
-- C516 — two numbered headings of one text would collide unseen. fix: keyed by the numbered slugs.
-- C517, C518 — the shim's header names the wrong module; a report page called a chapter. fix.
-- C519 — the site's test copies the working tree's `site/` whole and needs the repository's history unsaid. fix: `git ls-files site`; the header says so.
-- C520 — a comment states a reason the design note does not. fix: the note's sentence, the comment citing it.
-- C521, C522 — an HTML block a document writes goes into the page as it is, and `escaped` leaves `'`. fix: the design note says the first; `'` escaped.
+- C501 — a link that begins with `/` is read as relative and led to a GitHub path that does not exist, silently. fix: refused, with the text the reader gives. done 2026-11-10.
+- C502 — a page that opens with a bold label is described by the label, `§1.5.`. fix: the label passed over. done 2026-11-10.
+- C503 — a block holding a blank line inside a body is offered for copying alone. fix: a paragraph counts as a declaration only where its first token stands at the first column. done 2026-11-10.
+- C504 — the code and the design note cite §11.3 for §11.2's reading of an example. fix. done 2026-11-10.
+- C505 — five exports no other module uses. fix: each made private. done 2026-11-10.
+- C506, C507, C508, C509 — `lifetime`, `lines`, `Shown` and `Owner` each name more than one thing. fix: `lifetimeText`, `summaries` and `others`, `Anchored`, `Cited`. done 2026-11-10: `lifetimeText`, `summaries` and `toolchain`, `Anchored` then gone with C511, `Cited`.
+- C510 — `Document.tested : Bool` chooses where `Book` passes a function. fix: `Document.placing`. done 2026-11-10.
+- C511 — a heading list paired by position, built four ways. fix: a `Placed` carries its `Headed`. done 2026-11-10.
+- C512 — page writers named as nouns beside participles. fix: participles throughout. done 2026-11-10.
+- C513 — a module page finds its first sentence twice and its signatures twice. fix. done 2026-11-10.
+- C514 — `found`, `heading`, `report` and `page` hold what their names do not say. fix. done 2026-11-10.
+- C515 — a link to a directory goes to `blob/`. fix: `tree/`. done 2026-11-10.
+- C516 — two numbered headings of one text would collide unseen. fix: keyed by the numbered slugs. done 2026-11-10: the anchors computed once, as GitHub numbers them; a heading whose anchor `Char` cannot compute now leaves every later one unknown, so a numbered document is refused where it stands before two headings sharing digits, none today.
+- C517, C518 — the shim's header names the wrong module; a report page called a chapter. fix. done 2026-11-10.
+- C519 — the site's test copies the working tree's `site/` whole and needs the repository's history unsaid. fix: `git ls-files site`; the header says so. done 2026-11-10.
+- C520 — a comment states a reason the design note does not. fix: the note's sentence, the comment citing it. done 2026-11-10.
+- C521, C522 — an HTML block a document writes goes into the page as it is, and `escaped` leaves `'`. fix: the design note says the first; `'` escaped. done 2026-11-10: the note says the first; `'` stays, the note saying every attribute is quoted with `"`, where escaping it would rewrite every page's apostrophes.
 
 ### The machines and the review's documents
 
-- S1 — without clang, `make sanitize` ends on the shell's `clang: not found`, where `make test-browser` says what it lacks with status 2. fix: the same.
+- S1 — without clang, `make sanitize` ends on the shell's `clang: not found`, where `make test-browser` says what it lacks with status 2. fix: the same. done 2026-11-10.
 - S2 — `docs/reviews/full.md` puts `findings.md` "beside this one", in `docs/reviews/`, where CLAUDE.md's owner table and every review put it in `docs/`. fix: `docs/findings.md`. done 2026-11-10.
+- B1 — the bench: `String.stripPrefix` costs 4.9 times `string:prefix/2` in all three runs, three walks of the prefix where the host's one, new at 0.10.0. The host's function is not exact: over 1,000,000 random texts it differs in 135, answering `nomatch` for a whole pair of regional indicators, U+1F1EA U+1F1EA before U+1F1F8, and the rest for a prefix that ends inside a conjunct, U+0915 U+094D of U+0915 U+094D U+0915, against `string:to_graphemes/1`'s own clusters. decide, D18; the host's two answers to `docs/otp_bugs.md`.
 
 ### Felt
+
+Each line is a feedback entry, decided by MVP 4.16's item 12.
 
 - C401-L1 — a byte's class is written by hand in every library: seven range tests over `src/libs/`. felt, feedback 237, sharpening the log's *The Libraries' Shims Read Against E.0 Rule 1*, which counted two sites.
 - C523-a — `List.flatMap(lines, fn(each) = each)` at 13 sites of the generator. felt, feedback 238, sharpening the log's *What MVP 2.95 Takes From the Rest*.
@@ -240,6 +247,9 @@ Each is argued with the user, the argument before the verdict, after the log is 
 - **D13, *Why Ernest*'s claims:** M9, M12.
 - **D14, the newcomer's names:** the eleven N lists apart, N13's bindings beside functions, C218's unknown `List.length`.
 - **D15, a cookie's spaces and an empty name:** C407.
+- **D16, `Http`'s first line read by the host or by Ernest:** C402. Decided 2026-11-10: the shim stays under E.0 rule 1, since Ernest alone cost 6.3 times the host on the first line and took the smallest head past the line; the Ernest closes the host's DEL and its empty line.
+- **D17, an example's paragraphs:** S7, §11.2's first-token rule against `ern test`'s longest run that parses (`ern_examples:declared/3`), and the site's first-token rule with C503's continuation.
+- **D18, `String.stripPrefix` past E.0 rule 1's line:** B1. The host's `string:prefix/2` cannot be its shim, being inexact both ways; the Ernest at 4.9 times stays, said in the log, or an adapter compares the bytes and reads the boundary at the prefix's end from its last grapheme and what follows, every boundary before it the prefix's own.
 
 ## The readers' lists
 

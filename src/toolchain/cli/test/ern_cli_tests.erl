@@ -3877,6 +3877,44 @@ died_at_a_full_port_table_test() ->
                       {env, [{"ERL_CRASH_DUMP_SECONDS", "0"}]}, exit_status]),
     ?assertEqual(143, receive {Host, {exit_status, Status}} -> Status end).
 
+%% report §11, §12.5: what the host logs as a warning a job writes on
+%% standard error, where the job has started no run and the host's table
+%% of processes is full too: a host of its own, its streams and its log
+%% handler taken as a job takes them (ern_out:take/0), fills its table,
+%% logs a warning, frees the table and logs another, and both are written.
+%% A regression test, written after the code: the handler's first event
+%% started the process that says it, the spawn raised at the full table,
+%% and the host's logger, removing the handler, could not start its own
+%% process and ended the host. It does not cover the reports a job drops
+%% (ern_cli:said_otherwise/2), whose filter this host does not install.
+logged_at_a_full_table_test() ->
+    Paths = lists:append([["-pa", filename:dirname(code:which(Module))]
+                          || Module <- [ern_out, ern_rt, ern_tty, ern_cli]]),
+    Logs = "ErrorDevice = ern_out:take(), {module, _} = code:ensure_loaded(ern_cli), "
+           "Fill = fun F(Held) -> try spawn(fun() -> receive stop -> ok end end) of "
+           "P -> F([P | Held]) catch error:system_limit -> Held end end, "
+           "Held = Fill([]), logger:warning(\"at a full table\"), "
+           "Refs = [begin R = monitor(process, P), P ! stop, R end || P <- Held], "
+           "[receive {'DOWN', R, _, _, _} -> ok end || R <- Refs], "
+           "logger:warning(\"after it\"), ok = ern_rt:wait_for_later(), "
+           "ok = ern_out:finish(ErrorDevice), halt(0).",
+    Host = open_port({spawn_executable, filename:join([code:root_dir(), "bin", "erl"])},
+                     [{args, ["-noshell", "-noinput", "+P", "1024" | Paths] ++ ["-eval", Logs]},
+                      {env, [{"ERL_CRASH_DUMP_SECONDS", "0"}]}, binary, stderr_to_stdout,
+                      exit_status]),
+    {Status, Written} = host_written(Host, <<>>),
+    ?assertEqual({0, [<<"at a full table">>, <<"after it">>]},
+                 {Status, [Line || Line <- binary:split(Written, <<"\n">>, [global]),
+                                   lists:member(Line, [<<"at a full table">>, <<"after it">>])]}).
+
+%% What a host of its own wrote on its standard output and its standard
+%% error, and the status it ended with.
+host_written(Host, Written) ->
+    receive
+        {Host, {data, Bytes}} -> host_written(Host, <<Written/binary, Bytes/binary>>);
+        {Host, {exit_status, Status}} -> {Status, Written}
+    end.
+
 %% report §11.2, Appendix E.23: under `ern test` Os.arguments is the empty
 %% list, and Os.exit faults the test that calls it and the run goes on.
 %% Written after the code, it found that a test faulting at once was
@@ -4030,6 +4068,32 @@ node_limit_flags_test() ->
      end || Words <- ["run --config-dir " ++ Node ++ " " ++ Erc,
                       "test --config-dir " ++ Node ++ " " ++ Erc,
                       "shell --config-dir " ++ Node]].
+
+%% bin/ern, report §12.5, §11: the launcher's first start writes the flags
+%% alone on standard output, whatever the host logs as it works: a process
+%% beside it logs a warning once the first start has begun its work, which
+%% the flag it sets then shows, and standard output holds the flags' one
+%% line. A regression test, written after the code: the first start kept
+%% the host's own log handler, which writes on standard output, and a
+%% warning before the flags made the launcher drop every flag. It does not
+%% cover what the host logs as it boots, before the first start begins.
+first_start_writes_the_flags_alone_test() ->
+    Dir = tmp(),
+    Node = filename:join(Dir, "node"),
+    ?assertEqual(0, ern_err(["config", "--config-dir", Node])),
+    write(Dir, "src/waits.ern", "export fn main() : Unit = Unit\n"),
+    ?assertEqual(0, ern_err(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    %% the warning waits on the flag alone, yielding between its reads
+    Warns = "spawn(fun() -> Begun = fun B() -> case persistent_term:get({ern_cli, flags}, false)"
+            " of true -> ok; false -> erlang:yield(), B() end end, ok = Begun(),"
+            " logger:warning(\"a warning\") end)",
+    Flags = os:cmd("erl +B -boot no_dot_erlang -noshell -noinput"
+                   " -pa build/toolchain/*/ebin -pa build/shared/ebin -pa build/nodes/ebin"
+                   " -pa build/runtime/ebin -pa build/shell/ebin"
+                   " -eval '" ++ Warns ++ "' -run ern_cli node_flags -extra run --config-dir "
+                   ++ Node ++ " " ++ Dir ++ "/build/waits.erc < /dev/null 2> /dev/null"),
+    ?assertMatch({"ern-node-flags '-proto_dist'" ++ _, nomatch},
+                 {Flags, string:find(Flags, "\n")}).
 
 %% report §4.2: a module may not take a namespace of a standard library
 %% module written in Ernest

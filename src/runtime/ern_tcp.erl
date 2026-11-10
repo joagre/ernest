@@ -24,6 +24,11 @@
 %% hibernates after a millisecond's wait, the host's shortest timer.
 -define(TLS_WAITS, [{hibernate_after, 1}]).
 
+%% Report Appendix E.18: a listener's backlog, the largest the host takes,
+%% which the system lowers to its own limit. The host keeps a backlog's
+%% low 16 bits, so that 65536 listens with none (docs/otp_bugs.md, 20).
+-define(BACKLOG, 65535).
+
 %% Report Appendix E.18: a listener's and a socket's loops end only in the
 %% exit that tells a waiting call the socket was closed or its owner died,
 %% so the fun `opened` spawns never returns, which Dialyzer would report.
@@ -137,7 +142,7 @@ with_ssl(unstarted, Reply, Request) ->
 %% the process that took the request living on.
 requested(Work, Reply) ->
     try erlang:spawn(Work)
-    catch error:system_limit -> ern_rt:answer(Reply, limited())
+    catch error:system_limit -> ern_rt:answer(Reply, {'Left', ern_io:limited()})
     end.
 
 %% The same for a request that waits, its worker counted as a source before
@@ -149,13 +154,8 @@ counted_request(Work, Reply) ->
             ern_rt:source_begin(Worker),
             Worker ! go
     catch
-        error:system_limit -> ern_rt:answer(Reply, limited())
+        error:system_limit -> ern_rt:answer(Reply, {'Left', ern_io:limited()})
     end.
-
-%% Report §7.4, §12.5: the answer of a request whose process the host's
-%% full table of processes keeps from being made.
-limited() ->
-    {'Left', ern_io:limited()}.
 
 %% A listener or a socket, linked to the TCP process and recorded as opened
 %% before its address is given out (report §8.6), under the function that
@@ -209,7 +209,7 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
                      {'Left', Error};
                  {true, {ok, IpAddress}, {Transport, Site, KindOptions}} ->
                      Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw},
-                                {ip, IpAddress}]
+                                {backlog, ?BACKLOG}, {ip, IpAddress}]
                          ++ family(IpAddress) ++ family_alone(IpAddress) ++ KindOptions,
                      case guarded(fun() -> Transport:listen(Port, Options) end) of
                          {ok, Socket} ->
@@ -232,13 +232,13 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
 %% What Open answers with the listener or the socket it opens over the
 %% host's Socket. Report §7.4, §12.5: where the host's table of processes
 %% is full, so that its process cannot be made (opened/7), the host's
-%% socket is closed, and the request answers as at a full table (limited/0).
+%% socket is closed, and the request answers as at a full table (ern_io:limited/0).
 held_open(Open, Transport, Socket) ->
     try {'Right', Open(Socket)}
     catch
         error:system_limit ->
             Transport:close(Socket),
-            limited()
+            {'Left', ern_io:limited()}
     end.
 
 %% Report Appendix E.18: what a listener's kind adds, its transport, its
@@ -579,16 +579,16 @@ attempt(Transport, Try, Open, Deadline, Reply) ->
     end.
 
 %% Report §7.4, §12.5: a request's failure, its `Io.Error`, which is the
-%% full table's (limited/0) where the host's TLS could not start a process
+%% full table's (ern_io:limited/0) where the host's TLS could not start a process
 %% of its own for the full table of processes: a
 %% listener's trackers, or a connection's supervisor or one of its two
 %% children. The host raises a failed match of the start's answer for it,
 %% which guarded/1 gives as the error (docs/otp_bugs.md, 15).
 failed(ssl, {badmatch, {error, {'EXIT', {system_limit, _}}}}) ->
-    limited();
+    {'Left', ern_io:limited()};
 failed(ssl, {badmatch, {error, {shutdown, {failed_to_start_child, _,
                                            {'EXIT', {system_limit, _}}}}}}) ->
-    limited();
+    {'Left', ern_io:limited()};
 failed(Transport, Error) ->
     {'Left', io_error(Transport, Error)}.
 

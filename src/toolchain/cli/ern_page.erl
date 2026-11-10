@@ -16,7 +16,7 @@
 %% documentation chunk and the namespace in its interface chunk (§11.1),
 %% its last line naming Source, the module's source as the job names a
 %% path, from the working directory (§11.5).
--spec page(binary() | file:filename(), file:filename()) -> unicode:chardata().
+-spec page(binary(), file:filename()) -> unicode:chardata().
 page(Beam, Source) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
@@ -33,7 +33,7 @@ prelude_page() ->
 %% Report §11.2: a module's documentation as `:doc` shows it, the head of
 %% its page: the title, the version, and the module's doc block. What the
 %% module declares is `:browse`'s to list.
--spec module_head(binary() | file:filename()) -> unicode:chardata().
+-spec module_head(binary()) -> unicode:chardata().
 module_head(Beam) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, {docs_v1, _, ernest, _, ModuleDoc, _, _}} = ern_docs:read(Beam),
@@ -41,7 +41,7 @@ module_head(Beam) ->
 
 %% Report §11.4: the page of one compiled module as a manual page,
 %% `Ernest.Net.Http` in section 3ern, naming Source as page/2 does.
--spec manual(binary() | file:filename(), file:filename()) -> unicode:chardata().
+-spec manual(binary(), file:filename()) -> unicode:chardata().
 manual(Beam, Source) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
@@ -228,7 +228,7 @@ since_line(Version) -> ["*Since ", Version, ".*\n\n"].
 %% it is written, so that no name is made of what a person typed. The
 %% signature is the one given, as the shell prints it, a member's in its
 %% form, or with `entry` the entry's own, in the module's names.
--spec declaration(binary() | file:filename(), binary(), [string()] | entry) ->
+-spec declaration(binary(), binary(), [string()] | entry) ->
           {ok, unicode:chardata()} | none.
 declaration(Beam, Name, Signature) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
@@ -289,7 +289,7 @@ prelude_declaration(Name) ->
 
 %% Appendix E.0 shape rule 6: the version a module, or the prelude, appeared in,
 %% which a declaration without a `since` of its own shares.
--spec since(binary() | file:filename() | prelude) -> binary() | undefined.
+-spec since(binary() | prelude) -> binary() | undefined.
 since(prelude) ->
     module_since(ern_prelude:docs());
 since(Beam) ->

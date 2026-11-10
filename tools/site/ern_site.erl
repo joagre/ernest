@@ -1,4 +1,4 @@
-%% The site generator's helper, tools/site.ern's one foreign function: Ernest
+%% The site generator's helper, tools/site/code_block.ern's one foreign function: Ernest
 %% code read by the toolchain's own lexer (report §2), so that the site
 %% colors code as `ern` reads it. The lexer's tokens are host terms no Ernest
 %% type describes, a tuple of two or of three by the token, so the helper

@@ -1252,12 +1252,18 @@ entry_body(Typed) ->
 %%
 %% Report §11.2, §7.4: a full table of processes, which leaves no room for
 %% the compiler's process or the input's own, answers the input's fault,
-%% `error:system_limit`, with no trace, and the session goes on.
+%% `error:system_limit`, with no trace, and the session goes on. The input
+%% has then made nothing, and the session it answers beside the fault has
+%% its number to give again, as a collection gives an unloaded input's
+%% (collected/1, report §2.3), so that a full table costs no atoms.
 -spec spawn_input(#session{}, #checked{}, integer(), term()) ->
-          {'Right', ern_rt:address()} | {'Left', binary()}.
-spawn_input(Session, Checked, Serial, Address) ->
+          {'Right', ern_rt:address()} | {'Left', {#session{}, binary()}}.
+spawn_input(Session, #checked{namespace = Namespace} = Checked, Serial, Address) ->
     try {'Right', input_spawned(Session, Checked, Serial, Address)}
-    catch error:system_limit -> {'Left', ern_rt:host_cause(error, system_limit)}
+    catch
+        error:system_limit ->
+            {'Left', {Session#session{free = Session#session.free ++ [Namespace]},
+                      ern_rt:host_cause(error, system_limit)}}
     end.
 
 input_spawned(Session, #checked{namespace = Namespace, typed = Typed, interface = Interface,
@@ -1281,6 +1287,7 @@ input_spawned(Session, #checked{namespace = Namespace, typed = Typed, interface 
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     unit_loaded(ErlangModule, Beam),
     Binding = binding(Plan, Session, Checked, ErlangModule, Beam, Compiled),
+    KeptNeeds = kept_needs(),
     record_uses(ErlangModule, Beam, Checked, Chunk, held_value(Binding)),
     %% report §11.2: an input that declares keeps its text, to be compiled
     %% again as a new version of its input where a reload changes what it
@@ -1313,11 +1320,29 @@ input_spawned(Session, #checked{namespace = Namespace, typed = Typed, interface 
                ern_rt:send(Address, Outcome),
                Binder =:= none orelse bound_lives(ern_rt:process_of(Address))
            end,
-    Input = ern_rt:spawn(Body, <<InputName/binary, ":", (integer_to_binary(1 + Offset))/binary>>),
+    Site = <<InputName/binary, ":", (integer_to_binary(1 + Offset))/binary>>,
+    Input = try ern_rt:spawn(Body, Site)
+            catch
+                error:system_limit:Stack ->
+                    unspawned(ErlangModule, Namespace, KeptNeeds),
+                    erlang:raise(error, system_limit, Stack)
+            end,
     %% report §11.2: the input that runs, which the session's end ends
     %% where it runs still (detach/0)
     keep(input, ern_rt:process_of(Input)),
     Input.
+
+%% Report §11.2, §7.4: an input whose own process a full table leaves no
+%% room for ran nothing, and what its unit made is undone: its text goes,
+%% the needs the session keeps are as they were before it was recorded,
+%% and its unit is deleted, out of the code table, and forgotten, as a
+%% collection lets an input's go (collected/1); its number goes back with
+%% the session spawn_input/4 answers.
+unspawned(ErlangModule, Namespace, KeptNeeds) ->
+    forgotten({input_text, Namespace}),
+    keep(kept_needs, KeptNeeds),
+    unload(ErlangModule),
+    forget_units([ErlangModule]).
 
 %% Report §11.2: what an input binds, with the scheme each name takes, made
 %% in the session's process from the input's type as it is spawned, so that
@@ -2318,9 +2343,9 @@ load_help(Session, Segments) ->
 
 %% Whether a module of these segments is not loaded and could be: its
 %% source under the source root, or its compiled form on the load path,
-%% the first there, a compiled module whose code the host will load (§11),
-%% which a load makes a unit of its own where the host holds another unit
-%% of its name (compiled_unit/3).
+%% the first there, a compiled form of the module whose code the host will
+%% load (§11), which a load makes a unit of its own where the host holds
+%% another unit of its name (compiled_unit/3).
 is_unloaded_module(#session{source_root = SourceRoot, interfaces = Interfaces} = Session,
                    Segments) ->
     Name = lists:flatten(lists:join(".", Segments)),
@@ -2332,28 +2357,20 @@ is_unloaded_module(#session{source_root = SourceRoot, interfaces = Interfaces} =
         andalso begin
                     Relative = ern_namespace:path(Segments),
                     is_source(Session, filename:join(SourceRoot, Relative ++ ".ern"))
-                        orelse is_form_loadable(Session, Relative)
+                        orelse is_form_loadable(Session, Segments)
                 end.
 
-is_form_loadable(Session, Relative) ->
-    Forms = [File || Root <- load_path(Session), File <- [filename:join(Root, Relative ++ ".erc")],
-                     filelib:is_regular(File)],
-    case Forms of
-        [File | _] ->
-            case file:read_file(File) of
-                {ok, Beam} ->
-                    case ern_interface:read(Beam) of
-                        {ok, #{interface := #interface{namespace = Held}}} ->
-                            ern_chunk:is_loadable(ern_namespace:erlang_module(Held), Beam);
-                        {error, _} ->
-                            false
-                    end;
-                {error, _} ->
-                    false
-            end;
-        [] ->
-            false
-    end.
+%% Whether the load path's compiled form of the module the segments name
+%% is one `:load` takes, holding that module and loadable (compiled_of/2).
+%% The name is made a namespace only where a compiled form is at its path,
+%% as segments/2 makes no atom of a name no file holds.
+is_form_loadable(Session, Segments) ->
+    Relative = ern_namespace:path(Segments) ++ ".erc",
+    lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative)) end, load_path(Session))
+        andalso case compiled_of(Session, ern_namespace:namespace(Segments)) of
+                    {ok, _, _, _} -> true;
+                    _ -> false
+                end.
 
 %% The documentation of a name as it is written, with its segments; the
 %% refusal of a name the checker refuses as written; none for text that is
@@ -4622,7 +4639,10 @@ source_entries(#session{local = Local} = Session, Dir) ->
 entry_kind(_Session, _Path, 'File') -> [file];
 entry_kind(_Session, _Path, 'Directory') -> [directory];
 entry_kind(Session, Path, 'Link') ->
-    [file || is_source(Session, Path)];
+    case is_source(Session, Path) of
+        true -> [file];
+        false -> []
+    end;
 entry_kind(_Session, _Path, _) -> [].
 
 %% Report §11.2: the local half's answer to Request, a call it answers
@@ -4645,7 +4665,7 @@ path(File) ->
 %% one.
 file_error('NotFound') -> enoent;
 file_error('Denied') -> eacces;
-file_error('NotAFile') -> eisdir;
+file_error('NotAFile') -> {text, "is not a regular file"};
 file_error('Invalid') -> einval;
 file_error('Timeout') -> {text, "the shell's own node did not answer"};
 file_error({'Other', Text}) -> {text, unicode:characters_to_list(Text)};

@@ -47,6 +47,12 @@ type Selection = Picked(Command) | Unknown | Ambiguous(List(String))
 /// What one `:set` sets.
 export type Setting = Depth(Int) | Length(Int) | Rows(Int) | Timing(Bool)
 
+// Report §8.5, §8.7: the session's half of the shell crosses to the node it
+// attaches to as any program's code does, and a bare node evaluates the
+// standard library's bindings alone, so a value of the shell's that is no
+// constant (§4.6) is a function, its value built at each call: this table,
+// `settingsAbout` below, and `defaults` and `localMs` in `shell.ern` (the
+// log's *The Shell Attaches as a Program Spawns*).
 /// Report §11.2: the commands, in the alphabetical order the help lists them.
 export fn commands() : List(Command) =
     [Command(name = "bindings",

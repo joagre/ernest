@@ -18,49 +18,46 @@
 // A document of one page: its source, the header's room it stands in,
 // where it stands in one, the heading the page shows where it is not the
 // source's own, the section the page shows alone, by its heading, where it
-// shows one, and whether the guide tests run its blocks in a bare shell,
-// which gives them their buttons.
+// shows one, and what gives its blocks their buttons, the guide tests'
+// grouping where they run its blocks in a bare shell, and Copy alone
+// otherwise.
 type Document =
     Document(source : String,
              room : Optional(String),
              heading : Optional(String),
              section : Optional(String),
-             tested : Bool)
-
-// A top-level block of the document with its buttons and, a heading, its
-// anchor.
-type Shown = Shown(placed : CodeBlock.Placed, anchor : Optional(Html.Anchor))
+             placing : (List(Markdown.Block)) -> List(CodeBlock.Placed))
 
 /// The pages of Why, the questions, Install, Releases and the deployment
 /// guide. Install and Releases are headed by their rooms' names, as the
 /// header and the footer name them.
-export fn documents(run : Run.Run) : Either(String, Unit) = {
+export fn written(run : Run.Run) : Either(String, Unit) = {
     let documents =
         [Document(source = "guide/why.md",
                   room = Some("Why"),
                   heading = None,
                   section = None,
-                  tested = true),
+                  placing = CodeBlock.placed),
          Document(source = "guide/faq.md",
                   room = None,
                   heading = None,
                   section = None,
-                  tested = true),
+                  placing = CodeBlock.placed),
          Document(source = "README.md",
                   room = Some("Install"),
                   heading = Some("Install"),
                   section = Some("Installing"),
-                  tested = false),
+                  placing = CodeBlock.copied),
          Document(source = "CHANGES.md",
                   room = None,
                   heading = Some("Releases"),
                   section = None,
-                  tested = false),
+                  placing = CodeBlock.copied),
          Document(source = "guide/deployment.md",
                   room = None,
                   heading = None,
                   section = None,
-                  tested = false)];
+                  placing = CodeBlock.copied)];
     let _ <- List.tryMap(documents, fn(document) = documentWritten(run, document));
     Right(Unit)
 }
@@ -69,16 +66,11 @@ fn documentWritten(run : Run.Run, document : Document) : Either(String, Unit) = 
     let source = document.source;
     let address <- Either.fromOptional(Links.address(source), source <> " has no page of the site");
     let blocks <- Run.documentOf(run.root, source);
-    let anchors <- Links.headingAnchors(source, blocks);
-    let placed = if document.tested then CodeBlock.placed(blocks) else CodeBlock.copied(blocks);
-    let #(heading, level, own) <- sectionOf(source, document.section, paired(placed, anchors));
-    let shown = List.map(own, fn(each) = each.placed);
-    let page <- Run.linkPage(run, source, address, shown);
-    let linked <- Run.linkedAll(run, shown, page);
-    let headed = List.filterMap(own, fn(each) = match each.placed.block {
-        Markdown.Heading() -> Some(Html.Headed(anchor = each.anchor, class = None))
-      | _ -> None
-    });
+    let placing = document.placing;
+    let placed <- Links.anchored(source, placing(blocks));
+    let #(heading, level, own) <- sectionOf(source, document.section, placed);
+    let page <- Run.linkPage(run, source, address, own);
+    let linked <- Run.linkedAll(run, own, page);
     let found = entries(level, own);
     let sidebar <- if List.size(found) < 2 then
         Right([])
@@ -95,9 +87,9 @@ fn documentWritten(run : Run.Run, document : Document) : Either(String, Unit) = 
                     #("contents_html", Template.Markup(sidebar)),
                     #("book_html", Template.Markup([])),
                     #("heading_html", Run.headingHtml(shownHeading, None)),
-                    #("body_html", Template.Markup(Html.body(linked, level - 1, headed))),
+                    #("body_html", Template.Markup(Html.body(linked, level - 1))),
                     #("page_nav_html", Template.Markup([]))]);
-    let description <- Run.described(source, List.map(own, fn(each) = each.placed.block));
+    let description <- Run.described(source, List.map(own, fn(each) = each.block));
     Run.pageWritten(run,
                     Run.Output(=address,
                                title = Run.titled(Html.plain(shownHeading)),
@@ -107,29 +99,22 @@ fn documentWritten(run : Run.Run, document : Document) : Either(String, Unit) = 
                                source = Some(source)))
 }
 
-// Each block with its anchor, a heading the next of the anchors, which
-// stand one for each heading in order.
-fn paired(placed : List(CodeBlock.Placed), anchors : List(Optional(Html.Anchor))) : List(Shown) = {
-    let #(_, shown) = List.mapFold(placed, anchors, fn(left, each) = match #(each.block, left) {
-        #(Markdown.Heading(), anchor :: rest) -> #(rest, Shown(placed = each, =anchor))
-      | _ -> #(left, Shown(placed = each, anchor = None))
-    });
-    shown
-}
-
 // The heading the page shows, its level, and the blocks under it: the
 // document's title and all after it, or the section whose heading's text
 // is the one given, up to the next heading of its level or above.
 fn sectionOf(source : String,
              section : Optional(String),
-             shown : List(Shown)) : Either(String, #(List(Markdown.Inline), Int, List(Shown))) = {
-    let #(_, from) = List.span(shown, fn(each) = match each.placed.block {
+             placed : List(CodeBlock.Placed)) : Either(String,
+                                                       #(List(Markdown.Inline),
+                                                         Int,
+                                                         List(CodeBlock.Placed))) = {
+    let #(_, from) = List.span(placed, fn(each) = match each.block {
         Markdown.Heading(=text, =level) -> !isShownHeading(section, text, level)
       | _ -> true
     });
     match from {
-        Shown(placed = CodeBlock.Placed(block = Markdown.Heading(=text, =level))) :: rest -> {
-            let #(own, _) = List.span(rest, fn(each) = match each.placed.block {
+        CodeBlock.Placed(block = Markdown.Heading(=text, =level)) :: rest -> {
+            let #(own, _) = List.span(rest, fn(each) = match each.block {
                 Markdown.Heading(level = inner) -> inner > level
               | _ -> true
             });
@@ -150,9 +135,10 @@ fn isShownHeading(section : Optional(String), text : List(Markdown.Inline), leve
 
 // The page's anchored headings of the two levels below its own, as the
 // sidebar lists them.
-fn entries(level : Int, own : List(Shown)) : List(Run.Entry) =
-    List.filterMap(own, fn(each) = match #(each.placed.block, each.anchor) {
-        #(Markdown.Heading(level = inner, =text), Some(anchor)) when inner == level + 1
+fn entries(level : Int, own : List(CodeBlock.Placed)) : List(Run.Entry) =
+    List.filterMap(own, fn(each) = match #(each.block, each.headed) {
+        #(Markdown.Heading(level = inner, =text),
+          Some(CodeBlock.Headed(anchor = Some(anchor)))) when inner == level + 1
             || inner == level + 2 -> Some(Run.Entry(anchor = anchor.id, level = inner, =text))
       | _ -> None
     })
@@ -168,7 +154,7 @@ type Project = Project(name : String, repository : String, purpose : List(Markdo
 
 /// The page of the projects, site/projects.md: its title, its opening, and
 /// its list, a project a line.
-export fn projects(run : Run.Run) : Either(String, Unit) = {
+export fn projectsWritten(run : Run.Run) : Either(String, Unit) = {
     let source = "site/projects.md";
     let address <- Either.fromOptional(Links.address(source), source <> " has no page of the site");
     let document <- Run.documentOf(run.root, source);
@@ -201,7 +187,7 @@ export fn projects(run : Run.Run) : Either(String, Unit) = {
                     #("contents_html", Template.Markup([])),
                     #("book_html", Template.Markup([])),
                     #("heading_html", Run.headingHtml(heading, None)),
-                    #("body_html", Template.Markup(Html.body(linked, 0, []) <> list)),
+                    #("body_html", Template.Markup(Html.body(linked, 0) <> list)),
                     #("page_nav_html", Template.Markup([]))]);
     let description <- Run.described(source, opening);
     Run.pageWritten(run,

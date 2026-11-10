@@ -15,19 +15,32 @@
 /// Copy.
 export type Buttons = CopyAlone | Paste | Load | Signature
 
-/// A document's top-level block, with the buttons it gets, and the
+/// A document's top-level block, with the buttons it gets, the
 /// declarations its code links, by their qualified names, each with the
 /// address it leads to from the block's page, which `Site.Run.linkedAll`
-/// gives it, none before.
-export type Placed = Placed(block : Markdown.Block, given : Buttons, links : Map(String, String))
+/// gives it, none before, and, for a heading, what it carries beside its
+/// text, where its page gives it anything.
+export type Placed =
+    Placed(block : Markdown.Block,
+           given : Buttons,
+           links : Map(String, String),
+           headed : Optional(Headed))
+
+/// A heading's anchor: the fragment a link reaches it by, `1.4`, and the
+/// name of the heading's link to itself, `Link to 1.4`.
+export type Anchor = Anchor(id : String, label : String)
+
+/// What a top-level heading carries beside its text: its anchor, where it
+/// has one, and its class, where its page gives it one.
+export type Headed = Headed(anchor : Optional(Anchor), class : Optional(String))
 
 // A lexeme, as the generator's helper gives the lexer's token: its kind,
 // where it begins, and the place after its last character.
 type Lexeme = Lexeme(kind : Kind, at : Position, end : Position)
 
 // A lexeme as the code writes it: the text between it and the one before,
-// its kind, and its text.
-type Token = Token(before : String, kind : Kind, text : String)
+// its kind, its text, and where it begins.
+type Token = Token(before : String, kind : Kind, text : String, at : Position)
 
 type Position = Position(line : Int, column : Int)
 
@@ -59,7 +72,7 @@ type Session = Session(bare : Bool, inputs : List(String))
 // The walk over a document's blocks: the count of the headings so far, the
 // nearest console, and the sessions, each by the place of its first
 // console.
-type Walk = Walk(heading : Int, nearest : Optional(Console), sessions : Map(Int, Session))
+type Walk = Walk(headings : Int, nearest : Optional(Console), sessions : Map(Int, Session))
 
 // A console: the heading it stands under, by its count, and the session it
 // holds, where it holds a `$ ern shell` command, which a console that
@@ -79,7 +92,7 @@ type Console = Console(heading : Int, session : Optional(Int))
 /// with a module, a node's or an attached one, and an `ernest-rejected`,
 /// `ernest-fragment` or `ernest-prelude` block or another language's.
 export fn placed(blocks : List(Markdown.Block)) : List(Placed) = {
-    let start = Walk(heading = 0, nearest = None, sessions = Map.empty);
+    let start = Walk(headings = 0, nearest = None, sessions = Map.empty);
     let #(walk, roles) = List.mapFold(List.indexed(blocks), start, role);
     List.map(List.zip(blocks, roles), fn(#(block, found)) = match found {
         Alone(given) -> unlinked(block, given)
@@ -94,7 +107,7 @@ fn role(walk : Walk, indexed : #(Int, Markdown.Block)) : #(Walk, Role) = {
     let #(index, block) = indexed;
     match block {
         Markdown.Heading() ->
-            #(Walk(..walk, heading = walk.heading + 1), Other)
+            #(Walk(..walk, headings = walk.headings + 1), Other)
       | Markdown.Code(=info, =lines) when language(info) == "ernest" ->
             #(walk, Alone(moduleButtons(lines)))
       | Markdown.Code(=info, =lines) when language(info) == "console" ->
@@ -116,20 +129,20 @@ fn consoleRole(walk : Walk, index : Int, lines : List(String)) : #(Walk, Role) =
       | None when List.any(lines, isShellCommand) -> {
             let begun =
                 Session(bare = List.take(lines, 1) == ["$ ern shell"], inputs = inputs(lines));
-            let nearest = Console(heading = walk.heading, session = Some(index));
+            let nearest = Console(heading = walk.headings, session = Some(index));
             #(Walk(..walk,
                    nearest = Some(nearest),
                    sessions = Map.put(walk.sessions, index, begun)),
               Part(index))
         }
       | None ->
-            #(Walk(..walk, nearest = Some(Console(heading = walk.heading, session = None))), Other)
+            #(Walk(..walk, nearest = Some(Console(heading = walk.headings, session = None))), Other)
     }
 
 // The session a console continues, by its first console's place.
 fn continued(walk : Walk, lines : List(String)) : Optional(Int) =
     match walk.nearest {
-        Some(Console(=heading, session = Some(begun))) when heading == walk.heading
+        Some(Console(=heading, session = Some(begun))) when heading == walk.headings
             && beginsWithInput(lines) -> Some(begun)
       | _ -> None
     }
@@ -153,19 +166,23 @@ fn moduleButtons(lines : List(String)) : Buttons =
       | _ -> Paste
     }
 
-// A paragraph of a block, its lines between blank lines, as report §11.3
-// reads an example's: a declaration where its first token is `type`,
-// `abstract`, `foreign` or `export`, or `fn` followed by a name; a `let`
-// followed by a name, `export let` among them, which is a declaration too;
-// or the body, any other.
-type Paragraph = Declaration | LetDeclaration | Body
+// A paragraph of a block, its lines between blank lines, as `ern test`
+// reads an example's (report §11.2): a declaration where its first token is
+// `type`, `abstract`, `foreign` or `export`, or `fn` followed by a name; a
+// `let` followed by a name, `export let` among them, which is a declaration
+// too; or the body, any other. A paragraph whose first token stands past
+// the first column, or is a closing delimiter, continues the paragraph
+// before it, a blank line inside a body or a type, since the shell takes
+// the paste whole (report §11.2 *Inputs*).
+type Paragraph = Declaration | LetDeclaration | Body | Continued
 
 // Whether the shell takes the block as one input (report §11.2): a `let`
 // at the prompt stands alone in its input, so a top-level `let` beside
 // another declaration is more than one, and so are declarations followed
 // by an expression.
 fn isOneInput(lines : List(String)) : Bool = {
-    let kinds = List.map(paragraphs(lines), paragraphKind);
+    let kinds =
+        List.filter(List.map(paragraphs(lines), paragraphKind), fn(kind) = kind != Continued);
     let declarations = List.size(List.filter(kinds, fn(kind) = kind != Body));
     let lets = List.size(List.filter(kinds, fn(kind) = kind == LetDeclaration));
     let #(_, afterFirst) = List.span(kinds, fn(kind) = kind == Body);
@@ -195,7 +212,8 @@ fn paragraphKind(lines : List(String)) : Paragraph = {
             []
     };
     match List.map(List.take(found, 2), fn(token) = #(token.kind, token.text)) {
-        [#(Reserved, "export"), #(Reserved, "let")] -> LetDeclaration
+        _ when isContinuing(found) -> Continued
+      | [#(Reserved, "export"), #(Reserved, "let")] -> LetDeclaration
       | [#(Reserved, "let"), #(Name, _)] -> LetDeclaration
       | [#(Reserved, "fn"), #(Name, _)] -> Declaration
       | [#(Reserved, "fn"), #(TypeName, _)] -> Declaration
@@ -204,7 +222,15 @@ fn paragraphKind(lines : List(String)) : Paragraph = {
     }
 }
 
-// The words a declaration of report §11.3's begins with, beside `let` and
+// Whether a paragraph's first token, its comments aside, continues the
+// paragraph before it: one indented, or a closing delimiter.
+fn isContinuing(found : List(Token)) : Bool =
+    match found {
+        first :: _ -> first.at.column > 1 || List.contains(["}", ")", "]"], first.text)
+      | [] -> false
+    }
+
+// The words a declaration of report §11.2's begins with, beside `let` and
 // `fn` followed by a name.
 let declaring : List(String) = ["type", "abstract", "foreign", "export"]
 
@@ -301,9 +327,10 @@ export fn firstOffered(placed : Placed) : Optional(String) =
     }
 
 // A block with its buttons, before its page's links give it the
-// declarations its code links.
+// declarations its code links, and before its page gives a heading its
+// anchor or its class.
 fn unlinked(block : Markdown.Block, given : Buttons) : Placed =
-    Placed(=block, =given, links = Map.empty)
+    Placed(=block, =given, links = Map.empty, headed = None)
 
 //
 // The types a page declares
@@ -480,7 +507,8 @@ fn tokens(code : String) : Optional(#(List(Token), String)) =
             let each =
                 Token(before = String.fromList(before),
                       kind = lexeme.kind,
-                      text = String.fromList(token));
+                      text = String.fromList(token),
+                      at = lexeme.at);
             #(each :: acc, later, ended)
         });
         #(List.reverse(found), String.fromList(rest))

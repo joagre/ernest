@@ -600,9 +600,12 @@ dialyzer: units
 # sanitizers where make builds it, the runtime's tests and the programs'
 # run with it, each sanitizer writing what it finds into build/sanitize,
 # and the helper built again as make builds it, whatever the tests did. It
-# passes where nothing was written.
+# passes where nothing was written. Without clang it says so and stops
+# with the status 2, as test-browser does without Chrome.
 SANITIZE = $(abspath build/sanitize)
 sanitize: all
+	@command -v clang > /dev/null || { echo "make sanitize: no clang found; the helper's" \
+	  "analysis and its sanitizers run under it"; exit 2; }
 	@found=$$(clang --analyze -Xclang -analyzer-output=text -std=c99 -o /dev/null \
 	  src/runtime/c_src/ern_exec.c 2>&1); test -z "$$found" || { echo "$$found"; exit 1; }
 	@rm -rf $(SANITIZE) && mkdir -p $(SANITIZE)

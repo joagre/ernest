@@ -2380,6 +2380,89 @@ input_at_a_full_table() ->
     ?assertEqual(1, ern_pty:count(Compiled, <<"the history is not kept: error:system_limit">>)),
     ?assertEqual(nomatch, binary:match(Compiled, <<"foreign function">>)).
 
+%% report §2.3, §11.2, §7.4: an input a full table of processes leaves no
+%% room to compile gives its number back, so that the inputs after the
+%% table has room again take the numbers they took before it was full.
+%%
+%% A filler fills the table once the input that asks it has ended, with
+%% processes that end with an anchor, a name's binder, which `:forget`
+%% lets go. The session's units are listed before the table is full, the
+%% second listing's unit holding `it` and the first's number given again,
+%% and after it has room again, and are the same: the inputs between them
+%% took that number and gave it back.
+%%
+%% A regression test, written after the fix: each such input took a number
+%% of its own, two atoms no collection reclaims. It does not cover an input
+%% whose own process the table leaves no room for, after its compile, which
+%% no test can arrange
+compile_at_a_full_table_test_() ->
+    ern_nodes_tests:counted_test({waits, 27}, fun compile_at_a_full_table/0).
+
+compile_at_a_full_table() ->
+    ConfigDir = filename:join(fresh_home(), ".ernest"),
+    node_dir(ConfigDir),
+    ern_nodes_tests:edit(ConfigDir, fun(Conf) ->
+                                        Conf#{<<"limits">> => #{<<"processes">> => 1024}}
+                                    end),
+    Shell = "../bin/ern shell --config-dir " ++ ConfigDir,
+    Declared =
+        ["foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"",
+         "fn room() : Int = systemInfo(Foreign.atom(\"process_limit\"))"
+         " - systemInfo(Foreign.atom(\"process_count\"))",
+         "foreign fn loaded() : List(Foreign.Term) = \"code:all_loaded/0\"",
+         "foreign fn element(index : Int, tuple : Foreign.Term) : Foreign.Term ="
+         " \"erlang:element/2\"",
+         "foreign fn atomText(atom : Foreign.Term) : String = \"erlang:atom_to_binary/1\"",
+         "fn units() : List(String) = List.sort(List.filter(List.map(loaded(),"
+         " fn(module) = atomText(element(1, module))),"
+         " fn(name) = String.startsWith(name, \"ern@$\")))",
+         "type FillMsg = Fill(reply : Reply(Unit), asker : Address(Reply(Unit)),"
+         " anchor : Process) | Ended(Down)",
+         "fn waitedOn(anchor : Process) : Unit receiving Down ="
+         " { monitor(anchor, fn(down) = down); receive { _ -> Unit } }",
+         "fn filledOn(count : Int, anchor : Process) : Unit receiving FillMsg ="
+         " if count > 0 then {"
+         " monitor(Process.fromAddress(spawn(fn() = waitedOn(anchor))), Ended);"
+         " filledOn(count - 1, anchor) } else Unit",
+         "fn drained(count : Int) : Unit receiving FillMsg ="
+         " if count > 0 then receive { Ended(_) -> drained(count - 1) | _ -> drained(count) }"
+         " else Unit",
+         "fn filling() : Unit receiving FillMsg = receive {"
+         " Fill(=reply, =asker, =anchor) -> {"
+         " answer(reply, Unit);"
+         " let _ = Address.call(asker, fn(r) = r, "
+         ++ integer_to_list(ern_nodes_tests:wait_ms()) ++ ");"
+         " let count = room(); filledOn(count, anchor);"
+         " Io.println(\"the table is \" <> \"full\"); drained(count);"
+         " Io.println(\"the table has \" <> \"room\") }"
+         " | _ -> filling() }",
+         "fn asked(filler : Address(FillMsg), anchor : Process) : Unit receiving Reply(Unit) ="
+         " { let me = self(); Address.callForever(filler, fn(reply) = Fill(=reply, asker = me,"
+         " =anchor)) }",
+         "let filler = spawn(fn() = filling())"],
+    Steps = lists:append([[{send, hex(Input ++ "\r")}, {expect, "> "}] || Input <- Declared])
+        ++ [{send, hex("units()\r")},
+            {expect, "> "},
+            {send, hex("units()\r")},
+            {expect, "> "},
+            {send, hex("let anchor = Process.fromAddress(self())\r")},
+            {expect, "> "},
+            {send, hex("asked(filler, anchor)\r")},
+            {expect, "the table is full"}]
+        ++ lists:append(lists:duplicate(3, [{send, hex("1 + 1\r")},
+                                            {expect, "fault: error:system_limit"},
+                                            {expect, "> "}]))
+        ++ [{send, hex(":forget anchor\r")},
+            {expect, "the table has room"},
+            {send, hex("units()\r")},
+            {expect, "> "},
+            {send, hex(":quit\r")}],
+    Output = pty("HOME=" ++ filename:dirname(ConfigDir) ++ " " ++ Shell,
+                 [{expect, "> "} | Steps], {30, 200}),
+    {match, [_, Before, After]} = re:run(Output, "\\[\"ern@[^]]*\\] : List\\(String\\)",
+                                      [global, {capture, first, binary}]),
+    ?assertEqual(Before, After).
+
 %% report §11.2: `:load` refuses a module whose dependency has no source
 %% and a compiled form it cannot read, with a sentence naming it. A
 %% regression test of compile_source's refusal, which the shell had told
@@ -4103,6 +4186,32 @@ held_another() ->
                              " remove it, and build Geo.Shape from its source root\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", Refusal/binary>>)),
     ?assertEqual(nomatch, binary:match(Output, <<"double">>)).
+
+%% report §11.2: a name of a module whose compiled form on the load path
+%% holds another module is answered with no `:load` that puts it in scope,
+%% since `:load` refuses that form. A regression test, written after the
+%% fix: the help said `:load Geo.Shape puts it in scope`, which `:load`
+%% then refused. It does not cover a form the host will not load, which
+%% the same check answers.
+held_another_help_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun held_another_help/0).
+
+held_another_help() ->
+    Dir = scratch("ern_held_another_help_"),
+    ok = filelib:ensure_path(filename:join([Dir, "src", "extra"])),
+    ok = file:write_file(filename:join([Dir, "src", "extra", "thing.ern"]),
+                         "export fn double(n : Int) : Int = n * 2\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Dir ++ "/src --build-root "
+                        ++ Dir ++ "/build " ++ Dir ++ "/src"),
+    Misplaced = filename:join([Dir, "lp", "geo", "shape.erc"]),
+    ok = filelib:ensure_dir(Misplaced),
+    {ok, _} = file:copy(filename:join([Dir, "build", "extra", "thing.erc"]), Misplaced),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Geo.Shape.double(1)\n:doc Geo.Shape.double\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --load-path " ++ Dir ++ "/lp") ++ " < "
+                             ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Geo.Shape.double">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"puts it in scope">>)).
 
 %% report §11.2, §11.4, §4.5: `:doc` of a member of a module's type shows it
 %% as the module's page shows it, in the form a program writes, its

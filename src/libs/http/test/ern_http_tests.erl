@@ -1,8 +1,8 @@
 %% The primitives behind Http's heads (report Appendix G.11), from the
 %% Erlang side: each line of a head as the host's `erlang:decode_packet/3`
 %% reads it, and the readings the library's Ernest reads again, where the
-%% host reads a line past the form RFC 9112 writes. Regression tests,
-%% written with the code; libs/http's own cases read the same heads
+%% host reads a line past the form RFC 9112 writes. Written with the
+%% code; libs/http's own cases read the same heads
 %% through the module's Ernest.
 -module(ern_http_tests).
 
@@ -79,3 +79,15 @@ values_read_again_test() ->
                   || Value <- [<<"a\r\n b">>, <<"a\rb">>, <<"a", 0, "b">>, <<"a", 255>>]],
                  [ern_http:read_field(<<"X: ", Value/binary, "\r\n\r\n">>, 0)
                   || Value <- [<<"a\r\n b">>, <<"a\rb">>, <<"a", 0, "b">>, <<"a", 255>>]]).
+
+%% report Appendix G.11: a regression test, written after the code: a
+%% method or a header's name holding U+007F, which the host's table reads as
+%% a token's, is answered as a line the host cannot read. It does not cover
+%% a known method, which the host answers as an atom of its own
+delete_test() ->
+    ?assertEqual({'Unreadable', <<"G", 127, "T / HTTP/1.1\r\n">>, <<"\r\n">>},
+                 ern_http:read_first(<<"G", 127, "T / HTTP/1.1\r\n\r\n">>, 0)),
+    ?assertEqual({'Unreadable', <<"X", 127, "Y: a\r\n">>, <<"\r\n">>},
+                 ern_http:read_field(<<"X", 127, "Y: a\r\n\r\n">>, 0)),
+    ?assertMatch({'Field', <<"X">>, <<"a", 127>>, _},
+                 ern_http:read_field(<<"X: a", 127, "\r\n\r\n">>, 0)).

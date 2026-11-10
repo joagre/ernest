@@ -121,9 +121,10 @@ start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, 
 
 %% Report Appendix E.23: what reaches a program as the host takes it: the
 %% name, each argument, each variable's value and the directory without
-%% U+0000, and each variable's name besides not empty and without `=`.
+%% U+0000, the directory besides not empty, and each variable's name not
+%% empty and without `=`.
 is_taken(Program, Arguments, Environment, Directory) ->
-    lists:all(fun is_word/1, [Program, Directory | Arguments])
+    Directory =/= <<>> andalso lists:all(fun is_word/1, [Program, Directory | Arguments])
         andalso lists:all(fun({Name, Value}) ->
                               Name =/= <<>> andalso binary:match(Name, <<"=">>) =:= nomatch
                                   andalso is_word(Name) andalso is_word(Value)

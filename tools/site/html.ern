@@ -5,49 +5,36 @@
 // line of its own, indented four spaces a level, and its inline content on
 // its line; a `<pre>`'s body is written from the line's start. Text is
 // escaped whole, so an entity or a tag that a source writes in its text
-// shows as written.
+// shows as written; an HTML block a source writes is written as it is
+// (docs/design/site.md *The templates*).
 //
-
-/// A heading's anchor: the fragment a link reaches it by, `1.4`, and the
-/// name of the heading's link to itself, `Link to 1.4`.
-export type Anchor = Anchor(id : String, label : String)
-
-/// What a top-level heading carries beside its text: its anchor, where it
-/// has one, and its class, where its page gives it one.
-export type Headed = Headed(anchor : Optional(Anchor), class : Optional(String))
 
 /// The page's top-level blocks, each code block with the buttons the
 /// generator decided it gets (`Site.CodeBlock.placed`) and the declarations its
-/// code links, a heading `shift` levels above the level its source writes
-/// and with what `headed` gives it, one for each heading in order; a
-/// heading past the list's end has neither an anchor nor a class.
-export fn body(blocks : List(CodeBlock.Placed),
-               shift : Int,
-               headed : List(Headed)) : List(Template.Line) = {
-    let #(_, pieces) = List.mapFold(blocks, headed, fn(left, each) = match each.block {
-        Markdown.Heading(=level, =text) -> {
-            let #(given, rest) = match left {
-                first :: later -> #(first, later)
-              | [] -> #(Headed(anchor = None, class = None), [])
-            };
-            #(rest, [Template.Line(heading(level - shift, text, given))])
-        }
+/// code links, and a heading `shift` levels above the level its source writes,
+/// with what its page gives it beside its text.
+export fn body(blocks : List(CodeBlock.Placed), shift : Int) : List(Template.Line) =
+    List.flatMap(blocks, fn(each) = match each.block {
+        Markdown.Heading(=level, =text) ->
+            [Template.Line(heading(level - shift,
+                                   text,
+                                   Optional.withDefault(each.headed, unheaded)))]
       | Markdown.Code(=info, =lines) ->
-            #(left, CodeBlock.html(info, lines, each.given, each.links))
+            CodeBlock.html(info, lines, each.given, each.links)
       | block ->
-            #(left, html(block, shift, each.links))
-    });
-    List.flatMap(pieces, fn(lines) = lines)
-}
+            html(block, shift, each.links)
+    })
 
-/// A block's lines, its code's qualified names that `links` holds made
-/// links; a code block in another block gets no button but Copy.
-export fn html(block : Markdown.Block,
-               shift : Int,
-               links : Map(String, String)) : List(Template.Line) =
+// What a heading carries that its page gives nothing: neither an anchor nor
+// a class.
+let unheaded : CodeBlock.Headed = CodeBlock.Headed(anchor = None, class = None)
+
+// A block's lines, its code's qualified names that `links` holds made
+// links; a code block in another block gets no button but Copy.
+fn html(block : Markdown.Block, shift : Int, links : Map(String, String)) : List(Template.Line) =
     match block {
         Markdown.Heading(=level, =text) ->
-            [Template.Line(heading(level - shift, text, Headed(anchor = None, class = None)))]
+            [Template.Line(heading(level - shift, text, unheaded))]
       | Markdown.Paragraph(inlines) ->
             [Template.Line("<p>" <> inlinesHtml(inlines) <> "</p>")]
       | Markdown.Code(=info, =lines) ->
@@ -68,8 +55,8 @@ export fn html(block : Markdown.Block,
             table(columns, rows)
     }
 
-/// An inline's HTML.
-export fn inline(inline : Markdown.Inline) : String =
+// An inline's HTML.
+fn inline(inline : Markdown.Inline) : String =
     match inline {
         Markdown.Text(text) ->
             Template.escaped(text)
@@ -117,14 +104,14 @@ export fn plain(inlines : List(Markdown.Inline)) : String =
 /// A heading's element, at its level, with its class, and with its anchor
 /// and a link to itself where it has one (docs/design/site.md
 /// *Anchors*).
-export fn heading(level : Int, text : List(Markdown.Inline), headed : Headed) : String = {
+export fn heading(level : Int, text : List(Markdown.Inline), headed : CodeBlock.Headed) : String = {
     let tag = "h" <> Int.toString(Int.min(Int.max(level, 1), 6));
     let class = match headed.class {
         Some(name) -> " class=\"" <> name <> "\""
       | None -> ""
     };
     match headed.anchor {
-        Some(Anchor(=id, =label)) ->
+        Some(CodeBlock.Anchor(=id, =label)) ->
             "<"
                 <> tag
                 <> " id=\""

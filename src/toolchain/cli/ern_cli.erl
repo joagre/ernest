@@ -7,7 +7,7 @@
 -module(ern_cli).
 
 -export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, error_line/1, load_path/0,
-         limit_filter/2, say_limits/0]).
+         said_otherwise/2, say_limits/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -81,7 +81,7 @@ start() ->
 %% the host, which writes its line and exits with status 1 once its kernel
 %% has ended, since the host's process of connections and each supervisor
 %% above it is permanent, restarted by none. From the moment that process
-%% has ended (limit_filter/2), the job waits for the host's end: it ends
+%% has ended (said_otherwise/2), the job waits for the host's end: it ends
 %% with no status of its own, and reports nothing it meets meanwhile, a
 %% process of the host's gone among it.
 host_end() ->
@@ -97,9 +97,12 @@ host_end() ->
 %% one line, after the marker `ern-node-flags`; none are written where the
 %% command starts no node or is refused, which the launcher's second start
 %% then says. Nothing the job would write reaches standard output, which
-%% carries the flags alone.
+%% carries the flags alone, nor anything the host logs: the host's log
+%% handler, which writes on standard output, is the job's own first
+%% (ern_out:logged/0), which writes on the job's standard error.
 -spec node_flags() -> no_return().
 node_flags() ->
+    ok = ern_out:logged(),
     Out = group_leader(),
     %% the job's text is written to it in UTF-8, as its devices write it. A
     %% regression: one of the host's default, Latin-1, raised at a
@@ -226,9 +229,11 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
     %% report §12.5, §11.2: the job's own standard error, where a line of the
     %% toolchain's own goes while no launch's takes it (error_line/1)
     persistent_term:put({?MODULE, error_device}, ErrorDevice),
-    %% report §11: the host's report of an outcome the job says in a line
-    %% of its own is not written, in every job (limit_filter/2)
-    _ = logger:add_primary_filter(?MODULE, {fun ?MODULE:limit_filter/2, []}),
+    %% report §11: the host's report of an outcome said otherwise, which the
+    %% program sees as a value or a fault or the job says in a line of its
+    %% own, is not written, nor what the host logs as it ends the job, in
+    %% every job (said_otherwise/2)
+    _ = logger:add_primary_filter(?MODULE, {fun ?MODULE:said_otherwise/2, []}),
     Name = "ern " ++ Job,
     {Own, Program} = case Job of
                          "run" -> program_words(Spec, Args, []);
@@ -1568,12 +1573,13 @@ run_started() ->
 %% about them (ern_signals).
 quiet_signals() ->
     ok = ern_signals:install(),
-    %% the job's handler stands at warning from the job's start
-    %% (ern_out:logged/0), so the level set here matters only in a host that
-    %% took no streams, a test's, whose handler, the host's own, would write
-    %% the host's note about a signal, logged at notice level; a warning or
-    %% an error from the host still comes through, but the reports the job
-    %% says in lines of its own (limit_filter/2, installed by job/6)
+    %% the job's handler stands at warning from the job's start, the
+    %% launcher's first start's among them (ern_out:logged/0), so the level
+    %% set here matters only in a host that took no streams, a test's, whose
+    %% handler, the host's own, would write the host's note about a signal,
+    %% logged at notice level; a warning or an error from the host still
+    %% comes through, but the reports said otherwise (said_otherwise/2,
+    %% installed by job/6)
     _ = logger:set_handler_config(default, level, warning),
     ok.
 
@@ -1599,34 +1605,34 @@ quiet_signals() ->
 %% way, are dropped: the host's line says it. The filter runs in that
 %% process as it ends, before any process can see the loss, and the job's
 %% end waits for the host's from then on (host_end/0).
--spec limit_filter(logger:log_event(), term()) -> logger:filter_return().
-limit_filter(#{msg := {report, #{label := {gen_server, terminate}, name := net_kernel,
-                                 reason := {system_limit, _}}}}, _) ->
+-spec said_otherwise(logger:log_event(), term()) -> logger:filter_return().
+said_otherwise(#{msg := {report, #{label := {gen_server, terminate}, name := net_kernel,
+                                   reason := {system_limit, _}}}}, _) ->
     persistent_term:put({?MODULE, host_ends}, true),
     ok = logger:set_primary_config(level, none),
     stop;
-limit_filter(#{msg := {"~s~n", ["Too many processes\n"]},
-               meta := #{error_logger := #{emulator := true}}}, _) ->
+said_otherwise(#{msg := {"~s~n", ["Too many processes\n"]},
+                 meta := #{error_logger := #{emulator := true}}}, _) ->
     stop;
-limit_filter(#{msg := {report, #{label := {supervisor, start_error}, report := Report}}}, _) ->
+said_otherwise(#{msg := {report, #{label := {supervisor, start_error}, report := Report}}}, _) ->
     case proplists:get_value(reason, Report) of
         {'EXIT', {system_limit, _}} -> stop;
         _ -> ignore
     end;
-limit_filter(#{msg := {"Error in process " ++ _, [_ | Args]},
-               meta := #{error_logger := #{emulator := true}}}, _) ->
+said_otherwise(#{msg := {"Error in process " ++ _, [_ | Args]},
+                 meta := #{error_logger := #{emulator := true}}}, _) ->
     case lists:last(Args) of
         {system_limit, [{erlang, Spawn, _, _} | _]}
           when Spawn =:= spawn; Spawn =:= spawn_link; Spawn =:= spawn_opt;
                Spawn =:= spawn_monitor -> stop;
         _ -> ignore
     end;
-limit_filter(#{msg := {report, #{label := {erl_prim_loader, file_error}}}}, _) ->
+said_otherwise(#{msg := {report, #{label := {erl_prim_loader, file_error}}}}, _) ->
     stop;
-limit_filter(#{msg := {"~s~n", ["beam/beam_load.c(" ++ _]},
-               meta := #{error_logger := #{emulator := true}}}, _) ->
+said_otherwise(#{msg := {"~s~n", ["beam/beam_load.c(" ++ _]},
+                 meta := #{error_logger := #{emulator := true}}}, _) ->
     stop;
-limit_filter(_Event, _) ->
+said_otherwise(_Event, _) ->
     ignore.
 
 %% Report §11.2: the status a running program ends `ern` with, and what it

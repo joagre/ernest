@@ -57,7 +57,7 @@
          is_kept_from_terminal/1, own_terminal/1,
          input_not_utf8/0, input_unreadable/1, terminal_gone/0, by_input/1, read_input/1,
          run_main/3, say/2,
-         say_later/2, wait_for_later/0, tables/0, arguments/0,
+         say_later/2, later_sayer/0, wait_for_later/0, tables/0, arguments/0,
          exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1, stream_gone/1,
          initializing/1, site/0,
          evaluate/2, evaluate_load/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1,
@@ -76,9 +76,9 @@
 -compile({no_auto_import, [spawn/2, self/0, monitor/2, demonitor/1, now/0]}).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({foreign_wait, [computed_answer/3, exit_program/1, refused/1, restart_taken/1,
-                          end_with_program/0, waited_deliveries/1, waited_reports/0,
-                          tell_service_monitors/0,
+-receives({foreign_wait, [computed_answer/3, exit_program/1, refused/1, captures_ended/1,
+                          restart_taken/1, end_with_program/0, waited_deliveries/1,
+                          waited_reports/0, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
 -receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
                          evaluated_lives/1, sleep_until/1]}).
@@ -88,8 +88,8 @@
 -receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
                          killer/0, wait_for_ends/1, ended_program/0, counted_link/3,
                          delivery_ended/1, fault_courier/0, courier_ended/1,
-                         write_loop/2, stream_loop/2, is_taken/3, collect/3, written_back/3,
-                         dropping/0, stdin_loop/2, taken/1,
+                         write_loop/2, stream_loop/2, is_captured/3, collect/3,
+                         written_back/3, dropping/0, stdin_loop/2, input_taken/1,
                          clock_loop/1, waited/4, told_how/3, entry_end/2, end_program/4,
                          wait_for_collectors/0, sink_flushed/1, stop/1, stopped_in_order/1]}).
 
@@ -195,11 +195,12 @@
 %% each write, by standard input and the terminal at each request, and by
 %% Os.exit (screen_of/1)
 -define(SCREENS, ern_screens).
-%% Report Appendix E.24: the captures that run, {{Head, Order}, Collector},
-%% by the head of the chain whose writes each takes and the order the
-%% captures began in, so that the chain's last is found by one step back
-%% (capture_of/1), written as a capture begins and deleted by its collector
-%% as the capture ends, or as its caller does (capture_writes/0)
+%% Report Appendix E.24: the captures that run, {{Head, Order}, Collector,
+%% Caller}, by the head of the chain whose writes each takes and the order
+%% the captures began in, so that the chain's last is found by one step
+%% back (capture_of/1), written as a capture begins and deleted by its
+%% collector as the capture ends, or as its caller ends or restarts
+%% (capture_writes/0, captures_ended/1)
 -define(CAPTURES, ern_captures).
 %% Report Appendix E.24, §8.6: each collector that has not ended,
 %% {Collector}, written as its capture begins and deleted by the collector
@@ -1508,7 +1509,7 @@ monitored(Pid, Caller, From, Monitor, Ref, Reaper) ->
 %% the monitor with it (asker_ended/3). One that returns leaves it standing
 %% as Caller's, which Caller's restart cancels: the clock and the terminal
 %% take a restart, ending their deliveries to the process, before the
-%% reaper takes it (fresh_run/0), so that no delivery of theirs asks for a
+%% reaper takes it (fresh_run/1), so that no delivery of theirs asks for a
 %% monitor once the reaper has taken it; and a delivery an end's teller
 %% starts after that applies no wrap, the subscription it was to tell
 %% having gone with the restart (told_run/4).
@@ -2306,16 +2307,17 @@ drop_screens(Sink) ->
 %% the chain of Pid, or none for a process of no session's: two lookups,
 %% the process's row and its root's screen.
 screen_of(Pid) ->
-    case root_of(Pid) of
-        none ->
-            none;
-        Root ->
-            try ets:lookup(?SCREENS, Root) of
-                [{_, Sink}] -> Sink;
-                [] -> none
-            catch
-                error:badarg -> none
-            end
+    root_screen(root_of(Pid)).
+
+%% The sink of Root's screen, or none for no root or a root of no session's.
+root_screen(none) ->
+    none;
+root_screen(Root) ->
+    try ets:lookup(?SCREENS, Root) of
+        [{_, Sink}] -> Sink;
+        [] -> none
+    catch
+        error:badarg -> none
     end.
 
 %% Report §11.2, §6.9: the process at the head of Pid's spawn chain, or
@@ -2330,29 +2332,35 @@ root_of(Pid) ->
 %% Report Appendix E.24: what the caller's chain writes taken from now on by
 %% a collector, a process of the runtime's own and of no chain's, so that no
 %% kill of the chain's ends it before its capture does. The collector
-%% watches the caller, and where the caller ends before its capture does,
-%% it lets the chain's writes go and writes what it took where it would
-%% have gone: through the streams again as the head of the chain's, which
-%% the chain's earlier capture or its session's screen then takes. The
-%% run's end waits for the collector (wait_for_collectors/0), so that what
-%% it writes back is not lost to the streams' stop.
+%% watches the caller, and where the caller ends or restarts before its
+%% capture ends, it lets the chain's writes go and writes what it took where
+%% it would have gone: through the streams again as the head of the
+%% chain's, which the chain's earlier capture or its session's screen then
+%% takes. The run's end waits for the collector (wait_for_collectors/0), so
+%% that what it writes back is not lost to the streams' stop.
 -spec capture_writes() -> {'Writes', pid()}.
 capture_writes() ->
     Caller = erlang:self(),
     Key = {chain_head(Caller), erlang:unique_integer([monotonic])},
     Collector = erlang:spawn(fun() -> collect(erlang:monitor(process, Caller), Key, []) end),
     true = ets:insert(?COLLECTORS, {Collector}),
-    true = ets:insert(?CAPTURES, {Key, Collector}),
+    true = ets:insert(?CAPTURES, {Key, Collector, Caller}),
     {'Writes', Collector}.
 
 %% Report Appendix E.24: the capture ended, and what its collector took, by
-%% stream, in the order it was written.
+%% stream, in the order it was written. Report §7.4: a collector that has
+%% ended without answering, which foreign code can kill, is the runtime's
+%% own failure, which faults the caller.
 -spec captured({'Writes', pid()}) -> {'Captured', binary(), binary()}.
 captured({'Writes', Collector}) ->
-    Alias = erlang:alias([reply]),
+    Alias = erlang:monitor(process, Collector, [{alias, demonitor}]),
     Collector ! {collect, Alias},
     receive
-        {Alias, Captured} -> Captured
+        {Alias, Captured} ->
+            erlang:demonitor(Alias, [flush]),
+            Captured;
+        {'DOWN', Alias, process, _, _} ->
+            fault(<<"the capture's collector has ended">>)
     end.
 
 collect(Monitor, Key, Taken) ->
@@ -2365,19 +2373,44 @@ collect(Monitor, Key, Taken) ->
             Alias ! {Alias, {'Captured', taken(stdout, Taken), taken(stderr, Taken)}},
             true = ets:delete(?COLLECTORS, erlang:self());
         {'DOWN', Monitor, process, _, _} ->
-            let_go(Key, Taken);
+            uncollected(Key, Taken);
+        %% report §6.9: the caller restarts, which ends the captures its run
+        %% began as its end does (captures_ended/1)
+        restarted ->
+            uncollected(Key, Taken);
         %% report §8.6: the run ends, which stops its streams once every
         %% collector has ended (wait_for_collectors/0)
         ending ->
-            let_go(Key, Taken)
+            uncollected(Key, Taken)
     end.
 
-%% The chain's writes let go, and what the collector took written where it
-%% would have gone, the collector's last act.
-let_go({Head, _} = Key, Taken) ->
+%% The chain's writes let go, and what the collector took, which no capture
+%% collected, written where it would have gone, the collector's last act.
+uncollected({Head, _} = Key, Taken) ->
     true = ets:delete(?CAPTURES, Key),
     written_back(Head, lists:reverse(Taken)),
     true = ets:delete(?COLLECTORS, erlang:self()).
+
+%% Report Appendix E.24, §6.9: a restart of a capture's caller ends the
+%% captures its run began, those begun after Begun, as the caller's end
+%% does: the fault, or the ask, that restarts the run has left each before
+%% it could collect what it took. A capture begun before the run, around a
+%% restarting function the caller calls, stands. Each collector is told,
+%% the one begun last first, so that what it took is written into the
+%% capture begun before it, and waited for, so that the old run's writes
+%% come before the new run's.
+captures_ended(Begun) ->
+    Self = erlang:self(),
+    Head = chain_head(Self),
+    Ended = [{{{Head, '$2'}, '$1', Self}, [{'>', '$2', Begun}], ['$1']}],
+    Collectors = try ets:select(?CAPTURES, Ended)
+                 catch error:badarg -> []
+                 end,
+    lists:foreach(fun(Collector) ->
+                      MonitorRef = erlang:monitor(process, Collector),
+                      Collector ! restarted,
+                      receive {'DOWN', MonitorRef, process, _, _} -> ok end
+                  end, lists:reverse(Collectors)).
 
 taken(Name, Taken) ->
     iolist_to_binary(lists:reverse([Bytes || {Stream, Bytes} <- Taken, Stream =:= Name])).
@@ -2409,24 +2442,30 @@ written_back(Head, Alias, Rest) ->
             written_back(Head, Alias, Rest ++ [{Name, Bytes}])
     end.
 
-%% Report Appendix E.24: the collector of the last capture of Pid's chain
-%% that runs, and the capture's key, or none: the chain's keys sort before
-%% {Head, []}, since a number sorts before a list, the last just before it.
-capture_of(Pid) ->
-    Head = chain_head(Pid),
+%% Report Appendix E.24: the row of the last capture that runs of the chain
+%% Head heads, or none: the chain's keys sort before {Head, []}, since a
+%% number sorts before a list, the last just before it. A row its collector
+%% deleted between the two reads leaves the one before it the last.
+capture_of(Head) ->
     try ets:prev(?CAPTURES, {Head, []}) of
-        {Head, _} = Key -> {Key, ets:lookup_element(?CAPTURES, Key, 2, none)};
-        _ -> none
+        {Head, _} = Key ->
+            case ets:lookup(?CAPTURES, Key) of
+                [Capture] -> Capture;
+                [] -> capture_of(Head)
+            end;
+        _ ->
+            none
     catch
         error:badarg -> none
     end.
 
 %% The head of Pid's chain, or Pid where the runtime did not start it.
 chain_head(Pid) ->
-    case root_of(Pid) of
-        none -> Pid;
-        Root -> Root
-    end.
+    chain_head(Pid, root_of(Pid)).
+
+%% The same, of Pid whose root is Root.
+chain_head(Pid, none) -> Pid;
+chain_head(_Pid, Root) -> Root.
 
 %% Appendix E.21: Process.status, a snapshot of a live process, None once it
 %% has ended, for a process on another node, and for one of the runtime's
@@ -3424,10 +3463,24 @@ stream_loop(Stream, Name) ->
 %% screen, and false where neither is there and the stream writes it. A
 %% capture is given the bytes and answers once it holds them, so that the
 %% write returns only then; one that has ended meanwhile takes nothing, and
-%% the write goes where it would have gone without it.
+%% the write goes where it would have gone without it. The writer's row is
+%% read once, for its root, which heads its chain and holds its screen.
 is_taken(Writer, Name, Bytes) ->
-    case capture_of(Writer) of
-        {Key, Collector} when is_pid(Collector) ->
+    Root = root_of(Writer),
+    case is_captured(chain_head(Writer, Root), Name, Bytes) of
+        true ->
+            true;
+        false ->
+            case root_screen(Root) of
+                none -> false;
+                Sink -> Sink(Bytes), true
+            end
+    end.
+
+%% Whether the last capture of the chain Head heads took the bytes.
+is_captured(Head, Name, Bytes) ->
+    case capture_of(Head) of
+        {_, Collector, _} = Capture ->
             Alias = erlang:monitor(process, Collector, [{alias, demonitor}]),
             Collector ! {written, Alias, Name, Bytes},
             receive
@@ -3435,14 +3488,11 @@ is_taken(Writer, Name, Bytes) ->
                     erlang:demonitor(Alias, [flush]),
                     true;
                 {'DOWN', Alias, process, _, _} ->
-                    _ = ets:delete_object(?CAPTURES, {Key, Collector}),
-                    is_taken(Writer, Name, Bytes)
+                    _ = ets:delete_object(?CAPTURES, Capture),
+                    is_captured(Head, Name, Bytes)
             end;
-        _ ->
-            case screen_of(Writer) of
-                none -> false;
-                Sink -> Sink(Bytes), true
-            end
+        none ->
+            false
     end.
 
 written(Stream, Bytes) ->
@@ -3459,8 +3509,7 @@ drained(Stream) ->
     written(Stream, <<>>).
 
 gone(Name) ->
-    {Runner, Launch} = launch_runner(),
-    Runner ! {gone, Launch, Name},
+    _ = told_runner(gone, Name),
     dropping().
 
 %% Report §11: a stream that has gone writes nothing more, and the program
@@ -3584,7 +3633,7 @@ read_line(Reply, Open, Buffer) ->
                {{line, Line}, Left} -> answer_line(Reply, without_return(Line)), Left;
                {{last, Line}, Left} -> answer_line(Reply, Line), Left;
                {{error, Error}, Left} -> unreadable(Error), Left;
-               {limited, Left} -> limited(Reply), Left
+               {limited, Left} -> refused_limited(Reply), Left
            end,
     source_end(),
     Rest.
@@ -3602,7 +3651,7 @@ read_bytes(Reply, Open, Buffer) ->
 
 %% Report §7.4, §12.5: a read whose input the host's full table of ports
 %% kept from being opened, its asker faulted.
-limited(Reply) ->
+refused_limited(Reply) ->
     refuse(Reply, host_cause(error, system_limit)).
 
 %% The next line and the bytes after it: the bytes before the first line
@@ -3643,7 +3692,7 @@ answer_line(Reply, Text) ->
 bytes(Reply, {data, Bytes}) -> answer(Reply, {'Some', Bytes});
 bytes(Reply, eof) -> answer(Reply, 'None');
 bytes(_, {error, Error}) -> unreadable(Error);
-bytes(Reply, limited) -> limited(Reply).
+bytes(Reply, limited) -> refused_limited(Reply).
 
 unreadable(Error) ->
     end_with_fault(<<(unreadable())/binary, (format("~p", [Error]))/binary>>).
@@ -3699,12 +3748,12 @@ by_input(Cause) ->
           {data, binary()} | eof | {error, term()} | limited.
 read_input(Open) ->
     try Open() of
-        Input -> taken(Input)
+        Input -> input_taken(Input)
     catch
         error:system_limit -> limited
     end.
 
-taken(Input) ->
+input_taken(Input) ->
     First = receive
                 {Input, {data, Bytes}} -> {data, Bytes};
                 {Input, eof} -> eof;
@@ -4359,14 +4408,17 @@ say(Line, Outside) ->
 %% says so every event the host logs through it, from whichever process
 %% logs it, a program's own among them (ern_out:log/2).
 %%
-%% The process is started by a run's start or by the first such line, and
-%% lives the host's life; a launch's end, and the job's, wait for it to
-%% have said what it was given (wait_for_later/0).
+%% The process is started by the job's start, a run's or the first such
+%% line, and lives the host's life; a launch's end, and the job's, wait for
+%% it to have said what it was given (wait_for_later/0).
 -spec say_later(binary(), fun((binary()) -> term())) -> ok.
 say_later(Line, Outside) ->
     erlang:send(later_sayer(), {say, Line, Outside}),
     ok.
 
+%% The process that says each line said later, started where none runs:
+%% by the job's start (ern_out:logged/0), a run's, or the first such line.
+-spec later_sayer() -> pid().
 later_sayer() ->
     case erlang:whereis(?SAY_LATER) of
         undefined ->
@@ -5215,6 +5267,9 @@ spawn_order(Pid) ->
     end.
 
 restarts(F, Allowed, Times, Level) ->
+    %% report Appendix E.24: the run's start, after which a capture begun
+    %% is the run's own (captures_ended/1)
+    Begun = erlang:unique_integer([monotonic]),
     try
         F()
     catch
@@ -5223,7 +5278,7 @@ restarts(F, Allowed, Times, Level) ->
             %% no limit, and is not reported; the calls waiting on the
             %% process end as at a fault
             started_again('Asked'),
-            fresh_run(),
+            fresh_run(Begun),
             restarted(asked),
             tell_service_monitors(),
             restarts(F, Allowed, Times, Level);
@@ -5239,7 +5294,7 @@ restarts(F, Allowed, Times, Level) ->
                     %% report §11.2: a fault after which the process
                     %% restarts is reported as one
                     launch_reaper() ! {report, erlang:self(), site(), Fault},
-                    fresh_run(),
+                    fresh_run(Begun),
                     restarted({fault, Fault#fault.cause}),
                     tell_service_monitors(),
                     Level =:= outer andalso started_again('AfterFault'),
@@ -5251,12 +5306,14 @@ restarts(F, Allowed, Times, Level) ->
             end
     end.
 
-%% Report §6.9: a restart begins a new run with nothing of the old. What
-%% the process asked the runtime for is canceled, with what is on its way
-%% to it: its alarms by the clock and its keys by the terminal, each with
-%% the deliveries it started to the process, and then its monitors and its
-%% subscriptions to faults and to the program's end by the reaper, with the
-%% deliveries to it whoever started them; then its mailbox is emptied,
+%% Report §6.9: a restart begins a new run with nothing of the old. The
+%% captures the run began after Begun end first, as at the process's end
+%% (captures_ended/1, Appendix E.24).
+%% What the process asked the runtime for is canceled, with what is on its
+%% way to it: its alarms by the clock and its keys by the terminal, each
+%% with the deliveries it started to the process, and then its monitors and
+%% its subscriptions to faults and to the program's end by the reaper, with
+%% the deliveries to it whoever started them; then its mailbox is emptied,
 %% before the calls waiting on it are told they have ended (restarted/1),
 %% so that the request of an ended call is not taken by the new run, and
 %% before its service monitors are told (tell_service_monitors/0), so that
@@ -5270,12 +5327,13 @@ restarts(F, Allowed, Times, Level) ->
 %% teller is asked: a delivery a teller starts once the reaper has answered
 %% finds the subscription it was to tell gone, and delivers nothing to the
 %% new run (told_run/4).
-fresh_run() ->
+fresh_run(Begun) ->
     %% report §8.6: an answer on its way from a system process is no
     %% message the look sees in flight, and a delivery waited for is a
     %% source until it ends
     entered_foreign(),
     try
+        captures_ended(Begun),
         restart_taken([system_process(clock), system_process(terminal)] ++ gateway()),
         restart_taken([launch_reaper()]),
         emptied()

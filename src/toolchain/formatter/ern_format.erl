@@ -500,7 +500,7 @@ bare_expr(#e_list{elements = Elements}, Code) ->
     bracket(token('['), [expr(Element, Code) || Element <- Elements], ']', last(Elements), Code);
 bare_expr(#e_bitstring{segments = Segments}, Code) ->
     bracket(token('<<'), [segment(Segment, Code, fun expr/2) || Segment <- Segments], '>>',
-            segment_value(last(Segments)), Code);
+            hugging_segment(last(Segments)), Code);
 bare_expr(#e_block{statements = Statements}, Code) ->
     braces([statements(Statements, Code), lead_trivia]);
 bare_expr(#e_call{pipe = false, callee = Callee, args = Args}, Code) ->
@@ -574,8 +574,8 @@ statement(Expr, Code) ->
 %% Report §11.6: the value of a bitstring's last segment, which may open a
 %% brace that keeps the segments on the bracket's line, but where a size or
 %% a type follows it, which goes on past the brace.
-segment_value(#bit_segment{value = Value, specs = []}) -> Value;
-segment_value(_) -> none.
+hugging_segment(#bit_segment{value = Value, specs = []}) -> Value;
+hugging_segment(_) -> none.
 
 segment(#bit_segment{value = Value, specs = []}, Code, TemplateOf) ->
     TemplateOf(Value, Code);

@@ -1476,13 +1476,15 @@ connected(Server, Host, Verification) ->
     Acceptor ! done,
     Answer.
 
-%% report Appendix E.18: a listener holds the host's backlog, 5, which the
-%% host gives a listen that names none, over TCP and over TLS alike. The
-%% host does not answer its backlog to `inet:getopts`, so the kernel's
-%% table is read, `ss`'s Send-Q of the listening socket, where `ss` is
-%% installed. Written after the code, a regression test; it does not cover
-%% how many connections the kernel holds against the backlog, which Linux
-%% makes one more
+%% report Appendix E.18: a listener holds the largest backlog the host
+%% takes, 65535, which the system lowers to its own limit, Linux's
+%% `net.core.somaxconn`, over TCP and over TLS alike. The host does not
+%% answer its backlog to `inet:getopts`, so the kernel's table is read,
+%% `ss`'s Send-Q of the listening socket, where `ss` is installed. Written
+%% after the code, a regression test, first for the host's 5 and now for
+%% its largest, since ernest-httpd's line 27; it does not cover how many
+%% connections the kernel holds against the backlog, which Linux makes one
+%% more, nor a reset past it
 listen_backlog_test() ->
     case os:find_executable("ss") of
         false ->
@@ -1498,8 +1500,15 @@ listen_backlog_test() ->
                                           || Listener <- [Plain, Tls],
                                              {'Right', Port} <- [port(Listener)]]}
                    end),
-            ?assertEqual([5, 5], wait(backlogs))
+            Largest = min(65535, system_limit()),
+            ?assertEqual([Largest, Largest], wait(backlogs))
     end.
+
+%% The system's own limit on a backlog, Linux's, read where the kernel
+%% gives it.
+system_limit() ->
+    {ok, Text} = file:read_file("/proc/sys/net/core/somaxconn"),
+    binary_to_integer(string:trim(Text)).
 
 %% The backlog of the listening socket on Port, as the kernel's table
 %% holds it, read by Ss.

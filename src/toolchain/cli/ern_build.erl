@@ -1159,11 +1159,7 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
           | {error, [ern_diagnostic:diagnostic()]}.
 checked(#build_module{namespace = Namespace, declarations = Declarations, shortest = Shortest,
                       too_long = TooLong}, Given) ->
-    case {ern_typecheck:check(Namespace, Declarations, Given, Shortest), TooLong} of
-        {{ok, _, _, _} = Checked, []} -> Checked;
-        {{ok, _, _, _}, _} -> {error, TooLong};
-        {{error, Diagnostics}, _} -> {error, lists:sort(TooLong ++ Diagnostics)}
-    end.
+    ern_typecheck:check_resolved(Namespace, Declarations, Given, Shortest, TooLong).
 
 %% Report §11.1: the modules of the build, of Namespaces, that a module's
 %% forms name by name, a prelude name or an operator's resolution among

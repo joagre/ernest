@@ -729,12 +729,10 @@ type([{typename, Position, _} | _] = Tokens, Marks) ->
     case qualified(Tokens) of
         {{con, Namespace, Name}, [{'(', _} | Rest]} ->
             {Args, Rest1} = separated(Rest, ',', listed(Marks)),
-            spanned({#t_named{span = Position, namespace = Namespace,
-                              written = Namespace, name = Name, args = Args},
+            spanned({namespaced(#t_named{span = Position, name = Name, args = Args}, Namespace),
                      expect(Rest1, ')')});
         {{con, Namespace, Name}, Rest} ->
-            spanned({#t_named{span = Position, namespace = Namespace,
-                              written = Namespace, name = Name}, Rest});
+            spanned({namespaced(#t_named{span = Position, name = Name}, Namespace), Rest});
         {{value, _, _}, Rest} ->
             %% report §11.5: over the whole name, with how an argument is
             %% written, which is true whether the name was meant as a type's
@@ -825,6 +823,17 @@ qualified([{'.', _}, Token | Rest], Namespace, Current) ->
     {{member, Namespace ++ [Current], element(1, Token)}, Rest};
 qualified(Rest, Namespace, Current) ->
     {{con, Namespace, Current}, Rest}.
+
+%% Report §4.2: a node of a qualified name with its namespace as the source
+%% writes it, which is its namespace too until ern_resolve resolves it.
+namespaced(#e_var{} = Var, Namespace) ->
+    Var#e_var{namespace = Namespace, written = Namespace};
+namespaced(#e_constructor{} = Constructor, Namespace) ->
+    Constructor#e_constructor{namespace = Namespace, written = Namespace};
+namespaced(#p_constructor{} = Pattern, Namespace) ->
+    Pattern#p_constructor{namespace = Namespace, written = Namespace};
+namespaced(#t_named{} = Type, Namespace) ->
+    Type#t_named{namespace = Namespace, written = Namespace}.
 
 %% Report §2.6, Appendix A's userop: whether a token is an operator a type
 %% may declare as its member.
@@ -974,9 +983,6 @@ binexpr_loop(Left, [{Operator, Position} | Rest] = Tokens, Min) ->
         {Precedence, Associativity} when Precedence >= Min ->
             NextMin = case Associativity of left -> Precedence + 1; right -> Precedence end,
             {Right, Rest1} = binexpr(Rest, NextMin),
-            %% report §5.7: parentheses around the right-hand side change
-            %% nothing, so a parenthesized call is a call the pipe fills, as
-            %% an unparenthesized one is
             Combined = combine(Operator, from_left_operand(Left, Position), Left, Right),
             {Node, _} = spanned({Combined, Rest1}),
             binexpr_loop(Node, Rest1, Min);
@@ -1115,8 +1121,7 @@ primary([{ident, Position, Name} | Rest]) ->
 primary([{typename, Position, _} | _] = Tokens) ->
     case qualified(Tokens) of
         {{value, Namespace, Name}, Rest} ->
-            spanned({#e_var{span = Position, namespace = Namespace,
-                            written = Namespace, name = Name}, Rest});
+            spanned({namespaced(#e_var{span = Position, name = Name}, Namespace), Rest});
         {{con, Namespace, Name}, Rest} ->
             constructor_expr(Position, Namespace, Name, Rest);
         {{member, Namespace, Operator}, Rest} ->
@@ -1175,9 +1180,8 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
                                          separated(Rest4, ',', field_of(Namespace, Name, update));
                                      _ -> {[], Rest2}
                                  end,
-            spanned({#e_constructor{span = Position, namespace = Namespace,
-                                    written = Namespace, name = Name,
-                                    base = Base, args = {named, FieldSets}},
+            spanned({namespaced(#e_constructor{span = Position, name = Name, base = Base,
+                                               args = {named, FieldSets}}, Namespace),
                      expect(Rest3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
             named_construction(Position, Namespace, Name, Rest);
@@ -1189,8 +1193,7 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
             %% Appendix A: empty parentheses hold no constructor argument,
             %% so they are a call of the constructor's value, which the
             %% checker refuses (report §5.6)
-            spanned({#e_constructor{span = Position, namespace = Namespace,
-                                    written = Namespace, name = Name},
+            spanned({namespaced(#e_constructor{span = Position, name = Name}, Namespace),
                      [Paren | Rest]});
         [{eof, EndPosition} | _] ->
             %% report §11.2: the input ends where the constructor's first
@@ -1211,9 +1214,8 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
                     %% Appendix A: two expressions or more are no constructor
                     %% argument but a call of the constructor's value, which
                     %% the checker refuses (report §5.6)
-                    {Callee, _} = spanned({#e_constructor{span = Position, namespace = Namespace,
-                                                          written = Namespace,
-                                                          name = Name},
+                    {Callee, _} = spanned({namespaced(#e_constructor{span = Position,
+                                                                     name = Name}, Namespace),
                                            [Paren | Rest]}),
                     {More, Rest3} = arguments(Callee, Rest2, 1),
                     spanned({#e_call{span = ern_ast:span(Callee), callee = Callee,
@@ -1221,21 +1223,18 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
                              expect(Rest3, ')')});
                 _ ->
                     no_path(Expr, Rest1),
-                    spanned({#e_constructor{span = Position, namespace = Namespace,
-                                            written = Namespace, name = Name,
-                                            args = {positional, Expr}},
+                    spanned({namespaced(#e_constructor{span = Position, name = Name,
+                                                       args = {positional, Expr}}, Namespace),
                              expect(Rest1, ')')})
             end
     end;
 constructor_expr(Position, Namespace, Name, Tokens) ->
-    spanned({#e_constructor{span = Position, namespace = Namespace,
-                            written = Namespace, name = Name}, Tokens}).
+    spanned({namespaced(#e_constructor{span = Position, name = Name}, Namespace), Tokens}).
 
 named_construction(Position, Namespace, Name, Tokens) ->
     {FieldSets, Rest} = separated(Tokens, ',', field_of(Namespace, Name, construction)),
-    spanned({#e_constructor{span = Position, namespace = Namespace,
-                            written = Namespace, name = Name,
-                            args = {named, FieldSets}},
+    spanned({namespaced(#e_constructor{span = Position, name = Name, args = {named, FieldSets}},
+                        Namespace),
              expect(Rest, ')')}).
 
 %% Report §11.2: a field of this constructor, which the tag names, so
@@ -1395,8 +1394,7 @@ no_or_inside(Alternatives, Site) ->
     end.
 
 %% The first `or` the patterns hold, read through their parts alone: a
-%% size's expression holds clauses of its own, whose `or` stands between
-%% whole patterns.
+%% segment's size is an expression, and holds no pattern of the clause's.
 inner_or([]) ->
     none;
 inner_or([#p_or{} = Or | _]) ->
@@ -1554,9 +1552,8 @@ atompat([Token | _]) ->
 constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
     case Rest of
         [{')', _} | Rest1] ->
-            spanned({#p_constructor{span = Position, namespace = Namespace,
-                                    written = Namespace, name = Name,
-                                    args = {named, []}},
+            spanned({namespaced(#p_constructor{span = Position, name = Name, args = {named, []}},
+                                Namespace),
                      Rest1});
         [{ident, _, _}, {'=', _} | _] ->
             named_pattern(Position, Namespace, Name, Rest);
@@ -1574,20 +1571,17 @@ constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
             {Pattern, Rest1} = nested_pattern(Rest),
             no_path_pattern(Pattern, Rest1),
             no_second_positional(Name, Rest1),
-            spanned({#p_constructor{span = Position, namespace = Namespace,
-                                    written = Namespace, name = Name,
-                                    args = {positional, Pattern}},
+            spanned({namespaced(#p_constructor{span = Position, name = Name,
+                                               args = {positional, Pattern}}, Namespace),
                      expect(Rest1, ')')})
     end;
 constructor_pattern(Position, Namespace, Name, Tokens) ->
-    spanned({#p_constructor{span = Position, namespace = Namespace,
-                            written = Namespace, name = Name}, Tokens}).
+    spanned({namespaced(#p_constructor{span = Position, name = Name}, Namespace), Tokens}).
 
 named_pattern(Position, Namespace, Name, Tokens) ->
     {Fields, Rest} = separated(Tokens, ',', field_pattern_of(Namespace, Name)),
-    spanned({#p_constructor{span = Position, namespace = Namespace,
-                            written = Namespace, name = Name,
-                            args = {named, Fields}},
+    spanned({namespaced(#p_constructor{span = Position, name = Name, args = {named, Fields}},
+                        Namespace),
              expect(Rest, ')')}).
 
 %% Report §3.5, §11.5: a `,` after a constructor pattern's positional field

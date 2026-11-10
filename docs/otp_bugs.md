@@ -944,3 +944,36 @@ OTP 29, erts 17.1.1, on Linux x86_64.
 **Additional context**
 
 Modules of 2,000 exported functions each, loaded one after another, end it at the export table, and modules of 2,000 funs each at the fun table, each with its own line above and status 1.
+
+## 20. `gen_tcp:listen/2` keeps a backlog's low 16 bits
+
+Not filed. Found on 2026-11-10 (the log's *A Listener's Backlog*); Ernest gives the host 65535, the largest it keeps whole (E.18).
+
+**Title:** gen_tcp:listen/2 silently takes the {backlog, N} option modulo 65536, so 65536 listens with a backlog of 0
+
+**Describe the bug**
+
+The `backlog` option is documented as a non-negative integer. A value past 65535 is not refused and not lowered to the system's limit: its low 16 bits are passed to `listen(2)`. On Linux, which lowers a larger backlog to `net.core.somaxconn` itself, `{backlog, 65536}` listens with a backlog of 0 and `{backlog, 65541}` with 5, where `{backlog, 65535}` listens with the system's 4096.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    [begin
+         {ok, L} = gen_tcp:listen(0, [{backlog, B}, {ip, {127,0,0,1}}]),
+         {ok, P} = inet:port(L),
+         io:format("~p -> ~s", [B, os:cmd("ss -Hltn sport = :" ++ integer_to_list(P))]),
+         gen_tcp:close(L)
+     end || B <- [65535, 65536, 65541]],
+    halt().'
+```
+
+It prints the listening sockets' backlogs, `ss`'s third column: 4096, 0 and 5.
+
+**Expected behavior**
+
+A backlog past what the option can carry is refused with `{error, einval}`, or passed whole for the system to lower, as `listen(2)` does with any larger value.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, on Linux x86_64.

@@ -148,9 +148,8 @@ fn place(byte : Int) : Optional(Int) =
 
 //
 // The tests (report §9.3), run by `ern test` as every library's are. They
-// are regression tests, written with the code, from RFC 4648 and from what
-// probing the host showed of the texts its decoder reads that `encode`
-// does not write.
+// are written with the code, from RFC 4648 and from what probing the host
+// showed of the texts its decoder reads that `encode` does not write.
 //
 
 // RFC 4648's test vectors (§10), the plain texts and their encodings.

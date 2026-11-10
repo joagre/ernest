@@ -69,8 +69,8 @@ export fn randomBytes(count : Int) : Bytes =
     strongBytes(Int.max(count, 0))
 
 //
-// The tests (report §9.3), run by `ern test` as every library's are, each a
-// regression test written with the code (report Appendix G.9).
+// The tests (report §9.3), run by `ern test` as every library's are, each
+// written with the code (report Appendix G.9).
 //
 
 // Report Appendix G.9: the digest of no bytes, and FIPS 180-4's two

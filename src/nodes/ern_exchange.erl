@@ -384,7 +384,7 @@ completed(Ref, #exchange{identity = Identity, waiting = Waiting, arrived = Arriv
         ok ->
             lists:foreach(fun started/1, Waiting);
         limited ->
-            Limited = ern_peer:limited(),
+            Limited = ern_io:limited(),
             lists:foreach(fun({From, Body}) -> _ = ern_peer:failed(From, Body, Limited, "") end,
                           Waiting);
         {error, Text} ->

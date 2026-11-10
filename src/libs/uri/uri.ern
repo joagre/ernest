@@ -241,8 +241,8 @@ fn digit(byte : Int) : Optional(Int) =
 
 //
 // The tests (report §9.3), run by `ern test` as every library's are. They
-// are regression tests, written with the code, from RFC 3986's examples
-// and from what probing the host's `uri_string:parse` showed of its edges.
+// are written with the code, from RFC 3986's examples and from what
+// probing the host's `uri_string:parse` showed of its edges.
 //
 
 // A reference with none of its components but the path.

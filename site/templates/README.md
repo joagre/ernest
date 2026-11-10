@@ -7,7 +7,7 @@ The token files the generator, [`tools/site.ern`](../../tools/site.ern), fills. 
 | File | What it is | Its tokens |
 |---|---|---|
 | `base.html` | every page's head, header and footer, the page's own part in `main` | `title`, `description`, `stylesheet`, `script`, `icons`, `shell_path`, `lifetime`, `navigation_html`, `main_html`, `source_html`, `version`, `tag` |
-| `page.html` | a chapter of the tour, the guide or the report, a module's page, Why, the questions, the deployment guide, Install, Releases, Projects and the 404 page | `layout`, `contents_html`, `book_html`, `heading_html`, `body_html`, `page_nav_html` |
+| `page.html` | a chapter of the tour or the guide, a file of the report, a module's page, Why, the questions, the deployment guide, Install, Releases, Projects and the 404 page | `layout`, `contents_html`, `book_html`, `heading_html`, `body_html`, `page_nav_html` |
 | `toc.html` | a contents page: the tour's, the guide's, the report's and the library's | `heading_html`, `opening_html`, `entries_html` |
 | `home.html` | the homepage, its text the site's own | `claims_html`, `example_html`, `icons` |
 | `shell.html` | the shell's page, its numbers the server's configuration's | `lifetime`, `warning`, `memory`, `at_once`, `starts`, `within` |

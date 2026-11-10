@@ -1,6 +1,6 @@
 # Language feedback
 
-What writing Ernest has felt against the principles, and what a reader found that questions a rule of the language rather than showing a defect (CLAUDE.md, *Defects and gaps*). An entry stays until a plan item decides it: a report change, an item of a milestone, or a line in the log saying it was dropped and why. An entry keeps its number, which the plan, the log and the code cite; the next is 248.
+What writing Ernest has felt against the principles, and what a reader found that questions a rule of the language rather than showing a defect (CLAUDE.md, *Defects and gaps*). An entry stays until a plan item decides it: a report change, an item of a milestone, or a line in the log saying it was dropped and why. An entry keeps its number, which the plan, the log and the code cite; the next is 249.
 
 237. **A byte's class is written by hand in every library** (2026-11-10, the release review before 0.10.0, C401's L1). A bitstring pattern binds an `Int`, and `Char.isAsciiDigit` and `Char.digitValue` take a `Char`, so `isDigit` in `libs/http` and `libs/json`, `isHexDigit` in `libs/json`, `digit` in `libs/uri`, `isCharacter` and `place` in `libs/base64` and `isBlank` in `libs/http` each test a range, seven over `src/libs/`. The log's *The Libraries' Shims Read Against E.0 Rule 1* counted two sites and found no repeat. Asked: a byte's class in `Bytes`, or `Char`'s predicates over a code point.
 

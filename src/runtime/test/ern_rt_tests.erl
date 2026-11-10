@@ -978,6 +978,88 @@ expected_fault_told_to_no_one_test() ->
     ?assertEqual([<<"M.main:5">>, <<"M.main:5">>],
                  [Site || {reported, {'FaultReport', _, Site, _, _, _, _, _, _, _}} <- flush()]).
 
+%% report Appendix E.24, §6.9: a restart of a capture's caller ends the
+%% capture as its end does: its collector has written back what it took and
+%% ended before the new run begins, and the chain's writes after the
+%% restart go where they would have gone, in their order. A regression
+%% test: the restart ended the process's subscriptions and not its
+%% captures, so that the collector took every write of the chain until the
+%% program's end, and grew with each; a capture of another process of the
+%% chain, which the restart leaves standing, is not covered
+capture_ends_at_its_callers_restart_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Worker = fun() ->
+                            case get(runs) of
+                                undefined ->
+                                    put(runs, 1),
+                                    Main ! {capture, ern_rt:capture_writes()},
+                                    written(stdout, <<"captured\n">>),
+                                    ern_rt:fault(<<"inside the capture">>);
+                                1 ->
+                                    written(stdout, <<"restarted\n">>),
+                                    Main ! restarted
+                            end
+                        end,
+               _ = ern_rt:spawn(ern_rt:restarting('Unlimited', Worker), <<"Main.main:2">>),
+               {'Writes', Collector} = receive {capture, Writes} -> Writes end,
+               receive restarted -> ok end,
+               Self ! {collector, erlang:is_process_alive(Collector)},
+               written(stdout, <<"main\n">>)
+           end, <<"main">>, #{stdout => fun(Bytes) -> Self ! {out, Bytes} end,
+                              faults => fun(_, _) -> ok end}),
+    ?assertEqual(false, wait(collector)),
+    ?assertEqual([<<"captured\n">>, <<"restarted\n">>, <<"main\n">>], taken(out)).
+
+%% report Appendix E.24, §6.9: a restart ends only the captures its run
+%% began: a capture begun before a restarting function its caller calls,
+%% around it, stands through the function's restart, and takes what both
+%% runs wrote and what its caller wrote after. A regression test, written
+%% after the code; a capture of another process of the chain is not
+%% covered
+capture_around_a_restart_stands_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Writes = ern_rt:capture_writes(),
+               written(stdout, <<"before\n">>),
+               Inner = fun() ->
+                           case get(runs) of
+                               undefined ->
+                                   put(runs, 1),
+                                   written(stdout, <<"faulted\n">>),
+                                   ern_rt:fault(<<"inside the restarting function">>);
+                               1 ->
+                                   written(stdout, <<"restarted\n">>)
+                           end
+                       end,
+               _ = (ern_rt:restarting('Unlimited', Inner))(),
+               written(stdout, <<"after\n">>),
+               Self ! {captured, ern_rt:captured(Writes)}
+           end, <<"main">>, #{stdout => fun(Bytes) -> Self ! {out, Bytes} end,
+                              faults => fun(_, _) -> ok end}),
+    ?assertEqual({'Captured', <<"before\nfaulted\nrestarted\nafter\n">>, <<>>},
+                 wait(captured)),
+    ?assertEqual([], taken(out)).
+
+%% report Appendix E.24, §7.4: a capture whose collector has ended without
+%% answering, killed here as foreign code could kill it, faults its caller
+%% as the runtime's own failure, and the caller does not wait for ever. A
+%% regression test: the caller waited with no monitor of the collector; a
+%% collector that ends as the run's tables go is not covered
+capture_with_an_ended_collector_faults_test() ->
+    ?assertMatch({fault, <<"the capture's collector has ended">>, _},
+                 ern_rt:run_main(
+                   fun() ->
+                       {'Writes', Collector} = Writes = ern_rt:capture_writes(),
+                       MonitorRef = erlang:monitor(process, Collector),
+                       exit(Collector, kill),
+                       receive {'DOWN', MonitorRef, process, _, _} -> ok end,
+                       ern_rt:captured(Writes)
+                   end, <<"main">>, #{stdout => fun(_) -> ok end})).
+
 
 %% report §6.6, §6.9, §8.6: a call ends with the key, the monitor and the
 %% alias it made, and the timed wait it marked, however it ends: its message's

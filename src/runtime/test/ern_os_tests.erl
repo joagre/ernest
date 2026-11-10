@@ -621,6 +621,98 @@ exited_program_leaves_no_group() ->
     ok = file:delete(Fifo),
     ?assertEqual(0, Ended).
 
+%% report Appendix E.23: `kill` stops a program that has left its process
+%% group, here for its parent's, the helper's, which the group's kill
+%% misses. A regression test, written after the code: without the kill of
+%% the program by its own number it lived on, and the helper and the run
+%% waited on it; a program under a terminal, which leads its session and
+%% cannot leave its group, is terminal_kill_test's.
+%%
+%% The program holds a named pipe the test reads, whose end shows that it
+%% has ended. The run is a process of its own, since a program the kill
+%% missed holds it, and the program and the reader are killed by their
+%% numbers once the 5 seconds that bound a failure have passed
+kill_reaches_a_program_out_of_its_group_test_() ->
+    {timeout, 60, fun kill_reaches_a_program_out_of_its_group/0}.
+
+kill_reaches_a_program_out_of_its_group() ->
+    Fifo = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                         "ern_os_moved_" ++ os:getpid()),
+    "" = os:cmd("mkfifo " ++ Fifo),
+    Reader = open_port({spawn_executable, os:find_executable("cat")},
+                       [{args, [Fifo]}, exit_status, binary]),
+    {os_pid, ReaderNumber} = erlang:port_info(Reader, os_pid),
+    Self = self(),
+    %% the program opens the pipe before it says its number, so that a
+    %% writer holds the pipe before the kill can come
+    Script = <<"import os, sys, time\n"
+               "os.setpgid(0, os.getpgid(os.getppid()))\n"
+               "held = open(sys.argv[1], 'w')\n"
+               "print(os.getpid(), flush=True)\n"
+               "time.sleep(1000)\n">>,
+    {_, RunRef} = spawn_monitor(
+                    fun() ->
+                        ok = ern_rt:run_main(
+                               fun() ->
+                                   {'Right', Python} =
+                                       start(<<"python3">>,
+                                             [<<"-c">>, Script, list_to_binary(Fifo)]),
+                                   Number = read_until(Python, <<"\n">>, <<>>),
+                                   Self ! {python, binary_to_integer(string:trim(Number))},
+                                   ern_rt:kill(Python)
+                               end, <<"main">>, #{stdout => fun(_) -> ok end})
+                    end),
+    Python = wait(python),
+    Ended = receive
+                {Reader, {exit_status, Status}} -> Status
+            after 5000 ->
+                _ = os:cmd("kill -KILL " ++ integer_to_list(Python) ++ " "
+                           ++ integer_to_list(ReaderNumber)),
+                running
+            end,
+    RunEnded = receive {'DOWN', RunRef, process, _, ExitReason} -> ExitReason end,
+    ok = file:delete(Fifo),
+    ?assertEqual({0, normal}, {Ended, RunEnded}).
+
+%% report Appendix E.23: a `workingDirectory` that is empty answers
+%% `Left(Invalid)`, as a variable's empty name does, before the helper is
+%% opened. A regression test: the empty directory reached the helper, whose
+%% `chdir` failed, and the start answered `Left(Other(": NotFound"))`, a
+%% line that named no directory; a directory the helper cannot enter, whose
+%% answer names it, is not covered
+empty_working_directory_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Command = {'Command', <<"true">>, [], <<>>, [], {'Path', <<>>}},
+               Self ! {started, started(Command)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Left', 'Invalid'}, wait(started)).
+
+%% report Appendix E.23: a signal sent once the program has exited answers
+%% `Left(Closed)`, and one the program handles is the program's to act on,
+%% here a shell's trap that says so and exits with its own status. A
+%% regression test, written after the code; a signal sent after the exit
+%% and before the program's process has read it, which the helper answers,
+%% is not covered
+signal_after_the_exit_and_handled_test() ->
+    Self = self(),
+    Trap = <<"trap 'echo got; exit 7' TERM; echo ready; sleep 1000 > /dev/null 2>&1 & wait">>,
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', True} = start(<<"true">>, []),
+               {<<>>, 0} = read_to_end(True, <<>>),
+               Self ! {exited, signal(True, 'Termination')},
+               ern_rt:kill(True),
+               {'Right', Sh} = start(<<"sh">>, [<<"-c">>, Trap]),
+               <<"ready\n">> = read_until(Sh, <<"\n">>, <<>>),
+               Sent = signal(Sh, 'Termination'),
+               Self ! {handled, {Sent, read_to_end(Sh, <<>>)}},
+               ern_rt:kill(Sh)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Left', 'Closed'}, wait(exited)),
+    ?assertEqual({{'Right', 'Unit'}, {<<"got\n">>, 7}}, wait(handled)).
+
 %% report Appendix E.23, §6.6: a program's process lives on after the
 %% program has exited: each read after the one that answered `Exited`
 %% answers it again, a write `Left(Closed)`, a resize `Left(Closed)` too,
@@ -772,8 +864,11 @@ command(Parts) ->
     iolist_to_binary(["c" | [[Part, 0] || Part <- Parts]]).
 
 start(Program, Arguments) ->
+    started(inheriting(Program, Arguments)).
+
+%% Command started under pipes, or why it could not start.
+started(Command) ->
     Self = self(),
-    Command = inheriting(Program, Arguments),
     ern_rt:call_forever(ern_rt:system_process(os), fun(Reply) ->
                                                        {'Start', Command, Self, Reply}
                                                    end).
@@ -797,6 +892,9 @@ read(Program, Ms) ->
 
 write(Program, Bytes, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
+
+signal(Program, Signal) ->
+    ern_rt:call_forever(Program, fun(Reply) -> {'SendSignal', Signal, Reply} end).
 
 resize(Program, Size) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Resize', Size, Reply} end).

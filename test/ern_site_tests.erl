@@ -16,6 +16,10 @@
 %% Run from this directory by its Makefile, after `make`, which builds the
 %% generator into ../build/tools. Every test here was written after the
 %% generator, a regression test.
+%%
+%% The tests need the repository's history: the pages' dates are read at
+%% ?TAG, and head/0 exports HEAD, so they run in a clone that holds both,
+%% and not in a shallow clone or an export.
 -module(ern_site_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -47,6 +51,8 @@ generated_test_() ->
       {"described", fun described/0}, {"refused", {timeout, 30, fun refused/0}},
       {"unconfigured", {timeout, 30, fun unconfigured/0}},
       {"unlogged", {timeout, 30, fun unlogged/0}},
+      {"absolute", {timeout, 30, fun absolute/0}},
+      {"additions", {timeout, 30, fun additions/0}},
       {"dangling", {timeout, 30, fun dangling/0}},
       {"head", {timeout, 60, fun head/0}}]}.
 
@@ -227,20 +233,64 @@ unconfigured() ->
 %% refused, since its link would lead to neither.
 unlogged() ->
     [begin
-         Source = "build/site/unlogged",
-         _ = file:del_dir_r(Source),
-         _ = file:del_dir_r("build/site/unlogged-out"),
-         [copied(filename:join(?SOURCE, File), filename:join(Source, File))
-          || File <- files(?SOURCE)],
-         appended(Source ++ "/guide/faq.md", ["\nThe reasons are the log's *", Title, "*.\n"]),
-         {Status, Output} =
-             ern_integration_tests:sh(generate(Source, "build/site/unlogged-out", ?CONFIG)),
+         Cited = appending(["\nThe reasons are the log's *", Title, "*.\n"]),
+         {Status, Output} = varied("build/site/unlogged", [{"guide/faq.md", Cited}]),
          ?assertEqual(1, Status),
          ?assertMatch({_, _}, binary:match(Output, list_to_binary(
                                                      "guide/faq.md cites the log's *" ++ Title
                                                      ++ "*, " ++ Why)))
      end || {Title, Why} <- [{"No Such Entry", "which no entry is titled"},
                              {"Two of a Title", "a title several entries hold"}]].
+
+%% docs/design/site.md *Links*: a link written for GitHub that begins
+%% with `/`, a site's address and no path of the repository's, is refused,
+%% naming the link, and not led to a file of the repository that is not
+%% there. A regression test, written after the generator; it does not
+%% cover a raw HTML block's link, which the build's check reads
+%% (dangling/0).
+absolute() ->
+    {Status, Output} =
+        varied("build/site/absolute", [{"guide/faq.md", appending("\nSee [Why](/why/).\n")}]),
+    ?assertEqual(1, Status),
+    ?assertMatch({_, _}, binary:match(Output, <<"guide/faq.md links to /why/, an absolute path; a"
+                                                " link written for GitHub is relative">>)).
+
+%% docs/design/site.md *Every page*, *Links* and *The live shell*, over
+%% the fixture's tree with four things added: a page whose first paragraph
+%% opens with a label, a bold text ending in `.`, is described by the
+%% sentence after the label; a link to a directory the site does not show,
+%% written in its own form, leads to the directory on GitHub; the GitHub
+%% anchor two numbered headings of one text share leads to the first's
+%% number, and the second's, numbered `-1`, to its own; and a block of one
+%% function whose body holds a blank line is offered to the shell, since
+%% the shell takes the paste whole (report §11.2).
+%%
+%% A regression test, written after the generator. It does not cover a
+%% module's page opening with a label, nor a link to a directory written
+%% without its `/`, which leads to GitHub's address of a file, and GitHub
+%% from there to the directory.
+additions() ->
+    Label = "# Frequently asked questions\n\n**A label.** The sentence after the label. Another.\n",
+    Block = "\n```ernest\nfn pair(value : Int) : #(Int, Int) = {\n    let doubled = value * 2;\n\n"
+        "    #(value, doubled)\n}\n```\n",
+    Links = "\nThe [examples](../examples/) stay on GitHub, [one](deployment.md#111-again) and"
+        " [the other](deployment.md#111-again-1) each have a heading.\n",
+    Headings = "\n### 11.1 Again\n\nOnce.\n\n## 111. Again\n\nTwice.\n",
+    Titled = fun(Text) -> binary:replace(Text, <<"# Frequently asked questions\n">>,
+                                         list_to_binary(Label)) end,
+    {Status, Output} =
+        varied("build/site/varied",
+               [{"guide/faq.md", fun(Text) -> (appending([Block, Links]))(Titled(Text)) end},
+                {"guide/deployment.md", appending(Headings)}]),
+    ?assertEqual({0, <<>>}, {Status, Output}),
+    Faq = read("build/site/varied-out", "faq/index.html"),
+    [?assertMatch({_, _}, binary:match(Faq, Shown))
+     || Shown <- [<<"<meta name=\"description\" content=\"The sentence after the label.\">">>,
+                  list_to_binary("<a href=\"https://github.com/joagre/ernest/tree/" ++ ?TAG
+                                 ++ "/examples\">examples</a>"),
+                  <<"<a href=\"/deployment/#11.1\">one</a>">>,
+                  <<"<a href=\"/deployment/#111\">the other</a>">>,
+                  <<"data-shell=\"paste\"><code><span class=\"tok-keyword\">fn</span> pair(">>]].
 
 %% docs/design/site.md *Links*: the
 %% build's check of every internal link and anchor of the site it wrote,
@@ -277,7 +327,7 @@ dangling() ->
 %% docs/design/site.md *The generation*:
 %% the generator run as `make site` runs it, over an export of the
 %% repository by git archive, here HEAD's, its documents, its library's
-%% pages and its log, with the site's own files as they stand, the
+%% pages and its log, with the site's own tracked files as they stand, the
 %% generator's here; every page written and every link of the site
 %% resolved. It does not cover `make site`'s build of the toolchain in the
 %% export, nor its `make man`, nor a document of the working tree that HEAD
@@ -289,8 +339,8 @@ head() ->
     ok = filelib:ensure_dir(Source ++ "/"),
     ern_integration_tests:succeed("sh -c 'git -C .. archive HEAD | tar -x -C " ++ Source ++ "'"),
     ok = file:del_dir_r(Source ++ "/site"),
-    [copied(filename:join("../site", File), filename:join(Source ++ "/site", File))
-     || File <- files("../site")],
+    Tracked = string:lexemes(ern_integration_tests:succeed("git -C .. ls-files site"), "\n"),
+    [copied(filename:join("..", File), filename:join(Source, File)) || File <- Tracked],
     Commit = string:trim(ern_integration_tests:succeed("git rev-parse HEAD")),
     ern_integration_tests:succeed("../bin/ern run ../build/tools/site.erc " ++ Source
                                   ++ " build/site/head-out 9.9.9 " ++ binary_to_list(Commit)
@@ -347,6 +397,21 @@ appended(File, Text) ->
     ok = file:write(Device, Text),
     ok = file:close(Device).
 
+%% The fixture's tree copied to Source, each file of Changes changed by
+%% its function of the file's bytes, and the generator run over it into
+%% Source ++ "-out": its status and its output.
+varied(Source, Changes) ->
+    _ = file:del_dir_r(Source),
+    _ = file:del_dir_r(Source ++ "-out"),
+    [copied(filename:join(?SOURCE, File), filename:join(Source, File)) || File <- files(?SOURCE)],
+    [ok = file:write_file(filename:join(Source, File), Change(read(Source, File)))
+     || {File, Change} <- Changes],
+    ern_integration_tests:sh(generate(Source, Source ++ "-out", ?CONFIG)).
+
+%% A change that appends Text to a file's bytes.
+appending(Text) ->
+    fun(Bytes) -> iolist_to_binary([Bytes, Text]) end.
+
 %% docs/design/site.md *The templates*, site/templates/README.md:
 %% every template and fragment holds the tokens its row of the README lists,
 %% and every file has a row.
@@ -360,10 +425,10 @@ templates_test() ->
                                               Held =/= Listed]).
 
 %% The site generated from the fixture's tree, the tree made afresh: the
-%% fixture's documents at their paths, the site's files and the logos; the
-%% blocks a bare shell cannot run are the fixture's own list, which names
-%% the fixture's pages, rather than the site's, and the projects' list is
-%% the fixture's own too.
+%% fixture's documents at their paths, the site's tracked files as the
+%% working tree holds them, and the logos; the blocks a bare shell cannot
+%% run are the fixture's own list, which names the fixture's pages, rather
+%% than the site's, and the projects' list is the fixture's own too.
 generated() ->
     _ = file:del_dir_r("build/site"),
     fixture_site("build/site").
@@ -376,8 +441,10 @@ fixture_site(Base) ->
     Source = filename:join(Base, "source"),
     Out = filename:join(Base, "out"),
     [copied(filename:join(?TREE, File), filename:join(Source, File)) || File <- files(?TREE)],
-    [copied(filename:join("../site", File), filename:join(Source ++ "/site", File))
-     || File <- files("../site"), not lists:member(File, ["unrunnable.md", "projects.md"])],
+    Tracked = string:lexemes(ern_integration_tests:succeed("git -C .. ls-files site"), "\n"),
+    Own = [<<"site/unrunnable.md">>, <<"site/projects.md">>],
+    [copied(filename:join("..", File), filename:join(Source, File))
+     || File <- Tracked, not lists:member(File, Own)],
     [copied("../assets/" ++ Logo, Source ++ "/assets/" ++ Logo) || Logo <- ?LOGOS],
     ern_integration_tests:succeed(generate(Source, Out, ?CONFIG)),
     Out.

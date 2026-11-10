@@ -78,8 +78,9 @@ type Writes = Writes(Foreign.Term)
 /// (report §4.9, §9.4).
 ///
 /// Where the two texts begin alike and then differ, the failure says at
-/// which character, counted from 1: the first that differs, or the one past
-/// the shorter text's end.
+/// which character, counted from 1 in the texts as `Io.show` writes them, a
+/// string's quotes among them: the first that differs, or the one past the
+/// shorter text's end.
 ///
 /// ### Examples
 ///
@@ -93,27 +94,36 @@ type Writes = Writes(Foreign.Term)
 /// // => Test.Failed("expected [1, 2, 4], got [1, 2, 3], differing at character 8")
 /// ```
 ///
+/// ```ernest
+/// Test.equal("abc", "abd")
+/// // => Test.Failed("expected \"abd\", got \"abc\", differing at character 4")
+/// ```
+///
 /// since 0.3.0
 export fn equal(actual : a, expected : a) : Result needs a.show =
     if actual == expected then
         Passed
     else {
-        let wanted = Io.show(expected);
-        let got = Io.show(actual);
-        Failed("expected " <> wanted <> ", got " <> got <> parting(wanted, got))
+        let expectedText = Io.show(expected);
+        let actualText = Io.show(actual);
+        Failed("expected "
+                   <> expectedText
+                   <> ", got "
+                   <> actualText
+                   <> parting(expectedText, actualText))
     }
 
 // Where two texts that begin alike part, as `equal` says it: the grapheme,
 // counted from 1, that differs first, or the one past the shorter's end;
 // nothing where the texts differ at once or not at all.
-fn parting(wanted : String, got : String) : String =
-    match partsAt(String.graphemes(wanted), String.graphemes(got), 1) {
+fn parting(expectedText : String, actualText : String) : String =
+    match partsAt(String.graphemes(expectedText), String.graphemes(actualText), 1) {
         Some(at) when at > 1 -> ", differing at character " <> Int.toString(at)
       | _ -> ""
     }
 
-fn partsAt(wanted : List(String), got : List(String), at : Int) : Optional(Int) =
-    match #(wanted, got) {
+fn partsAt(expected : List(String), actual : List(String), at : Int) : Optional(Int) =
+    match #(expected, actual) {
         #([], []) -> None
       | #(first :: rest, other :: others) when first == other -> partsAt(rest, others, at + 1)
       | _ -> Some(at)
@@ -236,8 +246,8 @@ foreign fn yield() : Bool =
 ///
 /// Where two captures of one chain run at once, the one begun last takes the
 /// chain's writes until it returns. Where the caller ends before `run`
-/// returns, a fault among the ways, what was captured is written where it
-/// would have gone.
+/// returns, a fault among the ways, or restarts the run that began the
+/// capture, what was captured is written where it would have gone.
 ///
 /// ### Examples
 ///

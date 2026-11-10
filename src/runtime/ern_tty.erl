@@ -61,7 +61,7 @@
 %% program's process group, so that it outlives the host where the host is
 %% ended: told to hold, it keeps the settings `stty -g` reads, sets the mode
 %% and says so, and given anything more or its input's end, it gives the
-%% settings back and ends; let go before it was told to hold, it ends. A
+%% settings back and ends; closed before it was told to hold, it ends. A
 %% give-back fails only where the terminal is gone, and stty's word of it
 %% is not written on the program's standard error (§12.1).
 -define(HOLD, "trap '' HUP INT QUIT TERM\n"
@@ -135,7 +135,7 @@ loop(Subscribers, Reader, Pending, Size) ->
             loop(Subscribers, Reader, Pending, Size);
         {Holder, {exit_status, _}} when is_port(Holder) ->
             %% the holder ended of itself, a kill from outside among the
-            %% ways, which gave the settings back
+            %% ways, which gave the settings back where it could
             _ = erlang:erase(?HOLDER),
             loop(Subscribers, Reader, Pending, Size)
     after Pause ->
@@ -172,11 +172,11 @@ subscription(Address, Reply, Subscribers, Reader, Size) ->
                             {subscribe(Address, Courier, Subscribers, Reader, Reader1), Reader1,
                              size_now()};
                         {taken, Cause} ->
-                            let_go_of(Courier, Address, Subscribers),
+                            unmade(Courier, Address, Subscribers),
                             ern_rt:refuse(Reply, Cause),
                             {Subscribers, Reader, Size};
                         {refused, Answer} ->
-                            let_go_of(Courier, Address, Subscribers),
+                            unmade(Courier, Address, Subscribers),
                             ern_rt:answer(Reply, Answer),
                             {Subscribers, Reader, Size}
                     end;
@@ -205,16 +205,12 @@ couriered(Address, Subscribers) ->
             end
     end.
 
-%% A courier made for a subscription that was refused, ended; one of a
-%% subscription that holds stays.
-let_go_of(Courier, Address, Subscribers) ->
+%% A courier made for a subscription that was refused, ended (unmade/1); one
+%% of a subscription that holds stays.
+unmade(Courier, Address, Subscribers) ->
     case lists:keymember(ern_rt:process_of(Address), 1, Subscribers) of
-        true ->
-            ok;
-        false ->
-            erlang:unlink(Courier),
-            exit(Courier, kill),
-            ok
+        true -> ok;
+        false -> unmade(Courier)
     end.
 
 %% Report §12.1: a size that has changed is news to every subscriber.
@@ -352,8 +348,8 @@ start_reader(Reader) ->
     {ok, Reader}.
 
 %% The terminal claimed for keys, its mode set, and the reader let read; or
-%% the holder's port refused, or the claim, the reader ended and the holder
-%% let go.
+%% the holder's port refused, or the claim, the reader and the holder ended
+%% (unmade/1).
 started_reader(Reader) ->
     case hold() of
         {ok, Holder} ->
@@ -374,19 +370,27 @@ started_reader(Reader) ->
                     Reader ! read,
                     {ok, Reader};
                 {taken, Cause} ->
-                    let_go(Holder),
-                    ended(Reader),
+                    unmade(Holder),
+                    unmade(Reader),
                     {taken, Cause}
             end;
         {refused, Answer} ->
-            ended(Reader),
+            unmade(Reader),
             {refused, Answer}
     end.
 
-%% A reader made for a subscription that is refused, ended.
-ended(Reader) ->
-    erlang:unlink(Reader),
-    exit(Reader, kill),
+%% What was made for a subscription that is refused, ended: its courier or
+%% its reader, each linked to this process, or the holder's port, before it
+%% was told to hold, which ends with nothing set, or none where no port was
+%% opened (hold/0).
+unmade(none) ->
+    ok;
+unmade(Holder) when is_port(Holder) ->
+    try erlang:port_close(Holder) catch error:badarg -> true end,
+    ok;
+unmade(Process) ->
+    erlang:unlink(Process),
+    exit(Process, kill),
     ok.
 
 %% Report §12.1: each key as it is pressed and no echo. The mode is set by
@@ -512,13 +516,6 @@ hold() ->
 %% The holder told a line, or nothing where it has ended.
 told(Holder, Line) ->
     try erlang:port_command(Holder, Line) catch error:badarg -> false end.
-
-%% A holder let go before it was told to hold, which ends with nothing set.
-let_go(none) ->
-    ok;
-let_go(Holder) ->
-    try erlang:port_close(Holder) catch error:badarg -> true end,
-    ok.
 
 terminal() ->
     is_terminal(stdin).

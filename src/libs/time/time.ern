@@ -170,8 +170,8 @@ export fn weekday(civil : Civil) : Optional(Weekday) = {
 }
 
 //
-// The tests (report §9.3), run by `ern test` as every library's are.
-// Regression tests, written with the code.
+// The tests (report §9.3), run by `ern test` as every library's are,
+// written with the code.
 //
 
 // The first second of a date, the tests' way to name one.

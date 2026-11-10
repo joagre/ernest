@@ -150,25 +150,23 @@ type_hash(Form) ->
 %% holds a type variable, which no Code.running names (ern_bound).
 -spec mailbox_hash(term()) -> binary() | none.
 mailbox_hash({scheme, Quantified, {arrow, _, Effect, _}, _}) ->
-    case Effect of
-        none ->
-            type_hash(?NEVER_FORM);
-        {variable, Number} ->
-            case lists:keyfind(Number, 1, Quantified) of
-                {_, Restrictions} ->
-                    case lists:member(process_only, Restrictions) of
-                        true -> type_hash(?NEVER_FORM);
-                        false -> none
-                    end;
-                false ->
-                    none
-            end;
-        _ ->
-            case holds_variable(Effect) of
-                true -> none;
-                false -> type_hash(Effect)
-            end
+    case {is_never(Effect, Quantified), holds_variable(Effect)} of
+        {true, _} -> type_hash(?NEVER_FORM);
+        {false, true} -> none;
+        {false, false} -> type_hash(Effect)
     end.
+
+%% Whether an effect receives nothing, or is a variable the scheme
+%% quantifies as process-only (§3.9).
+is_never(none, _Quantified) ->
+    true;
+is_never({variable, Number}, Quantified) ->
+    case lists:keyfind(Number, 1, Quantified) of
+        {_, Restrictions} -> lists:member(process_only, Restrictions);
+        false -> false
+    end;
+is_never(_Effect, _Quantified) ->
+    false.
 
 holds_variable({variable, _}) -> true;
 holds_variable(Term) when is_tuple(Term) -> holds_variable(tuple_to_list(Term));

@@ -27,7 +27,7 @@
          spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
          pick/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
          hold_utilization/3, drop_utilization/1, frame/2, restart_told/1, watchers_told/1,
-         limited/0, failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
+         failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
 
@@ -644,7 +644,10 @@ watchers_told({Alias, MonitorRef}) ->
 %% keeping the peer's node, which its fault's line names (§11.2); else
 %% `NotLoaded` and what this node lacked, the first met, `Unreachable`
 %% where no run is in progress to start it, or `Other` with the host's
-%% class and reason where its table of processes is full (limited/0).
+%% class and reason where its table of processes is full (ern_io:limited/0),
+%% answered as a spawn of its own faults, since the peer's spawn faults for
+%% nothing the peer does (§7.4, §12.5, Appendix E.27); the exchange answers
+%% one so too (ern_exchange).
 spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -652,7 +655,7 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
             case ern_rt:asked_of_run({spawn, Held, Unit, Bindings, Site, node(From)}) of
                 {answered, Pid} when is_pid(Pid) -> {{spawned, Pid}, ok};
                 {answered, {absent, Binding}} -> not_loaded(spawn, Site, absent(Binding));
-                {answered, system_limit} -> {{failed, limited()}, ok};
+                {answered, system_limit} -> {{failed, ern_io:limited()}, ok};
                 none -> {{failed, 'Unreachable'}, ok}
             end;
         Lacked ->
@@ -666,7 +669,7 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
 %% start it, or where the compute's note has gone before its process could
 %% start, its caller no longer waiting, or never was written, the compute
 %% having come between two runs (ern_rt:asked_of_run/1), or `Other` where
-%% its table of processes is full (limited/0).
+%% its table of processes is full (ern_io:limited/0).
 computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -675,20 +678,12 @@ computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) 
                 {answered, Pid} when is_pid(Pid) -> {started, ok};
                 {answered, over} -> {{failed, 'Unreachable'}, ok};
                 {answered, {absent, Binding}} -> not_loaded(compute, Site, absent(Binding));
-                {answered, system_limit} -> {{failed, limited()}, ok};
+                {answered, system_limit} -> {{failed, ern_io:limited()}, ok};
                 none -> {{failed, 'Unreachable'}, ok}
             end;
         Lacked ->
             not_loaded(compute, Site, Lacked)
     end.
-
-%% Report §7.4, §12.5, Appendix E.27: a spawn or a compute this node could
-%% not start, its table of processes full, answered as a spawn of its own
-%% faults, with the host's class and reason: a peer's spawn faults for
-%% nothing the peer does; the exchange answers one so too (ern_exchange).
--spec limited() -> {'Other', binary()}.
-limited() ->
-    {'Other', ern_rt:host_cause(error, system_limit)}.
 
 %% Report §8.7, §12.5, §11.2: `NotLoaded`, and what the gateway says of the spawn
 %% or the compute, the site the caller's words as they came, read as UTF-8

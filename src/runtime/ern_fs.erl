@@ -19,7 +19,7 @@ loop() ->
     receive
         Message ->
             try erlang:spawn(fun() -> serve(Message) end)
-            catch error:system_limit -> limited(Message)
+            catch error:system_limit -> answered_limited(Message)
             end,
             loop()
     end.
@@ -27,7 +27,7 @@ loop() ->
 %% Report §7.4, §12.5: a request whose process the host's full table of
 %% processes keeps from being made answers `Left(Other("error:system_limit"))`,
 %% this process living on.
-limited(Message) ->
+answered_limited(Message) ->
     [Reply] = [Field || Field <- tuple_to_list(Message), ern_rt:is_reply(Field)],
     ern_rt:answer(Reply, {'Left', ern_io:limited()}).
 
