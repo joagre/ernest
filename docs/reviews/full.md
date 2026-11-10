@@ -70,7 +70,7 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 
 ## The models
 
-CLAUDE.md's *The repository* gives the models. Every reader and part runs on the stronger model, as a review's reader does there.
+CLAUDE.md's *The repository* gives the models. C, E, S, H, T and B, the readers of the code and of what the toolchain does, run on the lesser model at the stronger effort, each part alike; every other reader on the stronger model.
 
 Working the findings follows the same file: a design question, a sentence of the report or of §0, and a reading of an argument take a design session; a defect whose fix the finding names takes an item session and its agents, at the efforts that file gives a build.
 
