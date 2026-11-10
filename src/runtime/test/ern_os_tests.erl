@@ -587,9 +587,9 @@ terminal_kill_test() ->
 %% `sleep` has ended once the run has its exit status. A regression test,
 %% written after the code (C1-1): the helper reaped the program and left
 %% its group running; a member under a terminal that ignores the hangup is
-%% terminal_kill_test's at a kill, and not covered at an exit. The run's
-%% own limit stands past the wait's 5 seconds, which bound a failure, so
-%% that a `sleep` left running is killed by its number
+%% terminal_kill_test's at a kill, and group_killed_at_the_exit_test_'s at
+%% an exit. The run's own limit stands past the wait's 5 seconds, which
+%% bound a failure, so that a `sleep` left running is killed by its number
 exited_program_leaves_no_group_test_() ->
     {timeout, 60, fun exited_program_leaves_no_group/0}.
 
@@ -620,6 +620,62 @@ exited_program_leaves_no_group() ->
             end,
     ok = file:delete(Fifo),
     ?assertEqual(0, Ended).
+
+%% report Appendix E.23: the processes the program started that are still
+%% in its process group are killed with it as it exits, whatever holds its
+%% outputs. The shell leaves a `sleep` that holds its output, or its
+%% terminal, ignoring the hangup the shell's exit sends it, and the shell
+%% ends by the termination or by itself. The read answers the exit at once,
+%% and the group then holds no process but one ended and not yet taken by
+%% the process that inherited it. The helper killed the group once both
+%% outputs had ended, so the read waited on `sleep` and answered
+%% `Left(Timeout)`.
+%%
+%% The test's own limit stands past the three reads' 15 seconds, which
+%% bound a failure, and the kill after each read ends a `sleep` left
+%% running. A process that has left the group, which E.23 does not promise
+%% to kill, is not covered
+group_killed_at_the_exit_test_() ->
+    {timeout, 60, fun group_killed_at_the_exit/0}.
+
+group_killed_at_the_exit() ->
+    %% `sleep` is started before the shell says its number, its group's, so
+    %% that it holds the output before the shell can end
+    Waiting = [<<"-c">>, <<"trap '' HUP; sleep 1000 & echo $$; wait">>],
+    Leaving = [<<"-c">>, <<"sleep 1000 & echo $$">>],
+    Terminated = {{'Right', {'Exited', 143}}, []},
+    ?assertEqual(Terminated,
+                 left_at_the_exit(fun() -> start(<<"sh">>, Waiting) end, 'Termination')),
+    ?assertEqual(Terminated,
+                 left_at_the_exit(fun() -> start_terminal(<<"sh">>, Waiting, ?SIZE) end,
+                                  'Termination')),
+    ?assertEqual({{'Right', {'Exited', 0}}, []},
+                 left_at_the_exit(fun() -> start(<<"sh">>, Leaving) end, none)).
+
+%% The answer of the read that follows the number the shell Start starts
+%% says, Signal sent to the shell first where it is one, and the states of
+%% the processes still running in its group then.
+left_at_the_exit(Start, Signal) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = Start(),
+               Group = string:trim(read_until(Sh, <<"\n">>, <<>>)),
+               case Signal of
+                   none -> ok;
+                   _ -> {'Right', 'Unit'} = signal(Sh, Signal)
+               end,
+               Last = read(Sh, 5000),
+               Self ! {left, {Last, running_in(binary_to_list(Group))}},
+               ern_rt:kill(Sh)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    wait(left).
+
+%% The states `ps` gives the processes of the process group Group, but
+%% those ended and not yet taken by the process that inherited them.
+running_in(Group) ->
+    [State || Line <- string:split(os:cmd("ps -A -o pgid= -o stat="), "\n", all),
+              [Of, State] <- [string:lexemes(Line, " ")], Of =:= Group, hd(State) =/= $Z].
 
 %% report Appendix E.23: `kill` stops a program that has left its process
 %% group, here for its parent's, the helper's, which the group's kill

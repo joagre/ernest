@@ -43,8 +43,9 @@
  *   answering one 'n', so that a program no one asks waits on its output;
  *   'x' and a 4-byte big-endian status, once it has exited and both its
  *   output and its standard error have ended, the processes still in its
- *   process group killed as it is reaped. A status is the program's exit
- *   code, or 128 and the signal's number for a program a signal ended.
+ *   process group killed as the host reports the exit, so that none holds
+ *   an output open past it. A status is the program's exit code, or 128
+ *   and the signal's number for a program a signal ended.
  *   After 'x', 'f', 'p' or 't', the run's last frame, the helper drops what
  *   the runtime sends until fd 0 ends, and then ends.
  *
@@ -159,10 +160,11 @@ static pid_t program = -1;
 
 /* Report Appendix E.23: the program's exit wakes the helper as it happens.
    SIGCHLD writes a byte to this pipe, which the helper waits on beside the
-   runtime's frames, so that it drops the program's input when the host
-   reports the exit, whatever its outputs, and reports the exit once they
-   have ended, with no timer between; an exit that comes between the
-   helper's asking and its wait leaves its byte to be read. */
+   runtime's frames, so that it drops the program's input and kills its
+   process group when the host reports the exit, whatever its outputs, and
+   reports the exit once they have ended, with no timer between; an exit
+   that comes between the helper's asking and its wait leaves its byte to
+   be read. */
 static int exited[2] = {-1, -1};
 
 static void program_exited(int signal_number)
@@ -499,12 +501,17 @@ static void drop_input(int *input)
 }
 
 /* Report Appendix E.23: whether the program has exited, as the host
-   reports it, its input dropped where it has, whatever its outputs, so
-   that a write after the exit is answered as one after its input's end. */
+   reports it, whatever its outputs. Where it has, the processes still in
+   its process group are killed with it, so that none holds an output open
+   past the exit, and its input is dropped, so that a write after the exit
+   is answered as one after its input's end. The program is reaped only as
+   its exit is reported, so its number names its group at each call, and a
+   kill after the first finds none of the group living. */
 static int exit_seen(int *input)
 {
     if (!has_exited())
         return 0;
+    kill(-program, SIGKILL);
     drop_input(input);
     return 1;
 }
@@ -537,17 +544,14 @@ static void resize_terminal(int master, unsigned rows, unsigned columns, int *in
     }
 }
 
-/* Report Appendix E.23: the program's exit, seen and the program not yet
-   reaped, so that its number still names its process group, whose
-   processes are killed before it is reaped and its status sent, as a kill
-   would kill them. */
+/* Report Appendix E.23: the program's exit, seen and its process group
+   killed (exit_seen), the program reaped and its status sent. */
 static void report_exit(void)
 {
     int status;
     uint32_t value;
     unsigned char code[4];
 
-    kill(-program, SIGKILL);
     while (waitpid(program, &status, 0) < 0 && errno == EINTR)
         ;
     value = WIFSIGNALED(status) ? 128u + (uint32_t)WTERMSIG(status)
@@ -1017,9 +1021,8 @@ int main(int argc, char **argv)
                runtime's not read whole is dropped */
             int outputs_ended = program_out < 0 && program_err < 0;
 
-            if (outputs_ended && has_exited()) {
+            if (outputs_ended && exit_seen(&program_in)) {
                 free(body);
-                drop_input(&program_in);
                 report_exit();
                 return wait_for_let_go(0);
             }
@@ -1050,8 +1053,8 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            /* the exit drops the input before a frame sent after it is
-               read */
+            /* the exit kills the group, whose outputs then end, and drops
+               the input before a frame sent after it is read */
             if (FD_ISSET(exited[0], &readable)) {
                 while (read(exited[0], buffer, sizeof buffer) > 0)
                     ;

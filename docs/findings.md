@@ -29,7 +29,7 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - P10 — §11.1's "a node reads its build's units from its build directory at its start alone". fix: the build's and the shell's, at its start and never after. done 2026-11-10.
 - P2 — `Test.capture` captures a service's writes under `ern run`, which E.24 says it does not. decide, D2. decided 2026-11-10: E.24 states the head by job; the report's sentence done 2026-11-10.
 - P3, K1 — §7.4 and §12.5 make a full table at a `Terminal` request a value, where §12.1 and §12.3 fault the entry process at the subscription. decide, D4. decided 2026-11-10: a subscription the table leaves no room for is a value, a key after it the entry process's fault; §12.1 and §12.3 and the runtime done 2026-11-10.
-- P5 — §12.5's listener retries after 7 seconds at the limit of open files, against §0's "retries nothing". decide, D5.
+- P5 — §12.5's listener retries after 7 seconds at the limit of open files, against §0's "retries nothing". decided 2026-11-10: the acceptor stays, and §0's *Time* says the runtime retries nothing of a program's and a wait of the node's own on what the host does not signal is a time the report states; done 2026-11-10.
 - P6, K15 — a root module a nearer namespace hides is out of reach, and the diagnostic says only `unknown name Top.Shell.Util.g`. decide, D8. decided 2026-11-10: the rule stands; the help names the hiding module; done 2026-11-10.
 - P13 — `String.fromUtf8Piece(<<245>>)` holds a byte that begins no character as a piece not yet finished. decide, D9. decided 2026-11-10: dropped, decided in the log's *Text from Bytes* (principle 2).
 - P18, K8 — every node holds the shell's units from its start. decide, D6. decided 2026-11-10: dropped, decided in the log's *A Node Holds the Shell* and *Lean at the Limits*.
@@ -109,7 +109,7 @@ A line is `fix`, made in the review's round; `decide`, with the user, in the bat
 - C12 — three words for ending what a refused subscription made in `ern_tty`, and `let_go` meaning three things across the runtime. fix: one word each. done 2026-11-10.
 - C13 — `ern_code` drops the mailbox hash from a function's row and reads it again from every holder at each `Code.running`. dropped: a name finds a definition's other versions only through its unit's code list, so keeping the hash in the row removes no read of those lists, and a row holding a name and a mailbox for every function is a cost every run pays for a rare call (the log's *Lean at the Limits*).
 - C14 — `wait_for_deliveries/0` waits for the fault courier too. fix: the name says so. done 2026-11-10 by the glossary's **Delivery**, which names the reports; the name stands in the shell's foreign declaration and its design note.
-- C2 — the helper kills the program's group only once both outputs have ended, so after `Os.signal` a child holding the output outlives the program, against E.23's "killed with it". decide, D3.
+- C2 — the helper kills the program's group only once both outputs have ended, so after `Os.signal` a child holding the output outlives the program, against E.23's "killed with it". decide, D3. Done 2026-11-10: the helper kills the group as the host reports the exit, `group_killed_at_the_exit_test_`.
 - C15 — a terminal with no `stty` is subscribed with no mode set. decide, D4. decided 2026-11-10: a subscription whose mode cannot be set answers `Left(Other(text))`; §12.1 and the runtime done 2026-11-10.
 - C16 — one host reason, two texts, by which table was full. decide, D4. decided 2026-11-10: dropped, E.1's rule gives each text.
 - C17 — `kill(Process.fromAddress(program))` at every probe. dropped: decided in the log's *`kill` Takes a `Process`*, its cost stated there.
@@ -235,9 +235,9 @@ Each is argued with the user, the argument before the verdict, after the log is 
 
 - **D1, `Process.run`'s judge and a library's frame in a trace:** C303, C216, M11, N6. Decided 2026-11-10: as the log's *A Worker's Value or Its End Built* decided, stated in E.21 and the guide.
 - **D2, a service's writes in a capture under `ern run`:** P2. Decided 2026-11-10: E.24 states the head by job.
-- **D3, a program's group at its exit:** C2.
+- **D3, a program's group at its exit:** C2. Decided 2026-11-10: the helper kills the group as the host reports the exit, before the outputs end, and reaps the program as it sends the exit, as E.23 says. Built the same day.
 - **D4, a terminal's subscription the host cannot serve, and the texts of a full table:** P3, K1, C15, C16. Decided 2026-11-10: a subscription the table leaves no room for, or whose mode cannot be set, is a value; a key after it faults the entry process (§7.4); the texts stay E.1's.
-- **D5, the listener's retry against §0's *Time*:** P5, sharpening the log's *The Carrier's Acceptor at a Full Table*.
+- **D5, the listener's retry against §0's *Time*:** P5, sharpening the log's *The Carrier's Acceptor at a Full Table*. Decided 2026-11-10: the acceptor stays; §0's *Time* gains the node's own wait on what the host does not signal, a time the report states, since the alternatives, resuming on a program's close or a reserve descriptor, miss the host's own files or race.
 - **D6, the shell's units from a node's start:** K8, P18, sharpening the log's *A Node Holds the Shell* against *Lean at the Limits*. Decided 2026-11-10: dropped, the two entries stand with their measurements.
 - **D7, `Os.Command`'s two inherited fields:** P1, C312, sharpening feedback 184's verdict. Decided 2026-11-10: `Os.command(program, arguments)`, since principle 5's sentence outranks E.0 rule 4's refusal of a shortening; the record stays the one form of a command whole.
 - **D8, a root module a nearer one hides:** P6, K15. Decided 2026-11-10: the rule stands (*Relative Names*); the help names the hiding module.

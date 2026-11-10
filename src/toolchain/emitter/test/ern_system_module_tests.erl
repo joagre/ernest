@@ -378,6 +378,27 @@ closed() ->
     "      | other -> other\n"
     "    }\n".
 
+%% Appendix E.23: the Ernest string of a Python program that ignores the
+%% interrupt and starts a process holding its standard input in a session
+%% of its own, out of the program's process group, which the program's
+%% exit does not kill. The program says `started` once that process has
+%% left the group, and exits; the process ends as its input ends.
+holding_input() ->
+    "\"import os, signal\\n"
+    "signal.signal(signal.SIGINT, signal.SIG_IGN)\\n"
+    "left, leaving = os.pipe()\\n"
+    "if os.fork() == 0:\\n"
+    "    os.setsid()\\n"
+    "    os.close(leaving)\\n"
+    "    try:\\n"
+    "        while os.read(0, 65536):\\n"
+    "            pass\\n"
+    "    finally:\\n"
+    "        os._exit(0)\\n"
+    "os.close(leaving)\\n"
+    "os.read(left, 1)\\n"
+    "print('started', flush=True)\\n\"".
+
 %% An executable script at Path, its text the shell's.
 script(Path, Text) ->
     ok = file:write_file(Path, ["#!/bin/sh\n", Text, "\n"]),
@@ -520,40 +541,33 @@ os_signal_to_the_program_alone_test() ->
 
 %% Appendix E.23: a signal to a program that has exited answers Closed
 %% though no read has yet taken its exit, which no read asks for here. The
-%% child says `gone` on reading the end of the pipe the shell held, which
-%% the host closes as the shell exits but before it reports the exit, so
-%% the signal is sent until it answers Closed: each one sent before reaches
-%% a shell that takes no signal any longer, as its status of 0 shows
+%% shell ignores the interrupt, so the signal is sent until it answers
+%% Closed, which says the shell has exited, and its status is 0
 os_signal_after_an_unread_exit_test() ->
-    Dir = ern_emitter_tests:scratch(),
-    Fifo = filename:join(Dir, "fifo"),
     {ok, Output} = ern_emitter_tests:run(
         [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
-         "    match Os.start(Os.command(\"sh\",\n"
-         "        [\"-c\", \"mkfifo $0; (read line < $0; echo gone) &\"\n"
-         "        <> \" exec 4> $0; echo started\", \"", Fifo, "\"])) {\n"
+         "    match Os.start(Os.command(\"sh\", [\"-c\", \"trap '' INT; echo started\"])) {\n"
          "        Right(p) -> {\n"
-         "            let text = readTo(p, \"gone\", \"\");\n"
+         "            let text = readTo(p, \"\\n\", \"\");\n"
          "            let sent = closed(p);\n"
          "            Io.println(Io.show(sent) <> \" \" <> rest(p, text))\n"
          "        }\n"
          "      | Left(e) -> Io.println(Io.show(e))\n"
          "    }\n"]),
-    ok = file:del_dir_r(Dir),
-    ?assertEqual(<<"Left(Io.Closed) started\ngone\nexit 0\n">>, Output).
+    ?assertEqual(<<"Left(Io.Closed) started\nexit 0\n">>, Output).
 
 %% Appendix E.23: a write to a program that has exited answers Closed
 %% though no read has yet taken its exit, and though a process the program
-%% started holds its input open, as `sleep` does here. The shell ignores
-%% the interrupt, so the signal is sent until it answers Closed, which says
-%% the shell has exited, and its status is 0
+%% started holds its input open, out of its process group, which the exit
+%% does not kill. The program ignores the interrupt, so the signal is sent
+%% until it answers Closed, which says the program has exited, and its
+%% status is 0
 os_write_after_an_unread_exit_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
-         "    match Os.start(Os.command(\"sh\", [\"-c\", \"trap '' INT; exec 3<&0;\"\n"
-         "        <> \" sleep 1000 <&3 >/dev/null 2>&1 & echo started\"])) {\n"
+         "    match Os.start(Os.command(\"python3\", [\"-c\", ", holding_input(), "])) {\n"
          "        Right(p) -> {\n"
          "            let text = readTo(p, \"\\n\", \"\");\n"
          "            let sent = closed(p);\n"
@@ -586,15 +600,16 @@ os_write_to_an_input_a_child_holds_test() ->
 
 %% Appendix E.23: a resize and a write to a program under a terminal that
 %% has exited answer Closed though no read has yet taken its exit, and
-%% though a process the program started holds the terminal open, as `sleep`
-%% does here, ignoring the hangup the shell's exit sends it. The hangup
-%% `closeInput` makes ends the run, as the program has exited
+%% though a process the program started holds the terminal open, out of
+%% the program's session and so of its process group, which neither the
+%% exit nor the hangup it sends reaches. The hangup `closeInput` makes ends
+%% the run, as the program has exited
 os_resize_after_an_unread_exit_test() ->
     {ok, Output} = ern_emitter_tests:run(
         [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
-         "    match Os.startTerminal(Os.command(\"sh\", [\"-c\", \"trap '' HUP INT;\"\n"
-         "        <> \" sleep 1000 & echo started\"]), Terminal.Size(rows = 24, columns = 80)) {\n"
+         "    match Os.startTerminal(Os.command(\"python3\", [\"-c\", ", holding_input(), "]),\n"
+         "        Terminal.Size(rows = 24, columns = 80)) {\n"
          "        Right(p) -> {\n"
          "            let text = readTo(p, \"\\r\\n\", \"\");\n"
          "            let sent = closed(p);\n"

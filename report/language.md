@@ -71,7 +71,7 @@ Five principles. Principles 2 to 5 are constructive; when following them yields 
 
 An outcome that comes while the host starts, before the runtime runs, is the host's, and the report states it. Where the report is silent, the runtime carries the host's rule without letting it show.
 
-**Time.** A wait of the program's ends by the program's time, by the party it waits on, or by a time of the host's that the report states as the host states it; the runtime chooses no time of its own and retries nothing.
+**Time.** A wait of the program's ends by the program's time, by the party it waits on, or by a time of the host's that the report states as the host states it; the runtime chooses no time of its own and retries nothing of a program's, and a wait of the node's own on what the host does not signal is a time the report states (§12.5).
 
 ## 1. Notation
 
