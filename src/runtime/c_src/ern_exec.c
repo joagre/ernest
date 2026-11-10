@@ -23,12 +23,13 @@
  *   arguments, each ended by a NUL byte, as execvp takes them; they come
  *   here and not on the helper's own command line, so that an argument too
  *   long for the host is the program's failure to start, and not the
- *   helper's. Then 'i' bytes of its input, dropped after 'e' or once the
- *   program has closed its input or exited; 'e' the end of its input; 'n'
- *   a request for the next piece of its output; 'k' and a signal's number
- *   in one byte, the signal sent to the program alone, not its group. The
- *   end of fd 0 means the runtime has let go of the run: the program and
- *   its process group are killed, and the helper ends.
+ *   helper's. Then 'i' bytes of its input, dropped after 'e', once the
+ *   program has exited, or once no process holds its input open; 'e' the
+ *   end of its input; 'n' a request for the next piece of its output; 'k'
+ *   and a signal's number in one byte, the signal sent to the program
+ *   alone, not its group. The end of fd 0 means the runtime has let go of
+ *   the run: the program and its process group are killed, and the helper
+ *   ends.
  *
  *   From the program: 's' it started; 'f' and an error's name, it did not
  *   start; 'p' and an error's name, the helper could not enter its
@@ -1123,7 +1124,7 @@ int main(int argc, char **argv)
                         pending_start = 0;
                     taken += (uint64_t)wrote;
                 } else if (wrote < 0 && errno != EAGAIN && errno != EINTR) {
-                    /* the program closed its input */
+                    /* no process holds the program's input open */
                     drop_input(&program_in);
                 }
             }

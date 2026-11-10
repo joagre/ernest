@@ -343,7 +343,8 @@ reader S reads of its live shell. The release note's line on the installed layou
     exit answers `Left(Closed)` though a process the program started holds the input. A resize
     is the helper's to answer, as a signal is: `Left(Closed)` once the terminal is hung up or
     the program has exited. E.23's failure sentence names the resize the shim answers alone,
-    one that answers `NotATerminal` or `Invalid`.
+    one that answers `NotATerminal` or `Invalid`. Decided with the user: a write answers
+    `Left(Closed)` once no process holds the program's standard input open, as E.23 now says.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.

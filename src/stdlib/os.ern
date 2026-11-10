@@ -535,8 +535,8 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 /// A program that stops reading its input holds its writer, and one whose output
 /// no one reads stops reading. So a program that both takes much input and
 /// writes much output is written to by one process and read by another. Bytes
-/// given after `closeInput`, or once the program has closed its input or
-/// exited, are dropped, and the answer is `Left(Closed)`.
+/// given after `closeInput`, once the program has exited, or once no process
+/// holds its input open, are dropped, and the answer is `Left(Closed)`.
 ///
 /// ### Errors
 ///

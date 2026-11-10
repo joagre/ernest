@@ -578,6 +578,26 @@ os_write_after_an_unread_exit_test() ->
          "    }\n"]),
     ?assertEqual(<<"#(Left(Io.Closed), Left(Io.Closed)) started\nexit 0\n">>, Output).
 
+%% Appendix E.23: a write to a running program answers Closed only once no
+%% process holds its standard input open: the shell has closed its own, and
+%% the child it started, which holds it, takes the bytes. A regression test:
+%% the helper did so before the sentence said it; a terminal a child holds
+%% is not covered
+os_write_to_an_input_a_child_holds_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        [inheriting(), rest(), read_to(),
+         "export fn main() : Unit =\n"
+         "    match Os.start(command(\"sh\", [\"-c\", \"exec 3<&0;\"\n"
+         "        <> \" (read line <&3; echo got $line) & exec 0<&- 3<&-; echo ready; wait\"])) {\n"
+         "        Right(p) -> {\n"
+         "            let text = readTo(p, \"\\n\", \"\");\n"
+         "            let written = Os.write(p, <<120, 10>>, 5000);\n"
+         "            Io.println(Io.show(written) <> \" \" <> rest(p, text))\n"
+         "        }\n"
+         "      | Left(e) -> Io.println(Io.show(e))\n"
+         "    }\n"]),
+    ?assertEqual(<<"Right(Unit) ready\ngot x\nexit 0\n">>, Output).
+
 %% Appendix E.23: a resize and a write to a program under a terminal that
 %% has exited answer Closed though no read has yet taken its exit, and
 %% though a process the program started holds the terminal open, as `sleep`
