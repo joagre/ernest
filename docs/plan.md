@@ -76,6 +76,7 @@ The items left are built in this order, set 2026-11-08 and read again the same d
 10. Item 44, by an item session, done 2026-11-10.
 11. Item 45, by an item session, done 2026-11-10.
 12. Item 46, by an item session, done 2026-11-10.
+13. Item 47, by an item session.
 
 When the milestone ends, Ernest's session tells ernest-httpd's by a message, as
 `docs/clean_room.md` says, the archive's path and commit, that no archive carries a collection at
@@ -345,6 +346,15 @@ reader S reads of its live shell. The release note's line on the installed layou
     the program has exited. E.23's failure sentence names the resize the shim answers alone,
     one that answers `NotATerminal` or `Invalid`. Decided with the user: a write answers
     `Left(Closed)` once no process holds the program's standard input open, as E.23 now says.
+47. **Four refusals before the release review**, decided with the user 2026-11-10, for an item
+    session (the log's *The Listings Before a Review*): the helper built with
+    `-D_FORTIFY_SOURCE=2`, `erlc +warn_missing_spec`, `xref`'s undefined calls over the roots,
+    the shims and the compiled `.erc`, and Dialyzer's `-Wextra_return`, `-Wmissing_return` and
+    `-Werror_handling`, each added with the tree cleaned to zero. The spec flag and `xref`'s
+    calls find nothing today, and Dialyzer about 45 warnings: each is a spec corrected or, where
+    the code is wrong, a defect fixed with its test. The flags run in every `make`, `xref` in
+    `make test` where it measures at a few seconds and in `make test-full` otherwise, and
+    Dialyzer's warnings in `make test-full`; `docs/development.md` names them.
 
 Dropped on 2026-11-02, its verdict in the log: feedback 184, a shorter form for a command
 started with no input.
@@ -453,13 +463,11 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
    Before them too, the checks that cost cycles are built, decided with the user 2026-11-10, so
    that the readers start from what a tool lists (the log's *The Listings Before a Review*). The
-   refusals, each added with the tree cleaned to zero: the helper built with
-   `-D_FORTIFY_SOURCE=2`, `erlc +warn_missing_spec`, `xref` over the roots and the compiled
-   `.erc`, Dialyzer's `-Wextra_return`, `-Wmissing_return` and `-Werror_handling`, and near
-   misses for the checker beside the typed programs. From then on each runs with the checks of
-   its kind: the two flags in every `make`, `xref` in `make test` where it measures at a few
-   seconds and in `make test-full` otherwise, and Dialyzer's warnings and the near misses in
-   `make test-full`.
+   refusals left after MVP 4.15's item 47, each added with the tree cleaned to zero: `xref`'s
+   unused exports and its layers, with a short list of the exports called by name, each with
+   its reason, and near misses for the checker beside the typed programs. From then on each
+   runs with the checks of its kind: `xref`'s where item 47 put its calls, and the near misses
+   in `make test-full`.
 
    The listings, which a review runs: `cover` over `make test-full` for the full review, clones
    and each module's size for the full and the release reviews, and the slowest tests for the
