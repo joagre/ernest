@@ -6,4 +6,4 @@ A page holds a module's doc block, then its declarations, each with its type and
 - [The libraries under `src/libs/`](libs/README.md)
 - [`ern`, the toolchain and its shell](../../report/toolchain.md#11-toolchain), the report's §11, whose §11.2 gives the shell's commands
 
-The pages `ern doc` writes for Ernest 0.10.0.
+The pages `ern doc` writes for Ernest 0.11.0.

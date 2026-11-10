@@ -374,7 +374,7 @@ A requirement names nothing outside that set, and a member is declared in its ty
 
 ```console
 $ ern shell
-Ernest 0.10.0, session 1. :help for help.
+Ernest 0.11.0, session 1. :help for help.
 > fn hashed(x : a) : Int needs a.hash = 0
 input 1:1:30: `hash` is not what a requirement names: `+`, `-`, `*`, `/`, `%`, `<>`, `compare`, `negate` or `show`
 1 | fn hashed(x : a) : Int needs a.hash = 0

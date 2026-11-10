@@ -34,7 +34,7 @@ On a second node, `foo`, which holds none of the counter's code, `Peer.spawn` st
 
 ```console
 $ ern shell --config-dir a
-Ernest 0.10.0, session 1. :help for help.
+Ernest 0.11.0, session 1. :help for help.
 > :load Counter
 Counter, compiled from counter.ern
 > let far <- Peer.spawn("foo", fn() = Counter.count(0), 5000)

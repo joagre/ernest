@@ -547,7 +547,8 @@ pages_test() ->
 %% VERSION and the lines the tests hold to it, the documents' start lines
 %% (start_lines_test), the report's third lines (report_versions_test) and
 %% the session fixtures', each the version text of a build that is no
-%% release (ern_release), and changes no other line; run
+%% release (ern_release), and the site's expected index page's, inside its
+%% span, and changes no other line; run
 %% back to VERSION's own, it leaves every file as it was. A regression test,
 %% written after the script, which the 0.7.0 release step's lines found by
 %% hand asked for; the pages `make version` writes after the script, by
@@ -556,7 +557,8 @@ version_test() ->
     Version = string:trim(ern_repository:read("VERSION")),
     Fixtures = ["test/fixtures/session/basic.out", "test/fixtures/session/attached.out"],
     Documents = start_line_documents(),
-    Files = ["VERSION" | Fixtures ++ Documents],
+    Site = "test/fixtures/site/expected/index.html",
+    Files = ["VERSION" | Fixtures ++ [Site | Documents]],
     Dir = filename:join(ern_pty:run_dir(), "version-" ++ os:getpid() ++ "_"
                         ++ integer_to_list(erlang:unique_integer([positive]))),
     Copy = fun(File) ->
@@ -583,8 +585,13 @@ version_test() ->
         Fixture = fun(Text) ->
                           iolist_to_binary(["Ernest ", Text, "-dev, session 1. :help for help."])
                   end,
+        Span = fun(Text) ->
+                       iolist_to_binary(["<span class=\"tok-output\">Ernest ", Text,
+                                         ", session 1. :help for help.</span>"])
+               end,
         ?assertEqual([{"VERSION", Version, <<"9.8.7">>}
-                      | [{File, Fixture(Version), Fixture("9.8.7")} || File <- Fixtures]],
+                      | [{File, Fixture(Version), Fixture("9.8.7")} || File <- Fixtures]
+                      ++ [{Site, Span(Version), Span("9.8.7")}]],
                      Moved),
         Starts = [Line || File <- Documents, Line <- lines(ern_repository:read(File)),
                           re:run(Line, start_line(Version)) =/= nomatch],

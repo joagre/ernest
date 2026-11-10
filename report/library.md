@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-For Ernest 0.10.0.
+For Ernest 0.11.0.
 
 This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A, B and F are in [`language.md`](language.md), and §10 to §12 and Appendices C and H in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative. Where the prose and Appendix A differ, Appendix A holds; where Appendix A is ambiguous, §0 decides.
 

@@ -5,7 +5,8 @@
 # aside, `Ernest x.y.z, session 1. :help for help.`, the third line of each
 # of the report's files, `For Ernest x.y.z.`, and the session fixtures'
 # start line, which names the version text of a build that is no release,
-# `x.y.z-dev` (ern_release). Each line is matched whole, so that
+# `x.y.z-dev` (ern_release), and the site's expected index page's, which
+# stands inside a span (test/fixtures/site/expected). Each line is matched whole, so that
 # a `since` line and a sentence naming a release stay as they are. The
 # pages make man writes name the version text too, and make version writes
 # them after this script.
@@ -53,4 +54,7 @@ done
 for file in test/fixtures/session/basic.out test/fixtures/session/attached.out; do
     rewrite "$file" "s/^Ernest $was-dev$start/Ernest $new-dev$rest/"
 done
+span=', session \([1-9][0-9]*\)\. :help for help\.<'
+rewrite test/fixtures/site/expected/index.html \
+    "s/>Ernest $was$span/>Ernest $new, session \\1. :help for help.</"
 printf '%s\n' "$new" > "$dir/VERSION"
