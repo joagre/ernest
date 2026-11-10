@@ -456,10 +456,15 @@ something (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
    refusals, each added with the tree cleaned to zero: the helper built with
    `-D_FORTIFY_SOURCE=2`, `erlc +warn_missing_spec`, `xref` over the roots and the compiled
    `.erc`, Dialyzer's `-Wextra_return`, `-Wmissing_return` and `-Werror_handling`, and near
-   misses for the checker beside the typed programs. The listings: `cover` over
-   `make test-full` for the full review, clones and each module's size for the full and the
-   release reviews, and the slowest tests for the release review. `docs/reviews/full.md`,
-   `release.md` and `development.md` name each in the commit that builds it.
+   misses for the checker beside the typed programs. From then on each runs with the checks of
+   its kind: the two flags in every `make`, `xref` in `make test` where it measures at a few
+   seconds and in `make test-full` otherwise, and Dialyzer's warnings and the near misses in
+   `make test-full`.
+
+   The listings, which a review runs: `cover` over `make test-full` for the full review, clones
+   and each module's size for the full and the release reviews, and the slowest tests for the
+   release review. `docs/reviews/full.md`, `release.md` and `development.md` name each check in
+   the commit that builds it.
 
    Decided first, in a design session: whether the checker warns of a private function no code
    calls (§11).
