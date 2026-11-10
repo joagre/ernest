@@ -175,8 +175,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    own session: `Os.command("git", ["ls-files", pattern])` at `tools/docs.ern`'s `Os.run`,
    `ERN_VERSION` in its Makefile, the `ern` version under its README's *Building*, and a dated
    entry in its TEMPLATE_LOG.md, the other rules of 0.10.0 touching nothing in it; ernest-httpd
-   takes the file from that tag, and ernest-epx stays at 0.9 until this item (the log's *The
-   Release Review Before 0.10.0*, its last paragraph).
+   and ernest-epx took the file from that tag the same evening and stand on 0.10, so the three
+   floors rise together from 0.10 here (the log's *The Release Review Before 0.10.0*, its last
+   paragraph).
 5. **The launch's release**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
