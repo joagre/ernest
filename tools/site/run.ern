@@ -14,8 +14,8 @@
 /// the library by its qualified name, the log's entries by their titles
 /// with their GitHub anchors (`Site.Links.Page`), what every page's script
 /// is told of the server's shell, the path of its socket and the session's
-/// lifetime in the words a page says it in, `5 minutes`, and the blocks a bare shell
-/// cannot run, each by its page's address and its first line, a
+/// lifetime in the words a page says it in, `5 minutes`, and the blocks a
+/// bare shell cannot run, each by its page's address and its first line, a
 /// transcript's its first input (`unrunnableRead`).
 export type Run =
     Run(root : Path,

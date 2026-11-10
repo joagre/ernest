@@ -232,7 +232,8 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
 %% What Open answers with the listener or the socket it opens over the
 %% host's Socket. Report §7.4, §12.5: where the host's table of processes
 %% is full, so that its process cannot be made (opened/7), the host's
-%% socket is closed, and the request answers as at a full table (ern_io:limited/0).
+%% socket is closed, and the request answers as at a full table
+%% (ern_io:limited/0).
 held_open(Open, Transport, Socket) ->
     try {'Right', Open(Socket)}
     catch
@@ -579,11 +580,11 @@ attempt(Transport, Try, Open, Deadline, Reply) ->
     end.
 
 %% Report §7.4, §12.5: a request's failure, its `Io.Error`, which is the
-%% full table's (ern_io:limited/0) where the host's TLS could not start a process
-%% of its own for the full table of processes: a
-%% listener's trackers, or a connection's supervisor or one of its two
-%% children. The host raises a failed match of the start's answer for it,
-%% which guarded/1 gives as the error (docs/otp_bugs.md, 15).
+%% full table's (ern_io:limited/0) where the host's TLS could not start a
+%% process of its own for the full table of processes: a listener's
+%% trackers, or a connection's supervisor or one of its two children. The
+%% host raises a failed match of the start's answer for it, which
+%% guarded/1 gives as the error (docs/otp_bugs.md, 15).
 failed(ssl, {badmatch, {error, {'EXIT', {system_limit, _}}}}) ->
     {'Left', ern_io:limited()};
 failed(ssl, {badmatch, {error, {shutdown, {failed_to_start_child, _,
