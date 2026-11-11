@@ -527,8 +527,8 @@ char_laws_test_() ->
           {"isAsciiDigit: 0 to 9 alone, each a digit", fun one_char/1, fun char_ascii_digit/1},
           {"digitValue: 0 to 9, then a letter of either case, under a base of 2 to 36",
            fun char_and_base/1, fun char_digit_value/1},
-          {"the classes: a letter of a case a letter, a digit or a space none", fun one_char/1,
-           fun char_classes/1},
+          {"the classes: a letter of a case a letter, a digit a number and a separator a space,"
+           " and at most one of the seven categories", fun one_char/1, fun char_classes/1},
           {"toUpper and toLower: itself where there is no single form", fun one_char/1,
            fun char_cases/1},
           {"compare by code point", fun two_chars/1, fun char_compare/1}]).
@@ -558,10 +558,15 @@ char_digit_value({Char, Base}) ->
 
 char_classes(Char) ->
     Alpha = ?CHAR(isAlpha)(Char),
+    Categories = [?CHAR(Predicate)(Char)
+                  || Predicate <- [isAlpha, isMark, isNumber, isPunctuation, isSymbol,
+                                   isSeparator, isControl]],
     (not ?CHAR(isUpper)(Char) orelse Alpha)
         andalso (not ?CHAR(isLower)(Char) orelse Alpha)
-        andalso not (?CHAR(isDigit)(Char) andalso Alpha)
-        andalso not (?CHAR(isSpace)(Char) andalso (Alpha orelse ?CHAR(isDigit)(Char))).
+        andalso (not ?CHAR(isDigit)(Char) orelse ?CHAR(isNumber)(Char))
+        andalso (not ?CHAR(isSeparator)(Char) orelse ?CHAR(isSpace)(Char))
+        andalso not (?CHAR(isSpace)(Char) andalso (Alpha orelse ?CHAR(isDigit)(Char)))
+        andalso length([true || true <- Categories]) =< 1.
 
 char_cases(Char) ->
     Single = fun(Mapped) ->

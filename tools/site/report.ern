@@ -67,7 +67,7 @@ fn fileWritten(run : Run.Run,
                taught : Book.Taught,
                neighbors : #(Optional(File), File, Optional(File))) : Either(String, Unit) = {
     let #(earlier, file, later) = neighbors;
-    let copied <- Links.anchored(file.source, CodeBlock.copied(file.blocks));
+    let copied = Links.anchored(file.source, CodeBlock.copied(file.blocks));
     let page <- Run.linkPage(run, file.source, file.address, copied);
     let placed <- Run.linkedAll(run, copied, page);
     let lines <- List.tryMap(placed, fn(each) = blockLines(run, taught, each));

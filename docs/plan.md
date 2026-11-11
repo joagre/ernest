@@ -108,12 +108,8 @@ The other seven are the packages proposal's build order,
     two in `libs/http` and five in the site's generator, take it. It closes on the standard
     library's target, the libraries', the site's and `make test`.
 16. **`Bool.compare`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 243).
-17. **`Char`'s six class predicates**, feedback 247: `isMark`, `isNumber`, `isPunctuation`,
-    `isSymbol`, `isSeparator` and `isControl`, E.6 naming each category, `char.ern` and
-    `ern_char.erl` reading the host's table, a test pinning each predicate's answer as the five
-    before are pinned, and the site generator's refusal of a heading gone, its slug keeping a
-    letter, a mark or a number. It closes on the standard library's target, the site's and
-    `make test`.
+17. **`Char`'s six class predicates**, done 2026-11-11 (the log's *The Review's Feedback Decided*,
+    247).
 18. **`Http.target` and the characters a browser sends raw**, feedback 250, ernest-httpd's line 29,
     a decision for the user, recommended: `target` reads a target holding `"`, `<`, `>`, `\`,
     `^`, `` ` ``, `{`, `|` or `}`, or `[` or `]` outside an absolute form's authority, with each such

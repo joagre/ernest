@@ -372,7 +372,7 @@ export fn linkPage(run : Run,
     let blocks = List.map(placed, fn(each) = each.block);
     let read <- List.tryMap(Links.targets(blocks, source), fn(path) = {
         let found <- documentOf(run.root, path);
-        Either.map(Links.anchors(path, found), fn(table) = #(path, table))
+        Right(#(path, Links.anchors(path, found)))
     });
     Right(Links.Page(=source,
                      =address,

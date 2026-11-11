@@ -68,7 +68,7 @@ fn booked(run : Run.Run,
           placing : (List(Markdown.Block)) -> List(CodeBlock.Placed)) : Either(String, Book) = {
     let document <- Run.documentOf(run.root, source);
     let #(title, blocks) <- Run.titleOf(source, Run.withoutContents(document));
-    let placed <- Links.anchored(source, placing(blocks));
+    let placed = Links.anchored(source, placing(blocks));
     let bookPage <- Run.linkPage(run, source, home, placed);
     let #(front, rest) = List.span(placed, fn(each) = !Run.isHeadingOf(2, each.block));
     let chapters <- chaptered(source, rest);

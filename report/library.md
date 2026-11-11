@@ -416,7 +416,7 @@ String.fromUtf8Piece : (Bytes) -> #(String, Bytes) // a piece's text, and the by
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
 
-The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll. `isAsciiDigit` is the digits `0` to `9` alone, those `String.toInt` reads (E.5). `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9). The primitives are the predicates `isAlpha`, `isDigit`, `isLower`, `isSpace`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toCodePoint`, and the conversion `fromCodePoint` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
+The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll, `isMark` is M, `isNumber` is N, `isPunctuation` is P, `isSymbol` is S, `isSeparator` is Z, and `isControl` is Cc. `isAsciiDigit` is the digits `0` to `9` alone, those `String.toInt` reads (E.5). `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9). The primitives are the predicates `isAlpha`, `isControl`, `isDigit`, `isLower`, `isMark`, `isNumber`, `isPunctuation`, `isSeparator`, `isSpace`, `isSymbol`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toCodePoint`, and the conversion `fromCodePoint` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Char.isDigit : (Char) -> Bool
@@ -426,6 +426,12 @@ Char.isAlpha : (Char) -> Bool
 Char.isSpace : (Char) -> Bool
 Char.isUpper : (Char) -> Bool
 Char.isLower : (Char) -> Bool
+Char.isMark : (Char) -> Bool // a combining mark, category M
+Char.isNumber : (Char) -> Bool // a number, category N: a decimal digit, a letter number or another number
+Char.isPunctuation : (Char) -> Bool
+Char.isSymbol : (Char) -> Bool
+Char.isSeparator : (Char) -> Bool // a space, line or paragraph separator, category Z
+Char.isControl : (Char) -> Bool // a control character, category Cc
 Char.toUpper : (Char) -> Char // itself when it has no single upper-case form
 Char.toLower : (Char) -> Char // itself when it has no single lower-case form
 Char.toString : (Char) -> String

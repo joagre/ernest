@@ -91,43 +91,35 @@ export fn address(path : String) : Optional(String) =
 /// link written for GitHub names its heading by. In a document that
 /// numbers its headings a numbered heading is found by the digits its
 /// GitHub anchor begins with, its number without its dots, `11` for `1.1`
-/// and `appendix-e17` for `E.17`, so that a heading holding `§` needs its
-/// GitHub anchor computed only where a later heading is found by its own;
-/// where two headings' numbers give the same digits, `1.1` and `11`, each
-/// is found by its whole GitHub anchor, which counts the headings before
-/// it. In a document that numbers none each heading is found by its GitHub
-/// anchor. A page whose headings no link reaches has none.
-export fn anchors(path : String,
-                  blocks : List(Markdown.Block)) : Either(String, Map(String, String)) =
+/// and `appendix-e17` for `E.17`; where two headings' numbers give the
+/// same digits, `1.1` and `11`, each is found by its whole GitHub anchor,
+/// which counts the headings before it. In a document that numbers none
+/// each heading is found by its GitHub anchor. A page whose headings no
+/// link reaches has none.
+export fn anchors(path : String, blocks : List(Markdown.Block)) : Map(String, String) =
     match shown(path) {
         Some(Slugged(_)) ->
-            Either.map(slugged(path, headings(blocks)),
-                       fn(slugs) = Map.fromList(List.map(slugs, fn(slug) = #(slug, slug))))
+            Map.fromList(List.map(githubAnchors(headings(blocks)), fn(slug) = #(slug, slug)))
       | Some(Book(_)) ->
-            numbered(path, headings(blocks))
+            numbered(headings(blocks))
       | Some(Numbered(_)) ->
-            numbered(path, headings(blocks))
+            numbered(headings(blocks))
       | _ ->
-            Right(Map.empty)
+            Map.empty
     }
 
 /// The blocks of a page, each top-level heading given its anchor as its
 /// page shows it: in a document that numbers its headings a numbered
 /// heading's number, and none for one without; in one that numbers none
 /// each heading's GitHub anchor.
-export fn anchored(path : String,
-                   placed : List(CodeBlock.Placed)) : Either(String, List(CodeBlock.Placed)) = {
+export fn anchored(path : String, placed : List(CodeBlock.Placed)) : List(CodeBlock.Placed) = {
     let texts = headings(List.map(placed, fn(each) = each.block));
-    let anchors <- match shown(path) {
+    let anchors = match shown(path) {
         Some(Slugged(_)) ->
-            Either.map(slugged(path, texts),
-                       fn(slugs) =
-                           List.map(slugs,
-                                    fn(slug) =
-                                        Some(CodeBlock.Anchor(id = slug,
-                                                              label = "Link to this section"))))
+            List.map(githubAnchors(texts),
+                     fn(slug) = Some(CodeBlock.Anchor(id = slug, label = "Link to this section")))
       | _ ->
-            Right(List.map(texts, numberAnchor))
+            List.map(texts, numberAnchor)
     };
     let #(_, given) = List.mapFold(placed, anchors, fn(left, each) = match #(each.block, left) {
         #(Markdown.Heading(), anchor :: rest) ->
@@ -136,7 +128,7 @@ export fn anchored(path : String,
       | _ ->
             #(left, each)
     });
-    Right(given)
+    given
 }
 
 /// A numbered heading's anchor, its number, and none for a heading that is
@@ -156,20 +148,18 @@ fn headings(blocks : List(Markdown.Block)) : List(String) =
 // GitHub anchor where another's number gives the same digits, the
 // document's anchors computed once, so that two such headings of one text
 // are told apart as GitHub numbers them.
-fn numbered(path : String, texts : List(String)) : Either(String, Map(String, String)) = {
+fn numbered(texts : List(String)) : Map(String, String) = {
     let found =
-        List.filterMap(List.zip(texts, githubAnchors(path, texts)),
+        List.filterMap(List.zip(texts, githubAnchors(texts)),
                        fn(#(text, anchor)) =
                            Optional.map(number(text), fn(each) = #(numberKey(each), each, anchor)));
     let keys = List.map(found, fn(#(key, _, _)) = key);
-    let pairs <-
-        List.tryMap(found,
-                    fn(#(key, each, anchor)) =
-                        if List.size(List.filter(keys, fn(other) = other == key)) == 1 then
-                            Right(#(key, each))
-                        else
-                            Either.map(anchor, fn(slug) = #(slug, each)));
-    Right(Map.fromList(pairs))
+    Map.fromList(List.map(found,
+                          fn(#(key, each, anchor)) =
+                              if List.size(List.filter(keys, fn(other) = other == key)) == 1 then
+                                  #(key, each)
+                              else
+                                  #(anchor, each)))
 }
 
 // The digits a numbered heading's GitHub anchor begins with: its number
@@ -259,59 +249,34 @@ fn isCapital(char : Char) : Bool =
 // GitHub's anchors
 //
 
-// Each heading's GitHub anchor, or why the first that cannot be computed
-// cannot be.
-fn slugged(path : String, texts : List(String)) : Either(String, List(String)) =
-    List.tryMap(githubAnchors(path, texts), fn(anchor) = anchor)
-
 // Each heading's GitHub anchor, as the documents' test computes it:
 // lowercase, every character but a letter, a mark, a number, `_`, a space
 // and `-` dropped, a space written `-`, and a second heading of the same
-// anchor numbered `-1`, a third `-2`. A heading's anchor that cannot be
-// computed leaves every later one's unknown too, since its number counts
-// the headings before it of the same anchor.
-fn githubAnchors(path : String, texts : List(String)) : List(Either(String, String)) = {
-    let #(_, anchors) = List.mapFold(texts, Right(Map.empty), fn(seen, text) = {
-        let counted =
-            Either.andThen(seen,
-                           fn(counts) =
-                               Either.map(slugBase(path, text), fn(base) = #(counts, base)));
-        match counted {
-            Right(#(counts, base)) -> {
-                let count = Optional.withDefault(Map.get(counts, base), 0);
-                #(Right(Map.put(counts, base, count + 1)),
-                  Right(if count == 0 then base else base <> "-" <> Int.toString(count)))
-            }
-          | Left(message) ->
-                #(Left(message), Left(message))
-        }
+// anchor numbered `-1`, a third `-2`.
+fn githubAnchors(texts : List(String)) : List(String) = {
+    let #(_, anchors) = List.mapFold(texts, Map.empty, fn(counts, text) = {
+        let base = slugBase(text);
+        let count = Optional.withDefault(Map.get(counts, base), 0);
+        #(Map.put(counts, base, count + 1),
+          if count == 0 then base else base <> "-" <> Int.toString(count))
     });
     anchors
 }
 
-// A character outside ASCII that is not a letter or a decimal digit may be
-// a mark or another number, which the anchor keeps, or anything else, which
-// it drops; `Char` answers neither question, so such a heading is refused
-// rather than anchored wrongly.
-fn slugBase(path : String, heading : String) : Either(String, String) =
-    Either.map(List.tryMap(String.toList(String.toLower(heading)),
-                           fn(char) = slugPiece(path, heading, char)),
-               fn(pieces) = String.join(pieces, ""))
+fn slugBase(heading : String) : String =
+    String.join(List.map(String.toList(String.toLower(heading)), slugPiece), "")
 
-fn slugPiece(path : String, heading : String, char : Char) : Either(String, String) =
+fn slugPiece(char : Char) : String =
     if char == ' ' then
-        Right("-")
-    else if Char.isAlpha(char) || Char.isDigit(char) || char == '_' || char == '-' then
-        Right(Char.toString(char))
-    else if Char.toCodePoint(char) < 128 then
-        Right("")
+        "-"
+    else if Char.isAlpha(char)
+        || Char.isMark(char)
+        || Char.isNumber(char)
+        || char == '_'
+        || char == '-' then
+        Char.toString(char)
     else
-        Left(path
-                 <> ": the heading \""
-                 <> heading
-                 <> "\" holds "
-                 <> Char.toString(char)
-                 <> ", whose Unicode category its GitHub anchor turns on, which Char does not give")
+        ""
 
 //
 // The links

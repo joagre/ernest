@@ -261,9 +261,13 @@ absolute() ->
 %% sentence after the label; a link to a directory the site does not show,
 %% written in its own form, leads to the directory on GitHub; the GitHub
 %% anchor two numbered headings of one text share leads to the first's
-%% number, and the second's, numbered `-1`, to its own; and a block of one
-%% function whose body holds a blank line is offered to the shell, since
-%% the shell takes the paste whole (report §11.2).
+%% number, and the second's, numbered `-1`, to its own; a heading of the
+%% questions holding a letter beyond ASCII, a combining mark, a number
+%% that is no digit and punctuation is anchored as GitHub anchors it, the
+%% letter, the mark and the number kept and the punctuation dropped
+%% (docs/design/site.md *Anchors*); and a block of one function whose body
+%% holds a blank line is offered to the shell, since the shell takes the
+%% paste whole (report §11.2).
 %%
 %% A regression test, written after the generator. It does not cover a
 %% module's page opening with a label, nor a link to a directory written
@@ -273,8 +277,12 @@ additions() ->
     Label = "# Frequently asked questions\n\n**A label.** The sentence after the label. Another.\n",
     Block = "\n```ernest\nfn pair(value : Int) : #(Int, Int) = {\n    let doubled = value * 2;\n\n"
         "    #(value, doubled)\n}\n```\n",
-    Links = "\nThe [examples](../examples/) stay on GitHub, [one](deployment.md#111-again) and"
-        " [the other](deployment.md#111-again-1) each have a heading.\n",
+    Links = unicode:characters_to_binary(
+              "\nThe [examples](../examples/) stay on GitHub, [one](deployment.md#111-again) and"
+              " [the other](deployment.md#111-again-1) each have a heading, and so does"
+              " [the unit](#ångströms-½--cafe\x{301}).\n\n"
+              "### Ångström\x{2019}s ½ \x{2014} cafe\x{301}\n\n"
+              "A heading with a letter beyond ASCII, a mark, a number and punctuation.\n"),
     Headings = "\n### 11.1 Again\n\nOnce.\n\n## 111. Again\n\nTwice.\n",
     Titled = fun(Text) -> binary:replace(Text, <<"# Frequently asked questions\n">>,
                                          list_to_binary(Label)) end,
@@ -290,6 +298,8 @@ additions() ->
                                  ++ "/examples\">examples</a>"),
                   <<"<a href=\"/deployment/#11.1\">one</a>">>,
                   <<"<a href=\"/deployment/#111\">the other</a>">>,
+                  <<"<a href=\"#ångströms-½--cafe\x{301}\">the unit</a>"/utf8>>,
+                  <<"id=\"ångströms-½--cafe\x{301}\""/utf8>>,
                   <<"data-shell=\"paste\"><code><span class=\"tok-keyword\">fn</span> pair(">>]].
 
 %% docs/design/site.md *Links*: the

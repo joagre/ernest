@@ -110,6 +110,92 @@ export foreign fn isUpper(char : Char) : Bool =
 export foreign fn isLower(char : Char) : Bool =
     "ern_char:is_lower/1"
 
+/// `true` for a combining mark, Unicode's category M: an accent written as
+/// a character of its own, which joins the letter before it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isMark('\u{301}'), Char.isMark('é'))
+/// // => #(true, false)
+/// ```
+///
+/// since 0.11.0
+export foreign fn isMark(char : Char) : Bool =
+    "ern_char:is_mark/1"
+
+/// `true` for a number of any kind, Unicode's category N: a decimal digit,
+/// which `isDigit` holds for too, a letter number such as `'Ⅳ'`, or another
+/// number such as `'½'`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isNumber('7'), Char.isNumber('½'), Char.isDigit('½'))
+/// // => #(true, true, false)
+/// ```
+///
+/// since 0.11.0
+export foreign fn isNumber(char : Char) : Bool =
+    "ern_char:is_number/1"
+
+/// `true` for punctuation, Unicode's category P: a dash, a bracket, a quote
+/// mark, `'_'`, and the rest.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isPunctuation('!'), Char.isPunctuation('—'), Char.isPunctuation('+'))
+/// // => #(true, true, false)
+/// ```
+///
+/// since 0.11.0
+export foreign fn isPunctuation(char : Char) : Bool =
+    "ern_char:is_punctuation/1"
+
+/// `true` for a symbol, Unicode's category S: a mathematical operator, a
+/// currency sign, a modifier such as `'^'`, and the rest.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isSymbol('+'), Char.isSymbol('€'), Char.isSymbol('!'))
+/// // => #(true, true, false)
+/// ```
+///
+/// since 0.11.0
+export foreign fn isSymbol(char : Char) : Bool =
+    "ern_char:is_symbol/1"
+
+/// `true` for a separator, Unicode's category Z: a space of any width, a
+/// line separator or a paragraph separator. A tab and a line feed are
+/// controls, which `isSpace` holds for and `isSeparator` does not.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isSeparator(' '), Char.isSeparator('\u{3000}'), Char.isSeparator('\n'))
+/// // => #(true, true, false)
+/// ```
+///
+/// since 0.11.0
+export foreign fn isSeparator(char : Char) : Bool =
+    "ern_char:is_separator/1"
+
+/// `true` for a control character, Unicode's category Cc: U+0000 to U+001F
+/// and U+007F to U+009F.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isControl('\n'), Char.isControl('\u{7F}'), Char.isControl('a'))
+/// // => #(true, true, false)
+/// ```
+///
+/// since 0.11.0
+export foreign fn isControl(char : Char) : Bool =
+    "ern_char:is_control/1"
+
 /// The upper-case form, or `char` itself where it has no single upper-case
 /// `Char`: `'ß'` stays `'ß'`, since its upper case is two letters, which
 /// `String.toUpper` gives.

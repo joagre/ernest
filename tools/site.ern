@@ -110,7 +110,7 @@ fn generated(root : Path,
 fn homeWritten(run : Run.Run) : Either(String, Unit) = {
     let source = "guide/why.md";
     let blocks <- Run.documentOf(run.root, source);
-    let placed <- Links.anchored(source, CodeBlock.copied(blocks));
+    let placed = Links.anchored(source, CodeBlock.copied(blocks));
     let anchored = Map.fromList(List.filterMap(placed, fn(each) = match #(each.block, each.headed) {
         #(Markdown.Heading(=text), Some(CodeBlock.Headed(anchor = Some(found)))) ->
             Some(#(Html.plain(text), found.id))

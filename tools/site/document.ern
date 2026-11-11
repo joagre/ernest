@@ -67,7 +67,7 @@ fn documentWritten(run : Run.Run, document : Document) : Either(String, Unit) = 
     let address <- Either.fromOptional(Links.address(source), source <> " has no page of the site");
     let blocks <- Run.documentOf(run.root, source);
     let placing = document.placing;
-    let placed <- Links.anchored(source, placing(blocks));
+    let placed = Links.anchored(source, placing(blocks));
     let #(heading, level, own) <- sectionOf(source, document.section, placed);
     let page <- Run.linkPage(run, source, address, own);
     let linked <- Run.linkedAll(run, own, page);

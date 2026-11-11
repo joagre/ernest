@@ -824,7 +824,7 @@ fn scan(chars : List(Char), pending : List(Char)) : List(Inline) =
             flushed(pending, [])
       | '\\' :: '\n' :: rest ->
             flushed(pending, Break :: scan(rest, []))
-      | '\\' :: char :: rest when isPunctuation(char) ->
+      | '\\' :: char :: rest when isAsciiPunctuation(char) ->
             scan(rest, char :: pending)
       | '\n' :: rest -> {
             let #(spaces, before) = List.span(pending, fn(char) = char == ' ');
@@ -871,7 +871,9 @@ fn merged(scanned : List(Inline)) : List(Inline) =
       | [] -> []
     }
 
-fn isPunctuation(char : Char) : Bool =
+// CommonMark's ASCII punctuation character, the set a backslash escapes,
+// which holds `$`, `+` and other symbols `Char.isPunctuation` does not.
+fn isAsciiPunctuation(char : Char) : Bool =
     String.contains("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", Char.toString(char))
 
 // A code span closes at a run of exactly as many backticks; a line break
