@@ -36,8 +36,9 @@
          "criticised", "specialisation"]).
 
 %% A command in a document's block of commands: make and its words, or ern
-%% with one at least, each after an optional sudo and the variables it sets.
--define(COMMAND, "(?:sudo )?(?:[A-Z_]+=\\S+ )*(?:make(?: \\S+)*|(?:bin/)?ern(?: \\S+)+)").
+%% or a launcher under bin/ with one at least, each after an optional sudo
+%% and the variables it sets.
+-define(COMMAND, "(?:sudo )?(?:[A-Z_]+=\\S+ )*(?:make(?: \\S+)*|(?:ern|bin/\\S+)(?: \\S+)+)").
 
 %% The host's names that keep the host's spelling.
 -define(HOST_NAMES, "(?<![A-Za-z])-behaviour|behaviour_info|erl_parse:normalise"
@@ -186,9 +187,10 @@ comment_ceiling_test() ->
 %% docs/code_style.md *Every language*: a block of commands in a document is
 %% shell a reader can paste, so a comment beside a command begins with `#`,
 %% and so does each indented line under it, which carries the comment on.
-%% A command is make, or ern with its arguments, as the documents write
-%% them; a tree of files, `bin/ern` and what it is, is no command and is
-%% annotated bare. The log and the proposals are left out, as the paragraph
+%% A command is make with its words, or ern or a launcher under bin/ with
+%% one at least, and a line is read to its first ` #`, its comment's start;
+%% a tree of files, `bin/ern` and what it is, is no command and is annotated
+%% bare. The log and the proposals are left out, as the paragraph
 %% listing leaves them. Written with the rule, after docs/development.md's
 %% list of make targets was found bare beside the README's commands
 shell_comment_test() ->
@@ -215,7 +217,7 @@ bare_comments([{Number, Line} | Rest], State) ->
         {true, _} ->
             bare_comments(Rest, outside);
         {false, {shell, AfterCommand}} ->
-            Bare = holds(Line, "^" ?COMMAND " {2,}[^#\\s]")
+            Bare = holds(hd(string:split(Line, " #")), "^" ?COMMAND " {2,}[^#\\s]")
                 orelse (AfterCommand andalso holds(Line, "^\\s+[^#\\s]")),
             Follows = holds(Line, "^" ?COMMAND "( |$)(?!.*\\\\$)")
                 orelse (AfterCommand andalso holds(Line, "^\\s+\\S")),
