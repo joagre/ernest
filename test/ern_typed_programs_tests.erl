@@ -457,10 +457,11 @@ form(select_point, int, Scope, Depth) ->
 form(select_box, Type, Scope, Depth) ->
     {select, generate({box, Type}, Scope, Depth), item};
 form(comparison, bool, Scope, Depth) ->
-    Operand = pick([int, int, string]),
+    Operand = pick([int, int, string, bool]),
     Operator = case Operand of
                    int -> pick(['<', '<=', '>', '>=', '==', '!=']);
-                   string -> pick(['<', '==', '!='])
+                   string -> pick(['<', '==', '!=']);
+                   bool -> pick(['<', '<=', '>', '>=', '==', '!='])
                end,
     {binop, Operator, generate(Operand, Scope, Depth), generate(Operand, Scope, Depth)};
 form(logic, bool, Scope, Depth) ->

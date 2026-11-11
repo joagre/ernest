@@ -323,8 +323,8 @@ standard_own_shim_test() ->
     ?assertMatch([<<"erlang:list_to_binary/1">>, <<"M.main:9">>],
                  binary:split(Trace, <<"\n">>, [global, trim])).
 
-%% report §3.10, §9.6, §11.1: compare at Int, Float, String and Char is the
-%% host's comparison, answering what each type's module's compare answers,
+%% report §3.10, §9.6, §11.1: compare at Int, Float, String, Char and Bool is
+%% the host's comparison, answering what each type's module's compare answers,
 %% its operands evaluated once and in order (§5.1), and calls no module. A
 %% regression test, written after the code; it does not cover compare taken
 %% as a value, a supply a function that needs it is given, which is still
@@ -339,14 +339,33 @@ host_compare_test() ->
            "    [compare(said(\"left\", 1), said(\"right\", 2)), compare(2, 2), compare(3, 2),\n"
            "     compare(1.5, 2.5), compare(0.0, -0.0), compare(2.5, 1.5),\n"
            "     compare(\"a\", \"b\"), compare(\"é\", \"é\"), compare(\"b\", \"a\"),\n"
-           "     compare('a', 'b'), compare('z', 'z'), compare('é', 'e')]\n"
+           "     compare('a', 'b'), compare('z', 'z'), compare('é', 'e'),\n"
+           "     compare(false, true), compare(true, true), compare(true, false)]\n"
            "\n"
            "export fn main() : Unit = Io.println(Io.show(compared()))\n",
     ?assertEqual([], [Call || {Module, _, _} = Call <- external_calls(function_code(Text, '$2')),
                               Module =/= 'ern@m']),
     ?assertEqual({ok, <<"left\nright\n[Less, Equal, Greater, Less, Equal, Greater, Less, Equal, "
-                        "Greater, Less, Equal, Greater]\n">>},
+                        "Greater, Less, Equal, Greater, Less, Equal, Greater]\n">>},
                  run(Text)).
+
+%% report §3.10, §9.6, §3.5: Bool is ordered, `false` before `true`: `<`
+%% and the other comparisons on two Bools, a sort by the prelude's compare,
+%% which Bool's module supplies, a tuple's order over a Bool, and a derived
+%% compare over a Bool field.
+bool_order_test() ->
+    {ok, Output} =
+        run("type Task = Task(due : Int, done : Bool) derives compare\n"
+            "export fn main() : Unit = {\n"
+            "    Io.println(Io.show(#(false < true, true <= false, true >= true, true > false)));\n"
+            "    Io.println(Io.show(List.sort([true, false, true])));\n"
+            "    Io.println(Io.show(List.sort([#(1, true), #(0, true), #(1, false)])));\n"
+            "    let tasks = [Task(due = 1, done = true), Task(due = 1, done = false)];\n"
+            "    Io.println(Io.show(List.sort(tasks)))\n"
+            "}\n"),
+    ?assertEqual(<<"#(true, false, true, true)\n[false, true, true]\n"
+                   "[#(0, true), #(1, false), #(1, true)]\n"
+                   "[M.Task(due = 1, done = false), M.Task(due = 1, done = true)]\n">>, Output).
 
 %% report §11.1: the host functions the emitter calls with no handler for
 %% their raise are each called by the standard library at the types its
@@ -2148,6 +2167,24 @@ receive_guard_compound_test() ->
         "    loop(5)\n"
         "}\n"),
     ?assertEqual(<<"9\n">>, Output).
+
+%% report §6.3, §3.10: a receive guard orders two Bools, `false` before
+%% `true`, as it orders two Ints; a message the guard rejects stays in the
+%% mailbox
+receive_guard_bool_order_test() ->
+    {ok, Output} = run(
+        "type Msg = Flags(#(Bool, Bool)) | Stop\n"
+        "fn take() : Int receiving Msg =\n"
+        "    receive { Flags(#(a, b)) when a < b -> 1 | Stop -> 0 }\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    send(self(), Flags(#(true, false)));\n"
+        "    send(self(), Flags(#(false, true)));\n"
+        "    send(self(), Stop);\n"
+        "    Io.println(Int.toString(take()));\n"
+        "    Io.println(Int.toString(take()));\n"
+        "    receive { Flags(pair) -> Io.println(Io.show(pair)) }\n"
+        "}\n"),
+    ?assertEqual(<<"1\n0\n#(true, false)\n">>, Output).
 
 %% report §6.3: `!` before a guard expression and a negative literal in a
 %% receive guard, emitted as an Erlang guard; the messages the guard

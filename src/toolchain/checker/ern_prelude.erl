@@ -8,8 +8,8 @@
 -module(ern_prelude).
 
 -export([equality_params/1, builtin_types/0, is_builtin/1, declared_types/0, values/0,
-         signature/1, parameters/1, member_types/0, is_member/1, docs/0, stdlib_interfaces/0,
-         stdlib_files/0, stdlib_directory/0, set_stdlib_directory/1]).
+         signature/1, parameters/1, member_types/0, is_member/1, is_runtime_ordered/1, docs/0,
+         stdlib_interfaces/0, stdlib_files/0, stdlib_directory/0, set_stdlib_directory/1]).
 
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -640,6 +640,7 @@ values() ->
      {['Float', compare], "(Float, Float) -> Ordering", module},
      {['String', compare], "(String, String) -> Ordering", module},
      {['Char', compare], "(Char, Char) -> Ordering", module},
+     {['Bool', compare], "(Bool, Bool) -> Ordering", module},
      {['List', compare], "(List(a), List(a)) -> Ordering needs a.compare", module},
      {['Optional', compare], "(Optional(a), Optional(a)) -> Ordering needs a.compare", module},
      {['Either', compare], "(Either(e, a), Either(e, a)) -> Ordering needs e.compare, a.compare",
@@ -672,8 +673,8 @@ values() ->
       tuple's among them, and under `needs a.compare` the requirement's
       (report §3.10, §4.9).
 
-      A type without an order has no `compare`: `compare(true, false)` is
-      refused, as `true < false` is.
+      A type without an order has no `compare`: on two `Set(Int)`s,
+      `compare(a, b)` is refused, as `a < b` is.
 
       ### Examples
 
@@ -740,6 +741,13 @@ is_member([_, Name] = QualifiedName) ->
         andalso lists:keymember(QualifiedName, 1, values());
 is_member(_) ->
     false.
+
+%% Report §9.6, §6.3: whether `<`, `<=`, `>` and `>=` on the prelude type
+%% of no argument named TypeName are the runtime's own ordering, with which
+%% its module writes its compare, and which a `receive` guard may apply.
+-spec is_runtime_ordered(atom()) -> boolean().
+is_runtime_ordered(TypeName) ->
+    lists:member(TypeName, ['Int', 'Float', 'String', 'Char', 'Bool']).
 
 %% Report §9, §11.4: the prelude's documentation, as an EEP 48 chunk of the
 %% shape ern_docs:build/4 builds for a module, so that one renderer serves

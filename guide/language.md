@@ -452,7 +452,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 Map keys and set elements need equality. `==` and `!=` are defined on every type except one that contains a function, an address or a reply, the `Reply` an answer goes back on (§4.2). On a value of a foreign type, `Foreign.Term` (§8.3) among them, it is the runtime's exact equality (report §3.10). A map keyed by addresses is a type error at its first operation, since an address has no equality; key it by the identity of the process behind each address instead, a `Process`, which `Process.fromAddress` gives (§5.5). The compiler infers which type variables need equality, and a printed type marks them (§2.9).
 
-Ordering is separate: `a < b` asks the type's `compare`, which answers an `Ordering`: `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String` and `Char` have one; `Optional` and `Either` have one where their element types do, `None` before `Some` and `Left` before `Right`, and a tuple and a list where every component's type does, component by component from the left, a shorter list before a longer one it begins; `Bool`, `Map` and `Set` have none. A type of your own gets one by `derives compare` on its declaration (§7.3), or by declaring `compare` in its module.
+Ordering is separate: `a < b` asks the type's `compare`, which answers an `Ordering`: `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, `Char` and `Bool` have one, `false` before `true`; `Optional` and `Either` have one where their element types do, `None` before `Some` and `Left` before `Right`, and a tuple and a list where every component's type does, component by component from the left, a shorter list before a longer one it begins; `Map` and `Set` have none. A type of your own gets one by `derives compare` on its declaration (§7.3), or by declaring `compare` in its module.
 
 `compare(a, b)` is the function form of `<`, which answers the `Ordering` itself. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -2228,7 +2228,7 @@ Members.Date(year = 2025, month = 1, day = 1)
 Members.Date(year = 2026, month = 10, day = 2)
 ```
 
-`Date` gets its order from its declaration. `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, a `Bool`, is refused at the declaration (report §3.5).
+`Date` gets its order from its declaration. `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, a `Set`, is refused at the declaration (report §3.5).
 
 `shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report §12.3). `Io.show`'s own type says so, `(a) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
 

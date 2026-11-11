@@ -393,8 +393,9 @@ operators_need_a_determined_operand_type_test() ->
                  type_of("export fn cat(a : String, b) = a <> b <> \"!\"", cat)),
     ?assertEqual("`<>` is not defined on Int", refusal("fn f(x : Int) = x <> x")),
     ?assertEqual("(Int, Int) -> Bool", type_of("export fn lt(a : Int, b) = a < b", lt)),
-    ?assertEqual("`<` needs Bool.compare, and Bool has no compare",
-                 refusal("fn f(a : Bool, b) = a < b")).
+    ?assertEqual("(Bool, Bool) -> Bool", type_of("export fn f(a : Bool, b) = a < b", f)),
+    ?assertEqual("`<` needs Set(Int).compare, and Set(Int) has no compare",
+                 refusal("fn f(a : Set(Int), b) = a < b")).
 
 %% report §4.8, §3.5, §6.3, §11.5: a value whose type is that of the
 %% messages a `receive` takes, or a part of it, which a pattern's variable
@@ -2883,7 +2884,7 @@ guard_order_fixed_later_test() ->
     ?assertEqual(ok, ok("fn g() = {\n    let me = self();\n"
                         "    receive { #(x, y) when x < y -> Unit };\n"
                         "    send(me, #(1, 2))\n}\n")),
-    ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Money",
+    ?assertEqual("a `receive` guard orders only Int, Float, String, Char, and Bool, not Money",
                  refusal("type Money = Money(Int)\n"
                          "fn Money.compare(a : Money, b : Money) : Ordering = Equal\n"
                          "fn g() = {\n    let me = self();\n"
@@ -4346,7 +4347,7 @@ helps_and_spans_test() ->
                              "fn f() : Int = OrderedSet.size(OrderedSet.fromList([Red]))\n"))
                      #diagnostic.help),
     ?assertEqual("declare `fn Date.compare` yourself, or hold a field whose type has a compare",
-                 (diagnostic("type Date = Date(year : Int, at : Bool) derives"
+                 (diagnostic("type Date = Date(year : Int, notes : Set(String)) derives"
                              " compare\n"))#diagnostic.help),
     ?assertEqual("bind two names and compare them in a guard, `when x == y`",
                  (diagnostic("fn f(p : #(Int, Int)) : Int = match p { #(x, x) -> x }\n"))
@@ -4694,9 +4695,13 @@ receive_guard_field_test() ->
                   "At(at = n) when later(s).lot.at == n"]].
 
 %% report §6.3, §3.10: `<`, `<=`, `>`, and `>=` in a receive guard order
-%% Int, Float, String, and Char only, not a user type with its own compare
+%% Int, Float, String, Char, and Bool only, not a user type with its own
+%% compare
 receive_guard_ordering_test() ->
-    ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Vec",
+    ?assertEqual(ok, ok("type M = Go(#(Bool, Bool))\n"
+                        "fn loop() : Unit receiving M = receive { Go(#(a, b)) when a < b -> Unit"
+                        " | _ -> Unit }")),
+    ?assertEqual("a `receive` guard orders only Int, Float, String, Char, and Bool, not Vec",
                  refusal("export type Vec = Vec(Int)\n"
                          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = compare(a, b)\n"
                          "type M = Go(Vec)\n"
@@ -4999,8 +5004,11 @@ derives_test() ->
     ?assertEqual(ok, ok(Types ++ "fn earlier(x : Date, y : Date) : Bool = x < y\n"
                         "fn f(x : Pair(Int, String)) : Bool = x > x\n"
                         "fn g(x : Pair(a, b)) : Bool needs a.compare, b.compare = x <= x\n")),
-    ?assertEqual("fromList needs Pair(Bool, Int).compare, and Bool has no compare",
-                 refusal(Types ++ "fn f(x : Pair(Bool, Int)) : Int =\n"
+    ?assertEqual("(M.Task, M.Task) -> Ordering",
+                 member_type_of("export type Task = Task(due : Int, done : Bool)"
+                                " derives compare\n", 'Task', compare)),
+    ?assertEqual("fromList needs Pair(Set(Int), Int).compare, and Set(Int) has no compare",
+                 refusal(Types ++ "fn f(x : Pair(Set(Int), Int)) : Int =\n"
                          "    OrderedSet.size(OrderedSet.fromList([x]))\n")),
     %% a parameter the comparison does not reach is not required
     ?assertEqual("(M.Holder(a), M.Holder(a)) -> Ordering",
@@ -5026,7 +5034,10 @@ structural_compare_test() ->
                         "fn d(x : Either(Int, Char)) : Bool = x <= Right('a')\n"
                         "fn e(x : #(a, List(a))) : Bool needs a.compare = x < x\n"
                         "fn f(x : List(#(a, Optional(a)))) : Int needs a.compare =\n"
-                        "    OrderedSet.size(OrderedSet.fromList(x))\n")),
+                        "    OrderedSet.size(OrderedSet.fromList(x))\n"
+                        "fn g(x : #(Int, Bool)) : Bool = x < x\n"
+                        "fn h(x : List(Bool)) : Int =\n"
+                        "    OrderedSet.size(OrderedSet.fromList([x]))\n")),
     ?assertEqual(ok, ok("fn a(x : List(Int)) : Ordering = compare(x, [2])\n"
                         "fn b(x : Optional(a)) : Ordering needs a.compare = compare(x, None)\n"
                         "fn c(x : List(Either(Int, String))) : List(Either(Int, String)) =\n"
@@ -5035,10 +5046,11 @@ structural_compare_test() ->
                  member_type_of("export type Row(a) = Row(key : #(Int, a), tags : List(String),"
                                 " at : Optional(a), why : Either(String, Int)) derives compare\n",
                                 'Row', compare)),
-    ?assertEqual("`<` needs #(Int, Bool).compare, and Bool has no compare",
-                 refusal("fn f(x : #(Int, Bool)) : Bool = x < x")),
-    ?assertEqual("fromList needs List(Bool).compare, and Bool has no compare",
-                 refusal("fn f(x : List(Bool)) : Int = OrderedSet.size(OrderedSet.fromList([x]))")),
+    ?assertEqual("`<` needs #(Int, Path).compare, and Path has no compare",
+                 refusal("fn f(x : #(Int, Path)) : Bool = x < x")),
+    ?assertEqual("fromList needs List(Map(Int, Int)).compare, and Map(Int, Int) has no compare",
+                 refusal("fn f(x : List(Map(Int, Int))) : Int =\n"
+                         "    OrderedSet.size(OrderedSet.fromList([x]))")),
     ?assertEqual({"fromList needs a.compare, which f does not declare",
                   "add `needs a.compare` to f's signature"},
                  refusal_and_help("fn f(x : Optional(a)) : Int =\n"
@@ -5063,12 +5075,13 @@ prelude_compare_test() ->
     ?assertEqual("(a, a) -> Ordering needs a.compare",
                  type_of("export fn f(x : a, y : a) : Ordering needs a.compare = compare(x, y)",
                          f)),
-    ?assertEqual({"compare needs Bool.compare, and Bool has no compare",
+    ?assertEqual("() -> Ordering", type_of("export fn f() = compare(true, false)", f)),
+    ?assertEqual({"compare needs Set(Int).compare, and Set(Int) has no compare",
                   "hold it in a type of your own that declares `compare`"},
-                 refusal_and_help("fn f() : Ordering = compare(true, false)")),
-    ?assertEqual({"`<` needs Bool.compare, and Bool has no compare",
+                 refusal_and_help("fn f(a : Set(Int), b : Set(Int)) : Ordering = compare(a, b)")),
+    ?assertEqual({"`<` needs Set(Int).compare, and Set(Int) has no compare",
                   "hold it in a type of your own that declares `compare`"},
-                 refusal_and_help("fn f() : Bool = true < false")),
+                 refusal_and_help("fn f(a : Set(Int), b : Set(Int)) : Bool = a < b")),
     ?assertEqual("compare needs a.compare, at a type variable no requirement can name",
                  refusal("fn f() : Ordering = compare(Right(2), Right(1))")),
     ?assertEqual("`<` needs a.compare, at a type variable no requirement can name",
@@ -5135,13 +5148,14 @@ open_comparison_help_test() ->
                         "    e < Right(1)\n}")).
 
 %% report §3.5: a field whose type has no compare is an error at the
-%% declaration, and a type derives no compare it declares; written after the
-%% code
+%% declaration, the section's own example among them, and a type derives no
+%% compare it declares; written after the code
 derives_refused_test() ->
-    ?assertEqual("Date.compare cannot be derived: Bool has no compare",
-                 refusal("type Date = Date(year : Int, at : Bool) derives compare")),
-    ?assertEqual("T.compare cannot be derived: Bool has no compare",
-                 refusal("type T = T(#(Int, Bool)) derives compare")),
+    ?assertEqual("Task.compare cannot be derived: Set(String) has no compare",
+                 refusal("type Date = Date(year : Int, month : Int, day : Int) derives compare\n"
+                         "type Task = Task(due : Date, tags : Set(String)) derives compare")),
+    ?assertEqual("T.compare cannot be derived: Path has no compare",
+                 refusal("type T = T(#(Int, Path)) derives compare")),
     ?assertEqual("T.compare cannot be derived: Map(Int, Int) has no compare",
                  refusal("type T = T(List(Map(Int, Int))) derives compare")),
     ?assertEqual("T derives compare and declares it too",

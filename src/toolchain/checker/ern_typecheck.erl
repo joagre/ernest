@@ -4094,18 +4094,11 @@ supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
                         _ -> not_in_force(Span, {tvar, Id}, show, Need, Outer, Env)
                     end
             end;
-        {tcon, [Name], _}
-          when element(1, Need) =:= operator,
-               Member =/= compare orelse Name =:= 'Int' orelse Name =:= 'Float'
-                   orelse Name =:= 'String' orelse Name =:= 'Char' ->
-            %% report §4.8, §9.6: a prelude type's operator is the runtime's
-            %% own operation, or its module's, which the emitter names; an
-            %% ordering is the runtime's on the four types it orders, and
-            %% any other prelude type's is its module's compare, which a
-            %% requirement may need supplied, `List.compare`'s (§3.10)
-            {undefined, Env};
         {tcon, QualifiedName, _} = Resolved ->
-            known_member(Span, QualifiedName, Resolved, Member, Need, Outer, Env);
+            case is_runtime_operation(QualifiedName, Member, Need) of
+                true -> {undefined, Env};
+                false -> known_member(Span, QualifiedName, Resolved, Member, Need, Outer, Env)
+            end;
         {ttuple, Elements} = Resolved when Member =:= compare ->
             %% report §3.10: a tuple's compare is the language's, its
             %% components' compares in order, each supplied at its type
@@ -4125,6 +4118,16 @@ supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
         Resolved ->
             no_member(Span, Resolved, Member, Need, Outer, Env)
     end.
+
+%% Report §4.8, §9.6: a prelude type's operator is the runtime's own
+%% operation, or its module's, which the emitter names; an ordering is the
+%% runtime's on the types it orders (ern_prelude:is_runtime_ordered/1), and
+%% any other prelude type's is its module's compare, which a requirement
+%% may need supplied, `List.compare`'s (§3.10).
+is_runtime_operation([TypeName], Member, Need) when element(1, Need) =:= operator ->
+    Member =/= compare orelse ern_prelude:is_runtime_ordered(TypeName);
+is_runtime_operation(_, _, _) ->
+    false.
 
 %% The member of a known type, its shape checked where it supplies a
 %% requirement (§4.9: an operator's and negate's result is the type itself),
@@ -4501,8 +4504,6 @@ resolve_operator(Span, Operator, OperandType, #env{type_state = TypeState} = Env
         ?INT -> arith_or_order(Operator, OperandType, ?ARITH, Span, Env);
         ?FLOAT -> arith_or_order(Operator, OperandType, ['+', '-', '*', '/'], Span, Env);
         ?STRING when Operator =:= '<>' -> {OperandType, Env};
-        ?STRING -> arith_or_order(Operator, OperandType, [], Span, Env);
-        ?CHAR -> arith_or_order(Operator, OperandType, [], Span, Env);
         %% report §3.10: a tuple is ordered where its components are, which
         %% its compare's supply checks once the definition is inferred
         {ttuple, _} -> arith_or_order(Operator, OperandType, [], Span, Env);
@@ -4510,10 +4511,14 @@ resolve_operator(Span, Operator, OperandType, #env{type_state = TypeState} = Env
         ?BYTES when Operator =:= '<>' -> {OperandType, Env};
         {tcon, QualifiedName, _} when length(QualifiedName) > 1 ->
             user_operator(Span, Operator, OperandType, QualifiedName, Env);
-        %% report §9.6: a prelude type's member, `Path.<>`, which the type's
-        %% module provides
-        {tcon, [_] = QualifiedName, _} ->
-            user_operator(Span, Operator, OperandType, QualifiedName, Env);
+        %% report §9.6: a prelude type the runtime orders has its ordering
+        %% and no other operator here; any other prelude type's is a
+        %% member, `Path.<>`, which the type's module provides
+        {tcon, [TypeName] = QualifiedName, _} ->
+            case ern_prelude:is_runtime_ordered(TypeName) of
+                true -> arith_or_order(Operator, OperandType, [], Span, Env);
+                false -> user_operator(Span, Operator, OperandType, QualifiedName, Env)
+            end;
         _ -> not_defined(Span, Operator, Type, Env)
     end.
 
@@ -5263,15 +5268,22 @@ receive_guard(Guard, _) ->
                               " comparisons with `!`, `&&`, and `||`, and calls nothing",
          [], ?GUARD_CALLS_HELP).
 
-%% Report §6.3: a `receive` guard orders Int, Float, String and Char, the
-%% host's own order, and no type whose order is its `compare`.
-guard_order(_Span, Type, _Env) when Type =:= ?INT; Type =:= ?FLOAT; Type =:= ?STRING;
-                                   Type =:= ?CHAR ->
-    ok;
+%% Report §6.3: a `receive` guard orders a type the runtime orders, by the
+%% runtime's own order (ern_prelude:is_runtime_ordered/1), and no type
+%% whose order is its `compare`; the refusal names the types as §6.3 does.
 guard_order(Span, Type, Env) ->
-    fail(Span, "a `receive` guard orders only Int, Float, String, and Char, not "
-               ++ ern_types:format(Type, Env#env.type_state),
-         [], "receive the message and `match` it").
+    IsOrdered = case Type of
+                    {tcon, [TypeName], []} -> ern_prelude:is_runtime_ordered(TypeName);
+                    _ -> false
+                end,
+    case IsOrdered of
+        true ->
+            ok;
+        false ->
+            fail(Span, "a `receive` guard orders only Int, Float, String, Char, and Bool, not "
+                       ++ ern_types:format(Type, Env#env.type_state),
+                 [], "receive the message and `match` it")
+    end.
 
 %% An operand: a variable of the pattern or of the enclosing function, a
 %% top-level `let`, which the `receive` reads before it waits, a field

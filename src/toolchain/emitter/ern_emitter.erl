@@ -2121,10 +2121,10 @@ service_hash({service, Type}) ->
 %%
 
 %% Report §4.8, §3.10, §5.1: by the operand type. Int's arithmetic, and
-%% the ordering of the four ordered prelude types, Int, Float, String and
-%% Char, are Erlang's operators; Float's arithmetic is
-%% float_operation/4; a user type's operator is its member, applied by
-%% member_applied/3 and ordered/2, and never reaches here.
+%% the ordering of a prelude type the runtime orders
+%% (ern_prelude:is_runtime_ordered/1), are Erlang's operators; Float's
+%% arithmetic is float_operation/4; a user type's operator is its member,
+%% applied by member_applied/3 and ordered/2, and never reaches here.
 binop(Operator, {tcon, ['Int'], []}, Left, Right, _)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*' ->
     erl_syntax:infix_expr(Left, erl_syntax:operator(Operator), Right);
@@ -2177,21 +2177,28 @@ negate(_, Form) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 member_applied({required, {variable, Number}, Member}, Args, Context) ->
     Function = erl_syntax:variable(member_variable(Number, Member, Context)),
     {erl_syntax:application(Function, Args), Context};
-member_applied({known, {named, [TypeName, compare]}, []}, [Left, Right], Context)
-  when TypeName =:= 'Int'; TypeName =:= 'Float'; TypeName =:= 'String'; TypeName =:= 'Char' ->
-    host_compare({tcon, [TypeName], []}, Left, Right, Context);
-member_applied({known, Reference, Supplies}, Args, Context) ->
-    {SupplyForms, Context1} = supply_forms(Supplies, Context),
-    {member_call(Reference, Args ++ SupplyForms, Context1), Context1};
+member_applied({known, {named, [TypeName, compare]}, []} = Supply, [Left, Right], Context) ->
+    case ern_prelude:is_runtime_ordered(TypeName) of
+        true -> host_compare({tcon, [TypeName], []}, Left, Right, Context);
+        false -> known_applied(Supply, [Left, Right], Context)
+    end;
+member_applied({known, _, _} = Supply, Args, Context) ->
+    known_applied(Supply, Args, Context);
 member_applied({tuple, _} = Supply, Args, Context) ->
     {Compare, Context1} = supply_form(Supply, Context),
     {erl_syntax:application(Compare, Args), Context1}.
 
-%% Report §3.10, §9.6, §11.1: compare at a prelude type the host orders,
-%% Int, Float, String or Char, called: the host's comparison of the two
-%% operands, each evaluated once and in order (§5.1), answering what the
-%% type's module's compare answers, which is written with the same `<` and
-%% `>` (binop/5).
+%% A known type's member, its module's function, called with its own
+%% requirement's supplies after its operands.
+known_applied({known, Reference, Supplies}, Args, Context) ->
+    {SupplyForms, Context1} = supply_forms(Supplies, Context),
+    {member_call(Reference, Args ++ SupplyForms, Context1), Context1}.
+
+%% Report §3.10, §9.6, §11.1: compare at a prelude type the runtime orders
+%% (ern_prelude:is_runtime_ordered/1), called: the host's comparison of the
+%% two operands, each evaluated once and in order (§5.1), answering what
+%% the type's module's compare answers, which is written with the same `<`
+%% and `>` (binop/5).
 host_compare(Type, Left, Right, Context) ->
     {[LeftName, RightName], Context1} = fresh_variables(2, "Operand", Context),
     [LeftVariable, RightVariable] = [erl_syntax:variable(Name) || Name <- [LeftName, RightName]],
@@ -3388,7 +3395,7 @@ is_guard_node({select, Selected, _, _}, Bound) -> is_selected(Selected, Bound);
 is_guard_node(_, _) -> false.
 
 %% Whether an ordering is the runtime's own at a prelude type of no
-%% argument, Int, Float, String or Char.
+%% argument, which the checker found it to be (ern_prelude:is_runtime_ordered/1).
 is_prelude_operation({runtime, {applied, {named, [_]}, []}}) -> true;
 is_prelude_operation({known, {named, [_, _]}, []}) -> true;
 is_prelude_operation(_) -> false.

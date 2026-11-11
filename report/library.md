@@ -435,6 +435,8 @@ Char.fromCodePoint : (Int) -> Optional(Char) // None outside U+0000 to U+10FFFF 
 
 ### Appendix E.7. `bool.ern` (namespace `Bool`)
 
+`Bool.compare` is the prelude's, §9.6; this module provides it (§9). The module is Ernest (E.0 rule 1).
+
 ```
 Bool.toString : (Bool) -> String // "true" or "false"
 ```

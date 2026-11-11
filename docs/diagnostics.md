@@ -2633,19 +2633,19 @@ example.ern:4:5: `<` needs Score.compare, and Score has no compare
   | = help: give Score a compare, `derives compare` on its declaration or `fn Score.compare`
 ```
 
-### An ordering operator on Bool (§3.10, §4.8)
+### An ordering operator on a type without one (§3.10, §4.8)
 
 ```ernest-rejected
-fn less() : Bool =
-    true < false
+fn less(a : Set(Int), b : Set(Int)) : Bool =
+    a < b
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:5: `<` needs Bool.compare, and Bool has no compare
-1 | fn less() : Bool =
-2 |     true < false
-  |     ^^^^^^^^^^^^
+example.ern:2:5: `<` needs Set(Int).compare, and Set(Int) has no compare
+1 | fn less(a : Set(Int), b : Set(Int)) : Bool =
+2 |     a < b
+  |     ^^^^^
   | = help: hold it in a type of your own that declares `compare`
 ```
 
@@ -3133,14 +3133,14 @@ input 6:1:23: the value does not have the declared type: expected Counter.Msg, f
 ### A derived compare over a field without one (§3.5)
 
 ```ernest-rejected
-type Date = Date(year : Int, exact : Bool) derives compare
+type Date = Date(year : Int, notes : Set(String)) derives compare
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:38: Date.compare cannot be derived: Bool has no compare
-1 | type Date = Date(year : Int, exact : Bool) derives compare
-  |                                      ^^^^
+example.ern:1:38: Date.compare cannot be derived: Set(String) has no compare
+1 | type Date = Date(year : Int, notes : Set(String)) derives compare
+  |                                      ^^^^^^^^^^^
   | = help: declare `fn Date.compare` yourself, or hold a field whose type has a compare
 ```
 
@@ -4544,7 +4544,7 @@ fn f(limit : Money) : Int receiving Money =
 
 ```console
 $ ern build example.ern
-example.ern:7:16: a `receive` guard orders only Int, Float, String, and Char, not Money
+example.ern:7:16: a `receive` guard orders only Int, Float, String, Char, and Bool, not Money
 6 |     receive {
 7 |         m when m < limit -> 1
   |                ^^^^^^^^^

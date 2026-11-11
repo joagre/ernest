@@ -1,7 +1,8 @@
 /// Operations on `Bool`, the type of `true` and `false`.
 ///
 /// The language itself has `&&`, `||`, `!` and `if`. This module holds the
-/// rest, `toString`.
+/// rest, `toString` and `compare`. `<` on two `Bool`s orders `false` before
+/// `true`.
 ///
 /// ## Examples
 ///
@@ -17,3 +18,17 @@
 /// `"true"` or `"false"`, which `String.toBool` reads back.
 export fn toString(bool : Bool) : String =
     if bool then "true" else "false"
+
+/// Compares two `Bool`s, `false` before `true`, the order `<` and the other
+/// comparisons use.
+///
+/// ### Examples
+///
+/// ```ernest
+/// compare(false, true)
+/// // => Less
+/// ```
+///
+/// since 0.11.0
+export fn compare(left : Bool, right : Bool) : Ordering =
+    if left < right then Less else if left > right then Greater else Equal

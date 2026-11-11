@@ -676,9 +676,12 @@ clock_to_string_test() ->
                   <<"the time is past the year 9999">>, <<"the time is before the year -9999">>],
                  receive {written, Written} -> Written end).
 
-%% report Appendix E.7
+%% report Appendix E.7, §9.6, §3.10: `false` before `true`
 bool_test() ->
-    ?assertEqual(<<"true">>, (ern_named:function('ern@bool', toString))(true)).
+    ?assertEqual(<<"true">>, (ern_named:function('ern@bool', toString))(true)),
+    Compare = ern_named:function('ern@bool', compare),
+    ?assertEqual(['Less', 'Equal', 'Greater'],
+                 [Compare(false, true), Compare(true, true), Compare(true, false)]).
 
 %% report Appendix E.8, §7.4: a shift whose result is beyond the host's
 %% integers faults as `*` does at that limit, a limit of the host met. A

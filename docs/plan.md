@@ -107,11 +107,7 @@ The other seven are the packages proposal's build order,
     writes it with its examples and tests, and the seven sites that wrote `let _ <- List.tryMap`,
     two in `libs/http` and five in the site's generator, take it. It closes on the standard
     library's target, the libraries', the site's and `make test`.
-16. **`Bool.compare`**, feedback 243, `false` before `true`: §3.10, §3.5's example, §9.6 and E.7 state
-    the member, the two refusals of *One Name for Every Order* and §3.5 go with their tests, and
-    `derives compare` reaches a `Bool` field. It changes a rule of §3, so it is built the day it is
-    decided, 2026-11-11, after one cold reading of its sentences, in the checker at the stronger
-    effort, and closes on `make test-full`.
+16. **`Bool.compare`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 243).
 17. **`Char`'s six class predicates**, feedback 247: `isMark`, `isNumber`, `isPunctuation`,
     `isSymbol`, `isSeparator` and `isControl`, E.6 naming each category, `char.ern` and
     `ern_char.erl` reading the host's table, a test pinning each predicate's answer as the five
