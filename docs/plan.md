@@ -110,6 +110,10 @@ The other seven are the packages proposal's build order,
     run: the socket's reader read `Running` where `Calling` was expected, after
     `ern_waits:calling` had returned for it. The cause is not found. An item session finds it
     under `make test`'s load, and fixes the test or the runtime at it.
+25. **A second cold reading of §11.9**, decided with the user 2026-11-11, on the stronger
+    model, after item 22 and before item 5. The rewrite after the first reading added the
+    ownership and namespace rules, which no reader has read cold (the log's *A Package and Its
+    Manifest*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
