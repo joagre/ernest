@@ -20,7 +20,7 @@ The directories `tour/1/` to `tour/8/` hold the program as it stands at the end 
 - [2. Two bare nodes](#2-two-bare-nodes): the same counter on a node that holds none of its code
 - [3. The client](#3-the-client): a function that reads a line, and a quiet reload
 - [4. A fault](#4-a-fault): a process ended, a restart that keeps the address, a watcher told
-- [5. Per key](#5-per-key): an abstract type with a requirement, a test, a deadlock found, and a protocol refused across versions
+- [5. Per key](#5-per-key): an abstract type with a requirement, a test, a deadlock of the whole program found, and a protocol refused across versions
 - [6. The door](#6-the-door): the message by which new code will reach the counter
 - [7. Work anywhere](#7-work-anywhere): a host question checked at the crossing, and work placed on whichever node has room
 - [8. The fix](#8-the-fix): the counters moved to new code with their tallies kept, `foo`'s from a shell attached to it, and a node's end
@@ -344,7 +344,7 @@ reports: faulted: deadlock
     1 process of Counter.reports:69 waits in Counter.count:10
 ```
 
-A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): that is *Why Ernest*'s claim *A deadlock is found*, a program in which every process waits for a message none can send is a deadlock, found.
+A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21). That is *Why Ernest*'s claim *A deadlock of the whole program is found*: a program that is no node, in which every process waits for a message none can send, ends with a fault and a trace.
 
 Beneath the trace come the processes left waiting, a line for each spawn site and the frame its processes wait in (report §12.4): the planted test's counter, and the first test's, which outlived its test.
 

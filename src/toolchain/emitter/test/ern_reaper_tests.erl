@@ -3,7 +3,8 @@
 %% runs them (ern_emitter_tests:run/3).
 -module(ern_reaper_tests).
 
--export([reaper_words/0, answered_later/0, called_back/1, called_back_in_tail/1]).
+-export([reaper_words/0, answered_later/0, called_back/1, called_back_in_tail/1, looks/1,
+         looking/0, sent_later/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -197,3 +198,163 @@ alarms_are_no_deadlock() ->
         "        loop(n - 1)\n"
         "    }\n"
         "export fn main() : Unit receiving Msg = { loop(5000); Io.println(\"done\") }\n")).
+
+%% report §8.6: a process that computes is not waiting, however long it
+%% computes and whoever waits on it, so a caller waiting on it without a
+%% limit is in no deadlock. Here the worker computes until the reaper has
+%% looked twice while its caller waits, and then answers. A regression
+%% test, written after the code
+computing_callee_is_no_deadlock_test() ->
+    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(
+        looked_while() ++
+        "type WorkerMsg = Compute(Reply(Int))\n"
+        "export fn main() : Unit = {\n"
+        "    let me = Process.fromAddress(self());\n"
+        "    let worker = spawn(fn() = work(me));\n"
+        "    Io.println(Int.toString(Address.callForever(worker, Compute)))\n"
+        "}\n"
+        "fn work(caller : Process) : Unit receiving WorkerMsg = receive {\n"
+        "    Compute(reply) -> { let _ = looks([caller]); answer(reply, computed(42)) }\n"
+        "}\n")).
+
+%% report §8.6, §6.6: a cycle of calls without a limit is no deadlock while
+%% a process can run, and a reply handed on can end it. Main calls the
+%% second, the second hands main's reply to a worker and calls main, and
+%% the worker computes until the reaper has looked twice while the two
+%% stand in their cycle, then answers main, which answers the second. A
+%% regression test, written after the code: a fault from the cycle would
+%% end a correct program
+handed_reply_ends_a_cycle_test() ->
+    ?assertEqual({ok, <<"main is answered 41\nthe second is answered 42\nall finished\n">>},
+                 ern_emitter_tests:run(
+        looked_while() ++
+        "type MainMsg = AskBack(Reply(Int)) | Finished\n"
+        "type SecondMsg = Ask(Reply(Int))\n"
+        "type WorkerMsg = Work(reply : Reply(Int), second : Process)\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let me = self();\n"
+        "    let worker = spawn(fn() = work());\n"
+        "    let second = spawn(fn() = serve(me, worker));\n"
+        "    let value = Address.callForever(second, Ask);\n"
+        "    Io.println(\"main is answered \" <> Int.toString(value));\n"
+        "    receive { AskBack(reply) -> answer(reply, value + 1) };\n"
+        "    receive { Finished -> Io.println(\"all finished\") }\n"
+        "}\n"
+        "fn serve(first : Address(MainMsg), worker : Address(WorkerMsg)) : Unit\n"
+        "        receiving SecondMsg = receive {\n"
+        "    Ask(reply) -> {\n"
+        "        send(worker, Work(=reply, second = Process.fromAddress(self())));\n"
+        "        let value = Address.callForever(first, AskBack);\n"
+        "        Io.println(\"the second is answered \" <> Int.toString(value));\n"
+        "        send(first, Finished)\n"
+        "    }\n"
+        "}\n"
+        "fn work() : Unit receiving WorkerMsg = receive {\n"
+        "    Work(=reply, =second) -> { let _ = looks([second]); answer(reply, computed(41)) }\n"
+        "}\n")).
+
+%% report §8.6: a deadlock is of the whole program, so processes stuck in a
+%% cycle of calls without a limit are not found while another process can
+%% still run, and are found once it waits too. Here two servers call each
+%% other and a third process calls the first, while main computes until the
+%% reaper has looked twice, and then waits for a message none can send. A
+%% regression test, written after the code
+stuck_part_is_found_with_the_whole_test() ->
+    {Result, Output} = ern_emitter_tests:run(
+        looked_while() ++
+        "type FirstMsg = Meet(Address(SecondMsg)) | AskFirst(Reply(Int))\n"
+        "type SecondMsg = AskSecond(Reply(Int))\n"
+        "type MainMsg = Woken\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let first = spawn(fn() = meet());\n"
+        "    let second = spawn(fn() = secondLoop(first));\n"
+        "    send(first, Meet(second));\n"
+        "    let caller = spawn(fn() =\n"
+        "        Io.println(Int.toString(Address.callForever(first, AskFirst))));\n"
+        "    let _ = looks([Process.fromAddress(first), Process.fromAddress(second),\n"
+        "                   Process.fromAddress(caller)]);\n"
+        "    let _ = computed(0);\n"
+        "    Io.println(\"main waits\");\n"
+        "    receive { Woken -> Io.println(\"unreachable\") }\n"
+        "}\n"
+        "fn meet() : Unit receiving FirstMsg = receive { Meet(second) -> firstLoop(second) }\n"
+        "fn firstLoop(second : Address(SecondMsg)) : Unit receiving FirstMsg = receive {\n"
+        "    AskFirst(reply) -> {\n"
+        "        answer(reply, Address.callForever(second, AskSecond));\n"
+        "        firstLoop(second)\n"
+        "    }\n"
+        "}\n"
+        "fn secondLoop(first : Address(FirstMsg)) : Unit receiving SecondMsg = receive {\n"
+        "    AskSecond(reply) -> {\n"
+        "        answer(reply, Address.callForever(first, AskFirst) + 1);\n"
+        "        secondLoop(first)\n"
+        "    }\n"
+        "}\n"),
+    ?assertMatch({fault, <<"deadlock">>, _}, Result),
+    ?assertEqual(<<"main waits\n">>, Output).
+
+%% report §8.6: a delivery that foreign code arranges once its call has
+%% returned, by a host process no monitor watches or by the host's timer,
+%% is not counted, so a program that waits for it alone is read as
+%% deadlocked; a monitor of the host process makes it one that may deliver,
+%% and the program waits for its message. A regression test, written after
+%% the code
+delivery_foreign_code_arranges_test() ->
+    Sender = "type MainMsg = Done | Ended(Down)\n"
+             "foreign fn later(to : Foreign.Term, message : Foreign.Term) : Process =\n"
+             "    \"ern_reaper_tests:sent_later/2\"\n",
+    Waits = "    receive {\n"
+            "        Done -> Io.println(\"done\")\n"
+            "      | Ended(_) -> Io.println(\"the sender ended first\")\n"
+            "    }\n"
+            "}\n",
+    {Unwatched, _} = ern_emitter_tests:run(
+        Sender ++
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let _ = later(Foreign.term(self()), Foreign.atom(\"Done\"));\n" ++ Waits),
+    ?assertMatch({fault, <<"deadlock">>, _}, Unwatched),
+    ?assertEqual({ok, <<"done\n">>}, ern_emitter_tests:run(
+        Sender ++
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    monitor(later(Foreign.term(self()), Foreign.atom(\"Done\")), Ended);\n" ++ Waits)),
+    %% the timer ends with its recipient, which the deadlock ends at the
+    %% reaper's first look, so its time is only one no look comes after: a day
+    {Timed, _} = ern_emitter_tests:run(
+        "type MainMsg = Done\n"
+        "foreign fn sendAfter(ms : Int, to : Foreign.Term, sent : Foreign.Term) : Foreign.Term =\n"
+        "    \"erlang:send_after/3\"\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let _ = sendAfter(86400000, Foreign.term(self()), Foreign.atom(\"Done\"));\n"
+        "    receive { Done -> Io.println(\"done\") }\n"
+        "}\n"),
+    ?assertMatch({fault, <<"deadlock">>, _}, Timed).
+
+%% The Ernest side of the tests above of a process that computes while the
+%% reaper looks: `looks` once each process given waits in a call, and
+%% `computed`, which answers its argument once the reaper has looked twice
+%% since, and computes until then.
+looked_while() ->
+    "foreign fn looks(processes : List(Process)) : Foreign.Term = \"ern_reaper_tests:looks/1\"\n"
+    "foreign fn looking() : Bool = \"ern_reaper_tests:looking/0\"\n"
+    "fn computed(value : Int) : Int = if looking() then computed(value) else value\n".
+
+%% The host's side of the same: once each of Processes waits in a call, a
+%% process of the host's, under a name of its own, that ends once the
+%% reaper has looked twice, and whether it still lives, which a process of
+%% the program asks as it computes and which waits for nothing.
+-spec looks([pid()]) -> ok.
+looks(Processes) ->
+    [ok = ern_waits:calling(Process) || Process <- Processes],
+    true = register(ern_reaper_looks, spawn(fun() -> ern_waits:looked(2) end)),
+    ok.
+
+-spec looking() -> boolean().
+looking() ->
+    whereis(ern_reaper_looks) =/= undefined.
+
+%% The host's side of the tests of a delivery foreign code arranges: a
+%% process of the host's that sends Message to To once the reaper has looked
+%% twice, or once the reaper has ended, and its pid.
+-spec sent_later(pid(), atom()) -> pid().
+sent_later(To, Message) ->
+    spawn(fun() -> _ = ern_waits:looked(2), To ! Message end).

@@ -1425,7 +1425,7 @@ kill : (Process) -> Unit
 
 ### 5.4 Deadlock
 
-When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, a file, or a program it started is waiting for something that can come, so an idle server is not deadlocked. Report §8.6 gives the exact condition.
+When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, a file, or a program it started is waiting for something that can come, so an idle server is not deadlocked. A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang. Report §8.6 gives the exact condition.
 
 A delivery that foreign code arranges for after its call has returned, from a timer or a process of the host's, is one the runtime does not see coming, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (§8.3).
 

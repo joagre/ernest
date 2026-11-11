@@ -64,7 +64,7 @@ What Ernest adds, which [Why Ernest](guide/why.md) argues:
 - [Code travels](guide/why.md#code-travels)
 - [The mailbox in the function's type](guide/why.md#the-mailbox-in-the-functions-type)
 - [A distribution built for a WAN](guide/why.md#a-distribution-built-for-a-wan)
-- [A deadlock is found](guide/why.md#a-deadlock-is-found)
+- [A deadlock of the whole program is found](guide/why.md#a-deadlock-of-the-whole-program-is-found)
 - [Abstract types and requirements](guide/why.md#abstract-types-and-requirements)
 - [Little else](guide/why.md#little-else)
 

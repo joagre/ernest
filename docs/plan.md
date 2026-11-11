@@ -46,14 +46,8 @@ The first three items are the deadlock proposal's,
 [`proposals/deadlock/`](proposals/deadlock/README.md), each part named as the proposal numbers
 it.
 
-1. **A deadlock's claim given its scope**, Part 2: "A deadlock of the whole program is found" in
-   the README's list, `guide/why.md`, the tour's chapter 5 and `docs/design/site.md`; the limit
-   stated in Why and guide §5.4; the typed mailbox dropped from Why's argument; the status
-   premise named in `docs/design/runtime.md`'s *The look*; and the proposal's programs held as
-   regression tests. The log's entry that argues the proposal is written with it. The two claims
-   the proposal makes from memory, of Pony's collector and Go's work on leaked goroutines, are
-   checked against their documents or cut. It closes on `make test-docs` and the runtime's
-   target.
+1. **A deadlock's claim given its scope**, done 2026-11-11 (the log's *A Deadlock of the Whole
+   Program*).
 2. **The callee in a deadlock's report**, Part 4: each waiting group's line says on whom it
    waits, a group split by its callee's site. It cuts a restated clause of §8.6, so its sentences
    in §8.6 and §12.4 are read cold, and it is decided the day it is built. It touches the runtime

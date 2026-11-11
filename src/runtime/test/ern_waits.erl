@@ -155,23 +155,33 @@ is_watching(Pid, Watched) ->
     end.
 
 %% Until Pid has called Module:Function/Arity Count times from now, which
-%% the host shows by tracing its calls, local ones among them.
--spec called(pid(), mfa(), pos_integer()) -> ok.
+%% the host shows by tracing its calls, local ones among them, or has ended.
+-spec called(pid(), mfa(), pos_integer()) -> ok | ended.
 called(Pid, {Module, Function, _} = MFA, Count) ->
     1 = erlang:trace_pattern(MFA, true, [local]),
-    erlang:trace(Pid, true, [call]),
-    try
-        calls(Pid, Module, Function, Count)
+    MonitorRef = erlang:monitor(process, Pid),
+    try erlang:trace(Pid, true, [call]) of
+        _ ->
+            try
+                calls(Pid, Module, Function, Count, MonitorRef)
+            after
+                untraced(Pid, [call]),
+                flushed(Pid)
+            end
+    catch
+        error:badarg -> ended
     after
-        erlang:trace(Pid, false, [call]),
         erlang:trace_pattern(MFA, false, [local]),
-        flushed(Pid)
+        erlang:demonitor(MonitorRef, [flush])
     end.
 
-calls(_, _, _, 0) -> ok;
-calls(Pid, Module, Function, Count) ->
+calls(_, _, _, 0, _) -> ok;
+calls(Pid, Module, Function, Count, MonitorRef) ->
     receive
-        {trace, Pid, call, {Module, Function, _}} -> calls(Pid, Module, Function, Count - 1)
+        {trace, Pid, call, {Module, Function, _}} ->
+            calls(Pid, Module, Function, Count - 1, MonitorRef);
+        {'DOWN', MonitorRef, process, Pid, _} ->
+            ended
     end.
 
 %% Until Pid has returned from Module:Function called with Arguments, a
@@ -191,10 +201,10 @@ returned(Pid, {Module, Function, Arguments}, Action) ->
     end.
 
 %% Report §8.6: until the runtime's reaper has looked for a deadlock Count
-%% times. A process of the run that waits here waits in a module of the
-%% host's, a test's, which the look reads as foreign code in progress, so
-%% it never seems deadlocked.
--spec looked(pos_integer()) -> ok.
+%% times, or has ended with its run. A process of the run that waits here
+%% waits in a module of the host's, a test's, which the look reads as
+%% foreign code in progress, so it never seems deadlocked.
+-spec looked(pos_integer()) -> ok | ended.
 looked(Count) ->
     called(ern_rt:launch_reaper(), {ern_rt, look, 0}, Count).
 

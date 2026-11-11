@@ -7,7 +7,7 @@ What Ernest adds is where the parts meet:
 - **Code travels.** A process started on another node brings its code along, and a module keeps every version it has had: each function is known by a hash of its definition, not by the module it stands in.
 - **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it.
-- **A deadlock is found.** A program in which every process waits for a message none can send ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever.
+- **A deadlock of the whole program is found.** A program that is no node, in which every process waits for a message none can send, ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing.
 
@@ -204,7 +204,7 @@ The connection is one, opened at the first operation towards the peer and kept. 
 
 A peer that goes out of reach is the monitor's `Down` with the reason `Unreachable` to whoever monitors a process on it, which says nothing of whether the process lives. A program is written for that case as for any other end.
 
-### A deadlock is found
+### A deadlock of the whole program is found
 
 A program in which every process waits for a message none can send ends with `Fault("deadlock")` and a trace, under `ern run`, and under `ern test`, where it is the test's fault and the run goes on (report §8.6, §11.2). `main` waits for `Done` from the worker, and the worker waits for `Go` from `main`:
 
@@ -286,11 +286,13 @@ Mutual.main faulted: deadlock
 
 The fault names the deadlock and the processes it left waiting. On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.
 
-Ernest can decide it because the runtime owns every source of a message but one, which the next paragraph names. A mailbox is typed and reached through an address the program holds. A process is spawned by the runtime, which monitors it. The clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds. Foreign code is entered through a declaration, and a process inside it is read as able to be delivered to.
+Ernest can decide it because the runtime owns every source of a message but one, named below. A process is spawned by the runtime, which monitors it. The clock, the file system and TCP are system processes, and a socket and a running program are processes of the runtime, each counting what it holds. Foreign code is entered through a declaration, and a process inside it is read as able to be delivered to.
 
 So "nothing can deliver and everyone waits" is a question with an answer, and the runtime answers it by report §8.6's rule: no forward progress is possible when every process waits, no message is in flight, and nothing the runtime counts holds a timer, a pending I/O or a computation that would deliver one.
 
 A deadlock is quiescence, not a cycle, and the runtime's look for one may be late, and is wrong in one case alone. A process it cannot see into, in foreign code or on a socket, is read as able to deliver, so such a process makes no false deadlock. The one false deadlock is a delivery that foreign code arranges for after its call has returned, a host timer's or that of a host process nothing monitors, which the runtime cannot see coming: `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (report §8.6).
+
+A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang.
 
 Finding one costs a program at work the count behind it, a message at each spawn and each monitor, and the check itself runs only once the program has been quiet. `make bench`, in a checkout of the repository, measures a spawn and a monitor so counted against the host's own; the prose here carries no number, since the bench owns it. A program run as a node, `ern run` or `ern test` with `--config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
 

@@ -71,7 +71,7 @@ None of these changes a rule of the report.
 | 4 | Drop the typed mailbox from the argument for why the check is decidable. | `guide/why.md`'s paragraph on why Ernest can decide it; a note on the log's *The Sitting on §8.6's Bookkeeping* | the check reads no type |
 | 5 | Mark the log's idea of a fault from the calls in flight as unsound. | a note on *What Ernest Adds Stays at Four*, and a new log entry arguing this proposal | §6.6's hand-off, which program 2 runs |
 | 6 | Name the status premise as what the look rests on. | `docs/design/runtime.md`, *The look* | a design note states the rule a mechanism rests on |
-| 7 | Hold the programs of `experiment/` as regression tests, where none holds them yet. | `src/runtime/test/`, citing §8.6 | CLAUDE.md's *Tests* |
+| 7 | Hold the programs of `experiment/` as regression tests, where none holds them yet. | `src/toolchain/emitter/test/ern_reaper_tests.erl`, where a program runs as the runner runs it, citing §8.6 | CLAUDE.md's *Tests* |
 
 **Change 2's wording.** The bold name and first sentence of the claim in `guide/why.md`'s list reach the homepage word for word, so both must be honest alone:
 
@@ -253,7 +253,7 @@ Each has its verdict here until the log's entry takes it. None is kept for later
 - **A status read over the network, or a walk across peers.** A program writes the compute, and the operator attaches (principle 3; the log's *A node is no peer of itself*, 2026-10-09).
 - **The host's reductions in `Status`, read twice.** It costs a call nothing and makes the cycle line true, but tells nobody how long, in the host's unit, for the shell's sake alone.
 - **In the fault's report: a cycle line, the age, and the faulting process's own callee.** The lines are a summary by site and the verdict is given; a walk in the reaper would be a second cycle finder, in Erlang. Everything in a deadlock is quiet now. `FaultReport`'s `callee` means the callee whose fault was carried.
-- **A sound partial check.** Addresses cannot be forged, so a process whose address and replies no running process can reach can never wake. That is the one real link between types and detection, and it would be sound even with a hand-off. It is the idea behind Pony's actor collector and Go's recent goroutine-leak work (both from memory, to be checked). It needs a reading of every process's heap, which the host does not appear to offer.
+- **A sound partial check.** Addresses cannot be forged, so a process whose address and replies no running process can reach can never wake. That is the one real link between types and detection, and it would be sound even with a hand-off. It is the idea behind Pony's actor collector and Go's recent goroutine-leak work, both written from memory and found to hold against their documents (the log's *A Deadlock of the Whole Program*). It needs a reading of every process's heap, which the host does not appear to offer.
 
 ---
 
