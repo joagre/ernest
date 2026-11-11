@@ -45,8 +45,8 @@ The site's files as served.
 - The site is ernest-lang.org. Every path on ernest-lang.se redirects to the same path there, which is the server's configuration.
 - A report page is one of the report's files, whole. A citation's first number or letter names its page.
 - A chapter is addressed by its number, as a citation names it.
-- Every contents page is generated: a book's from its headings, the report's with its opening from `report/README.md`, and the library's from the READMEs `make man` writes under `docs/man/`. There is no symlink, and no page at two addresses.
-- The `/man/` pages are rendered from `docs/man/`'s Markdown, which `make man` writes. The site calls them Library. A module's page shows its `since` line as its metadata under its heading, as a report file shows its version line.
+- Every contents page is generated: a book's from its headings, the report's with its opening from `report/README.md`, and the library's from the indexes of the build's pages, which `make doc` writes: `build/man/README.md`, `build/stdlib/index.md` and `build/man/libs/README.md`. There is no symlink, and no page at two addresses.
+- The `/man/` pages are rendered from the build's pages, the Markdown `make doc` writes under `build/stdlib/` and `build/libs/`. The site calls them Library. A module's page shows its `since` line as its metadata under its heading, as a report file shows its version line.
 - `/man/` lists the standard library's modules and the libraries in two groups, a module a line, its name and the purpose its own page opens with, and ends with the toolchain's §11. `/man/stdlib/` and `/man/libs/` hold the same lists' halves, so a page's address trimmed to its directory finds a page.
 - `site/root/` holds the assets, laid out as served, and no page is written by hand. The templates and their README stand beside it, in `site/templates/`.
 - A link names a directory by its own form, `/guide/`, never `/guide/index.html`.
@@ -59,7 +59,7 @@ The log's *ehttpd and the Website*, *The Pages Read Against the Principles* and 
 ## Anchors
 
 - An anchor is the citation's own text without its `§`: `#6.5`, `#E.17`, and `#4.2` in the guide. A chapter's is its number or letter: `#6`, `#E`.
-- A declaration's anchor is its qualified name as `docs/man/`'s heading writes it: `#List.removeAt`, `#Address.call`, `#spawn`. An operator stays as written.
+- A declaration's anchor is its qualified name as its module's page's heading writes it: `#List.removeAt`, `#Address.call`, `#spawn`. An operator stays as written.
 - In a document that numbers its headings, only numbered headings and declarations have anchors, and no anchor is made from a heading's words. A heading of it that holds a character the next item refuses is refused where a later heading's number shares its digits with another's, since a link finds that heading by its GitHub anchor (*Links*), which counts the headings before it.
 - In a document that numbers none, Why, the questions, Install, Releases and Projects, a heading's anchor is its GitHub slug, which the generator computes. A link written for GitHub then holds on the site: `#a-deadlock-is-found`. A heading that holds a character outside ASCII which is neither a letter nor a digit is refused, since `Char` does not give the category GitHub's anchor turns on. A reworded heading breaks a link from outside, and the generator's check catches every link inside.
 - The questions' questions are `###` headings, so each has an anchor and the page a sidebar.
@@ -116,7 +116,7 @@ The log's *Projects, a Page of Their Own*, *The Release's Note, Written Once* an
 - Thin rules between sections. No cards, shadows, oversized panels or decorative illustration.
 - Prose is 70 to 80 characters wide, code and the terminal wider. A narrow contents sidebar stands on a desktop, an expandable contents list on a phone.
 - Keyboard focus is visible.
-- The logos are the repository's `assets/`, of which the generator copies the three the site shows to `/assets/`, each at its path in the repository. `site/root/` holds no copy. A file the site takes from the repository keeps the repository's hierarchy, as `/man/` keeps `docs/man/`'s.
+- The logos are the repository's `assets/`, of which the generator copies the three the site shows to `/assets/`, each at its path in the repository. `site/root/` holds no copy. A file the site takes from the repository keeps the repository's hierarchy, as `/man/` keeps the build's pages' under `build/`, `/man/stdlib/list.html` for `build/stdlib/list.md`.
 - The site shows no full logo. Every page's header, the homepage's too, links home with the stoat, `ernest-mark.svg`, beside "Ernest" in text, and the homepage opens with its paragraph under a heading in text. The full logo stays where no header stands: the READMEs and the image a shared link shows.
 - The favicon is `ernest-avatar-64.png`, which every page names, and the root serves no `/favicon.ico`.
 
@@ -134,7 +134,7 @@ The log's *The Site's Look, by Hand* and *The Site's Proposal Read* argue the lo
 - On a module's page a declaration's own name links nowhere within its own section. The code that declares a type is a program's, and a signature and a prelude block show the library's own.
 - Ernest code is colored when the site is generated, by `ern`'s own lexer. The generator reaches it by a `foreign` declaration over its own helper, `ern_site`, which calls the toolchain's lexer module.
 - A console block that is no transcript is plain monospace, as written: `ern build` colors nothing (report §11.2), and only the live shell shows the shell's colors. A transcript's inputs, their prompts and what the shell printed are marked, the prompt and the output muted.
-- A qualified name in code, or in backticks in prose, `List.sort` or `Markdown.Block`, links to its declaration in `/man/` where it is a `docs/man/` heading, a type or a function, and no code on its page declares a type of that name. Any other name is text, never an error: a bare name, and a member of a type the page declares (report §4.2).
+- A qualified name in code, or in backticks in prose, `List.sort` or `Markdown.Block`, links to its declaration in `/man/` where it is a heading of a module's page, a type or a function, and no code on its page declares a type of that name. Any other name is text, never an error: a bare name, and a member of a type the page declares (report §4.2).
 - The generator's last step checks every internal link and anchor of the directory it wrote, made or written, and fails on one that does not resolve. So every run is checked, a test's as `make site`'s.
 
 The log's *The Generator's First Stage*, *The Generator's Third Stage*, *The Start Line's Length*, *The Rationale Is a Synthesis* and *The Site's Proposal Read* argue the links.
@@ -165,12 +165,12 @@ The log's *The Site's Look, by Hand*, *The Client's Questions* and *The Site's P
 - `toc.html` is a contents page, a book's or a directory's opening and its list of links: `/tour/`, `/guide/`, `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and `/man/libs/<name>/`. `home.html` is the homepage and `shell.html` the full-page shell; each is one page, not a template.
 - A template is named for what it is, and what it is written as is the root's. A directory's page is its `index.html`, the homepage's, a contents page's, Why's and the shell's alike, and a chapter is its number, `/guide/3.html`.
 - A book's opening, its title and its paragraphs before its first chapter, heads its contents page.
-- A page's footer names the file it renders: `site/templates/home.html` for the homepage and `site/templates/shell.html` for the shell's page, the README for Install, `CHANGES.md` for Releases, a document's Markdown, and a module's `.ern` for a `/man/` page, since `docs/man/` is itself generated. A contents page and the 404 page name none.
+- A page's footer names the file it renders: `site/templates/home.html` for the homepage and `site/templates/shell.html` for the shell's page, the README for Install, `CHANGES.md` for Releases, a document's Markdown, and a module's `.ern` for a `/man/` page, since the page is itself the build's. The prelude's page, whose source is no file, a contents page and the 404 page name none.
 - A page's sidebar lists its anchored headings, two levels deep. A module's page lists its declarations instead, by their short names, and a document of one page has a sidebar only where it has two headings for it. The sidebar stays in view, scrolling on its own where it is longer than the window, and the script marks the section being read and keeps it in the sidebar's view. Its label shows on a phone alone, where it opens the fold.
-- The sources stay Markdown: the report, the guide, `docs/man/`, and the tour's document, `tour/README.md`. A source's opening logo and its contents block are dropped, since the site has its own.
+- The sources stay Markdown: the report, the guide, the build's pages, and the tour's document, `tour/README.md`. A source's opening logo and its contents block are dropped, since the site has its own.
 - A chapter of the guide or the tour is a second-level heading. Previous and next follow their order, and the report's pages run language, toolchain, library.
 - The library's pages are written first, and the modules' pages they read are held no longer than that, so that no later collection of the run copies them (the log's *Lean at the Limits*).
-- `make site` builds the site from a release's tag without a worktree. It exports the tag with `git archive` into `build/site-source/`, builds the toolchain there, the checkout untouched, and runs `make man` there. It wipes `build/site/`, copies the root and the logos there, and writes every generated page beside them, so a page whose source is gone goes. `build/site/` is never edited in place, and its copy to the host is the operator's step, the server's own.
+- `make site` builds the site from a release's tag without a worktree. It exports the tag with `git archive` into `build/site-source/`, builds the toolchain there, the checkout untouched, and runs `make doc` there, which writes the pages. It wipes `build/site/`, copies the root and the logos there, and writes every generated page beside them, so a page whose source is gone goes. `build/site/` is never edited in place, and its copy to the host is the operator's step, the server's own.
 - `make site` takes any revision as its tag, a release's for the site and `HEAD` for a look at the work in hand. A revision whose tree holds no `site/templates/` is refused, since the generator comes from it.
 - Everything comes from the tag, the documents and the site's own files, its templates, its root and its generator. So the site is a release exactly, and a fix to the site's look or its generator goes live with the next release.
 - A page's text, links and navigation are complete in its HTML, and read without a script. A script adds to a page, the shell panel, the navigation that keeps it and the code blocks' buttons, and never holds what the page says.
@@ -252,7 +252,7 @@ The site shows one document for each question a reader brings.
 | Show me, in order | the tour, `tour/README.md` | `/tour/` |
 | How do I write it? | the guide, `guide/language.md` | `/guide/` |
 | What exactly is the rule? | the report | `/report/` |
-| What does this function do? | the library's pages, `docs/man/` | `/man/` |
+| What does this function do? | the library's pages, which `make doc` writes under `build/` | `/man/` |
 | How do I run it? | `guide/deployment.md` | `/deployment/` |
 | What does this command do? | the report's §11, and `man ern` at a terminal | `/report/toolchain.html` |
 | Let me try it | the shell | `/shell/` |

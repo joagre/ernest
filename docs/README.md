@@ -18,7 +18,6 @@ The project's own documents: what each file and directory here is, and the READM
 - **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser, the checker and the build give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
 - **[`clean_room.md`](clean_room.md)**: how an application with a repository of its own is built against Ernest's release archive by a session of its own, and how its findings and the verdicts cross.
-- **[`man/`](man/)**: the manual pages as CommonMark, which `make man` writes from `main` and a release commits: the prelude's and the standard library's, and each library's.
 - **[`proposals/`](proposals/)**: what is designed, a directory for each proposal, whose `README.md` says what its files are and which is current.
 - **[`src/shell/README.md`](../src/shell/README.md)**: a guide to the shell's code.
 - **[`editors/emacs/README.md`](../editors/emacs/README.md)**: how to install the Emacs mode, and what it leaves to the reader's configuration.

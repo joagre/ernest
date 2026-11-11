@@ -161,8 +161,8 @@ no_tab_test() ->
 %% is at most 150 words, a list item among them, since a block past it no
 %% reader takes in whole; the listing is tools/paragraphs.sh's, which
 %% `make paragraphs` runs at a hundred for the writer to read and this
-%% test at the ceiling. The log, the proposals and the generated pages are
-%% left out, as the script leaves them. A regression test, written after
+%% test at the ceiling. The log and the proposals are left out, as the
+%% script leaves them. A regression test, written after
 %% the release review before 0.6.0 found Appendix A's lexical-decision
 %% paragraph at 399 words, listed at every run and read by no one
 paragraph_ceiling_test() ->
@@ -621,7 +621,7 @@ pun_test_() ->
 %% fences and its console's inputs, and a session's fixture's inputs.
 pun_tokens() ->
     Documents = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- '*.md'"
-                                      " ':!docs/log/' ':!docs/proposals/' ':!docs/man/'"),
+                                      " ':!docs/log/' ':!docs/proposals/'"),
                                "\n"),
     ?assert(length(Documents) > 20),
     Fences = [{File, Fence} || File <- Documents -- ?DOCUMENTS, Fence <- fences(numbered(File)),

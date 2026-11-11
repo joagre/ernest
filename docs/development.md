@@ -47,10 +47,6 @@ docs/              every other document, which docs/README.md lists, this one an
 docs/proposals/    what is designed, a directory for each proposal: the proposal, the
                    reasons for it, what other systems do, and its experiments or
                    programs; tentative until decided, and kept as a record once built
-docs/man/          the pages as CommonMark, which make man writes from main and a
-                   release commits: the prelude's and the standard library's under
-                   stdlib/, each library's under libs/, an index in each and one over
-                   them, each its directory's README.md
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists by topic
 test/              what spans the roots of src/: the integration, nodes, deployment guide,
@@ -130,9 +126,12 @@ build/             build products, not in git, an installation holding what it s
                    shell/ebin/, the toolchain's Erlang, on the host's code path;
                    runtime/priv/, the helper; stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages, each library's shim beside its .erc;
-                   the standard library's pages in stdlib/ from make doc, and each
-                   library's in libs/ too from make man; each root's test/ from the
-                   tests that compile it, on no job's code path; release/ from make
+                   the pages as CommonMark from make doc, the standard library's and
+                   the prelude's in stdlib/ and each library's in libs/, each beside its
+                   .erc with an index.md, and in man/ an index over the two, README.md,
+                   with the libraries' in man/libs/README.md, which the site is
+                   generated from; each root's test/ from the tests that compile it,
+                   on no job's code path; release/ from make
                    release; units/ from make units; dialyzer.plt from make dialyzer;
                    sanitize/ from make sanitize. The tests under test/ build beside themselves, in
                    test/ebin/ and test/build/, as an application's do
@@ -200,7 +199,8 @@ make test-manual  the manual pages against §11, each rendered
 make test-install  the installation and the release archive, installed and run
                   where they are put; after test-manual, which it runs first,
                   since both write the manual pages
-make test-docs    the document tests and the style tests, without a build
+make test-docs    the document tests and the style tests, after make doc, whose pages
+                  they read
 make paragraphs   list every prose paragraph past about a hundred words, a list item among
                   them, for its writer to read again for a turn it may hide; test-docs lists
                   them too, and fails on none
@@ -213,7 +213,8 @@ make test-site    the site's generator, tools/site.ern, run over its fixture, th
                   tokens site/templates/README.md lists, its check of the site's links
                   refusing one that leads nowhere, each line of site/projects.md held to
                   its form, and the generator run over an export of HEAD, the
-                  repository's own documents with the site's files as they stand
+                  repository's own documents with the site's files as they stand and
+                  the pages make doc writes
 make test-site-shell  every block the site's pages offer the shell, and every one
                   site/unrunnable.md lists, pasted into a bare ern shell under the
                   pseudo-terminal, and the file held to those that do not run; part of
@@ -329,11 +330,10 @@ make bench-pick   the push's experiment, the log's *The Numbers Across Machines*
                   test/build/bench/pick-machines.txt, each run's lines in
                   test/build/bench/pick-machines-raw/; about 32 minutes by default; run
                   by hand, on the user's machines alone, and not part of make test-full
-make doc          write the standard library's and the prelude's pages to build/stdlib/,
-                  with index.md
-make man          write every page: the manual pages make writes, and docs/man/, main's pages
-                  as CommonMark, the standard library's, the prelude's and each
-                  library's, with their indexes (docs/reviews/release.md)
+make doc          write every page as CommonMark: the standard library's and the
+                  prelude's to build/stdlib/ and each library's to build/libs/<name>/,
+                  each with index.md, and the indexes over them, build/man/README.md
+                  and build/man/libs/README.md, which the site is generated from
 make manual       the manual pages alone, which make also writes: each module's beside
                   its .erc, as build/stdlib/Ernest.List.3ern, and ern(1) as
                   build/man/ern.1, which man -l shows
@@ -345,15 +345,15 @@ make release      write the release archive, build/release/ern-VERSION.tar.gz, w
 make site TAG=v0.x.y CONFIG=path/to/config.json
                   write the website into build/site/ from the release TAG names, given the
                   server's configuration: the tag exported into build/site-source/, the
-                  toolchain built there and make man run there, then the tag's generator
+                  toolchain and its pages built there by make doc, then the tag's generator
                   run over it, every link of the site checked; it refuses a tag that holds
                   no site/; TAG=HEAD, or any commit, builds a site whose links to GitHub name
-                  the commit; about 35 seconds, nearly all of them the export's build
+                  the commit; about 10 seconds, nearly all of them the export's build
 make version V=x.y.z
                   set VERSION, the release the checkout works toward, and every line the
                   tests hold to it, the documents' start lines and the session fixtures',
-                  by tools/version.sh, then write every page as make man does
-                  (docs/reviews/release.md, step 5)
+                  by tools/version.sh; the next make doc writes the pages again with
+                  the version (docs/reviews/release.md, step 5)
 make units        link each unit of src/stdlib/, src/shell/ and src/libs/, its .erc,
                   into build/units/ under its module's name, which make dialyzer and
                   make xref read

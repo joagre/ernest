@@ -8,11 +8,11 @@
 # since a block past it no reader takes in whole.
 # A list item is a paragraph of its own, which ends at the next item, at a
 # blank line or where its indentation ends. A heading, a table row or an
-# HTML line is no prose, after an item as anywhere. The log, the proposals
-# and the generated pages are left out.
+# HTML line is no prose, after an item as anywhere. The log and the
+# proposals are left out.
 cd "$(dirname "$0")/.." || exit 1
 ceiling=${1:-100}
-git ls-files -- '*.md' ':!docs/log/' ':!docs/proposals/' ':!docs/man/' |
+git ls-files -- '*.md' ':!docs/log/' ':!docs/proposals/' |
 while read -r file; do
     awk -v file="$file" -v ceiling="$ceiling" '
         function flush() {

@@ -137,10 +137,36 @@ $(filter-out lib-markdown lib-http,$(LIB_BUILDS)): lib-%: stdlib
 shell: lib-ansi lib-markdown lib-ets
 	@bin/ern build --verbose --build-root build/shell src/shell
 
-# The standard library's pages, one per module beside its .erc in
-# build/stdlib, and index.md listing them (report §11.4).
+# Every page in CommonMark, which the site is generated from (docs/design/site.md
+# *The generation*): the pages `ern doc` writes, the prelude's and the
+# standard library's in build/stdlib and each library's in
+# build/libs/<name>, each with its index.md, and two indexes beside ern(1)
+# in build/man: libs/README.md, each library's pages as its index.md lists
+# them with the library after each, and README.md over the two groups,
+# which links the report's §11 for ern itself and names the release. The
+# indexes link the pages where `ern doc` wrote them, and each is written
+# only where its text would differ, as `ern doc` writes an index.md.
 doc: all
-	@$(MAKE) -s pages-stdlib
+	@$(MAKE) -s $(SIDE_BY_SIDE) -O $(PAGES)
+	@mkdir -p build/man/libs
+	@{ printf '# Libraries\n\n'; \
+	  for n in $(LIBS); do \
+	    sed -n "s|^- \[\(.*\)\](\(.*\))\$$|- [\1](../../libs/$$n/\2), \`libs/$$n\`|p" \
+	      build/libs/$$n/index.md; done; \
+	} > build/man/libs/README.md.new
+	@v=$$(cat VERSION); { \
+	  printf '# The manual pages\n\n'; \
+	  printf 'A page holds a module'"'"'s doc block, then its declarations, each with its type '; \
+	  printf 'and its own doc block (report §11.4). Where Ernest is installed, `man Ernest.List` '; \
+	  printf 'shows a module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
+	  printf -- '- [The prelude and the standard library](../stdlib/index.md)\n'; \
+	  printf -- '- [The libraries under `src/libs/`](libs/README.md)\n'; \
+	  printf -- '- [`ern`, the toolchain and its shell](../../report/toolchain.md#11-toolchain), '; \
+	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n\n'; \
+	  printf 'The pages `ern doc` writes for Ernest %s.\n' "$$v"; \
+	} > build/man/README.md.new
+	@for f in build/man/libs/README.md build/man/README.md; do \
+	  if cmp -s $$f.new $$f; then rm $$f.new; else mv $$f.new $$f; fi; done
 
 # The pages in CommonMark (report §11.4), each beside its module's .erc,
 # with index.md listing them: the prelude's and the standard library's in
@@ -188,39 +214,6 @@ build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
 	  report/toolchain.md $$(cat VERSION) build/stdlib > $@.new
 	@mv $@.new $@
 
-# Every page: the manual pages make writes, and main's pages as CommonMark
-# in docs/man/, which GitHub shows and a release commits
-# (docs/reviews/release.md, step 5): the prelude's and the standard
-# library's under docs/man/stdlib, with the index ern doc writes (report
-# §11.4); each library's under docs/man/libs/<name>, with an index linking
-# them; and an index over the two, which links the report's §11 for ern
-# itself, two directories up. Each index is its directory's README.md,
-# which GitHub shows when the directory is opened. They are written beside
-# the build's .erc and copied, replacing docs/man/ whole, so a page whose
-# module has gone goes.
-man: all
-	@$(MAKE) -s $(SIDE_BY_SIDE) -O $(PAGES)
-	@rm -rf docs/man && mkdir docs/man
-	@cd build && find stdlib $(LIBS:%=libs/%) -name '*.md' ! -name index.md | tar cf - -T - \
-	  | (cd ../docs/man && tar xf -)
-	@cp build/stdlib/index.md docs/man/stdlib/README.md
-	@{ printf '# Libraries\n\n'; \
-	  for n in $(LIBS); do \
-	    sed -n "s|^- \[\(.*\)\](\(.*\))\$$|- [\1]($$n/\2), \`libs/$$n\`|p" \
-	      build/libs/$$n/index.md; done; \
-	} > docs/man/libs/README.md
-	@v=$$(cat VERSION); { \
-	  printf '# The manual pages\n\n'; \
-	  printf 'A page holds a module'"'"'s doc block, then its declarations, each with its type '; \
-	  printf 'and its own doc block (report §11.4). Where Ernest is installed, `man Ernest.List` '; \
-	  printf 'shows a module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
-	  printf -- '- [The prelude and the standard library](stdlib/README.md)\n'; \
-	  printf -- '- [The libraries under `src/libs/`](libs/README.md)\n'; \
-	  printf -- '- [`ern`, the toolchain and its shell](../../report/toolchain.md#11-toolchain), '; \
-	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n\n'; \
-	  printf 'The pages `ern doc` writes for Ernest %s.\n' "$$v"; \
-	} > docs/man/README.md
-
 # The installation (docs/design/install.md): the toolchain's tree under
 # $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
 # pages, the documents and the Emacs mode under $(PREFIX)/share, each path
@@ -249,16 +242,16 @@ release: all
 
 # VERSION, the release the checkout works toward, set to V, x.y.z, with
 # every line a test holds to it: tools/version.sh writes the documents'
-# start lines and the session fixtures', and make man every page, whose
-# last line names the version text (docs/reviews/release.md, step 5).
+# start lines and the session fixtures' (docs/reviews/release.md, step 5).
+# The pages name the version text on their last line, and the next make doc
+# writes them again, the toolchain's own code having been built anew.
 version:
 	@sh tools/version.sh "$(V)"
-	@$(MAKE) -s man
 
 # The website, build/site/, from the release a tag names (docs/design/site.md
 # *The generation*): the tag
 # exported by git archive into build/site-source/, the toolchain built there
-# and make man run there, the checkout untouched, and the tag's own
+# and its pages written by make doc there, the checkout untouched, and the tag's own
 # generator run over the export with the server's configuration, CONFIG,
 # writing build/site/ whole and refusing a site with a link that leads
 # nowhere. Everything comes from the tag, so a tag that holds no site/ is
@@ -279,8 +272,7 @@ site:
 	    "templates come from the tag the site is built from"; exit 2; }
 	@rm -rf build/site-source && mkdir -p build/site-source
 	@git archive "$(TAG)" | tar -x -C build/site-source
-	@$(MAKE) -s -C build/site-source all
-	@$(MAKE) -s -C build/site-source man
+	@$(MAKE) -s -C build/site-source doc
 	@rm -rf build/site
 	@named=$$(git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null && echo "$(TAG)" \
 	  || git rev-parse "$(TAG)^{commit}") && \
@@ -445,7 +437,10 @@ test-manual: all
 	@$(MAKE) -C test manual
 test-install: all test-manual
 	@$(MAKE) -C test install
-test-docs:
+# The documents' tests, and the site's below, read the pages make doc
+# writes; the site's run its generator over an export of HEAD too, which
+# holds no page, with the pages of the build copied in.
+test-docs: doc
 	@$(MAKE) -C test docs
 
 # The prose paragraphs past about a hundred words, for their writer to read
@@ -458,7 +453,7 @@ comments:
 	@sh tools/comments.sh
 test-guide: all
 	@$(MAKE) -C test guide
-test-site: all
+test-site: doc
 	@$(MAKE) -C test site
 test-site-shell: all
 	@$(MAKE) -C test site-shell
@@ -684,7 +679,7 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 
 .PHONY: all beams stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) \
-        man $(PAGES) \
+        $(PAGES) \
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-site test-grammar \
         test-typed test-shell test-site-shell test-browser \

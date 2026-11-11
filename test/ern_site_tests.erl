@@ -146,7 +146,7 @@ symbol(Icon, Name) ->
                       "\">\n", [[Line, "\n"] || Line <- Lines], "  </symbol>\n"]).
 
 %% docs/design/site.md *Links*: a qualified name in code or in
-%% backticks links to its declaration in /man/ where a page of docs/man/
+%% backticks links to its declaration in /man/ where a module's page
 %% heads it, an operator among them, and on the declaration's own page to
 %% its anchor alone; a bare name is text, and so is a name the library does
 %% not declare, a code span that is more than a name, and a member of a type
@@ -326,11 +326,12 @@ dangling() ->
 
 %% docs/design/site.md *The generation*:
 %% the generator run as `make site` runs it, over an export of the
-%% repository by git archive, here HEAD's, its documents, its library's
-%% pages and its log, with the site's own tracked files as they stand, the
-%% generator's here; every page written and every link of the site
+%% repository by git archive, here HEAD's, its documents and its log, with
+%% the site's own tracked files as they stand, the generator's here, and
+%% the library's pages as the checkout's `make doc` wrote them, which an
+%% export holds none of; every page written and every link of the site
 %% resolved. It does not cover `make site`'s build of the toolchain in the
-%% export, nor its `make man`, nor a document of the working tree that HEAD
+%% export, nor its `make doc`, nor a document of the working tree that HEAD
 %% does not hold yet.
 head() ->
     Source = "build/site/head",
@@ -341,6 +342,11 @@ head() ->
     ok = file:del_dir_r(Source ++ "/site"),
     Tracked = string:lexemes(ern_integration_tests:succeed("git -C .. ls-files site"), "\n"),
     [copied(filename:join("..", File), filename:join(Source, File)) || File <- Tracked],
+    Pages = [File || Pattern <- ["build/stdlib/*.md", "build/libs/*/*.md",
+                                 "build/man/README.md", "build/man/libs/README.md"],
+                     File <- filelib:wildcard(Pattern, "..")],
+    ?assert(length(Pages) > 25),
+    [copied(filename:join("..", File), filename:join(Source, File)) || File <- Pages],
     Commit = string:trim(ern_integration_tests:succeed("git rev-parse HEAD")),
     ern_integration_tests:succeed("../bin/ern run ../build/tools/site.erc " ++ Source
                                   ++ " build/site/head-out 9.9.9 " ++ binary_to_list(Commit)

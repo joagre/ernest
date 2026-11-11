@@ -8,8 +8,8 @@
 # `x.y.z-dev` (ern_release), and the site's expected index page's, which
 # stands inside a span (test/fixtures/site/expected). Each line is matched whole, so that
 # a `since` line and a sentence naming a release stay as they are. The
-# pages make man writes name the version text too, and make version writes
-# them after this script.
+# pages make doc writes name the version text too, and the next make doc
+# writes them again, the toolchain having been built anew.
 #
 # Given a directory, the checkout's files are rewritten under it instead,
 # as ern_docs_tests' version_test does. VERSION is written last, so that a

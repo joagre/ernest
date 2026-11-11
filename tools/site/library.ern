@@ -1,18 +1,19 @@
 //
-// The library's pages: each module's page of docs/man/, which `make man`
-// writes, at its path under /man/, the declarations every page's qualified
-// names link to, and the contents pages, as docs/design/site.md's *The root*
-// says: /man/ lists the standard library's modules and the libraries in two
-// groups, a module a line, its name and the purpose its own page opens with,
-// and ends with the toolchain's §11; /man/stdlib/ and /man/libs/ hold the
-// two groups, and /man/libs/<name>/ a library's modules. A module's page
+// The library's pages: each module's page `ern doc` writes under build/,
+// which `make doc` runs, at its path under /man/, the declarations every
+// page's qualified names link to, and the contents pages, as
+// docs/design/site.md's *The root* says: /man/ lists the standard
+// library's modules and the libraries in two groups, a module a line, its
+// name and the purpose its own page opens with, and ends with the
+// toolchain's §11; /man/stdlib/ and /man/libs/ hold the two groups, and
+// /man/libs/<name>/ a library's modules. A module's page
 // anchors each declaration by its qualified name as its heading writes it,
 // `#List.size`, lists the declarations by their short names under the
 // module's, gives a signature no tools and an example Paste, and names the
-// module's source in its footer, since docs/man/ is itself generated.
+// module's source in its footer, since its page is itself generated.
 //
 
-/// The library as docs/man/ holds it: /man/'s opening, its groups with
+/// The library as the build holds it: /man/'s opening, its groups with
 /// their modules, each module's page read, and its other items, the
 /// toolchain's.
 export abstract type Library =
@@ -20,10 +21,11 @@ export abstract type Library =
             groups : List(Group),
             toolchain : List(List(Markdown.Block)))
 
-// A module of the library: its name, `List`, its page's path in docs/man/,
+// A module of the library: its name, `List`, its page's path under build/,
 // its page's address, the library it is of, `libs/markdown`, where it is a
 // library's, its page's `since` line, its page's blocks after its title and
-// that line, each with its buttons, and the source its footer names.
+// that line, each with its buttons, and the source its footer names, where
+// its page names one.
 type Module =
     Module(name : String,
            path : String,
@@ -42,10 +44,11 @@ type Group =
 // opens with.
 type Row = Row(module : Module, purpose : List(Markdown.Inline))
 
-/// The library read from docs/man/ under the root: its README, each
-/// group's, and each module's page.
+/// The library read from the build under the root, as `make doc` writes
+/// it: build/man/README.md, each group's index it links, and each module's
+/// page.
 export fn read(root : Path) : Either(String, Library) = {
-    let source = "docs/man/README.md";
+    let source = "build/man/README.md";
     let document <- Run.documentOf(root, source);
     let #(_, rest) <- Run.titleOf(source, document);
     let #(opening, listed) = List.span(rest, fn(block) = !isList(block));
@@ -83,7 +86,7 @@ fn moduleDeclarations(module : Module) : List(#(String, Links.Declaration)) = {
 
 /// Every module's page, /man/ and each contents page under it.
 export fn written(run : Run.Run, library : Library) : Either(String, Unit) = {
-    let source = "docs/man/README.md";
+    let source = "build/man/README.md";
     let page <-
         Run.linkPage(run,
                      source,
@@ -106,21 +109,25 @@ fn isList(block : Markdown.Block) : Bool =
       | _ -> false
     }
 
-// An item of /man/'s list that names a group's README, the group's name and
-// the README's path.
+// An item of /man/'s list that names a group's index, the group's name and
+// the index's path: build/stdlib/index.md, which `ern doc` writes, or
+// build/man/libs/README.md.
 fn groupItem(source : String,
              item : List(Markdown.Block)) : Optional(#(List(Markdown.Inline), String)) =
     match item {
         [Markdown.Paragraph([Markdown.Link(=text, =url)])] ->
             match Either.toOptional(Links.resolved(source, url)) {
-                Some(path) when String.endsWith(path, "/README.md") -> Some(#(text, path))
+                Some(path) when isIndex(path) -> Some(#(text, path))
               | _ -> None
             }
       | _ ->
             None
     }
 
-// A group read from its README: each module its list names, a module's
+fn isIndex(path : String) : Bool =
+    String.endsWith(path, "/index.md") || String.endsWith(path, "/README.md")
+
+// A group read from its index: each module its list names, a module's
 // library after its link where it is a library's.
 fn groupRead(root : Path, name : List(Markdown.Inline), path : String) : Either(String, Group) = {
     let document <- Run.documentOf(root, path);
@@ -151,7 +158,7 @@ fn moduleOf(root : Path, index : String, item : List(Markdown.Block)) : Either(S
             let document <- Run.documentOf(root, path);
             let #(_, blocks) <- Run.titleOf(path, document);
             let #(since, rest) = sinceOf(blocks);
-            let #(own, source) = generated(path, rest);
+            let #(own, source) = generated(rest);
             // site.md *The live shell*: a library's examples need `:load` in a
             // bare shell, which the panel's is
             let offered = if library == None then CodeBlock.Paste else CodeBlock.CopyAlone;
@@ -230,23 +237,19 @@ fn moduleWritten(run : Run.Run, module : Module) : Either(String, Row) = {
 // The page's blocks without its last line, which names the `ern` that
 // wrote it and the module's source, `Generated by ern 0.10.0 from
 // src/stdlib/list.ern.`, and the rule above it; and the source its footer
-// names, that `.ern` file, or the page itself where the line names none,
-// as the prelude's does.
-fn generated(path : String,
-             blocks : List(Markdown.Block)) : #(List(Markdown.Block), Optional(String)) =
+// names, that `.ern` file. A page whose line names no `.ern`, as the
+// prelude's does, names none, since the page itself is the build's and
+// no file of the repository.
+fn generated(blocks : List(Markdown.Block)) : #(List(Markdown.Block), Optional(String)) =
     match List.reverse(blocks) {
         Markdown.Paragraph(last) :: Markdown.Rule :: kept when isGenerated(last) -> {
             let stem =
                 Optional.andThen(String.splitOnce(Html.plain(last), " from "),
                                  fn(#(_, rest)) = String.stripSuffix(rest, ".ern."));
-            let named = match stem {
-                Some(name) -> name <> ".ern"
-              | None -> path
-            };
-            #(List.reverse(kept), Some(named))
+            #(List.reverse(kept), Optional.map(stem, fn(name) = name <> ".ern"))
         }
       | _ ->
-            #(blocks, Some(path))
+            #(blocks, None)
     }
 
 fn isGenerated(inlines : List(Markdown.Inline)) : Bool =
@@ -321,7 +324,7 @@ fn shortName(name : String, qualified : String) : String =
 // The contents pages
 //
 
-// /man/: the opening of docs/man/README.md, each group under its name, and
+// /man/: the opening of build/man/README.md, each group under its name, and
 // the README's other items, the toolchain's.
 fn indexWritten(run : Run.Run,
                 page : Links.Page,
@@ -344,9 +347,9 @@ fn indexWritten(run : Run.Run,
                 Run.filled(run, "fragments/toolchain.html", [#("line_html", Run.inlined(line))])
             }
           | _ ->
-                Left("docs/man/README.md: a line of its list is a paragraph")
+                Left("build/man/README.md: a line of its list is a paragraph")
         });
-    let description <- Run.described("docs/man/README.md", opening);
+    let description <- Run.described("build/man/README.md", opening);
     contentsWritten(run,
                     "/man/",
                     [Markdown.Text("Library")],

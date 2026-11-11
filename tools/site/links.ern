@@ -27,7 +27,7 @@ export type Page =
          log : Map(String, List(String)),
          declared : List(String))
 
-/// A declaration of the library, a heading of a module's page in docs/man/,
+/// A declaration of the library, a heading of a module's page `ern doc` wrote,
 /// which a qualified name links to: the namespace its name is qualified
 /// by, `Markdown` of `Markdown.Block` and `Int` of `Int.+` (report §4.2),
 /// its module's page's address, and its anchor there, its qualified name.
@@ -63,23 +63,27 @@ fn shown(path : String) : Optional(Shown) =
       | "README.md" -> Some(Slugged("/install/"))
       | "CHANGES.md" -> Some(Slugged("/releases/"))
       | "site/projects.md" -> Some(Slugged("/projects/"))
-      | "docs/man/README.md" -> Some(Whole("/man/"))
-      | "docs/man/stdlib/README.md" -> Some(Whole("/man/stdlib/"))
-      | "docs/man/libs/README.md" -> Some(Whole("/man/libs/"))
+      | "build/man/README.md" -> Some(Whole("/man/"))
+      | "build/stdlib/index.md" -> Some(Whole("/man/stdlib/"))
+      | "build/man/libs/README.md" -> Some(Whole("/man/libs/"))
       | _ -> Optional.map(manualPage(path), Whole)
     }
 
-// A module's page of docs/man/, `/man/stdlib/list.html` for
-// docs/man/stdlib/list.md, at its path there (site.md *The root*).
+// A module's page `ern doc` wrote under build/stdlib/ or build/libs/,
+// `/man/stdlib/list.html` for build/stdlib/list.md, at its path under
+// build/ (site.md *The root*).
 fn manualPage(path : String) : Optional(String) = {
-    let rest <- String.stripPrefix(path, "docs/man/");
+    let rest <- String.stripPrefix(path, "build/");
     let page <- String.stripSuffix(rest, ".md");
-    Some("/man/" <> page <> ".html")
+    if String.startsWith(page, "stdlib/") || String.startsWith(page, "libs/") then
+        Some("/man/" <> page <> ".html")
+    else
+        None
 }
 
 /// The address of the site's page of a document of the repository, by its
 /// path, `/guide/` for guide/language.md and `/man/stdlib/list.html` for
-/// docs/man/stdlib/list.md; none for a document the site does not show.
+/// build/stdlib/list.md; none for a document the site does not show.
 export fn address(path : String) : Optional(String) =
     Optional.map(shown(path), fn(showing) = addressOn(showing, None))
 
@@ -594,7 +598,7 @@ fn local(page : Page, led : String) : String =
 
 // The address a qualified name in the page's code or its backticks links
 // to, its declaration's, where the library declares it as a heading of
-// docs/man/, a type or a function, and no code of the page declares a
+// a module's page, a type or a function, and no code of the page declares a
 // type of its qualifier's name, which a module's own type would shadow
 // (report §4.2); none for any other name, a bare one among them
 // (docs/design/site.md *Links*).

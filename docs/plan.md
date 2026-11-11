@@ -94,14 +94,6 @@ The other seven are the packages proposal's build order,
     again in warm hosts beside busy loops, for as long as it is given, writes each failing test
     with its output, and ends the loops by their numbers. It runs on the user's word alone, in
     neither review, and `docs/development.md` names it.
-13. **The checkout's manual pages**, a decision for the user, raised by ernest-template on
-    2026-11-11 (its log's *One copy of the pages*): `docs/man/` is written at a release and read
-    between releases, by GitHub and by a session, as the signatures of the last release, a copy
-    stale by design (principle 1), while `make site` writes the pages again from the tag and
-    the archive carries its own. Recommended: the template's shape. The pages are `make doc`'s
-    alone, under `build/`, `make man` goes, `make site` and the release's archive take them from
-    there, and a reader browses them at ernest-lang.org. It touches the Makefile, the site's
-    generator and its design note, `docs/README.md`, the documents' test and the release step.
 12. **The feedback of the release review before 0.10.0, and the applications'**, feedback 237 to
     247, decided with the user 2026-11-10 (the log's *The Review's Feedback After Its Release*):
     one design session right after 0.10.0's release, each line weighed alone against the
@@ -109,6 +101,7 @@ The other seven are the packages proposal's build order,
     as it opens, as `docs/clean_room.md`'s *The reading here* says. A verdict that builds becomes
     an item of this milestone or of MVP 4.4, before the launch's review, and one that does not
     goes to the log, its line leaving the feedback file.
+13. **The checkout's manual pages**, done 2026-11-11 (the log's *One Copy of the Pages*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
