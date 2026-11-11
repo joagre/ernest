@@ -1122,6 +1122,25 @@ negative_comparison_help_test() ->
     ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
                  help("fn f(a : Int) : Bool = a<-1")).
 
+%% report §4.8, §11.5: `++` is refused at its second `+`, with the help
+%% that names `<>`, wherever the operator stands; a `+` apart from the
+%% first, and `++` before an operand, have no such help
+concatenation_help_test() ->
+    Help = "write `<>` to concatenate",
+    ?assertMatch({error, #diagnostic{span = {2, 21, _},
+                                     message = "expected an expression instead of `+`",
+                                     help = Help}},
+                 ern_parser:parse_string("export fn main() : Unit =\n"
+                                         "    Io.println(\"a\" ++ \"b\")")),
+    ?assertEqual(Help, expression_help("[1] ++ [2]")),
+    ?assertEqual(Help, expression_help("1 * 2 ++ 3")),
+    ?assertEqual(Help, expression_help("a ++b")),
+    ?assertEqual(Help, expression_help("1 :: a ++ b")),
+    ?assertEqual(Help, help("fn f(a : String) : String = a ++ a")),
+    ?assertEqual(undefined, expression_help("1 + + 2")),
+    ?assertEqual(undefined, expression_help("1 +/* */+ 2")),
+    ?assertEqual(undefined, expression_help("f(++a)")).
+
 %% report §5.11, §11.5: a specifier is one of §5.11's, `bits` and `native`
 %% being Erlang's, not Ernest's, and the help lists them; a size written as
 %% Erlang writes it is told how Ernest writes it. The helps are a

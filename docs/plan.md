@@ -107,9 +107,7 @@ The other seven are the packages proposal's build order,
     247).
 18. **`Http.target` and the characters a browser sends raw**, done 2026-11-11 (the log's *The Review's
     Feedback Decided*, 250).
-19. **The help at `++`**, feedback 251, ernest-epx's line: a second `+` where the parser expects an
-    expression gets the help ``write `<>` ``, §11.5 naming it beside `<-`'s, with its parser test.
-    It closes on the toolchain's target and `make test`.
+19. **The help at `++`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 251).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

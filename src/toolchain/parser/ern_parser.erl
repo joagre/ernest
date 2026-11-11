@@ -978,6 +978,11 @@ binexpr(Tokens, Min) ->
     {Left, Rest} = unary(Tokens),
     binexpr_loop(Left, Rest, Min).
 
+binexpr_loop(_, [{'+', _}, {'+', {Line, Column, _, {Line, Column}} = Position} | _], _) ->
+    %% report §11.5: no expression begins with `+`, so a `+` written against
+    %% the operator `+` is `++`, which Ernest writes `<>`
+    wanted(expression, Position, "expected an expression instead of `+`",
+           "write `<>` to concatenate");
 binexpr_loop(Left, [{Operator, Position} | Rest] = Tokens, Min) ->
     case precedence(Operator) of
         {Precedence, Associativity} when Precedence >= Min ->

@@ -986,6 +986,20 @@ example.ern:1:28: expected `then` instead of `<-`
   | = help: `<-` is one token; write `a < -1` to compare with a negative number
 ```
 
+### `++` where a concatenation was meant (§4.8)
+
+```ernest-rejected
+export fn main() : Unit = Io.println("a" ++ "b")
+```
+
+```console
+$ ern build example.ern
+example.ern:1:43: expected an expression instead of `+`
+1 | export fn main() : Unit = Io.println("a" ++ "b")
+  |                                           ^
+  | = help: write `<>` to concatenate
+```
+
 ### A lowercase name where a type's name stands (§2.3, §4.3)
 
 ```ernest-rejected
