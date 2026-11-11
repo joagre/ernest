@@ -52,7 +52,10 @@ Deadlock of the Whole Program*).
 3. **Who waits on whom**, done 2026-11-11 (the log's *A Deadlock of the Whole Program*).
 
 The other seven are the packages proposal's build order,
-[`proposals/package_manager/`](proposals/package_manager/README.md).
+[`proposals/package_manager/`](proposals/package_manager/README.md). No further cold reading
+of §11.9's diff runs: each of items 5 to 8 reads its own sentences of §11.9 against its build
+and its probes before it closes, and a finding changes the report first (the log's *A Package
+and Its Manifest*).
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -64,7 +67,8 @@ The other seven are the packages proposal's build order,
    trial's table of refusals is its first test.
 7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
    section of Appendix G first. The tar library's section takes what §11.9 says of a pax and a
-   GNU header, the format's own, and §11.9 cites it.
+   GNU header, the format's own, and §11.9 cites it; the item decides with the user which of
+   §11.9's other rules on an archive's members are the format's too.
 8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
    stands under `Ernest` is decided as the item opens.
 9. **The guide's section on a package.**
@@ -109,20 +113,39 @@ The other seven are the packages proposal's build order,
 25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
     Manifest*).
 26. **A module that hides a library another uses**, decided 2026-11-11, before item 5:
-    `ern build`, `ern doc`, `:load` and `:reload` refuse it as §11.1 says, where a library on
-    the load path depends on the hidden one, and `ern run`'s refusal names it (§11.2); the
-    named packages' case comes with item 6. §4.2 points to the rule, so it is built the day it
-    is decided, after one cold reading of every sentence item 25 wrote after its third reader,
-    §4.2's, §11.1's and §11.2's among them (the log's *A Package and Its Manifest*).
+    `ern build`, `ern doc`, `:load` and `:reload` refuse a module that takes the name of a
+    library's module another module of a library depends on, as §11.1 says, `Code.load` as
+    E.28 says, and `ern run`, `ern test` and `ern shell` name it in their refusal (§11.2); the
+    named packages' case comes with item 6. Its sentences are read, twice, and the build is
+    left (the log's *A Package and Its Manifest*).
 27. **The ownership test's group bits**, decided 2026-11-11, before item 5: the shell's startup
     files, a node's configuration and `ern stop`'s and `ern reload`'s `ernest.pid` take the
-    ownership test as §11.2 states it, the owner and the bits for others, and a link's target
-    with the directory that holds it, and their refusals say `may be written by every user`
-    (the log's *A Package and Its Manifest*).
+    ownership test as §11.2 states it, the owner and the bits for others, and the directory
+    that holds what each link of a chain reaches, and their refusals say `may be written by
+    every user` (the log's *A Package and Its Manifest*). It reads §11.2's sentences on the test
+    against its build and its probes before it closes, as items 5 to 8 read §11.9's.
 28. **A given path opened as resolved**, decided 2026-11-11, before item 5: a job judges,
-    writes and opens a path it is given as §11 resolves it, `..` resolved without following a
-    link. The item finds what the code does now, changes it where it differs, and holds it with
-    a test (the log's *A Package and Its Manifest*).
+    writes and opens each path its command line gives as §11 resolves it, `..` resolved without
+    following a link. The item finds what the code does now, changes it where it differs, and
+    holds it with a test (the log's *A Package and Its Manifest*).
+29. **A reading of MVP 4.16's design on the stronger model**, decided 2026-11-11, on 2026-11-13
+    when its cap lifts, before item 5: two readers, cold, each reading its sections whole and
+    not a diff. One reads §11 whole, §11.9 in it, and the package's sentences elsewhere: §4.2,
+    §12.5, Appendix F's terms, Appendix G's opening and E.28. The other reads every other
+    section MVP 4.16 changed: §3.5, §3.10, §6.3, §8.6, §9.6, §12.4, E.0, E.2, E.6, E.7, E.18,
+    E.21, E.23 and G.11. The findings are sorted as `docs/reviews/full.md`'s *The findings*
+    says. The high and medium points in §11.9 that no reading on the lesser model found decide
+    which model design runs on while the stronger is capped (the log's *A Package and Its
+    Manifest*).
+30. **The root's modules, as the lookup and the loaders find them**, found 2026-11-11, decided
+    in a design session on 2026-11-13 after item 29. The code differs from §4.2's **Qualified
+    lookup**, which finds a segment at the first root that holds it: the host merges the roots,
+    so a program's `time/zone.ern` leaves `Time.toCivil` the library's, and `geo/a.ern` leaves
+    a `--load-path` root's `Geo.f` found. Single-file mode passes over a module of the source
+    root that has no `.erc`, which §11.1 does not say, and `:reload` takes a source root's
+    `time.ern` as the source of the library's `Time` it loaded compiled. The session decides by
+    the principles which of the report and the code changes, and the item builds it (the log's
+    *A Package and Its Manifest*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

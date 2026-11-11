@@ -382,7 +382,7 @@ The type of an exported declaration, and the field types of an exported type tha
 
 No segment of a module namespace, at any depth, is a taken one, `Ernest` among them: `fs/entry.ern`, `fides/io.ern` and `fides/ernest.ern` are errors as `io.ern` is. The toolchain's own source roots are the exception: the standard library's provides the prelude's namespaces and its own, and the shell's provides `Ernest` and what stands under it, each root's files providing its namespaces alone, built to `build/stdlib` and `build/shell` (§11.1). A file under one is compiled with it as the source root (§11.1); another source root is an error.
 
-The namespace of a library of the toolchain's own (Appendix G) is not taken: a program's module of its name hides the library, which stands last on the load path (§11.2), for every module whose lookup finds the program's first (**Qualified lookup**). A module that hides a library on which another library or a named package depends is refused (§11.1).
+The namespace of a library of the toolchain's own (Appendix G) is not taken: a program's module at its namespace, or under it, hides the library, which stands last on the load path (§11.2), for every module whose lookup finds the program's first (**Qualified lookup**). A program's module whose namespace is that of a library's module on which a module of a library or of a named package depends is refused where a job takes it (§11.1) and where `Code.load` loads it (Appendix E.28), and a run that finds it for a library's module compiled against the library's is refused (§11.2).
 
 ```ernest-fragment
 // net/http.ern
@@ -1418,6 +1418,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **handshake** — the opening of a connection, in which each node proves its key and the floor before anything passes. §12.5.
 - **hangup** — the host's signal `SIGHUP`: to the Ernest program, a reload on a node and a termination elsewhere; to a program under a pseudo-terminal, sent when the terminal is closed, as `Os.closeInput` sends it, and to a running program, sent by `Os.signal`. §8.6, §12.5, Appendix E.23.
 - **hash** — the SHA-256 of a definition's canonical form, its identity on every node, or of a type's, which a service carries. §8.7, §11.1, Appendix H.
+- **hide** — of a program's module at the namespace of a library of the toolchain's own, or under it: to stand before the library for every module whose lookup finds the program's first; of a module's declaration of a prelude name: to stand before the prelude's throughout the module; of a binding: to stand before a declaration's or the prelude's name of its spelling within the binding's scope. §4.2, §11.1.
 - **Hindley-Milner** — the type system Ernest uses; inference asks for an annotation only where §3.9 says. §3.9.
 - **identity** — what a reference to a definition names: a function's or a type's hash, a binding's qualified name with its definition's hash. §8.7.
 - **inferred restriction** — the equality constraint or process-only, inferred from a body; where there is none, written on a foreign type's parameter or given by §4.7 and §9. §3.9.
@@ -1450,7 +1451,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **or-pattern** — patterns joined by `or` in one clause, which matches when any of them does. §5.9.
 - **order** — a function `(T, T) -> Ordering` that keeps §3.10's laws, which a type's `compare` keeps, and `List.sort` and an ordered set or map require of it. §3.10, Appendix E.25.
 - **owner** — of a resource, the process that opened it or was given it, or that made a table or started a proxy, with which the resource ends; of a file, the user the host records as owning it. §6.9, §11.2, §11.9, §12.5, Appendix E.18, G.1, G.7.
-- **ownership test** — the test a path fails where what it reaches, a link followed, is neither its user's own nor the superuser's, or others than its owner and its group may write it; a link fails it too where the directory that holds what it reaches does. §11.2.
+- **ownership test** — the test a path fails where what it reaches, a link followed, is neither its user's own nor the superuser's, or others than its owner and its group may write it; a link fails it too where the directory that holds what a link followed from it reaches does. §11.2.
 - **package** — a directory that holds a manifest, its Ernest under `src`. §11.9.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.
