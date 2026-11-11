@@ -651,9 +651,11 @@ computed_restarting_test() ->
 %% Where the time runs out, or the caller is killed while it waits, the
 %% second note follows; and where the gateway is gone the wait ends
 %% Unreachable, the key gone with each. A fault that is not text answers
-%% `Other`, the caller faulting with nothing that is not. A regression test,
-%% written after the code, and again for the carried fault's peer and site
-%% and the answer that is not text, and again for the peer beside the cause
+%% `Other`, the caller faulting with nothing that is not. A waiting caller's
+%% status is Calling, limited, naming no callee, since the moment it called
+%% (Appendix E.21). A regression test, written after the code, and again for
+%% the carried fault's peer and site and the answer that is not text, again
+%% for the peer beside the cause, and again for the waiting caller's status
 compute_caller_test() ->
     Self = self(),
     Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
@@ -703,8 +705,17 @@ compute_caller_test() ->
                %% second note follows the time run out alone
                Frames = [receive {Kind, From} when Kind =:= noted; Kind =:= over -> {Kind, From} end
                          || _ <- lists:seq(1, 7)],
+               Since = ern_rt:monotonic(),
                Waiting = ern_rt:spawn(fun() -> Compute(600000) end, <<"M.f:3">>),
-               receive {noted, Waiting} -> ern_rt:kill(Waiting) end,
+               receive {noted, Waiting} -> ok = ern_waits:calling(Waiting) end,
+               WaitingStatus = case ern_rt:status(Waiting) of
+                                   {'Some', {'Status', <<"M.f:3">>, 0,
+                                             {'Calling', 'None', true, Began}, _}} ->
+                                       Since =< Began;
+                                   Other ->
+                                       Other
+                               end,
+               ern_rt:kill(Waiting),
                WaitingOver = receive {over, WaitingCaller} -> WaitingCaller end,
                MonitorRef = erlang:monitor(process, Recorder),
                Recorder ! stop,
@@ -714,7 +725,7 @@ compute_caller_test() ->
                Self ! {caller, Answered, Faulted, TimedOut,
                        Frames =:= [{noted, Me}, {noted, Me}, {noted, Me}, {noted, Me},
                                    {noted, Faulting}, {noted, Me}, {over, Me}],
-                       WaitingOver =:= Waiting, {Lost, get('$ern_call')}}
+                       WaitingOver =:= Waiting, WaitingStatus, {Lost, get('$ern_call')}}
            end,
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end,
@@ -723,9 +734,9 @@ compute_caller_test() ->
     ?assertEqual({caller, [{'Right', 7}, {'Left', 'NotLoaded'},
                            {'Left', {'Other', <<"ProgramEnd">>}},
                            {'Left', {'Other', <<"the peer's answer could not be read">>}}],
-                  {'Fault', <<"x">>}, {'Left', 'Timeout'}, true, true,
+                  {'Fault', <<"x">>}, {'Left', 'Timeout'}, true, true, true,
                   {{'Left', 'Unreachable'}, undefined}},
-                 receive {caller, _, _, _, _, _, _} = Got -> Got end),
+                 receive {caller, _, _, _, _, _, _, _} = Got -> Got end),
     {reported, {'FaultReport', _, <<"M.f:2">>, <<"x">>, false, <<"M.f:4\nM.f:1\n">>, 'None',
                 {'Some', <<"M.g:9">>}, {'Some', <<"p">>}, Time}} =
         receive {reported, _} = Reported -> Reported end,

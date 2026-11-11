@@ -860,6 +860,7 @@ process_scenarios() ->
     ProcessLive = Process(live),
     ProcessFaults = Process(faults),
     ProcessOwned = Process(owned),
+    ProcessPeer = Process(peer),
     ProcessRun = Process(run),
     Me = ProcessFromAddress(ern_rt:self()),
     Waiting = fun() -> receive _ -> ok end end,
@@ -878,6 +879,9 @@ process_scenarios() ->
      %% what watches the process, the host's own part of the read
      {<<"Process.owned">>, {fun() -> ProcessOwned(Me) end,
                             fun() -> erlang:process_info(erlang:self(), monitored_by) end}},
+     %% the host's own part of the read, the node the process is on
+     {<<"Process.peer">>, {fun() -> ProcessPeer(Me) end,
+                           fun() -> node(erlang:self()) =:= node() end}},
      {<<"Process.faults">>, {fun() -> ProcessFaults(fun(Report) -> Report end) end, none}},
      %% the site the compiler passes as the last argument (E.21); the
      %% host's one message for a value or an end, a monitored process whose

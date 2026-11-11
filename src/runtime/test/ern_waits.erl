@@ -131,7 +131,7 @@ running(Pid) ->
 calling(Pid) ->
     until(Pid, fun() ->
                    case erlang:process_info(Pid, [status, {dictionary, '$ern_call'}]) of
-                       [{status, waiting}, {_, {_, _}}] -> true;
+                       [{status, waiting}, {_, Call}] when Call =/= undefined -> true;
                        _ -> false
                    end
                end).

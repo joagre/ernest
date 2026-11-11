@@ -403,6 +403,40 @@ load_takes_no_message_test() ->
     ?assertEqual([<<"Left(Io.Other(\"Grab.shown:3 faulted: deadlock\"))">>, <<"41">>],
                  ran(filename:rootname(Main) ++ ".erc")).
 
+%% Appendix E.28, E.21: a load's caller is Calling while it waits for the
+%% evaluator, naming no callee, the evaluator being the runtime's own,
+%% without limit, since the moment its wait began; the binding waits for a
+%% message no one sends while the entry process reads the status, and the
+%% caller's kill ends the evaluation. A regression test, written after the
+%% code: the caller was read as Receiving there
+load_caller_calling_test() ->
+    Dir = tmp(),
+    Lib = filename:join(Dir, "lib"),
+    write(Lib, "held.ern",
+          "fn take() = receive { x -> x }\n\n"
+          "export let shown : String = Io.show(take())\n"),
+    built(Lib, "held.ern"),
+    Main = write(Dir, "main.ern",
+                 "fn calling(loader : Process) : Process.Activity =\n"
+                 "    match Process.status(loader) {\n"
+                 "        Some(Process.Status(activity = Process.Calling() as activity)) ->\n"
+                 "            activity\n"
+                 "      | _ -> calling(loader)\n"
+                 "    }\n\n"
+                 "export fn main() : Unit = {\n"
+                 "    let began = Clock.monotonic();\n"
+                 "    let loader = Process.fromAddress(spawn(fn() =\n"
+                 "        Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/held.erc\"))))));\n"
+                 "    match calling(loader) {\n"
+                 "        Process.Calling(=callee, =limited, =since) ->\n"
+                 "            Io.println(Io.show(#(callee, limited, since >= began)))\n"
+                 "      | _ -> Unit\n"
+                 "    };\n"
+                 "    kill(loader)\n"
+                 "}\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"#(None, false, true)">>], ran(filename:rootname(Main) ++ ".erc")).
+
 %% Appendix E.28, E.18, E.21: the evaluator lives on after the load and
 %% owns what a binding opened, a listener here, which stays open after the
 %% load has answered and closes when the evaluator is killed; `self()` in

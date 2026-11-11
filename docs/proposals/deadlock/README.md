@@ -1,10 +1,10 @@
 # Deadlock
 
-What each file here is, and which is current. The proposal is ready and planned, as MVP 4.16's items 1 to 3, of which items 1 and 2 are built (the log's *A Deadlock of the Whole Program*). Nothing in it is authoritative.
+What each file here is, and which is current. The proposal is built, as MVP 4.16's items 1 to 3 (the log's *A Deadlock of the Whole Program*), and kept as the record of its design until item 20's reading and sweep. Nothing in it is authoritative.
 
 | File | What it is | Status |
 |---|---|---|
-| [`proposal.md`](proposal.md) | what §8.6's check finds and what it cannot promise; the changes to the documents that follow; a report of who waits on whom, in the library and the shell, that states facts and never faults; the callee in a deadlock's report; the nine answers, what was weighed and not taken, and the three items | current; written 2026-11-06, its nine questions answered and the result read against its owners on 2026-11-09; said to be ready that day, and planned as MVP 4.16's items 1 to 3; Part 2 built 2026-11-11 as item 1, and Part 4 the same day as item 2 |
+| [`proposal.md`](proposal.md) | what §8.6's check finds and what it cannot promise; the changes to the documents that follow; a report of who waits on whom, in the library and the shell, that states facts and never faults; the callee in a deadlock's report; the nine answers, what was weighed and not taken, and the three items | current; written 2026-11-06, its nine questions answered and the result read against its owners on 2026-11-09; said to be ready that day, and planned as MVP 4.16's items 1 to 3; Part 2 built 2026-11-11 as item 1, Part 4 the same day as item 2, and Part 3 as item 3 |
 | [`experiment.md`](experiment.md) | the programs run on 2026-11-09 with what each wrote, what a start time costs a call, and what the runtime already keeps of a call | the runs Part 1 and the answers rest on |
 | `experiment/` | its code: the four programs, the fourth in three forms, with its host module `later.erl`, and the probe `since.erl` | the code `experiment.md` runs |
 

@@ -1,6 +1,6 @@
 # Reading the shell
 
-The Ernest shell is an Ernest program: `Ernest.Shell` in [`ernest/shell.ern`](ernest/shell.ern), six modules under [`ernest/shell/`](ernest/shell/), and a front end in Erlang for what only the compiler or the host can answer. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/design/shell.md`](../../docs/design/shell.md), cited by the names of its sections and paragraphs.
+The Ernest shell is an Ernest program: `Ernest.Shell` in [`ernest/shell.ern`](ernest/shell.ern), seven modules under [`ernest/shell/`](ernest/shell/), and a front end in Erlang for what only the compiler or the host can answer. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/design/shell.md`](../../docs/design/shell.md), cited by the names of its sections and paragraphs.
 
 ## Where to start
 
@@ -68,6 +68,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 | `Ernest.Shell.Complete` | [`ernest/shell/complete.ern`](ernest/shell/complete.ern) | Completion: what may stand at the cursor, the names that may, gathered from the session and the source root, and matching a word against them. |
 | `Ernest.Shell.Region` | [`ernest/shell/region.ern`](ernest/shell/region.ern) | The live region at the foot of the terminal, and the bytes each event writes. |
 | `Ernest.Shell.History` | [`ernest/shell/history.ern`](ernest/shell/history.ern) | The person's directory and the history file in it, over `Os` and `Fs`. |
+| `Ernest.Shell.Listing` | [`ernest/shell/listing.ern`](ernest/shell/listing.ern) | The lines `:processes` writes: each process by its site, what it does and the bytes it holds, and each cycle of calls without limit. |
 | `Ernest.Shell.Style` | [`ernest/shell/style.ern`](ernest/shell/style.ern) | The colors. Each function is given `Markdown.Styled` or `Markdown.Plain`, as documentation is rendered. |
 | `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell, which renders documentation. |
 | `Ansi` | [`libs/ansi`](../libs/ansi/ansi.ern) | A library, not part of the shell, which writes the terminal's styles and the cursor's moves. |

@@ -12,7 +12,7 @@
 %% records, the callee's row in the callees table so that its restart ends
 %% the call (§6.9), and the caller's CALL key in its dictionary, which the
 %% look reads for a request in flight (§8.6) and a kill before it kills
-%% (§6.9), and drops them as the call ends (pending/2, uncalled/0), each a
+%% (§6.9), and drops them as the call ends (pending/1, uncalled/0), each a
 %% piece of its own.
 %%
 %% While it waits, call/4 marks the caller as in a timed receive, a key in
@@ -174,7 +174,7 @@ operations() ->
               end},
              {"the call's key put and erased",
               fun(_) ->
-                  _ = put(?CALL, {Callee, Callee}),
+                  _ = put(?CALL, {call, Callee, Callee, 0, true}),
                   erase(?CALL)
               end},
              {"the timed key put and taken, timed/0 and untimed/0",
@@ -259,14 +259,16 @@ restartable(Address, Request) ->
     Answer.
 
 %% + the caller's CALL key in its dictionary beside it, which the look
-%% reads for a request in flight to a system process (§8.6) and a kill
-%% before it kills (§6.9): pending/2 and uncalled/0 whole.
+%% reads for a request in flight to a system process (§8.6), a kill before
+%% it kills (§6.9) and Process.status for the call's callee, limit and
+%% moment (Appendix E.21): pending/1 and uncalled/0 whole, the moment the
+%% deadline's, which waited/2 reads.
 keyed(Address, Request) ->
     guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Message = Request(Reply),
-    pending(Callee, Reply),
+    pending(Callee, Reply, 0),
     ern_rt:send(Address, Message),
     Answer = receive
                  {Reply, Value} -> Value;
@@ -283,7 +285,7 @@ marked(Address, Request) ->
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Message = Request(Reply),
-    pending(Callee, Reply),
+    pending(Callee, Reply, 0),
     ern_rt:send(Address, Message),
     ern_rt:timed(),
     Answer = receive
@@ -304,7 +306,7 @@ answered(Address, Request) ->
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Message = Request({Reply, self()}),
-    pending(Callee, Reply),
+    pending(Callee, Reply, 0),
     ern_rt:send(Address, Message),
     ern_rt:timed(),
     Answer = receive
@@ -328,13 +330,14 @@ answered(Address, Request) ->
 %% taken away in a try's after and the call settled in another's, the
 %% restart asked for taken: call/4 whole.
 waited(Address, Request) ->
-    Deadline = ern_rt:deadline(?MS),
+    Since = ern_rt:monotonic(),
+    Deadline = ern_rt:deadline(Since, ?MS),
     guarded(),
     Callee = ern_rt:process_of(Address),
     Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
     Answer = try
                  Message = Request({Reply, self()}),
-                 pending(Callee, Reply),
+                 pending(Callee, Reply, Since),
                  ern_rt:send(Address, Message),
                  ern_rt:timed(),
                  try waited_answer(Reply, Deadline) after ern_rt:untimed() end
@@ -374,9 +377,10 @@ guarded() ->
         undefined -> ok
     end.
 
-%% ern_rt's pending/2 for a callee of this node.
-pending(Callee, Reply) ->
-    _ = put(?CALL, {Callee, Reply}),
+%% ern_rt's pending/1 for a callee of this node, the call's limit that of
+%% call/4.
+pending(Callee, Reply, Since) ->
+    _ = put(?CALL, {call, Callee, Reply, Since, true}),
     node(Callee) =:= node() orelse error(other_node),
     ets:insert(?CALLEES, {{Callee, self()}, Reply}).
 
@@ -385,7 +389,7 @@ uncalled() ->
     case get(?CALL) of
         undefined ->
             true;
-        {Callee, _} ->
+        {call, Callee, _, _, _} ->
             ets:delete(?CALLEES, {Callee, self()}),
             erase(?CALL)
     end.

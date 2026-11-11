@@ -12,7 +12,7 @@ Its modules stand under the toolchain's taken namespace, `Ernest.Shell` and thos
 
 `Ernest.Shell`, in `src/shell/ernest/shell.ern`, holds the processes and the front end's declarations: everything that sends, receives or reaches the host, but the history file and the questions `Ernest.Shell.Complete` asks of the front end. A process only carries messages and writes bytes.
 
-The decisions are pure functions in modules of their own, each tested by its `Test` values (Appendix E.24). `Ernest.Shell.Editor` decides what a key does, `Ernest.Shell.Region` what the screen shows, `Ernest.Shell.Complete.complete` what a word completes to, `Ernest.Shell.Command` what a command line selects, and `Ernest.Shell.Style` how a line is colored. `Ernest.Shell.History` reads and writes the history file.
+The decisions are pure functions in modules of their own, each tested by its `Test` values (Appendix E.24). `Ernest.Shell.Editor` decides what a key does, `Ernest.Shell.Region` what the screen shows, `Ernest.Shell.Complete.complete` what a word completes to, `Ernest.Shell.Command` what a command line selects, `Ernest.Shell.Listing` the lines `:processes` writes, and `Ernest.Shell.Style` how a line is colored. `Ernest.Shell.History` reads and writes the history file.
 
 ## Processes
 
@@ -305,7 +305,7 @@ Pages are rendered by `libs/markdown`, which the shell is built against, at the 
 
 `Ernest.Shell.Command.commands` is the one table of commands: each command's name, its action, what it takes and what completes after it, and its help line. `commands_mirror_test`, in `test/ern_shell_tests.erl`, holds it equal to the list of §11.2 *Commands*. The session carries each action out, most through the foreign function of its name.
 
-The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, each with its activity and memory beside its site as `Process.status` answers them, which leaves out the processes every session marks as its own, the session, its local half where it is beside it, its screen and its reader, the inputs that bound names and the input that asks (`ern_rt:own/1`), and every load's evaluator, the runtime's own, and `:faults` reads the session's state, each fault with the time it was met, its report's `time` (Appendix E.21). `:quit` leaves every shell, an attached one detaching its session (the log's *One Word to Leave*).
+The settings are an Ernest value in the session's state, not the front end's. `:processes` lists what `Process.live()` lists at the prompt, each with its activity and memory beside its site as `Process.status` answers them, a call's callee named by its site or by the peer `Process.peer` names, and the cycles of calls without limit after them, as `Ernest.Shell.Listing` writes them. `Process.live()` leaves out the processes every session marks as its own, the session, its local half where it is beside it, its screen and its reader, the inputs that bound names and the input that asks (`ern_rt:own/1`), and every load's evaluator, the runtime's own, and `:faults` reads the session's state, each fault with the time it was met, its report's `time` (Appendix E.21). `:quit` leaves every shell, an attached one detaching its session (the log's *One Word to Leave*).
 
 ## Faults
 

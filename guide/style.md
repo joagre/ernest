@@ -42,7 +42,7 @@ The names that recur in a program, one for each concept, in every module. The re
 - **position**: a line and a column, counted from 1 as report §11.5 counts them (report Appendix G.6), and `at` the field that holds one, `at : Position`. Not `pos`, `location`.
 - **end**: the index a slice stops before, which it leaves out, `String.slice(text, index, end)` (E.5, E.20). Not `to`, `stop`.
 - **count**: how many. Not `n`, `length`.
-- **ms**: milliseconds (E.0 shape rule 8); a moment is a `time`. Not `wait`, `t`.
+- **ms**: milliseconds (E.0 shape rule 8); a moment is a `time`, and the moment a wait began, beside what waits, is `since` (E.21). Not `wait`, `t`.
 - **old, new**: what `replace` takes, in every module. Not `from`, `to`.
 - **cause**: a fault's cause (report §7.3). Not `why`, `c`, `text`.
 - **error**: an error a function answers, an `Io.Error` among them. Not `e`, `why`.

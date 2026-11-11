@@ -663,7 +663,7 @@ Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, 
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
 
-Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process (E.0 rule 1); the rest are Ernest over the prelude's sends and calls to the process of the listener or the socket they are given.
+Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process, and `callLimited`, a call private to the module (E.0 rule 1). That call has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21). `connect` and `connectTls` make it to TCP's process. `accept`, `read` and `write` are Ernest over it, and the rest over the prelude's sends and calls, to the process of the listener or the socket they are given.
 
 A socket is a process: its address can be sent like any other, and its process killed and monitored. A socket and a listener are bound to their node: their addresses never cross to another (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.faults` include them.
 
@@ -756,17 +756,25 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 ### Appendix E.21. `process.ern` (namespace `Process`)
 
-`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, a private one beneath `faults`, which reaches the runtime's report of faults, and two private ones beneath `run`: the site the compiler passes `run`, where its call is written, as it passes a spawn its own (§6.9), and a monitored spawn at that site (E.0 rule 1).
+`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, `peer`, which reads the node a process is on and the runtime's record of its peers, a private one beneath `faults`, which reaches the runtime's report of faults, and two private ones beneath `run`: the site the compiler passes `run`, where its call is written, as it passes a spawn its own (§6.9), and a monitored spawn at that site (E.0 rule 1).
 
 A `Process` is the identity of a process. It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` and `kill` take one (§6.9). Across nodes a `Process` names its node.
 
-`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28).
+`status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, for one a program's foreign code started (§8.4), and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28).
+
+A process is `Calling` while it waits for a call's answer, for a load's evaluator (E.28), or for a peer's answer to a compute, a find, a spawn or a utilization (E.27). Its `callee` is the process behind the address called, as `fromAddress` gives it, and is `None` where the wait is on a system process (§8.2), on a load's evaluator or on a peer's answer (E.27).
+
+`limited` is `true` where a time ends the wait: for `Address.call`, a wait on a peer, and each request of the library's that takes a time (E.0 shape rule 8), `Tcp.read`'s among them. It is `false` for `Address.callForever`, a request of the library's that takes no time, `Io.readLine`'s among them, `Process.run` and a load. `since` is the moment the call was made, where §6.6 starts its clock, or the moment the wait for a load's evaluator or a peer's answer began, in milliseconds as `Clock.monotonic` counts them (E.15).
+
+A process that restarts is `Receiving` while its restart waits for the wraps that tell its service monitors and for the other nodes' answers (§6.9, §8.7).
 
 A process that waits is `Running` while the host works in it. The host works in every process of a node for a moment when code is let go there (§11.2).
 
 Its `memory` is the bytes the process holds as the host counts them: its stack, its heap and its mailbox, and each binary it references, whole, however small the part it uses. A binary is counted for each reference and in each process that holds one, so the memories of a node's processes can add up to more than the node holds. A process that waits still counts what it dropped, until it runs again or the host collects it (§10). A binary that code holds, a constant's (§4.6) or a shell's binding's (§11.2), is not counted. A socket's counts the process that does its writes too (E.18), and not the host's processes of a connection over TLS.
 
 `live` answers the processes a program spawned, with the entry process and the process `run` keeps while it waits (below), and the listeners, sockets and running programs a system module opened (Appendix E.18, E.23), that have not ended; no process of the runtime's own, its evaluators among them (E.28), and no system process is among them; in a shell, and on a node a shell is attached to, each session's own processes are excepted too (§11.2).
+
+`peer` names the peer the process is on, by its name as the configuration lists it (§8.3), as `spawnedBy` names one. It answers `None` for a process of this node, and for one of a node the configuration does not list.
 
 `run(f)` runs `f()` in a process of its own and answers `Right(v)`, `v` the value `f` returned, or `Left(reason)`, the `Reason` the process ended with before it returned (§6.9): `Fault(cause)` where `f` faulted, and `Killed` where a `kill` ended it. The caller waits for the end without a limit, as a direct call of `f` would (E.0 shape rule 8), and receives nothing: the answer reaches it as a call's does (§6.6).
 
@@ -790,12 +798,13 @@ A frame of Ernest code is written as a spawn site is (§6.9), the name of the to
 
 ```
 type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
-type Activity = Running | Receiving | Calling // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's or a load's answer (E.28)
+type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) // Receiving in a `receive`, in `Clock.sleep` or in a restart's wait, Calling for a call's answer, a load's evaluator or a peer's answer (E.27, E.28)
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
-Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, or waits for a call's answer, and the bytes it holds; None once it has ended, and for a process of another node
+Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, or waits for an answer, on whom and since when, and the bytes it holds; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
+Process.peer : (Process) -> Optional(String) // the name of the peer the process is on; None for a process of this node, and for one of a node the configuration does not list
 Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended
 Process.faults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox
 Process.run : (() -> a receiving m) -> Either(Reason, a) // the value `f` returned in a process of its own, or the reason it ended with first; waits as a call of `f` would
@@ -822,7 +831,7 @@ Supervisor.child : (Address(GroupMsg), () -> Unit receiving m) -> () -> Unit rec
 
 ### Appendix E.23. `os.ern` (namespace `Os`)
 
-Over Os's system reference (§8.2). The primitives are `start` and `startTerminal`, which reach Os's process, `exit`, which ends the program through the host, `termination`, which subscribes to the program's end, and `arguments`, `user`, `workingDirectory` and `environment`, bound from what the host gives at start (E.0 rule 1). `read`, `write`, `resize`, `signal`, `closeInput` and `give` are Ernest over the prelude's sends and calls to a running program's process, `run` over `start`, `closeInput`, `read` and `kill`, and `command` a construction (§5.6).
+Over Os's system reference (§8.2). The primitives are `start` and `startTerminal`, which reach Os's process, `exit`, which ends the program through the host, `termination`, which subscribes to the program's end, and `arguments`, `user`, `workingDirectory` and `environment`, bound from what the host gives at start, and `callLimited`, a call private to the module (E.0 rule 1). That call has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21). `read` and `write` are Ernest over it, and `resize`, `signal`, `closeInput` and `give` over the prelude's sends and calls, to a running program's process, `run` over `start`, `closeInput`, `read` and `kill`, and `command` a construction (§5.6).
 
 `command(program, arguments)` is the command of a program and its arguments alone: empty input, no variable set and `Os.workingDirectory`. A command with input, with a variable set or in another directory updates it (§5.6): `Os.Command(..Os.command("sh", arguments), environment = [#("LANG", "C")])`.
 

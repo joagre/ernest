@@ -1363,7 +1363,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **bound type** — a type whose values never cross to another node: one that holds a function type, a foreign type, a resource, or an address or a reply of a bound type. §3.11.
 - **build root** — the directory a build writes its `.erc` files under, `--build-root`, mirroring the source root. §11.1.
 - **`Bytes`** — the type of an octet sequence. §3.1.
-- **callee** — the function a call applies (§5.1); of a request-reply call (§6.6), the process the request is sent to. §5.1, §6.6, §11.2, §12.4.
+- **callee** — the function a call applies (§5.1); of a request-reply call (§6.6), the process the request is sent to. §5.1, §6.6, §11.2, §12.4, Appendix E.21.
 - **canonical form** — the term a definition's hash is taken of: its typed tree after checking, its locals numbered, its names resolved, each reference the identity of what it names. §11.1, Appendix H.
 - **carrier** — the host's distribution, over which nodes connect, as a node runs it. §12.5, §10.
 - **cause** — the text a fault carries, `Fault(cause)`, which `Down` and a fault report give; §7.4 lists the language's. §7.3, §7.4.

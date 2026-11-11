@@ -1248,27 +1248,25 @@ fn columnsOf(screen : Address(ScreenMsg)) : Int =
     Optional.withDefault(Address.call(screen, Columns, screenMs), 80)
 
 // Report §11.2: the live processes by spawn site, each with its activity and
-// memory beside its site, as `Process.status` answers them: what
+// memory beside its site, as `Process.status` answers them, and the cycles of
+// calls without limit among them, as `Ernest.Shell.Listing` writes them: what
 // `Process.live()` lists at the prompt, which leaves every session's own out,
 // those its loads evaluated bindings in among them.
 fn sessionProcesses() : List(String) = {
-    let statuses = List.filterMap(Process.live(), Process.status);
-    let ordered =
-        List.sortBy(statuses,
-                    fn(status) = #(status.site, activity(status.activity), status.memory));
-    List.map(ordered, processLine)
+    let began = Clock.monotonic();
+    let listed =
+        List.filterMap(Process.live(),
+                       fn(process) =
+                           Optional.map(Process.status(process), fn(status) = #(process, status)));
+    Listing.lines(listed, calleeName, began, Clock.monotonic())
 }
 
-fn processLine(status : Process.Status) : String = {
-    let memory = Int.toString(status.memory) <> " bytes";
-    String.join([status.site, activity(status.activity), memory], " ")
-}
-
-fn activity(activity : Process.Activity) : String =
-    match activity {
-        Process.Running -> "running"
-      | Process.Receiving -> "receiving"
-      | Process.Calling -> "calling"
+// Report §11.2: a callee as `:processes` names it, by its spawn site, or by
+// the peer it is on where it has no status here.
+fn calleeName(callee : Process) : Optional(String) =
+    match Process.status(callee) {
+        Some(status) -> Some(status.site)
+      | None -> Optional.map(Process.peer(callee), fn(peer) = "a process of the peer " <> peer)
     }
 
 // Report §11.2: the depth and the length a value is printed to, the rows

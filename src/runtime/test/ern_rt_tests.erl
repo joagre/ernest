@@ -107,36 +107,82 @@ stdin_last_line_test() ->
 
 %% report Appendix E.21: a snapshot says what a live process is doing, a
 %% wait in a receive told from a wait for a call's answer, and nothing of
-%% one that has ended; the live processes are those the runtime started
+%% one that has ended; the live processes are those the runtime started.
+%% A call's status names its callee, a system process's as None, whether a
+%% time ends its wait, Address.call's and a library's request's that takes
+%% one, call_limited/2's, and the moment it began; a wait on a peer, which
+%% the runtime marks (ern_peer's on_peer/2), is limited and names none. A
+%% regression test of the callee, the limit and the moment, written after
+%% the code; a callee of another node is ern_nodes_tests' processes_test's,
+%% a compute's wait compute_caller_test's and a load's ern_code_load_tests'
 process_status_test() ->
     Self = self(),
+    Gate = ern_rt_tests_stdin_gate,
+    Held = fun() -> Gate ! {reading, self()}, receive {line, Line} -> Line end end,
     ok = ern_rt:run_main(
            fun() ->
+               true = register(Gate, self()),
                Quiet = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.quiet:1">>),
                Server = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.s:2">>),
-               Calling = fun() -> ern_rt:call_forever(Server, fun(Reply) -> Reply end) end,
+               Ask = fun(Reply) -> Reply end,
+               Calling = fun() -> ern_rt:call_forever(Server, Ask) end,
+               Began = ern_rt:monotonic(),
                Caller = ern_rt:spawn(Calling, <<"M.caller:3">>),
+               Timed = ern_rt:spawn(fun() -> ern_rt:call(Server, Ask, 600000) end, <<"M.timed:4">>),
+               Limited = ern_rt:spawn(fun() -> ern_rt:call_limited(Server, Ask) end,
+                                      <<"M.limited:5">>),
+               Stdin = ern_rt:system_process(stdin),
+               Reading = ern_rt:spawn(fun() ->
+                                          ern_rt:call_forever(Stdin, fun(Reply) ->
+                                                                         {'ReadLine', Reply}
+                                                                     end)
+                                      end, <<"M.reading:6">>),
+               OnPeer = ern_rt:spawn(fun() ->
+                                         ern_rt:peer_wait(Began),
+                                         receive stop -> ern_rt:peer_waited() end
+                                     end, <<"M.peer:7">>),
                ern_rt:send(Quiet, first),
                %% the snapshot reads each blocked in its wait, which this
                %% one counts as timed so that it is no deadlock (§8.6)
                ern_rt:timed(),
                ok = ern_waits:waiting(ern_rt:process_of(Quiet)),
-               ok = ern_waits:waiting(ern_rt:process_of(Caller)),
+               [ok = ern_waits:calling(ern_rt:process_of(Address))
+                || Address <- [Caller, Timed, Limited, Reading]],
+               ok = ern_waits:waiting(ern_rt:process_of(OnPeer)),
+               Reader = receive {reading, From} -> From end,
                ern_rt:untimed(),
                Self ! {statuses,
-                       [ern_rt:status(ern_rt:process_of(Address)) || Address <- [Quiet, Caller]]},
+                       [ern_rt:status(ern_rt:process_of(Address))
+                        || Address <- [Quiet, Caller, Timed, Limited, Reading, OnPeer]],
+                       ern_rt:process_of(Server), Began, ern_rt:monotonic()},
                Self ! {live, lists:sort(ern_rt:processes())
-                                 =:= lists:sort([self(), Quiet, Server, Caller])},
+                                 =:= lists:sort([self(), Quiet, Server, Caller, Timed, Limited,
+                                                 Reading, OnPeer])},
+               Reader ! {line, "read\n"},
                QuietRef = erlang:monitor(process, ern_rt:process_of(Quiet)),
                ern_rt:kill(Quiet),
                ern_rt:timed(),
                receive {'DOWN', QuietRef, process, _, _} -> ern_rt:untimed() end,
                Self ! {gone, ern_rt:status(Quiet)},
-               ern_rt:kill(Caller),
-               ern_rt:kill(Server)
-           end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
+               [ern_rt:kill(Address) || Address <- [Caller, Timed, Limited, OnPeer, Server]]
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end, stdin => Held}),
+    {Statuses, ServerPid, Began, Read} = receive {statuses, S, P, B, R} -> {S, P, B, R} end,
     ?assertMatch([{'Some', {'Status', <<"M.quiet:1">>, 1, 'Receiving', _}},
-                  {'Some', {'Status', <<"M.caller:3">>, 0, 'Calling', _}}], wait(statuses)),
+                  {'Some', {'Status', <<"M.caller:3">>, 0,
+                            {'Calling', {'Some', ServerPid}, false, _}, _}},
+                  {'Some', {'Status', <<"M.timed:4">>, 0,
+                            {'Calling', {'Some', ServerPid}, true, _}, _}},
+                  {'Some', {'Status', <<"M.limited:5">>, 0,
+                            {'Calling', {'Some', ServerPid}, true, _}, _}},
+                  {'Some', {'Status', <<"M.reading:6">>, 0, {'Calling', 'None', false, _}, _}},
+                  {'Some', {'Status', <<"M.peer:7">>, 0, {'Calling', 'None', true, Began}, _}}],
+                 Statuses),
+    %% each call's moment is when it was made, after Began and before the read
+    ?assert(lists:all(fun({'Some', {'Status', _, _, {'Calling', _, _, Since}, _}}) ->
+                              Began =< Since andalso Since =< Read;
+                          (_) ->
+                              true
+                      end, Statuses)),
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
@@ -1675,6 +1721,39 @@ service_monitor_test() ->
     ?assertEqual(Ended, Plain),
     ?assertEqual([], Left),
     ?assertEqual({'Down', Holder, 'Unknown', <<>>}, Late).
+
+%% report Appendix E.21, §6.9: a process whose restart waits for the wrap
+%% that tells its service monitor is Receiving there, its wait the
+%% runtime's; the wrap waits for the test's word, so that the restart is
+%% held. A regression test, written after the code
+restart_wait_status_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Zero = zero(),
+               Run = fun() ->
+                         Main ! {ready, erlang:self()},
+                         receive go -> 1 div Zero end
+                     end,
+               Holder = ern_rt:spawn(ern_rt:restarting('Unlimited', Run), <<"Main.main:3">>),
+               receive {ready, Holder} -> ok end,
+               ern_rt:monitor_service(Holder, fun(Down) ->
+                                                  Main ! {wrapping, erlang:self()},
+                                                  receive release -> {service, Down} end
+                                              end),
+               Holder ! go,
+               ern_rt:timed(),
+               Wrapping = receive {wrapping, Delivery} -> Delivery end,
+               ok = ern_waits:waiting(ern_rt:process_of(Holder)),
+               Status = ern_rt:status(ern_rt:process_of(Holder)),
+               Wrapping ! release,
+               receive {ready, Holder} -> ok end,
+               ern_rt:untimed(),
+               Self ! {restarting, Status},
+               ern_rt:kill(Holder)
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
+    ?assertMatch({'Some', {'Status', <<"Main.main:3">>, _, 'Receiving', _}}, wait(restarting)).
 
 %% report §6.9, §9.5: a restart cancels the restarting process's own
 %% monitors, its service monitors among them, so a watcher that has

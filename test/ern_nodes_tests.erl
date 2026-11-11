@@ -5196,6 +5196,67 @@ attach_unanswered(Base) ->
     ern_deployment_tests:cataloged(Err, "6", "did not answer in time", [{"b", "node"}]),
     stop(Node, WaitNode).
 
+%% report §11.2, Appendix E.21, E.27, §8.3: on a shell that is a node,
+%% `Process.peer` answers None for a process of the node and the peer's name
+%% for one a spawn placed on that peer; a call without limit to that process
+%% is listed by `:processes` with its callee as a process of the peer, and a
+%% wait for a peer's utilization, the peer's gateway suspended so that the
+%% answer never comes, with no callee and its limit. The listing is asked
+%% twice, since the first may meet the host's work in each process as the
+%% input before it is let go (ern_shell_tests' listed/3). A regression test,
+%% written after the code
+processes_on_peers_test_() ->
+    nodes_test({waits, 9}, fun processes_on_peers/1).
+
+processes_on_peers(Base) ->
+    Root = filename:join(Base, "program"),
+    Source = filename:join(Base, "src"),
+    [ok = filelib:ensure_path(Dir) || Dir <- [Root, Source]],
+    ok = file:write_file(filename:join(Root, "stall.ern"), stall()),
+    0 = built([Root]),
+    [PortA, PortB] = [free_port(), free_port()],
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", PortB),
+    S = made(Base, "s", none),
+    lists(A, [{"s", S, none}]),
+    lists(B, [{"s", S, none}]),
+    lists(S, [{"a", A, PortA}, {"b", B, PortB}]),
+    WaitA = bare_started(A, []),
+    {_, WaitB} = started(B, filename:join(Root, "stall.erc"), []),
+    prints(B, "suspended: true"),
+    {Input, WaitS} = shell_started(S, Source),
+    true = port_command(Input,
+                        ["fn calling(process : Process) : Unit = match Process.status(process) {\n"
+                         "    Some(Process.Status(activity = Process.Calling())) -> Unit\n"
+                         "  | _ -> calling(process)\n"
+                         "}\n",
+                         "fn kept() : Unit receiving Reply(Int) = receive { _ -> kept() }\n",
+                         "let served = match Peer.spawn(\"a\", kept, ", wait_ms_text(), ") {\n"
+                         "    Right(address) -> address\n"
+                         "  | Left(failure) -> fault(Io.show(failure))\n"
+                         "}\n",
+                         "Process.peer(Process.current())\n",
+                         "Process.peer(Process.fromAddress(served))\n",
+                         "let caller : Address(Never) = spawn(fn() = {\n"
+                         "    let _ : Int = Address.callForever(served, fn(reply) = reply);\n"
+                         "    Unit\n"
+                         "})\n",
+                         "let asker : Address(Never) = spawn(fn() = {\n"
+                         "    let _ = Peer.utilization(\"b\", 600000);\n"
+                         "    Unit\n"
+                         "})\n",
+                         "calling(Process.fromAddress(caller))\n",
+                         "calling(Process.fromAddress(asker))\n",
+                         ":processes\n:processes\n"]),
+    prints(S, "None : Optional(String)"),
+    prints(S, "Some(\"a\") : Optional(String)"),
+    prints(S, " calling a process of the peer a without limit for "),
+    prints(S, " calling for "),
+    true = port_command(Input, ":quit\n"),
+    ?assertEqual(0, WaitS()),
+    stop(B, WaitB),
+    stop(A, WaitA).
+
 %% A node's program that suspends its node's gateway, which answers its
 %% peers' frames (report §12.6), and then waits.
 stall() ->

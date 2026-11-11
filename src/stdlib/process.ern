@@ -54,8 +54,19 @@
 /// since 0.4.0
 export type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 
-/// What a live process is doing: running, waiting in a `receive` or in
-/// `Clock.sleep`, or waiting for the answer to a call.
+/// What a live process is doing: running, waiting in a `receive`, in
+/// `Clock.sleep` or in a restart's wait for its watchers, or waiting for an
+/// answer: a call's, a load's evaluator's or a peer's.
+///
+/// A process that waits for an answer is `Calling`. `callee` is the process
+/// behind the address called, as `fromAddress` gives it, and `None` for a
+/// system process, a load's evaluator and a peer's answer. `limited` says whether a
+/// time ends the wait: `true` for `Address.call`, a wait on a peer and each
+/// request of the library's that takes a time, `Tcp.read` among them, and
+/// `false` for `Address.callForever`, a request that takes none, `Io.readLine`
+/// among them, `Process.run` and a load. `since` is the moment the call was
+/// made, or the wait for a load's evaluator or a peer's answer began, as
+/// `Clock.monotonic` counts it.
 ///
 /// A process that waits is `Running` while the host works in it. The host works
 /// in every process of a node for a moment when code is let go there (report
@@ -67,7 +78,10 @@ export type Status = Status(site : String, queued : Int, activity : Activity, me
 /// Process.Receiving
 /// // => Process.Receiving
 /// ```
-export type Activity = Running | Receiving | Calling
+export type Activity =
+    Running
+  | Receiving
+  | Calling(callee : Optional(Process), limited : Bool, since : Int)
 
 /// A fault of a process the runtime started: the process, where it was spawned,
 /// the cause, whether it restarts after the fault, its trace, the peer whose
@@ -176,6 +190,21 @@ export foreign fn status(process : Process) : Optional(Status) =
 /// ```
 export foreign fn live() : List(Process) =
     "ern_rt:processes/0"
+
+/// The name of the peer the process is on, as the configuration lists it
+/// (report §8.3), or `None` for a process of this node and for one of a node
+/// the configuration does not list.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Process.peer(Process.current())
+/// // => None
+/// ```
+///
+/// since 0.11.0
+export foreign fn peer(process : Process) : Optional(String) =
+    "ern_peer:peer_of/1"
 
 /// The processes that end with the process, in unspecified order: each
 /// listener, socket and running program it owns (report Appendix E.18,

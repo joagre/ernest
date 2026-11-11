@@ -1383,7 +1383,8 @@ editor() ->
     %% over (report §11.2)
     ?assertEqual([<<"Ernest.Shell.Command">>, <<"Ernest.Shell.Complete">>,
                   <<"Ernest.Shell.Editor">>, <<"Ernest.Shell.History">>,
-                  <<"Ernest.Shell.Region">>, <<"Ernest.Shell.Style">>],
+                  <<"Ernest.Shell.Listing">>, <<"Ernest.Shell.Region">>,
+                  <<"Ernest.Shell.Style">>],
                  Lines -- Passed),
     ?assert(length(Passed) >= 100),
     ?assertEqual(0, Status).
@@ -3685,29 +3686,31 @@ printed(Output, Line) ->
     binary:match(Output, Line) =/= nomatch orelse erlang:error({not_printed, Line, Output}).
 
 %% Report §11.2, Appendix E.21: that the listing `:processes` wrote in Output
-%% holds Lines, in their order, Count times or at least once, the memory
-%% taken off each line (listing/1). A process Lines lists `receiving` or
-%% `calling` may be listed `running`, as the host says of a process that
-%% waits while it works in it, which it does when the session has let an
-%% input's code go. A failure carries Output whole, as printed/2's does.
+%% holds Lines, in their order, Count times or at least once, the age and the
+%% memory taken off each line (listing/1). A process Lines lists `receiving`
+%% or `calling`, with what follows `calling`, may be listed `running`, as the
+%% host says of a process that waits while it works in it, which it does when
+%% the session has let an input's code go. A failure carries Output whole, as
+%% printed/2's does.
 listed(Output, Lines) ->
     listed(Output, Lines, any).
 
 listed(Output, Lines, Count) ->
-    Waits = lists:foldl(fun(Activity, Text) ->
-                            binary:replace(Text, <<" ", Activity/binary, "\n">>,
-                                           <<"\\E (?:", Activity/binary, "|running)\n\\Q">>,
-                                           [global])
-                        end, Lines, [<<"receiving">>, <<"calling">>]),
+    Waits = re:replace(Lines, <<" (receiving|calling[^\n]*)\n">>,
+                       fun(_, [Activity]) ->
+                           [<<"\\E (?:\\Q">>, Activity, <<"\\E|running)\n\\Q">>]
+                       end,
+                       [global, {return, binary}]),
     case re:run(listing(Output), <<"\\Q", Waits/binary, "\\E">>, [global]) of
         {match, Matches} when Count =:= any; length(Matches) =:= Count -> ok;
         _ -> erlang:error({not_listed, Lines, Count, Output})
     end.
 
-%% The session's Output with the memory taken off each line `:processes`
-%% wrote, a count that differs from run to run (report §11.2).
+%% The session's Output with the age of a wait and the memory taken off each
+%% line `:processes` wrote, counts that differ from run to run (report
+%% §11.2).
 listing(Output) ->
-    re:replace(Output, " [0-9]+ bytes\n", "\n", [global, {return, binary}]).
+    re:replace(Output, "( for [0-9]+ s)? [0-9]+ bytes\n", "\n", [global, {return, binary}]).
 
 %% report §11.2, §8.7: a type in the session is its hash, so a binding made
 %% before a reload that changed `Counter.Msg` keeps the type it was checked
@@ -5034,7 +5037,7 @@ load_keeps_what_bindings_open() ->
                           ":processes\n"]),
     {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Right(Some(\"hello\"))">>)),
-    listed(Output, <<"Greeter.acceptor:21 calling\n">>),
+    listed(Output, <<"Greeter.acceptor:21 calling Tcp.listen\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"Ernest.Shell.load">>)).
 
 %% report §11.2, §6.9: a `:load` whose binding faults loads nothing: the

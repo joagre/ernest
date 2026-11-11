@@ -23,11 +23,11 @@
 %% (ern_rt:remaining/1).
 -module(ern_peer).
 
--export([configure/2, tables/0, name/1, service/1, service/2, offer/2, find/2, spawn/3, spawn/4,
-         spawn_monitored/4, spawn_monitored/5, compute/2, compute/3, compute_at/3, compute_at/4,
-         pick/0, utilization/2, peers/0, utilizations/0, set_utilization/1,
-         hold_utilization/3, drop_utilization/1, frame/2, restart_told/1, watchers_told/1,
-         failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
+-export([configure/2, tables/0, name/1, peer_of/1, service/1, service/2, offer/2, find/2,
+         spawn/3, spawn/4, spawn_monitored/4, spawn_monitored/5, compute/2, compute/3,
+         compute_at/3, compute_at/4, pick/0, utilization/2, peers/0, utilizations/0,
+         set_utilization/1, hold_utilization/3, drop_utilization/1, frame/2, restart_told/1,
+         watchers_told/1, failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
 
@@ -116,6 +116,13 @@ name(Node) ->
         #{} -> 'None'
     end.
 
+%% Appendix E.21: Process.peer, the name the configuration lists the node a
+%% process is on under, or None for a process of this node and for one of
+%% a node it does not list (name/1).
+-spec peer_of(pid()) -> {'Some', binary()} | 'None'.
+peer_of(Pid) when node(Pid) =:= node() -> 'None';
+peer_of(Pid) -> name(node(Pid)).
+
 %%
 %% The shims
 %%
@@ -149,10 +156,11 @@ offer({'Service', Name, Hash}, Address) ->
 -spec find({'Service', binary(), binary()}, integer()) ->
           {'Right', term()} | {'Left', atom()}.
 find({'Service', Name, Hash}, Ms) ->
-    Deadline = ern_rt:deadline(Ms),
+    Since = ern_rt:monotonic(),
+    Deadline = ern_rt:deadline(Since, Ms),
     Nodes = [node_of(Peer)
              || Peer <- maps:get(Name, persistent_term:get({?MODULE, services}, #{}), [])],
-    found(Nodes, Name, Hash, Deadline, 'NotListed').
+    on_peer(Since, fun() -> found(Nodes, Name, Hash, Deadline, 'NotListed') end).
 
 found([], _Name, _Hash, _Deadline, Last) ->
     {'Left', Last};
@@ -182,6 +190,13 @@ asked(Node, Name, Hash, Deadline) ->
     Alias = erlang:alias([reply]),
     erlang:send(Gateway, {ern_frame, erlang:self(), {find, Name, Hash, Alias}}),
     gateway_answer(Alias, MonitorRef, Deadline).
+
+%% Appendix E.21: a wait on a peer's answer that is no call, a find's, a
+%% spawn's or a utilization's, begun at Since, which Process.status reads
+%% as a call with a limit (ern_rt:peer_wait/1).
+on_peer(Since, Wait) ->
+    ern_rt:peer_wait(Since),
+    try Wait() after ern_rt:peer_waited() end.
 
 %% Report §8.6: the gateway's answer, waited for inside foreign code for
 %% the look, since a peer's answer is none it sees coming.
@@ -245,7 +260,8 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
         _ when node() =:= nonode@nohost ->
             {'Left', 'Unreachable'};
         Node ->
-            Deadline = ern_rt:deadline(Ms),
+            Since = ern_rt:monotonic(),
+            Deadline = ern_rt:deadline(Since, Ms),
             Ref = make_ref(),
             true = ets:insert(?SPAWNS, {{Node, Ref}, erlang:self(),
                                         erlang:unique_integer([monotonic])}),
@@ -254,7 +270,8 @@ spawned(Name, Spawned, Wrap, Ms, Site) ->
             erlang:send(Gateway, {ern_frame, erlang:self(),
                                   {spawn, Ref, Spawned, Site, Wrap =/= none, Ms}}),
             ern_rt:entered_foreign(),
-            Answer = try spawn_answer({Node, Ref}, MonitorRef, Deadline)
+            Answer = try on_peer(Since,
+                                 fun() -> spawn_answer({Node, Ref}, MonitorRef, Deadline) end)
                      after ern_rt:left_foreign()
                      end,
             erlang:demonitor(MonitorRef, [flush]),
@@ -397,12 +414,13 @@ utilization(Name, Ms) ->
         _ when node() =:= nonode@nohost ->
             {'Left', 'Unreachable'};
         Node ->
-            Deadline = ern_rt:deadline(Ms),
+            Since = ern_rt:monotonic(),
+            Deadline = ern_rt:deadline(Since, Ms),
             Gateway = {ern_gateway, Node},
             MonitorRef = erlang:monitor(process, Gateway),
             Alias = erlang:alias([reply]),
             erlang:send(Gateway, {ern_frame, erlang:self(), {utilization, Alias}}),
-            case gateway_answer(Alias, MonitorRef, Deadline) of
+            case on_peer(Since, fun() -> gateway_answer(Alias, MonitorRef, Deadline) end) of
                 Utilization when is_float(Utilization) -> {'Right', Utilization};
                 timeout -> {'Left', 'Timeout'};
                 Error -> {'Left', Error}

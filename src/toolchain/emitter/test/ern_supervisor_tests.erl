@@ -707,7 +707,7 @@ supervisor_restarts_whole() ->
         "      | Count(reply = r) -> { answer(r, n); b(n) }\n"
         "    }\n"
         "fn spin(faulted : Process) : Unit = match Process.status(faulted) {\n"
-        "    Some(Process.Status(site = _, queued = _, activity = Process.Calling)) -> Unit\n"
+        "    Some(Process.Status(site = _, queued = _, activity = Process.Calling())) -> Unit\n"
         "  | _ -> spin(faulted)\n"
         "}\n"
         "fn ping(x : Address(AMsg)) : Int =\n"

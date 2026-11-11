@@ -43,14 +43,16 @@
 -export([send/2, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3, is_never_given/1,
          is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3, spawn_root/2,
          spawn_monitored_root/3, self/0,
-         current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, compute/4, answer/2,
-         refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2, demonitor/1, kill/1,
-         killed/2, reason/1, peer_restarted/1, left_waiting/1, wait_for_deliveries/0, started_by/1,
+         current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, call_limited/2,
+         compute/4, answer/2, refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2,
+         demonitor/1, kill/1, killed/2, reason/1, peer_restarted/1, left_waiting/1,
+         wait_for_deliveries/0, started_by/1,
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
          writes_through/1, faults/1, termination/1,
          expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
-         opened/3, forget_opened/1, spent/1, timed/0, untimed/0, deadline/1, remaining/1, sleep/1,
+         opened/3, forget_opened/1, spent/1, timed/0, untimed/0, peer_wait/1, peer_waited/0,
+         deadline/1, deadline/2, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, met/3, host_cause/2, fault/1, fault/2, trace/1,
          failure_trace/1, system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
@@ -81,7 +83,7 @@
                           restart_taken/1, end_with_program/0, waited_deliveries/1,
                           waited_reports/0, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
--receives({ernest_wait, [waited_answer/3, call_forever/3, waited_evaluation/2,
+-receives({ernest_wait, [waited_answer/3, call_forever/4, waited_evaluation/2,
                          evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, faults/1, ask_monitor/2, demonitor/1,
                               spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
@@ -101,10 +103,10 @@
 %% where its stack cannot show it, called back from foreign code or waiting
 %% on what the runtime cannot see deliver, a peer, a port or the program's
 %% end (entered_foreign/0); TIMED while it waits in a receive with a
-%% deadline (timed/0); CALL while it makes a call, {Callee, Reply}, its
-%% callee, or for a compute the peer's gateway, and the reply (pending/2);
+%% deadline (timed/0); CALL while it makes a call, its #call{} (pending/1);
 %% LOAD while it waits for a load's evaluator, the evaluator, which a
-%% deadlock then faults in its place (evaluate/2, deadlock/0).
+%% deadlock then faults in its place (evaluate/2, deadlock/0), and the
+%% moment the wait began.
 %%
 %% Report §6.6, §6.9, §8.7: CALL is the call's record in the caller too,
 %% which its end of the call reads (uncalled/0), Process.status reads
@@ -116,6 +118,16 @@
 -define(TIMED, '$ern_timed').
 -define(CALL, '$ern_call').
 -define(LOAD, '$ern_load').
+%% Report §6.6, Appendix E.21: a call's mark under its caller's CALL key:
+%% the callee, a process or, for a compute, the peer's gateway; the reply;
+%% the moment the call was made, where §6.6 starts its clock, as
+%% Clock.monotonic counts it; and whether a time ends its wait, the
+%% caller's or one the request gives the callee (call_limited/2).
+-record(call, {callee, reply, since, limited}).
+%% Appendix E.21, E.27: while a process waits for a peer's answer to a
+%% find, a spawn or a utilization, the moment its wait began, which
+%% Process.status reads (peer_wait/1).
+-define(PEER_WAIT, '$ern_peer_wait').
 %% Report §6.9, Appendix E.22: while a restarting function runs, its
 %% outermost's start cause and the alias a supervisor asks it to restart
 %% through, {Cause, Alias}, kept in the process's own dictionary, which the
@@ -711,8 +723,10 @@ call(Address, Request, Ms) ->
           'None' | {'Some', term()}.
 call(Address, Request, Ms, Check) ->
     %% report §6.6: the clock starts at the call, before the request is
-    %% made and delivered
-    Deadline = deadline(Ms),
+    %% made and delivered, and the call's mark keeps the moment (Appendix
+    %% E.21)
+    Since = monotonic(),
+    Deadline = deadline(Since, Ms),
     {Callee, Reply} = watched(Address),
     %% settled however the call ends, a fault of the message's function or
     %% of the callee among the ways, which a process restarted in place
@@ -721,7 +735,7 @@ call(Address, Request, Ms, Check) ->
     %% that a call either makes, printing among them, ends first
     Answer = try
                  Way = adapted_way(Address, Request({Reply, current()})),
-                 pending(Callee, Reply),
+                 pending(#call{callee = Callee, reply = Reply, since = Since, limited = true}),
                  sent(Way),
                  timed(),
                  try waited_answer(Reply, Deadline, Check) after untimed() end
@@ -761,18 +775,33 @@ call_forever(Address, Request) ->
     call_forever(Address, Request, none).
 
 %% Report §6.6, §8.4: a program's callForever, whose answer from foreign
-%% code is checked by Check. Report §6.6, §7.4: the callee's site, as a
-%% Down names it (§6.9), is read as the call begins, while the callee's
-%% row stands, so that the fault of the callee's it carries names it.
+%% code is checked by Check.
 -spec call_forever(address(), fun((reply()) -> term()), check()) -> term().
 call_forever(Address, Request, Check) ->
+    call_forever(Address, Request, Check, false).
+
+%% Report Appendix E.18, E.23, E.21: the call private to Tcp and Os, a call
+%% without a time of its own, whose request carries the time its callee
+%% answers within, and whose wait Process.status reads as limited.
+-spec call_limited(address(), fun((reply()) -> term())) -> term().
+call_limited(Address, Request) ->
+    call_forever(Address, Request, none, true).
+
+%% The call that waits for its answer however long it takes, Limited where
+%% the request gives its callee a time. Report §6.6, §7.4: the callee's
+%% site, as a Down names it (§6.9), is read as the call begins, while the
+%% callee's row stands, so that the fault of the callee's it carries names
+%% it.
+call_forever(Address, Request, Check, Limited) ->
+    Since = monotonic(),
     {Callee, Reply} = watched(Address),
     Site = callee_site(Callee),
     %% settled however the call ends, and noted once its request is made,
     %% as call/4's is
     Answer = try
                  Way = adapted_way(Address, Request({Reply, current()})),
-                 pending(Callee, Reply),
+                 pending(#call{callee = Callee, reply = Reply, since = Since,
+                               limited = Limited}),
                  sent(Way),
                  receive
                      {Reply, answered, Value} -> {answered, Value};
@@ -862,7 +891,7 @@ end_with_program() ->
 
 %% A call's monitor of the process behind the address, whose alias is the
 %% reply's (watched/1); and, once the request is made, the call noted
-%% against that process (pending/2): the caller's CALL key put first, so
+%% against that process (pending/1): the caller's CALL key put first, so
 %% that whatever row or note the call has, a kill finds by it (killed/2);
 %% then the callee's row, by which a restart of a callee of this node ends
 %% the call, and by which the reaper finds the call of a caller the host
@@ -873,8 +902,8 @@ watched(Address) ->
     Callee = process_of(Address),
     {Callee, erlang:monitor(process, Callee, [{alias, demonitor}])}.
 
-pending(Callee, Reply) ->
-    called(Callee, Reply),
+pending(#call{callee = Callee, reply = Reply} = Call) ->
+    called(Call),
     case node(Callee) =:= node() of
         true ->
             true;
@@ -883,10 +912,10 @@ pending(Callee, Reply) ->
                         {ern_frame, erlang:self(), {call_waits, Callee, Reply}})
     end.
 
-%% The calling process's CALL key, and then its row of the callees, Callee a
-%% process or, for a compute, the peer's gateway (compute/4).
-called(Callee, Reply) ->
-    _ = erlang:put(?CALL, {Callee, Reply}),
+%% The calling process's CALL key, and then its row of the callees, the
+%% callee a process or, for a compute, the peer's gateway (compute/4).
+called(#call{callee = Callee, reply = Reply} = Call) ->
+    _ = erlang:put(?CALL, Call),
     ets:insert(?CALLEES, {{Callee, erlang:self()}, Reply}).
 
 %% The call is over: its records go (uncalled/0), its monitor and with it
@@ -918,7 +947,7 @@ uncalled() ->
 %% table goes with the program's end, which a kill under way may meet.
 uncalled(_Caller, undefined) ->
     true;
-uncalled(Caller, {Callee, Reply}) ->
+uncalled(Caller, #call{callee = Callee, reply = Reply}) ->
     try ets:delete(?CALLEES, {Callee, Caller}) catch error:badarg -> true end,
     case gateway_of(Callee) of
         none -> true;
@@ -934,7 +963,9 @@ uncalled(Caller, {Callee, Reply}) ->
 %% dropped them first (killed/2), and a fault or a restart ended the call
 %% as the process left its wait.
 left_call(Pid) ->
-    lists:foreach(fun({{Callee, _}, Reply}) -> uncalled(Pid, {Callee, Reply}) end,
+    lists:foreach(fun({{Callee, _}, Reply}) ->
+                      uncalled(Pid, #call{callee = Callee, reply = Reply})
+                  end,
                   matching_rows(?CALLEES, {{'_', Pid}, '_'})).
 
 %% Whether an end is the host's, none the runtime gives and not the
@@ -972,7 +1003,7 @@ compute(Node, Frame, Deadline, {Peer, Site}) ->
     Gateway = {ern_gateway, Node},
     MonitorRef = erlang:monitor(process, Gateway),
     Alias = erlang:alias([reply]),
-    called(Gateway, Alias),
+    called(#call{callee = Gateway, reply = Alias, since = monotonic(), limited = true}),
     erlang:send(Gateway, {ern_frame, erlang:self(), Frame(Alias)}),
     %% report §8.6: a peer's answer is none the look sees coming
     entered_foreign(),
@@ -1069,7 +1100,7 @@ over(Alias) ->
 %% goes, and then the CALL key (uncalled/0).
 closed() ->
     case erlang:get(?CALL) of
-        {Callee, _} -> ets:delete(?CALLEES, {Callee, erlang:self()});
+        #call{callee = Callee} -> ets:delete(?CALLEES, {Callee, erlang:self()});
         undefined -> true
     end,
     erlang:erase(?CALL).
@@ -1825,8 +1856,7 @@ deadlock() ->
 loading() ->
     Rows = live_rows(),
     Waited = [Evaluator || #process_row{pid = Pid} <- Rows,
-                           {_, Evaluator} <- [erlang:process_info(Pid, {dictionary, ?LOAD})],
-                           is_pid(Evaluator)],
+                           {_, {Evaluator, _}} <- [erlang:process_info(Pid, {dictionary, ?LOAD})]],
     case lists:sort([{Order, Pid} || #process_row{pid = Pid, spawn_order = Order} <- Rows,
                                      lists:member(Pid, Waited)]) of
         [] -> none;
@@ -1901,7 +1931,7 @@ waiting_frame(Stack) ->
 
 waited_on(undefined) ->
     none;
-waited_on({Callee, _}) ->
+waited_on(#call{callee = Callee}) ->
     case callee_site(Callee) of
         <<>> -> none;
         Site -> Site
@@ -2495,33 +2525,66 @@ chain_head(_Pid, Root) -> Root.
 
 %% Appendix E.21: Process.status, a snapshot of a live process, None once it
 %% has ended, for a process on another node, and for one of the runtime's
-%% own, which has no row but a load's evaluator (E.28). A process waiting for a
-%% call's answer is Calling, which the host's status does not tell from a
-%% receive: it keeps its call under its CALL key (§6.6). Every other status
-%% of the host's is Running, its work in a process that waits among them,
-%% which no item of the host's tells from the process's own. A socket's
-%% memory counts its writer's, which it keeps under its WRITER key.
+%% own, which has no row but a load's evaluator (E.28). A socket's memory
+%% counts its writer's, which it keeps under its WRITER key.
 -spec status(pid()) ->
-    'None' | {'Some', {'Status', binary(), non_neg_integer(), atom(), non_neg_integer()}}.
+    'None' | {'Some', {'Status', binary(), non_neg_integer(), activity(), non_neg_integer()}}.
 status(Pid) when node(Pid) =:= node() ->
-    Asked = [status, message_queue_len, {dictionary, ?CALL}, {dictionary, ?WRITER}
-             | ?HOLDS],
+    Asked = [status, message_queue_len, {dictionary, ?CALL}, {dictionary, ?LOAD},
+             {dictionary, ?PEER_WAIT}, {dictionary, ?WRITER} | ?HOLDS],
     case {ets_lookup(?PROCESSES, Pid), erlang:process_info(Pid, Asked)} of
         {[#process_row{own = evaluator}], _} ->
             'None';
         {[#process_row{site = Site}],
-         [{status, HostStatus}, {message_queue_len, Queued}, {_, Call}, {_, Writer} | Holds]} ->
-            Activity = case {HostStatus, Call} of
-                           {waiting, undefined} -> 'Receiving';
-                           {waiting, _} -> 'Calling';
-                           _ -> 'Running'
-                       end,
+         [{status, HostStatus}, {message_queue_len, Queued}, {_, Call}, {_, Load},
+          {_, PeerWait}, {_, Writer} | Holds]} ->
+            Activity = activity(HostStatus, Call, Load, PeerWait),
             {'Some', {'Status', Site, Queued, Activity, held_bytes(Holds) + writer_bytes(Writer)}};
         _ ->
             'None'
     end;
 status(_) ->
     'None'.
+
+%% Appendix E.21: what a process does, which the host's status does not
+%% tell of a wait: one that waits with a call's mark, a load's or a wait's
+%% on a peer is Calling, read from the mark, and one that waits with none
+%% is Receiving. Every other status of the host's is Running, its work in a
+%% process that waits among them, which no item of the host's tells from
+%% the process's own.
+-type activity() :: 'Running' | 'Receiving'
+                  | {'Calling', 'None' | {'Some', pid()}, boolean(), integer()}.
+
+activity(waiting, #call{callee = Callee, limited = Limited, since = Since}, _, _) ->
+    {'Calling', callee(Callee), Limited, Since};
+activity(waiting, undefined, {_Evaluator, Since}, _) ->
+    {'Calling', 'None', false, Since};
+activity(waiting, undefined, undefined, Since) when is_integer(Since) ->
+    {'Calling', 'None', true, Since};
+activity(waiting, _, _, _) ->
+    'Receiving';
+activity(_, _, _, _) ->
+    'Running'.
+
+%% Appendix E.21: a call's callee as Process.Calling gives it, the process
+%% itself, or None for a compute's peer, whose gateway the mark holds, for a
+%% system process, and for a load's evaluator, the runtime's own, of which
+%% no Process is given.
+callee({ern_gateway, _}) ->
+    'None';
+callee(Callee) when node(Callee) =/= node() ->
+    {'Some', Callee};
+callee(Callee) ->
+    case lists:member(Callee, system_pids()) orelse is_evaluator(Callee) of
+        true -> 'None';
+        false -> {'Some', Callee}
+    end.
+
+is_evaluator(Pid) ->
+    case ets_lookup(?PROCESSES, Pid) of
+        [#process_row{own = evaluator}] -> true;
+        _ -> false
+    end.
 
 %% Appendix E.21: the bytes the host counts for a process. Its `memory` leaves
 %% out the binaries the process references, which its collector counts in
@@ -2903,11 +2966,11 @@ own_modules() ->
 
 %% A call waiting on a system process, a listener, a socket or a running
 %% program, Held, is a pending I/O from before its request is sent, as the
-%% caller's CALL key is (pending/2): signals from two senders are not
+%% caller's CALL key is (pending/1): signals from two senders are not
 %% ordered, so a request still in transit is not seen at its receiver.
 calling_the_system(undefined, _Held) ->
     false;
-calling_the_system({Callee, _}, Held) ->
+calling_the_system(#call{callee = Callee}, Held) ->
     lists:member(Callee, Held).
 
 %% Report §8.6, §6.6: a call waiting on a process with no row, a foreign
@@ -2917,7 +2980,7 @@ calling_the_system({Callee, _}, Held) ->
 %% first read has found every process waiting, so that no call pays for it.
 calling_the_foreign(undefined) ->
     false;
-calling_the_foreign({Callee, _}) ->
+calling_the_foreign(#call{callee = Callee}) ->
     ets:lookup(?PROCESSES, Callee) =:= [].
 
 quiet_system() ->
@@ -3105,13 +3168,33 @@ untimed() ->
     _ = erlang:erase(?TIMED),
     ok.
 
+%% Appendix E.21, E.27: a wait for a peer's answer that is no call, a
+%% find's, a spawn's or a utilization's, begun at Since, put under the
+%% PEER_WAIT key while it waits and taken away as it ends, so that
+%% Process.status reads it as a call with a limit and no callee.
+-spec peer_wait(integer()) -> ok.
+peer_wait(Since) ->
+    _ = erlang:put(?PEER_WAIT, Since),
+    ok.
+
+-spec peer_waited() -> ok.
+peer_waited() ->
+    _ = erlang:erase(?PEER_WAIT),
+    ok.
+
 %% Report §6.3, §6.6, Appendix E.0 rule 8: a time has no upper bound, and a
 %% time below 0 is 0. The host waits at most ?SLICE at once, so a wait is
 %% made against the moment its time ends, on the monotonic clock, in waits
 %% of at most ?SLICE each; the compiler emits the same loop for `after`.
 -spec deadline(integer()) -> integer().
 deadline(Ms) ->
-    erlang:monotonic_time(millisecond) + max(0, Ms).
+    deadline(monotonic(), Ms).
+
+%% The same, from the moment Since, which a wait that keeps its start reads
+%% once for both (call/4).
+-spec deadline(integer(), integer()) -> integer().
+deadline(Since, Ms) ->
+    Since + max(0, Ms).
 
 %% The next wait towards the deadline; 0 once it has passed.
 -spec remaining(integer()) -> 0..?SLICE.
@@ -4325,7 +4408,7 @@ tell(Runner, Launch, Subscriber, Told) ->
     {Callee, Reply} = watched(Subscriber),
     Ended = make_ref(),
     monitor(Subscriber, fun(_Down) -> Ended end),
-    pending(Callee, Reply),
+    pending(#call{callee = Callee, reply = Reply, since = monotonic(), limited = false}),
     %% the delivery's end a message, as the reaper and the clock take their
     %% deliveries' (undelivered/2)
     erlang:process_flag(trap_exit, true),
@@ -4530,7 +4613,7 @@ make_tables() ->
 
 %% The callees' and the deliveries' rows are ordered, so that a process
 %% reads its own by their key's prefix. Every call writes a callee's row
-%% and deletes it (pending/2, uncalled/2), so its table takes the host's
+%% and deletes it (pending/1, uncalled/2), so its table takes the host's
 %% write concurrency, which lets calls on one node write it at once. A bag
 %% by the callee, which a restart would read by one lookup, walks the
 %% callee's rows at each write and delete, so that a crowd of callers
@@ -4988,15 +5071,16 @@ evaluation_waited(Evaluator, Ref) ->
     end.
 
 %% Report §8.6, Appendix E.28: the caller's wait for its evaluator, an
-%% Ernest wait for the look, under the LOAD key, so that a deadlock faults
-%% the evaluator in its place (deadlock/0): `lives` for one that lives on;
+%% Ernest wait for the look, under the LOAD key with the moment it began,
+%% so that a deadlock faults the evaluator in its place (deadlock/0) and
+%% Process.status reads the wait (status/1): `lives` for one that lives on;
 %% `evaluated` for one that ended with its work, and the end of one whose
 %% binding faulted, once its monitor tells the end; or the end of an
 %% evaluator ended from outside, its site and its reason. A restart asked
 %% of the caller, and a fault met on a message's way to it, are taken at
 %% this wait as at a call's, and interrupt the load (§6.9, §6.5).
 waited_evaluation(Evaluator, Ref) ->
-    _ = erlang:put(?LOAD, Evaluator),
+    _ = erlang:put(?LOAD, {Evaluator, monotonic()}),
     try
         receive
             {Ref, {evaluated, true}} ->

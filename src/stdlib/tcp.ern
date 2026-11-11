@@ -175,6 +175,12 @@ let reference : Address(Msg) = system(Foreign.atom("tcp"))
 foreign fn system(name : Foreign.Term) : Address(Msg) =
     "ern_rt:system_process/1"
 
+// Report Appendix E.18, E.21: a call without a time of its own, whose
+// request carries the time its callee answers within, and whose wait
+// `Process.status` reads as limited.
+foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : a =
+    "ern_rt:call_limited/2"
+
 /// Listens for connections on `port` of the interface `host` names, and answers
 /// the listener's address.
 ///
@@ -251,7 +257,7 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) =
 export fn accept(listener : Address(ListenerMsg),
                  ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
-    Address.callForever(listener, fn(reply) = Accept(=ms, =owner, =reply))
+    callLimited(listener, fn(reply) = Accept(=ms, =owner, =reply))
 }
 
 /// Connects to `port` on `host`, within `ms` milliseconds, and answers the
@@ -266,7 +272,7 @@ export fn accept(listener : Address(ListenerMsg),
 export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
     let request = fn(reply) = Connect(=host, =port, =ms, =owner, =reply);
-    Address.callForever(reference, request)
+    callLimited(reference, request)
 }
 
 /// Listens for connections over TLS on `port` of the interface `host` names,
@@ -352,7 +358,7 @@ export fn connectTls(host : String,
                      ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
     let request = fn(reply) = ConnectTls(=host, =port, =verification, =ms, =owner, =reply);
-    Address.callForever(reference, request)
+    callLimited(reference, request)
 }
 
 /// Waits at most `ms` milliseconds for bytes from the connection, and answers
@@ -368,7 +374,7 @@ export fn connectTls(host : String,
 /// cause `callee had ended`, or `callee was closed` where `close` ended it as
 /// the call was made.
 export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) =
-    Address.callForever(socket, fn(reply) = Read(=ms, =reply))
+    callLimited(socket, fn(reply) = Read(=ms, =reply))
 
 /// Writes `bytes` to the connection by the host's send, and answers
 /// `Right(Unit)` once the host has taken them, at most `ms` milliseconds. The
@@ -392,7 +398,7 @@ export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) 
 /// cause `callee had ended`, or `callee was closed` where `close` ended it as
 /// the call was made.
 export fn write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
-    Address.callForever(socket, fn(reply) = Write(=bytes, =ms, =reply))
+    callLimited(socket, fn(reply) = Write(=bytes, =ms, =reply))
 
 /// Closes the connection and ends the socket's process, a read or a write the
 /// socket holds waiting answering `Left(Closed)`. On a socket that has ended

@@ -1,0 +1,284 @@
+/// The lines `:processes` writes (report §11.2), designed in
+/// docs/design/shell.md: each live process by its spawn site, its activity
+/// and its memory, and after them a line for each cycle of calls without
+/// limit that stood when the listing began. Pure, and tested by `ern test`;
+/// the session reads the processes and names their callees.
+
+/// The lines for the processes, each with its status as `Process.status`
+/// answered it, all read after the moment `began` and before `now`, as
+/// `Clock.monotonic` counts them; `named` gives a callee as a line writes
+/// it, by its spawn site or the peer it is on, or `None` where neither is
+/// known.
+export fn lines(listed : List(#(Process, Process.Status)),
+                named : (Process) -> Optional(String),
+                began : Int,
+                now : Int) : List(String) = {
+    let ordered =
+        List.sortBy(listed,
+                    fn(#(_, status)) = #(status.site, word(status.activity), status.memory));
+    List.map(ordered, fn(#(_, status)) = processLine(status, named, now))
+        <> cycleLines(ordered, began, now)
+}
+
+fn processLine(status : Process.Status,
+               named : (Process) -> Optional(String),
+               now : Int) : String = {
+    let memory = Int.toString(status.memory) <> " bytes";
+    String.join([status.site] <> activity(status.activity, named, now) <> [memory], " ")
+}
+
+// Report §11.2: the word of an activity, which orders one site's processes.
+fn word(activity : Process.Activity) : String =
+    match activity {
+        Process.Running -> "running"
+      | Process.Receiving -> "receiving"
+      | Process.Calling() -> "calling"
+    }
+
+// Report §11.2: a call's words after `calling`: its callee where it is
+// named, `without limit` where no time ends its wait, and its age.
+fn activity(activity : Process.Activity,
+            named : (Process) -> Optional(String),
+            now : Int) : List(String) =
+    match activity {
+        Process.Calling(=callee, =limited, =since) -> {
+            let calleeWords = match Optional.andThen(callee, named) {
+                Some(name) -> [name]
+              | None -> []
+            };
+            let limit = if limited then [] else ["without limit"];
+            ["calling"] <> calleeWords <> limit <> ["for", age(since, now)]
+        }
+      | other ->
+            [word(other)]
+    }
+
+// The whole seconds from `since` to `now`, with their unit.
+fn age(since : Int, now : Int) : String =
+    Int.toString((now - since) / 1000) <> " s"
+
+//
+// The cycles
+//
+
+// Report §11.2: a line for each cycle of calls without limit whose calls
+// all began before `began`, its processes by their sites in the calls'
+// order from the one listed first, the lines in the order of the processes
+// they begin with.
+fn cycleLines(ordered : List(#(Process, Process.Status)), began : Int, now : Int) : List(String) = {
+    let calls =
+        Map.fromList(List.filterMap(ordered,
+                                    fn(#(process, status)) = standing(process, status, began)));
+    let places =
+        Map.fromList(List.map(List.indexed(ordered),
+                              fn(#(index, #(process, _))) = #(process, index)));
+    let sites = Map.fromList(List.map(ordered, fn(#(process, status)) = #(process, status.site)));
+    let found = cycles(calls, List.map(ordered, fn(#(process, _)) = process));
+    let begun = List.map(found, fn(cycle) = fromFirst(cycle, places));
+    List.map(List.sortBy(begun, fn(#(first, _)) = first),
+             fn(#(_, cycle)) = cycleLine(cycle, calls, sites, now))
+}
+
+// A call without limit that began before the listing did, by its process:
+// its callee and the moment it began.
+fn standing(process : Process,
+            status : Process.Status,
+            began : Int) : Optional(#(Process, #(Process, Int))) =
+    match status.activity {
+        Process.Calling(callee = Some(callee), limited = false, =since) when since < began ->
+            Some(#(process, #(callee, since)))
+      | _ ->
+            None
+    }
+
+// The cycles the calls close, each walked once, the walks begun in the
+// order of `processes`.
+fn cycles(calls : Map(Process, #(Process, Int)),
+          processes : List(Process)) : List(List(Process)) = {
+    let #(_, found) = List.foldLeft(processes, #(Set.empty, []), fn(#(seen, found), process) = {
+        let #(seen, closed) = walked(calls, process, seen, []);
+        #(seen, found <> closed)
+    });
+    found
+}
+
+// The walk along the calls from `process`, `path` the processes it has
+// passed, the latest first: each process it reaches put among the seen,
+// and the cycle it closes where it comes back to a process of its path.
+fn walked(calls : Map(Process, #(Process, Int)),
+          process : Process,
+          seen : Set(Process),
+          path : List(Process)) : #(Set(Process), List(List(Process))) =
+    if List.contains(path, process) then {
+        let #(_, cycle) = List.span(List.reverse(path), fn(passed) = passed != process);
+        #(seen, [cycle])
+    } else if Set.contains(seen, process) then
+        #(seen, [])
+    else match Map.get(calls, process) {
+        Some(#(callee, _)) -> walked(calls, callee, Set.put(seen, process), process :: path)
+      | None -> #(Set.put(seen, process), [])
+    }
+
+// The cycle from its process listed first, with that process's place.
+fn fromFirst(cycle : List(Process), places : Map(Process, Int)) : #(Int, List(Process)) =
+    match List.minimumBy(List.indexed(cycle), fn(#(_, process)) = place(process, places)) {
+        Some(#(index, process)) ->
+            #(place(process, places), List.drop(cycle, index) <> List.take(cycle, index))
+      | None ->
+            #(0, cycle)
+    }
+
+fn place(process : Process, places : Map(Process, Int)) : Int =
+    Optional.withDefault(Map.get(places, process), 0)
+
+// Report §11.2: a cycle's line, the age of its youngest call and its
+// processes' sites.
+fn cycleLine(cycle : List(Process),
+             calls : Map(Process, #(Process, Int)),
+             sites : Map(Process, String),
+             now : Int) : String = {
+    let begun =
+        List.filterMap(cycle,
+                       fn(process) =
+                           Optional.map(Map.get(calls, process), fn(#(_, since)) = since));
+    let youngest = Optional.withDefault(List.maximumBy(begun, fn(since) = since), now);
+    "a cycle of calls without limit for "
+        <> age(youngest, now)
+        <> ": "
+        <> String.join(List.filterMap(cycle, fn(process) = Map.get(sites, process)), ", ")
+}
+
+//
+// Tests
+//
+
+// Processes for the listings below, each ended at once, since only their
+// identities are read.
+fn processes(count : Int) : List(Process) =
+    List.map(List.range(1, count), fn(_) = Process.fromAddress(spawn(fn() = Unit)))
+
+fn statusAt(site : String, activity : Process.Activity, memory : Int) : Process.Status =
+    Process.Status(=site, queued = 0, =activity, =memory)
+
+fn calling(callee : Process, since : Int) : Process.Activity =
+    Process.Calling(callee = Some(callee), limited = false, =since)
+
+// The sites the listings below name their callees by.
+fn sited(listed : List(#(Process, Process.Status))) : (Process) -> Optional(String) = {
+    let sites = Map.fromList(List.map(listed, fn(#(process, status)) = #(process, status.site)));
+    fn(process) = Map.get(sites, process)
+}
+
+let processLines =
+    Test.Case(name = "a process's line is its site, its activity and its bytes",
+              run = fn() = match processes(6) {
+                  [a, b, c, d, e, unknown] -> {
+                      let listed =
+                          [#(a, statusAt("M.a:1", Process.Running, 10)),
+                           #(b, statusAt("M.b:2", Process.Receiving, 20)),
+                           #(c, statusAt("M.c:3", calling(b, 500), 30)),
+                           #(d,
+                             statusAt("M.d:4",
+                                      Process.Calling(callee = Some(unknown),
+                                                      limited = true,
+                                                      since = 41001),
+                                      40)),
+                           #(e,
+                             statusAt("M.e:5",
+                                      Process.Calling(callee = None,
+                                                      limited = false,
+                                                      since = 40000),
+                                      50))];
+                      Test.equal(lines(listed, sited(listed), 0, 42000),
+                                 ["M.a:1 running 10 bytes",
+                                  "M.b:2 receiving 20 bytes",
+                                  "M.c:3 calling M.b:2 without limit for 41 s 30 bytes",
+                                  "M.d:4 calling for 0 s 40 bytes",
+                                  "M.e:5 calling without limit for 2 s 50 bytes"])
+                  }
+                | _ ->
+                      Test.Failed("processes")
+              })
+
+let order =
+    Test.Case(name = "a site's processes are by their activity's word and then by memory",
+              run = fn() = match processes(5) {
+                  [a, b, c, d, e] -> {
+                      let listed =
+                          [#(a, statusAt("M.s:1", Process.Running, 5)),
+                           #(b, statusAt("M.s:1", Process.Receiving, 20)),
+                           #(c,
+                             statusAt("M.s:1",
+                                      Process.Calling(callee = None, limited = true, since = 0),
+                                      300)),
+                           #(d, statusAt("M.s:1", Process.Receiving, 3)),
+                           #(e, statusAt("M.r:9", Process.Running, 1))];
+                      Test.equal(lines(listed, sited(listed), 0, 0),
+                                 ["M.r:9 running 1 bytes",
+                                  "M.s:1 calling for 0 s 300 bytes",
+                                  "M.s:1 receiving 3 bytes",
+                                  "M.s:1 receiving 20 bytes",
+                                  "M.s:1 running 5 bytes"])
+                  }
+                | _ ->
+                      Test.Failed("processes")
+              })
+
+let cycle =
+    Test.Case(name = "a cycle that stood when the listing began has a line after it",
+              run = fn() = match processes(3) {
+                  [p, q, r] -> {
+                      let listed =
+                          [#(r, statusAt("M.r:3", calling(p, 50), 1)),
+                           #(q, statusAt("M.q:2", calling(p, 200), 1)),
+                           #(p, statusAt("M.p:1", calling(q, 100), 1))];
+                      Test.equal(lines(listed, sited(listed), 1000, 42000),
+                                 ["M.p:1 calling M.q:2 without limit for 41 s 1 bytes",
+                                  "M.q:2 calling M.p:1 without limit for 41 s 1 bytes",
+                                  "M.r:3 calling M.p:1 without limit for 41 s 1 bytes",
+                                  "a cycle of calls without limit for 41 s: M.p:1, M.q:2"])
+                  }
+                | _ ->
+                      Test.Failed("processes")
+              })
+
+let passing =
+    Test.Case(name = "a cycle with a call younger than the listing or with a limit has none",
+              run = fn() = match processes(4) {
+                  [p, q, s, t] -> {
+                      let listed =
+                          [#(p, statusAt("M.p:1", calling(q, 100), 1)),
+                           #(q, statusAt("M.q:2", calling(p, 1000), 1)),
+                           #(s,
+                             statusAt("M.s:3",
+                                      Process.Calling(callee = Some(t), limited = true, since = 0),
+                                      1)),
+                           #(t, statusAt("M.t:4", calling(s, 0), 1))];
+                      Test.equal(List.filter(lines(listed, sited(listed), 1000, 2000),
+                                             fn(line) = String.startsWith(line, "a cycle")),
+                                 [])
+                  }
+                | _ ->
+                      Test.Failed("processes")
+              })
+
+let cycleOrder =
+    Test.Case(name = "the cycles' lines are in the order of the processes they begin with",
+              run = fn() = match processes(6) {
+                  [a, b, c, d, y, z] -> {
+                      let listed =
+                          [#(z, statusAt("M.z:6", calling(y, 0), 1)),
+                           #(y, statusAt("M.y:5", calling(z, 0), 1)),
+                           #(b, statusAt("M.b:2", calling(y, 0), 1)),
+                           #(d, statusAt("M.d:4", calling(c, 0), 1)),
+                           #(c, statusAt("M.c:3", calling(d, 0), 1)),
+                           #(a, statusAt("M.a:1", calling(a, 0), 1))];
+                      Test.equal(List.filter(lines(listed, sited(listed), 1, 1000),
+                                             fn(line) = String.startsWith(line, "a cycle")),
+                                 ["a cycle of calls without limit for 1 s: M.a:1",
+                                  "a cycle of calls without limit for 1 s: M.c:3, M.d:4",
+                                  "a cycle of calls without limit for 1 s: M.y:5, M.z:6"])
+                  }
+                | _ ->
+                      Test.Failed("processes")
+              })

@@ -1408,7 +1408,7 @@ job 2: 4
 
 A test that asks a server what it did with a `Down` has nothing to wait on: the `Down` has no order with the test's own request, so the server may answer before it has seen the death. `Test.until(fn() = Test.equal(Address.call(server, Count, 1000), Some(1)), 1000)` runs the test again until it passes or the milliseconds end, and answers the last outcome (report Appendix E.24): the test waits for the effect it means, and the milliseconds only bound the wait.
 
-`Process.live()` lists the live processes, `Process.status(process)` tells where one was spawned, how many messages wait for it, whether it runs and the bytes it holds, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
+`Process.live()` lists the live processes, `Process.status(process)` tells where one was spawned, how many messages wait for it, whether it runs, waits in a `receive` or calls, on whom and since when, and the bytes it holds, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
 A fault in one process does not affect another, apart from the cases §6.3 lists.
 
@@ -1425,7 +1425,7 @@ kill : (Process) -> Unit
 
 ### 5.4 Deadlock
 
-When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, a file, a program it started or a foreign process's answer is waiting for something that can come, so an idle server is not deadlocked. A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang. Report §8.6 gives the exact condition.
+When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, a file, a program it started or a foreign process's answer is waiting for something that can come, so an idle server is not deadlocked. A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang. Report §8.6 gives the exact condition. `:processes` in the shell shows such a part: it names each call's callee and how long it has waited, and writes a line for each cycle of calls without limit (report §11.2).
 
 A delivery that foreign code arranges for after its call has returned, from a timer or a process of the host's, is one the runtime does not see coming, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (§8.3).
 
@@ -1743,7 +1743,7 @@ the worker spawned at Faults.main:10 faulted: division by zero
 
 Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace ends with the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
-A frame of the standard library's own Ernest names its line in the library's source, `Process.run:259` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+A frame of the standard library's own Ernest names its line in the library's source, `Process.run:288` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
@@ -1784,7 +1784,7 @@ $ ern run tasks.erc
 Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
     Tasks.supervise:6
-    Process.run:259
+    Process.run:288
 0: failed, division by zero
 5: 20
 all jobs done

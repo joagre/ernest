@@ -50,13 +50,7 @@ it.
    Program*).
 2. **The callee in a deadlock's report**, done 2026-11-11 (the log's *A Deadlock of the Whole
    Program*).
-3. **Who waits on whom**, Part 3: `Process.Calling` gains its callee, whether a limit ends the
-   wait and the moment the call began (E.21); `Process.peer` names a process's peer; and
-   `:processes` writes them, with a line for each cycle of calls without limit (§11.2). It
-   reports and never faults. It breaks a match on `Process.Calling`, one site here and four in
-   ernest-httpd, whose session meets it at its floor's rise. It closes on `make test-full`, and
-   `make bench` confirms the call's rows within their noise, before MVP 4.4's item 2 reads the
-   cost.
+3. **Who waits on whom**, done 2026-11-11 (the log's *A Deadlock of the Whole Program*).
 
 The other seven are the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md).
@@ -80,7 +74,8 @@ The other seven are the packages proposal's build order,
 9. **The guide's section on a package.**
 10. **The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
     manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
-    host part as the proposal's question 5 says.
+    host part as the proposal's question 5 says. ernest-httpd's four matches on a bare
+    `Process.Calling` take `Process.Calling()` then, since item 3 gave it fields (E.21).
 11. **The flake hunt**, decided with the user 2026-11-10 (the log's *The Listings Before a
     Review*): a target of its own that runs the split suites of `make test-full` again and
     again in warm hosts beside busy loops, for as long as it is given, writes each failing test
@@ -100,6 +95,10 @@ The other seven are the packages proposal's build order,
 18. **`Http.target` and the characters a browser sends raw**, done 2026-11-11 (the log's *The Review's
     Feedback Decided*, 250).
 19. **The help at `++`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 251).
+20. **The deadlock proposal's reading and sweep**, built whole by items 1 to 3: what
+    [`proposals/deadlock/`](proposals/deadlock/README.md) holds that no owner has yet, its
+    experiment's findings among them, read with the user and given to the runtime's note or the
+    log, and then the directory goes, before the milestone's release.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

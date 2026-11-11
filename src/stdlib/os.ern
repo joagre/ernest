@@ -148,6 +148,12 @@ let reference : Address(Msg) = system(Foreign.atom("os"))
 foreign fn system(name : Foreign.Term) : Address(Msg) =
     "ern_rt:system_process/1"
 
+// Report Appendix E.23, E.21: a call without a time of its own, whose
+// request carries the time its callee answers within, and whose wait
+// `Process.status` reads as limited.
+foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : a =
+    "ern_rt:call_limited/2"
+
 /// The words after the module on `ern run`'s command line, whatever they look
 /// like, `-v` among them, bound when the program starts. `ern run` refuses a
 /// word that is not UTF-8. In the shell and under `ern test` there are none.
@@ -513,7 +519,7 @@ export fn resize(program : Address(ProgramMsg), size : Terminal.Size) : Either(I
 /// // => Right(#(Os.Stderr(<<110, 111, 10>>), Os.Exited(1)))
 /// ```
 export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) =
-    Address.callForever(program, fn(reply) = Read(=ms, =reply))
+    callLimited(program, fn(reply) = Read(=ms, =reply))
 
 /// Gives `bytes` to the program as its input, after what it was given before.
 /// It answers `Right(Unit)` once the program has taken them, waiting while the
@@ -542,7 +548,7 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 /// // => Right(Os.Stdout(<<104, 105>>))
 /// ```
 export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
-    Address.callForever(program, fn(reply) = Write(=bytes, =ms, =reply))
+    callLimited(program, fn(reply) = Write(=bytes, =ms, =reply))
 
 /// Sends the program `signal`, to the program alone and not to the programs it
 /// started, as the host's `kill` given the program's number does. It answers
