@@ -35,6 +35,10 @@
          "practise", "enquire", "acknowledgement", "acknowledgements", "characterise",
          "criticised", "specialisation"]).
 
+%% A command in a document's block of commands: make and its words, or ern
+%% with one at least, each after an optional sudo and the variables it sets.
+-define(COMMAND, "(?:sudo )?(?:[A-Z_]+=\\S+ )*(?:make(?: \\S+)*|(?:bin/)?ern(?: \\S+)+)").
+
 %% The host's names that keep the host's spelling.
 -define(HOST_NAMES, "(?<![A-Za-z])-behaviour|behaviour_info|erl_parse:normalise"
                     "|digraph_utils:reachable_neighbours|digraph:in_neighbours"
@@ -178,6 +182,50 @@ paragraph_ceiling_test() ->
 comment_ceiling_test() ->
     Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/comments.sh 150"), "\n"),
     ?assertEqual([], Listed).
+
+%% docs/code_style.md *Every language*: a block of commands in a document is
+%% shell a reader can paste, so a comment beside a command begins with `#`,
+%% and so does each indented line under it, which carries the comment on.
+%% A command is make, or ern with its arguments, as the documents write
+%% them; a tree of files, `bin/ern` and what it is, is no command and is
+%% annotated bare. The log and the proposals are left out, as the paragraph
+%% listing leaves them. Written with the rule, after docs/development.md's
+%% list of make targets was found bare beside the README's commands
+shell_comment_test() ->
+    Files = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- '*.md'"
+                                  " ':!docs/log/' ':!docs/proposals/'"), "\n"),
+    ?assert(length(Files) > 50),
+    ?assertEqual([], [{File, Number, Line} || File <- Files,
+                                              {Number, Line} <- bare_comments(File)]).
+
+%% The lines of a file's fenced blocks, but its Ernest's, that comment on a
+%% command without `#`.
+bare_comments(File) ->
+    bare_comments(text_lines(File), outside).
+
+bare_comments([], _) ->
+    [];
+bare_comments([{Number, Line} | Rest], State) ->
+    case {holds(Line, "^\\s*```"), State} of
+        {true, outside} ->
+            bare_comments(Rest, case holds(Line, "^\\s*```ernest") of
+                                    true -> ernest;
+                                    false -> {shell, false}
+                                end);
+        {true, _} ->
+            bare_comments(Rest, outside);
+        {false, {shell, AfterCommand}} ->
+            Bare = holds(Line, "^" ?COMMAND " {2,}[^#\\s]")
+                orelse (AfterCommand andalso holds(Line, "^\\s+[^#\\s]")),
+            Follows = holds(Line, "^" ?COMMAND "( |$)(?!.*\\\\$)")
+                orelse (AfterCommand andalso holds(Line, "^\\s+\\S")),
+            [{Number, Line} || Bare] ++ bare_comments(Rest, {shell, Follows});
+        {false, _} ->
+            bare_comments(Rest, State)
+    end.
+
+holds(Line, Pattern) ->
+    re:run(Line, Pattern, [{capture, none}]) =:= match.
 
 %% docs/code_style.md's *Every language*: a comment cites no step or item
 %% of the plan or finding of a review, and no date, in every tracked file

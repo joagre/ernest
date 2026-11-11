@@ -9,6 +9,7 @@ A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md
 - A step of indentation is four spaces, and no file holds a tab, but a Makefile *(tested)*.
 - A line of code is at most 100 characters; prose in markdown may be longer *(tested)*.
 - A paragraph of a tracked document is at most 150 words, a list item among them, which `tools/paragraphs.sh` lists at 150 and the test holds; the log and the proposals are left out, as the listing leaves them *(tested)*.
+- A block of commands in a document is shell a reader can paste: a comment beside a command begins with `#`, and so does each line under it that carries the comment on. A tree of files, which no one runs, is annotated bare *(tested)*.
 - A name in a namespace shared with other code carries the repository's name: an Erlang module begins `ern` *(tested)*, an Emacs Lisp symbol `ernest-`.
 - The spelling test reads every tracked file of text but a proposal under `docs/proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*. A quotation keeps its author's spelling, and `-behaviour`, `LICENSE` and `prefers-color-scheme` are names of the host's or of another system's.
 - `Acc`, for what a fold carries, is an abbreviation the report writes, beside the host's the guide allows.
