@@ -693,7 +693,7 @@ fn isDigit(byte : Int) : Bool =
     byte >= 0x30 && byte <= 0x39
 
 // Report Appendix G.11: whether a target is written in the visible ASCII
-// characters, RFC 3986's, so that a raw UTF-8 byte is refused.
+// characters, so that a raw UTF-8 byte is refused.
 fn isTarget(bytes : Bytes) : Bool =
     match bytes {
         <<byte, rest:bytes>> when byte >= 0x21 && byte <= 0x7E -> isTarget(rest)
@@ -1049,12 +1049,14 @@ fn chunkSize(sizeLine : Bytes) : Optional(Int) = {
       | None -> sizeLine
     };
     let text <- Optional.map(String.fromUtf8(digits), String.trimEnd);
-    if text != ""
-        && List.all(String.toList(text), fn(char) = Optional.isSome(Char.digitValue(char, 16))) then
+    if text != "" && List.all(String.toList(text), isHexadecimal) then
         String.toIntBase(text, 16)
     else
         None
 }
+
+fn isHexadecimal(char : Char) : Bool =
+    Optional.isSome(Char.digitValue(char, 16))
 
 // RFC 9112, section 7.1.2: the trailer lines after the last chunk, dropped,
 // to the empty line that ends the body, and the bytes after it.
@@ -1201,6 +1203,16 @@ export fn cookie(headers : List(Header), name : String) : Optional(String) =
 /// such a path too. Any other target is absolute form, which has a scheme.
 /// A target with a fragment is of no form.
 ///
+/// A path and a query, the whole of an origin form and what follows an
+/// absolute form's scheme and authority, are read with each character
+/// RFC 3986 writes in neither percent-encoded, as a browser sends some of
+/// them raw: `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|` and `}`,
+/// and a `%` before no two hexadecimal digits, as `%25`. `Uri.decode` gives
+/// each back, and the request keeps its target as written. An authority is
+/// read as written, an IP literal's brackets among it. RFC 9112, section
+/// 3.2 has a server answer such a target with a 400 or a redirect, and
+/// `target` reads it instead.
+///
 /// Whether the scheme and the `Host` header name the server is the
 /// server's to decide.
 ///
@@ -1230,6 +1242,17 @@ export fn cookie(headers : List(Header), name : String) : Optional(String) =
 /// // => Some(Uri.Authority(userinfo = None, host = "example.com", port = Some(443)))
 /// ```
 ///
+/// A query a browser sends with its brackets raw, read percent-encoded:
+///
+/// ```ernest
+/// {
+///     let request =
+///         Http.Request(method = "GET", target = "/?a[]=1", version = Http.http11, headers = []);
+///     Optional.andThen(Http.target(request), fn(reference) = reference.query)
+/// }
+/// // => Some("a%5B%5D=1")
+/// ```
+///
 /// since 0.10.0
 export fn target(request : Request) : Optional(Uri.Reference) = {
     let text = request.target;
@@ -1253,7 +1276,7 @@ export fn target(request : Request) : Optional(Uri.Reference) = {
 // an empty authority, since a path that begins with `//` would be read as
 // an authority's start.
 fn originForm(text : String) : Optional(Uri.Reference) =
-    match Uri.parse("//" <> text) {
+    match Uri.parse("//" <> String.fromList(encoded(String.toList(text)))) {
         Some(Uri.Reference(=path, =query, fragment = None)) ->
             Some(Uri.Reference(scheme = None, authority = None, =path, =query, fragment = None))
       | _ ->
@@ -1263,8 +1286,65 @@ fn originForm(text : String) : Optional(Uri.Reference) =
 // RFC 9112, section 3.2.2: an absolute URI, which has a scheme and no
 // fragment.
 fn absoluteForm(text : String) : Optional(Uri.Reference) =
-    match Uri.parse(text) {
+    match Uri.parse(pathEncoded(text)) {
         Some(Uri.Reference(scheme = Some(_), fragment = None) as reference) -> Some(reference)
+      | _ -> None
+    }
+
+// Report Appendix G.11: an absolute form with its path and its query
+// encoded. The scheme ends at the first `:`, and the authority after it
+// runs from `//` to the first `/`, `?` or `#`; both are kept as written. A
+// text with no `:` has no scheme, which `absoluteForm` refuses.
+fn pathEncoded(text : String) : String =
+    match String.splitOnce(text, ":") {
+        Some(#(scheme, rest)) ->
+            match String.stripPrefix(rest, "//") {
+                Some(afterSlashes) -> {
+                    let #(authority, path) =
+                        List.span(String.toList(afterSlashes),
+                                  fn(char) = char != '/' && char != '?' && char != '#');
+                    scheme <> "://" <> String.fromList(authority <> encoded(path))
+                }
+              | None ->
+                    scheme <> ":" <> String.fromList(encoded(String.toList(rest)))
+            }
+      | None ->
+            text
+    }
+
+// Report Appendix G.11: the characters of a path and a query with each
+// that RFC 3986 writes in neither percent-encoded. A `%` before two
+// hexadecimal digits begins an encoding and is kept with them; any other
+// `%` is encoded as `%25`.
+fn encoded(chars : List(Char)) : List(Char) =
+    match chars {
+        '%' :: high :: low :: rest when isHexadecimal(high) && isHexadecimal(low) ->
+            '%' :: high :: low :: encoded(rest)
+      | char :: rest ->
+            match encoding(char) {
+                Some(#(high, low)) -> '%' :: high :: low :: encoded(rest)
+              | None -> char :: encoded(rest)
+            }
+      | [] ->
+            []
+    }
+
+// The two hexadecimal digits that percent-encode a character RFC 3986
+// writes in no path and no query, and `%`; `None` for any other.
+fn encoding(char : Char) : Optional(#(Char, Char)) =
+    match char {
+        '"' -> Some(#('2', '2'))
+      | '%' -> Some(#('2', '5'))
+      | '<' -> Some(#('3', 'C'))
+      | '>' -> Some(#('3', 'E'))
+      | '[' -> Some(#('5', 'B'))
+      | '\\' -> Some(#('5', 'C'))
+      | ']' -> Some(#('5', 'D'))
+      | '^' -> Some(#('5', 'E'))
+      | '`' -> Some(#('6', '0'))
+      | '{' -> Some(#('7', 'B'))
+      | '|' -> Some(#('7', 'C'))
+      | '}' -> Some(#('7', 'D'))
       | _ -> None
     }
 
@@ -1327,8 +1407,8 @@ fn isBodiless(status : Int) : Bool =
 /// method and a target `parseRequest` would refuse, its cause naming the
 /// word: a method that is no token, an empty one among them, and a target
 /// that is empty or holds a character outside U+0021 to U+007E, the
-/// visible ASCII characters RFC 3986 writes a target in, `/café` among
-/// them, whose `é` a client writes `%C3%A9`.
+/// visible ASCII characters, `/café` among them, whose `é` a client writes
+/// `%C3%A9`.
 ///
 /// ### Examples
 ///
@@ -1406,7 +1486,7 @@ fn checkMethod(method : String) : Unit =
 // Report Appendix G.11: faults the writer, as a program's own error, where
 // the target would not read back, as `parseRequest` reads it: one that is
 // empty, or holds a character outside U+0021 to U+007E, the visible ASCII
-// characters RFC 3986 writes a target in.
+// characters.
 fn checkTarget(target : String) : Unit =
     if target == "" then
         fault("the target is empty")
@@ -1975,7 +2055,8 @@ let noForm =
                                           #("GET", "*"),
                                           #("GET", "www.example.com"),
                                           #("GET", "/a b"),
-                                          #("GET", "/100%"),
+                                          #("GET", "/a{b}#f"),
+                                          #("GET", "http://a{b}/"),
                                           #("CONNECT", "/"),
                                           #("CONNECT", "www.example.com:80/"),
                                           #("CONNECT", "http://www.example.com/"),
@@ -1983,6 +2064,92 @@ let noForm =
                                          fn(#(method, text)) =
                                              Optional.isSome(targetOf(method, text))),
                              []))
+
+// The path and the query `target` reads in a GET request's target.
+fn pathAndQueryOf(text : String) : Optional(#(String, Optional(String))) =
+    Optional.map(targetOf("GET", text), fn(reference) = #(reference.path, reference.query))
+
+// report Appendix G.11: each character RFC 3986 writes in no path and no
+// query, raw in each, as a browser sends some of them
+let rawCharacters =
+    Test.Case(name = "each character RFC 3986 writes in no path and no query is read encoded",
+              run = fn() =
+                  Test.equal(List.map(["\"", "<", ">", "[", "\\", "]", "^", "`", "{", "|", "}"],
+                                      fn(char) = pathAndQueryOf("/" <> char <> "?" <> char)),
+                             [Some(#("/%22", Some("%22"))),
+                              Some(#("/%3C", Some("%3C"))),
+                              Some(#("/%3E", Some("%3E"))),
+                              Some(#("/%5B", Some("%5B"))),
+                              Some(#("/%5C", Some("%5C"))),
+                              Some(#("/%5D", Some("%5D"))),
+                              Some(#("/%5E", Some("%5E"))),
+                              Some(#("/%60", Some("%60"))),
+                              Some(#("/%7B", Some("%7B"))),
+                              Some(#("/%7C", Some("%7C"))),
+                              Some(#("/%7D", Some("%7D")))]))
+
+// report Appendix G.11, Appendix G.12: the targets a browser sends raw, a
+// query's brackets and braces and a path's brackets, read encoded, and
+// decoded as the browser wrote them
+let browserTargets =
+    Test.Case(name = "a target a browser sends raw is read, and decodes as written", run = fn() = {
+        let texts = ["/?a[]=1", "/?q={x}", "/a[b]"];
+        let decodedParts =
+            fn(text) =
+                Optional.map(pathAndQueryOf(text),
+                             fn(#(path, query)) =
+                                 #(Uri.decode(path), Optional.andThen(query, Uri.decode)));
+        Test.equal(#(List.map(texts, pathAndQueryOf), List.map(texts, decodedParts)),
+                   #([Some(#("/", Some("a%5B%5D=1"))),
+                      Some(#("/", Some("q=%7Bx%7D"))),
+                      Some(#("/a%5Bb%5D", None))],
+                     [Some(#(Some(String.toUtf8("/")), Some(String.toUtf8("a[]=1")))),
+                      Some(#(Some(String.toUtf8("/")), Some(String.toUtf8("q={x}")))),
+                      Some(#(Some(String.toUtf8("/a[b]")), None))]))
+    })
+
+// report Appendix G.11: an authority is read as written, an IP literal's
+// brackets among it, in an absolute form and in CONNECT's, and an absolute
+// form's path and query after it encoded, one with no authority among them
+let literalAuthority =
+    Test.Case(name = "an authority's IP literal is kept, and the path and query after it encoded",
+              run = fn() =
+                  Test.equal([targetOf("GET", "http://[::1]:8080/a[b]?q={x}"),
+                              targetOf("CONNECT", "[::1]:443"),
+                              targetOf("GET", "urn:a{b}")],
+                             [Some(Uri.Reference(scheme = Some("http"),
+                                                 authority = Some(Uri.Authority(userinfo = None,
+                                                                                host = "::1",
+                                                                                port = Some(8080))),
+                                                 path = "/a%5Bb%5D",
+                                                 query = Some("q=%7Bx%7D"),
+                                                 fragment = None)),
+                              Some(Uri.Reference(scheme = None,
+                                                 authority = Some(Uri.Authority(userinfo = None,
+                                                                                host = "::1",
+                                                                                port = Some(443))),
+                                                 path = "",
+                                                 query = None,
+                                                 fragment = None)),
+                              Some(Uri.Reference(scheme = Some("urn"),
+                                                 authority = None,
+                                                 path = "a%7Bb%7D",
+                                                 query = None,
+                                                 fragment = None))]))
+
+// report Appendix G.11: a `%` before no two hexadecimal digits is read as
+// `%25`, and one before two, in either case, is kept with them
+let lonePercent =
+    Test.Case(name = "a % that begins no encoding is read as %25",
+              run = fn() =
+                  Test.equal(List.map(["/100%", "/%zz", "/%4", "/%4g", "/%7b%7B", "/%%41"],
+                                      pathAndQueryOf),
+                             [Some(#("/100%25", None)),
+                              Some(#("/%25zz", None)),
+                              Some(#("/%254", None)),
+                              Some(#("/%254g", None)),
+                              Some(#("/%7b%7B", None)),
+                              Some(#("/%25%41", None))]))
 
 // report Appendix G.11
 let lineFeeds =

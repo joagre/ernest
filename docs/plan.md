@@ -105,13 +105,8 @@ The other seven are the packages proposal's build order,
 16. **`Bool.compare`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 243).
 17. **`Char`'s six class predicates**, done 2026-11-11 (the log's *The Review's Feedback Decided*,
     247).
-18. **`Http.target` and the characters a browser sends raw**, feedback 250, ernest-httpd's line 29,
-    a decision for the user, recommended: `target` reads a target holding `"`, `<`, `>`, `\`,
-    `^`, `` ` ``, `{`, `|` or `}`, or `[` or `]` outside an absolute form's authority, with each such
-    character percent-encoded, RFC 9112 §3.2's remedy, so that `Uri.decode` gives it back and
-    `Uri` stays RFC 3986's (the log's *The Review's Feedback Decided*). G.11's `target` paragraph
-    states it, and a test holds the nine, a bracketed path and an absolute form with an IP literal.
-    It closes on the libraries' target and `make test`.
+18. **`Http.target` and the characters a browser sends raw**, done 2026-11-11 (the log's *The Review's
+    Feedback Decided*, 250).
 19. **The help at `++`**, feedback 251, ernest-epx's line: a second `+` where the parser expects an
     expression gets the help ``write `<>` ``, §11.5 naming it beside `<-`'s, with its parser test.
     It closes on the toolchain's target and `make test`.
