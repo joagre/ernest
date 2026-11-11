@@ -99,6 +99,11 @@ The other seven are the packages proposal's build order,
     [`proposals/deadlock/`](proposals/deadlock/README.md) holds that no owner has yet, its
     experiment's findings among them, read with the user and given to the runtime's note or the
     log, and then the directory goes, before the milestone's release.
+21. **Item 3's follow-up**, decided with the user 2026-11-11 and built before item 20 (the log's
+    *A Deadlock of the Whole Program*): regression tests of `Tcp.read`'s and `Os.read`'s limited
+    waits, of `Peer.spawn`'s and `Peer.find`'s waits on a silent peer, and of a cycle's line
+    written by a running shell; and a restart's wait for its watchers reads `Calling`, its callee
+    `None` and its wait limited, where E.21 says `Receiving`. It closes on `make test-full`.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
