@@ -63,7 +63,8 @@ The other seven are the packages proposal's build order,
    package's `src` and `build` as its roots, and the named packages built in their order. The
    trial's table of refusals is its first test.
 7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
-   section of Appendix G first.
+   section of Appendix G first. The tar library's section takes what §11.9 says of a pax and a
+   GNU header, the format's own, and §11.9 cites it.
 8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
    stands under `Ernest` is decided as the item opens.
 9. **The guide's section on a package.**
@@ -111,8 +112,8 @@ The other seven are the packages proposal's build order,
     `ern build`, `ern doc`, `:load` and `:reload` refuse it as §11.1 says, where a library on
     the load path depends on the hidden one, and `ern run`'s refusal names it (§11.2); the
     named packages' case comes with item 6. §4.2 points to the rule, so it is built the day it
-    is decided, after one cold reading of its sentences in §4.2, §11.1 and §11.2 (the log's *A
-    Package and Its Manifest*).
+    is decided, after one cold reading of every sentence item 25 wrote after its third reader,
+    §4.2's, §11.1's and §11.2's among them (the log's *A Package and Its Manifest*).
 27. **The ownership test's group bits**, decided 2026-11-11, before item 5: the shell's startup
     files, a node's configuration and `ern stop`'s and `ern reload`'s `ernest.pid` take the
     ownership test as §11.2 states it, the owner and the bits for others, and a link's target
