@@ -99,10 +99,8 @@ The other seven are the packages proposal's build order,
     (the log's *The Review's Feedback Decided*): six build, items 14 to 19, and eight are dropped
     there.
 13. **The checkout's manual pages**, done 2026-11-11 (the log's *One Copy of the Pages*).
-14. **`Tcp.accept` at the limit of open files**, feedback 249, ernest-httpd's line 28: E.18 states
-    since 2026-11-11 that `accept` answers the refusal at once, whether or not a connection waits,
-    and the connection waits in the backlog; a regression test under the limit holds the sentence.
-    It closes on the runtime's target and `make test`.
+14. **`Tcp.accept` at the limit of open files**, done 2026-11-11 (the log's *The Review's Feedback
+    Decided*, 249).
 15. **`List.tryForEach`**, feedback 239: E.0 rule 2's sequence vocabulary and E.2 name it, `list.ern`
     writes it with its examples and tests, and the seven sites that wrote `let _ <- List.tryMap`,
     two in `libs/http` and five in the site's generator, take it. It closes on the standard

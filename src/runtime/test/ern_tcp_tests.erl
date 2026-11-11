@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
 
--export([pki/0]).
+-export([pki/0, at_the_file_limit/0]).
 
 %% Report Appendix E.18: the window in which a socket that has ended may
 %% send what the far end has not taken with nothing taken, and the time
@@ -259,6 +259,110 @@ close_listener_test() ->
            end, <<"main">>, quiet()),
     ?assertEqual({'Left', 'Closed'}, wait(accepted)),
     ?assertEqual(false, wait(alive)).
+
+%% Appendix E.18, report §12: at the operating system's limit of open
+%% files an accept with no connection waiting answers the host's refusal,
+%% `Left(Other("too many open files"))`, at once, since the host takes the
+%% descriptor before it waits for a connection; and a connection that comes
+%% meanwhile waits in the listener's backlog for a later accept, which
+%% takes it once closed listeners have freed files. The program runs in a
+%% host of its own under `ulimit -n`, at_the_file_limit/0, and this host is
+%% its client. A regression test, written after the sentence, whose probe
+%% found the host answering so; it does not cover a listener over TLS, nor
+%% the system's own limit of files, `enfile`
+accept_at_the_file_limit_test_() ->
+    {timeout, 60, fun accept_at_the_file_limit/0}.
+
+accept_at_the_file_limit() ->
+    %% the repository's code, which the tests run from its root, after the
+    %% host's own: a library's directory, build/libs/crypto, which a run adds
+    %% last (ern_code:load_runtime/0), would otherwise stand where the host
+    %% looks for its own crypto's library, by its directory's name
+    Build = filename:absname("build") ++ "/",
+    Paths = [" -pz " ++ Dir || Dir <- code:get_path(), lists:prefix(Build, filename:absname(Dir))],
+    Host = open_port({spawn, "sh -c 'ulimit -n 64; exec erl -noshell" ++ lists:append(Paths) ++
+                          " -eval \"ern_tcp_tests:at_the_file_limit(), erlang:halt(0)\"'"},
+                     [binary, exit_status, stderr_to_stdout, {line, 200}]),
+    true = port_command(Host, "go\n"),
+    <<"port: ", PortText/binary>> = said(Host, <<"port: ">>),
+    _ = said(Host, <<"filled">>),
+    {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, binary_to_integer(PortText),
+                                   [binary, {active, false}], 5000),
+    ok = gen_tcp:send(Socket, <<"x">>),
+    true = port_command(Host, "connected\n"),
+    _ = said(Host, <<"accept: {'Left',{'Other',<<\"too many open files\">>}}">>),
+    <<"took: ", Took/binary>> = said(Host, <<"took: ">>),
+    _ = said(Host, <<"later: {'Right',<<\"x\">>}">>),
+    Status = receive {Host, {exit_status, Exit}} -> Exit after 20000 -> none end,
+    gen_tcp:close(Socket),
+    ?assertEqual(0, Status),
+    %% a host that waited the accept's time out would take all of it, and
+    %% half tells the two apart under any load
+    ?assert(binary_to_integer(Took) < 1000).
+
+%% The next line the host under the limit writes, which begins as Expected
+%% says; where it does not, or the host falls silent, the test fails with
+%% every line the host wrote from there.
+said(Host, Expected) ->
+    receive
+        {Host, {data, {eol, Line}}} ->
+            case binary:longest_common_prefix([Line, Expected]) =:= byte_size(Expected) of
+                true -> Line;
+                false -> erlang:error({said, [Line | rest(Host)]})
+            end
+    after 20000 -> erlang:error({silent, Expected})
+    end.
+
+rest(Host) ->
+    receive
+        {Host, {data, {eol, Line}}} -> [Line | rest(Host)];
+        {Host, {exit_status, _}} -> []
+    after 20000 -> []
+    end.
+
+%% The program of accept_at_the_file_limit/0, in the host under the limit:
+%% a door's port said; its listeners opened until one is refused; an accept
+%% at the door, with 2000 ms and nobody connecting, timed; and once the
+%% client has connected, three listeners closed and ended, and the door's
+%% next accept taking the connection and reading its byte. The host loads
+%% what the run's side calls first, as `ern run` does (report §12), since
+%% the limit refuses the file a module is loaded from; the lines of what
+%% was answered are written after the closes for the same reason.
+-spec at_the_file_limit() -> ok.
+at_the_file_limit() ->
+    ok = ern_code:load_runtime(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Door} = listen(0),
+               {'Right', Port} = port(Door),
+               io:format("port: ~p~n", [Port]),
+               "go\n" = io:get_line(""),
+               Listeners = filled([]),
+               Start = erlang:monotonic_time(millisecond),
+               Refused = accept(Door, 2000),
+               Took = erlang:monotonic_time(millisecond) - Start,
+               io:format("filled~n"),
+               "connected\n" = io:get_line(""),
+               [First, Second, Third | _] = Listeners,
+               lists:foreach(fun closed/1, [First, Second, Third]),
+               {'Right', Socket} = accept(Door, 5000),
+               io:format("accept: ~0p~ntook: ~p~nlater: ~0p~n",
+                         [Refused, Took, read(Socket, 5000)])
+           end, <<"main">>, quiet()).
+
+%% Listeners opened until the host refuses one, each kept, so that the
+%% host's files stay at the operating system's limit.
+filled(Listeners) ->
+    case listen(0) of
+        {'Right', Listener} -> filled([Listener | Listeners]);
+        {'Left', {'Other', <<"too many open files">>}} -> Listeners
+    end.
+
+%% A listener closed and ended, its file given back.
+closed(Listener) ->
+    MonitorRef = erlang:monitor(process, ern_rt:process_of(Listener)),
+    ern_rt:send(Listener, 'CloseListener'),
+    receive {'DOWN', MonitorRef, _, _, _} -> ok end.
 
 %% report §6.6, Appendix E.18: an accept that waits as the listener's close
 %% ends it faults with `callee was closed`. A regression test of the rule;
