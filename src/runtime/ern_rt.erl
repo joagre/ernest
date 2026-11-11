@@ -125,8 +125,8 @@
 %% caller's or one the request gives the callee (call_limited/2).
 -record(call, {callee, reply, since, limited}).
 %% Appendix E.21, E.27: while a process waits for a peer's answer to a
-%% find, a spawn or a utilization, the moment its wait began, which
-%% Process.status reads (peer_wait/1).
+%% find, a spawn or a utilization, or its restart for its watchers, the
+%% moment its wait began, which Process.status reads (peer_wait/1).
 -define(PEER_WAIT, '$ern_peer_wait').
 %% Report §6.9, Appendix E.22: while a restarting function runs, its
 %% outermost's start cause and the alias a supervisor asks it to restart
@@ -2548,10 +2548,10 @@ status(_) ->
 
 %% Appendix E.21: what a process does, which the host's status does not
 %% tell of a wait: one that waits with a call's mark, a load's or a wait's
-%% on a peer is Calling, read from the mark, and one that waits with none
-%% is Receiving. Every other status of the host's is Running, its work in a
-%% process that waits among them, which no item of the host's tells from
-%% the process's own.
+%% on a peer or a restart's is Calling, read from the mark, and one that
+%% waits with none is Receiving. Every other status of the host's is
+%% Running, its work in a process that waits among them, which no item of
+%% the host's tells from the process's own.
 -type activity() :: 'Running' | 'Receiving'
                   | {'Calling', 'None' | {'Some', pid()}, boolean(), integer()}.
 
@@ -3169,9 +3169,10 @@ untimed() ->
     ok.
 
 %% Appendix E.21, E.27: a wait for a peer's answer that is no call, a
-%% find's, a spawn's or a utilization's, begun at Since, put under the
-%% PEER_WAIT key while it waits and taken away as it ends, so that
-%% Process.status reads it as a call with a limit and no callee.
+%% find's, a spawn's or a utilization's, or a restart's for its watchers
+%% (tell_service_monitors/0), begun at Since, put under the PEER_WAIT key
+%% while it waits and taken away as it ends, so that Process.status reads
+%% it as a call with a limit and no callee.
 -spec peer_wait(integer()) -> ok.
 peer_wait(Since) ->
     _ = erlang:put(?PEER_WAIT, Since),
@@ -5514,13 +5515,16 @@ restart_taken(Pids) ->
 %% answer as it waits for a wrap on its own node; a loss, or the node's end
 %% (**Its start and its end**), ends the wait" (ern_peer:watchers_told/1).
 %% Report §8.6: a delivery waited for is a source until it ends, and a
-%% peer's answer is none the look sees coming.
+%% peer's answer is none the look sees coming. Report Appendix E.21: the
+%% wait is marked as a wait on a peer, which Process.status reads
+%% (peer_wait/1).
 tell_service_monitors() ->
     Reaper = launch_reaper(),
     ReaperRef = erlang:monitor(process, Reaper),
     Reaper ! {tell_service_monitors, erlang:self(), ReaperRef},
     Asked = [ern_peer:restart_told(Node) || Node <- watching_nodes()],
     entered_foreign(),
+    peer_wait(monotonic()),
     try
         Deliveries = receive
                          {ReaperRef, told, Delivered} ->
@@ -5535,6 +5539,7 @@ tell_service_monitors() ->
                       end, Deliveries),
         lists:foreach(fun ern_peer:watchers_told/1, Asked)
     after
+        peer_waited(),
         left_foreign()
     end.
 

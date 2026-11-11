@@ -5200,13 +5200,13 @@ attach_unanswered(Base) ->
 %% `Process.peer` answers None for a process of the node and the peer's name
 %% for one a spawn placed on that peer; a call without limit to that process
 %% is listed by `:processes` with its callee as a process of the peer, and a
-%% wait for a peer's utilization, the peer's gateway suspended so that the
-%% answer never comes, with no callee and its limit. The listing is asked
-%% twice, since the first may meet the host's work in each process as the
-%% input before it is let go (ern_shell_tests' listed/3). A regression test,
-%% written after the code
+%% wait for a peer's utilization, a spawn's and a find's, the peer's gateway
+%% suspended so that no answer comes, each with no callee and its limit. The
+%% listing is asked twice, since the first may meet the host's work in each
+%% process as the input before it is let go (ern_shell_tests' listed/3). A
+%% regression test, written after the code
 processes_on_peers_test_() ->
-    nodes_test({waits, 9}, fun processes_on_peers/1).
+    nodes_test({waits, 11}, fun processes_on_peers/1).
 
 processes_on_peers(Base) ->
     Root = filename:join(Base, "program"),
@@ -5221,6 +5221,7 @@ processes_on_peers(Base) ->
     lists(A, [{"s", S, none}]),
     lists(B, [{"s", S, none}]),
     lists(S, [{"a", A, PortA}, {"b", B, PortB}]),
+    edit(S, fun(Conf) -> Conf#{<<"services">> => #{<<"stalled">> => [<<"b">>]}} end),
     WaitA = bare_started(A, []),
     {_, WaitB} = started(B, filename:join(Root, "stall.erc"), []),
     prints(B, "suspended: true"),
@@ -5245,13 +5246,26 @@ processes_on_peers(Base) ->
                          "    let _ = Peer.utilization(\"b\", 600000);\n"
                          "    Unit\n"
                          "})\n",
+                         "let spawner : Address(Never) = spawn(fn() = {\n"
+                         "    let _ = Peer.spawn(\"b\", kept, 600000);\n"
+                         "    Unit\n"
+                         "})\n",
+                         "let finder : Address(Never) = spawn(fn() = {\n"
+                         "    let stalled : Peer.Service(Int) = Peer.service(\"stalled\");\n"
+                         "    let _ = Peer.find(stalled, 600000);\n"
+                         "    Unit\n"
+                         "})\n",
                          "calling(Process.fromAddress(caller))\n",
                          "calling(Process.fromAddress(asker))\n",
+                         "calling(Process.fromAddress(spawner))\n",
+                         "calling(Process.fromAddress(finder))\n",
                          ":processes\n:processes\n"]),
     prints(S, "None : Optional(String)"),
     prints(S, "Some(\"a\") : Optional(String)"),
-    prints(S, " calling a process of the peer a without limit for "),
-    prints(S, " calling for "),
+    prints(S, "$Session1.input 6:1 calling a process of the peer a without limit for "),
+    prints(S, "$Session1.input 7:1 calling for "),
+    prints(S, "$Session1.input 8:1 calling for "),
+    prints(S, "$Session1.input 9:1 calling for "),
     true = port_command(Input, ":quit\n"),
     ?assertEqual(0, WaitS()),
     stop(B, WaitB),

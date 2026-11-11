@@ -186,6 +186,37 @@ process_status_test() ->
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
+%% report Appendix E.21, E.18, E.23: a read whose request carries its time,
+%% Tcp's and Os's, made through its module, is a call whose wait is
+%% limited, its callee the socket or the running program it reads. A
+%% regression test, written after the code; it does not cover the other
+%% requests that make the call, Tcp's accept, write and connect and Os's
+%% write, which share it (call_limited/2)
+reads_limited_test() ->
+    Self = self(),
+    Tcp = ern_named:functions('ern@tcp'),
+    Os = ern_named:functions('ern@os'),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = (Tcp(listen))(<<"127.0.0.1">>, 0),
+               {'Right', Port} = (Tcp(port))(Listener),
+               {'Right', Socket} = (Tcp(connect))(<<"127.0.0.1">>, Port, 5000),
+               {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
+               Readers = [ern_rt:spawn(fun() -> (Tcp(read))(Socket, 600000) end, <<"M.tcp:1">>),
+                          ern_rt:spawn(fun() -> (Os(read))(Cat, 600000) end, <<"M.os:2">>)],
+               ern_rt:timed(),
+               [ok = ern_waits:calling(ern_rt:process_of(Reader)) || Reader <- Readers],
+               ern_rt:untimed(),
+               Self ! {reads, [ern_rt:status(ern_rt:process_of(Reader)) || Reader <- Readers],
+                       ern_rt:process_of(Socket), ern_rt:process_of(Cat)},
+               [ern_rt:kill(Address) || Address <- Readers ++ [Cat]]
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
+    {Statuses, SocketPid, CatPid} = receive {reads, S, P, C} -> {S, P, C} end,
+    ?assertMatch([{'Some', {'Status', <<"M.tcp:1">>, _,
+                            {'Calling', {'Some', SocketPid}, true, _}, _}},
+                  {'Some', {'Status', <<"M.os:2">>, _, {'Calling', {'Some', CatPid}, true, _}, _}}],
+                 Statuses).
+
 %% report Appendix E.21, §10: a process's memory is the host's count with
 %% the binaries it references, in its mailbox as in its heap, each whole
 %% however small the part it uses and for each reference, and a process that
@@ -1723,9 +1754,11 @@ service_monitor_test() ->
     ?assertEqual({'Down', Holder, 'Unknown', <<>>}, Late).
 
 %% report Appendix E.21, §6.9: a process whose restart waits for the wrap
-%% that tells its service monitor is Receiving there, its wait the
-%% runtime's; the wrap waits for the test's word, so that the restart is
-%% held. A regression test, written after the code
+%% that tells its service monitor is Calling there, with no callee, its
+%% wait limited, and the moment it began after the fault was asked for;
+%% the wrap waits for the test's word, so that the restart is held. A
+%% regression test, written after the code; it does not cover the wait for
+%% another node's answer, which the same mark covers (tell_service_monitors/0)
 restart_wait_status_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -1742,6 +1775,7 @@ restart_wait_status_test() ->
                                                   Main ! {wrapping, erlang:self()},
                                                   receive release -> {service, Down} end
                                               end),
+               Asked = ern_rt:monotonic(),
                Holder ! go,
                ern_rt:timed(),
                Wrapping = receive {wrapping, Delivery} -> Delivery end,
@@ -1749,11 +1783,19 @@ restart_wait_status_test() ->
                Status = ern_rt:status(ern_rt:process_of(Holder)),
                Wrapping ! release,
                receive {ready, Holder} -> ok end,
+               ok = ern_waits:waiting(ern_rt:process_of(Holder)),
+               Again = ern_rt:status(ern_rt:process_of(Holder)),
                ern_rt:untimed(),
-               Self ! {restarting, Status},
+               Self ! {restarting, Status, Asked, Again},
                ern_rt:kill(Holder)
            end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
-    ?assertMatch({'Some', {'Status', <<"Main.main:3">>, _, 'Receiving', _}}, wait(restarting)).
+    {Status, Asked, Again} = receive {restarting, S, A, G} -> {S, A, G} end,
+    ?assertMatch({'Some', {'Status', <<"Main.main:3">>, _, {'Calling', 'None', true, _}, _}},
+                 Status),
+    {'Some', {'Status', _, _, {'Calling', _, _, Since}, _}} = Status,
+    ?assert(Asked =< Since),
+    %% the new run waits in a receive, the mark gone with the wait
+    ?assertMatch({'Some', {'Status', _, _, 'Receiving', _}}, Again).
 
 %% report §6.9, §9.5: a restart cancels the restarting process's own
 %% monitors, its service monitors among them, so a watcher that has

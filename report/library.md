@@ -762,11 +762,9 @@ A `Process` is the identity of a process. It has equality and no ordering, exact
 
 `status` is a snapshot of a live process, which may have changed when it is read. It answers `None` for a process that has ended (§6.9), for one on another node, for one a program's foreign code started (§8.4), and for one of the runtime's own, which applies a wrap or an adapted function or evaluates a load's bindings (§6.5, §6.9, E.28).
 
-A process is `Calling` while it waits for a call's answer, for a load's evaluator (E.28), or for a peer's answer to a compute, a find, a spawn or a utilization (E.27). Its `callee` is the process behind the address called, as `fromAddress` gives it, and is `None` where the wait is on a system process (§8.2), on a load's evaluator or on a peer's answer (E.27).
+A process is `Calling` while it waits for a call's answer, for a load's evaluator (E.28), for a peer's answer to a compute, a find, a spawn or a utilization (E.27), or, as it restarts, for the wraps that tell its service monitors and for the other nodes' answers (§6.9, §8.7). Its `callee` is the process behind the address called, as `fromAddress` gives it, and is `None` where the wait is on a system process (§8.2), on a load's evaluator or on a peer's answer (E.27), and in a restart's wait.
 
-`limited` is `true` where a time ends the wait: for `Address.call`, a wait on a peer, and each request of the library's that takes a time (E.0 shape rule 8), `Tcp.read`'s among them. It is `false` for `Address.callForever`, a request of the library's that takes no time, `Io.readLine`'s among them, `Process.run` and a load. `since` is the moment the call was made, where §6.6 starts its clock, or the moment the wait for a load's evaluator or a peer's answer began, in milliseconds as `Clock.monotonic` counts them (E.15).
-
-A process that restarts is `Receiving` while its restart waits for the wraps that tell its service monitors and for the other nodes' answers (§6.9, §8.7).
+`limited` is `true` where a time ends the wait: for `Address.call`, a wait on a peer, and each request of the library's that takes a time (E.0 shape rule 8), `Tcp.read`'s among them. It is `true` for a restart's wait too (§6.9, §8.7). It is `false` for `Address.callForever`, a request of the library's that takes no time, `Io.readLine`'s among them, `Process.run` and a load. `since` is the moment the call was made, where §6.6 starts its clock, or the moment the wait for a load's evaluator or a peer's answer, or a restart's wait, began, in milliseconds as `Clock.monotonic` counts them (E.15).
 
 A process that waits is `Running` while the host works in it. The host works in every process of a node for a moment when code is let go there (§11.2).
 
@@ -798,7 +796,7 @@ A frame of Ernest code is written as a spawn site is (§6.9), the name of the to
 
 ```
 type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
-type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) // Receiving in a `receive`, in `Clock.sleep` or in a restart's wait, Calling for a call's answer, a load's evaluator or a peer's answer (E.27, E.28)
+type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's answer, a load's evaluator, a peer's answer or a restart's watchers (§6.9, E.27, E.28)
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names

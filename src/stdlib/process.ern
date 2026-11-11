@@ -54,19 +54,20 @@
 /// since 0.4.0
 export type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 
-/// What a live process is doing: running, waiting in a `receive`, in
-/// `Clock.sleep` or in a restart's wait for its watchers, or waiting for an
-/// answer: a call's, a load's evaluator's or a peer's.
+/// What a live process is doing: running, waiting in a `receive` or in
+/// `Clock.sleep`, or waiting for an answer: a call's, a load's evaluator's, a
+/// peer's or, as it restarts, its watchers'.
 ///
 /// A process that waits for an answer is `Calling`. `callee` is the process
 /// behind the address called, as `fromAddress` gives it, and `None` for a
-/// system process, a load's evaluator and a peer's answer. `limited` says whether a
-/// time ends the wait: `true` for `Address.call`, a wait on a peer and each
-/// request of the library's that takes a time, `Tcp.read` among them, and
-/// `false` for `Address.callForever`, a request that takes none, `Io.readLine`
-/// among them, `Process.run` and a load. `since` is the moment the call was
-/// made, or the wait for a load's evaluator or a peer's answer began, as
-/// `Clock.monotonic` counts it.
+/// system process, a load's evaluator, a peer's answer and a restart's wait.
+/// `limited` says whether a time ends the wait: `true` for `Address.call`, a
+/// wait on a peer and each request of the library's that takes a time,
+/// `Tcp.read` among them, and for a restart's wait, and `false` for
+/// `Address.callForever`, a request that takes none, `Io.readLine` among them,
+/// `Process.run` and a load. `since` is the moment the call was made, or the
+/// wait for a load's evaluator, a peer's answer or a restart's watchers began,
+/// as `Clock.monotonic` counts it.
 ///
 /// A process that waits is `Running` while the host works in it. The host works
 /// in every process of a node for a moment when code is let go there (report

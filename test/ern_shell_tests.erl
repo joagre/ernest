@@ -1128,6 +1128,50 @@ process_live_at_the_prompt() ->
     ?assertMatch({match, _}, re:run(Output, <<"> \\$Session1\\.input 2:1 (receiving|running)"
                                               " [0-9]+ bytes\n">>)).
 
+%% report §11.2, Appendix E.21: in a running shell, two processes that each
+%% wait in a call without limit on the other are listed as calling each
+%% other without limit, and a line after the processes names their cycle
+%% by their sites, from the process listed first. Each is waited for until
+%% its call began before a moment read, so that the listing, which begins
+%% later, finds the cycle standing; it is asked twice, since the first may
+%% meet the host's work in each process (listed/3). A regression test,
+%% written after the code, whose lines the listing's own tests hold over
+%% statuses made by hand
+cycle_listed_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun cycle_listed/0).
+
+cycle_listed() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         ["type Link = Peer(Address(Link)) | Ask(Reply(Int))\n",
+                          "fn linked() : Unit receiving Link = receive {\n"
+                          "    Peer(other) -> {\n"
+                          "        let _ : Int = Address.callForever(other, Ask);\n"
+                          "        Unit\n"
+                          "    }\n"
+                          "  | Ask(_) -> linked()\n"
+                          "}\n",
+                          "fn begun(process : Process) : Unit = match Process.status(process) {\n"
+                          "    Some(Process.Status(\n"
+                          "        activity = Process.Calling(limited = false, =since)))\n"
+                          "        when since < Clock.monotonic() -> Unit\n"
+                          "  | _ -> begun(process)\n"
+                          "}\n",
+                          "let first : Address(Link) = spawn(linked)\n",
+                          "let second : Address(Link) = spawn(linked)\n",
+                          "send(first, Peer(second))\n",
+                          "send(second, Peer(first))\n",
+                          "begun(Process.fromAddress(first))\n",
+                          "begun(Process.fromAddress(second))\n",
+                          ":processes\n:processes\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
+    listed(Output, <<"$Session1.input 4:1 calling $Session1.input 5:1 without limit\n"
+                     "$Session1.input 5:1 calling $Session1.input 4:1 without limit\n">>),
+    ?assertMatch({match, _}, re:run(Output, <<"\na cycle of calls without limit for [0-9]+ s: "
+                                              "\\$Session1\\.input 4:1, "
+                                              "\\$Session1\\.input 5:1\n">>)).
+
 %% report §11.2, Appendix E.21: `:processes` writes each process's memory after
 %% its activity, and orders one site's processes by activity and then by
 %% memory as a number, the process that holds a binary after the one that

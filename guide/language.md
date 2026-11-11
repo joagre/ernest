@@ -1743,7 +1743,7 @@ the worker spawned at Faults.main:10 faulted: division by zero
 
 Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace ends with the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
-A frame of the standard library's own Ernest names its line in the library's source, `Process.run:288` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+A frame of the standard library's own Ernest names its line in the library's source, `Process.run:289` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
@@ -1784,7 +1784,7 @@ $ ern run tasks.erc
 Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
     Tasks.supervise:6
-    Process.run:288
+    Process.run:289
 0: failed, division by zero
 5: 20
 all jobs done
