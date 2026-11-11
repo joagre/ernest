@@ -1204,14 +1204,15 @@ export fn cookie(headers : List(Header), name : String) : Optional(String) =
 /// A target with a fragment is of no form.
 ///
 /// A path and a query, the whole of an origin form and what follows an
-/// absolute form's scheme and authority, are read with each character
-/// RFC 3986 writes in neither percent-encoded, as a browser sends some of
-/// them raw: `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|` and `}`,
-/// and a `%` before no two hexadecimal digits, as `%25`. `Uri.decode` gives
-/// each back, and the request keeps its target as written. An authority is
-/// read as written, an IP literal's brackets among it. RFC 9112, section
-/// 3.2 has a server answer such a target with a 400 or a redirect, and
-/// `target` reads it instead.
+/// absolute form's scheme and authority, are percent-encoded before they
+/// are read. Each visible ASCII character RFC 3986 writes in neither but
+/// `#` is encoded, `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|` and
+/// `}`, some of which a browser sends raw, and so is a `%` before no two
+/// hexadecimal digits, as `%25`. `Uri.decode` gives each back, and the
+/// request keeps its target as written. A scheme and an authority are read
+/// as written, an IP literal's brackets among them. RFC 9112, section 3.2
+/// has a server answer such a target with a 400 or a redirect, and `target`
+/// reads it instead.
 ///
 /// Whether the scheme and the `Host` header name the server is the
 /// server's to decide.
@@ -1313,9 +1314,9 @@ fn pathEncoded(text : String) : String =
     }
 
 // Report Appendix G.11: the characters of a path and a query with each
-// that RFC 3986 writes in neither percent-encoded. A `%` before two
-// hexadecimal digits begins an encoding and is kept with them; any other
-// `%` is encoded as `%25`.
+// that `encoding` names percent-encoded. A `%` before two hexadecimal
+// digits begins an encoding and is kept with them; any other `%` is encoded
+// as `%25`.
 fn encoded(chars : List(Char)) : List(Char) =
     match chars {
         '%' :: high :: low :: rest when isHexadecimal(high) && isHexadecimal(low) ->
@@ -1329,8 +1330,9 @@ fn encoded(chars : List(Char)) : List(Char) =
             []
     }
 
-// The two hexadecimal digits that percent-encode a character RFC 3986
-// writes in no path and no query, and `%`; `None` for any other.
+// The two hexadecimal digits that percent-encode `%` and each visible ASCII
+// character RFC 3986 writes in no path and no query but `#`, which begins
+// a fragment; `None` for any other.
 fn encoding(char : Char) : Optional(#(Char, Char)) =
     match char {
         '"' -> Some(#('2', '2'))
@@ -2057,6 +2059,7 @@ let noForm =
                                           #("GET", "/a b"),
                                           #("GET", "/a{b}#f"),
                                           #("GET", "http://a{b}/"),
+                                          #("GET", "ht{tp://h/"),
                                           #("CONNECT", "/"),
                                           #("CONNECT", "www.example.com:80/"),
                                           #("CONNECT", "http://www.example.com/"),
