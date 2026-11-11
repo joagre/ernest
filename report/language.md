@@ -1427,10 +1427,11 @@ Every technical term this report introduces, with a gloss and the section that d
 - **line mode** — the shell reading lines and editing none, when its input or output is not a terminal. §11.2.
 - **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.
 - **live region** — the shell's rows below what it has written, where the line being typed stands. §11.2.
-- **load path** — the directories, in order, that a program's modules are found under by their namespaces and a `foreign fn`'s `.beam` is found in, each searched for both: the standard library's build, the loaded module's root, the directories `--load-path` and `--libs-dir` add, in the order the options are given, a `--load-path`'s root and each application's `ebin` under a `--libs-dir`, and the build of each library of the toolchain's own. §11.1, §11.2.
+- **load path** — the directories, in order, that a program's modules are found under by their namespaces and a `foreign fn`'s `.beam` is found in, each searched for both: the standard library's build, the loaded module's root, the directories `--load-path` and `--libs-dir` add, in the order the options are given, a `--load-path`'s root and each application's `ebin` under a `--libs-dir`, the build of each named package, with its `ebin` under `ern run`, `ern test` and `ern shell`, and the build of each library of the toolchain's own. §11.1, §11.2, §11.9.
 - **loss** — the end of a connection, which gives each monitor on the peer's processes its `Down` with `Unreachable`, ends each call and each wait on the peer that began before the node ran it, faults a `callForever` on one of its processes, and drops what waited to be sent. §8.7.
 - **mailbox** — the queue of values a process receives. §6.
 - **mailbox type** — the `M` in `(A) -> B receiving M`; the type of the process's mailbox. §6.1.
+- **manifest** — `package.conf`, the file that makes a directory a package: the least release of Ernest the package is written for, and an entry for each package its modules use. §11.9.
 - **`match`** — the pattern-matching expression form. §5.9.
 - **measure** — one of the host's measures a node runs, `cpu`, `memory` or `disk`, named in `ernest.conf`. §12.5, Appendix C.
 - **member** — an operator, `compare` or `negate` of a type, in the type's nested namespace: declared with the type's prefix, `fn Distance.+`, derived (§3.5), or, for a prelude type, declared unprefixed in its module; a requirement names one on a type variable; reached by its operator or `compare` alone, named in no expression. §4.2, §4.5, §4.9.
@@ -1446,6 +1447,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **or-pattern** — patterns joined by `or` in one clause, which matches when any of them does. §5.9.
 - **order** — a function `(T, T) -> Ordering` that keeps §3.10's laws, which a type's `compare` keeps, and `List.sort` and an ordered set or map require of it. §3.10, Appendix E.25.
 - **owner** — the process that opened a resource or was given it, or that made a table or started a proxy, with which the resource ends. §6.9, Appendix E.18, G.1, G.7.
+- **package** — a directory that holds a manifest, its Ernest under `src`; a *named package* is one the root package's manifest names, which stands under the root package's `lib`. §11.9.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.
 - **percent-encoding** — a `%` and two hexadecimal digits standing for one octet in a URI reference, which `Uri.decode` undoes. Appendix G.12.
@@ -1475,6 +1477,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **restart** — `restarting`'s run of its function again after a fault, or when a `Supervisor` asks, in the same process with its address, its mailbox emptied. §6.9.
 - **restart limit** — `RestartLimit(restarts, within)`, how many faults a restarting function or a group takes within a time, or `Unlimited`. §6.9, Appendix E.22.
 - **rigid** — of a type variable an annotation names, which means every type. §3.9.
+- **root package** — the package a job is started in and reads the manifest of, where the job is given no path or one under that directory. §11.9.
 - **runner** — what `ern run`, `ern test` and `ern shell` start: it starts the system processes and calls the entry point. §11.2.
 - **runtime** — the system that runs Ernest programs. §10.
 - **scrutinee** — the value a `match` matches. §5.9.

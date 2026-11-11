@@ -47,7 +47,7 @@ This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and
 
 ## 11. Toolchain
 
-The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern doc`, `ern format`, `ern run`, `ern test`, `ern shell`, `ern config`, `ern reload`, and `ern stop`. `ern --help` and `ern --version` are options. Given with another word, each is refused, `--help stands alone: ern --help, or ern <job> --help`. A job's `--help` given with another word is refused the same way, `--help stands alone: ern build --help`.
+The toolchain is one command, `ern`, whose first word is its job: `ern build`, `ern doc`, `ern format`, `ern run`, `ern test`, `ern shell`, `ern config`, `ern reload`, `ern stop`, and `ern unpack`. `ern --help` and `ern --version` are options. Given with another word, each is refused, `--help stands alone: ern --help, or ern <job> --help`. A job's `--help` given with another word is refused the same way, `--help stands alone: ern build --help`.
 
 Options are long: `--name`, or `--name value` for one that takes a value. An option that names a directory ends in `-root` where the directory's layout gives namespaces (§4.2), in `-dir` where it is a plain directory, and in `-path` where it is a root that may be given more than once. Only a `-path` option is given more than once. `--name=value` is refused with the spelling `--name value`, and so is an empty value. An option given without its value is refused with the spelling the job's usage writes, `--build-root takes a value: --build-root build-root`. `--` ends a job's options: a word after it is an argument, whatever it looks like.
 
@@ -55,7 +55,7 @@ A command line without a first word, or with an empty one, is refused, `a job is
 
 A job given no argument where it requires one is refused with what it requires, `a file or a directory is required`. One given more arguments than it takes is refused with what it takes and how many were given, `one file or directory is taken, and 2 were given`. A path a job is given that names nothing is refused, `x.erc: no such file`.
 
-`ern` refuses to start in a working directory whose name is not UTF-8. `ern --help` and `ern --version` run in any working directory. A job reads from the directory it is started in only what its command line names or its user asks for, a file, a root, or a module the shell loads.
+`ern` refuses to start in a working directory whose name is not UTF-8. `ern --help` and `ern --version` run in any working directory. A job reads from the directory it is started in only what its command line names or its user asks for, a file, a root, or a module the shell loads. The exception is a package: a job started in one reads its manifest and what the manifest names under `lib`, and `ern build` and `ern unpack` write there, as §11.9 says.
 
 `ern` starts the host without the flags and the code path the environment would give it, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS` and `ERL_LIBS`, and writing no crash dump, `ERL_CRASH_DUMP_SECONDS` set to 0 (§11.8), and calls the host's compiler without the options `ERL_COMPILER_OPTIONS` would give it. A program's environment is the one `ern` was started in all the same: those six, and what the host's own start sets or changes, `BINDIR`, `EMU`, `PROGNAME`, `ROOTDIR` and the head of `PATH`, reach a program as they were given (Appendix E.23). `PWD` is the exception: a program finds it naming the working directory, as the launcher's shell sets it, where it was unset or named another directory.
 
@@ -71,7 +71,7 @@ A failure of `ern` itself is a defect of the toolchain, and it is reported on st
 
 A file a job writes is written whole or not at all: a job that ends as it writes leaves the file as it was. A link where `ern build` or `ern doc` writes a file is replaced by the file, and a link to the module `ern format` lays out, or to the `ernest.conf` that `ern config --peer-dir` writes, is followed. Two jobs that write one file at once leave it as one of them wrote it. A file its owner may not write is not replaced: the job refuses it, `x.ern: permission denied`, and writes nothing beside it. A file whose directory the job cannot write a file into is refused with the directory, `closed: permission denied, and m.ern is written whole by a rename there`.
 
-The toolchain's manual page, `ern(1)`, is this section, rendered as §11.4 renders a manual page: each job's usage line as its SYNOPSIS, this section with §11.1 to §11.6 as its subsections as its DESCRIPTION, and §11.7 and §11.8 as its OPTIONS and EXIT STATUS.
+The toolchain's manual page, `ern(1)`, is this section, rendered as §11.4 renders a manual page: each job's usage line as its SYNOPSIS, this section with §11.1 to §11.6 and §11.9 as its subsections as its DESCRIPTION, and §11.7 and §11.8 as its OPTIONS and EXIT STATUS.
 
 ### 11.1 `ern build` (compiler)
 
@@ -107,7 +107,7 @@ A module is recompiled in these cases, and otherwise found current:
 
 A change confined to a dependency's bodies recompiles only a dependent whose forms reference a definition whose hash the change changed.
 
-A module outside the source root is read from its `.erc` under `build-root`, then under each `--load-path` root, and then under the build of each library of the toolchain's own (Appendix G), found by namespace as §11.2 finds it. Cross-module references link at load, against `.erc` files under `build-root`, the `--load-path` roots and the builds of the toolchain's libraries.
+A module outside the source root is read from its `.erc` under `build-root`, then under each `--load-path` root, then under the build of each named package (§11.9), and then under the build of each library of the toolchain's own (Appendix G), found by namespace as §11.2 finds it. Cross-module references link at load, against `.erc` files under `build-root`, the `--load-path` roots, the builds of the named packages and the builds of the toolchain's libraries.
 
 A `.erc` that holds another namespace than the build names is not written over. A build given no `--source-root` refuses it and names the option: `src/geo/shape.erc holds Geo.Shape, not Src.Geo.Shape; name Src.Geo.Shape's source root with --source-root, or remove src/geo/shape.erc`. A build given `--source-root` refuses it and asks for its removal: `src/geo/shape.erc holds Src.Geo.Shape, not Geo.Shape, and a build writes over no other module's file; remove it to build Geo.Shape there`. A `.erc` found for a module the build uses that holds another module is refused as `ern run` refuses one (§11.2).
 
@@ -115,11 +115,11 @@ The namespace a `.erc` holds is tested before its staleness. A `.erc` is stale w
 
 `--emit-erl` writes the module's Erlang source as `.erl` instead, for reading, each function under a comment that names its definition; it carries no interface. Its first line is a comment that names the module's source by its path, as §11.5 writes one, `%% Generated by ern build from src/net/http.ern`.
 
-`--verbose` writes on standard error, a line each as it decides them, what the build decides without saying: the source root and the build root it took, `source root src` and `build root build`; each module it compiled, with its source and the file written, `compiled Net.Http from src/net/http.ern to build/net/http.erc`; each module not among its sources that it read, with the `.erc` found for it, `read Ets from build/libs/ets/ets.erc`; and each stale `.erc` it removed, `removed build/old.erc`. A module found current is not named. A path is written as §11.5 writes one. Without the flag a build says nothing but its errors.
+`--verbose` writes on standard error, a line each as it decides them, what the build decides without saying: the source root and the build root it took, `source root src` and `build root build`; each manifest it read (§11.9), `manifest package.conf`; each module it compiled, with its source and the file written, `compiled Net.Http from src/net/http.ern to build/net/http.erc`; each module not among its sources that it read, with the `.erc` found for it, `read Ets from build/libs/ets/ets.erc`; and each stale `.erc` it removed, `removed build/old.erc`. A module found current is not named. A path is written as §11.5 writes one. Without the flag a build says nothing but its errors.
 
-**Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's or the shell's source root (§4.2) uses that root. Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ern build`. In single-file mode without `--source-root`, a file's namespace is its path from the current directory: `ern build net/http.ern` compiles `Net.Http`, and `ern build app/net/http.ern` compiles `App.Net.Http`.
+**Source root.** Each file's namespace comes from its path under the source root (§4.2). `--source-root` names it. Without it, a path under the standard library's or the shell's source root (§4.2) uses that root, and a path under the root package's `src` uses that `src` (§11.9). Otherwise single-file mode uses the current directory, and directory mode uses the directory passed to `ern build`. In single-file mode without `--source-root`, a file's namespace is its path from the current directory: `ern build net/http.ern` compiles `Net.Http`, and `ern build app/net/http.ern` compiles `App.Net.Http`.
 
-Output mirrors the source root, not the directory argument: `ern build --source-root src --build-root build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-root` defaults to the source root, and to `build/stdlib` and `build/shell` beside the toolchain for the toolchain's own source roots (§4.2), where their modules are built.
+Output mirrors the source root, not the directory argument: `ern build --source-root src --build-root build src/net` writes `src/net/http.ern` to `build/net/http.erc`, not `build/http.erc`. `build-root` defaults to the source root, and to `build/stdlib` and `build/shell` beside the toolchain for the toolchain's own source roots (§4.2), where their modules are built, and to the root package's `build` where the source root is its `src` (§11.9).
 
 **Path shape.** The name of each `.ern` file compiled, and of each directory between it and the source root, is one or more words joined by single `_`, a word being a lowercase letter followed by lowercase letters and digits: `http`, `httpv2`, `ordered_set`. Extensions are `.ern` and `.erc`.
 
@@ -139,17 +139,17 @@ A member's name, as the unit lists it and its documentation keys it, is its type
 
 The runner starts the system processes (§8.2) and calls the entry point (§8.1): the `export fn main` of the loaded module, or the function of that module that `--main` names. A `--main` that names a function of another module is refused, naming both modules: `--main Tools.check names a function of Tools, and the file given is the module Main`. A compiled form another build of `ern` wrote, another version or the same version's code changed (§11.1), is refused before anything runs, naming the file, `ern run: main.erc: compiled by another build of ern`, since `ern build` compiles it again and `ern run` cannot; `ern test` refuses one the same way.
 
-The load path holds the standard library and the root of the loaded module: the directory reached from the module's file by going up one directory per segment of its namespace. `--load-path` adds a directory, and `--libs-dir dir` the `ebin` directory of each application under `dir`, in the order the options are given; after them stands the build of each library of the toolchain's own (Appendix G), a root each; a program names none of them.
+The load path holds the standard library and the root of the loaded module: the directory reached from the module's file by going up one directory per segment of its namespace. `--load-path` adds a directory, and `--libs-dir dir` the `ebin` directory of each application under `dir`, in the order the options are given; after them stand the build and the `ebin` of each named package, in the manifest's order (§11.9); last stands the build of each library of the toolchain's own (Appendix G), a root each, and a program names none of them.
 
 An application's directory under `dir` is named `name` or `name-version`, the version digits separated by dots, as the host lays its applications out, and holds the directory `ebin`; one with no `ebin` adds nothing. The `ebin` directories a `--libs-dir` adds stand in the order of their applications' directory names, by code point. A directory's application is its name up to its last `-` where what follows that `-` is a version so written, and its whole name otherwise: `foo-1.0` holds the application `foo`, and `foo-bar` and `foo-1.0-rc1` the applications of their whole names. Two or more directories of one application's name under `dir` are refused, naming them: `lib holds more than one directory of the application foo, foo-1.0 and foo-1.1, which --libs-dir names`.
 
-`--verbose`, of `ern run` and `ern test`, writes on standard error a line for each module the job reads, the standard library's and the shell's aside, with the file it read, `read Main from build/main.erc`, as it reads it; a node's start reads every module of its load path so (§8.7). A path is written as §11.5 writes one, and standard output stays the program's.
+`--verbose`, of `ern run` and `ern test`, writes on standard error the manifest the job read (§11.9), `manifest package.conf`, and a line for each module the job reads, the standard library's and the shell's aside, with the file it read, `read Main from build/main.erc`, as it reads it; a node's start reads every module of its load path so (§8.7). A path is written as §11.5 writes one, and standard output stays the program's.
 
 `--config-dir dir` makes the run a node (§8.3): `dir` is its configuration directory (§11.3), whose `ernest.conf` gives it its peers. `ern test` and `ern shell` take it too: `ern test --config-dir dir` runs the tests on a node, and `ern shell --config-dir dir` is a node like any other, whose inputs find, call and send to its peers' services (§8.7).
 
 A function typed at the shell has a hash as any definition has (§8.7), and a spawn or a compute of it on a peer carries it, with its reach, to a peer that lacks it, as a definition of the build crosses (§8.7); its form is kept beside its code for that, as a received definition's is (**What a node holds**). A service at a type the session declares names that type by its hash, as any service does. `:load` and `:reload` work in a shell that is a node as in any.
 
-`ern run --config-dir dir` with no `.erc` starts a bare node (§8.7), whose load path is the standard library, the directories `--load-path` and `--libs-dir` add, and the toolchain's libraries, and `ern shell --config-dir dir` with no `.erc` is a bare node with a prompt (§8.7). `ern run` with neither a `.erc` nor `--config-dir` is refused, `a .erc is required, or --config-dir for a bare node`.
+`ern run --config-dir dir` with no `.erc` starts a bare node (§8.7), whose load path is the standard library, the directories `--load-path` and `--libs-dir` add, the named packages' (§11.9), and the toolchain's libraries, and `ern shell --config-dir dir` with no `.erc` is a bare node with a prompt (§8.7). `ern run` with neither a `.erc` nor `--config-dir` is refused, `a .erc is required, or --config-dir for a bare node`.
 
 A module compiled against another interface of a module it uses, or against another standard library, is refused before anything runs: `Main was compiled against another Geo.Shape; build Main again`. So is a file at a module's path that holds another module, `build/geo/shape.erc holds Src.Geo.Shape, not Geo.Shape; remove it, and build Geo.Shape from its source root`. The words after `file.erc` are the program's, `Os.arguments` (Appendix E.23), even one that begins with `-` and a `--` among them; an argument that is not UTF-8 is refused before anything runs, `ern run` naming it by its position.
 
@@ -199,7 +199,7 @@ The host limits what one runtime loads in its life, and gives none of it back; t
 
 Where the program's end waits for subscribers (§8.6), the runtime says how many and which, once, each by its spawn site, `the end waits for 2 subscribers: Counter.counter:7, Log.writer:3`; one that subscribes while the end waits as it is told, `the end waits for Store.late:9 too`; each subscriber as it answers, ends or restarts before it answers, `the subscriber Counter.counter:7 answered`, `ended without answering` or `restarted without answering`, and one whose delivery was killed `is no longer waited for` (§8.6); and a wait an `Os.exit` or a termination cut short (§8.6) with the subscribers it left unanswered, `the end was cut short, 1 subscriber unanswered: Counter.counter:7`, the interrupt leaving no time for a line; each written as a fault's line is.
 
-`ern shell [--config-dir dir] [--load-path dir]... [--libs-dir dir] [--source-root src-root] [--main Qualified.name] [--attach name] [file.erc]` runs an interactive shell with every loaded module in scope; `--source-root` names where the shell finds a module's source, the working directory by default, and `--attach name` attaches the shell to a listed peer (**The attached shell**). In the shell, but for an attached one (**The attached shell**), and under `ern test`, `Os.arguments` is the empty list. `Os.exit` in a process a session started, directly or through one it started (§12.1), and in any process under `ern test`, faults its caller, as Appendix E.23 says, and ends neither the shell nor the run of the tests; from a process of the shell's own it ends the shell with its status (§11.8).
+`ern shell [--config-dir dir] [--load-path dir]... [--libs-dir dir] [--source-root src-root] [--main Qualified.name] [--attach name] [file.erc]` runs an interactive shell with every loaded module in scope; `--source-root` names where the shell finds a module's source, by default the root package's `src` where the shell reads a manifest and the package has one (§11.9), and the working directory otherwise, and `--attach name` attaches the shell to a listed peer (**The attached shell**). In the shell, but for an attached one (**The attached shell**), and under `ern test`, `Os.arguments` is the empty list. `Os.exit` in a process a session started, directly or through one it started (§12.1), and in any process under `ern test`, faults its caller, as Appendix E.23 says, and ends neither the shell nor the run of the tests; from a process of the shell's own it ends the shell with its status (§11.8).
 
 **The shell.** It is the entry point (§8.1), but in an attached shell, where it is a process spawned on the node (**The attached shell**). A file's entry point is spawned beside it, so §8.6 ends the program when the shell ends, not when that entry point returns; `--main` then names the function to spawn. That entry point, and every process it starts, directly or through one it started, is a process the session started (§12.1). A file without an entry point, and without `--main`, is loaded and nothing is spawned. `--main` without a file is refused.
 
@@ -403,7 +403,7 @@ The page's body is the page above after its title, under DESCRIPTION: a heading 
 
 A run of `ern doc src-dir`, with `--man` or without, removes every document and every page `ern doc` wrote of a module under the directory whose source is gone, as the build removes its `.erc`, and writes `index.md` again where it lists such a module. A document or a page names its module in its title and stands at the module's place, and a file that does not is kept.
 
-`--verbose` writes on standard error, a line each as it decides them, what the job decides without saying, as `ern build`'s does (§11.1): each module it compiled or read, and each document or page it wrote or removed, `removed build/net/web.md`. A path is written as §11.5 writes one.
+`--verbose` writes on standard error, a line each as it decides them, what the job decides without saying, as `ern build`'s does (§11.1): the manifest it read, each module it compiled or read, and each document or page it wrote or removed, `removed build/net/web.md`. A path is written as §11.5 writes one.
 
 ### 11.5 Diagnostics
 
@@ -528,6 +528,84 @@ An attached shell exits with status 1 where its attach is refused or its node is
 A failure of `ern` itself exits with status 70. A job whose program exhausts the host's memory (§10), whose host would pass one of the four limits §11.2 names, or whose node dials a peer with its table of processes full (§12.5), exits with status 1, writing nothing of the host's but its message (§11). A job whose standard output or standard error can no longer be written exits with status 141, 128 plus the number of `SIGPIPE`, where the stream is no terminal; a stream is what it was as the job started.
 
 A job the host's termination or hangup ends, `ern run` among them once the runtime has stopped as §8.6 says, ends by that signal where the signal began the end, and with the status of what began it where the signal cut short an end already begun (§8.6), but for one that comes before the runtime can take signals (§12.4), and so does a job the host's interrupt ends, at once (§8.6): a shell reports its status as 130, 128 plus the number of `SIGINT`. A job whose keys the host can no longer read, or whose terminal can no longer be written, ends by the hangup's signal, on a node as elsewhere (§12.1), which it sends itself once its output is flushed, so that a shell reports its status as 129, 128 plus the number of `SIGHUP`.
+
+### 11.9 Packages
+
+A *package* is a directory that holds a *manifest*, the file `package.conf`. Its Ernest stands under `src` and is built under `build` (§11.1), and its Erlang stands compiled under `ebin`. Its version is its file `VERSION`, one line that holds a version and ends in a line feed.
+
+```json
+{
+  "ernest": "0.11.0",
+  "packages": [
+    {
+      "name": "epx",
+      "version": "0.2.1",
+      "url": "https://example.org/epx/epx-0.2.1.tar.gz",
+      "sha256": "<64 hexadecimal digits>"
+    }
+  ]
+}
+```
+
+**The manifest.** `package.conf` is JSON, an object of two fields, `ernest` and `packages`. `ernest` is a version, the least release of Ernest the package is written for. `packages` is a list that holds an entry for every package whose modules the package's own modules use, directly or through another package.
+
+An entry has a `name` and a `version`, and may have a `url` and a `sha256`, which `ern unpack` alone uses (**`ern unpack`**). A name is written as a file's name is (§11.1), and the package's namespace is the one §4.2 makes of it: the package `ordered_set` provides `OrderedSet`. A version is three numbers joined by `.`, `0.2.1`, none written with a leading zero. Two versions compare number by number, the first number first. A `url` is an `https` URL whose last segment is the entry's name, `-`, its version and `.tar.gz`. A `sha256` is 64 hexadecimal digits, their letters lowercase.
+
+A manifest holds neither the name nor the version of its own package: a package's name is its directory's under `lib`, and its version is its `VERSION`'s.
+
+A job refuses a manifest that is not JSON, that gives a field it does not know or one twice, that lacks `ernest`, `packages`, or an entry's `name` or `version`, that gives a field a value not of its form, or that names one package in two entries. A refusal over a manifest names the job, the file and what is wrong: `ern build: package.conf: two entries name leaf`. A refusal writes a digest whole, which the examples here cut short.
+
+**The root package.** `ern build`, `ern doc`, `ern run`, `ern test`, `ern shell` and `ern unpack` read the manifest of the directory they are started in, where it holds one. That directory is then the job's *root package*, and a package its manifest names is a *named package*. `ern unpack` started where there is no manifest is refused, `ern unpack: package.conf: no such file`.
+
+A job given a file or a directory reads the manifest only where the path lies under the working directory: made absolute, its `.` and `..` segments resolved without following a link, it begins with the working directory's path. No job reads the manifest of a directory above. An attached shell reads none, its load path being its node's (§11.2).
+
+A job refuses the manifest where the file, the root package's directory, its `lib`, or a named package's directory, `build` or `ebin` is neither its user's own nor the superuser's, or may be written by anyone but its owner, as the shell's startup files are refused (§11.2): `ern run: package.conf: may be written by others than its owner`.
+
+A named package stands under the root package's `lib` at its name, `lib/epx`, a directory or a link to one. A job that reads the manifest, `ern unpack` aside, refuses a named package that is not there: `ern build: package.conf: epx 0.2.1 is not under lib; ern unpack puts it there`. No job reads a `lib` but the root package's: a named package's own `lib` is passed over.
+
+In directory mode (§11.1), a directory named `lib` that stands beside a `package.conf` is passed over, as a name that begins with a dot is, by every job that walks a directory, `ern format` among them.
+
+**The load path.** The build of each named package, `lib/epx/build`, stands on the job's load path, in the manifest's order (§11.1, §11.2). Under `ern run`, `ern test` and `ern shell` its `ebin` stands there too, `lib/epx/ebin`, as an application's does (§11.2). A named package's `build` or `ebin` that is not there adds nothing. A directory that an option names too, by a path that resolves to the same one (above), stands on the load path once, at the option's place.
+
+The manifest puts neither the root package's own `build` nor its `ebin` on the load path; the command line names them, as it names any directory (§11.2).
+
+A named package's Erlang stands compiled in its `ebin`, and no job compiles it. `ern build` and `ern unpack` run no code of a package.
+
+**The namespaces.** A job that reads a manifest refuses an entry whose namespace is one §4.2 takes or one a library of the toolchain's own provides (Appendix G): `ern run: package.conf: the entry for json names Json, which a library of the toolchain's own provides`.
+
+A named package's namespace, and every namespace under it, is found under that package's build alone, and the package's build provides no other. A job that compiles a module outside the named packages, `ern build`, `ern doc`, and the shell's `:load` and `:reload`, refuses one at a named package's namespace or under it: `src/leaf.ern: Leaf is the package leaf's, which package.conf names`.
+
+**The build.** `ern build` alone reads the named packages' manifests, and holds the manifests to each other before it compiles. It refuses the build where one of these rules is broken, and says every rule broken, a line each, in the order of the root package's entries:
+
+- The running `ern` is of the release the root package's `ernest` names or of a later one, by the three numbers of its version text (§11.7): `ern build: package.conf: written for ern from 0.9.0, and this is ern 0.8.2`.
+- A named package holds a manifest and a `VERSION`, and its `VERSION` says its entry's version: `ern build: package.conf: the entry for leaf says 1.2.0, and lib/leaf holds 1.3.0; ern unpack puts 1.2.0 there`.
+- A named package's `ernest` is held as the root package's is: `ern build: package.conf: leaf 1.2.0 is written for ern from 0.11.0, and this is ern 0.10.2`.
+- Each entry of a named package's manifest names the least version of its package the named package works with. The root package's manifest holds an entry of that name whose version is that one or a later: `ern build: package.conf: http 0.4.0 needs json from 1.3.0, and the entry for json says 1.2.0`, and `ern build: package.conf: http 0.4.0 needs time from 1.1.0, and no entry names time`.
+- Every module under a named package's `src` stands at the namespace of the package's name or under it, `Epx` and `Epx.Window` for `epx`: `lib/leaf/src/util.ern: the package leaf provides Leaf and what stands under it`.
+
+An entry whose package no module uses is accepted.
+
+`ern build` then builds each named package, compiling its `src` into its `build` as it compiles a directory (§11.1), after the packages its manifest names and otherwise in the root package's order. The load path of that build is the builds of the packages its own manifest names, each under the root package's `lib`, and the builds of the toolchain's libraries. A cycle among the named packages is refused, its packages named from the one the root package's manifest names first: `ern build: package.conf: a cycle among the packages: mid, leaf`.
+
+A module of a package that does not compile fails as §11.1 says: a module that uses it, of a named package or of the root package, is not compiled, and every failure is reported.
+
+**Versions.** A version of a package from 1.0.0 on keeps every name that a version from 1.0.0 on before it exports, at its type and with what it does. A release that does not takes another name. A version before 1.0.0 promises nothing. No job checks the promise.
+
+**`ern unpack`.** `ern unpack` takes no argument, reads no network, and writes nothing but its refusals. For each named package that does not stand under `lib` at its entry's version, by its `VERSION`, it unpacks the package's archive there, in the manifest's order.
+
+It reads the archive from `lib`, under the last segment of the entry's `url`: `lib/epx-0.2.1.tar.gz`. The archive is a tar archive compressed by gzip whose members all stand in one directory, named as the archive is without `.tar.gz`, `epx-0.2.1`. That directory is a package whose `VERSION` says the entry's version. A member is a directory, a regular file, or a symbolic link to a file or a directory within that directory; a pax header is no member.
+
+The job checks the archive's SHA-256 against the entry's, and unpacks the archive's directory as `lib/epx`. What it writes may be written by its owner alone, and has no set-user-ID, set-group-ID or sticky bit. A package of another version at `lib/epx` is replaced whole, and a link there is removed and not followed; anything else there is refused and left as it is. The archive stays where it is.
+
+A job that ends as it unpacks leaves `lib/epx` as it was, as the archive holds it, or absent, and never with part of an archive.
+
+The job refuses an entry it must unpack that has no `url` or no `sha256`, and gives the archive's SHA-256 where the archive is there: `ern unpack: package.conf: the entry for leaf has no sha256; lib/leaf-1.2.0.tar.gz has 71be…`. It refuses a named package whose archive is not there, in one line that says what to download and where to put it: `ern unpack: package.conf: epx 0.2.1 is not under lib; download https://example.org/epx/epx-0.2.1.tar.gz to lib/epx-0.2.1.tar.gz`.
+
+It refuses an archive whose SHA-256 is not the entry's, `ern unpack: lib/leaf-1.2.0.tar.gz: its sha256 is 71be…, and the entry for leaf says 9f2c…`. It refuses one that holds no manifest or no `VERSION`, `ern unpack: lib/leaf-1.2.0.tar.gz: holds no package.conf`, and one whose `VERSION` says another version, `ern unpack: lib/leaf-1.2.0.tar.gz: holds leaf 1.3.0, and the entry for leaf says 1.2.0`. It refuses one with a member of another kind, or one that stands outside the archive's directory by its path or through a link: `ern unpack: lib/leaf-1.2.0.tar.gz: leaf-1.2.0/../x stands outside leaf-1.2.0`.
+
+It refuses an archive whose `ebin` holds a `.beam` of a name that the `ebin` of another named package under `lib` holds: `ern unpack: lib/leaf-1.2.0.tar.gz: util.beam is mid's too, and the host loads one`. It refuses one whose `ebin` holds a `.beam` named as a module of the host's own or of the toolchain's, which §11.2 finds first, `ern unpack: lib/leaf-1.2.0.tar.gz: lists.beam is the host's own module, which is found first`, or named as a unit is, `ern@` and a path (§11.1).
+
+Nothing of a refused archive is unpacked. A refusal of one named package stops no other, and the job says every refusal of its run.
 
 ## 12. The Runtime
 

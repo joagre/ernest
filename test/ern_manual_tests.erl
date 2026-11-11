@@ -10,10 +10,11 @@
 
 %% report §11, §11.4: the manual pages `make manual` writes. `ern doc --man`
 %% writes the prelude's page and each standard library module's beside its
-%% .erc; tools/manual.ern writes ern(1), whose NAME line, DESCRIPTION, and
-%% subsections are §11's, in the report's order, whose SYNOPSIS holds every
-%% job's usage line, whose OPTIONS and EXIT STATUS are §11.7 and §11.8, and
-%% whose SEE ALSO names those pages, the prelude's first. Every page renders without a warning:
+%% .erc; tools/manual.ern writes ern(1), whose NAME line and DESCRIPTION
+%% are §11's, its subsections §11.1 to §11.6 and those after §11.8, in
+%% the report's order, whose SYNOPSIS holds every job's usage line, whose
+%% OPTIONS and EXIT STATUS are §11.7 and §11.8, and whose SEE ALSO names
+%% those pages, the prelude's first. Every page renders without a warning:
 %% groff checks it where it is installed, with UTF-8 read as man-db reads
 %% it, mandoc where groff is not, and a machine with neither says so.
 %% Written after the code, a regression test.
@@ -54,10 +55,13 @@ manual_pages() ->
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nDESCRIPTION\n.PP\n"
                                                 "The toolchain is one command, \\fBern\\fR, ">>)),
     {ok, Report} = file:read_file("../report/toolchain.md"),
-    {match, Sections} = re:run(Report, "^### (11\\.[0-6] .*)$",
+    {match, Sections} = re:run(Report, "^### (11\\.(?:[0-6]|9) .*)$",
                                [multiline, global, {capture, all_but_first, binary}]),
-    ?assertEqual([binary:replace(Section, <<"`">>, <<>>, [global]) || [Section] <- Sections],
-                 [Section || {<<".SS">>, Section} <- Pairs]),
+    Subsections = [binary:replace(Section, <<"`">>, <<>>, [global]) || [Section] <- Sections],
+    ?assertEqual(Subsections, [Section || {<<".SS">>, Section} <- Pairs]),
+    %% every subsection stands in DESCRIPTION, those after §11.8 among them
+    Described = lists:takewhile(fun(Pair) -> Pair =/= {<<".SH">>, <<"OPTIONS">>} end, Pairs),
+    ?assertEqual(Subsections, [Section || {<<".SS">>, Section} <- Described]),
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nSEE ALSO\n.PP\n\\fBErnest.Prelude\\fR(3ern), "
                                                 "\\fBErnest.Bool\\fR(3ern), ">>)),
     SeeAlso = fun(Module) ->

@@ -413,7 +413,7 @@ word_not_utf8_test() ->
                       ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
                                                           ?capturedOutput), Line))
                   end, ["build", "doc", "format", "run", "test", "shell", "config", "reload",
-                        "stop"]).
+                        "stop", "unpack"]).
 
 %% report §11.6: a file named alone is a module when its name ends in
 %% `.ern` and is otherwise one word, and those under a directory are found
@@ -965,7 +965,8 @@ synopses_are_the_reports_test_() ->
                                 binary:match(Report, unicode:characters_to_binary(
                                                        ["`", Shown, "`"])))
            end}
-     || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop"]].
+     || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop",
+                "unpack"]].
 
 %% report §11.1, §11.2, §11.4: `--help` says the source root's default, the
 %% working directory or the directory given for `ern build` and `ern doc`,
@@ -5699,7 +5700,8 @@ options_test() ->
     ?assertEqual(0, ern_cli:ern(["--version"])),
     ?assertEqual(0, ern_cli:ern(["--help"])),
     [?assertEqual(0, ern_cli:ern([Job, "--help"]))
-     || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop"]].
+     || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop",
+                "unpack"]].
 
 %% report §11: a job's `--help` stands alone, as `ern --help` does; the
 %% option parser's refusals are written in the usage's words, an option
@@ -5740,11 +5742,26 @@ job_first_test() ->
     ?assertEqual(2, length(binary:matches(Output, <<"ern: a job is required\nUsage: ern <job>">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"no job ;">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern: no job compile; the jobs are build, doc,"
-                                                " format, run, test, shell, config, reload and"
-                                                " stop; ern --help describes them\n">>)),
+                                                " format, run, test, shell, config, reload,"
+                                                " stop and unpack; ern --help describes"
+                                                " them\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern: no job help; the jobs are build, doc,"
-                                                " format, run, test, shell, config, reload and"
-                                                " stop; ern --help describes them\n">>)).
+                                                " format, run, test, shell, config, reload,"
+                                                " stop and unpack; ern --help describes"
+                                                " them\n">>)).
+
+%% report §11: `ern unpack` is refused as not implemented, in one line
+%% with status 1 and no usage, and given an argument it is refused as
+%% taking none, with its usage. A regression test, written after the code;
+%% it does not cover the job's work, which is not built
+unpack_not_implemented_test() ->
+    ?assertEqual(1, ern_err(["unpack"])),
+    ?assertEqual(<<"ern unpack: this job is not implemented\n">>,
+                 iolist_to_binary(?capturedOutput)),
+    ?assertEqual(1, ern_err(["unpack", "x"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"ern unpack: unpack takes no argument\n"
+                                        "Usage: ern unpack\n">>)).
 
 %% report §11: a compiled module given first is refused with the job that
 %% runs it, an option before the job with where it goes, and a spelling of

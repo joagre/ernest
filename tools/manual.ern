@@ -2,11 +2,11 @@
 // ern(1), the toolchain's manual page (report §11): §11 of the report,
 // rendered by libs/markdown as `ern doc --man` renders a module's page
 // (report §11.4). Its SYNOPSIS is each job's usage line, its DESCRIPTION
-// §11 with §11.1 to §11.6, its OPTIONS and EXIT STATUS §11.7 and §11.8,
-// and its SEE ALSO names the manual pages in a directory, the ones `ern doc
-// --man` wrote for the standard library. `make manual` runs it with the
-// report, the version, and that directory, and it writes the page to
-// standard output.
+// §11 with §11.1 to §11.6 and every section after §11.8, its OPTIONS and
+// EXIT STATUS §11.7 and §11.8, and its SEE ALSO names the manual pages in
+// a directory, the ones `ern doc --man` wrote for the standard library.
+// `make manual` runs it with the report, the version, and that directory,
+// and it writes the page to standard output.
 //
 
 export fn main() : Unit =
@@ -33,7 +33,8 @@ fn manual(report : String, version : String, pages : String) : Either(String, Li
         Either.fromOptional(toolchain(Markdown.parse(text)),
                             "no section 11. Toolchain in " <> report);
     let #(description, rest) = List.span(section, fn(block) = !titled(block, "11.7 Options"));
-    let #(options, exitStatus) = List.span(rest, fn(block) = !titled(block, "11.8 Exit status"));
+    let #(options, rest) = List.span(rest, fn(block) = !titled(block, "11.8 Exit status"));
+    let #(exitStatus, later) = subsection(rest);
     let _ <- if List.isEmpty(options) || List.isEmpty(exitStatus) then
         Left("no sections 11.7 Options and 11.8 Exit status in " <> report)
     else
@@ -43,7 +44,7 @@ fn manual(report : String, version : String, pages : String) : Either(String, Li
         [heading("SYNOPSIS")]
             <> List.map(usages(section), usage)
             <> [heading("DESCRIPTION")]
-            <> List.map(description, raised)
+            <> List.map(description <> later, raised)
             <> [heading("OPTIONS")]
             <> List.drop(options, 1)
             <> [heading("EXIT STATUS")]
@@ -72,6 +73,18 @@ fn toolchain(blocks : List(Markdown.Block)) : Optional(List(Markdown.Block)) = {
             None
     }
 }
+
+// The subsection the blocks begin with, up to the next subsection's
+// heading, and the blocks from that heading on.
+fn subsection(blocks : List(Markdown.Block)) : #(List(Markdown.Block), List(Markdown.Block)) =
+    match blocks {
+        first :: rest -> {
+            let #(body, later) = List.span(rest, fn(block) = !beginsSubsection(block));
+            #(first :: body, later)
+        }
+      | [] ->
+            #([], [])
+    }
 
 // Whether a block is the subsection heading of that title.
 fn titled(block : Markdown.Block, title : String) : Bool =
@@ -115,6 +128,12 @@ fn usage(line : String) : Markdown.Block =
 fn beginsChapter(block : Markdown.Block) : Bool =
     match block {
         Markdown.Heading(=level) -> level <= 2
+      | _ -> false
+    }
+
+fn beginsSubsection(block : Markdown.Block) : Bool =
+    match block {
+        Markdown.Heading(=level) -> level <= 3
       | _ -> false
     }
 

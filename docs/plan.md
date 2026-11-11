@@ -54,11 +54,8 @@ Deadlock of the Whole Program*).
 The other seven are the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md).
 
-4. **The report's sentences on a package**: a new section at the end of §11, §11's opening,
-   §11.1, §11.2, Appendix F and Appendix G's opening, read cold before the build. The log's
-   entry that argues the proposal is written with them. It supersedes in part *Packages*, *MVP
-   2.7, the Fetcher, and No Server* and *A Library Is Fetched by Its URL*, and records the
-   argument of *A Libs Flag Instead of the Environment* beside the one that won.
+4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
+   Manifest*).
 5. **The manifest read and the load path**: every job finds `package.conf` in the directory it
    is started in and puts the named packages on its load path, `lib/` filled by hand. The look
    is measured on a job with no manifest before anything is built on it.
@@ -75,6 +72,11 @@ The other seven are the packages proposal's build order,
     manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
     host part as the proposal's question 5 says. ernest-httpd's four matches on a bare
     `Process.Calling` take `Process.Calling()` then, since item 3 gave it fields (E.21).
+    Decided with the user 2026-11-11: this session writes the packages' part in the three,
+    their sessions closed, as a change across the repositories in their shape alone
+    (`docs/clean_room.md`): each manifest, the template's Makefile and `TEMPLATE.md`, and
+    ernest-epx's moved files and Makefile. ernest-epx's release and ernest-httpd's four matches
+    stay their own sessions'.
 11. **The flake hunt**, decided with the user 2026-11-10 (the log's *The Listings Before a
     Review*): a target of its own that runs the split suites of `make test-full` again and
     again in warm hosts beside busy loops, for as long as it is given, writes each failing test
@@ -97,6 +99,17 @@ The other seven are the packages proposal's build order,
 20. **The deadlock proposal's reading and sweep**, done 2026-11-11 (the log's *A Deadlock of the
     Whole Program*).
 21. **Item 3's follow-up**, done 2026-11-11 (the log's *A Deadlock of the Whole Program*).
+22. **ern(1)'s SYNOPSIS**, found 2026-11-11 in item 4, taken before item 5. `tools/manual.ern`
+    takes a usage line to be a code span of §11 that holds ` [`, so the SYNOPSIS holds `ern
+    config`'s refusal of an IPv4-mapped address, and lacks `ern reload`, `ern stop` and `ern
+    unpack`, whose usages hold no bracket (§11). The fix finds each job's usage by one rule
+    that holds for every job, and a test holds the SYNOPSIS to every job's `--help`.
+23. **The packages proposal's reading and sweep**, once item 10 is done and before MVP 4.4's
+    release, as *A Built Proposal's Sweep Is an Item* places one.
+24. **The flake of `reads_limited_test`**, seen 2026-11-11 once under `make test`, item 4's
+    run: the socket's reader read `Running` where `Calling` was expected, after
+    `ern_waits:calling` had returned for it. The cause is not found. An item session finds it
+    under `make test`'s load, and fixes the test or the runtime at it.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

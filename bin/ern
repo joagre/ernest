@@ -93,8 +93,8 @@ export ERL_CRASH_DUMP_SECONDS
 # the job's own reading of its words does (ern_cli's program_words/3), an
 # option's value passed over: the options of `ern run` that take one are
 # named here. Every word of `ern test` and `ern shell` is the job's.
-# Another job, `ern config`, `ern reload` or `ern stop`, makes no node, and
-# the host starts once.
+# Another job, `ern config`, `ern reload`, `ern stop` or `ern unpack`,
+# makes no node, and the host starts once.
 node=
 case ${1-} in
     run | test | shell)

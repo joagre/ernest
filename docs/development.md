@@ -447,6 +447,11 @@ The shell's `:help` lists its commands; the language guide §9.3 teaches the she
 
 ## What the toolchain accepts
 
-The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs: no construct waits for a later milestone today. Where one does, it stands here as a row of a table, what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
+The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs, but for what the table names. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
+
+| Construct | Until | What you see today |
+|---|---|---|
+| a package's manifest, `package.conf`, read by a job started in its directory, its named packages put on the load path and held to each other by `ern build` (report §11.9) | MVP 4.16 | no job reads it: a job runs as in a directory without one |
+| `ern unpack`, a package's archive checked and unpacked under `lib` (report §11.9) | MVP 4.16 | `ern unpack: this job is not implemented` |
 
 Every refusal the toolchain makes for a later milestone's sake says `… is not implemented` in its error text and names no milestone, which the row here names, and `unimplemented_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

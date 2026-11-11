@@ -1,7 +1,8 @@
 %% The toolchain of report §11: one command, ern, whose first word is its
 %% job, build and doc (§11.1, §11.4), format (§11.6), run, test and shell
-%% (§11.2), config (§11.3), and reload and stop (§11.2, §12.5). The launcher
-%% bin/ern is thin; everything is here so that the tests can call it.
+%% (§11.2), config (§11.3), reload and stop (§11.2, §12.5), and unpack
+%% (§11.9), which is not implemented. The launcher bin/ern is thin;
+%% everything is here so that the tests can call it.
 %% `ern/1,2` returns the exit status, which the launcher's entry point ends
 %% the host with.
 -module(ern_cli).
@@ -170,7 +171,8 @@ jobs() ->
      {"config", config_options(), "", fun config/3},
      {"reload", signal_options("the node that reads its configuration again"), "",
       fun reload/3},
-     {"stop", signal_options("the node that ends"), "", fun stop/3}].
+     {"stop", signal_options("the node that ends"), "", fun stop/3},
+     {"unpack", [help_option()], "", fun unpack/3}].
 
 %% Report §11: a first word that is no job, refused with the jobs named
 %% and `ern --help`, which describes them; an option a job takes, given
@@ -191,8 +193,8 @@ no_job(Word) ->
     end.
 
 no_such_job(Word) ->
-    "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell, config, reload"
-        " and stop; ern --help describes them".
+    "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell, config, reload,"
+        " stop and unpack; ern --help describes them".
 
 %% An option's whole name, before any `=`.
 option_name(Word) ->
@@ -218,7 +220,8 @@ usage(Device) ->
               "  shell   run an interactive shell~n"
               "  config  create the configuration directory, or list a peer in it~n"
               "  reload  have a running node read its configuration again~n"
-              "  stop    end a running node~n~n"
+              "  stop    end a running node~n"
+              "  unpack  unpack the archives of the packages a manifest names~n~n"
               "ern <job> --help lists a job's options; ern --version prints the version.~n",
               []).
 
@@ -1111,6 +1114,14 @@ stop(Options, [], _ErrorDevice) ->
     0;
 stop(_Options, _Rest, _ErrorDevice) ->
     usage_fail("stop takes no argument").
+
+%% Report §11, §11.9: `ern unpack`, which takes no argument, is refused as
+%% not implemented.
+-spec unpack([term()], [string()], io:device()) -> no_return().
+unpack(_Options, [], _ErrorDevice) ->
+    ern_build:fail("this job is not implemented");
+unpack(_Options, _Rest, _ErrorDevice) ->
+    usage_fail("unpack takes no argument").
 
 %% Report §11.2, §11.3: `ern config`, `ern reload` and `ern stop` name the
 %% configuration directory they act on, which they require.
