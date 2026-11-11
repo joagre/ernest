@@ -275,9 +275,7 @@ accept_at_the_file_limit_test_() ->
 
 accept_at_the_file_limit() ->
     %% the repository's code, which the tests run from its root, after the
-    %% host's own: a library's directory, build/libs/crypto, which a run adds
-    %% last (ern_code:load_runtime/0), would otherwise stand where the host
-    %% looks for its own crypto's library, by its directory's name
+    %% host's own, as a run puts it (report §11.2, ern_cli:host_path/1)
     Build = filename:absname("build") ++ "/",
     Paths = [" -pz " ++ Dir || Dir <- code:get_path(), lists:prefix(Build, filename:absname(Dir))],
     Host = open_port({spawn, "sh -c 'ulimit -n 64; exec erl -noshell" ++ lists:append(Paths) ++
