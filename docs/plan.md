@@ -64,9 +64,8 @@ The other seven are the packages proposal's build order,
    trial's table of refusals is its first test.
 7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
    section of Appendix G first.
-8. **`ern unpack`**, in Ernest, over the three: an archive's digest checked against its line,
-   and the archive unpacked whole or not at all, one with an entry outside its own directory
-   refused. Where the job's module stands under `Ernest` is decided as the item opens.
+8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
+   stands under `Ernest` is decided as the item opens.
 9. **The guide's section on a package.**
 10. **The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
     manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
@@ -106,10 +105,23 @@ The other seven are the packages proposal's build order,
     run: the socket's reader read `Running` where `Calling` was expected, after
     `ern_waits:calling` had returned for it. The cause is not found. An item session finds it
     under `make test`'s load, and fixes the test or the runtime at it.
-25. **A second cold reading of §11.9**, decided with the user 2026-11-11, on the stronger
-    model, after item 22 and before item 5. The rewrite after the first reading added the
-    ownership and namespace rules, which no reader has read cold (the log's *A Package and Its
+25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
     Manifest*).
+26. **A module that hides a library another uses**, decided 2026-11-11, before item 5:
+    `ern build`, `ern doc`, `:load` and `:reload` refuse it as §11.1 says, where a library on
+    the load path depends on the hidden one, and `ern run`'s refusal names it (§11.2); the
+    named packages' case comes with item 6. §4.2 points to the rule, so it is built the day it
+    is decided, after one cold reading of its sentences in §4.2, §11.1 and §11.2 (the log's *A
+    Package and Its Manifest*).
+27. **The ownership test's group bits**, decided 2026-11-11, before item 5: the shell's startup
+    files, a node's configuration and `ern stop`'s and `ern reload`'s `ernest.pid` take the
+    ownership test as §11.2 states it, the owner and the bits for others, and a link's target
+    with the directory that holds it, and their refusals say `may be written by every user`
+    (the log's *A Package and Its Manifest*).
+28. **A given path opened as resolved**, decided 2026-11-11, before item 5: a job judges,
+    writes and opens a path it is given as §11 resolves it, `..` resolved without following a
+    link. The item finds what the code does now, changes it where it differs, and holds it with
+    a test (the log's *A Package and Its Manifest*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

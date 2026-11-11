@@ -382,7 +382,7 @@ The type of an exported declaration, and the field types of an exported type tha
 
 No segment of a module namespace, at any depth, is a taken one, `Ernest` among them: `fs/entry.ern`, `fides/io.ern` and `fides/ernest.ern` are errors as `io.ern` is. The toolchain's own source roots are the exception: the standard library's provides the prelude's namespaces and its own, and the shell's provides `Ernest` and what stands under it, each root's files providing its namespaces alone, built to `build/stdlib` and `build/shell` (§11.1). A file under one is compiled with it as the source root (§11.1); another source root is an error.
 
-The namespace of a library of the toolchain's own (Appendix G) is not taken: a program's module of its name hides the library, which stands last on the load path (§11.2), for every module whose lookup finds the program's first (**Qualified lookup**).
+The namespace of a library of the toolchain's own (Appendix G) is not taken: a program's module of its name hides the library, which stands last on the load path (§11.2), for every module whose lookup finds the program's first (**Qualified lookup**). A module that hides a library on which another library or a named package depends is refused (§11.1).
 
 ```ernest-fragment
 // net/http.ern
@@ -404,7 +404,9 @@ The namespace belongs to the file that declares the type, and the module of that
 
 A dotted name's first segment is a namespace, since a member stands in no expression (§4.5): in a module that declares `type List` with a member `List.<>`, `List.map` is the standard library's `map`, and `<>` on the module's own `List` is its member.
 
-**Qualified lookup.** A qualified name resolves from the writer's namespace outward. Its first segment is looked up as a module namespace directly under the writer's own namespace, then under each enclosing namespace in turn, and last at the root, where the modules of the source root and of each load path root, the prelude's namespaces, the standard library's and the toolchain's libraries' stand, in the load path's order (§11.2), the first root that holds the segment finding it; the segments after it descend from the namespace found. A type's nested namespace (**Type members**) is never found so. The nearer namespace wins where two hold the first segment. The farther is reached from there only by a name whose first segment is found above it, `Top.Util` from `Top.Shell`, where `Util` is `Top.Shell.Util`, and one at the root is out of reach.
+**Qualified lookup.** A qualified name resolves from the writer's namespace outward. Its first segment is looked up as a module namespace directly under the writer's own namespace, then under each enclosing namespace in turn, and last at the root, where the modules of the source root and of each load path root, the prelude's namespaces, the standard library's and the toolchain's libraries' stand, in the load path's order (§11.2), the first root that holds the segment finding it; the segments after it descend from the namespace found. A type's nested namespace (**Type members**) is never found so. At the root, a named package's namespace is found under that package's build alone, and in that package's own build under its source root too (§11.9).
+
+The nearer namespace wins where two hold the first segment. The farther is reached from there only by a name whose first segment is found above it, `Top.Util` from `Top.Shell`, where `Util` is `Top.Shell.Util`, and one at the root is out of reach.
 
 So `Command.parse` in `Ernest.Shell` names `Ernest.Shell.Command.parse`, `Region.Region` in `Ernest.Shell.Complete` names its sibling's type, `Shell.attach` there names its parent's function, and `Io.println` anywhere names the standard library's. The lookup finds a namespace where a module's file stands at its path, or anywhere under its directory: from `Top.User`, `Net.Http.get` names `Top.Net.Http.get` where `top/net/http.ern` stands and no `top/net.ern` does. A directory that holds no module is passed over. A first segment found nowhere is an error, as a module that does not exist is. A shell's input resolves as §11.2 says.
 
@@ -1431,13 +1433,14 @@ Every technical term this report introduces, with a gloss and the section that d
 - **loss** — the end of a connection, which gives each monitor on the peer's processes its `Down` with `Unreachable`, ends each call and each wait on the peer that began before the node ran it, faults a `callForever` on one of its processes, and drops what waited to be sent. §8.7.
 - **mailbox** — the queue of values a process receives. §6.
 - **mailbox type** — the `M` in `(A) -> B receiving M`; the type of the process's mailbox. §6.1.
-- **manifest** — `package.conf`, the file that makes a directory a package: the least release of Ernest the package is written for, and an entry for each package its modules use. §11.9.
+- **manifest** — `package.conf`, the file that makes a directory a package: the least release of Ernest the package is written for, and an entry for each package its modules use, directly or through another package. §11.9.
 - **`match`** — the pattern-matching expression form. §5.9.
 - **measure** — one of the host's measures a node runs, `cpu`, `memory` or `disk`, named in `ernest.conf`. §12.5, Appendix C.
 - **member** — an operator, `compare` or `negate` of a type, in the type's nested namespace: declared with the type's prefix, `fn Distance.+`, derived (§3.5), or, for a prelude type, declared unprefixed in its module; a requirement names one on a type variable; reached by its operator or `compare` alone, named in no expression. §4.2, §4.5, §4.9.
 - **module** — a single Ernest source file (`.ern`); the unit of compilation and namespace. §4.1.
 - **monitor** — `monitor(p, wrap)`; sends `wrap(d)` to the caller when the process `p` dies. §6.9, §9.5.
 - **named field** — a field on a constructor identified by name, not position. §3.5.
+- **named package** — a package the root package's manifest names, which stands under the root package's `lib`. §11.9.
 - **namespace** — the dotted prefix of a name; equal to the module's path. §4.2.
 - **`Never`** — the type with no values; as a mailbox type, a process that cannot receive. §3.7, §6.8.
 - **node** — one running runtime, started with a configuration directory and identified by its key. §8.3, §8.7.
@@ -1446,8 +1449,9 @@ Every technical term this report introduces, with a gloss and the section that d
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
 - **or-pattern** — patterns joined by `or` in one clause, which matches when any of them does. §5.9.
 - **order** — a function `(T, T) -> Ordering` that keeps §3.10's laws, which a type's `compare` keeps, and `List.sort` and an ordered set or map require of it. §3.10, Appendix E.25.
-- **owner** — the process that opened a resource or was given it, or that made a table or started a proxy, with which the resource ends. §6.9, Appendix E.18, G.1, G.7.
-- **package** — a directory that holds a manifest, its Ernest under `src`; a *named package* is one the root package's manifest names, which stands under the root package's `lib`. §11.9.
+- **owner** — of a resource, the process that opened it or was given it, or that made a table or started a proxy, with which the resource ends; of a file, the user the host records as owning it. §6.9, §11.2, §11.9, §12.5, Appendix E.18, G.1, G.7.
+- **ownership test** — the test a path fails where what it reaches, a link followed, is neither its user's own nor the superuser's, or others than its owner and its group may write it; a link fails it too where the directory that holds what it reaches does. §11.2.
+- **package** — a directory that holds a manifest, its Ernest under `src`. §11.9.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.
 - **percent-encoding** — a `%` and two hexadecimal digits standing for one octet in a URI reference, which `Uri.decode` undoes. Appendix G.12.
@@ -1525,6 +1529,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **URI reference** — a URI or a relative reference, RFC 3986's, read into its scheme, authority, path, query and fragment. Appendix G.12.
 - **utilization** — how busy a node is, on one scale: 1.0 every scheduler busy, below it room, above it work waiting; measured as the node's `ernest.conf` says, and answered to a peer by `Peer.utilization`. §8.7, §12.8, Appendix E.27.
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
+- **version** — three numbers joined by `.`: a package's, which its `VERSION` holds and an entry names, or the least release a manifest's `ernest` names. §11.9.
 - **version text** — the toolchain's version as `ern --version` writes it, `0.4.0`, and `0.4.0-dev` or `0.4.0+1a2b3c4d` for a build that is no release. §11.7.
 - **vocabulary** — the operations a kind of type provides by its structure, named alike in every module that has them. Appendix E.0.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.

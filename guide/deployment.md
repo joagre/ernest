@@ -33,7 +33,7 @@ MCowBQYDK2VwAyEA...
 
 The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
-The directory belongs to the user who runs the node. A node refuses to start from a directory, or a file of it the node reads, that is neither its user's own nor the superuser's, or that anyone but its owner may write, and from one whose private key any but its owner may read or write, and says so.
+The directory belongs to the user who runs the node. A node refuses to start from a directory, or a file of it the node reads, that is neither its user's own nor the superuser's, or that users other than its owner and its group may write, and from one whose private key any but its owner may read or write, and says so.
 
 ### 1.2 The configuration
 
