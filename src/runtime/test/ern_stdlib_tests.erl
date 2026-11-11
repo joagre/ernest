@@ -65,6 +65,16 @@ list_test() ->
     ?assertEqual({'Right', 3}, List(tryFold)([1, 2], 0, fun(A, X) -> {'Right', A + X} end)),
     Bounded = fun(A, X) when A + X > 2 -> {'Left', big}; (A, X) -> {'Right', A + X} end,
     ?assertEqual({'Left', big}, List(tryFold)([1, 2, 3], 0, Bounded)),
+    %% tryForEach answers Right(Unit) for the empty list and where every step
+    %% does, and the first Left ends it, the steps after it never called
+    ?assertEqual({'Right', 'Unit'}, List(tryForEach)([], fun(_) -> {'Left', never} end)),
+    ?assertEqual({'Right', 'Unit'}, List(tryForEach)([1, 2], fun(_) -> {'Right', 'Unit'} end)),
+    put(seen, []),
+    Visit = fun(X) when X > 2 -> {'Left', X};
+               (X) -> put(seen, [X | get(seen)]), {'Right', 'Unit'}
+            end,
+    ?assertEqual({'Left', 3}, List(tryForEach)([1, 2, 3, 4], Visit)),
+    ?assertEqual([1, 2], lists:reverse(get(seen))),
     %% report Appendix E.2: foldRight's step takes the accumulator first, as
     %% foldLeft's does. A regression test: the element came first
     ?assertEqual(<<"ab">>, List(foldRight)([<<"a">>, <<"b">>], <<>>,

@@ -101,10 +101,7 @@ The other seven are the packages proposal's build order,
 13. **The checkout's manual pages**, done 2026-11-11 (the log's *One Copy of the Pages*).
 14. **`Tcp.accept` at the limit of open files**, done 2026-11-11 (the log's *The Review's Feedback
     Decided*, 249).
-15. **`List.tryForEach`**, feedback 239: E.0 rule 2's sequence vocabulary and E.2 name it, `list.ern`
-    writes it with its examples and tests, and the seven sites that wrote `let _ <- List.tryMap`,
-    two in `libs/http` and five in the site's generator, take it. It closes on the standard
-    library's target, the libraries', the site's and `make test`.
+15. **`List.tryForEach`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 239).
 16. **`Bool.compare`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 243).
 17. **`Char`'s six class predicates**, done 2026-11-11 (the log's *The Review's Feedback Decided*,
     247).

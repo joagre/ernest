@@ -52,7 +52,7 @@
 
 %% report Appendix E.2: the list's operations against Erlang's own on lists,
 %% `sort` stable, `take` and `drop` splitting a list, the first `Left` ending
-%% `tryMap` and `tryFold`
+%% `tryMap`, `tryFold` and `tryForEach`
 list_laws_test_() ->
     laws([{"size and isEmpty", fun ints/1, fun list_size/1},
           {"contains", fun ints_and_int/1, fun list_contains/1},
@@ -81,7 +81,8 @@ list_laws_test_() ->
           {"flatMap", fun ints/1, fun list_flat_map/1},
           {"range inclusive, empty when the first is greater", fun two_small/1,
            fun list_range/1},
-          {"tryMap and tryFold end at the first Left", fun ints_and_int/1, fun list_tries/1},
+          {"tryMap, tryFold and tryForEach end at the first Left", fun ints_and_int/1,
+           fun list_tries/1},
           {"<> appends", fun two_ints/1, fun list_append/1}]).
 
 list_size(List) ->
@@ -187,11 +188,17 @@ list_tries({List, Pivot}) ->
            end,
     Fold = fun(Acc, X) -> either_map(Step(X), fun(Doubled) -> Acc + Doubled end) end,
     Doubled = [X * 2 || X <- List],
-    {Mapped, Folded} = case lists:search(above(Pivot), List) of
-                           {value, Bad} -> {{'Left', Bad}, {'Left', Bad}};
-                           false -> {{'Right', Doubled}, {'Right', lists:sum(Doubled)}}
-                       end,
-    ?LIST(tryMap)(List, Step) =:= Mapped andalso ?LIST(tryFold)(List, 0, Fold) =:= Folded.
+    {Mapped, Folded, Walked} =
+        case lists:search(above(Pivot), List) of
+            {value, Bad} -> {{'Left', Bad}, {'Left', Bad}, {'Left', Bad}};
+            false -> {{'Right', Doubled}, {'Right', lists:sum(Doubled)}, {'Right', 'Unit'}}
+        end,
+    %% the elements tryForEach's step sees are those before the first Left, in order
+    put(seen, []),
+    Visit = fun(X) -> either_map(Step(X), fun(_) -> put(seen, [X | get(seen)]), 'Unit' end) end,
+    Seen = lists:takewhile(fun(X) -> X =< Pivot end, List),
+    ?LIST(tryMap)(List, Step) =:= Mapped andalso ?LIST(tryFold)(List, 0, Fold) =:= Folded
+        andalso ?LIST(tryForEach)(List, Visit) =:= Walked andalso lists:reverse(get(seen)) =:= Seen.
 
 list_append({First, Second}) ->
     ?LIST('<>')(First, Second) =:= First ++ Second.

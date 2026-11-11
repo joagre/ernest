@@ -58,8 +58,7 @@ export fn written(run : Run.Run) : Either(String, Unit) = {
                   heading = None,
                   section = None,
                   placing = CodeBlock.copied)];
-    let _ <- List.tryMap(documents, fn(document) = documentWritten(run, document));
-    Right(Unit)
+    List.tryForEach(documents, fn(document) = documentWritten(run, document))
 }
 
 fn documentWritten(run : Run.Run, document : Document) : Either(String, Unit) = {

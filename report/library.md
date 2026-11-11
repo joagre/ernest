@@ -153,7 +153,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A container provides the container operations of the vocabulary below, or says in its section which it lacks and what stands in its place. Text and octets are containers read through `toList`, and provide the container operations their sections list.
 
-   A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap` and `tryFold` for a step that can fail.
+   A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap`, `tryFold` and `tryForEach` for a step that can fail.
 
    Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`.
 
@@ -301,6 +301,7 @@ List.flatMap : (List(a), (a) -> List(b) receiving e) -> List(b) receiving e
 List.range : (Int, Int) -> List(Int) // from the first to the second inclusive; empty when the first is greater
 List.tryMap : (List(a), (a) -> Either(e, b) receiving x) -> Either(e, List(b)) receiving x // the first Left ends it
 List.tryFold : (List(a), b, (b, a) -> Either(e, b) receiving x) -> Either(e, b) receiving x // the first Left ends it
+List.tryForEach : (List(a), (a) -> Either(e, Unit) receiving x) -> Either(e, Unit) receiving x // the first Left ends it
 ```
 
 ### Appendix E.3. `map.ern` (namespace `Map`)

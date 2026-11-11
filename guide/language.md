@@ -589,7 +589,7 @@ n : Int
 None : Optional(Int)
 ```
 
-A block is an `Optional` chain or an `Either` chain, never both. To run a step that can fail over every element of a list, `List.tryMap(xs, f)` and `List.tryFold(xs, acc, f)` stop at the first `Left`.
+A block is an `Optional` chain or an `Either` chain, never both. To run a step that can fail over every element of a list, `List.tryMap(xs, f)`, `List.tryFold(xs, acc, f)` and `List.tryForEach(xs, f)` stop at the first `Left`.
 
 ### 2.8 The pipe operator `|>`
 

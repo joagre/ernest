@@ -405,7 +405,7 @@ fn treeCopied(from : Path,
               left : List(String)) : Either(String, Unit) = {
     let entries <- Run.listed(from);
     let _ <- Run.made(to);
-    let _ <- List.tryMap(entries, fn(entry) = {
+    List.tryForEach(entries, fn(entry) = {
         let name = Optional.withDefault(Path.name(entry.path), "");
         let relative = under <> [name];
         match entry.kind {
@@ -414,8 +414,7 @@ fn treeCopied(from : Path,
           | Fs.File -> Run.copied(entry.path, to <> Path(name))
           | _ -> Left(Path.toString(entry.path) <> " is neither a file nor a directory")
         }
-    });
-    Right(Unit)
+    })
 }
 
 // A file written under a name that holds the first eight hexadecimal

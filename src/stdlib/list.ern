@@ -713,3 +713,29 @@ export fn tryFold(list : List(a),
             tryFold(rest, next, step)
         }
     }
+
+/// Calls `step` on each element in order, for its effect. Where every call
+/// answers `Right(Unit)`, the answer is `Right(Unit)`. At the first `Left(e)`
+/// the answer is `Left(e)`, and `step` is not called again. The empty list
+/// answers `Right(Unit)`.
+///
+/// ### Examples
+///
+/// Prints `1`, then stops at `2`:
+///
+/// ```ernest
+/// List.tryForEach([1, 2], fn(n) = if n > 1 then Left(n) else Right(Io.println(Int.toString(n))))
+/// // => Left(2)
+/// ```
+///
+/// since 0.11.0
+export fn tryForEach(list : List(a),
+                     step : (a) -> Either(e, Unit) receiving x) : Either(e, Unit) receiving x =
+    match list {
+        [] ->
+            Right(Unit)
+      | head :: rest -> {
+            let _ <- step(head);
+            tryForEach(rest, step)
+        }
+    }

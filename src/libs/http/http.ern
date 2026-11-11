@@ -1564,7 +1564,8 @@ export fn writeResponse(socket : Address(Tcp.SocketMsg),
 ///     let chunked = [Http.Header(name = "Transfer-Encoding", value = "chunked")];
 ///     let response = Http.Response(version = Http.http11, status = 200, headers = chunked);
 ///     let _ <- Http.writeResponse(socket, response, <<>>, 5000);
-///     let _ <- List.tryMap(parts, fn(part) = Http.writeChunk(socket, String.toUtf8(part), 5000));
+///     let _ <- List.tryForEach(parts,
+///                              fn(part) = Http.writeChunk(socket, String.toUtf8(part), 5000));
 ///     Http.writeChunk(socket, <<>>, 5000)
 /// }
 ///
@@ -2704,7 +2705,7 @@ fn served(texts : List(String),
           ending : Ending,
           read : (Address(Tcp.SocketMsg)) -> a) : Either(Io.Error, a) = {
     let #(server, client) <- connection();
-    let _ <- List.tryMap(texts, fn(text) = Tcp.write(client, String.toUtf8(text), 1000));
+    let _ <- List.tryForEach(texts, fn(text) = Tcp.write(client, String.toUtf8(text), 1000));
     if ending == Closes then Tcp.close(client) else Unit;
     let answer = read(server);
     Tcp.close(client);
