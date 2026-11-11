@@ -42,9 +42,8 @@ proposals built before the launch, so that the full review reads them and the la
 It follows Ernest 0.10.0, and the checkout then works toward the launch's minor. Its item 11,
 the flake hunt, stands apart from the two, and its item 12, the feedback, is taken first.
 
-The first three items are the deadlock proposal's,
-[`proposals/deadlock/`](proposals/deadlock/README.md), each part named as the proposal numbers
-it.
+The first three items are the deadlock proposal's, read and swept by item 20 (the log's *A
+Deadlock of the Whole Program*).
 
 1. **A deadlock's claim given its scope**, done 2026-11-11 (the log's *A Deadlock of the Whole
    Program*).
@@ -95,10 +94,8 @@ The other seven are the packages proposal's build order,
 18. **`Http.target` and the characters a browser sends raw**, done 2026-11-11 (the log's *The Review's
     Feedback Decided*, 250).
 19. **The help at `++`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 251).
-20. **The deadlock proposal's reading and sweep**, built whole by items 1 to 3: what
-    [`proposals/deadlock/`](proposals/deadlock/README.md) holds that no owner has yet, its
-    experiment's findings among them, read with the user and given to the runtime's note or the
-    log, and then the directory goes, before the milestone's release.
+20. **The deadlock proposal's reading and sweep**, done 2026-11-11 (the log's *A Deadlock of the
+    Whole Program*).
 21. **Item 3's follow-up**, done 2026-11-11 (the log's *A Deadlock of the Whole Program*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
