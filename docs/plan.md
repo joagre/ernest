@@ -95,13 +95,39 @@ The other seven are the packages proposal's build order,
     with its output, and ends the loops by their numbers. It runs on the user's word alone, in
     neither review, and `docs/development.md` names it.
 12. **The feedback of the release review before 0.10.0, and the applications'**, feedback 237 to
-    247, decided with the user 2026-11-10 (the log's *The Review's Feedback After Its Release*):
-    one design session right after 0.10.0's release, each line weighed alone against the
-    principles and E.0. The same session reads every line the applications' feedback files hold
-    as it opens, as `docs/clean_room.md`'s *The reading here* says. A verdict that builds becomes
-    an item of this milestone or of MVP 4.4, before the launch's review, and one that does not
-    goes to the log, its line leaving the feedback file.
+    247 and the applications' three lines, feedback 249 to 251, done 2026-11-11 in one design session
+    (the log's *The Review's Feedback Decided*): six build, items 14 to 19, and eight are dropped
+    there.
 13. **The checkout's manual pages**, done 2026-11-11 (the log's *One Copy of the Pages*).
+14. **`Tcp.accept` at the limit of open files**, feedback 249, ernest-httpd's line 28: E.18 states
+    since 2026-11-11 that `accept` answers the refusal at once, whether or not a connection waits,
+    and the connection waits in the backlog; a regression test under the limit holds the sentence.
+    It closes on the runtime's target and `make test`.
+15. **`List.tryForEach`**, feedback 239: E.0 rule 2's sequence vocabulary and E.2 name it, `list.ern`
+    writes it with its examples and tests, and the seven sites that wrote `let _ <- List.tryMap`,
+    two in `libs/http` and five in the site's generator, take it. It closes on the standard
+    library's target, the libraries', the site's and `make test`.
+16. **`Bool.compare`**, feedback 243, `false` before `true`: §3.10, §3.5's example, §9.6 and E.7 state
+    the member, the two refusals of *One Name for Every Order* and §3.5 go with their tests, and
+    `derives compare` reaches a `Bool` field. It changes a rule of §3, so it is built the day it is
+    decided, 2026-11-11, after one cold reading of its sentences, in the checker at the stronger
+    effort, and closes on `make test-full`.
+17. **`Char`'s six class predicates**, feedback 247: `isMark`, `isNumber`, `isPunctuation`,
+    `isSymbol`, `isSeparator` and `isControl`, E.6 naming each category, `char.ern` and
+    `ern_char.erl` reading the host's table, a test pinning each predicate's answer as the five
+    before are pinned, and the site generator's refusal of a heading gone, its slug keeping a
+    letter, a mark or a number. It closes on the standard library's target, the site's and
+    `make test`.
+18. **`Http.target` and the characters a browser sends raw**, feedback 250, ernest-httpd's line 29,
+    a decision for the user, recommended: `target` reads a target holding `"`, `<`, `>`, `\`,
+    `^`, `` ` ``, `{`, `|` or `}`, or `[` or `]` outside an absolute form's authority, with each such
+    character percent-encoded, RFC 9112 §3.2's remedy, so that `Uri.decode` gives it back and
+    `Uri` stays RFC 3986's (the log's *The Review's Feedback Decided*). G.11's `target` paragraph
+    states it, and a test holds the nine, a bracketed path and an absolute form with an IP literal.
+    It closes on the libraries' target and `make test`.
+19. **The help at `++`**, feedback 251, ernest-epx's line: a second `+` where the parser expects an
+    expression gets the help ``write `<>` ``, §11.5 naming it beside `<-`'s, with its parser test.
+    It closes on the toolchain's target and `make test`.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
