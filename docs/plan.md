@@ -48,10 +48,8 @@ it.
 
 1. **A deadlock's claim given its scope**, done 2026-11-11 (the log's *A Deadlock of the Whole
    Program*).
-2. **The callee in a deadlock's report**, Part 4: each waiting group's line says on whom it
-   waits, a group split by its callee's site. It cuts a restated clause of §8.6, so its sentences
-   in §8.6 and §12.4 are read cold, and it is decided the day it is built. It touches the runtime
-   and closes on `make test-full`.
+2. **The callee in a deadlock's report**, done 2026-11-11 (the log's *A Deadlock of the Whole
+   Program*).
 3. **Who waits on whom**, Part 3: `Process.Calling` gains its callee, whether a limit ends the
    wait and the moment the call began (E.21); `Process.peer` names a process's peer; and
    `:processes` writes them, with a line for each cycle of calls without limit (§11.2). It

@@ -4,7 +4,7 @@
 -module(ern_reaper_tests).
 
 -export([reaper_words/0, answered_later/0, called_back/1, called_back_in_tail/1, looks/1,
-         looking/0, sent_later/2]).
+         looking/0, sent_later/2, answering_later/0, ending_later/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -329,6 +329,29 @@ delivery_foreign_code_arranges_test() ->
         "}\n"),
     ?assertMatch({fault, <<"deadlock">>, _}, Timed).
 
+%% report §8.6, §6.6: a foreign process the runtime did not start may
+%% deliver while a monitor of it stands, and a call that waits on it is
+%% such a monitor, so a program whose one process waits in a callForever on
+%% a host process's address is no deadlock. Here the host process answers
+%% once the reaper has looked twice, and the program prints the answer;
+%% then a host process that lives while the reaper looks twice and ends
+%% without answering, which faults the caller as a callee's end does. A
+%% regression test of the look, found by a reading: the look read such a
+%% caller as deadlocked, its callee neither a process of the program nor a
+%% system process
+foreign_callee_is_no_deadlock_test() ->
+    Program = fun(Server) ->
+                  "type Ask = Ask(reply : Reply(Int))\n"
+                  "foreign fn server() : Address(Ask) = \"ern_reaper_tests:" ++ Server ++ "/0\"\n"
+                  "export fn main() : Unit = {\n"
+                  "    let n = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
+                  "    Io.println(Int.toString(n))\n"
+                  "}\n"
+              end,
+    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(Program("answering_later"))),
+    {Ended, _} = ern_emitter_tests:run(Program("ending_later")),
+    ?assertMatch({fault, <<"callee returned without answering">>, _}, Ended).
+
 %% The Ernest side of the tests above of a process that computes while the
 %% reaper looks: `looks` once each process given waits in a call, and
 %% `computed`, which answers its argument once the reaper has looked twice
@@ -358,3 +381,15 @@ looking() ->
 -spec sent_later(pid(), atom()) -> pid().
 sent_later(To, Message) ->
     spawn(fun() -> _ = ern_waits:looked(2), To ! Message end).
+
+%% The host's side of the test of a foreign callee: a process of the
+%% host's that takes an Ask and, once the reaper has looked twice, answers
+%% it with 42, or ends without answering.
+-spec answering_later() -> pid().
+answering_later() ->
+    spawn(fun() -> receive {'Ask', {Reply, _}} -> _ = ern_waits:looked(2), Reply ! {Reply, 42} end
+          end).
+
+-spec ending_later() -> pid().
+ending_later() ->
+    spawn(fun() -> receive {'Ask', _} -> _ = ern_waits:looked(2), ok end end).

@@ -7,7 +7,7 @@ The repository's own rules for its Erlang and its C, and where they differ from 
 A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md) says the standard library chooses one, spelled as each language spells a name, `parse_module` in Erlang, and the guide's rules of form, a function on one screen and a module with one job among them, hold for them too. The repository adds these:
 
 - A step of indentation is four spaces, and no file holds a tab, but a Makefile *(tested)*.
-- A line of code is at most 100 characters; prose in markdown may be longer *(tested)*.
+- A line of code is at most 100 characters; prose in markdown may be longer, and so may a line a command wrote, quoted under it in a block *(tested)*.
 - A paragraph of a tracked document is at most 150 words, a list item among them, which `tools/paragraphs.sh` lists at 150 and the test holds; the log and the proposals are left out, as the listing leaves them *(tested)*.
 - A block of commands in a document is shell a reader can paste: a comment beside a command begins with `#`, and so does each line under it that carries the comment on. A tree of files, which no one runs, is annotated bare *(tested)*.
 - A name in a namespace shared with other code carries the repository's name: an Erlang module begins `ern` *(tested)*, an Emacs Lisp symbol `ernest-`.

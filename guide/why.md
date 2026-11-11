@@ -274,14 +274,14 @@ fn secondLoop(first : Address(FirstMsg)) : Unit receiving SecondMsg =
     }
 ```
 
-The fault comes once the program is quiet, and its lines name both servers, each by its spawn site and the call it waits in:
+The fault comes once the program is quiet, and its lines name both servers, each by its spawn site, the call it waits in and the server it waits on:
 
 ```console
 $ ern run mutual.erc
 Mutual.main faulted: deadlock
     Mutual.main:9
-    1 process of Mutual.main:6 waits in Mutual.firstLoop:20
-    1 process of Mutual.main:7 waits in Mutual.secondLoop:28
+    1 process of Mutual.main:6 waits in Mutual.firstLoop:20 on Mutual.main:7
+    1 process of Mutual.main:7 waits in Mutual.secondLoop:28 on Mutual.main:6
 ```
 
 The fault names the deadlock and the processes it left waiting. On Erlang a bare `receive` waits forever, and a `gen_server:call` gives up after five seconds with an exit that names the timeout and not the cause; a programmer learns of the deadlock from that, a dashboard or a user.

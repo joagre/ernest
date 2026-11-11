@@ -48,9 +48,12 @@
 %% docs/code_style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the
 %% vendored getopt keeps its upstream form, and test/build holds a build's
-%% copies, which a stale one failed. A regression test for the Makefiles,
-%% scripts and headers, the fixtures' Erlang and the machines' script it
-%% once left unread
+%% copies, which a stale one failed. A line a command wrote, quoted under
+%% the command in a block of an Ernest comment, is the tool's and no line
+%% of code, so it may be as long as the command wrote it (quoted/2); the
+%% command's own line is held. A regression test for the Makefiles, scripts
+%% and headers, the fixtures' Erlang and the machines' script it once left
+%% unread; written with the rule for a quoted line
 line_length_test() ->
     Patterns = ["src/**/*.erl", "src/runtime/c_src/*.c", "test/*.erl", "test/bench/*.erl",
                 "test/fixtures/**/*.erl", "src/stdlib/**/*.ern", "examples/**/*.ern",
@@ -63,10 +66,34 @@ line_length_test() ->
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],
     ?assert(length(Files) > 20),
-    Long = [{File, Number} || File <- Files,
-                              {Number, Line} <- numbered(File),
-                              string:length(Line) > 100],
+    Long = [{File, Number} || File <- Files, Number <- long_lines(File)],
     ?assertEqual([], Long).
+
+%% The numbers of File's lines past 100 characters, but those of an Ernest
+%% file a command wrote (quoted/2).
+long_lines(File) ->
+    Numbered = numbered(File),
+    Quoted = case filename:extension(File) of
+                 ".ern" -> quoted(Numbered, false);
+                 _ -> []
+             end,
+    [Number || {Number, Line} <- Numbered, string:length(Line) > 100,
+               not lists:member(Number, Quoted)].
+
+%% The numbers of an Ernest comment's lines that quote what a command
+%% wrote: each line indented as a block is, `//     `, under a command of
+%% the block, `//     $ ern run lease_broker.erc deadlock`, up to the next
+%% command or the block's end, as ern_integration_tests:shown/2 reads an
+%% example's block.
+quoted([], _) ->
+    [];
+quoted([{Number, Line} | Rest], Under) ->
+    case {string:prefix(Line, "//     $ "), string:prefix(Line, "//     ")} of
+        {nomatch, nomatch} -> quoted(Rest, false);
+        {nomatch, _} when Under -> [Number | quoted(Rest, true)];
+        {nomatch, _} -> quoted(Rest, false);
+        _ -> quoted(Rest, true)
+    end.
 
 %% docs/code_style.md, guide/style.md: no variable's name ends in a number in
 %% Ernest, since a value changing through a function is bound again under

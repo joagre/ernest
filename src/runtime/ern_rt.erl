@@ -108,9 +108,10 @@
 %%
 %% Report §6.6, §6.9, §8.7: CALL is the call's record in the caller too,
 %% which its end of the call reads (uncalled/0), Process.status reads
-%% (status/1), and a kill reads before it kills (killed/2); a process makes
-%% one call at a time, since a call that a request or an adapted address's
-%% function makes ends before the call it is made for is noted (call/4).
+%% (status/1), a kill reads before it kills (killed/2), and a deadlock's
+%% report reads for the callee (waiting/1, §12.4); a process makes one call
+%% at a time, since a call that a request or an adapted address's function
+%% makes ends before the call it is made for is noted (call/4).
 -define(FOREIGN, '$ern_foreign').
 -define(TIMED, '$ern_timed').
 -define(CALL, '$ern_call').
@@ -1835,32 +1836,36 @@ loading() ->
 %% Report §12.4, §11.2: the processes a deadlock leaves waiting but the one
 %% it faults, whose trace says where it waits, and the entry process,
 %% which under `ern test` is the toolchain's own and runs the tests, the
-%% one faulted being a test's: a line for each group with
-%% one spawn site and one waiting frame, with their count, ordered by
-%% their sites and then by their frames, each by its name's code points and
-%% then by its line as a number (by_line/1), `3 processes of
-%% Dinner.table:40 wait in Dinner.take:112`, the frame the first of the
-%% program's in the process's stack, as its trace would begin (trace/1).
-%% The stacks are read once the look has found the deadlock, while every
-%% process still waits, so that nothing is added to any operation's path;
-%% who waits for whom is not read.
+%% one faulted being a test's: a line for each group with one spawn site,
+%% one waiting frame and one callee's site, with their count, ordered by
+%% their sites, then by their frames and then by their callees' sites, each
+%% by its name's code points and then by its line as a number (by_line/1),
+%% `1 process of Mutual.main:6 waits in Mutual.firstLoop:20 on
+%% Mutual.main:7`. The frame is the first of the program's in the process's
+%% stack, as its trace would begin (trace/1); the callee is the one under
+%% the process's CALL key, by its spawn site (waiting/1).
+%%
+%% The stacks and the calls are read once the look has found the deadlock,
+%% while every process still waits, so that nothing is added to any
+%% operation's path: who waits on whom is read here alone.
 left_waiting_lines(Victim) ->
     Entry = entry_process(),
-    Waiting = [{Site, waiting_frame(Pid)} || #process_row{pid = Pid, site = Site} <- live_rows(),
-                                            Pid =/= Victim, Pid =/= Entry],
+    Waiting = [{Site, Frame, Callee} || #process_row{pid = Pid, site = Site} <- live_rows(),
+                                        Pid =/= Victim, Pid =/= Entry,
+                                        {Frame, Callee} <- [waiting(Pid)]],
     Counted = lists:foldl(fun(Group, Acc) -> maps:update_with(Group, fun(Count) -> Count + 1 end,
                                                              1, Acc)
                           end, #{}, Waiting),
     Ordered = lists:sort(fun(Group, Other) -> by_line(Group) =< by_line(Other) end,
                          maps:keys(Counted)),
-    [left_waiting_line(maps:get(Group, Counted), Site, Frame) || {Site, Frame} = Group <- Ordered].
+    [left_waiting_line(maps:get(Group, Counted), Group) || Group <- Ordered].
 
-%% Report §12.4: a group of a site and a frame as the lines are ordered by
-%% it, each by its name, whose bytes are in the order of its code points,
-%% and then by its line as a number; one without a line, and no frame,
-%% first.
-by_line({Site, Frame}) ->
-    {numbered(Site), numbered(Frame)}.
+%% Report §12.4: a group of a site, a frame and a callee's site as the lines
+%% are ordered by it, each by its name, whose bytes are in the order of its
+%% code points, and then by its line as a number; one without a line, no
+%% frame and no callee first.
+by_line({Site, Frame, Callee}) ->
+    {numbered(Site), numbered(Frame), numbered(Callee)}.
 
 numbered(none) ->
     {<<>>, 0};
@@ -1875,18 +1880,34 @@ numbered(Text) ->
             {Text, 0}
     end.
 
-waiting_frame(Pid) ->
-    case erlang:process_info(Pid, current_stacktrace) of
-        {current_stacktrace, Stack} ->
-            case binary:split(trace(Stack), <<"\n">>) of
-                [<<>> | _] -> none;
-                [Frame | _] -> Frame
-            end;
+%% Report §12.4, §6.6, §8.6: where a waiting process waits, its frame and
+%% its callee's spawn site, the stack and the CALL key read in one ask; none
+%% for a frame the stack does not show, and for the callee of a process
+%% that waits in a receive. A callee in a deadlock has a row, since a call
+%% to a process with none is one that may deliver (calling_the_foreign/1).
+waiting(Pid) ->
+    case erlang:process_info(Pid, [current_stacktrace, {dictionary, ?CALL}]) of
+        [{current_stacktrace, Stack}, {_, Call}] ->
+            {waiting_frame(Stack), waited_on(Call)};
         undefined ->
-            none
+            {none, none}
     end.
 
-left_waiting_line(Count, Site, Frame) ->
+waiting_frame(Stack) ->
+    case binary:split(trace(Stack), <<"\n">>) of
+        [<<>> | _] -> none;
+        [Frame | _] -> Frame
+    end.
+
+waited_on(undefined) ->
+    none;
+waited_on({Callee, _}) ->
+    case callee_site(Callee) of
+        <<>> -> none;
+        Site -> Site
+    end.
+
+left_waiting_line(Count, {Site, Frame, Callee}) ->
     Waits = case Count of
                 1 -> [<<"1 process of ">>, Site, <<" waits">>];
                 _ -> [integer_to_binary(Count), <<" processes of ">>, Site, <<" wait">>]
@@ -1895,7 +1916,11 @@ left_waiting_line(Count, Site, Frame) ->
              none -> [];
              _ -> [<<" in ">>, Frame]
          end,
-    ern_show:controls(iolist_to_binary([Waits, In]), line).
+    On = case Callee of
+             none -> [];
+             _ -> [<<" on ">>, Callee]
+         end,
+    ern_show:controls(iolist_to_binary([Waits, In, On]), line).
 
 %% Report §12.4, §11.2: the lines of the processes the deadlock that faulted
 %% Pid left waiting, taken, which its report writes beneath its trace; none
@@ -2767,8 +2792,8 @@ expected(Function) ->
 %% them; what can still deliver is read between them, so that it is what
 %% held while nothing ran, and not what held before a process ran on. A
 %% source held by a system process, a subscription to the program's end, a
-%% call waiting on a system process, and a process that waits where Ernest
-%% does not are what can still deliver.
+%% call waiting on a system process or on a foreign process, and a process
+%% that waits where Ernest does not are what can still deliver.
 %%
 %% The check runs when the reaper has been idle a while, and what can still
 %% deliver is read first, the cheapest first: an idle program that waits on
@@ -2826,12 +2851,13 @@ nothing_delivers() ->
 %% whether it still waits as the first read found it and waits as Ernest
 %% waits: in a function of Ernest's own code (is_ernest/1), with nothing
 %% under the look's keys that can still deliver, no deadline, no foreign
-%% code and no call to a system process, a listener, a socket or a running
+%% code, no call to a system process, a listener, a socket or a running
 %% program (calling_the_system/2), whose processes are read once for the
-%% look; a key read here held between the two reads, since the process has
-%% not run since the first. A function of the host's on top is a receive
-%% inside foreign code. The first that cannot be a deadlock's answers for
-%% the look.
+%% look, and no call to a foreign process, which the call's monitor makes
+%% one that may deliver (calling_the_foreign/1); a key read here held
+%% between the two reads, since the process has not run since the first. A
+%% function of the host's on top is a receive inside foreign code. The
+%% first that cannot be a deadlock's answers for the look.
 still(First) ->
     still(First, system_pids() ++ opened()).
 
@@ -2842,7 +2868,8 @@ still([{Pid, _, Reductions} | First], Held) ->
                                    {dictionary, ?TIMED}, {dictionary, ?CALL}]) of
         [{status, waiting}, {reductions, Reductions}, {current_function, {Module, _, _}},
          {_, undefined}, {_, undefined}, {_, Call}] ->
-            case not calling_the_system(Call, Held) andalso is_ernest(Module) of
+            case not calling_the_system(Call, Held) andalso not calling_the_foreign(Call)
+                 andalso is_ernest(Module) of
                 true -> still(First, Held);
                 false -> delivering
             end;
@@ -2882,6 +2909,16 @@ calling_the_system(undefined, _Held) ->
     false;
 calling_the_system({Callee, _}, Held) ->
     lists:member(Callee, Held).
+
+%% Report §8.6, §6.6: a call waiting on a process with no row, a foreign
+%% process the runtime did not start among them: a foreign process counts
+%% as one that may deliver while a monitor of it stands, and a call that
+%% waits on it is such a monitor. The row is read here alone, once the
+%% first read has found every process waiting, so that no call pays for it.
+calling_the_foreign(undefined) ->
+    false;
+calling_the_foreign({Callee, _}) ->
+    ets:lookup(?PROCESSES, Callee) =:= [].
 
 quiet_system() ->
     erlang:process_info(erlang:self(), message_queue_len) =:= {message_queue_len, 0}

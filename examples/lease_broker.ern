@@ -54,8 +54,8 @@
 // for a second. Every lease is lent and every process waits, so nothing can
 // go on, and the runtime ends the program with a deadlock. Beneath its
 // trace the report lists the processes left waiting, a line for each spawn
-// site and the frame its processes wait in, with their count (report §12.4,
-// §11.2):
+// site, the frame its processes wait in and the site of the process they
+// call, with their count (report §12.4, §11.2):
 //
 //     $ ern run lease_broker.erc deadlock
 //     ann holds 1
@@ -65,7 +65,7 @@
 //         LeaseBroker.heard:227
 //         LeaseBroker.holdAndWait:218
 //         1 process of LeaseBroker.broker:160 waits in LeaseBroker.lending:243
-//         3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367
+//         3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367 on LeaseBroker.broker:160
 //
 // The program's own tests fault a broker with a lease given back by a
 // client that does not hold it, lend a restarted client's lease to the

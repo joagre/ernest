@@ -2006,12 +2006,13 @@ deadlock_test() ->
 
 %% report §12.4, §11.2: a deadlock's report lists, beneath the trace, the
 %% processes it left waiting but the one it faults, a line for each group
-%% of one spawn site and one waiting frame, with their count, in the order
-%% of the sites, the frame the first of the program's in the process's
-%% stack: two accounts each calling the other, the full review's locks.ern
-%% (B-C1, N5), and three workers of one site waiting in one frame, under
-%% `ern run`, and under `ern test`, where the deadlock is the test's fault.
-%% Written with the listing
+%% of one spawn site, one waiting frame and one callee's site, with their
+%% count, in the order of the sites, the frame the first of the program's
+%% in the process's stack: two accounts each calling the other, each line
+%% naming the other's site, and three workers of one site waiting in one
+%% frame, in a receive, which have no callee, under `ern run`, and under
+%% `ern test`, where the deadlock is the test's fault. Written with the
+%% listing, and with the callee
 deadlock_lists_the_waiting_test() ->
     Dir = tmp(),
     Program = "type AccountMsg = Peer(Address(AccountMsg)) | Audit(Reply(Int))\n"
@@ -2033,8 +2034,8 @@ deadlock_lists_the_waiting_test() ->
               "    send(b, Peer(a));\n"
               "    List.forEach([1, 2, 3], fn(_) = { let _ = spawn(worker); Unit })\n"
               "}\n",
-    Waiting = <<"    1 process of Locks.locked:14 waits in Locks.audited:9\n"
-                "    1 process of Locks.locked:15 waits in Locks.audited:9\n"
+    Waiting = <<"    1 process of Locks.locked:14 waits in Locks.audited:9 on Locks.locked:15\n"
+                "    1 process of Locks.locked:15 waits in Locks.audited:9 on Locks.locked:14\n"
                 "    3 processes of Locks.locked:18 wait in Locks.worker:12\n">>,
     write(Dir, "src/locks.ern",
           Program ++ "export fn main() : Unit receiving Waits = {\n"
@@ -2088,6 +2089,101 @@ deadlock_lines_by_number_test() ->
                                [dotall, {capture, [1], binary}]),
     ?assertEqual(<<"    1 process of Pair.pair:9 waits in Pair.worker:2\n"
                    "    1 process of Pair.pair:10 waits in Pair.worker:2\n">>, Listed).
+
+%% report §12.4: a group of a deadlock's lines is split by its callee's
+%% site, each line naming its callee by its spawn site and the entry
+%% process by its site, the entry point's name with no line: four clients
+%% of one site waiting in one frame, two calling one server, one another
+%% and one main, the lines ordered by the callees' sites, main's first, as
+%% one without a line, and the servers' lines as numbers, 9 before 10.
+%% Written with the callee
+deadlock_lines_by_callee_test() ->
+    Dir = tmp(),
+    write(Dir, "src/split.ern",
+          "type Req = Get(Reply(Int)) | Other\n"
+          "fn server() : Unit receiving Req = receive { Other -> Unit }\n"
+          "fn client(server : Address(Req)) : Unit = {\n"
+          "    let _ = Address.callForever(server, Get);\n"
+          "    Unit\n"
+          "}\n"
+          "// the two servers below stand on lines 9 and 10\n"
+          "fn split(me : Address(Req)) : Unit = {\n"
+          "    let a = spawn(server);\n"
+          "    let b = spawn(server);\n"
+          "    List.forEach([a, b, b, me], fn(s) = { let _ = spawn(fn() = client(s)); Unit })\n"
+          "}\n"
+          "export fn main() : Unit receiving Req = {\n"
+          "    split(self());\n"
+          "    receive { Other -> Unit }\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {Errors, 1} = standard_error_of(["run", Dir ++ "/build/split.erc"]),
+    {match, [Listed]} = re:run(Errors,
+                               "^Split.main faulted: deadlock\n    Split.main:[0-9]+\n(.*)$",
+                               [dotall, {capture, [1], binary}]),
+    ?assertEqual(<<"    1 process of Split.split:9 waits in Split.server:2\n"
+                   "    1 process of Split.split:10 waits in Split.server:2\n"
+                   "    1 process of Split.split:11 waits in Split.client:4 on Split.main\n"
+                   "    1 process of Split.split:11 waits in Split.client:4 on Split.split:9\n"
+                   "    2 processes of Split.split:11 wait in Split.client:4 on Split.split:10\n">>,
+                 Listed).
+
+%% report §12.4, Appendix E.21: a caller waiting in `Process.run` waits in
+%% a call on the library's own process, which the line names by its site,
+%% the spawn's line in `run`'s body in the library's source; that process
+%% waits in the library's frame, and the process that runs `f` has the
+%% site where `run` is written. The library's lines are matched as numbers
+%% of any value, so that its source may move, the judge's site the same in
+%% its own line and in its caller's. Written with the callee
+deadlock_line_of_a_run_test() ->
+    Dir = tmp(),
+    write(Dir, "src/run.ern",
+          "type Waits = Waits\n"
+          "fn runs() : Unit = {\n"
+          "    let _ = Process.run(fn() : Unit receiving Waits = receive { Waits -> Unit });\n"
+          "    Unit\n"
+          "}\n"
+          "export fn main() : Unit receiving Waits = {\n"
+          "    let _ = spawn(runs);\n"
+          "    receive { Waits -> Unit }\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {Errors, 1} = standard_error_of(["run", Dir ++ "/build/run.erc"]),
+    {match, [Listed]} = re:run(Errors, "^Run.main faulted: deadlock\n    Run.main:[0-9]+\n(.*)$",
+                               [dotall, {capture, [1], binary}]),
+    ?assertMatch({match, _},
+                 re:run(Listed, "\\A    1 process of Process\\.run:([0-9]+) waits in"
+                                " Process\\.judged:[0-9]+\n"
+                                "    1 process of Run\\.main:7 waits in Run\\.runs:3"
+                                " on Process\\.run:\\1\n"
+                                "    1 process of Run\\.runs:3 waits in Run\\.runs:3\n\\z")).
+
+%% report §11.2, §12.4: under `ern test` the test's name alone is its
+%% process's spawn site, so a process that calls the test's process names
+%% it so: here the test's `run` spawns a client that calls it with
+%% `callForever`, and then waits in a `receive` for something else, so that
+%% the test faults with a deadlock, the client's line beneath its trace.
+%% A regression test, written after the code; it does not cover a doc
+%% example's case, which runs as a program of its own
+deadlock_line_on_a_test_test() ->
+    Dir = tmp(),
+    write(Dir, "src/asks.ern",
+          "type Req = Get(Reply(Int)) | Other\n"
+          "fn client(server : Address(Req)) : Unit = {\n"
+          "    let _ = Address.callForever(server, Get);\n"
+          "    Unit\n"
+          "}\n"
+          "let stuck = Test.Case(name = \"stuck\", run = fn() : Test.Result receiving Req = {\n"
+          "    let me = self();\n"
+          "    let _ = spawn(fn() = client(me));\n"
+          "    receive { Other -> Test.Passed }\n"
+          "})\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(1, ern_err(["test", Dir ++ "/build/asks.erc"])),
+    {match, [Listed]} = re:run(iolist_to_binary(?capturedOutput),
+                               "^stuck: faulted: deadlock\n    Asks\\.[^\n]*\n(.*)$",
+                               [dotall, {capture, [1], binary}]),
+    ?assertEqual(<<"    1 process of Asks.stuck:8 waits in Asks.client:3 on stuck\n">>, Listed).
 
 %% report §4.4: an abstract type's constructor is not visible outside its module
 abstract_constructor_outside_test() ->

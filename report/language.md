@@ -979,11 +979,11 @@ For a program that is no node, a signal from outside, the host's termination or 
 
 A node that ends is no loss to its peers (§8.7). A process this program spawned on a peer runs on there.
 
-When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, the one started last where several wait, and the load is refused. The fault's report lists the waiting processes beneath the trace, a line for each group of processes with one spawn site and one waiting frame (§12.4).
+When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, the one started last where several wait, and the load is refused. The fault's report lists the waiting processes beneath the trace (§12.4).
 
 No progress is possible when every live process waits in `receive` without `after` or in `Address.callForever`, no message is in flight, no monitor waits on a process the runtime did not start, and no system process, listener or socket (E.18) holds a timer, a subscription, a pending I/O, or a computation whose completion would deliver a message; a program that `Os.start` or `Os.startTerminal` started counts as such a computation until it has exited or been killed, and a subscription to the program's end as such a subscription (Appendix E.23). The runtime counts a standard library operation as such a computation where the module that implements it says the operation waits.
 
-A process inside foreign code (§8.4) is not waiting; the runtime reads that from the process, and from a crossing back into Ernest code (§8.4), and no foreign call declares it. A function the standard library is given runs as Ernest code, not as foreign code. A node (§8.3) detects no deadlock. A foreign process the runtime did not start counts as one that may deliver a message only while a monitor of it stands. A delivery that foreign code arranges for once its call has returned, by a timer of the host's or by a host process it started that no monitor watches, is not counted. A program whose waits are on such a delivery alone is read as deadlocked.
+A process inside foreign code (§8.4) is not waiting; the runtime reads that from the process, and from a crossing back into Ernest code (§8.4), and no foreign call declares it. A function the standard library is given runs as Ernest code, not as foreign code. A node (§8.3) detects no deadlock. A foreign process the runtime did not start counts as one that may deliver a message only while a monitor of it stands; a call that waits on it (§6.6) is such a monitor. A delivery that foreign code arranges for once its call has returned, by a timer of the host's or by a host process it started that no monitor watches, is not counted. A program whose waits are on such a delivery alone is read as deadlocked.
 
 ### 8.7 Nodes
 
@@ -1363,6 +1363,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **bound type** — a type whose values never cross to another node: one that holds a function type, a foreign type, a resource, or an address or a reply of a bound type. §3.11.
 - **build root** — the directory a build writes its `.erc` files under, `--build-root`, mirroring the source root. §11.1.
 - **`Bytes`** — the type of an octet sequence. §3.1.
+- **callee** — the function a call applies (§5.1); of a request-reply call (§6.6), the process the request is sent to. §5.1, §6.6, §11.2, §12.4.
 - **canonical form** — the term a definition's hash is taken of: its typed tree after checking, its locals numbered, its names resolved, each reference the identity of what it names. §11.1, Appendix H.
 - **carrier** — the host's distribution, over which nodes connect, as a node runs it. §12.5, §10.
 - **cause** — the text a fault carries, `Fault(cause)`, which `Down` and a fault report give; §7.4 lists the language's. §7.3, §7.4.

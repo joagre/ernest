@@ -1425,11 +1425,13 @@ kill : (Process) -> Unit
 
 ### 5.4 Deadlock
 
-When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, a file, or a program it started is waiting for something that can come, so an idle server is not deadlocked. A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang. Report §8.6 gives the exact condition.
+When every process waits in a `receive` or a `callForever` that nothing can ever satisfy, the entry process faults with `deadlock`, and the program ends. A process waiting for a timer, a key, a socket, a file, a program it started or a foreign process's answer is waiting for something that can come, so an idle server is not deadlocked. A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang. Report §8.6 gives the exact condition.
 
 A delivery that foreign code arranges for after its call has returned, from a timer or a process of the host's, is one the runtime does not see coming, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (§8.3).
 
-The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line. Beneath the trace the report lists the other processes left waiting, a line for each spawn site and the frame they wait in, with their count, as [`examples/lease_broker.ern`](../examples/lease_broker.ern) run with the argument `deadlock` writes of its three clients: `3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367` (report §12.4).
+The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line.
+
+Beneath the trace the report lists the other processes left waiting, a line for each group with one spawn site, one frame they wait in and one callee, with their count. A process waiting in a call has the call's callee, which the line names by its spawn site after `on`. One waiting in a `receive` has none. [`examples/lease_broker.ern`](../examples/lease_broker.ern) run with the argument `deadlock` writes so of its three clients, which call the broker: `3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367 on LeaseBroker.broker:160` (report §12.4).
 
 A node detects no deadlock, so a program started with `--config-dir` goes on waiting where every process waits, and a wait on another node's process, which only a node can make, is never found to be one (report §8.6). Nor does a shell detect one while it holds the terminal (report §11.2).
 
