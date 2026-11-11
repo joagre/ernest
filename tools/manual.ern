@@ -39,10 +39,15 @@ fn manual(report : String, version : String, pages : String) : Either(String, Li
         Left("no sections 11.7 Options and 11.8 Exit status in " <> report)
     else
         Right(Unit);
+    let synopsis = usages(section);
+    let _ <- if List.isEmpty(synopsis) then
+        Left("no jobs named in the first paragraph of 11. Toolchain in " <> report)
+    else
+        Right(Unit);
     let files = List.filterMap(entries, fn(entry) = Path.name(entry.path));
     let blocks =
         [heading("SYNOPSIS")]
-            <> List.map(usages(section), usage)
+            <> List.map(synopsis, usage)
             <> [heading("DESCRIPTION")]
             <> List.map(description <> later, raised)
             <> [heading("OPTIONS")]
@@ -93,33 +98,42 @@ fn titled(block : Markdown.Block, title : String) : Bool =
 fn heading(title : String) : Markdown.Block =
     Markdown.Heading(level = 1, text = [Markdown.Text(title)])
 
-// Each job's usage line, as §11 writes it first, and `ern --help` and
-// `ern --version`: a code span that is a command line of `ern` with an
-// option in brackets, or `ern` and an option, the first for each job, so
-// that a later command line of the same job, a use's example, is no second
-// usage.
+// Each job's usage line, then `ern --help`'s and `ern --version`'s, in
+// the order §11's first paragraph names them, `ern` and one word each:
+// the longest code span of §11 that is the job's or begins with it and a
+// space. A usage names every option its job takes, and a use's example
+// only some, so the usage is the longest; a test holds it to the job's
+// `--help`.
 fn usages(blocks : List(Markdown.Block)) : List(String) = {
-    let lines = List.flatMap(blocks, fn(block) = match block {
-        Markdown.Paragraph(inlines) -> List.filterMap(inlines, commandLine)
-      | _ -> []
-    });
-    let #(firsts, _) = List.foldLeft(lines, #([], []), fn(#(acc, jobs), line) = {
-        let job = List.take(String.words(line), 2);
-        if List.contains(jobs, job) then #(acc, jobs) else #(line :: acc, job :: jobs)
-    });
-    List.reverse(firsts)
+    let spans = List.flatMap(blocks, codeSpans);
+    let jobs = match blocks {
+        first :: _ -> List.filter(codeSpans(first), isCommand)
+      | [] -> []
+    };
+    List.filterMap(jobs, fn(job) = List.maximumBy(commandLines(spans, job), String.size))
 }
 
-fn commandLine(inline : Markdown.Inline) : Optional(String) =
-    match inline {
-        Markdown.CodeSpan(code) ->
-            if String.startsWith(code, "ern --")
-                || String.startsWith(code, "ern ") && String.contains(code, " [") then
-                Some(code)
-            else
-                None
+// The spans that are a job's command lines: the job alone, or the job and
+// what follows a space.
+fn commandLines(spans : List(String), job : String) : List(String) =
+    List.filter(spans, fn(span) = span == job || String.startsWith(span, job <> " "))
+
+fn codeSpans(block : Markdown.Block) : List(String) =
+    match block {
+        Markdown.Paragraph(inlines) ->
+            List.filterMap(inlines, fn(inline) = match inline {
+                Markdown.CodeSpan(code) -> Some(code)
+              | _ -> None
+            })
       | _ ->
-            None
+            []
+    }
+
+// Whether a span is `ern` and one word, a job or an option.
+fn isCommand(span : String) : Bool =
+    match String.words(span) {
+        ["ern", _] -> true
+      | _ -> false
     }
 
 fn usage(line : String) : Markdown.Block =

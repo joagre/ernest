@@ -99,11 +99,7 @@ The other seven are the packages proposal's build order,
 20. **The deadlock proposal's reading and sweep**, done 2026-11-11 (the log's *A Deadlock of the
     Whole Program*).
 21. **Item 3's follow-up**, done 2026-11-11 (the log's *A Deadlock of the Whole Program*).
-22. **ern(1)'s SYNOPSIS**, found 2026-11-11 in item 4, taken before item 5. `tools/manual.ern`
-    takes a usage line to be a code span of §11 that holds ` [`, so the SYNOPSIS holds `ern
-    config`'s refusal of an IPv4-mapped address, and lacks `ern reload`, `ern stop` and `ern
-    unpack`, whose usages hold no bracket (§11). The fix finds each job's usage by one rule
-    that holds for every job, and a test holds the SYNOPSIS to every job's `--help`.
+22. **ern(1)'s SYNOPSIS**, done 2026-11-11 (the log's *The Synopsis's Rule*).
 23. **The packages proposal's reading and sweep**, once item 10 is done and before MVP 4.4's
     release, as *A Built Proposal's Sweep Is an Item* places one.
 24. **The flake of `reads_limited_test`**, seen 2026-11-11 once under `make test`, item 4's

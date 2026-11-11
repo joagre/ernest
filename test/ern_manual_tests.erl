@@ -12,7 +12,9 @@
 %% writes the prelude's page and each standard library module's beside its
 %% .erc; tools/manual.ern writes ern(1), whose NAME line and DESCRIPTION
 %% are §11's, its subsections §11.1 to §11.6 and those after §11.8, in
-%% the report's order, whose SYNOPSIS holds every job's usage line, whose
+%% the report's order, whose SYNOPSIS is every job's usage as its `--help`
+%% prints it, in `ern --help`'s order, then `ern --help` and `ern
+%% --version`, whose
 %% OPTIONS and EXIT STATUS are §11.7 and §11.8, and whose SEE ALSO names
 %% those pages, the prelude's first. Every page renders without a warning:
 %% groff checks it where it is installed, with UTF-8 read as man-db reads
@@ -39,19 +41,20 @@ manual_pages() ->
                   <<".TH \"ern\" \"1\" \"\" \"Ernest 9.9.9\" \"Ernest Manual\"">>,
                   <<".nh">>, <<".ds AD l">>, <<".ad l">>,
                   <<".SH NAME">>, <<"ern \\- the Ernest toolchain">>,
-                  <<".SH">>, <<"SYNOPSIS">>, <<".PP">>, <<"\\fBern \\-\\-help\\fR">> | _], Lines),
+                  <<".SH">>, <<"SYNOPSIS">>, <<".PP">> | _], Lines),
     Pairs = lists:zip(lists:droplast(Lines), tl(Lines)),
     %% man-pages(7)'s sections, in its order
     ?assertEqual([<<"SYNOPSIS">>, <<"DESCRIPTION">>, <<"OPTIONS">>, <<"EXIT STATUS">>,
                   <<"SEE ALSO">>],
                  [Section || {<<".SH">>, Section} <- Pairs]),
     [_, Synopsis | _] = binary:split(Output, [<<"SYNOPSIS">>, <<"DESCRIPTION">>], [global]),
-    %% each job's usage once, `ern config`'s beginning with the
-    %% `--config-dir` it requires: a regression test, `ern build` stood twice
-    ?assertEqual([], [Job || Job <- ["build", "run", "test", "shell", "config", "doc", "format"],
-                             length(binary:matches(Synopsis,
-                                                   iolist_to_binary(["\\fBern ", Job, " "])))
-                                 =/= 1]),
+    %% a regression test: `ern build` stood twice, a refusal of `ern
+    %% config`'s stood as a usage, and `ern reload`, `ern stop` and `ern
+    %% unpack` stood nowhere
+    ?assertEqual([usage(Job) || Job <- jobs()] ++ [<<"ern --help">>, <<"ern --version">>],
+                 [binary:replace(binary:part(Line, 3, byte_size(Line) - 6), <<"\\-">>, <<"-">>,
+                                 [global])
+                  || <<"\\fB", _/binary>> = Line <- binary:split(Synopsis, <<"\n">>, [global])]),
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nDESCRIPTION\n.PP\n"
                                                 "The toolchain is one command, \\fBern\\fR, ">>)),
     {ok, Report} = file:read_file("../report/toolchain.md"),
@@ -72,6 +75,20 @@ manual_pages() ->
     ?assertEqual([], [Module || Module <- Modules,
                                 binary:match(Output, SeeAlso(Module)) =:= nomatch]),
     rendered(["build/ern.1" | Pages]).
+
+%% The jobs `ern --help` lists, in its order.
+jobs() ->
+    Help = ern_integration_tests:succeed("../bin/ern --help"),
+    [_, Listed | _] = binary:split(Help, <<"\n\n">>, [global]),
+    [hd(binary:split(Line, <<" ">>, [global, trim_all]))
+     || Line <- binary:split(Listed, <<"\n">>, [global])].
+
+%% A job's usage as its `--help` prints it, on one line.
+usage(Job) ->
+    Help = ern_integration_tests:succeed("../bin/ern " ++ binary_to_list(Job) ++ " --help"),
+    [<<"Usage: ", Usage/binary>> | _] = binary:split(Help, <<"\n\n">>),
+    iolist_to_binary(lists:join(<<" ">>, binary:split(Usage, [<<" ">>, <<"\n">>],
+                                                      [global, trim_all]))).
 
 %% report §11.4: make writes ern(1) as `ern doc` writes a page, only where
 %% it is older than what it is made from, so `make manual` after a make,
