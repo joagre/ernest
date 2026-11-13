@@ -64,9 +64,9 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
    Manifest*).
 5. **The manifest read and the load path**: every job finds `package.conf` in the directory it
    is started in and puts the named packages on its load path, `lib/` filled by hand. The look
-   is measured on a job with no manifest before anything is built on it, and the ownership
-   test on a job in a package of ten named packages, since the proposal's cost counted one
-   look (the log's *The Proposal Held Against the Report*).
+   is measured on a job with no manifest before anything is built on it, and the test
+   of the modes on a job in a package of ten named packages, since the proposal's cost
+   counted one look (the log's *The Proposal Held Against the Report*).
 6. **`ern build`'s checks**: each named package's claims held against the root's lines, a
    package's `src` and `build` as its roots, and the named packages built in their order. The
    trial's table of refusals is its first test.
@@ -143,19 +143,10 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     writes and opens each path its command line gives as §11 resolves it, `..` resolved without
     following a link. The item finds what the code does now, changes it where it differs, and
     holds it with a test (the log's *A Package and Its Manifest*).
-29. **A reading of MVP 4.16's design on the stronger model**, read and sorted 2026-11-13 (the
-    log's *The Proposal Held Against the Report*). None of the proposal's seven decisions is
-    overturned, the report departs from the proposal in thirteen places the log had decided,
-    and `docs/soundness.md` needed no change. The `fix` lines are made. Four decisions wait
-    for the user, each with its recommendation in the log's entry:
-    - whether a package is held to the owner half of the ownership test (§11.9, §11.2), which
-      refuses every job in a package another user owns, a container's superuser over a mounted
-      checkout among them. It is decided before item 5 builds the test.
-    - whether anything says that `ern shell` read a manifest, since `--verbose` is not the
-      shell's (§11.2).
-    - whether §11.9 names a package's `priv`, which the proposal places and item 10 tests.
-    - whether §8.6 counts a started program until a read has answered its exit, as the runtime
-      does, where it says until the program has exited.
+29. **A reading of MVP 4.16's design on the stronger model**, done 2026-11-13. Decided with
+    the user: a package is held to the modes alone, where §11.9 tested its owner too, and
+    §8.6 counts a started program until a read has answered its exit (§11.9, §8.6; the log's
+    *The Proposal Held Against the Report*).
 30. **The root's modules, as the lookup and the loaders find them**, done 2026-11-13. Decided
     with the user: the root is one namespace, a module is found at the first root that holds
     its file, the source root first, and a module hides only a module of its namespace (§4.2,
@@ -186,9 +177,10 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
 34. **Regression tests of the sentences item 29 stated**, found 2026-11-13: each sentence
     states what the toolchain does, a probe showed it, and no test holds it. An item session
     writes them before item 5: a guard and an operand in parentheses (§6.3), `Test.faults` in
-    a deadlock (§8.6), a deadlock's line without a frame (§12.4), a `Set` of `Bool` printed
-    ascending (E.1), a request given no time on an ended socket, listener and program (E.18,
-    E.23), and `status` of a host process no code of the program started (E.21).
+    a deadlock and a started program that has exited and no read has taken (§8.6), a
+    deadlock's line without a frame (§12.4), a `Set` of `Bool` printed ascending (E.1), a
+    request given no time on an ended socket, listener and program (E.18, E.23), and `status`
+    of a host process no code of the program started (E.21).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
