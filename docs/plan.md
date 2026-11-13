@@ -58,7 +58,7 @@ and its probes before it closes, and a finding changes the report first (the log
 and Its Manifest*).
 
 Decided with the user on 2026-11-13 (the log's *A Reading by Decisions*): items 30, 29 and 31
-come first, in that order, then items 26 to 28, then item 5.
+come first, in that order, then item 33, then items 26 to 28, then item 5.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -168,6 +168,12 @@ come first, in that order, then items 26 to 28, then item 5.
     stuck`, was written before the case's line, `stuck: faulted: deadlock`, which the test
     expects first. The cause is not found. An item session finds under that target's load
     whether §11.2 promises the order, and fixes the test or `ern test` at it.
+33. **What one `Tcp.read` answers, and what an unread socket holds**, feedback 252,
+    ernest-httpd's line 30 of 2026-11-13, discussed with the user in a design session after
+    item 31. E.18 gives a read no most, and does not say that what has arrived and no read has
+    taken holds the far end's writes, where it states a write to the host's watermarks. The
+    session runs ernest-httpd's probe first, over TCP and over TLS, and then decides what E.18
+    states. Nothing in ernest-httpd waits on it.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
