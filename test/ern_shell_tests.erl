@@ -4006,6 +4006,91 @@ reload_names_no_library() ->
     ?assertMatch({match, _}, re:run(Output, "no source has changed\nthe source root [^\n]* holds"
                                             " no source of Other\n")).
 
+%% report §11.2, §4.2: a source that appears under the source root at the
+%% namespace of a module the session loaded from its compiled form on a
+%% `--load-path` root is that module's source from then on: `:reload`
+%% compiles it, and the module hides the load path's. Written after the
+%% code, so a regression test
+reload_takes_a_source_that_appears_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun reload_takes_a_source_that_appears/0).
+
+reload_takes_a_source_that_appears() ->
+    Dir = scratch("ern_reload_appears_"),
+    [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
+    [ok = filelib:ensure_path(Root) || Root <- [Source, Library]],
+    Greet = filename:join(Library, "greet.ern"),
+    ok = file:write_file(Greet, "export let greeting : String = \"the load path's\"\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Library),
+    ok = file:delete(Greet),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Greet\nGreet.greeting\n",
+                          write_source(Source, "greet.ern",
+                                       "export let greeting : String = \"the source root's\"\n"),
+                          ":reload\nGreet.greeting\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
+                                   ++ " --load-path " ++ Library) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from ",
+                                                (shown(Library, "greet.erc"))/binary,
+                                                "\n> \"the load path's\" : String\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled again\n"
+                                                "> \"the source root's\" : String\n">>)).
+
+%% report §11.2: a loaded module that uses what a reload changes, and has
+%% no source under the source root to be compiled again from, refuses the
+%% reload, and nothing is reloaded: User, loaded from its compiled form on
+%% a `--load-path` root, uses Dep, whose source changes its interface.
+%% Written after the code, so a regression test
+reload_refused_for_a_sourceless_user_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun reload_refused_for_a_sourceless_user/0).
+
+reload_refused_for_a_sourceless_user() ->
+    Dir = scratch("ern_reload_sourceless_"),
+    [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
+    [ok = filelib:ensure_path(Root) || Root <- [Source, Library]],
+    ok = file:write_file(filename:join(Source, "dep.ern"), answer(5)),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Source),
+    User = filename:join(Library, "user.ern"),
+    ok = file:write_file(User, "export fn twice() : Int = Dep.answer() * 2\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --load-path " ++ Source ++ " " ++ Library),
+    ok = file:delete(User),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Dep\n:load User\nUser.twice()\n",
+                          write_source(Source, "dep.ern",
+                                       "export fn answer() : String = \"five\"\n"),
+                          ":reload\nUser.twice()\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
+                                   ++ " --load-path " ++ Library) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"User, from ", (shown(Library, "user.erc"))/binary,
+                                                "\n> 10 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"User uses what the reload changes, and the source"
+                                                " root holds no source of it\n"
+                                                "nothing was reloaded\n> 10 : Int\n">>)).
+
+%% report §11.2, §4.2: a file at a taken namespace is no module's source,
+%% and `:reload` passes it over: a `list.ern` that appears under the source
+%% root is not compiled, and Greet's `List.size` stays the standard
+%% library's. Written after the code, so a regression test
+reload_passes_over_a_taken_namespace_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_passes_over_a_taken_namespace/0).
+
+reload_passes_over_a_taken_namespace() ->
+    Dir = scratch("ern_reload_taken_"),
+    ok = file:write_file(filename:join(Dir, "greet.ern"),
+                         "export fn count() : Int = List.size([1, 2, 3])\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Greet\nGreet.count()\n",
+                          write_source(Dir, "list.ern",
+                                       "export fn size(list : List(Int)) : Int = 0\n"),
+                          ":reload\nGreet.count()\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < "
+                             ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no source has changed\n> 3 : Int\n">>)),
+    ?assertEqual(2, length(binary:matches(Output, <<"> 3 : Int\n">>))),
+    ?assertEqual(nomatch, binary:match(Output, <<"list.ern">>)).
+
 %% report §11.1, §11.2: a module that uses, through the load path, a module
 %% that uses it is a cycle, which `:load` refuses as `ern build` refuses
 %% one, naming the two, and loads nothing: the module from its source, and
@@ -5389,6 +5474,30 @@ load_takes_no_form_of_another_source() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Other, from ",
                                                 (shown(Build, "other.erc"))/binary, "\n"
                                                 "> \"built from the source root\" : String\n">>)).
+
+%% report §11.2, §4.2: `:load` of a module whose source the source root
+%% does not hold takes its compiled form under the source root before one
+%% on a `--load-path` root, as `ern build` and `ern run` in the same tree
+%% take it. Written before the code, which tried the source root last
+load_takes_the_source_roots_form_first_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun load_takes_the_source_roots_form_first/0).
+
+load_takes_the_source_roots_form_first() ->
+    Dir = scratch("ern_load_source_root_first_"),
+    [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
+    [begin
+         ok = filelib:ensure_path(Root),
+         Greet = filename:join(Root, "greet.ern"),
+         ok = file:write_file(Greet, ["export let greeting : String = \"", Whose, "\"\n"]),
+         {0, _} = ern_pty:sh("../bin/ern build " ++ Root),
+         ok = file:delete(Greet)
+     end || {Root, Whose} <- [{Source, "the source root's"}, {Library, "the load path's"}]],
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Greet\nGreet.greeting\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
+                                   ++ " --load-path " ++ Library) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"Greet, from ", (shown(Source, "greet.erc"))/binary,
+                                                "\n> \"the source root's\" : String\n">>)).
 
 %% report §11.2: `:load` takes no compiled form that calls a module the
 %% session holds at a reload's version: D's form is taken, a comment added

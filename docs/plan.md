@@ -123,8 +123,11 @@ come first, in that order, then items 26 to 28, then item 5.
     library's module another module of a library depends on, as §11.1 says, `Code.load` as
     E.28 says, and `ern run`, `ern test` and `ern shell` name it in their refusal (§11.2); the
     named packages' case comes with item 6. Its sentences are read, twice, and the build is
-    left (the log's *A Package and Its Manifest*). The build waits on item 30, which derives
-    the refusal once from the lookup as it is decided (the log's *A Reading by Decisions*).
+    left (the log's *A Package and Its Manifest*). Item 30 decided the lookup, and the
+    refusal stands as §11.1 states it, of a module that takes the name of a library's module
+    (the log's *One Namespace at the Root*). The build changes the guide's sentence on a
+    library's namespace too, whose example of a library a program hides, `Time`, the refusal
+    refuses.
 27. **The ownership test's group bits**, decided 2026-11-11, before item 5: the shell's startup
     files, a node's configuration and `ern stop`'s and `ern reload`'s `ernest.pid` take the
     ownership test as §11.2 states it, the owner and the bits for others, and the directory
@@ -144,16 +147,10 @@ come first, in that order, then items 26 to 28, then item 5.
     changed: §3.5, §3.10, §6.3, §8.6, §9.6, §12.4, E.0, E.2, E.6, E.7, E.18, E.21, E.23 and
     G.11. It says too whether `docs/soundness.md` needed a change for §3.10, §6.3, §8.6 and
     §9.6. The findings are sorted as `docs/reviews/full.md`'s *The findings* says.
-30. **The root's modules, as the lookup and the loaders find them**, found 2026-11-11, decided
-    in a design session, the first of the items left, before item 29, with probes (the log's
-    *A Reading by Decisions*). The code differs from §4.2's **Qualified
-    lookup**, which finds a segment at the first root that holds it: the host merges the roots,
-    so a program's `time/zone.ern` leaves `Time.toCivil` the library's, and `geo/a.ern` leaves
-    a `--load-path` root's `Geo.f` found. Single-file mode passes over a module of the source
-    root that has no `.erc`, which §11.1 does not say, and `:reload` takes a source root's
-    `time.ern` as the source of the library's `Time` it loaded compiled. The session decides by
-    the principles which of the report and the code changes, and the item builds it (the log's
-    *A Package and Its Manifest*).
+30. **The root's modules, as the lookup and the loaders find them**, done 2026-11-13. Decided
+    with the user: the root is one namespace, a module is found at the first root that holds
+    its file, the source root first, and a module hides only a module of its namespace (§4.2,
+    §11.1, §11.2; the log's *One Namespace at the Root*).
 31. **An independent reading's four points on a package**, discussed with the user in a design
     session after item 29 (the log's *A Reading by Decisions*). One is a question of design:
     an installed program's launcher names every directory under `lib`, so a node loads a
@@ -164,6 +161,13 @@ come first, in that order, then items 26 to 28, then item 5.
     and what an end in the middle of an unpacking leaves, a loss of power among it. Item 6's
     tests take a named package's rebuild when a package it names changes, and item 10's a
     `priv` found through `code:priv_dir`.
+
+32. **The flake of `deadlock_line_on_a_test_test`**, seen 2026-11-13 once under
+    `make test-erl APP=cli`, item 30's run, and not in six runs alone nor in a second run of
+    the target. The client's line, `Asks.stuck:8 faulted: deadlock, the fault of the callee
+    stuck`, was written before the case's line, `stuck: faulted: deadlock`, which the test
+    expects first. The cause is not found. An item session finds under that target's load
+    whether §11.2 promises the order, and fixes the test or `ern test` at it.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

@@ -1067,7 +1067,7 @@ Code.running : (a) -> List(Address(m)) // a form (§3.11): the processes on the 
 
 ## Appendix G. Libraries
 
-Informative, but for its list of libraries, which is what §11.1 and §11.2 put on the load path. The libraries this project writes, each a directory under `src/libs/` and a source root of its own, whose build stands on the load path of every job (§11.1, §11.2); a program names none of them, and a program's module at a library's namespace, or under it, hides the library (§4.2): `ern build main.ern` compiles a program with `libs/json`, and `ern run main.erc` runs it. An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name.
+Informative, but for its list of libraries, which is what §11.1 and §11.2 put on the load path. The libraries this project writes, each a directory under `src/libs/` and a source root of its own, whose build stands on the load path of every job (§11.1, §11.2); a program names none of them, and a program's module at the namespace of a library's module hides that module (§4.2): `ern build main.ern` compiles a program with `libs/json`, and `ern run main.erc` runs it. An installation keeps each library's compiled modules beneath its prefix in `lib/ernest/build/libs/` and the library's directory name.
 
 No library listed here is part of the language or of the standard library. Each follows the shape rules E.0 holds a library to and documents itself as shape rule 6 asks. Each stands on the host as E.0 rule 1 has the standard library stand. A library written elsewhere is used as a package (§11.9). It follows Appendix D and is not listed here.
 

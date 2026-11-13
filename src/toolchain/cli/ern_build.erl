@@ -855,7 +855,7 @@ exported_type(_) ->
 %% none, as for a doc example, the compiled form is taken as it stands, as
 %% a run takes it (report §11.2).
 interface_members(Parent, Type, DependencyRoots, SourceRoot) ->
-    case compiled_found(Parent, DependencyRoots) of
+    case compiled_found(Parent, DependencyRoots, SourceRoot) of
         {Dir, Erc} ->
             case read_erc(Erc) of
                 {ok, #{interface := #interface{types = Types, values = Values}} = Chunk} ->
@@ -1306,9 +1306,10 @@ type_names(_, Acc) ->
     Acc.
 
 %% Report §11.1: a module outside the source root is found by its namespace
-%% under the build directory, then under each --load-path root in order. A
-%% stale .erc is no module. User is the module that uses it, which a
-%% refusal names.
+%% under the build directory, then under each --load-path root in order,
+%% and one whose source the source root holds under the build directory
+%% alone (compiled_found/3). A stale .erc is no module. User is the module
+%% that uses it, which a refusal names.
 -spec dependency_interface([atom()], [atom()], #{[atom()] => #interface{}},
                            [file:filename(), ...], file:filename()) ->
           {[atom()], #interface{}}.
@@ -1317,7 +1318,7 @@ dependency_interface(User, Dependency, Interfaces, [BuildRoot | _] = DependencyR
     case Interfaces of
         #{Dependency := Interface} -> {Dependency, Interface};
         _ ->
-            {Dir, Erc} = case compiled_found(Dependency, DependencyRoots) of
+            {Dir, Erc} = case compiled_found(Dependency, DependencyRoots, SourceRoot) of
                              none ->
                                  Relative = ern_namespace:module_path(Dependency) ++ ".erc",
                                  {BuildRoot, filename:join(BuildRoot, Relative)};
@@ -1396,11 +1397,18 @@ source_uses(Namespace, SourceRoot, DependencyRoots) ->
             end
     end.
 
-%% Report §11.1: the first root of DependencyRoots that holds a module's
-%% compiled form, with the form's path under it, or none.
-compiled_found(Namespace, DependencyRoots) ->
-    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
-    case [{Dir, Candidate} || Dir <- DependencyRoots, Candidate <- [filename:join(Dir, Relative)],
+%% Report §11.1, §4.2: the first root of DependencyRoots that holds a
+%% module's compiled form, with the form's path under it, or none. A module
+%% whose source the source root holds is the source root's, compiled or not,
+%% and its compiled form is the build root's, DependencyRoots' first, alone;
+%% a job with no source root, `none`, finds it under any of them.
+compiled_found(Namespace, DependencyRoots, SourceRoot) ->
+    Path = ern_namespace:module_path(Namespace),
+    Roots = case SourceRoot =/= none andalso is_source(filename:join(SourceRoot, Path ++ ".ern")) of
+                true -> lists:sublist(DependencyRoots, 1);
+                false -> DependencyRoots
+            end,
+    case [{Dir, Candidate} || Dir <- Roots, Candidate <- [filename:join(Dir, Path ++ ".erc")],
                               filelib:is_regular(Candidate)] of
         [First | _] -> First;
         [] -> none
@@ -1413,7 +1421,7 @@ compiled_found(Namespace, DependencyRoots) ->
 %% module of its own uses it. A build's order reads each such module here,
 %% first and once, so Say says it here (report §11.1, --verbose).
 recorded_uses(Namespace, DependencyRoots, SourceRoot, Say) ->
-    case compiled_found(Namespace, DependencyRoots) of
+    case compiled_found(Namespace, DependencyRoots, SourceRoot) of
         {Dir, Erc} ->
             case read_erc(Erc) of
                 {ok, #{deps := DependencyHashes} = Chunk} ->

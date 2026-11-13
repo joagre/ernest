@@ -3813,9 +3813,9 @@ taken_or_compiled(#session{source_hashes = Loaded} = Session,
 %% build of `ern`, against the interfaces the session holds, and calling no module
 %% the session holds at a unit of another name than its own, a reload's
 %% version among them, since the form calls each module it uses by its
-%% own; the candidates are tried in the load path's order, the source root
-%% last, and the first that qualifies is taken, with its file and the hash
-%% of the source it records.
+%% own; the candidates are tried under the source root first and then in
+%% the load path's order (load_path/1), and the first that qualifies is
+%% taken, with its file and the hash of the source it records.
 %%
 %% The interfaces it is held to are those a compile would check it against:
 %% Interfaces, and for a module it uses that the session has not loaded,
@@ -4513,15 +4513,18 @@ diagnosed(Session, File, Diagnostics) ->
     unicode:characters_to_binary([ern_diagnostic:format(Shown, SourceText, Diagnostic)
                                   || Diagnostic <- Diagnostics]).
 
-%% Report §11.2, §11.1: where a compiled module is found by its namespace,
-%% one `:load` names or one a module uses: the load path, and then the
-%% source root, which is where `ern build` writes by default; for a session
-%% attached to its node, the node's load path alone, since the source root
-%% is another node's (§11.2 *The attached shell*).
+%% Report §11.2, §11.1, §4.2: where a compiled module is found by its
+%% namespace, one `:load` names or one a module uses: the source root, which
+%% is where `ern build` writes by default and which stands first at the
+%% root, and then the load path, as `ern build` and `ern run` in the same
+%% tree find it; the source root is the build root of a module the session
+%% compiles (ern_build:dependency_interfaces/5). For a session attached to
+%% its node, the node's load path alone, since the source root is another
+%% node's (§11.2 *The attached shell*).
 load_path(#session{load_path = LoadPath, attached = true}) ->
     LoadPath;
 load_path(#session{load_path = LoadPath, source_root = SourceRoot}) ->
-    lists:uniq(LoadPath ++ [filename:absname(SourceRoot)]).
+    lists:uniq([filename:absname(SourceRoot) | LoadPath]).
 
 source_of(#session{source_root = SourceRoot} = Session, Namespace) ->
     File = filename:join(SourceRoot, ern_namespace:module_path(Namespace) ++ ".ern"),
@@ -4530,8 +4533,9 @@ source_of(#session{source_root = SourceRoot} = Session, Namespace) ->
         false -> none
     end.
 
-%% Report §11.2, §11.8: a module's compiled form on the load path, or
-%% none; one that cannot be read is refused with the file and the host's
+%% Report §11.2, §11.8: a module's compiled form, the first under the
+%% source root and then on the load path (load_path/1), or none; one that
+%% cannot be read is refused with the file and the host's
 %% reason, as the build refuses a file it cannot read, one that holds
 %% another module as `ern run` refuses it, and one whose code the host
 %% will not load as `ern run` refuses a dependency so (§11), the file

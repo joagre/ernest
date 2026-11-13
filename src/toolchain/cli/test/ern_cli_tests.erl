@@ -1243,6 +1243,129 @@ own_module_before_library_test() ->
     ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"5\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §4.2: a module is hidden by a module of its namespace alone, and a
+%% directory hides nothing: a program's `time/zone.ern` provides `Time.Zone`
+%% beside the library's `Time`, so that `Time.Zone.name()` is the program's
+%% and `Time.toCivil(0)` the library's, built and run. Written after the
+%% code, which found a module by its own path already, so a regression test
+module_under_a_library_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/time/zone.ern", "export fn name() : String = \"UTC\"\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = {\n"
+          "    let civil = Time.toCivil(0);\n"
+          "    Io.println(Time.Zone.name() <> \" \" <> Int.toString(civil.year))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"UTC 1970\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §4.2: the root is one namespace, which the source root's modules
+%% and a load path root's stand in together: the program's `geo/a.ern`
+%% beside a `--load-path` root's `geo.erc` and `geo/b.erc` provides
+%% `Geo.A`, and all three are found; the program's own `geo.ern` then
+%% hides the load path's `Geo` alone, and `Geo.B` stays the load path's.
+%% Written after the code, so a regression test
+one_namespace_at_the_root_test() ->
+    Dir = tmp(),
+    write(Dir, "lib/geo.ern", "export fn name() : String = \"the load path's Geo\"\n"),
+    write(Dir, "lib/geo/b.ern", "export fn name() : String = \"the load path's Geo.B\"\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/other", Dir ++ "/lib"])),
+    write(Dir, "src/geo/a.ern", "export fn name() : String = \"the program's Geo.A\"\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = {\n"
+          "    Io.println(Geo.name());\n"
+          "    Io.println(Geo.A.name());\n"
+          "    Io.println(Geo.B.name())\n"
+          "}\n"),
+    BuiltAndRun = fun() ->
+                          ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build",
+                                                       "--load-path", Dir ++ "/other",
+                                                       Dir ++ "/src"])),
+                          ?assertEqual(0, ern_err(["run", "--load-path", Dir ++ "/other",
+                                                   Dir ++ "/build/main.erc"]))
+                  end,
+    BuiltAndRun(),
+    write(Dir, "src/geo.ern", "export fn name() : String = \"the program's Geo\"\n"),
+    BuiltAndRun(),
+    ?assertEqual(<<"the load path's Geo\nthe program's Geo.A\nthe load path's Geo.B\n"
+                   "the program's Geo\nthe program's Geo.A\nthe load path's Geo.B\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §11.1, §4.2: a module whose source the source root holds is the
+%% source root's, compiled or not: a single file's build that uses one the
+%% build root holds no `.erc` of refuses, as where no later root holds one,
+%% and reads no module of its namespace under a later root, neither the
+%% library `Json` nor a `--load-path` root's `Util`, and writes nothing;
+%% `ern doc` of the file refuses it so too. Written before the code, which
+%% read the later root's; the half of `ern doc` after it, a regression test
+source_root_module_not_compiled_test() ->
+    Dir = tmp(),
+    write(Dir, "json.ern", "export fn parse(text : String) : Int = String.size(text)\n"),
+    write(Dir, "main.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Json.parse(\"seven\")))\n"),
+    write(Dir, "lib/util.ern", "export fn one() : Int = 2\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/other", Dir ++ "/lib"])),
+    write(Dir, "src/util.ern", "export fn one() : Int = 1\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Util.one()))\n"),
+    in_directory(Dir, fun() ->
+                          ?assertEqual(1, build_err(["main.ern"])),
+                          ?assertEqual(1, build_err(["--source-root", "src", "--build-root",
+                                                     "build", "--load-path", "other",
+                                                     "src/main.ern"])),
+                          ?assertEqual(1, ern_err(["doc", "main.ern"]))
+                      end),
+    ?assertEqual(<<"ern build: compile Json first, which Main uses: json.erc: no such file or"
+                   " directory\n"
+                   "ern build: compile Util first, which Main uses: build/util.erc: no such file"
+                   " or directory\n"
+                   "ern doc: compile Json first, which Main uses: json.erc: no such file or"
+                   " directory\n">>,
+                 unicode:characters_to_binary(?capturedOutput)),
+    ?assertNot(filelib:is_regular(Dir ++ "/main.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")).
+
+%% report §11.1: a build of a directory under the source root compiles its
+%% sources and no other of the source root's, so that a module of it that
+%% uses one outside it that is not compiled fails alone, refused as a
+%% single file's build refuses it, though the library `Json` stands on the
+%% load path, and the rest are built. Written before the code
+directory_under_the_source_root_test() ->
+    Dir = tmp(),
+    write(Dir, "src/json.ern", "export fn parse(text : String) : Int = String.size(text)\n"),
+    write(Dir, "src/app/main.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Json.parse(\"seven\")))\n"),
+    write(Dir, "src/app/other.ern", "export fn main() : Unit = Io.println(\"other\")\n"),
+    in_directory(Dir, fun() ->
+                          ?assertEqual(1, build_err(["--source-root", "src", "src/app"]))
+                      end),
+    ?assertEqual(<<"ern build: compile Json first, which App.Main uses: src/json.erc: no such"
+                   " file or directory\n">>,
+                 unicode:characters_to_binary(?capturedOutput)),
+    ?assert(filelib:is_regular(Dir ++ "/src/app/other.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/src/app/main.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/src/json.erc")).
+
+%% report §11.1: a module of the source root that a build is not given, on
+%% which one it is given depends, is read from its `.erc` under the build
+%% root as that stands, its source edited since, and the build says nothing
+%% of it: `main.ern` built alone after `util.ern` changed its interface
+%% compiles against `util.erc` and runs with it. Written after the code, so
+%% a regression test
+edited_dependency_read_as_it_stands_test() ->
+    Dir = tmp(),
+    write(Dir, "util.ern", "export fn one() : Int = 1\n"),
+    write(Dir, "main.ern", "export fn main() : Unit = Io.println(Int.toString(Util.one()))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir])),
+    write(Dir, "util.ern", "export fn one() : String = \"one\"\n"),
+    write(Dir, "main.ern",
+          "export fn main() : Unit = Io.println(Int.toString(Util.one() + 1))\n"),
+    ?assertEqual(0, build_err(["--source-root", Dir, Dir ++ "/main.ern"])),
+    ?assertEqual(<<>>, unicode:characters_to_binary(?capturedOutput)),
+    ?assertEqual(0, ern_err(["run", Dir ++ "/main.erc"])),
+    ?assertEqual(<<"2\n">>, unicode:characters_to_binary(?capturedOutput)).
+
 %% report §11.2: two directories of one application's name under a
 %% `--libs-dir` are refused, naming them, and nothing runs: `foo-1.0`
 %% beside `foo-1.1`, and `foo` beside `foo-1.0`, a directory without a
