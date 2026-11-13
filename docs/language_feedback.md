@@ -1,7 +1,3 @@
 # Language feedback
 
 What writing Ernest has felt against the principles, and what a reader found that questions a rule of the language rather than showing a defect (CLAUDE.md, *Defects and gaps*). An entry stays until a plan item decides it: a report change, an item of a milestone, or a line in the log saying it was dropped and why. An entry keeps its number, which the plan, the log and the code cite; the next is 253.
-
-252. **A read has no most, and nothing says what an unread socket holds** (2026-11-13, ernest-httpd's line 30 of its `docs/language_feedback.md`, at its c4d6c09, against Ernest 0.10.0). E.18 says of `Tcp.read` "what has arrived, at least one byte", and of a write what the host takes, holds and holds back, to its watermarks. Principle 3. Asked: E.18 states the most one read answers, over TCP and over TLS, or that there is none, and that what has arrived and no read has taken waits in the host's and the kernel's buffers for the socket, which hold the far end's writes once full. The plan's MVP 4.16 item 33 discusses it.
-
-     ernest-httpd's probe over plain TCP had a client write 125-byte messages and read nothing, and a server read once for each read it had handled: one read answered 9,216 bytes at most while megabytes waited, 309 reads with a mean of 9,083, and once the server read no more the client's write did not end within 2 s, after 4.6 MB sent. Nothing in ernest-httpd waits on it.

@@ -1460,6 +1460,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.
 - **percent-encoding** — a `%` and two hexadecimal digits standing for one octet in a URI reference, which `Uri.decode` undoes. Appendix G.12.
+- **piece** — the bytes one read of a stream answers, whose ends are the host's and no write's. Appendix E.18, E.23.
 - **pipe** — the `|>` operator, `x |> f` = `f(x)`. §5.7.
 - **positional field** — a field on a constructor identified by position, not name. §3.5.
 - **precedence** — the binding tightness of a binary operator. §2.6.

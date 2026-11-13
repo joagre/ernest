@@ -179,12 +179,11 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     stuck`, was written before the case's line, `stuck: faulted: deadlock`, which the test
     expects first. The cause is not found. An item session finds under that target's load
     whether §11.2 promises the order, and fixes the test or `ern test` at it.
-33. **What one `Tcp.read` answers, and what an unread socket holds**, feedback 252,
-    ernest-httpd's line 30 of 2026-11-13, discussed with the user in a design session after
-    item 31. E.18 gives a read no most, and does not say that what has arrived and no read has
-    taken holds the far end's writes, where it states a write to the host's watermarks. The
-    session runs ernest-httpd's probe first, over TCP and over TLS, and then decides what E.18
-    states. Nothing in ernest-httpd waits on it.
+33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
+    decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
+    fewer than 25600 over TLS, and the runtime has the host's TLS take one piece of a
+    connection at a time, where it took a hundred ahead (E.18; the log's *What One Read
+    Answers*).
 34. **Regression tests of the sentences item 29 stated**, found 2026-11-13: each sentence
     states what the toolchain does, a probe showed it, and no test holds it. An item session
     writes them before item 5: a guard and an operand in parentheses (§6.3), `Test.faults` in

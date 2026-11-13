@@ -124,10 +124,18 @@ serve(Tcp, Tls) ->
 %% answers the request with the host's reason, and the next request tries
 %% again. At a full table of processes the host's start may end the run or
 %% never answer (docs/otp_bugs.md, 17).
+%%
+%% Report Appendix E.18: over TLS the host takes one piece ahead of the
+%% reads, its ssl's `internal_active_n` set to 1 where its own is a
+%% hundred. The host reads it as each connection starts, a listener's and
+%% a connect's alike; it is kept should a later start load the
+%% application again, and set with no limit of time, as the start's own
+%% calls are made (the log's *What One Read Answers*).
 with_ssl(started, _, Request) ->
     Request(),
     started;
 with_ssl(unstarted, Reply, Request) ->
+    ok = application:set_env(ssl, internal_active_n, 1, [{persistent, true}, {timeout, infinity}]),
     case application:ensure_all_started(ssl) of
         {ok, _} ->
             with_ssl(started, Reply, Request);

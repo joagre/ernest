@@ -699,13 +699,19 @@ Over TLS the reset comes up to 10 seconds later, the host's `ssl` closing with t
 
 On a socket or a listener that has ended, a function that waits for its answer, `read`, `write`, `accept`, `port`, `remote`, or `local`, which is a call on its process, faults the caller as `Address.callForever` does (§6.6): with `Fault("callee was closed")` where the program's close ends it while the call waits in its mailbox, not yet taken, and with `Fault("callee had ended")` where it had ended before the call; `close`, `give` and `closeListener` do nothing.
 
+`Tcp.read` is the host's receive: it answers one piece as the host hands it over, and no more where more has arrived. A piece's ends are the host's: a write may arrive in several pieces, and several writes in one. Over TCP a piece is at most 9216 bytes, the host's buffer for the socket. Over TLS a piece is what the TLS records hold that the next 9216 bytes of the connection complete, and the read waits on where they complete none. A TLS record holds at most 16384 bytes, so a piece is fewer than 25600 bytes.
+
+The host takes one piece from the kernel for each read, and nothing without one. Over TLS it takes what the handshake needs, and then one piece ahead of the reads, which the host's process of the connection holds. What the far end has written beyond that waits in the kernel's buffer for the socket, and once that is full in the far end's kernel's. Linux grows the first to the third number of its `net.ipv4.tcp_rmem`, 6291456 bytes by default, and the second to the third of its `net.ipv4.tcp_wmem`, 4194304. Once both are full, a far end written in Ernest holds its writes, and holds them back, as below.
+
+What had arrived before the far end closed is read before a read answers `Left(Closed)`. A connection the far end closes has closed once the host learns of it: when it has taken what arrived before the close, or as a write fails. Until then a write answers `Right(Unit)`, and its bytes are lost.
+
 `Tcp.write` is the host's send: it answers `Right(Unit)` once the host has taken the bytes, at most the milliseconds it is given, and what the host takes, holds and holds back is what the socket does, with nothing of Ernest's between. The host takes a write whole, whatever its size, and holds what the far end has not taken; it holds the next write back while it holds, past the kernel's buffer for the socket, 8 KB or more of earlier writes, its high watermark, until it holds under 4 KB, its low one. So the milliseconds bound a write's wait behind earlier writes and never the far end's taking of its own bytes, and a write that waits holds up no read of the socket.
 
 A `Left(Timeout)` does not undo the write: the bytes may still be sent, after those written before. A write after the connection has closed, from either end or by a failure, answers `Left(Closed)`, and one the host refuses for another reason answers `Left(Other(text))`, the host's reason.
 
 A read, a write, an accept or a connect given no time answers `Left(Timeout)` before any other answer, the host given nothing (E.0 shape rule 8). On a socket or a listener that has ended, a read, a write or an accept faults all the same, as above. A port outside 0 to 65535, and a host or a path that holds U+0000, which names none, answer `Left(Invalid)`. A request the table of processes leaves no room to serve, but a run's first over TLS (above), answers as §12.5 says.
 
-A read, an accept, or a connect that times out has taken nothing: bytes that arrive later wait for the next read, and a connection that completes later is closed. A read whose caller has ended before it is answered is dropped the same way, its bytes waiting for the next read; an accept whose caller has ended takes its connection, whose socket is killed at once, as one given to a process that has ended is. There are no options.
+A read, an accept, or a connect that times out has taken nothing: the host still takes the next piece to arrive, which waits in the socket's process for the next read, and a connection that completes later is closed. A read whose caller has ended before it is answered is dropped the same way, its bytes waiting for the next read; an accept whose caller has ended takes its connection, whose socket is killed at once, as one given to a process that has ended is. There are no options.
 
 ```
 abstract type ListenerMsg // what a listener takes
@@ -718,7 +724,7 @@ Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg))
 Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) // host, port; Left(Refused) where the far end refuses the connection
 Tcp.listenTls : (String, Int, Path, Path) -> Either(Io.Error, Address(ListenerMsg)) // host, port, the certificate's file and the key's, in PEM; Left(Other(text)) where it cannot read or refuses either
 Tcp.connectTls : (String, Int, Verification, Int) -> Either(Io.Error, Address(SocketMsg)) // host, port, the check of the far end's certificate; answers once the handshake is done
-Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) // what has arrived, at least one byte
+Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) // one piece of what has arrived, at least one byte
 Tcp.write : (Address(SocketMsg), Bytes, Int) -> Either(Io.Error, Unit)
 Tcp.close : (Address(SocketMsg)) -> Unit
 Tcp.give : (Address(SocketMsg), Process) -> Unit // makes the process the socket's owner

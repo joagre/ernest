@@ -13,6 +13,19 @@
 -define(LINGER_IDLE, 5000).
 -define(TLS_CLOSE, 10000).
 
+%% Report Appendix E.18: the most one read answers over TCP, the host's
+%% buffer for the socket; the most a TLS record holds; and what a read over
+%% TLS answers fewer than, a record and a piece of TCP's.
+-define(TCP_PIECE, 9216).
+-define(TLS_RECORD, 16384).
+-define(TLS_PIECE, 25600).
+
+%% Report Appendix E.18: the milliseconds a write is given where a test
+%% waits for its socket to be held. A write the host takes on the loopback
+%% answers within a millisecond, so one not taken in a hundred waits on
+%% full buffers, unless the host is too loaded to run the writer so long.
+-define(HELD, 100).
+
 %% Appendix E.18, E.0 shape rule 8: a read given no time, 0 or below, has
 %% run out as it begins and answers `Left(Timeout)`, whatever has arrived,
 %% and takes nothing: the far end's bytes go to the read with time after it,
@@ -109,10 +122,13 @@ connect_given_no_time_test() ->
     Timeout = {'Left', 'Timeout'},
     ?assertEqual({[Timeout, Timeout, Timeout, Timeout], 'Right'}, wait(connects)).
 
-%% Appendix E.18, report §6.6: a read that timed out leaves the socket
-%% delivering to the reads after it. A regression test: the socket asked
-%% for one packet per read that found nothing waiting, and the packet went
-%% to the read that had timed out, so the next read was never answered
+%% Appendix E.18, report §6.6: a read that timed out has taken nothing: the
+%% host still takes the next piece to arrive, which waits in the socket's
+%% process for the next read, and the socket goes on delivering to the
+%% reads after it. A regression test: the socket asked for one packet per
+%% read that found nothing waiting, and the packet went to the read that
+%% had timed out, so the next read was never answered. The piece's wait in
+%% the socket's process, while no read waits, was added after the code
 read_after_timeout_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -131,7 +147,14 @@ read_after_timeout_test() ->
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
                {'Left', 'Timeout'} = read(Socket, 20),
+               Pid = ern_rt:process_of(Socket),
+               erlang:trace(Pid, true, ['receive']),
                Peer ! go,
+               %% the host has handed the piece to the socket's process, and
+               %% the next read is sent after it; a wait in a test's code,
+               %% the host's to the deadlock detector
+               receive {trace, Pid, 'receive', {tcp, _, <<"a">>}} -> ok end,
+               erlang:trace(Pid, false, ['receive']),
                Self ! {read, read(Socket, 2000)},
                Peer ! next,
                Self ! {read, read(Socket, 2000)},
@@ -773,6 +796,192 @@ write_taken_whole() ->
     ?assertEqual({'Left', 'Timeout'}, Behind),
     ?assert(Took < 2000).
 
+%% Appendix E.18: a read over TCP answers one piece, at most 9216 bytes,
+%% the host's buffer for the socket, though more has arrived, and all that
+%% was written is read, in order. The far end has written half a megabyte,
+%% many pieces, before the first read. A regression test, written after the
+%% sentence, whose probe found the host so; it does not cover a buffer of
+%% another size, which nothing in Ernest sets
+read_answers_a_piece_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Written = rand:bytes(512 * 1024),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               Peer = spawn(fun() ->
+                                {ok, Accepted} = gen_tcp:accept(Listen),
+                                ok = gen_tcp:send(Accepted, Written),
+                                Main ! written,
+                                receive done -> gen_tcp:close(Accepted) end
+                            end),
+               {'Right', Socket} = connect(Port, 2000),
+               %% a wait in a test's code, the host's to the deadlock detector
+               receive written -> ok end,
+               Self ! {pieces, pieces(Socket, byte_size(Written))},
+               Peer ! done
+           end, <<"main">>, quiet()),
+    gen_tcp:close(Listen),
+    Pieces = wait(pieces),
+    ?assertEqual({true, ?TCP_PIECE},
+                 {iolist_to_binary(Pieces) =:= Written, lists:max(sizes(Pieces))}).
+
+%% Appendix E.18: what had arrived before the far end closed is read before
+%% a read answers `Left(Closed)`. The far end writes 20000 bytes, more than
+%% two pieces, which its kernel takes whole, closes, and ends, and the reads
+%% begin once it has. A regression test, written after the sentence, whose
+%% probe found the host so; socket_lives_until_closed holds a byte that came
+%% before the close, and this the close behind more than one piece
+read_before_the_close_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Written = rand:bytes(20000),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               %% watched before it accepts, so that its end is seen
+               {FarEnd, FarRef} =
+                   spawn_monitor(fun() ->
+                                     {ok, Accepted} = gen_tcp:accept(Listen),
+                                     ok = gen_tcp:send(Accepted, Written),
+                                     %% nothing is left for the host to send,
+                                     %% so the close goes out behind the
+                                     %% bytes at once
+                                     {ok, [{send_pend, 0}]} =
+                                         inet:getstat(Accepted, [send_pend]),
+                                     ok = gen_tcp:close(Accepted)
+                                 end),
+               {'Right', Socket} = connect(Port, 2000),
+               %% a wait in a test's code, the host's to the deadlock detector
+               receive {'DOWN', FarRef, process, FarEnd, Ended} -> Self ! {far_end, Ended} end,
+               Self ! {reads, reads(Socket)}
+           end, <<"main">>, quiet()),
+    gen_tcp:close(Listen),
+    ?assertEqual(normal, wait(far_end)),
+    {Pieces, Last} = wait(reads),
+    ?assertEqual({true, {'Left', 'Closed'}}, {iolist_to_binary(Pieces) =:= Written, Last}).
+
+%% Appendix E.18: a connection the far end closes has closed once the host
+%% learns of it, which on a socket nothing reads is as a write fails: the
+%% first write after the far end's close answers `Right(Unit)`, its byte
+%% lost, and once the far end's kernel has refused what came, a write
+%% answers `Left(Closed)`, and so does a read. The writes are made one after
+%% another until one answers otherwise, which the refusal ends. A regression
+%% test, written after the sentence, whose probe found the host so; it does
+%% not cover a socket over TLS, whose host takes the handshake and a piece
+%% ahead of the reads
+write_after_the_far_ends_close_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               %% watched before it accepts, so that its end is seen
+               {FarEnd, FarRef} = spawn_monitor(fun() ->
+                                                    {ok, Accepted} = gen_tcp:accept(Listen),
+                                                    ok = gen_tcp:close(Accepted)
+                                                end),
+               {'Right', Socket} = connect(Port, 2000),
+               %% a wait in a test's code, the host's to the deadlock detector
+               receive {'DOWN', FarRef, process, FarEnd, Ended} -> Self ! {far_end, Ended} end,
+               Writes = written_until_refused(Socket),
+               Self ! {after_close, {Writes, read(Socket, 1000)}}
+           end, <<"main">>, quiet()),
+    gen_tcp:close(Listen),
+    ?assertEqual(normal, wait(far_end)),
+    {[First | _] = Writes, Read} = wait(after_close),
+    ?assertEqual({{'Right', 'Unit'}, {'Left', 'Closed'}, {'Left', 'Closed'}},
+                 {First, lists:last(Writes), Read}).
+
+%% The answers of one-byte writes to Socket, one after another, until one is
+%% not `Right(Unit)`, which is the last.
+written_until_refused(Socket) ->
+    case write(Socket, <<"x">>, 1000) of
+        {'Right', 'Unit'} = Taken -> [Taken | written_until_refused(Socket)];
+        Answer -> [Answer]
+    end.
+
+%% Appendix E.18: a socket nobody reads holds the far end, over TCP and over
+%% TLS: once the kernel's buffers at both ends are full, the far end's write
+%% answers `Left(Timeout)` at its milliseconds, though no read is made, the
+%% writes before it taken. A regression test, written after the sentence,
+%% whose probe found the host so; it does not cover how much the buffers
+%% hold, which the kernel grows
+unread_socket_holds_the_far_end_test() ->
+    #{server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               Held = [begin
+                           {Answers, _, FarEnd} = unread(Kind, Server),
+                           FarEnd ! done,
+                           Answers
+                       end || Kind <- [plain, tls]],
+               Self ! {held, Held}
+           end),
+    [{TakenPlain, Plain}, {TakenTls, Tls}] = wait(held),
+    ?assertEqual({'Left', 'Timeout'}, Plain),
+    ?assertEqual({'Left', 'Timeout'}, Tls),
+    ?assert(TakenPlain > 0 andalso TakenTls > 0).
+
+%% A connection over Kind whose accepted end nobody reads, and its far end, a
+%% process that connects and writes until a write is not taken in HELD
+%% milliseconds: the bytes the far end's writes took before it and its
+%% answer, the accepted socket, and the far end, which keeps its socket until
+%% told `done`.
+unread(Kind, Server) ->
+    {'Right', Listener} = case Kind of
+                              plain -> listen(0);
+                              tls -> listen_tls(0, Server)
+                          end,
+    {'Right', Port} = port(Listener),
+    Main = self(),
+    FarEnd = spawn(fun() ->
+                       {'Right', Socket} =
+                           case Kind of
+                               plain -> connect(Port, 5000);
+                               tls -> connect_tls(<<"127.0.0.1">>, Port, 'Unverified', 5000)
+                           end,
+                       Main ! {held, filled(Socket, binary:copy(<<0>>, 65536), 0)},
+                       receive done -> ok end
+                   end),
+    {'Right', Accepted} = accept(Listener, 5000),
+    %% a wait in a test's code, the host's to the deadlock detector
+    receive {held, Answers} -> {Answers, Accepted, FarEnd} end.
+
+%% Writes Chunk to Socket until a write is not taken in HELD milliseconds:
+%% the bytes the writes before it took, counted from Taken, and its answer.
+filled(Socket, Chunk, Taken) ->
+    case write(Socket, Chunk, ?HELD) of
+        {'Right', 'Unit'} -> filled(Socket, Chunk, Taken + byte_size(Chunk));
+        Answer -> {Taken, Answer}
+    end.
+
+%% The pieces the reads of Socket answer until Count bytes are read, in order.
+pieces(Socket, Count) ->
+    pieces(Socket, Count, []).
+
+pieces(_, Count, Pieces) when Count =< 0 ->
+    lists:reverse(Pieces);
+pieces(Socket, Count, Pieces) ->
+    {'Right', Piece} = read(Socket, 5000),
+    pieces(Socket, Count - byte_size(Piece), [Piece | Pieces]).
+
+%% The pieces the reads of Socket answer until one answers a Left, in order,
+%% and that Left.
+reads(Socket) ->
+    reads(Socket, []).
+
+reads(Socket, Pieces) ->
+    case read(Socket, 5000) of
+        {'Right', Piece} -> reads(Socket, [Piece | Pieces]);
+        Left -> {lists:reverse(Pieces), Left}
+    end.
+
+sizes(Pieces) ->
+    [byte_size(Piece) || Piece <- Pieces].
+
 %% report §6.9, Appendix E.18: a listener is owned by the process that
 %% opened it and is killed when that process dies. A regression test of the
 %% rule, before which a listener belonged to no one and lived until the
@@ -1051,6 +1260,135 @@ tls_connection_hibernates_test() ->
            end)
          end),
     ?assertEqual({[], []}, wait(left)).
+
+%% Appendix E.18: a read over TLS answers what the records hold that one
+%% piece of the connection completes: fewer than 25600 bytes, and more than
+%% a record's 16384 where a piece completes a record and holds another
+%% whole.
+%%
+%% The far end has written it all before the first read, in 32
+%% pairs of a full record and one of 125 bytes, so that the host's pieces
+%% are full ones. A piece that completes the full record holds the short
+%% one whole unless the record ends within the short one's size on the
+%% connection, some 150 bytes, of the piece's end, so nearly every pair
+%% reaches it: the runs found 30 of the 32 or more.
+%%
+%% A regression test, written after the sentence, whose probe found the
+%% host so. It does not cover the bound at its worst, 25574 bytes, which a
+%% full record and one of 9190 reach only where a piece begins within 4
+%% bytes of the full record's end, about once in sixty megabytes.
+tls_read_answers_a_piece_test() ->
+    #{server := Server} = pki(),
+    Short = 125,
+    Written = rand:bytes(32 * (?TLS_RECORD + Short)),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               Main = self(),
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               Peer = spawn(fun() ->
+                                {ok, Connected} = ssl:connect("127.0.0.1", Port,
+                                                              [binary, {active, false},
+                                                               {verify, verify_none}]),
+                                %% each send is a record of its own
+                                [ok = ssl:send(Connected, Part)
+                                 || Part <- parts(Written, [?TLS_RECORD, Short])],
+                                Main ! written,
+                                receive done -> ssl:close(Connected) end
+                            end),
+               {'Right', Socket} = accept(Listener, 5000),
+               %% a wait in a test's code, the host's to the deadlock detector
+               receive written -> ok end,
+               Self ! {pieces, pieces(Socket, byte_size(Written))},
+               Peer ! done
+           end),
+    Pieces = wait(pieces),
+    Most = lists:max(sizes(Pieces)),
+    ?assertEqual({true, true, true}, {iolist_to_binary(Pieces) =:= Written,
+                                      Most < ?TLS_PIECE, Most > ?TLS_RECORD}).
+
+%% Bytes cut into parts of the sizes given, in turn, over and over.
+parts(<<>>, _) ->
+    [];
+parts(Bytes, [Size | Sizes]) ->
+    <<Part:Size/binary, Rest/binary>> = Bytes,
+    [Part | parts(Rest, Sizes ++ [Size])].
+
+%% Appendix E.18: over TLS, what had arrived before the far end closed is
+%% read before a read answers `Left(Closed)`. The far end writes 20000
+%% bytes, more than two pieces, and shuts the connection, which writes the
+%% close alert behind them and then the connection's end, and the reads
+%% begin once the shutdown has returned; the host's close would first wait
+%% for this end's answer (docs/otp_bugs.md, 10). A regression test, written
+%% after the sentence, whose probe found the host so; it does not cover a
+%% connection that ends with no alert
+tls_read_before_the_close_test() ->
+    #{server := Server} = pki(),
+    Written = rand:bytes(20000),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               Main = self(),
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               FarEnd = spawn(fun() ->
+                                  {ok, Connected} = ssl:connect("127.0.0.1", Port,
+                                                                [binary, {active, false},
+                                                                 {verify, verify_none}]),
+                                  ok = ssl:send(Connected, Written),
+                                  Main ! {closed, ssl:shutdown(Connected, read_write)},
+                                  receive done -> ok end
+                              end),
+               {'Right', Socket} = accept(Listener, 5000),
+               %% a wait in a test's code, the host's to the deadlock detector
+               receive {closed, Closed} -> Self ! {far_end, Closed} end,
+               Self ! {reads, reads(Socket)},
+               FarEnd ! done
+           end),
+    ?assertEqual(ok, wait(far_end)),
+    {Pieces, Last} = wait(reads),
+    ?assertEqual({true, {'Left', 'Closed'}}, {iolist_to_binary(Pieces) =:= Written, Last}).
+
+%% Appendix E.18: over TLS the host takes one piece ahead of the reads,
+%% which its process of the connection holds, and no more: of a connection
+%% nobody reads, once the far end is held, that process holds one piece,
+%% where the host's own ssl takes a hundred ahead. A regression test,
+%% written with the runtime's setting of the host's, without which it
+%% fails at some 900000 bytes; it does not cover a connection a
+%% `connectTls` opened, which the setting reaches alike
+tls_unread_connection_holds_one_piece_test() ->
+    #{server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {{_, Answer}, Accepted, FarEnd} = unread(tls, Server),
+               Connection = tls_connection_of(ern_rt:process_of(Accepted)),
+               %% what the process holds, and not what it let go
+               erlang:garbage_collect(Connection),
+               Self ! {held, {Answer, bytes_held(Connection)}},
+               FarEnd ! done
+           end),
+    %% one piece is fewer than 25600 bytes of the records' content, beside
+    %% the 9216 of the connection it came in, which may begin the next
+    %% record; twice the two leaves room for what the handshake left, the
+    %% certificates and the keys, and a hundred pieces ahead are up to
+    %% 921600 bytes of the connection
+    Bound = 2 * (?TLS_PIECE + ?TCP_PIECE),
+    ?assertMatch({{'Left', 'Timeout'}, Held} when Held < Bound, wait(held)).
+
+%% The host's ssl process of the connection whose socket Owner owns to the
+%% host, which watches its owner.
+tls_connection_of(Owner) ->
+    {monitored_by, Watching} = erlang:process_info(Owner, monitored_by),
+    [Connection] = [Pid || Pid <- Watching, is_pid(Pid),
+                           {ssl_gen_statem, init, _} <- [proc_lib:initial_call(Pid)]],
+    Connection.
+
+%% The bytes of the binaries Pid references, each counted once.
+bytes_held(Pid) ->
+    {binary, Binaries} = erlang:process_info(Pid, binary),
+    lists:sum([Size || {_, Size, _} <- lists:ukeysort(1, Binaries)]).
 
 all_taken(_, Left) when Left =< 0 ->
     ok;
