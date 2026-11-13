@@ -115,7 +115,7 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     with its output, and ends the loops by their numbers. It runs on the user's word alone, in
     neither review, and `docs/development.md` names it.
 12. **The feedback of the release review before 0.10.0, and the applications'**, feedback 237 to
-    247 and the applications' three lines, feedback 249 to 251, done 2026-11-11 in one design session
+    247 and the applications' three lines, feedback 249 to 251, done 2026-11-11 in one session
     (the log's *The Review's Feedback Decided*): six build, items 14 to 19, and eight are dropped
     there.
 13. **The checkout's manual pages**, done 2026-11-11 (the log's *One Copy of the Pages*).
@@ -136,7 +136,7 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     release, as *A Built Proposal's Sweep Is an Item* places one.
 24. **The flake of `reads_limited_test`**, seen 2026-11-11 once under `make test`, item 4's
     run: the socket's reader read `Running` where `Calling` was expected, after
-    `ern_waits:calling` had returned for it. The cause is not found. An item session finds it
+    `ern_waits:calling` had returned for it. The cause is not found. An agent finds it
     under `make test`'s load, and fixes the test or the runtime at it.
 25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
     Manifest*).
@@ -177,7 +177,7 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     `make test-erl APP=cli`, item 30's run, and not in six runs alone nor in a second run of
     the target. The client's line, `Asks.stuck:8 faulted: deadlock, the fault of the callee
     stuck`, was written before the case's line, `stuck: faulted: deadlock`, which the test
-    expects first. The cause is not found. An item session finds under that target's load
+    expects first. The cause is not found. An agent finds under that target's load
     whether §11.2 promises the order, and fixes the test or `ern test` at it.
 33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
     decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
@@ -185,7 +185,7 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     connection at a time, where it took a hundred ahead (E.18; the log's *What One Read
     Answers*).
 34. **Regression tests of the sentences item 29 stated**, found 2026-11-13: each sentence
-    states what the toolchain does, a probe showed it, and no test holds it. An item session
+    states what the toolchain does, a probe showed it, and no test holds it. An agent
     writes them before item 5: a guard and an operand in parentheses (§6.3), `Test.faults` in
     a deadlock and a started program that has exited and no read has taken (§8.6), a
     deadlock's line without a frame (§12.4), a `Set` of `Bool` printed ascending (E.1), a
@@ -280,7 +280,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    release review. `docs/reviews/full.md`, `release.md` and `development.md` name each check in
    the commit that builds it.
 
-   Decided first, in a design session: whether the checker warns of a private function no code
+   Decided first, with the user: whether the checker warns of a private function no code
    calls (§11).
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed

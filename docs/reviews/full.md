@@ -70,16 +70,16 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 
 ## The models
 
-CLAUDE.md's *The repository* gives the models. C, E, S, H, T and B, the readers of the code and of what the toolchain does, run on the lesser model at the stronger effort, each part alike; every other reader on the stronger model.
+CLAUDE.md's *The repository* gives the models. C, E, S, H, T and B, the readers of the code and of what the toolchain does, run on the coding model at the stronger effort, each part alike; every other reader on the stronger model.
 
-Working the findings follows the same file: a design question, a sentence of the report or of §0, and a reading of an argument take a design session; a defect whose fix the finding names takes an item session and its agents, at the efforts that file gives a build.
+Working the findings follows the same file: a design question, a sentence of the report or of §0, and a reading of an argument are the session's; a defect whose fix the finding names goes to an agent, at the efforts that file gives a build.
 
 ## The findings
 
 - The lists become one document, the findings file CLAUDE.md's owner table names, beside the plan while they are open: a line per finding, by area, each naming its reader's letter and number.
 - A line carries its decision: `fix`, `decide`, a milestone's number, planned there, or `dropped`, with the reason; and `done`, with the date, once made.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
-- The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose in a design session; code or a test as one batch by agents, built from a brief that names each line and the shape of its fix (*The models*).
+- The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose by the session; code or a test as one batch by agents, built from a brief that names each line and the shape of its fix (*The models*).
 
   Every other line is `decide`: a rule, a sentence of §0 or E.0, what an error text means, a fix that could go two ways, a departure from a proposal. Each is discussed with the user one at a time, the argument before the verdict, with a recommendation that weighs the candidate rule against §0's five principles and names the one that decided (CLAUDE.md, *Authority*).
 

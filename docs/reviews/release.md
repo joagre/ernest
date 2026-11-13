@@ -38,4 +38,4 @@ What a release runs to be ready, and nothing else. Between releases an item that
    - the report's diff between the last release's tag and this one's, `git diff v0.2.0 v0.3.0 -- report/` for 0.3.0;
    - and what changed, one line a change naming the report's section or Appendix E's entry where it is read, and nothing else.
 
-**The models.** The readers run as [`full.md`](full.md)'s *The models* says, and the machines need none. Of the findings, a design question or a sentence of the report takes a design session, and a named fix and the release itself an item session.
+**The models.** The readers run as [`full.md`](full.md)'s *The models* says, and the machines need none. Of the findings, a design question or a sentence of the report is the session's, and a named fix an agent's. The release itself the session runs.

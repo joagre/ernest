@@ -28,7 +28,7 @@ Four readers in five sessions.
 
 ## The models
 
-Every reader runs as [`full.md`](full.md)'s *The models* says, none of them a reader of the code. The decisions with the user and the sentences they add to §0, E.0 or a section take a design session; the edits that carry a decision through the report, the guide and the code take an item session and its agents.
+Every reader runs as [`full.md`](full.md)'s *The models* says, none of them a reader of the code. The decisions with the user, the sentences they add to §0, E.0 or a section, and the edits that carry a decision through the report and the guide are the session's; the edits that carry it through the code are its agents'.
 
 ## The findings
 
