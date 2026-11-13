@@ -5886,6 +5886,23 @@ unpack_not_implemented_test() ->
                                       <<"ern unpack: unpack takes no argument\n"
                                         "Usage: ern unpack\n">>)).
 
+%% report §11.7, §11.9: `--package-dir` of `ern run`, `ern test` and `ern
+%% shell` is refused as not implemented, in one line with status 1 and no
+%% usage, before anything of the job runs, so a directory that is not
+%% there is not looked for; `ern build` refuses it as an option it does
+%% not take, with the jobs that take it. A regression test, written after
+%% the code; it does not cover the option's work, which is not built
+package_dir_not_implemented_test() ->
+    Jobs = ["run", "test", "shell"],
+    [?assertEqual(1, ern_err([Job, "--package-dir", "nonexist", "x.erc"])) || Job <- Jobs],
+    ?assertEqual(iolist_to_binary([["ern ", Job, ": --package-dir is not implemented\n"]
+                                   || Job <- Jobs]),
+                 iolist_to_binary(?capturedOutput)),
+    ?assertEqual(1, ern_err(["build", "--package-dir", "x", "x.ern"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"ern build: --package-dir is not an option of ern"
+                                        " build; ern run, ern test and ern shell take it\n">>)).
+
 %% report §11: a compiled module given first is refused with the job that
 %% runs it, an option before the job with where it goes, and a spelling of
 %% an earlier toolchain as any word that is no job or no option of the job

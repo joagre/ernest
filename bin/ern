@@ -109,7 +109,7 @@ case ${1-} in
                 value=1
             elif [ "$job" = run ]; then
                 case $word in
-                    --load-path | --libs-dir | --main) value=1 ;;
+                    --load-path | --libs-dir | --package-dir | --main) value=1 ;;
                     --) break ;;
                     -?*) ;;
                     *) break ;;

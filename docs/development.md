@@ -453,5 +453,6 @@ The toolchain is the report, on one node and across nodes. Everything the report
 |---|---|---|
 | a package's manifest, `package.conf`, read by a job started in its directory, its named packages put on the load path and held to each other by `ern build` (report §11.9) | MVP 4.16 | no job reads it: a job runs as in a directory without one |
 | `ern unpack`, a package's archive checked and unpacked under `lib` (report §11.9) | MVP 4.16 | `ern unpack: this job is not implemented` |
+| `--package-dir dir` of `ern run`, `ern test` and `ern shell`, the root package named in place of the directory the job is started in (report §11.9) | MVP 4.16 | `ern run: --package-dir is not implemented`, and the same of `ern test` and `ern shell` |
 
 Every refusal the toolchain makes for a later milestone's sake says `… is not implemented` in its error text and names no milestone, which the row here names, and `unimplemented_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

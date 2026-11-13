@@ -256,6 +256,11 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
             {true, _} -> usage_fail("--help stands alone: " ++ Name ++ " --help");
             {false, _} ->
                 given_once(Options, Spec),
+                %% report §11.9: no job reads a manifest yet, so the root
+                %% package `--package-dir` names is refused, and nothing of
+                %% the job runs
+                lists:keymember(package_dir, 1, Options)
+                    andalso ern_build:fail("--package-dir is not implemented"),
                 named_directories(Job, Spec, Options),
                 Work(Options, Rest ++ Program, ErrorDevice)
         end
@@ -429,6 +434,7 @@ metavariable(source_root) -> "src-root";
 metavariable(build_root) -> "build-root";
 metavariable(load_path) -> "dir";
 metavariable(libs_dir) -> "dir";
+metavariable(package_dir) -> "dir";
 metavariable(config_dir) -> "dir";
 metavariable(listen) -> "address:port";
 metavariable(peer_dir) -> "dir";
@@ -929,6 +935,12 @@ libs_dir_option() ->
     {libs_dir, undefined, "libs-dir", string,
      "a directory of the host's applications; each one's ebin joins the load path"}.
 
+%% Report §11.9: the root package, whose manifest the job reads, named in
+%% place of the directory the job is started in.
+package_dir_option() ->
+    {package_dir, undefined, "package-dir", string,
+     "the root package, whose manifest the job reads in place of the working directory's"}.
+
 %% Report §11.2: --main of `ern run` names the entry point, and of `ern
 %% shell` the function spawned beside the shell, the shell being the entry
 %% point.
@@ -941,17 +953,18 @@ verbose_option() ->
 
 run_options() ->
     [config_dir_option("the run is a node"), load_path_option(), libs_dir_option(),
-     main_option("the entry point, a qualified exported function"), verbose_option(),
-     help_option()].
+     package_dir_option(), main_option("the entry point, a qualified exported function"),
+     verbose_option(), help_option()].
 
 test_options() ->
     [config_dir_option("the tests run on a node"), load_path_option(), libs_dir_option(),
-     verbose_option(), help_option()].
+     package_dir_option(), verbose_option(), help_option()].
 
 shell_options() ->
     [config_dir_option("the shell is a node, and its startup is run"),
      load_path_option(),
      libs_dir_option(),
+     package_dir_option(),
      {source_root, undefined, "source-root", string,
       "where the shell finds a module's source; default: the working directory"},
      main_option("the function spawned beside the shell, from the file loaded"),

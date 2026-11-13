@@ -67,9 +67,17 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
    is measured on a job with no manifest before anything is built on it, and the test
    of the modes on a job in a package of ten named packages, since the proposal's cost
    counted one look (the log's *The Proposal Held Against the Report*).
+
+   `ern run`, `ern test` and `ern shell` take `--package-dir`, which names the root package
+   from any directory, and the refusal that stands in its place goes (§11.9; the log's *An
+   Installed Program's Packages*). The item decides, in the report first, what a job does
+   with a `package.conf` that is no file it can read, a directory or a link to nothing, which
+   §11.9 does not say. The shape: the name makes the directory a package, and the job refuses
+   the file as any it cannot read.
 6. **`ern build`'s checks**: each named package's claims held against the root's lines, a
    package's `src` and `build` as its roots, and the named packages built in their order. The
-   trial's table of refusals is its first test.
+   trial's table of refusals is its first test. Its tests take a named package's rebuild when
+   a package it names changes.
 7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
    section of Appendix G first. Decided 2026-11-13: the tar library's section takes the rules
    that make an unpacking safe, a member's name, its kind, where a link may reach, a pax and a
@@ -82,7 +90,10 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
    Held Against the Report*).
 8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
    stands under `Ernest` is decided as the item opens.
-9. **The guide's section on a package.**
+9. **The guide's section on a package.** It says what an entry's digest promises: the archive
+   that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
+   log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
+   started from another directory.
 10. **The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
     manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
     host part as the proposal's question 5 says. ernest-httpd's four matches on a bare
@@ -92,6 +103,12 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     (`docs/clean_room.md`): each manifest, the template's Makefile and `TEMPLATE.md`, and
     ernest-epx's moved files and Makefile. ernest-epx's release and ernest-httpd's four matches
     stay their own sessions'.
+
+    Decided with the user 2026-11-13 (the log's *An Installed Program's Packages*): the
+    launcher gives `--package-dir` with its root and loses its loop, and `make install` copies
+    `package.conf`. A program's own Erlang is named from a directory of its own, `erl` in a
+    checkout, so that `lib` holds the named packages alone. The item's tests take a `priv`
+    found through `code:priv_dir`.
 11. **The flake hunt**, decided with the user 2026-11-10 (the log's *The Listings Before a
     Review*): a target of its own that runs the split suites of `make test-full` again and
     again in warm hosts beside busy loops, for as long as it is given, writes each failing test
@@ -151,17 +168,11 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     with the user: the root is one namespace, a module is found at the first root that holds
     its file, the source root first, and a module hides only a module of its namespace (§4.2,
     §11.1, §11.2; the log's *One Namespace at the Root*).
-31. **An independent reading's four points on a package**, discussed with the user in a design
-    session after item 29 (the log's *A Reading by Decisions*). One is a question of design:
-    an installed program's launcher names every directory under `lib`, so a node loads a
-    package that no entry names, and the session decides whether the manifest decides an
-    installed program's packages too. One is wording: what a manifest's digest promises of a
-    `lib` filled by hand, in the log and in item 9's section of the guide. Two §11.9 answers
-    already, and the session says so against the section: which `.beam` names are checked,
-    and what an end in the middle of an unpacking leaves, a loss of power among it. Item 6's
-    tests take a named package's rebuild when a package it names changes, and item 10's a
-    `priv` found through `code:priv_dir`.
-
+31. **An independent reading's four points on a package**, done 2026-11-13. Decided with the
+    user: the manifest decides an installed program's packages too, through `--package-dir` of
+    `ern run`, `ern test` and `ern shell`, and a file a job writes is whole at a job's end,
+    where a machine's end is the file system's (§11, §11.2, §11.7, §11.9; the log's *An
+    Installed Program's Packages*).
 32. **The flake of `deadlock_line_on_a_test_test`**, seen 2026-11-13 once under
     `make test-erl APP=cli`, item 30's run, and not in six runs alone nor in a second run of
     the target. The client's line, `Asks.stuck:8 faulted: deadlock, the fault of the callee

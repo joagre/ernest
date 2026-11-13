@@ -1486,7 +1486,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **restart** — `restarting`'s run of its function again after a fault, or when a `Supervisor` asks, in the same process with its address, its mailbox emptied. §6.9.
 - **restart limit** — `RestartLimit(restarts, within)`, how many faults a restarting function or a group takes within a time, or `Unlimited`. §6.9, Appendix E.22.
 - **rigid** — of a type variable an annotation names, which means every type. §3.9.
-- **root package** — the package a job is started in and reads the manifest of, where the job is given no path or one under that directory. §11.9.
+- **root package** — the package whose manifest a job reads: the directory `--package-dir` names, or without that option the directory the job is started in, where the job is given no file or directory, or one under it. §11.9.
 - **runner** — what `ern run`, `ern test` and `ern shell` start: it starts the system processes and calls the entry point. §11.2.
 - **runtime** — the system that runs Ernest programs. §10.
 - **scrutinee** — the value a `match` matches. §5.9.
