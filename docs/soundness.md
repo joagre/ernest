@@ -223,7 +223,7 @@ A top-level initializer is typed receiving `Never` and run in the entry process,
 
 A wrap into `Never` an initializer gave `monitor`, `spawnMonitored`, `Clock.alarm` or a subscription is applied when its process ends or its time comes, which may be once `main` has begun: it returns no message, since `Never` has no value, and a fault in it is the fault of the process it delivers to, `main` (§6.9), so it puts no value in `main`'s mailbox; the fault is met at `main`'s next wait and binds nothing (section 5).
 
-`Code.load` evaluates a module's bindings at `Never` too, in an evaluator of its own and not in the calling process (Appendix E.28), so the one body that runs at another process's mailbox type is still the initializer in the entry process: a function that receives, called in a load's binding, waits in the evaluator for a message that cannot come, which the runtime faults as a deadlock and the load refuses (§8.6), and the caller's mailbox is read by nothing.
+`Code.load` evaluates a module's bindings at `Never` too, in an evaluator of its own and not in the calling process (Appendix E.28), so the one body that runs at another process's mailbox type is still the initializer in the entry process: a function that receives, called in a load's binding, waits in the evaluator for a message that cannot come, which the runtime faults as a deadlock once no progress is possible, and the load refuses (§8.6), and the caller's mailbox is read by nothing.
 
 ### 6.5 A reply is a value
 

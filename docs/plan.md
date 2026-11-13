@@ -64,7 +64,9 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
    Manifest*).
 5. **The manifest read and the load path**: every job finds `package.conf` in the directory it
    is started in and puts the named packages on its load path, `lib/` filled by hand. The look
-   is measured on a job with no manifest before anything is built on it.
+   is measured on a job with no manifest before anything is built on it, and the ownership
+   test on a job in a package of ten named packages, since the proposal's cost counted one
+   look (the log's *The Proposal Held Against the Report*).
 6. **`ern build`'s checks**: each named package's claims held against the root's lines, a
    package's `src` and `build` as its roots, and the named packages built in their order. The
    trial's table of refusals is its first test.
@@ -74,7 +76,10 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
    GNU header, and the modes of what is written, and §11.9 cites it. A test over hostile
    archives holds them. §11.9 keeps what makes an archive a package's: its one directory, its
    manifest and `VERSION`, and its `.beam` names. The item draws the line in its E.0 reading
-   (the log's *A Reading by Decisions*).
+   (the log's *A Reading by Decisions*). The host's `erl_tar` hands its caller a member's
+   kind and no link's target, and passes over a link where it unpacks into memory, so the
+   reading decides first whether the library reads the format itself (the log's *The Proposal
+   Held Against the Report*).
 8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
    stands under `Ernest` is decided as the item opens.
 9. **The guide's section on a package.**
@@ -138,15 +143,19 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     writes and opens each path its command line gives as §11 resolves it, `..` resolved without
     following a link. The item finds what the code does now, changes it where it differs, and
     holds it with a test (the log's *A Package and Its Manifest*).
-29. **A reading of MVP 4.16's design on the stronger model**, decided 2026-11-11 and given its
-    shape on 2026-11-13, after item 30 and before item 5, in two parts (the log's *A Reading
-    by Decisions*). The first holds the proposal's seven decisions against §11.9 and the log's
-    *A Package and Its Manifest*, and lists each place where the report departs from the
-    proposal and whether the departure was decided. No reader reads §11.9's sentences for
-    points again. The second is one reader, cold, who reads whole every other section MVP 4.16
-    changed: §3.5, §3.10, §6.3, §8.6, §9.6, §12.4, E.0, E.2, E.6, E.7, E.18, E.21, E.23 and
-    G.11. It says too whether `docs/soundness.md` needed a change for §3.10, §6.3, §8.6 and
-    §9.6. The findings are sorted as `docs/reviews/full.md`'s *The findings* says.
+29. **A reading of MVP 4.16's design on the stronger model**, read and sorted 2026-11-13 (the
+    log's *The Proposal Held Against the Report*). None of the proposal's seven decisions is
+    overturned, the report departs from the proposal in thirteen places the log had decided,
+    and `docs/soundness.md` needed no change. The `fix` lines are made. Four decisions wait
+    for the user, each with its recommendation in the log's entry:
+    - whether a package is held to the owner half of the ownership test (§11.9, §11.2), which
+      refuses every job in a package another user owns, a container's superuser over a mounted
+      checkout among them. It is decided before item 5 builds the test.
+    - whether anything says that `ern shell` read a manifest, since `--verbose` is not the
+      shell's (§11.2).
+    - whether §11.9 names a package's `priv`, which the proposal places and item 10 tests.
+    - whether §8.6 counts a started program until a read has answered its exit, as the runtime
+      does, where it says until the program has exited.
 30. **The root's modules, as the lookup and the loaders find them**, done 2026-11-13. Decided
     with the user: the root is one namespace, a module is found at the first root that holds
     its file, the source root first, and a module hides only a module of its namespace (§4.2,
@@ -174,6 +183,12 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     taken holds the far end's writes, where it states a write to the host's watermarks. The
     session runs ernest-httpd's probe first, over TCP and over TLS, and then decides what E.18
     states. Nothing in ernest-httpd waits on it.
+34. **Regression tests of the sentences item 29 stated**, found 2026-11-13: each sentence
+    states what the toolchain does, a probe showed it, and no test holds it. An item session
+    writes them before item 5: a guard and an operand in parentheses (§6.3), `Test.faults` in
+    a deadlock (§8.6), a deadlock's line without a frame (§12.4), a `Set` of `Bool` printed
+    ascending (E.1), a request given no time on an ended socket, listener and program (E.18,
+    E.23), and `status` of a host process no code of the program started (E.21).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
