@@ -57,6 +57,9 @@ of §11.9's diff runs: each of items 5 to 8 reads its own sentences of §11.9 ag
 and its probes before it closes, and a finding changes the report first (the log's *A Package
 and Its Manifest*).
 
+Decided with the user on 2026-11-13 (the log's *A Reading by Decisions*): items 30, 29 and 31
+come first, in that order, then items 26 to 28, then item 5.
+
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
 5. **The manifest read and the load path**: every job finds `package.conf` in the directory it
@@ -66,9 +69,12 @@ and Its Manifest*).
    package's `src` and `build` as its roots, and the named packages built in their order. The
    trial's table of refusals is its first test.
 7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
-   section of Appendix G first. The tar library's section takes what §11.9 says of a pax and a
-   GNU header, the format's own, and §11.9 cites it; the item decides with the user which of
-   §11.9's other rules on an archive's members are the format's too.
+   section of Appendix G first. Decided 2026-11-13: the tar library's section takes the rules
+   that make an unpacking safe, a member's name, its kind, where a link may reach, a pax and a
+   GNU header, and the modes of what is written, and §11.9 cites it. A test over hostile
+   archives holds them. §11.9 keeps what makes an archive a package's: its one directory, its
+   manifest and `VERSION`, and its `.beam` names. The item draws the line in its E.0 reading
+   (the log's *A Reading by Decisions*).
 8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
    stands under `Ernest` is decided as the item opens.
 9. **The guide's section on a package.**
@@ -117,7 +123,8 @@ and Its Manifest*).
     library's module another module of a library depends on, as §11.1 says, `Code.load` as
     E.28 says, and `ern run`, `ern test` and `ern shell` name it in their refusal (§11.2); the
     named packages' case comes with item 6. Its sentences are read, twice, and the build is
-    left (the log's *A Package and Its Manifest*).
+    left (the log's *A Package and Its Manifest*). The build waits on item 30, which derives
+    the refusal once from the lookup as it is decided (the log's *A Reading by Decisions*).
 27. **The ownership test's group bits**, decided 2026-11-11, before item 5: the shell's startup
     files, a node's configuration and `ern stop`'s and `ern reload`'s `ernest.pid` take the
     ownership test as §11.2 states it, the owner and the bits for others, and the directory
@@ -128,17 +135,18 @@ and Its Manifest*).
     writes and opens each path its command line gives as §11 resolves it, `..` resolved without
     following a link. The item finds what the code does now, changes it where it differs, and
     holds it with a test (the log's *A Package and Its Manifest*).
-29. **A reading of MVP 4.16's design on the stronger model**, decided 2026-11-11, on 2026-11-13
-    when its cap lifts, before item 5: two readers, cold, each reading its sections whole and
-    not a diff. One reads §11 whole, §11.9 in it, and the package's sentences elsewhere: §4.2,
-    §12.5, Appendix F's terms, Appendix G's opening and E.28. The other reads every other
-    section MVP 4.16 changed: §3.5, §3.10, §6.3, §8.6, §9.6, §12.4, E.0, E.2, E.6, E.7, E.18,
-    E.21, E.23 and G.11. The findings are sorted as `docs/reviews/full.md`'s *The findings*
-    says. The high and medium points in §11.9 that no reading on the lesser model found decide
-    which model design runs on while the stronger is capped (the log's *A Package and Its
-    Manifest*).
+29. **A reading of MVP 4.16's design on the stronger model**, decided 2026-11-11 and given its
+    shape on 2026-11-13, after item 30 and before item 5, in two parts (the log's *A Reading
+    by Decisions*). The first holds the proposal's seven decisions against §11.9 and the log's
+    *A Package and Its Manifest*, and lists each place where the report departs from the
+    proposal and whether the departure was decided. No reader reads §11.9's sentences for
+    points again. The second is one reader, cold, who reads whole every other section MVP 4.16
+    changed: §3.5, §3.10, §6.3, §8.6, §9.6, §12.4, E.0, E.2, E.6, E.7, E.18, E.21, E.23 and
+    G.11. It says too whether `docs/soundness.md` needed a change for §3.10, §6.3, §8.6 and
+    §9.6. The findings are sorted as `docs/reviews/full.md`'s *The findings* says.
 30. **The root's modules, as the lookup and the loaders find them**, found 2026-11-11, decided
-    in a design session on 2026-11-13 after item 29. The code differs from §4.2's **Qualified
+    in a design session, the first of the items left, before item 29, with probes (the log's
+    *A Reading by Decisions*). The code differs from §4.2's **Qualified
     lookup**, which finds a segment at the first root that holds it: the host merges the roots,
     so a program's `time/zone.ern` leaves `Time.toCivil` the library's, and `geo/a.ern` leaves
     a `--load-path` root's `Geo.f` found. Single-file mode passes over a module of the source
@@ -146,6 +154,16 @@ and Its Manifest*).
     `time.ern` as the source of the library's `Time` it loaded compiled. The session decides by
     the principles which of the report and the code changes, and the item builds it (the log's
     *A Package and Its Manifest*).
+31. **An independent reading's four points on a package**, discussed with the user in a design
+    session after item 29 (the log's *A Reading by Decisions*). One is a question of design:
+    an installed program's launcher names every directory under `lib`, so a node loads a
+    package that no entry names, and the session decides whether the manifest decides an
+    installed program's packages too. One is wording: what a manifest's digest promises of a
+    `lib` filled by hand, in the log and in item 9's section of the guide. Two §11.9 answers
+    already, and the session says so against the section: which `.beam` names are checked,
+    and what an end in the middle of an unpacking leaves, a loss of power among it. Item 6's
+    tests take a named package's rebuild when a package it names changes, and item 10's a
+    `priv` found through `code:priv_dir`.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
