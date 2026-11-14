@@ -280,19 +280,27 @@ cold before the build (the log's *The Trust Said Once*).
     The build first finds whether the toolchain's reads can pass through one function. A
     test goes with its sentence where they do. Where a place keeps its own stat, its test
     stays as a regression test that cites the paragraph. The glossary's *Unopened* follows
-    the code. The item closes on `make test-full`.
+    the code. A node's refusal of a file of another kind in its directory has no test, and
+    gets one here. The item closes on `make test-full`.
 49. **A control character in a path a job writes**, found 2026-11-14 by item 43's probe:
     `ern build` of a file whose name holds an escape writes the escape to the terminal.
     The guard stands where a path is written, as `\xHH`, the way a byte that is not UTF-8
     is written (§11.1). The item first finds the report's sentence on how a path is written,
     and whether one function writes it, the shell's lines among them.
 50. **The history file's owner**, found 2026-11-14 by the cold reading of item 47's second
-    build, and decided with the user. §11.2 holds a history file to its user's own, a fourth
-    test beside §11's three, which item 43 did not weigh. Either the owner half goes, as the
-    startup files' did, and the refusal of a link stays, or §11 names four. The item also
-    decides what the shell does with a `$HOME/.ernest` whose mode it cannot set, where the
-    report is silent and the code leaves the directory and says nothing (the log's *The
-    Trust Said Once*, its paragraph *A fourth test*).
+    build, and decided with the user the same day (the log's *The Trust Said Once*, its
+    paragraphs *A fourth test* and *A directory the shell cannot make its own*). §11.2 held a
+    history file to its user's own, a fourth test beside §11's three.
+
+    The owner half goes. A history file that is a link, or anything but a regular file, is
+    neither read nor written, the second said as `is no regular file`. §11 keeps its three
+    exceptions, and names no `$HOME/.ernest`.
+
+    Where the shell cannot make `$HOME/.ernest` its owner's alone, no history is kept, and
+    the session says so once, with the host's reason.
+
+    The report changes first and is read cold. The build is `Shell.History`'s, and closes
+    on `make test-shell` and `make test`.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
