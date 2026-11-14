@@ -58,7 +58,8 @@ and its probes before it closes, and a finding changes the report first (the log
 and Its Manifest*).
 
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
-log's *A Reading by Decisions*), and are done. Items 5 and 6 followed, and item 7 comes next.
+log's *A Reading by Decisions*), and are done. Items 5 and 6 followed. Item 41 comes next,
+before item 7.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -253,6 +254,13 @@ log's *A Reading by Decisions*), and are done. Items 5 and 6 followed, and item 
     `write_terminal_gone`, `shell_write_terminal_gone` and `shell_reload_terminal_gone` ended
     with the status 0 where 129 was expected, their output whole. The agent takes the four
     as one flake until it finds otherwise (the log's *The Named Packages Built*).
+41. **An independent reading of item 6's commit**, `f9c5b972`, decided with the user
+    2026-11-14, before item 7 builds on it. The session's read-back read the build module's
+    diff and the first build's package module. It read neither the tests nor the second
+    build's changes in `ern_package`, `ern_cli`, `ern_shell` and `ern_code_load`. One reader
+    reads the commit's code and tests against §11.1, §11.2 and §11.9, the tests for an
+    expectation the report does not state. Its findings are sorted as `docs/reviews/full.md`'s
+    *The findings* says (the log's *The Named Packages Built*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
