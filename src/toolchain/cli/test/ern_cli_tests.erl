@@ -5749,6 +5749,71 @@ doc_writes_index_where_it_differs_test() ->
     ?assertMatch({ok, #file_info{type = regular}}, file:read_link_info(Index)),
     ?assertEqual({ok, Text}, file:read_file(Index)).
 
+%% A build root under Dir, made, and its index.md's path in it. A job that
+%% opened a named pipe the tests below put there, which nothing writes,
+%% would wait on it forever, so its test fails at the time EUnit gives
+%% every test.
+index_of(Dir) ->
+    BuildRoot = filename:join(Dir, "build"),
+    ok = filelib:ensure_path(BuildRoot),
+    {BuildRoot, filename:join(BuildRoot, "index.md")}.
+
+%% report §11, §11.4: a named pipe at index.md is no index: a run of `ern
+%% doc` does not open it, and writes the index, a regular file, in its
+%% place. It does not cover a device or a socket
+doc_index_pipe_replaced_test() ->
+    Dir = pair(tmp()),
+    {BuildRoot, Index} = index_of(Dir),
+    "" = os:cmd("mkfifo " ++ Index),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, filename:join(Dir, "src")])),
+    ?assertMatch({ok, #file_info{type = regular}}, file:read_link_info(Index)),
+    {ok, Text} = file:read_file(Index),
+    ?assertMatch({_, _}, binary:match(Text, <<"- [Net.Http](net/http.md)\n">>)).
+
+%% report §11, §11.4: a link at index.md to a named pipe is no index: a run
+%% of `ern doc` does not follow it, writes the index, a regular file, in the
+%% link's place, and leaves the pipe it led to. It does not cover a link
+%% to a device or a socket, nor a link to a link
+doc_index_link_to_pipe_replaced_test() ->
+    Dir = pair(tmp()),
+    {BuildRoot, Index} = index_of(Dir),
+    Pipe = filename:join(Dir, "pipe"),
+    "" = os:cmd("mkfifo " ++ Pipe),
+    ok = file:make_symlink(Pipe, Index),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, filename:join(Dir, "src")])),
+    ?assertMatch({ok, #file_info{type = regular}}, file:read_link_info(Index)),
+    ?assertMatch({ok, #file_info{type = other}}, file:read_link_info(Pipe)).
+
+%% report §11, §11.4: a run of `--man` writes no index, and a named pipe at
+%% index.md is none there: the run does not open it, and leaves it. It
+%% does not cover a device or a socket
+doc_man_index_pipe_left_test() ->
+    Dir = pair(tmp()),
+    {BuildRoot, Index} = index_of(Dir),
+    "" = os:cmd("mkfifo " ++ Index),
+    ?assertEqual(0, ern_cli:ern(["doc", "--man", "--build-root", BuildRoot,
+                                 filename:join(Dir, "src")])),
+    ?assertMatch({ok, #file_info{type = other}}, file:read_link_info(Index)).
+
+%% report §11.4: a run of `--man` writes no index, and a link at index.md is
+%% none there, though it leads to a regular file that holds an index's text:
+%% the run leaves the link and the file it leads to as they were. The text
+%% lists a module gone, so that a run that read it would find it differ.
+%% It does not cover a link to nothing, nor to a named pipe
+doc_man_index_link_left_test() ->
+    Dir = pair(tmp()),
+    {BuildRoot, Index} = index_of(Dir),
+    SourceRoot = filename:join(Dir, "src"),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", BuildRoot, SourceRoot])),
+    {ok, Written} = file:read_file(Index),
+    Text = <<Written/binary, "- [Gone](gone.md)\n">>,
+    Other = write(Dir, "other.md", Text),
+    ok = file:delete(Index),
+    ok = file:make_symlink(Other, Index),
+    ?assertEqual(0, ern_cli:ern(["doc", "--man", "--build-root", BuildRoot, SourceRoot])),
+    ?assertMatch({ok, #file_info{type = symlink}}, file:read_link_info(Index)),
+    ?assertEqual({ok, Text}, file:read_file(Other)).
+
 %% report §11.4: a module whose .erc in build-root is as new as its source
 %% is read from the .erc and not compiled again, and one whose source is
 %% newer is compiled. The source is changed under a .erc given a later time,

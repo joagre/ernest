@@ -866,8 +866,9 @@ write_outdated(man, Outdated, Compiled, ErrorDevice, Say) ->
 %% from the one there and left as it is otherwise. A run of `--man`, which
 %% writes no document, writes it only where it is there, listing the
 %% modules whose document is there, so that it lists none the sweep
-%% removed. A link or anything else at its place is no index, and is
-%% replaced, as a page is.
+%% removed. What stands at its place and is no regular file itself, a
+%% link among them, is no index and is not opened: a run of `--man` leaves
+%% it, and any other run replaces it (§11).
 write_index(Kind, Modules, IsStdlib, BuildRoot) ->
     Index = filename:join(BuildRoot, "index.md"),
     Listed = [{Name, Document}
@@ -879,9 +880,13 @@ write_index(Kind, Modules, IsStdlib, BuildRoot) ->
     Text = unicode:characters_to_binary(["# Modules\n\n",
                                          [["- [", Name, "](", Document, ")\n"]
                                           || {Name, Document} <- Listed]]),
-    case {Kind, file:read_link_info(Index), file:read_file(Index)} of
-        {_, {ok, #file_info{type = regular}}, {ok, Text}} -> ok;
-        {man, {error, _}, _} -> ok;
+    There = case file:read_link_info(Index) of
+                {ok, #file_info{type = regular}} -> file:read_file(Index);
+                _ -> none
+            end,
+    case {Kind, There} of
+        {_, {ok, Text}} -> ok;
+        {man, none} -> ok;
         _ -> ern_build:write_output(Index, Text)
     end.
 

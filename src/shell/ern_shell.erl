@@ -4810,7 +4810,7 @@ path(File) ->
 %% one.
 file_error('NotFound') -> enoent;
 file_error('Denied') -> eacces;
-file_error('NotAFile') -> {text, "is not a regular file"};
+file_error('NotAFile') -> {text, "is no regular file"};
 file_error('Invalid') -> einval;
 file_error('Timeout') -> {text, "the shell's own node did not answer"};
 file_error({'Other', Text}) -> {text, unicode:characters_to_list(Text)};

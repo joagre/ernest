@@ -64,10 +64,10 @@ and its probes before it closes, and a finding changes the report first (the log
 and Its Manifest*).
 
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
-log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42 and 45 followed.
+log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
 
 What is left is small, and each item stands alone: the flakes, items 11, 24, 32 and 40; what
-the builds found, items 35, 36, 38 and 46; and items 37 and 39, before MVP 4.4's item 4.
+the builds found, items 35, 36 and 38; and items 37 and 39, before MVP 4.4's item 4.
 Item 44 follows them, between this milestone and MVP 4.17.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
@@ -235,20 +235,12 @@ Item 43 is MVP 4.17's.
     template's `CLAUDE.md` is read and cut with it, the same way. Then `ernest-epx` and
     `ernest-httpd` take the template's file once, from a tag of the template, each copy's
     own differences read first and brought to the user. Until then the copies keep the
-    rules they have (the log's *A Few at a Time*).
+    rules they have (the log's *A Few at a Time*). The cold reading of a batch's report
+    sentences (*Tests*) is among the rules read, to be cut or narrowed (the log's *A
+    Defense Names Its Attacker*).
 45. **The milestone split in two**, done 2026-11-14 (the log's *The Milestone Split*).
-46. **What item 42's round left to decide**, each with the user, a few at a time (the log's
-    *The Reading's Round*). Three were decided 2026-11-14, the member check, a doc
-    example's source and the shell's `:load` and `:reload`: a `.ern` that reaches a named
-    pipe is no module's source, and a job that looks for one passes over it (§11.1; the
-    log's *No Module's Source*). Three are left, and the first still waits forever on a
-    file:
-
-    - `ern doc src-dir` reads `index.md` in the build root whatever it reaches, and waits
-      on a named pipe there (§11.4).
-    - The shell says `is not a regular file` where the report says `is no regular file`.
-    - `ern_carrier:code_digest/0` and `ern_shell:read_beam/1` read the toolchain's own
-      files with no test of their kind.
+46. **What item 42's round left to decide**, done 2026-11-14 (the log's *No Module's
+    Source* and *An Index That Is No File*).
 
 ## MVP 4.17 (the rest of packages: archives, the guide and the other repositories)
 
@@ -264,6 +256,16 @@ The discussion comes first.
     rules on archives, links and modes, decided with the user 2026-11-14. The first place
     looked at is the defense against another user who may write a package's directory,
     where most of item 42's sentences and code went (the log's *A Few at a Time*).
+
+    It opens from a position the user stated 2026-11-14 (the log's *A Defense Names Its
+    Attacker*). Whoever the host's file permissions let write what a job reads or runs is
+    trusted with it, and Ernest's own part is the mode of what it creates. Each defense of
+    §11.9 against another user of the machine is put to `CLAUDE.md`'s test, who can make
+    the input and what they could do without it, and the ownership test's uses (§11.2)
+    after them. The report then says the trust once.
+
+    It also asks whether one sentence of §11 can replace the sentences on a named pipe at
+    each place, item 42's and item 46's, and which of their tests then go.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
