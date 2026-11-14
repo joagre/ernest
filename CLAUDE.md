@@ -85,6 +85,8 @@ Meanwhile it changes only in its form, every decision, fact and number kept. A p
 
   That rare case is a design question. It is discussed one at a time, in prose, the argument before the verdict, with a recommendation, never as a form of choices. Smaller decisions the user must make come together as one numbered list, each with its recommendation, for the user to accept or amend in one answer.
 
+  Where a step would go past what the user agreed to, a wider rule, another error's text, or a finding of the session's own, it is in doubt. It is brought to the user before it is written, as a line with its recommendation. A step nobody would argue about once it is read is no doubt: the session takes it and reports it.
+
   A session opened to discuss alone writes nothing until the user asks. Then each write to the plan or the log is named in one line before it is made. A "go" covers the piece just discussed and not the topic. Where more rounds are coming, the writes are gathered into one commit at the pause.
 - **A change to the grammar or to a rule of §3 to §9 is built the day it is decided**, after one cold reading of its sentences in the report and the log, before the code starts. The reading is the guard, since a decision of that kind built in one pass has been reversed the same afternoon. Everything else is built when decided.
 - **Where a step looks wrong, say so once, hard**: the verdict, the principle that decides, the argument. If the user insists, build it whole, and the log entry records the decision with the argument against it. The code carries no trace of the dissent.
