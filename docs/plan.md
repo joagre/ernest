@@ -238,13 +238,12 @@ Item 43 is MVP 4.17's.
     rules they have (the log's *A Few at a Time*).
 45. **The milestone split in two**, done 2026-11-14 (the log's *The Milestone Split*).
 46. **What item 42's round left to decide**, each with the user, a few at a time (the log's
-    *The Reading's Round*). None waits forever on a file any more but the fourth:
+    *The Reading's Round*). Three were decided 2026-11-14, the member check, a doc
+    example's source and the shell's `:load` and `:reload`: a `.ern` that reaches a named
+    pipe is no module's source, and a job that looks for one passes over it (§11.1; the
+    log's *No Module's Source*). Three are left, and the first still waits forever on a
+    file:
 
-    - In single-file mode a nested module's member check passes over a parent's source
-      that is a named pipe and reads the parent's `.erc`, where §11.1 calls it an error.
-    - A doc example whose recorded source is a named pipe fails with `which no longer
-      exists` (§11.2).
-    - The shell's `:load` and `:reload` pass over a source that is a named pipe (§11.2).
     - `ern doc src-dir` reads `index.md` in the build root whatever it reaches, and waits
       on a named pipe there (§11.4).
     - The shell says `is not a regular file` where the report says `is no regular file`.

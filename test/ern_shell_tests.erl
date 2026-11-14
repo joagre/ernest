@@ -4227,6 +4227,76 @@ reload_passes_over_a_taken_namespace() ->
     ?assertEqual(2, length(binary:matches(Output, <<"> 3 : Int\n">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"list.ern">>)).
 
+%% A shell started in Dir over its source root `src`, with a home of its
+%% own, so that the session names each file from Dir (report §11.2).
+shell_over_src(Dir) ->
+    "cd " ++ Dir ++ " && " ++ alone(filename:absname("../bin/ern") ++ " shell --source-root src").
+
+%% report §11.1, §11.2: a `.ern` under the source root that reaches a named
+%% pipe is no module's source, so `:load` of its module, which has no
+%% compiled form, finds no module, and the session goes on, the pipe not
+%% opened. A regression test, written after the code; it does not cover a
+%% device or a socket
+load_passes_over_a_pipe_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_passes_over_a_pipe/0).
+
+load_passes_over_a_pipe() ->
+    Dir = scratch("ern_load_pipe_"),
+    ok = filelib:ensure_path(filename:join(Dir, "src")),
+    [] = os:cmd("mkfifo " ++ filename:join(Dir, "src/fifo.ern")),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Fifo\n1 + 1\n"),
+    {0, Output} = ern_pty:sh(shell_over_src(Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no module Fifo under the source root or on the"
+                                                " load path\n> 2 : Int\n">>)).
+
+%% report §11.1, §11.2: where a module's source has become a named pipe,
+%% which is no module's source, `:load` loads the compiled form beside it
+%% as a module's whose source the source root does not hold, and the pipe
+%% is not opened. A regression test, written after the code; it does not
+%% cover a device or a socket, nor a compiled form on the load path
+load_compiled_beside_a_pipe_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun load_compiled_beside_a_pipe/0).
+
+load_compiled_beside_a_pipe() ->
+    Dir = scratch("ern_load_beside_pipe_"),
+    Source = filename:join(Dir, "src/has.ern"),
+    ok = filelib:ensure_dir(Source),
+    ok = file:write_file(Source, "export fn one() : Int = 1\n"),
+    {0, _} = ern_pty:sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern") ++ " build src"),
+    ok = file:delete(Source),
+    [] = os:cmd("mkfifo " ++ Source),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Has\nHas.one()\n"),
+    {0, Output} = ern_pty:sh(shell_over_src(Dir) ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Has, from src/has.erc\n> 1 : Int\n">>)).
+
+%% report §11.1, §11.2: a module the session compiled from its source,
+%% whose source the session then makes a named pipe, has no source under
+%% the source root, so `:reload` compiles nothing, names the module as one
+%% whose source the source root does not hold, and leaves it loaded; the
+%% pipe is not opened. A regression test, written after the code; it does
+%% not cover a device or a socket
+reload_passes_over_a_pipe_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_passes_over_a_pipe/0).
+
+reload_passes_over_a_pipe() ->
+    Dir = scratch("ern_reload_pipe_"),
+    Source = filename:join(Dir, "src/good.ern"),
+    ok = filelib:ensure_dir(Source),
+    ok = file:write_file(Source, "export fn one() : Int = 1\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, [":load Good\n",
+                                     "Fs.remove(Path(\"src/good.ern\"), 2000)\n",
+                                     "Os.run(Os.command(\"mkfifo\", [\"src/good.ern\"]), 2000)\n",
+                                     ":reload\nGood.one()\n"]),
+    {0, Output} = ern_pty:sh(shell_over_src(Dir) ++ " < " ++ InputFile),
+    ?assertMatch({ok, #file_info{type = other}}, file:read_file_info(Source)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Good, compiled from src/good.ern\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no source has changed\n"
+                                                "the source root src holds no source of Good\n"
+                                                "> 1 : Int\n">>)).
+
 %% report §11.9, §11.2: the shell started in a root package finds a named
 %% package's namespace under that package's build alone, a `--load-path`
 %% root's module at it passed over; the package's build provides no other
