@@ -261,8 +261,9 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
                 %% the job runs
                 lists:keymember(package_dir, 1, Options)
                     andalso ern_build:fail("--package-dir is not implemented"),
-                named_directories(Job, Spec, Options),
-                Work(Options, Rest ++ Program, ErrorDevice)
+                Resolved = [resolved_option(Option) || Option <- Options],
+                named_directories(Job, Spec, Resolved),
+                Work(Resolved, resolved_arguments(Job, Rest) ++ Program, ErrorDevice)
         end
     catch
         throw:{cli_usage, Usage} ->
@@ -293,6 +294,39 @@ parse_refusal(Job, _Spec, invalid_option, Word) ->
 %% Words in a sentence, the last after `and`.
 listed([Word]) -> Word;
 listed(Words) -> lists:join(", ", lists:droplast(Words)) ++ " and " ++ lists:last(Words).
+
+%% Report §11: each path the command line gives, a job's argument or the
+%% value of an option that names a file or a directory, is resolved once,
+%% here, and the job judges, writes and opens it as resolved, and a refusal
+%% names it so. A word after `ern run`'s file is the program's, and is no
+%% path; `ern format`'s `-` is standard input, which a file named `-`,
+%% `./-`, is not. An option's empty value is refused before (given_once/2).
+resolved_option({Key, Path}) when Key =:= source_root; Key =:= build_root; Key =:= load_path;
+                                  Key =:= libs_dir; Key =:= package_dir; Key =:= config_dir;
+                                  Key =:= peer_dir ->
+    {Key, resolved_path(Path)};
+resolved_option(Option) ->
+    Option.
+
+resolved_arguments("format", Words) ->
+    [case Word of
+         "-" -> standard_input;
+         _ -> resolved_path(Word)
+     end || Word <- Words];
+resolved_arguments(_Job, Words) ->
+    [resolved_path(Word) || Word <- Words].
+
+%% Report §11, §11.5: a path absolute from the working directory, its `.`
+%% and `..` segments resolved without following a link (ern_build:absolute/1),
+%% written from the working directory where it lies under it, and absolute
+%% otherwise. The host opens it as resolved, since no `..` is left in it to
+%% climb back out of a link. An empty word names nothing and stays empty,
+%% refused as a path that names nothing is, and not taken for the working
+%% directory.
+resolved_path("") ->
+    "";
+resolved_path(Path) ->
+    ern_build:shown(Path).
 
 %% Report §11.7: an option that names a directory to read names one that is
 %% there, and one that is a directory; `ern config`'s `--config-dir` names
@@ -825,9 +859,10 @@ format_options() ->
 %% Report §11.6: each module named, and every module under each directory
 %% named, laid out in place; with --check, each one not laid out named on
 %% standard output and none changed, the status 1 when there was one; with
-%% `-`, standard input laid out onto standard output. A module that does
-%% not parse is left as it is and its diagnostic written, the status 1.
-format(Options, ["-"], ErrorDevice) ->
+%% `-`, standard input laid out onto standard output (resolved_arguments/2).
+%% A module that does not parse is left as it is and its diagnostic
+%% written, the status 1.
+format(Options, [standard_input], ErrorDevice) ->
     Text = read_input(open_input(), []),
     case ern_format:format(Text) of
         {ok, Text} -> format_result(Options, Text, same);
@@ -843,7 +878,7 @@ format(_Options, [], _ErrorDevice) ->
     usage_fail("a file, a directory or - is required");
 format(Options, Paths, ErrorDevice) ->
     %% report §11.6: `-` reads standard input, and stands alone
-    lists:member("-", Paths) andalso usage_fail("- stands alone, for standard input"),
+    lists:member(standard_input, Paths) andalso usage_fail("- stands alone, for standard input"),
     lists:foreach(fun(Path) ->
                       filelib:is_file(Path) orelse ern_build:fail(Path ++ ": no such file")
                   end, Paths),

@@ -6956,6 +6956,403 @@ conf_of(ConfigDir) ->
     {ok, Text} = file:read_file(filename:join(ConfigDir, "ernest.conf")),
     json:decode(Text).
 
+%%
+%% A given path, report §11
+%%
+
+%% A directory of its own with a link before `..`, `link` naming
+%% `real/sub`, so that `link/../path` is `path` as §11 resolves it and
+%% `real/path` as the host would open it; Run run with it the working
+%% directory.
+linked(Run) ->
+    Dir = tmp(),
+    ok = filelib:ensure_path(filename:join(Dir, "real/sub")),
+    ok = file:make_symlink("real/sub", filename:join(Dir, "link")),
+    in_directory(Dir, Run).
+
+%% A job's status and what it wrote on standard output and standard error,
+%% as EUnit captured them after what the test captured before.
+said(Args) ->
+    Before = unicode:characters_to_binary(?capturedOutput),
+    Status = ern_err(Args),
+    After = unicode:characters_to_binary(?capturedOutput),
+    {Status, binary:part(After, byte_size(Before), byte_size(After) - byte_size(Before))}.
+
+%% What a job said and its status where it refused its command line with
+%% the one line Line.
+refusal(Job, Line) ->
+    {1, iolist_to_binary(["ern ", Job, ": ", Line, "\n"])}.
+
+%% Under the directory Under: the program `given.erc`, which says hello;
+%% `lib/given_store.erc`, and `given_user.erc`, which uses it; the tests
+%% `t/given_checked.erc`; the source `src/given_page.ern`; a directory of
+%% the host's applications, `libs`, that holds two of one name; and the
+%% configuration directories `cfg` and `peer`.
+given_tree(Under) ->
+    In = fun(Path) -> filename:join(Under, Path) end,
+    write(Under, "given.ern", hello()),
+    write(Under, "lib/given_store.ern", "export fn size() : Int = 3\n"),
+    write(Under, "given_user.ern",
+          "export fn main() : Unit = Io.println(Int.toString(GivenStore.size()))\n"),
+    write(Under, "t/given_checked.ern",
+          "let counted : Test.Case(Never) =\n"
+          "    Test.Case(name = \"counted\", run = fn() = Test.equal(1, 1))\n"),
+    write(Under, "src/given_page.ern", hello()),
+    ?assertEqual(0, ern_err(["build", "--source-root", Under, In("given.ern")])),
+    ?assertEqual(0, ern_err(["build", In("lib")])),
+    ?assertEqual(0, ern_err(["build", "--source-root", Under, "--load-path", In("lib"),
+                             In("given_user.ern")])),
+    ?assertEqual(0, ern_err(["build", In("t")])),
+    [ok = filelib:ensure_path(In(Ebin)) || Ebin <- ["libs/app-1.0/ebin", "libs/app-2.0/ebin"]],
+    [?assertEqual(0, ern_err(["config", "--config-dir", In(Made)])) || Made <- ["cfg", "peer"]],
+    ok.
+
+%% The program `given_other.erc` and the configuration directory `other`,
+%% in the working directory, which no link before `..` reaches.
+given_other() ->
+    write(".", "given_other.ern", hello()),
+    ?assertEqual(0, ern_err(["build", "given_other.ern"])),
+    ?assertEqual(0, ern_err(["config", "--config-dir", "other"])),
+    ok.
+
+%% report §11: `ern build` makes its argument and the value of each option
+%% that names a directory absolute from the working directory and resolves
+%% `..` without following the link before it: it builds and writes what the
+%% path resolved names, where the host would open no file through the link,
+%% and refuses a path that names nothing so, naming it as resolved, where
+%% the host would open a file through the link; a build root, which the
+%% build makes, is made where it is resolved
+build_given_paths_test() ->
+    linked(fun() ->
+                   write(".", "given.ern", hello()),
+                   write(".", "src/given_page.ern", hello()),
+                   write(".", "lib/given_store.ern", "export fn size() : Int = 3\n"),
+                   write(".", "given_user.ern",
+                         "export fn main() : Unit =\n"
+                         "    Io.println(Int.toString(GivenStore.size()))\n"),
+                   ?assertEqual(0, ern_err(["build", "lib"])),
+                   ?assertEqual({0, <<>>}, said(["build", "link/../given.ern"])),
+                   ?assert(filelib:is_regular("given.erc")),
+                   ?assertEqual({0, <<>>}, said(["build", "link/../src"])),
+                   ?assert(filelib:is_regular("src/given_page.erc")),
+                   ?assertMatch({0, <<"source root src\nbuild root out\n", _/binary>>},
+                                said(["build", "--verbose", "--source-root", "link/../src",
+                                      "--build-root", "out", "src/given_page.ern"])),
+                   ?assertEqual({0, <<>>}, said(["build", "--build-root", "link/../out",
+                                                 "given.ern"])),
+                   ?assert(filelib:is_regular("out/given.erc")),
+                   ?assertEqual({0, <<>>}, said(["build", "--load-path", "link/../lib",
+                                                 "given_user.ern"])),
+                   ?assertNot(filelib:is_file("real/out"))
+           end),
+    linked(fun() ->
+                   given_tree("real"),
+                   given_other(),
+                   ok = filelib:ensure_path("real/out"),
+                   ?assertEqual(refusal("build", "given.ern: no such file"),
+                                said(["build", "link/../given.ern"])),
+                   ?assertEqual(refusal("build", "src: no such file"),
+                                said(["build", "link/../src"])),
+                   ?assertEqual(refusal("build", "src: no such directory, which --source-root"
+                                                 " names"),
+                                said(["build", "--source-root", "link/../src",
+                                      "given_other.ern"])),
+                   ?assertEqual(refusal("build", "lib: no such directory, which --load-path"
+                                                 " names"),
+                                said(["build", "--load-path", "link/../lib", "given_other.ern"])),
+                   ?assertEqual({0, <<>>}, said(["build", "--build-root", "link/../out",
+                                                 "given_other.ern"])),
+                   ?assert(filelib:is_regular("out/given_other.erc")),
+                   ?assertEqual({ok, []}, file:list_dir("real/out"))
+           end).
+
+%% report §11, §11.4: `ern doc` reads and writes what its argument and the
+%% value of each option that names a directory name as §11 resolves them,
+%% and refuses one that names nothing so, naming it as resolved, though the
+%% host would open a file through the link before `..`
+doc_given_paths_test() ->
+    linked(fun() ->
+                   given_tree("."),
+                   {0, Page} = said(["doc", "link/../given.ern"]),
+                   ?assertMatch({_, _}, binary:match(Page, <<" from given.ern.\n">>)),
+                   {0, Read} = said(["doc", "link/../given.erc"]),
+                   ?assertMatch({_, _}, binary:match(Read, <<" from given.ern.\n">>)),
+                   ?assertEqual({0, <<>>}, said(["doc", "link/../src"])),
+                   ?assert(filelib:is_regular("src/given_page.md")),
+                   {0, Rooted} = said(["doc", "--source-root", "link/../src",
+                                       "src/given_page.ern"]),
+                   ?assertMatch({_, _}, binary:match(Rooted, <<"# Ernest module GivenPage\n">>)),
+                   ?assertEqual({0, <<>>}, said(["doc", "--build-root", "link/../docs", "src"])),
+                   ?assert(filelib:is_regular("docs/given_page.md")),
+                   {0, Used} = said(["doc", "--load-path", "link/../lib", "given_user.ern"]),
+                   ?assertMatch({_, _}, binary:match(Used, <<"# Ernest module GivenUser\n">>)),
+                   ?assertNot(filelib:is_file("real/docs"))
+           end),
+    linked(fun() ->
+                   given_tree("real"),
+                   given_other(),
+                   write(".", "other_src/given_other_page.ern", hello()),
+                   ok = filelib:ensure_path("real/docs"),
+                   [?assertEqual(refusal("doc", Line), said(["doc" | Words]))
+                    || {Words, Line} <- [{["link/../given.ern"], "given.ern: no such file"},
+                                         {["link/../given.erc"], "given.erc: no such file"},
+                                         {["link/../src"], "src: no such file"},
+                                         {["--source-root", "link/../src", "given_other.ern"],
+                                          "src: no such directory, which --source-root names"},
+                                         {["--load-path", "link/../lib", "given_other.ern"],
+                                          "lib: no such directory, which --load-path names"}]],
+                   ?assertEqual({0, <<>>}, said(["doc", "--build-root", "link/../docs",
+                                                 "other_src"])),
+                   ?assert(filelib:is_regular("docs/given_other_page.md")),
+                   ?assertEqual({ok, []}, file:list_dir("real/docs"))
+           end).
+
+%% report §11, §11.6: `ern format` lays out the file and the directory its
+%% arguments name as §11 resolves them, and refuses one that names nothing
+%% so, naming it as resolved, though the host would open a file through the
+%% link before `..`; `./-` is the file `-`, which is no module, and not
+%% standard input, which `-` alone names and which stands alone
+format_given_paths_test() ->
+    Loose = <<"fn f(x) = x+1\n">>,
+    linked(fun() ->
+                   write(".", "loose/loose.ern", Loose),
+                   ?assertEqual({1, <<"loose/loose.ern\n">>},
+                                said(["format", "--check", "link/../loose"])),
+                   ?assertEqual({1, <<"loose/loose.ern\n">>},
+                                said(["format", "--check", "link/../loose/loose.ern"])),
+                   ?assertEqual({0, <<>>}, said(["format", "link/../loose/loose.ern"])),
+                   ?assertEqual({ok, <<"fn f(x) =\n    x + 1\n">>},
+                                file:read_file("loose/loose.ern")),
+                   write(".", "-", "fn g(y) =\n    y\n"),
+                   ?assertEqual(refusal("format", "- does not end in .ern"),
+                                said(["format", "--check", "./-", "loose/loose.ern"]))
+           end),
+    linked(fun() ->
+                   write("real", "loose/loose.ern", Loose),
+                   ?assertEqual(refusal("format", "loose: no such file"),
+                                said(["format", "link/../loose"])),
+                   ?assertEqual(refusal("format", "loose/loose.ern: no such file"),
+                                said(["format", "link/../loose/loose.ern"])),
+                   ?assertEqual({ok, Loose}, file:read_file("real/loose/loose.ern"))
+           end).
+
+%% The lines `ern run`, `ern test` and `ern shell` refuse a node's
+%% directory with, read in a host that was not started as a node, and a
+%% directory of the host's applications that holds two of one name with.
+not_a_node() ->
+    "the host was not started as a node, which ern does where the command line holds"
+        " --config-dir".
+
+two_apps() ->
+    "libs holds more than one directory of the application app, app-1.0 and app-2.0, which"
+        " --libs-dir names".
+
+%% report §11, §11.2: `ern run` loads and runs the file its argument names,
+%% and reads the directories its options name, as §11 resolves them, and
+%% refuses one that names nothing so, naming it as resolved, though the
+%% host would open a file through the link before `..`; the words after the
+%% file are the program's, given as they are
+run_given_paths_test() ->
+    linked(fun() ->
+                   given_tree("."),
+                   write(".", "given_args.ern",
+                         "export fn main() : Unit =\n"
+                         "    Io.println(String.join(Os.arguments, \" \"))\n"),
+                   ?assertEqual(0, ern_err(["build", "given_args.ern"])),
+                   ?assertEqual({0, <<"hello, world\n">>}, said(["run", "link/../given.erc"])),
+                   ?assertEqual({0, <<"3\n">>},
+                                said(["run", "--load-path", "link/../lib", "given_user.erc"])),
+                   ?assertEqual(refusal("run", two_apps()),
+                                said(["run", "--libs-dir", "link/../libs", "given.erc"])),
+                   ?assertEqual(refusal("run", not_a_node()),
+                                said(["run", "--config-dir", "link/../cfg", "given.erc"])),
+                   ?assertEqual({0, <<"./a link/../b\n">>},
+                                said(["run", "given_args.erc", "./a", "link/../b"]))
+           end),
+    linked(fun() ->
+                   given_tree("real"),
+                   given_other(),
+                   [?assertEqual(refusal("run", Line), said(["run" | Words]))
+                    || {Words, Line} <- [{["link/../given.erc"], "given.erc: no such file"}
+                                         | missing_directories("given_other.erc")]]
+           end).
+
+%% The words that name a directory a run, a test or a shell reads with a
+%% link before `..`, each with its refusal where only the host's path names
+%% a directory, File given after them.
+missing_directories(File) ->
+    [{["--load-path", "link/../lib", File], "lib: no such directory, which --load-path names"},
+     {["--libs-dir", "link/../libs", File], "libs: no such directory, which --libs-dir names"},
+     {["--config-dir", "link/../cfg", File], "cfg: no such directory, which --config-dir names"}].
+
+%% report §11, §11.2: `ern test` runs the tests of the file and of the
+%% directory its argument names, and reads the directories its options
+%% name, as §11 resolves them, and refuses one that names nothing so,
+%% naming it as resolved, though the host would open a file through the
+%% link before `..`
+test_given_paths_test() ->
+    linked(fun() ->
+                   given_tree("."),
+                   ?assertEqual({0, <<"no tests\n">>}, said(["test", "link/../given.erc"])),
+                   ?assertEqual({0, <<"GivenChecked\ncounted: passed\n">>},
+                                said(["test", "link/../t"])),
+                   ?assertEqual({0, <<"no tests\n">>},
+                                said(["test", "--load-path", "link/../lib", "given_user.erc"])),
+                   ?assertEqual(refusal("test", two_apps()),
+                                said(["test", "--libs-dir", "link/../libs", "given.erc"])),
+                   ?assertEqual(refusal("test", not_a_node()),
+                                said(["test", "--config-dir", "link/../cfg", "given.erc"]))
+           end),
+    linked(fun() ->
+                   given_tree("real"),
+                   given_other(),
+                   [?assertEqual(refusal("test", Line), said(["test" | Words]))
+                    || {Words, Line} <- [{["link/../given.erc"], "given.erc: no such file"},
+                                         {["link/../t"], "t: no such file"}
+                                         | missing_directories("given_other.erc")]]
+           end).
+
+%% report §11, §11.2: `ern shell` loads the file its argument names, and
+%% reads the directories its options name, the source root and the
+%% configuration directory's startup file among them, as §11 resolves
+%% them, and refuses one that names nothing so, naming it as resolved,
+%% though the host would open a file through the link before `..`. The
+%% shell itself, which reads a terminal, is not started: each job here is
+%% refused before it starts, by `--main` or by a host that is no node
+shell_given_paths_test() ->
+    Shape = "; an entry point is an exported fn of no parameters whose result is Unit",
+    linked(fun() ->
+                   given_tree("."),
+                   ?assertEqual(refusal("shell", "no exported function Given.none" ++ Shape),
+                                said(["shell", "--main", "Given.none", "link/../given.erc"])),
+                   ?assertEqual(refusal("shell", "no exported function GivenUser.none" ++ Shape),
+                                said(["shell", "--load-path", "link/../lib", "--main",
+                                      "GivenUser.none", "given_user.erc"])),
+                   ?assertEqual(refusal("shell", two_apps()),
+                                said(["shell", "--libs-dir", "link/../libs", "given.erc"])),
+                   ?assertEqual(refusal("shell", not_a_node()),
+                                said(["shell", "--source-root", "link/../src", "--config-dir",
+                                      "link/../cfg"])),
+                   ?assertEqual({'Some', <<"cfg/startup">>}, ern_shell:config_startup()),
+                   ?assertEqual(list_to_binary(ern_build:absolute("src")),
+                                ern_shell:given_source_root())
+           end),
+    linked(fun() ->
+                   given_tree("real"),
+                   given_other(),
+                   [?assertEqual(refusal("shell", Line), said(["shell" | Words]))
+                    || {Words, Line} <- [{["link/../given.erc"], "given.erc: no such file"},
+                                         {["--source-root", "link/../src", "given_other.erc"],
+                                          "src: no such directory, which --source-root names"}
+                                         | missing_directories("given_other.erc")]]
+           end).
+
+%% report §11, §11.3: `ern config` makes the directory `--config-dir` names,
+%% and writes the one `--peer-dir` lists a peer in, as §11 resolves it,
+%% reads the peer's as resolved, and refuses a path that names nothing so,
+%% naming it as resolved, though the host would open a directory through
+%% the link before `..`
+config_given_paths_test() ->
+    linked(fun() ->
+                   given_tree("."),
+                   ?assertMatch({0, _}, said(["config", "--config-dir", "link/../made"])),
+                   ?assert(filelib:is_regular("made/ernest.conf")),
+                   ?assertEqual({0, <<>>}, said(["config", "--config-dir", "link/../cfg",
+                                                 "--peer-dir", "link/../peer"])),
+                   ?assertMatch(#{<<"peers">> := [#{<<"name">> := <<"peer">>}]}, conf_of("cfg")),
+                   ?assertNot(filelib:is_file("real/made"))
+           end),
+    linked(fun() ->
+                   given_tree("real"),
+                   given_other(),
+                   [ok = filelib:ensure_path(Made) || Made <- ["real/new", "real/made"]],
+                   ?assertEqual(refusal("config", "new: no such directory"),
+                                said(["config", "--config-dir", "link/../new/made"])),
+                   ?assertEqual({ok, []}, file:list_dir("real/new")),
+                   ?assertMatch({0, _}, said(["config", "--config-dir", "link/../made"])),
+                   ?assert(filelib:is_regular("made/ernest.conf")),
+                   ?assertEqual({ok, []}, file:list_dir("real/made")),
+                   ?assertEqual(refusal("config", "cfg: no such directory, which --config-dir"
+                                                  " names"),
+                                said(["config", "--config-dir", "link/../cfg", "--peer-dir",
+                                      "other"])),
+                   ?assertEqual(refusal("config", "peer: no configuration directory, which"
+                                                  " --peer-dir names"),
+                                said(["config", "--config-dir", "other", "--peer-dir",
+                                      "link/../peer"]))
+           end).
+
+%% report §11, §12.5: `ern reload` and `ern stop` read the configuration
+%% directory and its `ernest.pid` that `--config-dir` names as §11 resolves
+%% it, and refuse one that names nothing so, naming it as resolved, though
+%% the host would open a directory through the link before `..`
+signal_given_paths_test() ->
+    linked(fun() ->
+                   ?assertEqual(0, ern_err(["config", "--config-dir", "cfg"])),
+                   [?assertEqual(refusal(Job, "cfg/ernest.pid: no such file: no node runs from"
+                                              " the directory"),
+                                 said([Job, "--config-dir", "link/../cfg"]))
+                    || Job <- ["reload", "stop"]]
+           end),
+    linked(fun() ->
+                   ?assertEqual(0, ern_err(["config", "--config-dir", "real/cfg"])),
+                   [?assertEqual(refusal(Job, "cfg: no such directory, which --config-dir names"),
+                                 said([Job, "--config-dir", "link/../cfg"]))
+                    || Job <- ["reload", "stop"]]
+           end).
+
+%% report §11, §11.5: a refusal names a path the command line gives as
+%% resolved, from the working directory where it lies under it, `./x.erc`
+%% and an absolute path under it among them, and absolute where it lies
+%% outside, `../x.erc`
+given_path_refusal_names_resolved_test() ->
+    Dir = tmp(),
+    ok = filelib:ensure_path(filename:join(Dir, "sub")),
+    in_directory(filename:join(Dir, "sub"),
+                 fun() ->
+                     {ok, Cwd} = file:get_cwd(),
+                     [?assertEqual(refusal("run", "x.erc: no such file"), said(["run", Given]))
+                      || Given <- ["./x.erc", Cwd ++ "/x.erc", "x.erc/", "../sub/./x.erc"]],
+                     ?assertEqual(refusal("run", filename:dirname(Cwd) ++ "/x.erc: no such file"),
+                                  said(["run", "../x.erc"]))
+                 end).
+
+%% report §11: a `..` at the root names the root, in the resolver and in a
+%% path a job is given
+given_path_root_test() ->
+    ?assertEqual("/x.ern", ern_build:absolute("/../x.ern")),
+    ?assertEqual("/", ern_build:absolute("/..")),
+    ?assertEqual("/x.ern", ern_build:absolute("/../../x.ern")),
+    Dir = tmp(),
+    write(Dir, "given.ern", hello()),
+    ?assertEqual(0, ern_err(["build", "--source-root", Dir, Dir ++ "/given.ern"])),
+    ?assertEqual({0, <<"hello, world\n">>}, said(["run", "/.." ++ Dir ++ "/given.erc"])).
+
+%% report §11: a path whose last segment is a link is opened through the
+%% link, a file's and a directory's, no `..` after the link asking how it
+%% resolves. A regression test, written after the code
+given_path_last_link_test() ->
+    linked(fun() ->
+                   given_tree("real"),
+                   ok = file:make_symlink("real/given.erc", "given.erc"),
+                   ok = file:make_symlink("real/src", "linked_src"),
+                   ?assertEqual({0, <<"hello, world\n">>}, said(["run", "given.erc"])),
+                   ?assertEqual({0, <<>>}, said(["build", "linked_src"])),
+                   ?assert(filelib:is_regular("real/src/given_page.erc"))
+           end).
+
+%% report §11: an empty word names nothing, a job's argument among them, and
+%% resolving it does not make it the working directory, which holds a
+%% module. A regression test, written after the code; an option's empty
+%% value is refused before it is resolved, which option_spellings_test holds
+given_path_empty_test() ->
+    linked(fun() ->
+                   write(".", "given.ern", hello()),
+                   [?assertEqual(refusal(Job, ": no such file"), said([Job, ""]))
+                    || Job <- ["build", "doc", "format", "run", "test", "shell"]],
+                   ?assertNot(filelib:is_file("given.erc"))
+           end).
+
 captured_output() ->
     group_leader() ! {get_output, self()},
     receive {output, Output} -> Output end.

@@ -515,7 +515,7 @@ module_of(File, SourceRoot, Mode) ->
     %% report §11.5: a refusal names the file from the working directory
     Shown = shown(File),
     Relative = relative(File, SourceRoot),
-    Relative =/= outside orelse fail(Shown ++ " is not under the source root " ++ SourceRoot
+    Relative =/= outside orelse fail(Shown ++ " is not under the source root " ++ shown(SourceRoot)
                                      ++ "; --source-root names another"),
     own_root_only(Shown, File, SourceRoot),
     filename:extension(Relative) =:= ".ern" orelse fail(Shown ++ " does not end in .ern"),
@@ -1903,7 +1903,9 @@ compile_source(File, SourceRoot, LoadPath, Interfaces, Units, SiteNamespace) ->
 %% Options and paths
 %%
 
-%% Absolute and normalized: no `.` or `..` segments, so that a default root
+%% Report §11: a path absolute from the working directory, the one the host
+%% names with no link in it, and its `.` and `..` segments resolved without
+%% following a link, a `..` at the root naming the root; so a default root
 %% of `.` is a prefix of the files under it.
 -spec absolute(file:filename()) -> file:filename().
 absolute(Path) ->
@@ -1911,6 +1913,7 @@ absolute(Path) ->
 
 normalize([], Acc) -> lists:reverse(Acc);
 normalize(["." | Rest], Acc) -> normalize(Rest, Acc);
+normalize([".." | Rest], ["/"] = Root) -> normalize(Rest, Root);
 normalize([".." | Rest], [_ | Acc]) -> normalize(Rest, Acc);
 normalize([Segment | Rest], Acc) -> normalize(Rest, [Segment | Acc]).
 

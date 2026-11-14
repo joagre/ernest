@@ -61,9 +61,10 @@ run_code() ->
                               ++ libraries(),
              Beam <- filelib:wildcard(filename:join(Directory, "*.beam"))].
 
-%% A path's segments with `.` and `..` resolved, since the code path a
-%% test gives the host is relative.
+%% A path's segments with `.` and `..` resolved, a `..` at the root naming
+%% the root, since the code path a test gives the host is relative.
 normalized([], Acc) -> lists:reverse(Acc);
 normalized(["." | Rest], Acc) -> normalized(Rest, Acc);
+normalized([".." | Rest], ["/"] = Root) -> normalized(Rest, Root);
 normalized([".." | Rest], [_ | Acc]) -> normalized(Rest, Acc);
 normalized([Segment | Rest], Acc) -> normalized(Rest, [Segment | Acc]).

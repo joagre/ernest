@@ -162,9 +162,11 @@ one_node(Base) ->
     ?assertEqual({<<"0.0.0.0:8654">>, [], #{}}, {Listen, Peers, Services}),
     Empty = filename:join(Base, "empty"),
     ok = file:make_dir(Empty),
+    %% report §11: the refusal names the directory as resolved, from the
+    %% job's working directory, Base
     [begin
          {1, "", Exists} = job(Base, mapped(Config, [{"/etc/counter/b", Existing}])),
-         ern_nodes_tests:has(Exists, Existing ++ " exists")
+         ern_nodes_tests:has(Exists, "ern config: " ++ filename:basename(Existing) ++ " exists")
      end || Existing <- [Dir, Empty]],
     %% its own key as a peer's
     Port = ern_nodes_tests:free_port(),

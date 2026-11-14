@@ -57,8 +57,8 @@ of §11.9's diff runs: each of items 5 to 8 reads its own sentences of §11.9 ag
 and its probes before it closes, and a finding changes the report first (the log's *A Package
 and Its Manifest*).
 
-Decided with the user on 2026-11-13 (the log's *A Reading by Decisions*): items 30, 29 and 31
-come first, in that order, then item 33, then items 26 to 28, then item 5.
+Items 30, 29, 31, 33 and 26 to 28 came first, decided with the user on 2026-11-13 (the log's
+*A Reading by Decisions*), and are done. Item 34 comes next, then item 5.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -147,10 +147,9 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     follows no link and takes no chain, and the superuser's `ern stop` and `ern reload` refuse
     another user's `ernest.pid`, as the test says (§11.2, §12.5; the log's *The Ownership Test
     Built*).
-28. **A given path opened as resolved**, decided 2026-11-11, before item 5: a job judges,
-    writes and opens each path its command line gives as §11 resolves it, `..` resolved without
-    following a link. The item finds what the code does now, changes it where it differs, and
-    holds it with a test (the log's *A Package and Its Manifest*).
+28. **A given path opened as resolved**, done 2026-11-14. Decided in the item, with the user: a
+    refusal names a given path as resolved, as §11.5 writes a file (§11, the log's *A Given
+    Path Resolved Once*).
 29. **A reading of MVP 4.16's design on the stronger model**, done 2026-11-13. Decided with
     the user: a package is held to the modes alone, where §11.9 tested its owner too, and
     §8.6 counts a started program until a read has answered its exit (§11.9, §8.6; the log's
@@ -219,6 +218,14 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     an application's session, on the user's word, which of its functions the library takes,
     and it drops each at its floor's rise. `ernest-template` takes CLAUDE.md's rule in a tag,
     by its own session and in its own words, for what is written from then on.
+38. **ern(1) written again after `make doc`**, found 2026-11-14 by item 28's full run: after a
+    change to the toolchain's code, `make`, then `make doc`, then `make manual` writes
+    `build/man/ern.1` a second time. The documents `make doc` writes into `build/stdlib`
+    change the directory's time, which is the page's prerequisite. So `make test-full` run
+    first after such a change fails `manual_written_once_test`, and passes when run again. An
+    agent builds it: the page's prerequisite is what its SEE ALSO reads, the pages, and not
+    every file of the directory, and the test runs `make doc` between its two makes (the
+    log's *A Given Path Resolved Once*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
