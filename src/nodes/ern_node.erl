@@ -270,9 +270,8 @@ file(ConfigDir, certificate) -> filename:join(ConfigDir, ?CERTIFICATE);
 file(ConfigDir, pid) -> filename:join(ConfigDir, ?PID_FILE).
 
 %% Report §12.5: the directory checked and `ernest.conf` read: the
-%% directory, and each file a node reads in it, its user's own or the
-%% superuser's and written by none but its owner, as the shell's startup
-%% files are (§11.2), and the key read by none but its
+%% directory, and each file a node reads in it, passing the ownership test
+%% as the shell's startup files do (§11.2), and the key read by none but its
 %% owner, as ssh reads one; the file JSON, every field known; the key the
 %% one `ernest.conf` names and the certificate's, and the certificate naming
 %% the host the key gives.
@@ -303,9 +302,10 @@ all_owned(ConfigDir, Files) ->
     lists:foreach(fun(File) -> owned(ConfigDir, filename:join(ConfigDir, File), regular, User) end,
                   Files).
 
-%% A file or the directory: there, of its kind, its user's own or the
-%% superuser's, and written by none but its owner, its group as much as
-%% the world; the key neither read nor written by any but its owner.
+%% A file or the directory: there, of its kind, and passing the ownership
+%% test (§11.2), which names the path tested where a directory its links
+%% reach through fails it; the key neither read nor written by any but its
+%% owner.
 owned(ConfigDir, Path, Kind, User) ->
     Shown = ern_build:shown(Path),
     Info = case file:read_file_info(Path, [{time, posix}]) of
@@ -318,11 +318,15 @@ owned(ConfigDir, Path, Kind, User) ->
            end,
     Info#file_info.type =:= Kind
         orelse ern_build:fail(Shown ++ " is not a " ++ kind(Kind)),
-    lists:member(Info#file_info.uid, [User, 0])
-        orelse ern_build:fail(Shown ++ " is another user's, and a node reads only its user's"
-                              " own or the superuser's"),
-    Info#file_info.mode band 8#022 =:= 0
-        orelse ern_build:fail(Shown ++ " may be written by others than its owner"),
+    case ern_ownership:failure(Path, Info, User) of
+        passes ->
+            ok;
+        another_users ->
+            ern_build:fail(Shown ++ " is another user's, and a node reads only its user's own or"
+                           " the superuser's");
+        every_user_may_write ->
+            ern_build:fail(Shown ++ " may be written by every user")
+    end,
     filename:basename(Path) =/= ?KEY orelse Info#file_info.mode band 8#077 =:= 0
         orelse ern_build:fail(Shown ++ " may be read or written by others than its owner"),
     ok.

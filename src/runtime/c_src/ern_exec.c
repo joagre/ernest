@@ -111,13 +111,13 @@
  * them, it exits 0 once the lock has gone with the node, so that `ern
  * stop` returns once the node has ended (report §11.2). It exits 1 where
  * there is no such file, 2 where no node holds it, 8 where the file is
- * another user's and 9 where others than its owner may write it, 3 where
- * it names no process, 4 where the process it names has ended, and 5
- * where that process is not this user's to signal; an error is an 'f'
- * frame and its name, and 6. A signal reaches only a node so, never a
- * process whose number a file no node holds names by chance, and never
- * one whose number another user could have written (report §12.5). The
- * file is opened through no link.
+ * another user's and 9 where every user may write it, 3 where it names no
+ * process, 4 where the process it names has ended, and 5 where that
+ * process is not this user's to signal; an error is an 'f' frame and its
+ * name, and 6. A signal reaches only a node so, never a process whose
+ * number a file no node holds names by chance, and never one whose number
+ * a user neither its owner nor of its group could have written (report
+ * §11.2, §12.5). The file is opened through no link.
  *
  * The locks are POSIX's record locks, which a process holds until it
  * closes the file or ends, and which another can ask after without taking
@@ -810,19 +810,20 @@ static int hold_lock(int argc, char **argv)
     }
 }
 
-/* Report §12.5: whether the file at fd names a process this user may
-   signal as its node: 0 where it is this user's own and none but its owner
-   may write it, 8 where it is another user's and this user is not the
-   superuser, 9 where others may write it,
-   and 6 where the host cannot say, its error in an 'f' frame. */
+/* Report §11.2, §12.5: whether the file at fd names a process this user
+   may signal as its node, the file alone tested, since it was opened
+   through no link: 8 where it is neither this user's own nor the
+   superuser's, 9 where every user may write it, the bits for its group
+   not read, 0 where neither holds, and 6 where the host cannot say, its
+   error in an 'f' frame. */
 static int own_file(int fd)
 {
     struct stat status;
     if (fstat(fd, &status) < 0)
         return fail('f', errno, 6);
-    if (status.st_uid != geteuid() && geteuid() != 0)
+    if (status.st_uid != geteuid() && status.st_uid != 0)
         return 8;
-    if (status.st_mode & (S_IWGRP | S_IWOTH))
+    if (status.st_mode & S_IWOTH)
         return 9;
     return 0;
 }

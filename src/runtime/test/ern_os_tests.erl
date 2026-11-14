@@ -992,15 +992,18 @@ sleep(Ms) ->
 wait(Tag) ->
     receive {Tag, Value} -> Value after 5000 -> timeout end.
 
-%% report §12.5: a node's ernest.pid is made writable by its owner alone,
-%% whatever the mask, and never through a link; and a signal to the node
-%% that holds it is refused, nothing sent, where others than its owner may
-%% write the file, since another could then have written its number. The
-%% number is this host's, which the signal 0 asks after. A regression
-%% test, written after the code: the file was made 0666 under the mask,
-%% group-writable under Ubuntu's 002, and a link was followed; a file
-%% another user owns, which a test run as one user cannot make, is not
-%% covered
+%% report §12.5, §11.2: a node's ernest.pid is made writable by its owner
+%% alone, whatever the mask, and never through a link; and a signal to the
+%% node that holds it is refused, nothing sent, where the file fails the
+%% ownership test, every user able to write it, since another could then
+%% have written its number, and is sent where its group alone may, the
+%% group's bits not read, or where every user may write its directory,
+%% which is not tested. The number is this host's, which the signal 0 asks
+%% after. A regression test, written after the code: the file was made
+%% 0666 under the mask, group-writable under Ubuntu's 002, and a link was
+%% followed; then a file its group may write was refused as every user's.
+%% A file another user owns, which a test run as one user cannot make, is
+%% not covered
 node_file_test() ->
     Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
                         "ern_os_node_" ++ os:getpid()),
@@ -1017,7 +1020,13 @@ node_file_test() ->
     ?assertEqual(8#644 band bnot ern_os:umask(), Mode band 8#777),
     ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
     ok = file:change_mode(PidFile, 8#664),
-    ?assertEqual({failed, "may be written by others than its owner"},
+    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+    %% the file tested, and not its directory
+    ok = file:change_mode(Dir, 8#777),
+    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+    ok = file:change_mode(Dir, 8#700),
+    ok = file:change_mode(PidFile, 8#666),
+    ?assertEqual({failed, "may be written by every user"},
                  ern_os:node_signaled(PidFile, 0, false)),
     MonitorRef = erlang:monitor(process, Holder),
     Holder ! stop,

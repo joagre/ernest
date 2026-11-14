@@ -30,6 +30,7 @@ The modules of `cli`, under `src/toolchain/cli/`:
 |---|---|
 | `ern_cli` | the command, its jobs and the runner's start (*The tools*) |
 | `ern_build` | the build every job reaches (§11.1) |
+| `ern_ownership` | §11.2's ownership test, which a node applies to its configuration (§12.5) |
 | `ern_page` | §11.4's renderer, the pages of `ern doc` and the shell's `:doc` |
 | `ern_examples` | a module's doc examples as the cases of `ern test` (§11.2) |
 | `ern_release` | the version text, `-dev` marking a build that is no release |

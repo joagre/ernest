@@ -143,12 +143,10 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     Manifest*).
 26. **A module that hides a library another uses**, done 2026-11-13 (the log's *A Hiding
     Module Refused*).
-27. **The ownership test's group bits**, decided 2026-11-11, before item 5: the shell's startup
-    files, a node's configuration and `ern stop`'s and `ern reload`'s `ernest.pid` take the
-    ownership test as §11.2 states it, the owner and the bits for others, and the directory
-    that holds what each link of a chain reaches, and their refusals say `may be written by
-    every user` (the log's *A Package and Its Manifest*). It reads §11.2's sentences on the test
-    against its build and its probes before it closes, as items 5 to 8 read §11.9's.
+27. **The ownership test's group bits**, done 2026-11-14. Decided in the item: `ernest.pid`
+    follows no link and takes no chain, and the superuser's `ern stop` and `ern reload` refuse
+    another user's `ernest.pid`, as the test says (§11.2, §12.5; the log's *The Ownership Test
+    Built*).
 28. **A given path opened as resolved**, decided 2026-11-11, before item 5: a job judges,
     writes and opens each path its command line gives as §11 resolves it, `..` resolved without
     following a link. The item finds what the code does now, changes it where it differs, and

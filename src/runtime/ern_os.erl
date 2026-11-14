@@ -217,9 +217,9 @@ locked(PidFile, ProcessNumber) ->
 %% when the node ends: `sent`; `no_file`; `no_node` where no node holds the
 %% file; `no_process` where the file names none; `none` where the process
 %% it names has ended; `others` where that process is another user's; or
-%% `{failed, Text}`, a file that is another user's or that others than its
-%% owner may write among the ways, whose number names no node of this
-%% user's, since another could have written it.
+%% `{failed, Text}`, a file that is another user's or that every user may
+%% write among the ways, whose number names no node of this user's, since
+%% another could have written it.
 -spec node_signaled(file:filename(), non_neg_integer(), boolean()) ->
           sent | no_file | no_node | no_process | none | others | {failed, string()}.
 node_signaled(PidFile, Number, Wait) ->
@@ -234,7 +234,7 @@ node_signaled(PidFile, Number, Wait) ->
         {Helper, {exit_status, 5}} -> others;
         {Helper, {exit_status, 8}} ->
             {failed, "is another user's, and names no node of this user's"};
-        {Helper, {exit_status, 9}} -> {failed, "may be written by others than its owner"};
+        {Helper, {exit_status, 9}} -> {failed, "may be written by every user"};
         {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
     end.
 

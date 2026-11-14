@@ -5834,7 +5834,7 @@ attached_startup_diagnostic(Base) ->
     lists(Ops, [{"node", Node, bound_port(Node)}]),
     Startup = filename:join(Ops, "startup"),
     ok = file:write_file(Startup, "let a = 1\nlet b : Int = \"not an Int\"\n"),
-    %% report §11.2: a startup file another user could change is not run
+    %% report §11.2: a startup file that fails the ownership test is not run
     ok = file:change_mode(Startup, 8#600),
     ok = file:change_mode(Ops, 8#700),
     Home = Ops ++ ".home",
