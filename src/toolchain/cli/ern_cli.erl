@@ -557,7 +557,14 @@ beam_of(Options, Path) ->
             %% report §11.1: a module outside the source root is found under
             %% build-root, then under each --load-path root
             DependencyRoots = [BuildRoot | ern_build:load_path(Options)],
-            Module = ern_build:module_of(ern_build:absolute(Path), SourceRoot, file),
+            #build_module{namespace = Namespace, file = File} = Module =
+                ern_build:module_of(ern_build:absolute(Path), SourceRoot, file),
+            %% report §11.1: a module that hides a library's module another
+            %% depends on is refused before it is compiled
+            case ern_build:hiding(File, Namespace, File, ern_tree:libraries()) of
+                none -> ok;
+                Refusal -> ern_build:fail(Refusal)
+            end,
             [#build_module{namespace = Namespace, file = File, relative = Relative,
                            dependencies = Dependencies} = Ordered] =
                 ern_build:compile_order([Module], SourceRoot, DependencyRoots),
@@ -2146,7 +2153,7 @@ load(Namespace, Waiting, LoadPath, Loaded, {Reader, StdlibHash, Say} = Reading) 
             %% module it uses, or of the standard library, is refused, not run
             %% to fault where they differ
             lists:foreach(fun({Dependency, Hash}) ->
-                              same_interface(Namespace, Dependency, Hash)
+                              same_interface(Namespace, File, Dependency, Hash)
                           end, DependencyHashes),
             same_stdlib(Namespace, Chunk, StdlibHash),
             loaded_unit(ErlangModule, File, Beam, Chunk, {Reader, Waiting} =:= {program, []}),
@@ -2303,14 +2310,28 @@ same_stdlib(Namespace, Chunk, StdlibHash) ->
         orelse ern_build:fail(Name ++ " was compiled against another standard library; build "
                               ++ Name ++ " again").
 
-same_interface(Namespace, Dependency, Hash) ->
-    {ok, Beam} = file:read_file(code:which(ern_namespace:erlang_module(Dependency))),
+%% Report §11.2: a module, its compiled form at File, compiled against
+%% another interface of a module it uses than the form the run found is
+%% refused; where the module is a library's and the form found for a
+%% library's module it uses is not that library's build's, the refusal
+%% names the form found as §11.1 names a module that hides the library's
+%% (ern_build:hiding_found/4), since no build of the program mends it.
+same_interface(Namespace, File, Dependency, Hash) ->
+    Found = code:which(ern_namespace:erlang_module(Dependency)),
+    {ok, Beam} = file:read_file(Found),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
-    Name = ern_namespace:text(Namespace),
     ern_interface:hash(Interface) =:= Hash
-        orelse ern_build:fail(Name ++ " was compiled against another "
-                              ++ ern_namespace:text(Dependency) ++ "; build "
-                              ++ Name ++ " again").
+        orelse ern_build:fail(another_interface(Namespace, File, Dependency, Found)).
+
+another_interface(Namespace, File, Dependency, Found) ->
+    case ern_build:hiding_found(File, Dependency, Found, ern_tree:libraries()) of
+        none ->
+            Name = ern_namespace:text(Namespace),
+            Name ++ " was compiled against another " ++ ern_namespace:text(Dependency) ++ "; build "
+                ++ Name ++ " again";
+        Refusal ->
+            Refusal
+    end.
 
 -spec usage_fail(io_lib:chars()) -> no_return().
 usage_fail(Message) ->

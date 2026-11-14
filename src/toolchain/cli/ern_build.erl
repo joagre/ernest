@@ -9,8 +9,8 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/5, held_another/4, verbose/2, modules_of/3,
-         compiled_in_order/3,
+-export([compile/4, compile_in_memory/5, held_another/4, verbose/2, modules_of/3, hiding/4,
+         form_hiding/3, hiding_found/4, compiled_in_order/3,
          report_errors/3, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
          module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
          resolved_module/3, namespace_test/3, compiled_dependencies/1, source_root/3,
@@ -94,8 +94,10 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                          false -> stdlib_hash()
                      end,
         %% report §11.1, §4.1: a cycle through the load path's modules is
-        %% refused as one among the sources is
-        BuildNamespaces = [Namespace || #build_module{namespace = Namespace} <- Modules],
+        %% refused as one among the sources is; a module of the sources
+        %% that failed before it was parsed is none of the load path's
+        BuildNamespaces = [Namespace || #build_module{namespace = Namespace} <- Modules]
+            ++ [Namespace || {Namespace, _, _} <- Misnamed, is_list(Namespace)],
         Outside = fun(Namespace) ->
                       case lists:member(Namespace, BuildNamespaces) of
                           true -> [];
@@ -177,18 +179,123 @@ verbose(Options, ErrorDevice) ->
     end.
 
 %% The modules the files are, and a failure for each file whose path is
-%% none's, keyed by the file, since it has no namespace.
+%% none's, keyed by the file, since it has no namespace. Report §11.1: a
+%% module that hides a library's module another depends on fails too, by
+%% its namespace, so that a module that uses it is not compiled either, and
+%% before it is parsed, so that its refusal is its only error (hiding/4).
 -spec modules_of([file:filename()], file:filename(), tree | file) ->
-          {[#build_module{}], [{{file, file:filename()}, {refused, string()}, []}]}.
+          {[#build_module{}],
+           [{{file, file:filename()} | [atom()], {refused, string()}, []}]}.
 modules_of(Files, SourceRoot, Mode) ->
+    Libraries = ern_tree:libraries(),
     lists:foldr(fun(Source, {Modules, Misnamed}) ->
                     try module_of(absolute(Source), SourceRoot, Mode) of
-                        Module -> {[Module | Modules], Misnamed}
+                        #build_module{namespace = Namespace, file = File} = Module ->
+                            case hiding(File, Namespace, File, Libraries) of
+                                none ->
+                                    {[Module | Modules], Misnamed};
+                                Refusal ->
+                                    {Modules, [{Namespace, {refused, Refusal}, []} | Misnamed]}
+                            end
                     catch
                         throw:{cli_error, Refusal} ->
                             {Modules, [{{file, Source}, {refused, Refusal}, []} | Misnamed]}
                     end
                 end, {[], []}, Files).
+
+%% Report §4.2, §11.1: the refusal of the module of Namespace that File
+%% holds, a source or a compiled form, which hides a library's module of
+%% that namespace, where its source, Source, lies outside that library's
+%% source root and a module of a library depends on the library's module;
+%% none where it is no library module's namespace, is that library's own
+%% module, or no library depends on the module. Libraries are the builds of
+%% the toolchain's libraries in the load path's order, found once by the
+%% job (ern_tree:libraries/0). A library's files are read only where
+%% Namespace is a library module's, and its modules only where the module
+%% hides it.
+-spec hiding(file:filename(), [atom()], file:filename() | none, [file:filename()]) ->
+          none | string().
+hiding(File, Namespace, Source, Libraries) ->
+    case compiled_found(Namespace, Libraries, none) of
+        none ->
+            none;
+        {Library, _} ->
+            case Source =/= none andalso relative(Source, library_root(Library)) =/= outside of
+                true -> none;
+                false -> hides(File, Namespace, Library, [{library, Root} || Root <- Libraries])
+            end
+    end.
+
+%% Report §11.1, Appendix E.28: the same of a compiled form, File, by its
+%% interface chunk, its source the one the chunk records, from the root its
+%% namespace descends from; none recorded is outside every library's.
+-spec form_hiding(file:filename(), ern_interface:chunk(), [file:filename()]) -> none | string().
+form_hiding(File, #{interface := #interface{namespace = Namespace}} = Chunk, Libraries) ->
+    Source = case Chunk of
+                 #{source_path := Recorded} ->
+                     absolute(filename:join(root_of(absolute(File), Namespace),
+                                            unicode:characters_to_list(Recorded)));
+                 #{} ->
+                     none
+             end,
+    hiding(File, Namespace, Source, Libraries).
+
+%% Report §11.2: the refusal of a run whose module at UserFile, a library's,
+%% was compiled against another interface of Dependency, a library's
+%% module, than that of the form it found, Found, where Found is not the one
+%% that library's build holds: Found named as §11.1 names a module that
+%% hides the library's (hides/4); none where the refusal is §11.2's of a
+%% module compiled against another interface.
+-spec hiding_found(file:filename(), [atom()], file:filename(), [file:filename()]) ->
+          none | string().
+hiding_found(UserFile, Dependency, Found, Libraries) ->
+    IsLibraryModule = lists:any(fun(Library) -> relative(UserFile, Library) =/= outside end,
+                                Libraries),
+    case IsLibraryModule andalso compiled_found(Dependency, Libraries, none) of
+        {Library, Held} ->
+            case absolute(Held) =:= absolute(Found) of
+                true -> none;
+                false -> hides(Found, Dependency, Library, [{library, Root} || Root <- Libraries])
+            end;
+        _ ->
+            none
+    end.
+
+%% Report §11.1: the refusal of File's module of Namespace, which hides the
+%% module of the library whose build is Library, naming the library of the
+%% first module of Dependents, in the load path's order, that depends on the
+%% hidden module, Library's own among them; none where none does. A
+%% dependent is a library's build, `{library, Root}`.
+hides(File, Namespace, Library, Dependents) ->
+    case lists:search(fun(Dependent) -> is_dependent(Dependent, Namespace) end, Dependents) of
+        {value, Dependent} ->
+            lists:flatten([shown(File), ": ", ern_namespace:text(Namespace), " hides the library ",
+                           library_name(Library), ", which ", dependent_text(Dependent),
+                           " uses"]);
+        false ->
+            none
+    end.
+
+%% Whether a module of a dependent's build depends on the module of
+%% Namespace, as its compiled form records what it was compiled against; a
+%% form this build of `ern` cannot read records nothing.
+is_dependent({library, Root}, Namespace) ->
+    lists:any(fun(Erc) ->
+                  case read_erc(Erc) of
+                      {ok, #{deps := DependencyHashes}} ->
+                          lists:keymember(Namespace, 1, DependencyHashes);
+                      _ ->
+                          false
+                  end
+              end, compiled_under(Root)).
+
+dependent_text({library, Root}) ->
+    ["the library ", library_name(Root)].
+
+%% Report Appendix G: a library by its namespace, its directory's name read
+%% as a module's file name is (§4.2): `Http` of `build/libs/http`.
+library_name(Library) ->
+    ern_namespace:text(ern_namespace:namespace([filename:basename(Library)])).
 
 %% Report §11.1, §11.5: a module's failure, its errors or the refusal of
 %% something it needs, as a refusal of the job is said.
@@ -1036,6 +1143,11 @@ stdlib_root() ->
 %% tree, whose files provide `Ernest.Shell` and what stands under it.
 shell_root() ->
     filename:join([ern_tree:tree(), "src", "shell"]).
+
+%% Report §4.2, §11.1, Appendix G: a library's source root, `src/libs/<name>/`
+%% in the toolchain's tree, by its build, `build/libs/<name>`.
+library_root(Library) ->
+    filename:join([ern_tree:tree(), "src", "libs", filename:basename(Library)]).
 
 %% Report §4.2: the toolchain's own source roots, each with whose it is as
 %% a refusal names it.

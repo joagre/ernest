@@ -10,7 +10,8 @@
 %% each verified against its hashes (ern_canonical:is_verified/1) and
 %% checked against the build of `ern` that wrote it, the interfaces it was
 %% compiled against and the standard library the node holds, and a module
-%% of a cycle among them refused (§4.1).
+%% of a cycle among them refused (§4.1), and one that hides a library's
+%% module another library depends on (§11.1).
 %%
 %% Each module becomes a unit of the node's (§11.2): the node's own where
 %% the node holds that very code under its Erlang name and each module it
@@ -110,7 +111,15 @@ reach(Path, Dirs) ->
     {Order, _} = with_dependencies(Module, LoadPath, [Namespace], {[], #{Namespace => Module}}),
     Reach = lists:reverse(Order),
     lists:foreach(fun(Found) -> same_interfaces(Found, Reach) end, Reach),
+    Libraries = ern_tree:libraries(),
+    lists:foreach(fun(Found) -> not_hiding(Found, Libraries) end, Reach),
     Reach.
+
+%% Appendix E.28, report §11.1: a module of the load at the namespace of a
+%% library's module on which a module of a library depends, its source
+%% outside that library's source root, is `Invalid` (ern_build:form_hiding/3).
+not_hiding(#found{file = File, chunk = Chunk}, Libraries) ->
+    ern_build:form_hiding(File, Chunk, Libraries) =:= none orelse refuse('Invalid').
 
 %% Report §11.2: the directory a module's namespace descends from, the
 %% file at the path its namespace names under it, each directory between

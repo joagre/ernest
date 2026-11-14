@@ -157,8 +157,8 @@
 %% session has; how its unit comes as it is installed, `file`, its
 %% compiled form loaded as it is, `forms`, made from that form's forms, or
 %% `held`, a unit the node holds already (ern_code:placement/4); and the
-%% file of the current compiled form `:load` took in place of compiling
-%% its source, or none.
+%% file of the compiled form the load took, its current one in place of
+%% compiling its source among them, or none where it compiled the source.
 -record(compiled, {namespace, unit, beam, source_hash, from_source = false, made = file,
                    erc = none}).
 %% A load's modules as it places them, each after the modules it uses
@@ -2319,8 +2319,10 @@ doc(Given, Text) ->
 %% Report §11.2: a name of a module the session has not loaded, but the
 %% source root or the load path holds, is answered with the `:load` that
 %% puts it in scope: the module the name is, or the longest that begins it;
-%% or, where the session's last `:load` of that module was refused, with
-%% the refusal (refusal_kept/2).
+%% where the session's last `:load` of that module was refused, with the
+%% refusal (refusal_kept/2); and where `:load` would refuse the module as
+%% §11.1 refuses one at the namespace of a library's module, with that
+%% refusal (hidden/2).
 load_suffix(Session, Text) ->
     Parts = [binary_to_list(Part) || Part <- binary:split(without_dot(Text), <<".">>, [global])],
     case load_help(Session, Parts) of
@@ -2334,8 +2336,13 @@ load_help(Session, Segments) ->
         {value, Module} ->
             Name = lists:join(".", Module),
             case kept({refused, unicode:characters_to_binary(Name)}, none) of
-                none -> {ok, [":load ", Name, " puts it in scope"]};
-                Refusal -> {ok, [":load ", Name, " was refused: ", Refusal]}
+                none ->
+                    case hidden(Session, Module) of
+                        none -> {ok, [":load ", Name, " puts it in scope"]};
+                        Refusal -> {ok, Refusal}
+                    end;
+                Refusal ->
+                    {ok, [":load ", Name, " was refused: ", Refusal]}
             end;
         false ->
             none
@@ -3110,11 +3117,12 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                                ", which is not where ", Name/binary, " belongs\n">>}
             end;
         none ->
-            case compiled_of(Session, Namespace) of
+            case taken_form(Session, Namespace) of
                 {ok, File, Beam, Hash} ->
                     %% report §11.2: what it uses that the session has not
                     %% loaded is placed before it, and it last
-                    case compiled_placed(Session, Namespace, Beam, Hash, placing(Session)) of
+                    case compiled_placed(Session, Namespace, File, Beam, Hash,
+                                         placing(Session)) of
                         {ok, #placing{needed = All}} ->
                             loaded_with(Session, All,
                                         <<Name/binary, ", from ",
@@ -3175,23 +3183,61 @@ refused_compiled(Session, All) ->
     Interfaces = [Interface || #compiled{beam = Beam} <- All,
                                {ok, #{interface := Interface}} <- [ern_interface:read(Beam)]]
         ++ Session#session.interfaces ++ ern_prelude:stdlib_interfaces(),
-    Refusals = lists:append([compiled_refusals(Namespace, Beam, Interfaces, StdlibHash)
-                             || #compiled{namespace = Namespace, beam = Beam} <- All]),
+    Refusals = lists:append([compiled_refusals(Session, Compiled, All, Interfaces, StdlibHash)
+                             || Compiled <- All]),
     case Refusals of
         [] -> none;
         [First | _] -> First
     end.
 
-compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
+compiled_refusals(Session, #compiled{namespace = Namespace, beam = Beam, erc = File}, All,
+                  Interfaces, StdlibHash) ->
     {ok, #{deps := DependencyHashes} = Chunk} = ern_interface:read(Beam),
     Name = ern_namespace:text(Namespace),
     [Name ++ " was compiled against another standard library; build " ++ Name ++ " again"
      || not lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])]
-        ++ [Name ++ " was compiled against another " ++ ern_namespace:text(Dependency)
-            ++ "; build " ++ Name ++ " again"
+        ++ [another_interface(Name, File, Dependency, held_form(Session, Dependency, All))
             || {Dependency, Hash} <- DependencyHashes,
                [Interface | _] <- [held_interfaces(Dependency, Interfaces)],
                ern_interface:hash(Interface) =/= Hash].
+
+%% Report §11.2: the refusal of the module Name, taken from its compiled
+%% form File, compiled against another interface of Dependency than the
+%% session holds, the form at Held; where the module is a library's, and
+%% the form held of a library's module is not that library's build's, the
+%% form held is named as §11.1 names a module that hides the library's
+%% (ern_build:hiding_found/4), as `ern run` names it.
+another_interface(Name, File, Dependency, Held) ->
+    Hiding = File =/= none andalso Held =/= none
+        andalso ern_build:hiding_found(File, Dependency, Held, ern_tree:libraries()),
+    case Hiding of
+        Refusal when is_list(Refusal) ->
+            Refusal;
+        _ ->
+            Name ++ " was compiled against another " ++ ern_namespace:text(Dependency)
+                ++ "; build " ++ Name ++ " again"
+    end.
+
+%% The compiled form the session holds of the module of Namespace, or the
+%% load placed before the one it refuses, by its file; none where the
+%% module was compiled from its source. A unit the shell installed is
+%% loaded under its own name, and one the runner loaded, of the program
+%% or of the node's load path, under its file's (ern_code:load/3).
+held_form(Session, Namespace, All) ->
+    case lists:keyfind(Namespace, #compiled.namespace, All) of
+        #compiled{erc = Erc} ->
+            Erc;
+        false ->
+            case code:which(unit(Session, Namespace)) of
+                File when is_list(File) ->
+                    case filename:extension(File) of
+                        ".erc" -> File;
+                        _ -> none
+                    end;
+                _ ->
+                    none
+            end
+    end.
 
 held_interfaces(Namespace, Interfaces) ->
     [Interface || #interface{namespace = Found} = Interface <- Interfaces, Found =:= Namespace].
@@ -3339,9 +3385,9 @@ dependency_placed(#session{source_hashes = Loaded} = Session, Dependency,
     end.
 
 needed_one(Session, Namespace, Placing) ->
-    case compiled_of(Session, Namespace) of
-        {ok, _, Beam, Hash} ->
-            compiled_placed(Session, Namespace, Beam, Hash, Placing);
+    case taken_form(Session, Namespace) of
+        {ok, File, Beam, Hash} ->
+            compiled_placed(Session, Namespace, File, Beam, Hash, Placing);
         {error, Refusal} ->
             {error, <<Refusal/binary, "\n">>};
         none ->
@@ -3349,16 +3395,17 @@ needed_one(Session, Namespace, Placing) ->
             {error, <<"no module ", Name/binary, " on the load path\n">>}
     end.
 
-%% A module the load takes from its compiled form Beam placed, after what
-%% it uses, among the load's modules from the load path.
-compiled_placed(Session, Namespace, Beam, Hash, #placing{waiting = Waiting} = Placing) ->
+%% A module the load takes from its compiled form Beam, at File, placed,
+%% after what it uses, among the load's modules from the load path.
+compiled_placed(Session, Namespace, File, Beam, Hash, #placing{waiting = Waiting} = Placing) ->
     {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
     case needed_placed(Session, [Dependency || {Dependency, _} <- DependencyHashes],
                        Placing#placing{waiting = [Namespace | Waiting]}) of
         {ok, Used} ->
             Placing1 = Used#placing{waiting = Waiting},
             case compiled_unit(Session, Namespace, Beam, Hash, Placing1) of
-                {ok, Compiled} ->
+                {ok, Unfiled} ->
+                    Compiled = Unfiled#compiled{erc = File},
                     #placing{needed = Needed} = Placing2 = placed(Compiled, Placing1),
                     {ok, Placing2#placing{needed = Needed ++ [Compiled]}};
                 Error ->
@@ -3708,7 +3755,17 @@ compile_all(Session, ChangedSources) ->
 %% uses placed before it (needed_placed/3). What the modules use from the
 %% load path and the modules, in the order placed, or why they cannot all
 %% be compiled.
-compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
+compile_in_order(Session, Set) ->
+    %% report §11.1: a module that hides a library's module another library
+    %% depends on is refused before any is parsed, its refusal its only error
+    case [<<Refusal/binary, "\n">> || {Namespace, File} <- Set,
+                                      Refusal <- [source_refusal(Namespace, File)],
+                                      Refusal =/= none] of
+        [] -> compiled_set(Session, Set);
+        Refusals -> {error, Refusals}
+    end.
+
+compiled_set(#session{source_root = SourceRoot} = Session, Set) ->
     try ern_build:compile_order([ern_build:module_of(ern_build:absolute(File), SourceRoot)
                                  || {_, File} <- Set], SourceRoot, load_path(Session)) of
         Ordered ->
@@ -4572,6 +4629,55 @@ compiled_of(Session, Namespace) ->
         [] ->
             none
     end.
+
+%% Report §11.2, §11.1: the compiled form `:load` takes of a module, as
+%% compiled_of/2 finds it, refused where it hides a library's module
+%% another library depends on.
+taken_form(Session, Namespace) ->
+    case compiled_of(Session, Namespace) of
+        {ok, File, Beam, _} = Taken ->
+            case form_refusal(File, Beam) of
+                none -> Taken;
+                Refusal -> {error, Refusal}
+            end;
+        Other ->
+            Other
+    end.
+
+%% Report §11.1: the refusal of a module `:load` takes, its source File or
+%% its compiled form File, Beam, where its namespace is that of a library's
+%% module on which a module of a library depends and its source lies
+%% outside that library's source root, the file named from the working
+%% directory; none (ern_build:hiding/4).
+source_refusal(Namespace, File) ->
+    Source = ern_build:absolute(File),
+    refusal_text(ern_build:hiding(Source, Namespace, Source, ern_tree:libraries())).
+
+form_refusal(File, Beam) ->
+    {ok, Chunk} = ern_interface:read(Beam),
+    refusal_text(ern_build:form_hiding(File, Chunk, ern_tree:libraries())).
+
+refusal_text(none) -> none;
+refusal_text(Refusal) -> unicode:characters_to_binary(Refusal).
+
+%% Report §11.2: the refusal `:load` would give the module of these
+%% segments, whose source or compiled form the session finds, as §11.1
+%% refuses one at the namespace of a library's module, the file named from
+%% the session's working directory; none.
+hidden(Session, Segments) ->
+    Namespace = ern_namespace:namespace(Segments),
+    ern_build:read_through(source_access(Session),
+                           fun() ->
+                               case source_of(Session, Namespace) of
+                                   {ok, File} ->
+                                       source_refusal(Namespace, File);
+                                   none ->
+                                       case compiled_of(Session, Namespace) of
+                                           {ok, File, Beam, _} -> form_refusal(File, Beam);
+                                           _ -> none
+                                       end
+                               end
+                           end).
 
 source_hash(Session, File) ->
     case source_read(Session, File) of

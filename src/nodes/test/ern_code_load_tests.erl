@@ -10,6 +10,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
+-include_lib("cli/include/ern_build.hrl").
 
 %%
 %% Helpers
@@ -731,6 +732,45 @@ other_interface_test() ->
                  "    Io.println(Io.show(Code.load(Path(\"" ++ Lib ++ "/plug/user.erc\"))))\n"),
     built(Dir, "main.ern"),
     ?assertEqual([<<"Left(Io.Invalid)">>], ran(filename:rootname(Main) ++ ".erc")).
+
+%% Appendix E.28, report §11.1: a compiled form of a program's module at
+%% the namespace of a library's module another library depends on, `Time`,
+%% which the library Http uses, is Invalid, given and as a module of the
+%% reach, its source outside the library's source root; the library's own
+%% form of it loads, and so does a program's `Json`, which no library
+%% uses. The program's forms are compiled in memory as `ern build` compiles
+%% one, since the build refuses the first. Written before the code, which
+%% loaded the first
+library_hidden_test() ->
+    Dir = tmp(),
+    Plug = filename:join(Dir, "plug"),
+    Hiding = compiled_form(Plug, "time.ern", "export fn mine() : String = \"mine\"\n"),
+    Reaching = compiled_form(Plug, "reach.ern", "export fn mine() : String = Time.mine()\n"),
+    Allowed = compiled_form(Plug, "json.ern", "export fn mine() : String = \"mine\"\n"),
+    Library = filename:join(ern_tree:build("libs/time"), "time.erc"),
+    Paths = lists:join("\", \"", [Hiding, Reaching, Allowed, Library]),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit =\n"
+                 "    List.forEach([\"" ++ Paths ++ "\"],\n"
+                 "                 fn(path) = Io.println(Io.show(Code.load(Path(path)))))\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Io.Invalid)">>, <<"Left(Io.Invalid)">>, <<"Right(Unit)">>,
+                  <<"Right(Unit)">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
+%% A module's compiled form under Root, compiled in memory as `ern build`
+%% compiles a module (ern_build:compiled_in_order/3) and written beside its
+%% source.
+compiled_form(Root, Relative, Text) ->
+    Source = write(Root, Relative, Text),
+    SourceRoot = ern_build:absolute(Root),
+    [#build_module{namespace = Namespace}] = Order =
+        ern_build:compile_order([ern_build:module_of(ern_build:absolute(Source), SourceRoot)],
+                                SourceRoot, [SourceRoot]),
+    {[], #{Namespace := Beam}} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
+    Erc = filename:rootname(Source) ++ ".erc",
+    ok = file:write_file(Erc, Beam),
+    Erc.
 
 %% Appendix E.28, report §11: a compiled form whose code the host will not
 %% load, its code chunk gone, is Invalid, where the host holds no code of

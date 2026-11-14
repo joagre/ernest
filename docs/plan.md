@@ -77,7 +77,8 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
 6. **`ern build`'s checks**: each named package's claims held against the root's lines, a
    package's `src` and `build` as its roots, and the named packages built in their order. The
    trial's table of refusals is its first test. Its tests take a named package's rebuild when
-   a package it names changes.
+   a package it names changes. It makes a named package a dependent of item 26's refusal, the
+   module that hides a library the package uses (§11.1).
 7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
    section of Appendix G first. Decided 2026-11-13: the tar library's section takes the rules
    that make an unpacking safe, a member's name, its kind, where a link may reach, a pax and a
@@ -140,16 +141,8 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     under `make test`'s load, and fixes the test or the runtime at it.
 25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
     Manifest*).
-26. **A module that hides a library another uses**, decided 2026-11-11, before item 5:
-    `ern build`, `ern doc`, `:load` and `:reload` refuse a module that takes the name of a
-    library's module another module of a library depends on, as §11.1 says, `Code.load` as
-    E.28 says, and `ern run`, `ern test` and `ern shell` name it in their refusal (§11.2); the
-    named packages' case comes with item 6. Its sentences are read, twice, and the build is
-    left (the log's *A Package and Its Manifest*). Item 30 decided the lookup, and the
-    refusal stands as §11.1 states it, of a module that takes the name of a library's module
-    (the log's *One Namespace at the Root*). The build changes the guide's sentence on a
-    library's namespace too, whose example of a library a program hides, `Time`, the refusal
-    refuses.
+26. **A module that hides a library another uses**, done 2026-11-13 (the log's *A Hiding
+    Module Refused*).
 27. **The ownership test's group bits**, decided 2026-11-11, before item 5: the shell's startup
     files, a node's configuration and `ern stop`'s and `ern reload`'s `ernest.pid` take the
     ownership test as §11.2 states it, the owner and the bits for others, and the directory
@@ -177,7 +170,10 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     `make test-erl APP=cli`, item 30's run, and not in six runs alone nor in a second run of
     the target. The client's line, `Asks.stuck:8 faulted: deadlock, the fault of the callee
     stuck`, was written before the case's line, `stuck: faulted: deadlock`, which the test
-    expects first. The cause is not found. An agent finds under that target's load
+    expects first. Seen twice more 2026-11-13, in item 26's runs: once in two runs of
+    `make test-full`, where the client's line stood after the case's lines and the test
+    expects nothing after them, and once in two runs of `make test`, the client's line first
+    again. The cause is not found. An agent finds under that target's load
     whether §11.2 promises the order, and fixes the test or `ern test` at it.
 33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
     decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
@@ -191,6 +187,19 @@ come first, in that order, then item 33, then items 26 to 28, then item 5.
     deadlock's line without a frame (§12.4), a `Set` of `Bool` printed ascending (E.1), a
     request given no time on an ended socket, listener and program (E.18, E.23), and `status`
     of a host process no code of the program started (E.21).
+35. **A compiled module's dependency that has only a source**, found 2026-11-13 by item 26's
+    build: `:load Main`, taken from `main.erc`, answers `no module Util on the load path`
+    where the source root holds `util.ern` and no `util.erc`, and a `:load Util` takes that
+    source (§11.2). An agent builds it: the load places each module a compiled form uses as
+    `:load` takes a module, its source first. `:load Http` beside a program's `time.ern` is
+    then refused as §11.1 says, and a test holds it (the log's *A Hiding Module Refused*).
+36. **`ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
+    the job writes no document where one module of the directory fails, and §11.4 compiles
+    the directory as `ern build` does, where a module that does not compile does not stop the
+    others (§11.1). An agent builds it: every document is written but that of a module that
+    failed or uses one that failed. The item says in §11.4 first what `index.md` lists then.
+    Item 26's test of `ern doc` takes the other module's document (the log's *A Hiding Module
+    Refused*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

@@ -1318,6 +1318,53 @@ misshapen_load_path(Base) ->
                  Run("dashed")),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
+%% report §11.2, §8.7: a node, which reads every module of its load path,
+%% refuses before anything runs a program whose root holds a current
+%% compiled form of a program's Time, which hides the library Time that the
+%% library Http uses, though the program uses no library, naming the form
+%% found; so does a bare node whose `--load-path` root holds it. The same
+%% program run as no node does not read the form, and runs. A regression
+%% test, written after the code; it does not cover a form a node finds
+%% under `--libs-dir`, nor `ern test` or `ern shell` given `--config-dir`
+hiding_a_library_test_() ->
+    nodes_test({waits, 4}, fun hiding_a_library/1).
+
+hiding_a_library(Base) ->
+    Lone = made(Base, "lone", none),
+    Source = filename:join(Base, "src"),
+    Build = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "main.ern"),
+                         "export fn main() : Unit = Io.println(\"ran\")\n"),
+    0 = built(["--build-root", Build, Source]),
+    Time = current_time(Build),
+    Main = filename:join(Build, "main.erc"),
+    Run = fun(Words) -> finished([?ERN, " run ", Words, " 2>&1"]) end,
+    ?assertEqual({0, "ran\n"}, Run(Main)),
+    Refusal = "ern run: " ++ ern_build:shown(Time) ++ ": Time hides the library Time, which the"
+        " library Http uses\n",
+    ?assertEqual({1, Refusal}, Run(["--config-dir ", Lone, " ", Main])),
+    Bare = made(Base, "bare", free_port()),
+    ?assertEqual({1, Refusal}, Run(["--config-dir ", Bare, " --load-path ", Build])),
+    ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))),
+    ?assertNot(filelib:is_regular(filename:join(Bare, "ernest.pid"))).
+
+%% A program's compiled form of Time under Root, beside its source, written
+%% as a build of the toolchain that held no module to the refusal of one
+%% that hides a library's would have left it, and found current: compiled
+%% in memory as `ern build` compiles a module (ern_build:compiled_in_order/3),
+%% the refusal being the job's and no part of the compile.
+current_time(Root) ->
+    Source = filename:join(Root, "time.ern"),
+    ok = file:write_file(Source, "export fn mine() : String = \"mine\"\n"),
+    SourceRoot = ern_build:absolute(Root),
+    Order = ern_build:compile_order([ern_build:module_of(ern_build:absolute(Source), SourceRoot)],
+                                    SourceRoot, [SourceRoot]),
+    {[], #{['Time'] := Beam}} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
+    Erc = filename:join(Root, "time.erc"),
+    ok = file:write_file(Erc, Beam),
+    Erc.
+
 %% report §8.7, §11.2, §11.3: a node started by `ern test` with a relative
 %% `--config-dir` reads its configuration from that directory as it was
 %% named from where the job started, so that `ern reload --config-dir`

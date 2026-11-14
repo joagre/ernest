@@ -4091,6 +4091,154 @@ reload_passes_over_a_taken_namespace() ->
     ?assertEqual(2, length(binary:matches(Output, <<"> 3 : Int\n">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"list.ern">>)).
 
+%% The refusal of a program's module of the library Time's namespace, its
+%% source or its compiled form File under Dir, which the library Http uses
+%% (Appendix G.11), the file named as the shell names it.
+hides_time(Dir, File) ->
+    <<(shown(Dir, File))/binary, ": Time hides the library Time, which the library Http uses">>.
+
+%% A program's compiled form of Time under Dir, written as a build of the
+%% toolchain that held no module to the refusal of one that hides a
+%% library's would have left it (forms/2).
+time_form(Dir) ->
+    ok = file:write_file(filename:join(Dir, "time.ern"), "export fn mine() : String = \"mine\"\n"),
+    forms(Dir, ["time.ern"]).
+
+%% The compiled forms of the sources Files under Dir, compiled in memory as
+%% `ern build` compiles a module (ern_build:compiled_in_order/3), the
+%% refusal of one that hides a library's being the job's and no part of the
+%% compile. The sources are removed.
+forms(Dir, Files) ->
+    SourceRoot = ern_build:absolute(Dir),
+    Sources = [ern_build:absolute(filename:join(Dir, File)) || File <- Files],
+    Order = ern_build:compile_order([ern_build:module_of(Source, SourceRoot) || Source <- Sources],
+                                    SourceRoot, [SourceRoot]),
+    {[], Beams} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
+    [ok = file:write_file(filename:rootname(File) ++ ".erc", maps:get(Namespace, Beams))
+     || #build_module{namespace = Namespace, file = File} <- Order],
+    [ok = file:delete(Source) || Source <- Sources],
+    ok.
+
+%% report §11.1, §11.2, §4.2: `:load` refuses a module whose source under
+%% the source root is at the namespace of a library's module another
+%% library depends on, `time.ern`, which the library Http uses, before it
+%% is parsed, and a name of it is answered with the refusal; a module at
+%% the namespace of a library's module no library uses, `json.ern`, and one
+%% under a library's namespace, `time/zone.ern`, load. A regression test,
+%% written after the code and run against the code before it, where it fails
+load_hiding_a_library_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_hiding_a_library/0).
+
+load_hiding_a_library() ->
+    Dir = scratch("ern_load_hiding_"),
+    ok = file:write_file(filename:join(Dir, "time.ern"), "export fn mine( = 1\n"),
+    ok = file:write_file(filename:join(Dir, "json.ern"),
+                         "export fn parse(text : String) : Int = String.size(text)\n"),
+    ok = filelib:ensure_path(filename:join(Dir, "time")),
+    ok = file:write_file(filename:join(Dir, "time/zone.ern"),
+                         "export fn name() : String = \"UTC\"\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Time.mine()\n:load Time\n:load Json\nJson.parse(\"seven\")\n"
+                                    ":load Time.Zone\nTime.Zone.name()\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    Refusal = hides_time(Dir, "time.ern"),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown name Time.mine\n1 | Time.mine()\n"
+                                                "  | ^^^^^^^^^\n  | = help: ", Refusal/binary,
+                                                "\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", Refusal/binary, "\n> ">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"expected">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Json, compiled from ",
+                                                (shown(Dir, "json.ern"))/binary,
+                                                "\n> 5 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Time.Zone, compiled from ",
+                                                (shown(Dir, "time/zone.ern"))/binary,
+                                                "\n> \"UTC\" : String\n">>)).
+
+%% report §11.1, §11.2: `:load` refuses a compiled form under the source
+%% root at such a namespace, with no source beside it, by its file, taken
+%% for itself or for Http, which uses it, and a name of it is answered with
+%% the refusal. A regression test, written after
+%% the code and run against the code before it, where it fails
+load_form_hiding_a_library_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_form_hiding_a_library/0).
+
+load_form_hiding_a_library() ->
+    Dir = scratch("ern_load_form_hiding_"),
+    time_form(Dir),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Time.mine()\n:load Time\n1\n:load Http\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    Refusal = hides_time(Dir, "time.erc"),
+    ?assertMatch({_, _}, binary:match(Output, <<"  | = help: ", Refusal/binary, "\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", Refusal/binary, "\n> 1 : Int\n> ",
+                                                Refusal/binary, "\n">>)).
+
+%% report §11.2, §11.1: a source that appears under the source root at the
+%% namespace of a module the session loaded from a library's build, `Time`,
+%% which the library Http uses, is refused by `:reload`, and nothing is
+%% reloaded: the library's module, which the session loaded from its
+%% compiled form, is not refused. A regression test, written after the code
+%% and run against the code before it, where it fails
+reload_hiding_a_library_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_hiding_a_library/0).
+
+reload_hiding_a_library() ->
+    Dir = scratch("ern_reload_hiding_"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile,
+                         [":load Time\nTime.toCivil(0).year\n",
+                          write_source(Dir, "time.ern", "export fn mine() : String = \"mine\"\n"),
+                          ":reload\nTime.toCivil(0).year\n"]),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    Library = ern_tree:build("libs/time"),
+    ?assertMatch({_, _}, binary:match(Output, <<"Time, from ", (shown(Library, "time.erc"))/binary,
+                                                "\n> 1970 : Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (hides_time(Dir, "time.ern"))/binary,
+                                                "\nnothing was reloaded\n> 1970 : Int\n">>)).
+
+%% report §11.2: `ern shell` given a program that uses Http, whose root
+%% holds a compiled form of a program's Time, refuses it before the prompt,
+%% naming the file found as §11.1 names the module that hides the
+%% library's, where it said Http was compiled against another Time. A
+%% regression test, written after the code and run against the code before it
+shell_finding_a_module_hiding_a_library_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun shell_finding_a_module_hiding_a_library/0).
+
+shell_finding_a_module_hiding_a_library() ->
+    Dir = scratch("ern_shell_hiding_"),
+    ok = file:write_file(filename:join(Dir, "main.ern"),
+                         "export fn main() : Unit = Io.println(Http.date(0))\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Dir),
+    time_form(Dir),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "1\n"),
+    {Status, Output} = ern_pty:sh(alone("../bin/ern shell " ++ filename:join(Dir, "main.erc"))
+                                  ++ " < " ++ InputFile),
+    ?assertEqual({1, <<"ern shell: ", (hides_time(Dir, "time.erc"))/binary, "\n">>},
+                 {Status, Output}).
+
+%% report §11.2: `:load` of a library's module, Http, compiled against the
+%% library's Time, in a session that holds a program's Time, which the
+%% program given to `ern shell` uses, refuses it, naming the form the
+%% session holds as §11.1 names a module that hides the library's, where it
+%% said Http was compiled against another Time. A regression test, written
+%% after the code and run against the code before it
+load_beside_a_module_hiding_a_library_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_beside_a_module_hiding_a_library/0).
+
+load_beside_a_module_hiding_a_library() ->
+    Dir = scratch("ern_load_beside_hiding_"),
+    ok = file:write_file(filename:join(Dir, "time.ern"), "export fn mine() : String = \"mine\"\n"),
+    ok = file:write_file(filename:join(Dir, "main.ern"),
+                         "export fn main() : Unit = Io.println(Time.mine())\n"),
+    forms(Dir, ["time.ern", "main.ern"]),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, "Time.mine()\n:load Http\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell " ++ filename:join(Dir, "main.erc"))
+                             ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"> \"mine\" : String\n> ",
+                                                (hides_time(Dir, "time.erc"))/binary, "\n">>)).
+
 %% report §11.1, §11.2: a module that uses, through the load path, a module
 %% that uses it is a cycle, which `:load` refuses as `ern build` refuses
 %% one, naming the two, and loads nothing: the module from its source, and

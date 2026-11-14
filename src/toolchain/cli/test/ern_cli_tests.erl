@@ -1260,6 +1260,166 @@ module_under_a_library_namespace_test() ->
     ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"UTC 1970\n">>, iolist_to_binary(?capturedOutput)).
 
+%% The refusal of a program's `time.ern`, or of its compiled form, which
+%% hides the library Time, which the library Http uses (Appendix G.11).
+hides_time(File) ->
+    File ++ ": Time hides the library Time, which the library Http uses".
+
+%% A module's compiled form under Root, written as a build of the
+%% toolchain that held no module to the refusal of one that hides a
+%% library's would have left it, and found current: compiled in memory as
+%% `ern build` compiles a module (ern_build:compiled_in_order/3), which
+%% refuses nothing, since the refusal is the job's and comes before the
+%% compile. Its source stays.
+current_form(Root, Relative, Text) ->
+    Source = write(Root, Relative, Text),
+    SourceRoot = ern_build:absolute(Root),
+    [#build_module{namespace = Namespace}] = Order =
+        ern_build:compile_order([ern_build:module_of(ern_build:absolute(Source), SourceRoot)],
+                                SourceRoot, [SourceRoot]),
+    {[], #{Namespace := Beam}} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
+    Erc = filename:rootname(Source) ++ ".erc",
+    ok = file:write_file(Erc, Beam),
+    Erc.
+
+%% report §11.1, §4.2: `ern build` refuses a module whose namespace is that
+%% of a library's module another library depends on, a program's
+%% `time.ern` beside the library Http, which uses the library Time: before
+%% it is parsed, so that its refusal is its only error, and it alone fails,
+%% the module that uses it named as not compiled and the other built. Built
+%% again with no `.erc` of it, and with one found current, it is refused
+%% the same way, and the build writes over nothing; in single-file mode
+%% too. Written before the code, which built it, after which Http never ran
+tree_hiding_a_library_refused_test() ->
+    Dir = tmp(),
+    write(Dir, "time.ern", "export fn mine( = 1\n"),
+    write(Dir, "other.ern", "export fn main() : Unit = Io.println(\"other\")\n"),
+    write(Dir, "main.ern", "export fn main() : Unit = Io.println(Time.mine())\n"),
+    Built = fun(Args) ->
+                Before = byte_size(iolist_to_binary(?capturedOutput)),
+                ?assertEqual(1, in_directory(Dir, fun() -> build_err(Args) end)),
+                Output = iolist_to_binary(?capturedOutput),
+                binary:part(Output, Before, byte_size(Output) - Before)
+            end,
+    Refused = list_to_binary(["ern build: ", hides_time("time.ern"), "\n"]),
+    Skipped = <<"ern build: Main is not compiled, since it uses Time, which failed\n">>,
+    ?assertEqual(<<Refused/binary, Skipped/binary>>, Built(["."])),
+    ?assert(filelib:is_regular(Dir ++ "/other.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/time.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/main.erc")),
+    ?assertEqual(<<Refused/binary, Skipped/binary>>, Built(["."])),
+    ?assertEqual(Refused, Built(["time.ern"])),
+    Erc = current_form(Dir, "time.ern", "export fn mine() : String = \"the program's\"\n"),
+    {ok, Form} = file:read_file(Erc),
+    ?assertEqual(<<"source root .\nbuild root .\n", Refused/binary, Skipped/binary>>,
+                 Built(["--verbose", "."])),
+    ?assertEqual({ok, Form}, file:read_file(Erc)),
+    ?assertEqual(Refused, Built(["time.ern"])),
+    ?assertNot(filelib:is_regular(Dir ++ "/main.erc")).
+
+%% report §11.1: `ern doc` refuses such a module as `ern build` does, of
+%% its source given alone and in a directory, and given its `.erc` tests
+%% none and writes its page. Written before the code. Whether the
+%% directory's other module gets its page is not tested: `ern doc` of a
+%% directory writes none where a module fails
+doc_of_a_module_hiding_a_library_test() ->
+    Dir = tmp(),
+    write(Dir, "other.ern", "export fn main() : Unit = Io.println(\"other\")\n"),
+    current_form(Dir, "time.ern", "/// The program's own.\nexport fn mine() : String = \"mine\"\n"),
+    Refused = list_to_binary(["ern doc: ", hides_time("time.ern"), "\n"]),
+    in_directory(Dir, fun() ->
+                          ?assertEqual(1, ern_err(["doc", "time.ern"])),
+                          ?assertEqual(1, ern_err(["doc", "."])),
+                          ?assertEqual(0, ern_err(["doc", "time.erc"]))
+                      end),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch(<<Refused:(byte_size(Refused))/binary, Refused:(byte_size(Refused))/binary,
+                   "# Ernest module Time\n", _/binary>>, Output).
+
+%% report §11.2: `ern run` and `ern test`, given a program that uses Http,
+%% whose root holds a compiled form of a program's Time, refuse it before
+%% anything runs, naming the file found as §11.1 names the module that
+%% hides the library's, where they said Http was compiled against another
+%% Time, which no build of the program can mend. Written before the code.
+%% A node's start, which reads every module of its load path, is not
+%% covered, nor `ern shell` given a file, which ern_shell_tests holds
+run_finding_a_module_hiding_a_library_test() ->
+    Dir = tmp(),
+    write(Dir, "main.ern", "export fn main() : Unit = Io.println(Http.date(0))\n"),
+    write(Dir, "check.ern",
+          "let dated : Test.Case(Never) =\n"
+          "    Test.Case(name = \"dated\",\n"
+          "              run = fn() = Test.equal(String.size(Http.date(0)), 29))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir])),
+    ?assertEqual(0, ern_err(["test", Dir ++ "/check.erc"])),
+    current_form(Dir, "time.ern", "export fn mine() : String = \"the program's\"\n"),
+    Found = ern_build:shown(Dir ++ "/time.erc"),
+    ?assertEqual(1, ern_err(["run", Dir ++ "/main.erc"])),
+    ?assertEqual(1, ern_err(["test", Dir ++ "/check.erc"])),
+    ?assertEqual(list_to_binary(["dated: passed\n",
+                                 "ern run: ", hides_time(Found), "\n",
+                                 "ern test: ", hides_time(Found), "\n"]),
+                 iolist_to_binary(?capturedOutput)).
+
+%% report §11.1, §4.2: a module that hides a library's module no library
+%% depends on, `Json`, is built and documented, and so is one under a
+%% library's namespace, `time/zone.ern`, which hides nothing; and a
+%% library's own module, built from its own source root, is not refused.
+%% Written with the code, so a regression test; the build and the run of
+%% the first two are own_module_before_library_test's and
+%% module_under_a_library_namespace_test's
+hiding_allowed_test() ->
+    Dir = tmp(),
+    write(Dir, "json.ern", "export fn parse(text : String) : Int = String.size(text)\n"),
+    write(Dir, "time/zone.ern", "export fn name() : String = \"UTC\"\n"),
+    ?assertEqual(0, ern_err(["build", Dir])),
+    ?assertEqual(0, ern_err(["doc", Dir])),
+    ?assert(filelib:is_regular(Dir ++ "/json.erc")),
+    ?assert(filelib:is_regular(Dir ++ "/time/zone.erc")),
+    Time = filename:join([ern_tree:tree(), "src", "libs", "time"]),
+    Build = Dir ++ "/library",
+    ?assertEqual(0, ern_err(["build", "--source-root", Time, "--build-root", Build, Time])),
+    ?assertEqual(0, ern_err(["doc", "--source-root", Time, "--build-root", Build, Time])),
+    ?assert(filelib:is_regular(Build ++ "/time.erc")),
+    ?assert(filelib:is_regular(Build ++ "/time.md")),
+    ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.1: the refusal names the library of the first module, in the
+%% load path's order, that depends on the hidden one, the hidden one's own
+%% library among them, and a library's module no module of the libraries
+%% depends on is not refused: three libraries built as the toolchain's are,
+%% `zed`, whose `Zed.Extra` uses `Zed`, and `alpha` and `beta`, each of
+%% which uses `Zed`, given as the load path's libraries. Written with the
+%% code, so a regression test
+first_dependent_named_test() ->
+    Dir = tmp(),
+    Libraries = [filename:join([Dir, "build", Name]) || Name <- ["alpha", "beta", "zed"]],
+    [Alpha, Beta, Zed] = Libraries,
+    write(Dir, "zed/zed.ern", "export fn one() : Int = 1\n"),
+    write(Dir, "zed/zed/extra.ern", "export fn two() : Int = Zed.one() + 1\n"),
+    write(Dir, "alpha/alpha.ern", "export fn three() : Int = Zed.one() + 2\n"),
+    write(Dir, "beta/beta.ern", "export fn four() : Int = Zed.one() + 3\n"),
+    Built = fun(Name, Build, LoadPath) ->
+                    Source = filename:join(Dir, Name),
+                    ?assertEqual(0, ern_err(["build", "--source-root", Source, "--build-root",
+                                             Build | LoadPath] ++ [Source]))
+            end,
+    Built("zed", Zed, []),
+    Built("alpha", Alpha, ["--load-path", Zed]),
+    Built("beta", Beta, ["--load-path", Zed]),
+    Program = Dir ++ "/program/zed.ern",
+    Refusal = fun(Dependent) ->
+                      ern_build:shown(Program) ++ ": Zed hides the library Zed, which the library "
+                          ++ Dependent ++ " uses"
+              end,
+    ?assertEqual(Refusal("Alpha"), ern_build:hiding(Program, ['Zed'], Program, Libraries)),
+    ?assertEqual(Refusal("Beta"), ern_build:hiding(Program, ['Zed'], Program, [Beta, Zed])),
+    ?assertEqual(Refusal("Zed"), ern_build:hiding(Program, ['Zed'], Program, [Zed])),
+    ?assertEqual(Refusal("Alpha"), ern_build:hiding(Program, ['Zed'], none, Libraries)),
+    ?assertEqual(none, ern_build:hiding(Program, ['Alpha'], Program, Libraries)),
+    ?assertEqual(none, ern_build:hiding(Program, ['Zed', 'Extra'], Program, Libraries)),
+    ?assertEqual(none, ern_build:hiding(Program, ['Gamma'], Program, Libraries)).
+
 %% report §4.2: the root is one namespace, which the source root's modules
 %% and a load path root's stand in together: the program's `geo/a.ern`
 %% beside a `--load-path` root's `geo.erc` and `geo/b.erc` provides
