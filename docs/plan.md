@@ -239,6 +239,18 @@ Item 43 is MVP 4.17's.
     rules they have (the log's *A Few at a Time*). The cold reading of a batch's report
     sentences (*Tests*) is among the rules read, to be cut or narrowed (the log's *A
     Defense Names Its Attacker*).
+
+    A proposal for that rule, brought 2026-11-14 from MVP 4.17's item 48 and not decided.
+    A reading asks one question, whether a careful builder would build another reading
+    and a user would meet the difference. It runs once, and nothing is reworded for any
+    other point. Where a sentence reads one way only as a table, its test holds the
+    corner. A change to the grammar or to a rule of §3 to §9 keeps its reading as it is
+    (the log's *A Reading Names Its Builder*).
+
+    Decided with the user 2026-11-14, and written into *Done* with this reading: a report
+    names each thing that remains, specific enough to act on or to drop, and says nothing
+    where there is none. The user does not ask whether the work is good (the log's *A
+    Reading Names Its Builder*, its paragraph *What remains, or nothing*).
 45. **The milestone split in two**, done 2026-11-14 (the log's *The Milestone Split*).
 46. **What item 42's round left to decide**, done 2026-11-14 (the log's *No Module's
     Source* and *An Index That Is No File*).
@@ -265,23 +277,9 @@ cold before the build (the log's *The Trust Said Once*).
 
 47. **The trust said once, and the defenses that go**, done 2026-11-14 in two builds (the
     log's *The Trust Said Once*, its paragraphs *The first build* and *The second build*).
-48. **One paragraph on a name that reaches no regular file**, decided with the user
-    2026-11-14. §11 says it once, in three sentences. A job reads only a regular file, a
-    link followed, and opens nothing else. A job that looks for a file passes over any
-    other name. A job that must read one, given it or walking to it, fails as for a file it
-    cannot read, `is no regular file`. The sentences on a named pipe at each place go, in
-    §11, §11.1 and §11.9. The clause on a file a job writes, §11.4's sentence and E.28's
-    stay.
-
-    Two behaviors change. A node's start refuses a named pipe in a root, as it refuses a
-    file it cannot read. A named pipe in a named package's `src` is held to the rule of the
-    package's namespaces, which reads no source.
-
-    The build first finds whether the toolchain's reads can pass through one function. A
-    test goes with its sentence where they do. Where a place keeps its own stat, its test
-    stays as a regression test that cites the paragraph. The glossary's *Unopened* follows
-    the code. A node's refusal of a file of another kind in its directory has no test, and
-    gets one here. The item closes on `make test-full`.
+48. **One paragraph on a name that reaches no regular file**, done 2026-11-15 in two
+    builds (the log's *The Trust Said Once*, its paragraphs *The fourth build's sentences*
+    to *The corner closed*).
 49. **A control character in a path a job writes**, found 2026-11-14 by item 43's probe:
     `ern build` of a file whose name holds an escape writes the escape to the terminal.
     The guard stands where a path is written, as `\xHH`, the way a byte that is not UTF-8
@@ -304,6 +302,9 @@ cold before the build (the log's *The Trust Said Once*).
 
     The report changes first and is read cold. The build closes on `make test-shell` and
     `make test`.
+53. **What item 48's cold reading left**, dropped 2026-11-14 on the user's word: no more
+    is spent on a name that reaches no regular file (the log's *The Trust Said Once*, its
+    paragraph *The corner closed*).
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.

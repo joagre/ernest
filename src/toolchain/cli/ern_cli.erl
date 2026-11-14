@@ -1004,19 +1004,21 @@ format(Options, Paths, ErrorDevice) ->
 %% found under, or none for a file named alone.
 files_named(Path) ->
     case filelib:is_dir(Path) of
-        true -> [{File, Path} || File <- ern_build:sources(Path)];
+        true -> [{ern_build:found_path(File), Path} || File <- ern_build:sources(Path)];
         false -> [{Path, none}]
     end.
 
 %% Report §11.6, §11.1: a file laid out where it is a module, and refused
-%% where it is none, which fails that file alone, the rest laid out; one
-%% the walk found and did not open is refused so (ern_build:sources/1).
-format_named(_Options, {_File, Unopened}, _Directory, ErrorDevice) ->
-    io:format(ErrorDevice, "ern format: ~ts~n", [Unopened]),
-    error;
+%% where it is none, which fails that file alone, the rest laid out; so is
+%% a file the job cannot read, named alone or found under a directory, and
+%% report §11: one that reaches no regular file is one the job cannot read
+%% (ern_build:read/1).
 format_named(Options, File, Directory, ErrorDevice) ->
-    try shaped(File, Directory) of
-        ok -> format_file(Options, File, ErrorDevice)
+    try
+        shaped(File, Directory),
+        ern_build:read(File)
+    of
+        Text -> format_file(Options, File, Text, ErrorDevice)
     catch
         throw:{cli_error, Refusal} ->
             io:format(ErrorDevice, "ern format: ~ts~n", [Refusal]),
@@ -1046,8 +1048,7 @@ format_result(Options, Output, Same) ->
         {true, changed} -> io:format("-~n"), 1
     end.
 
-format_file(Options, File, ErrorDevice) ->
-    Text = ern_build:read(File),
+format_file(Options, File, Text, ErrorDevice) ->
     case ern_format:format(Text) of
         {ok, Text} -> ok;
         {ok, Output} ->
@@ -1202,7 +1203,7 @@ test(Options, [Path], ErrorDevice) ->
     ern_build:package_said(Options, Say),
     case ern_build:path_kind(Path) of
         directory ->
-            Files = ern_build:compiled_found_under(Path),
+            Files = ern_build:compiled_under(Path),
             LoadPath = ern_build:with_root(ern_build:absolute(Path), ern_build:load_path(Options)),
             as_node(Options, LoadPath, Say,
                     fun(Node) ->
@@ -1224,12 +1225,11 @@ test(Options, [Path], ErrorDevice) ->
 %% own, its name before its tests' lines, and one without passed over,
 %% loaded and not run; the status of each run. A run a signal ended, or
 %% whose output could no longer be written, is the last. Say says each
-%% module read (--verbose). Report §11: a `.erc` found that reaches no
-%% regular file ends the job at its turn with its refusal.
+%% module read (--verbose). A module that cannot be loaded ends the job at
+%% its turn, and report §11: a `.erc` found that reaches no regular file is
+%% one the job cannot read (ern_build:read/1).
 tree_tests([], _Options, _Say, _ErrorDevice, _Node) ->
     [];
-tree_tests([{_File, Refusal} | _], _Options, _Say, _ErrorDevice, _Node) ->
-    ern_build:fail(Refusal);
 tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
     {Namespace, LoadPath, Loaded} = program(File, Options, Say),
     %% report §11.2: a module's doc examples are cases as its tests are
@@ -2285,9 +2285,10 @@ qualified_name(_, _) ->
 %% What the interface of a loaded module says of one of its names: an entry
 %% point, a `let`, a function of another shape, or nothing it exports. A
 %% result type that is a type variable is instantiated to `Unit`, as a
-%% polymorphic mailbox type is to `Never` (report §8.1).
+%% polymorphic mailbox type is to `Never` (report §8.1). The file it was
+%% loaded from is read as every file a job reads is (report §11).
 entry_shape(ErlangModule, Function) ->
-    {ok, Beam} = file:read_file(code:which(ErlangModule)),
+    Beam = ern_build:read(code:which(ErlangModule)),
     {ok, #{interface := #interface{namespace = Namespace, values = Values, lets = Lets}}} =
         ern_interface:read(Beam),
     QualifiedName = Namespace ++ [Function],
@@ -2505,10 +2506,11 @@ same_stdlib(Namespace, Chunk, StdlibHash) ->
 %% refused; where the module is a library's and the form found for a
 %% library's module it uses is not that library's build's, the refusal
 %% names the form found as §11.1 names a module that hides the library's
-%% (ern_build:hiding_found/5), since no build of the program mends it.
+%% (ern_build:hiding_found/5), since no build of the program mends it. The
+%% form found is read as every file a job reads is (report §11).
 same_interface(Namespace, File, Dependency, Hash) ->
     Found = code:which(ern_namespace:erlang_module(Dependency)),
-    {ok, Beam} = file:read_file(Found),
+    Beam = ern_build:read(Found),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     ern_interface:hash(Interface) =:= Hash
         orelse ern_build:fail(another_interface(Namespace, File, Dependency, Found)).

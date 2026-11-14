@@ -4169,11 +4169,11 @@ reload_passes_over_a_taken_namespace() ->
 shell_over_src(Dir) ->
     "cd " ++ Dir ++ " && " ++ alone(filename:absname("../bin/ern") ++ " shell --source-root src").
 
-%% report §11.1, §11.2: a `.ern` under the source root that reaches a named
-%% pipe is no module's source, so `:load` of its module, which has no
-%% compiled form, finds no module, and the session goes on, the pipe not
-%% opened. A regression test, written after the code; it does not cover a
-%% device or a socket
+%% report §11, §11.2: a job that looks for a module's source passes over a
+%% `.ern` under the source root that reaches a named pipe, so `:load` of
+%% its module, which has no compiled form, finds no module, and the session
+%% goes on, the pipe not opened. A regression test, written after the
+%% code; it does not cover a device or a socket
 load_passes_over_a_pipe_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_passes_over_a_pipe/0).
 
@@ -4187,11 +4187,12 @@ load_passes_over_a_pipe() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> no module Fifo under the source root or on the"
                                                 " load path\n> 2 : Int\n">>)).
 
-%% report §11.1, §11.2: where a module's source has become a named pipe,
-%% which is no module's source, `:load` loads the compiled form beside it
-%% as a module's whose source the source root does not hold, and the pipe
-%% is not opened. A regression test, written after the code; it does not
-%% cover a device or a socket, nor a compiled form on the load path
+%% report §11, §11.2: where a module's source has become a named pipe,
+%% which a module's source looked for passes over, `:load` loads the
+%% compiled form beside it as a module's whose source the source root does
+%% not hold, and the pipe is not opened. A regression test, written after
+%% the code; it does not cover a device or a socket, nor a compiled form on
+%% the load path
 load_compiled_beside_a_pipe_test_() ->
     ern_nodes_tests:counted_test({waits, 2}, fun load_compiled_beside_a_pipe/0).
 
@@ -4208,7 +4209,7 @@ load_compiled_beside_a_pipe() ->
     {0, Output} = ern_pty:sh(shell_over_src(Dir) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> Has, from src/has.erc\n> 1 : Int\n">>)).
 
-%% report §11.1, §11.2: a module the session compiled from its source,
+%% report §11, §11.2: a module the session compiled from its source,
 %% whose source the session then makes a named pipe, has no source under
 %% the source root, so `:reload` compiles nothing, names the module as one
 %% whose source the source root does not hold, and leaves it loaded; the

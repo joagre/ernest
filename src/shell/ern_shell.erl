@@ -3951,10 +3951,11 @@ first_qualified([{Root, Erc} | Candidates], Module, Digest, Against) ->
 %% it holds, as the build's own recompile rule compares them (§11.1), so
 %% that a form another build of `ern` wrote keeps no defect this one has
 %% fixed; and code the host will load as the module's unit, as the build's
-%% rule asks it too (§11). A file that cannot be read is none, and the
-%% module is compiled from its source.
+%% rule asks it too (§11). A file that cannot be read is none, one whose
+%% name reaches no regular file among them (ern_build:regular_bytes/1),
+%% and the module is compiled from its source.
 qualified_form(Root, Erc, Module, Digest, Against) ->
-    case file:read_file(Erc) of
+    case ern_build:regular_bytes(Erc) of
         {ok, Beam} -> compiled_against(Root, Erc, Beam, Module, Digest, Against);
         {error, _} -> none
     end.
@@ -4618,8 +4619,8 @@ source_of(#session{source_root = SourceRoot} = Session, Namespace) ->
 
 %% Report §11.2, §11.8: a module's compiled form, the first under the
 %% source root and then on the load path (load_path/1), or none; one that
-%% cannot be read is refused with the file and the host's
-%% reason, as the build refuses a file it cannot read, one that holds
+%% cannot be read is refused with the file and its reason, as the build
+%% refuses a file it cannot read (ern_build:regular_bytes/1), one that holds
 %% another module as `ern run` refuses it, and one whose code the host
 %% will not load as `ern run` refuses a dependency so (§11), the file
 %% named from the working directory (§11.5).
@@ -4630,7 +4631,7 @@ compiled_of(Session, Namespace) ->
                        Candidate <- [filename:join(Dir, Relative)],
                        filelib:is_regular(Candidate)] of
         [File | _] ->
-            case file:read_file(File) of
+            case ern_build:regular_bytes(File) of
                 {ok, Beam} ->
                     case ern_interface:read(Beam) of
                         {ok, #{interface := #interface{namespace = Namespace},
@@ -4652,7 +4653,7 @@ compiled_of(Session, Namespace) ->
                     end;
                 {error, Error} ->
                     {error, unicode:characters_to_binary([ern_build:bytes_text(File), ": ",
-                                                          file:format_error(Error)])}
+                                                          ern_build:reason(Error)])}
             end;
         [] ->
             none
@@ -4810,7 +4811,7 @@ path(File) ->
 %% one.
 file_error('NotFound') -> enoent;
 file_error('Denied') -> eacces;
-file_error('NotAFile') -> {text, "is no regular file"};
+file_error('NotAFile') -> unopened;
 file_error('Invalid') -> einval;
 file_error('Timeout') -> {text, "the shell's own node did not answer"};
 file_error({'Other', Text}) -> {text, unicode:characters_to_list(Text)};

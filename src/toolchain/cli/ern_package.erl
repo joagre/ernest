@@ -113,24 +113,15 @@ manifest(Manifest) ->
         {fault, Fault} -> #form{faults = [Fault]}
     end.
 
-%% Report §11.9: the manifest's text, or the one fault of its form that
-%% keeps it from being read: a link to nothing names nothing, a name that
-%% reaches no regular file, a directory or a FIFO among them, is refused
-%% before it is read, so that no read waits on it, and a file that cannot
-%% be read is refused with the host's reason.
+%% Report §11.9, §11: the manifest's text, or the one fault of its form
+%% that keeps it from being read: a link to nothing names nothing, and any
+%% other file the job cannot read, a name that reaches no regular file
+%% among them (ern_build:regular_bytes/1), is refused with its reason.
 text(Manifest) ->
-    case file:read_file_info(Manifest) of
-        {ok, #file_info{type = regular}} ->
-            case file:read_file(Manifest) of
-                {ok, Text} -> {ok, Text};
-                {error, Error} -> {fault, file:format_error(Error)}
-            end;
-        {ok, _} ->
-            {fault, "is no regular file"};
-        {error, enoent} ->
-            {fault, "no such file"};
-        {error, Error} ->
-            {fault, file:format_error(Error)}
+    case ern_build:regular_bytes(Manifest) of
+        {ok, Text} -> {ok, Text};
+        {error, enoent} -> {fault, "no such file"};
+        {error, Error} -> {fault, ern_build:reason(Error)}
     end.
 
 %% Report §11.9: whether every user may write the working directory, Dir,
@@ -226,20 +217,18 @@ version_said(Package) ->
 %% Report §11.9: a package's version, its `VERSION`'s one line, which holds
 %% a version and ends in a line feed; `absent` where the package holds no
 %% name `VERSION`, and `not_of_form` for any other, which gives it no
-%% version. A name that reaches no regular file, a FIFO among them, is not
-%% read, so that no read waits on it.
+%% version. A file the job cannot read, a name that reaches no regular file
+%% among them (report §11), is one of no form.
 version_held(Package) ->
     File = filename:join(Package, "VERSION"),
-    case {file:read_link_info(File, [raw]), file:read_file_info(File)} of
-        {{error, enoent}, _} ->
+    case file:read_link_info(File, [raw]) of
+        {error, enoent} ->
             absent;
-        {_, {ok, #file_info{type = regular}}} ->
-            case file:read_file(File) of
+        _ ->
+            case ern_build:regular_bytes(File) of
                 {ok, Text} -> version_line(binary:split(Text, <<"\n">>));
                 {error, _} -> not_of_form
-            end;
-        _ ->
-            not_of_form
+            end
     end.
 
 version_line([Version, <<>>]) ->
@@ -572,12 +561,13 @@ unmet(Needed, Least, #form{named = Named, names = Names}) ->
 %% Report §11.9, §11.1: each module under a named package's `src` that does
 %% not stand at the namespace of the package's name or under it, by its
 %% path, found as directory mode finds the modules under a directory; its
-%% namespace is its path's, and no source is parsed. A file whose path is
-%% not of a module's shape, and one the walk does not open, stands at no
-%% namespace, and the package's build refuses it (§11.1). A walk that
-%% cannot be made is said as its refusal, which names its path as §11.5
-%% writes one. A package that holds no name `src` has no module, and a
-%% `src` that reaches no directory is refused in their place.
+%% namespace is its path's, and no source is parsed: a `.ern` the job
+%% cannot read, one whose name reaches no regular file among them (§11), is
+%% held to the rule as any other. A file whose path is not of a module's
+%% shape stands at no namespace, and the package's build refuses it
+%% (§11.1). A walk that cannot be made is said as its refusal, which names
+%% its path as §11.5 writes one. A package that holds no name `src` has no
+%% module, and a `src` that reaches no directory is refused in their place.
 modules_outside(Name, Package) ->
     Src = ern_build:shown(filename:join(Package, "src")),
     {ok, Provided} = ern_namespace:segment(Name),
@@ -589,7 +579,8 @@ modules_outside(Name, Package) ->
                 Sources ->
                     [lists:flatten([ern_build:shown(Source), ": the package ", Name, " provides ",
                                     Provided, " and what stands under it"])
-                     || Source <- Sources, is_list(Source), not is_provided(Source, Src, Name)]
+                     || Found <- Sources, Source <- [ern_build:found_path(Found)],
+                        not is_provided(Source, Src, Name)]
             catch
                 throw:{cli_error, Refusal} -> [Refusal]
             end;

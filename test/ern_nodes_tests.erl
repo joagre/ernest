@@ -1318,11 +1318,14 @@ misshapen_load_path(Base) ->
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
 %% report §11, §11.2, §8.7: a node, which reads every module of its load
-%% path, passes over a `.erc` there that reaches a named pipe, and does not
-%% open it: the program runs and the node stops. It does not cover a
-%% device, a socket, or a pipe under a named package's build
+%% path at its start, is refused where it cannot read one, with the host's
+%% reason, and so where one reaches a named pipe, which it does not open,
+%% `is no regular file`; a directory named as a `.erc` is walked, and the
+%% program runs. It assumes a user the file's mode binds, which root is
+%% not, and does not cover a device, a socket, or a pipe under a named
+%% package's build
 unopened_load_path_test_() ->
-    nodes_test({waits, 2}, fun unopened_load_path/1).
+    nodes_test({waits, 4}, fun unopened_load_path/1).
 
 unopened_load_path(Base) ->
     Lone = made(Base, "lone", none),
@@ -1333,11 +1336,20 @@ unopened_load_path(Base) ->
     Build = filename:join(Base, "build"),
     0 = built(["--build-root", Build, Source]),
     Pipes = filename:join(Base, "pipes"),
-    ok = filelib:ensure_path(Pipes),
-    "" = os:cmd("mkfifo " ++ filename:join(Pipes, "x.erc")),
-    ?assertEqual({0, "ran\n"},
-                 finished([?ERN, " run --config-dir ", Lone, " --load-path ", Pipes, " ",
-                           filename:join(Build, "main.erc"), " 2>&1"])),
+    ok = filelib:ensure_path(filename:join(Pipes, "walked.erc")),
+    Run = fun() ->
+              finished([?ERN, " run --config-dir ", Lone, " --load-path ", Pipes, " ",
+                        filename:join(Build, "main.erc"), " 2>&1"])
+          end,
+    ?assertEqual({0, "ran\n"}, Run()),
+    Closed = filename:join(Pipes, "closed.erc"),
+    {ok, _} = file:copy(filename:join(Build, "main.erc"), Closed),
+    ok = file:change_mode(Closed, 8#000),
+    ?assertEqual({1, "ern run: " ++ ern_build:shown(Closed) ++ ": permission denied\n"}, Run()),
+    ok = file:delete(Closed),
+    Pipe = filename:join(Pipes, "x.erc"),
+    "" = os:cmd("mkfifo " ++ Pipe),
+    ?assertEqual({1, "ern run: " ++ ern_build:shown(Pipe) ++ ": is no regular file\n"}, Run()),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
 %% report §11.2, §8.7: a node, which reads every module of its load path,

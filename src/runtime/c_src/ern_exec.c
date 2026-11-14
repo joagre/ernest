@@ -99,20 +99,23 @@
  * with the node however the node ends; it ignores the signals a terminal
  * or a service manager sends the node's process group, so that the lock
  * goes with the node and not before it. An error is an 'f' frame and its
- * name.
+ * name. A path that names what is neither a regular file nor a link, a
+ * named pipe, a device, a socket or a directory, is not opened, and the
+ * helper exits 9 (report §11).
  *
  * With the arguments `node`, a path and a signal's number, the helper
  * sends the signal to the node that holds the node's lock on the file at
  * the path, the process the file names, and exits 0; given `wait` after
  * them, it exits 0 once the lock has gone with the node, so that `ern
  * stop` returns once the node has ended (report §11.2). It exits 1 where
- * there is no such file, 2 where no node holds it, 8 where the file is not
- * this user's own, 3 where it names no process, 4 where the process it
- * names has ended, and 5 where that process is not this user's to signal;
- * an error is an 'f' frame and its name, and 6. A signal reaches only a
- * node so, never a process whose number a file no node holds names by
- * chance, and never one whose number a file of another user's names
- * (report §11.2, §12.5). The file is opened through no link.
+ * there is no such file, 9 where the path names no regular file, which it
+ * does not open, as `lock` does not, 2 where no node holds it, 8 where the
+ * file is not this user's own, 3 where it names no process, 4 where the
+ * process it names has ended, and 5 where that process is not this user's
+ * to signal; an error is an 'f' frame and its name, and 6. A signal
+ * reaches only a node so, never a process whose number a file no node
+ * holds names by chance, and never one whose number a file of another
+ * user's names (report §11.2, §12.5). The file is opened through no link.
  *
  * The locks are POSIX's record locks, which a process holds until it
  * closes the file or ends, and which another can ask after without taking
@@ -747,6 +750,15 @@ static long number_held(int fd)
     return number_of(text);
 }
 
+/* Report §11: whether Path names what is neither a regular file nor a link,
+   which a node's file is not opened as, since an open of a named pipe may
+   never end; a link is refused as the file is opened, through no link. */
+static int is_unopened(const char *path)
+{
+    struct stat status;
+    return lstat(path, &status) == 0 && !S_ISREG(status.st_mode) && !S_ISLNK(status.st_mode);
+}
+
 /* `lock PATH NUMBER`: the node's hold on its ernest.pid (above). The
    signals are ignored before the lock is taken, so that none ends the hold
    while the node lives. Report §12.5: a file it makes is writable by its
@@ -769,6 +781,8 @@ static int hold_lock(int argc, char **argv)
         return 7;
     for (index = 0; index < sizeof ignored / sizeof ignored[0]; index++)
         signal(ignored[index], SIG_IGN);
+    if (is_unopened(argv[2]))
+        return 9;
     fd = open(argv[2], O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
     if (fd < 0 || byte_lock(fd, F_SETLKW, F_WRLCK, NUMBER_BYTE, &lock) < 0)
         return fail('f', errno, 1);
@@ -835,6 +849,8 @@ static int signal_node(int argc, char **argv)
     number = number_of(argv[3]);
     if (number < 0 || number > SIGNALS)
         return 7;
+    if (is_unopened(argv[2]))
+        return 9;
     fd = open(argv[2], O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     if (fd < 0)
         return errno == ENOENT ? 1 : fail('f', errno, 6);

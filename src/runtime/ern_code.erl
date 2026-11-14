@@ -541,7 +541,8 @@ grounded(Hash) ->
 %% file holds the unit's code still; none where neither is there, a file
 %% changed or gone among the ways, as a build written under a running node
 %% changes it, so that a unit is never described by forms its code was not
-%% compiled from.
+%% compiled from. A file whose name reaches no regular file is none, and
+%% is not opened (§11).
 -spec forms(module()) -> {ok, #recorded{}} | none.
 forms(Unit) ->
     case lookup({forms, Unit}) of
@@ -549,7 +550,7 @@ forms(Unit) ->
             {ok, Recorded};
         [] ->
             File = code:which(Unit),
-            case is_list(File) andalso file:read_file(File) of
+            case is_list(File) andalso is_regular(File) andalso file:read_file(File) of
                 {ok, Bytes} ->
                     case holds_code(Unit, Bytes) andalso ern_canonical:read(Bytes) of
                         {ok, Recorded} -> {ok, kept(Unit, Recorded)};

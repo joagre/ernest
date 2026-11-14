@@ -1123,6 +1123,34 @@ node_file_test() ->
     ?assertEqual({Followed, Followed},
                  {ern_os:locked(Link, Number), ern_os:node_signaled(Link, 0, false)}).
 
+%% report §11, §12.5: a node's ernest.pid whose name reaches no regular
+%% file, a named pipe, a socket or a directory, is not opened, neither to
+%% lock it nor to signal the node it names, and the helper says so; a job
+%% that opened the pipe would not end, which is how the test shows that
+%% none does. A device is not covered
+unopened_node_file_test() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_os_unopened_" ++ os:getpid()),
+    ok = filelib:ensure_path(Dir),
+    PidFile = filename:join(Dir, "ernest.pid"),
+    Number = list_to_integer(os:getpid()),
+    Answers = fun() ->
+                  {ern_os:locked(PidFile, Number), ern_os:node_signaled(PidFile, 0, false),
+                   ern_os:node_signaled(PidFile, 15, true)}
+              end,
+    "" = os:cmd("mkfifo " ++ PidFile),
+    Pipe = Answers(),
+    ok = file:delete(PidFile),
+    {ok, Socket} = gen_udp:open(0, [{ifaddr, {local, PidFile}}]),
+    Bound = Answers(),
+    ok = gen_udp:close(Socket),
+    ok = file:delete(PidFile),
+    ok = file:make_dir(PidFile),
+    Directory = Answers(),
+    ok = file:del_dir(PidFile),
+    ok = file:del_dir(Dir),
+    ?assertEqual(lists:duplicate(3, {unopened, unopened, unopened}), [Pipe, Bound, Directory]).
+
 %% report §12.5: a node's ernest.pid that an earlier node left, which others
 %% may write, as one made under the mask 002 before 0.9.0 is, is made its
 %% owner's alone to write once the node holds its lock, its other bits as

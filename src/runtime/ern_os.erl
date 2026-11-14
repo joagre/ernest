@@ -196,37 +196,41 @@ signal(Number, ProcessNumber) ->
 %% calling process owns the helper's port, which the host closes with the
 %% node however it ends, and the lock goes then, and not before. `locked`,
 %% or `{held, Text}` where a living node holds the file, Text the number it
-%% holds, or empty where it holds none, or `{failed, Text}`, the words for
-%% what stopped the helper.
+%% holds, or empty where it holds none, `unopened` where its name reaches
+%% no regular file, which the helper does not open (§11), or `{failed,
+%% Text}`, the words for what stopped the helper.
 -spec locked(file:filename(), pos_integer()) ->
-          locked | {held, binary()} | {failed, string()}.
+          locked | {held, binary()} | unopened | {failed, string()}.
 locked(PidFile, ProcessNumber) ->
     Helper = open(["lock", PidFile, integer_to_list(ProcessNumber)]),
     receive
         {Helper, {data, <<"l">>}} -> locked;
         {Helper, {data, <<"h", Text/binary>>}} -> ended(Helper), {held, Text};
         {Helper, {data, <<"f", Name/binary>>}} -> ended(Helper), {failed, error_text(Name)};
+        {Helper, {exit_status, 9}} -> unopened;
         {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
     end.
 
 %% Report §12.5, §11.2: the signal Number sent by the helper to the node that
 %% holds the lock on PidFile, the process the file names, and where Wait is
 %% true, the node's end waited for, on its lock, which the host lets go
-%% when the node ends: `sent`; `no_file`; `no_node` where no node holds the
-%% file; `no_process` where the file names none; `none` where the process
-%% it names has ended; `others` where that process is another user's; or
-%% `{failed, Text}`, a file that is not this user's own among the ways, the
-%% superuser's to another user and another user's to the superuser, whose
-%% number names no node of this user's, since another user wrote it. The
-%% file's mode is not tested.
+%% when the node ends: `sent`; `no_file`; `unopened` where its name reaches
+%% no regular file, which the helper does not open (§11); `no_node` where
+%% no node holds the file; `no_process` where the file names none; `none`
+%% where the process it names has ended; `others` where that process is
+%% another user's; or `{failed, Text}`, a file that is not this user's own
+%% among the ways, the superuser's to another user and another user's to
+%% the superuser, whose number names no node of this user's, since another
+%% user wrote it. The file's mode is not tested.
 -spec node_signaled(file:filename(), non_neg_integer(), boolean()) ->
-          sent | no_file | no_node | no_process | none | others | {failed, string()}.
+          sent | no_file | unopened | no_node | no_process | none | others | {failed, string()}.
 node_signaled(PidFile, Number, Wait) ->
     Helper = open(["node", PidFile, integer_to_list(Number) | ["wait" || Wait]]),
     receive
         {Helper, {data, <<"f", Name/binary>>}} -> ended(Helper), {failed, error_text(Name)};
         {Helper, {exit_status, 0}} -> sent;
         {Helper, {exit_status, 1}} -> no_file;
+        {Helper, {exit_status, 9}} -> unopened;
         {Helper, {exit_status, 2}} -> no_node;
         {Helper, {exit_status, 3}} -> no_process;
         {Helper, {exit_status, 4}} -> none;

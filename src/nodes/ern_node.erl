@@ -250,13 +250,14 @@ start(ConfigDir, Configuration) ->
 
 %% Report §12.5: a node stops the host's measures at its end, and removes
 %% `ernest.pid`, where the file is still its own; its lock on the file goes
-%% when the host ends with it (pid_written/1).
+%% when the host ends with it (pid_written/1). The file is read as every
+%% file a job reads is (report §11).
 -spec stop(file:filename()) -> ok.
 stop(ConfigDir) ->
     measures_stopped(),
     PidFile = file(ConfigDir, pid),
     Own = list_to_binary(os:getpid() ++ "\n"),
-    case file:read_file(PidFile) of
+    case ern_build:regular_bytes(PidFile) of
         {ok, Own} -> _ = file:delete(PidFile), ok;
         _ -> ok
     end.
@@ -301,8 +302,9 @@ all_found(ConfigDir, Files) ->
     lists:foreach(fun(File) -> found(ConfigDir, filename:join(ConfigDir, File), regular) end,
                   Files).
 
-%% A file or the directory: there, a link followed, and of its kind; the
-%% key neither read nor written by any but its owner (§12.5).
+%% A file or the directory: there, a link followed, and of its kind, a
+%% file of another kind refused as §11 refuses one, `is no regular file`;
+%% the key neither read nor written by any but its owner (§12.5).
 found(ConfigDir, Path, Kind) ->
     Shown = ern_build:shown(Path),
     Info = case file:read_file_info(Path, [{time, posix}]) of
@@ -313,14 +315,14 @@ found(ConfigDir, Path, Kind) ->
                                   " directory");
                {error, Error} -> ern_build:refused(Path, Error)
            end,
-    Info#file_info.type =:= Kind
-        orelse ern_build:fail(Shown ++ " is not a " ++ kind(Kind)),
+    case {Info#file_info.type, Kind} of
+        {Kind, _} -> ok;
+        {_, directory} -> ern_build:fail(Shown ++ " is not a directory");
+        {_, regular} -> ern_build:refused(Path, unopened)
+    end,
     filename:basename(Path) =/= ?KEY orelse Info#file_info.mode band 8#066 =:= 0
         orelse ern_build:fail(Shown ++ " may be read or written by others than its owner"),
     ok.
-
-kind(directory) -> "directory";
-kind(regular) -> "regular file".
 
 %% Each file is read through ern_build:read/1, which refuses one that cannot
 %% be read with its name and the host's reason; what does not decode is
@@ -376,7 +378,7 @@ certified_key(#'OTPCertificate'{tbsCertificate = Tbs}) ->
 %% helper, whose port this process owns until the host ends with the node,
 %% however it ends; a file a living node holds refuses the start, naming the
 %% number it holds, and one no node holds is overwritten, whatever number it
-%% names.
+%% names. A name that reaches no regular file is not opened (report §11).
 pid_written(ConfigDir) ->
     PidFile = file(ConfigDir, pid),
     case ern_os:locked(PidFile, list_to_integer(os:getpid())) of
@@ -389,6 +391,8 @@ pid_written(ConfigDir) ->
             ern_build:fail(ern_build:shown(ConfigDir) ++ " is the configuration directory of the"
                            " running node " ++ binary_to_list(Number) ++ ", which "
                            ++ ?PID_FILE ++ " names");
+        unopened ->
+            fail(ConfigDir, ?PID_FILE, ern_build:reason(unopened));
         {failed, Text} ->
             fail(ConfigDir, ?PID_FILE, Text)
     end.
@@ -429,7 +433,8 @@ measures_stopped() ->
 
 %% Report §12.5, §11.2: the signal sent to the node that runs from the
 %% directory, the one that holds its `ernest.pid`, the process the file
-%% names; where there is no file, no node holds it, the file is another
+%% names; where there is no file, its name reaches no regular file, which
+%% is not opened (§11), no node holds it, the file is another
 %% user's, or its process has ended or is another user's, the job fails,
 %% saying so, and nothing is signaled.
 -spec signaled(file:filename(), non_neg_integer()) -> ok.
@@ -447,6 +452,7 @@ node_signaled(ConfigDir, Number, Wait) ->
     case ern_os:node_signaled(file(ConfigDir, pid), Number, Wait) of
         sent -> ok;
         no_file -> fail(ConfigDir, ?PID_FILE, "no such file: no node runs from the directory");
+        unopened -> fail(ConfigDir, ?PID_FILE, ern_build:reason(unopened));
         no_node -> fail(ConfigDir, ?PID_FILE, "no node holds it: no node runs from the directory");
         no_process -> fail(ConfigDir, ?PID_FILE, "names no process");
         none -> fail(ConfigDir, ?PID_FILE, "names a process that has ended: no node runs from the"

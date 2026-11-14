@@ -59,12 +59,12 @@
 %% one uses (report §11.1). The source of the module is read once, where it
 %% has examples: a private declaration's example is compiled inside it, and
 %% every example's frames name the line of the source that holds it
-%% (frames/2).
+%% (frames/2). Each file is read as every file a job reads is (report §11).
 -spec cases([atom()], [module()], ern_build:load_path(), load()) ->
           {[example()], [module()]}.
 cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
     Erc = code:which(ErlangModule),
-    {ok, Beam} = file:read_file(Erc),
+    Beam = ern_build:read(Erc),
     Interfaces = interfaces(Loaded),
     Documented = documented(Namespace, Beam),
     Source = case [Doc || {_, Docs} <- Documented, {_, Doc} <- Docs, fences(Doc) =/= []] of
@@ -89,7 +89,7 @@ cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
 %% from the `.erc` the unit was loaded from (report §11.1).
 interfaces(Units) ->
     [Interface || Unit <- lists:reverse(Units),
-                  {ok, Compiled} <- [file:read_file(code:which(Unit))],
+                  {ok, Compiled} <- [ern_build:regular_bytes(code:which(Unit))],
                   {ok, #{interface := Interface}} <- [ern_interface:read(Compiled)]].
 
 %% Report §11.2: an example run by Run, its program, in an empty directory

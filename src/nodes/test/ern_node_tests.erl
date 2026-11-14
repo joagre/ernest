@@ -568,6 +568,63 @@ pid_link_test() ->
     ?assertEqual(Pid ++ ": too many levels of symbolic links", Refused()),
     ?assertEqual({ok, <<"1\n">>}, file:read_file(filename:join(Dir, "elsewhere.pid"))).
 
+%% report §12.5, §11: a node's start refuses a file of its configuration
+%% directory that reaches no regular file, `ernest.conf`, the key or the
+%% certificate a named pipe, a socket or a directory, naming the file, and
+%% opens none: the read ends. A regression test, written after the code;
+%% it does not cover a device
+other_kind_test() ->
+    Dir = made(),
+    Other = fun(Name, Make, Remove) ->
+                Path = filename:join(Dir, Name),
+                ok = file:rename(Path, Path ++ ".kept"),
+                Made = Make(Path),
+                try refusal(fun() -> ern_node:read(Dir) end)
+                after
+                    Remove(Path, Made),
+                    ok = file:rename(Path ++ ".kept", Path)
+                end
+            end,
+    Pipe = fun(Path) -> "" = os:cmd("mkfifo " ++ Path) end,
+    Socket = fun(Path) ->
+                 {ok, Socket} = gen_udp:open(0, [{ifaddr, {local, Path}}]),
+                 Socket
+             end,
+    Closed = fun(Path, Made) ->
+                 is_port(Made) andalso gen_udp:close(Made),
+                 ok = file:delete(Path)
+             end,
+    Directory = fun(Path) -> ok = file:make_dir(Path) end,
+    [?assertEqual(filename:join(Dir, Name) ++ ": is no regular file",
+                  Other(Name, Make, Remove))
+     || Name <- ["ernest.conf", "private-key.pem", "certificate.pem"],
+        {Make, Remove} <- [{Pipe, Closed}, {Socket, Closed},
+                           {Directory, fun(Path, _) -> ok = file:del_dir(Path) end}]].
+
+%% report §11, §12.5, §11.2: a node opens no `ernest.pid` that reaches no
+%% regular file, a named pipe, a socket or a directory: its start refuses
+%% it, and so do `ern reload` and `ern stop`, as a file they cannot read,
+%% `is no regular file`, and each ends. It does not cover a device
+pid_unopened_test() ->
+    Dir = made(),
+    Pid = filename:join(Dir, "ernest.pid"),
+    Refused = fun() ->
+                  [?assertEqual(Pid ++ ": is no regular file", refusal(Job))
+                   || Job <- [fun() -> ern_node:start(Dir) end,
+                              fun() -> ern_node:signaled(Dir, 0) end,
+                              fun() -> ern_node:stopped(Dir) end]]
+              end,
+    "" = os:cmd("mkfifo " ++ Pid),
+    Refused(),
+    ok = file:delete(Pid),
+    {ok, Socket} = gen_udp:open(0, [{ifaddr, {local, Pid}}]),
+    Refused(),
+    ok = gen_udp:close(Socket),
+    ok = file:delete(Pid),
+    ok = file:make_dir(Pid),
+    Refused(),
+    ?assert(filelib:is_dir(Pid)).
+
 %% report §11.2, §12.5: `ern reload` and `ern stop` signal only the node that
 %% holds ernest.pid, and fail where there is no file or no node holds it,
 %% a living process the file names among the ways, which is sent nothing.

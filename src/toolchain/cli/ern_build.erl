@@ -13,16 +13,16 @@
          package_said/2, modules_of/4,
          hiding/5, form_hiding/4, hiding_found/5, outside_package/3, form_out_of_place/3,
          library_name/1, compiled_in_order/3,
-         report_errors/3, shown/1, sources/1, compiled_found_under/1, compiled_under/1,
-         bytes_text/1, module_of/2, module_of/3, shape/2, compile_order/2, compile_order/3,
+         report_errors/3, shown/1, sources/1, found_path/1, compiled_under/1, bytes_text/1,
+         module_of/2, module_of/3, shape/2, compile_order/2, compile_order/3,
          module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
          source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
          stdlib_hash/0, dependency_interfaces/5, load_path/1, load_path_of/1, with_root/2,
          directories/1, looked_in/3, compiled_on/1, is_compiled_against/4, compiler_modules/0,
-         compiler_build/0, regular_bytes/1, sweep_pages/5, compile_source/5, compile_source/6,
-         absolute/1, relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1,
-         read_through/2, source_read/1, is_source/1, make_dirs/1, make_private_dir/1, refused/2,
-         fail/1]).
+         compiler_build/0, regular_bytes/1, reason/1, sweep_pages/5, compile_source/5,
+         compile_source/6, absolute/1, relative/2, root_of/2, write_whole/2, write_output/2,
+         write_output/3, read/1, read_through/2, source_read/1, is_source/1, make_dirs/1,
+         make_private_dir/1, refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -36,9 +36,9 @@
 -define(SOURCES, '$ern_sources').
 
 -type load_path() :: #load_path{}.
-%% Report §11.1: a file a walk found, or one it found and did not open,
-%% with its refusal (sources/1).
--type found() :: file:filename() | {file:filename(), string()}.
+%% Report §11, §11.1: a file a walk found, or one it found that reaches no
+%% regular file, which no job opens (files_under/2).
+-type found() :: file:filename() | {unopened, file:filename()}.
 -export_type([load_path/0, found/0]).
 
 %% Report §11.1: the modules a path names compiled, each failure reported
@@ -125,7 +125,7 @@ given_refused(Path, none) ->
 given_refused(Path, {error, Error}) ->
     fail(Path ++ ": " ++ file:format_error(Error));
 given_refused(Path, _) ->
-    fail(Path ++ ": is no regular file").
+    fail(Path ++ ": " ++ reason(unopened)).
 
 %% Report §11.1: --verbose's lines of the source root and the build root a
 %% build took.
@@ -304,21 +304,32 @@ package_said(Options, Say) ->
     lists:foreach(Say, [Line || {package_said, Line} <- Options]).
 
 %% The modules the files are, and a failure for each file whose path is
-%% none's, keyed by the file, since it has no namespace. Report §11.1: a
-%% file the walk found and did not open fails so, its refusal its only
-%% error. A module that hides a library's module another depends on fails
-%% too, by its namespace, so that a module that uses it is not compiled
-%% either, and before it is parsed, so that its refusal is its only error
-%% (hiding/5). Report §11.9: a module outside the named packages at a named
-%% package's namespace fails so too, keyed by its file, since a module that
-%% uses its namespace finds the package's (outside_package/3).
+%% none's, keyed by the file, since it has no namespace. Report §11,
+%% §11.1: a file the walk found that reaches no regular file fails so too,
+%% as a file the build cannot read, with the refusal its path alone earns
+%% (module_of/3) and otherwise `is no regular file`, and is not opened. It
+%% is keyed by its file and joins no module, since a module's source looked
+%% for passes it over, so a module that uses its namespace finds it
+%% elsewhere.
+%%
+%% A module that hides a library's module another depends on fails too, by
+%% its namespace, so that a module that uses it is not compiled either, and
+%% before it is parsed, so that its refusal is its only error (hiding/5).
+%% Report §11.9: a module outside the named packages at a named package's
+%% namespace fails so too, keyed by its file, since a module that uses its
+%% namespace finds the package's (outside_package/3).
 -spec modules_of([found()], file:filename(), tree | file, load_path()) ->
           {[#build_module{}],
            [{{file, file:filename()} | [atom()], {refused, string()}, []}]}.
 modules_of(Files, SourceRoot, Mode, LoadPath) ->
     Libraries = ern_tree:libraries(),
-    lists:foldr(fun({Source, Unopened}, {Modules, Misnamed}) ->
-                        {Modules, [{{file, Source}, {refused, Unopened}, []} | Misnamed]};
+    lists:foldr(fun({unopened, Source}, {Modules, Misnamed}) ->
+                        Refusal = try module_of(absolute(Source), SourceRoot, Mode) of
+                                      #build_module{} -> refusal(Source, unopened)
+                                  catch
+                                      throw:{cli_error, PathRefusal} -> PathRefusal
+                                  end,
+                        {Modules, [{{file, Source}, {refused, Refusal}, []} | Misnamed]};
                    (Source, {Modules, Misnamed}) ->
                         try module_of(absolute(Source), SourceRoot, Mode) of
                             #build_module{namespace = Namespace, file = File} = Module ->
@@ -649,7 +660,7 @@ failure(Namespace, {cli_error, Refusal}) ->
 %% directory when it lies under it.
 -spec report_errors(file:filename(), [ern_diagnostic:diagnostic()], io:device()) -> 1.
 report_errors(File, Diagnostics, ErrorDevice) ->
-    Source = case file:read_file(File) of
+    Source = case regular_bytes(File) of
                  {ok, Bytes} -> Bytes;
                  _ -> <<>>
              end,
@@ -682,29 +693,25 @@ shown(File) ->
 %% (§11.9). The host gives a name that is not UTF-8 as its bytes, and one
 %% of a `.ern` or of a directory that holds one is an error. A `.ern` that
 %% reaches, a link followed, what is neither a regular file nor a
-%% directory, a named pipe, a device or a socket, is found with its
-%% refusal, and is not opened.
+%% directory, a named pipe, a device or a socket, is found as one that
+%% reaches no regular file (§11), which no job opens.
 -spec sources(file:filename()) -> [found()].
 sources(Dir) ->
     files_under(Dir, ".ern").
 
-%% Report §11.2: every `.erc` under a directory, found as its sources are,
-%% in the order of their paths, which `ern test` runs them in, one that
-%% reaches what is no regular file with its refusal (§11).
--spec compiled_found_under(file:filename()) -> [found()].
-compiled_found_under(Dir) ->
-    [Found || {_, Found} <- lists:sort([{found_path(Found), Found}
-                                        || Found <- files_under(Dir, ".erc")])].
-
-found_path({Path, _Refusal}) -> Path;
+%% The path of a file a walk found, which a job that reads it reads through
+%% regular_bytes/1, as any file it reads.
+-spec found_path(found()) -> file:filename().
+found_path({unopened, Path}) -> Path;
 found_path(Path) -> Path.
 
-%% Report §11: the same, each that reaches a regular file, which a job that
-%% reads every module of a directory reads, a node's start among them
-%% (§11.2), passing over any other.
+%% Report §11.2: every `.erc` under a directory, found as its sources are,
+%% in the order of their paths, which `ern test` runs them in and a node's
+%% start reads them in (§8.7); one that reaches no regular file is a file
+%% the job cannot read, which its read refuses (read/1).
 -spec compiled_under(file:filename()) -> [file:filename()].
 compiled_under(Dir) ->
-    [File || File <- compiled_found_under(Dir), is_list(File)].
+    lists:sort([found_path(Found) || Found <- files_under(Dir, ".erc")]).
 
 files_under(Dir, Extension) ->
     Names = case file:list_dir_all(Dir) of
@@ -731,8 +738,7 @@ file_under(Dir, Name, Extension) ->
                 true -> []
             end;
         {ok, #file_info{type = Type}} when Type =/= regular ->
-            [{Path, shown(Path) ++ ": is no regular file"}
-             || filename:extension(Name) =:= Extension];
+            [{unopened, Path} || filename:extension(Name) =:= Extension];
         _ ->
             [Path || filename:extension(Name) =:= Extension]
     end.
@@ -1191,9 +1197,9 @@ type_members(Parent, Type, SourceRoot, LoadPath, Declared) ->
     end.
 
 %% The declarations a source holds; none when it is absent, reaches no
-%% regular file, which is not opened (report §11.1), or does not parse.
+%% regular file, which is not opened (report §11), or does not parse.
 source_declarations(File) ->
-    case regular_source(File) of
+    case source_read(File) of
         {ok, Bytes} ->
             case ern_parser:parse_string(Bytes) of
                 {ok, Declarations} -> {ok, Declarations};
@@ -2136,20 +2142,29 @@ code_md5(ErlangModule) ->
 read_erc(Erc) ->
     case regular_bytes(Erc) of
         {ok, Bytes} -> ern_interface:read(Bytes);
-        {error, unopened} -> {error, "is no regular file"};
-        {error, Error} -> {error, file:format_error(Error)}
+        {error, Error} -> {error, reason(Error)}
     end.
 
-%% Report §11, §11.1: a file's bytes, read where it reaches a regular
-%% file, a link followed, and `unopened` where it reaches what is no
-%% regular file, a named pipe, a device or a socket, which no job opens.
--spec regular_bytes(file:filename()) -> {ok, binary()} | {error, term()}.
+%% Report §11: a file's bytes, read where its name reaches a regular file,
+%% a link followed, and `unopened` where it reaches anything else, a
+%% directory, a named pipe, a device or a socket, which no job opens; else
+%% the host's reason. The toolchain's jobs read their files here, so that
+%% none waits on what no one writes.
+-spec regular_bytes(file:filename_all()) -> {ok, binary()} | {error, term()}.
 regular_bytes(File) ->
     case file:read_file_info(File) of
         {ok, #file_info{type = regular}} -> file:read_file(File);
         {ok, _} -> {error, unopened};
         {error, _} = Error -> Error
     end.
+
+%% Report §11: the words for why a file was not read, as a refusal says
+%% them after its name: `is no regular file` where its name reaches none
+%% (regular_bytes/1), a text of the job's own, or the host's reason.
+-spec reason(term()) -> string().
+reason(unopened) -> "is no regular file";
+reason({text, Text}) -> Text;
+reason(Error) -> file:format_error(Error).
 
 %% Report §11.1: remove every stale .erc under the mirror of the compiled
 %% subtree, each said by Say (--verbose), and each directory of the
@@ -2444,9 +2459,11 @@ unwritable(File, Place, Reason) ->
 %% Report §11.8: a file a job cannot read, a directory it cannot make, and
 %% a file it cannot remove are refused with the host's reason, status 1.
 %% A file already gone is removed.
+%% Report §11: one that reaches no regular file is one the job cannot
+%% read, and is not opened (regular_bytes/1).
 -spec read(file:filename_all()) -> binary().
 read(File) ->
-    case file:read_file(File) of
+    case regular_bytes(File) of
         {ok, Bytes} -> Bytes;
         {error, Error} -> refused(File, Error)
     end.
@@ -2475,20 +2492,12 @@ read_through(Access, Work) ->
     end.
 
 %% A source's bytes, or the reason it could not be read: a host's reason,
-%% or `{text, Text}`, the shell's own node's.
+%% `unopened` where it reaches no regular file, or `{text, Text}`, the
+%% shell's own node's. A shell's access reads no file but a regular one,
+%% as `Fs.read` reads none (report Appendix E.1), and a job's own disk is
+%% read through regular_bytes/1.
 -spec source_read(file:filename()) -> {ok, binary()} | {error, term()}.
 source_read(File) ->
-    case get(?SOURCES) of
-        #{read := Read} -> Read(File);
-        undefined -> file:read_file(File)
-    end.
-
-%% The same, where the source reaches a regular file: a shell's access
-%% reads no other, as `Fs.read` reads none (report Appendix E.1), and a
-%% job's own disk is asked first. A read whose file was asked already is
-%% source_read/1's.
--spec regular_source(file:filename()) -> {ok, binary()} | {error, term()}.
-regular_source(File) ->
     case get(?SOURCES) of
         #{read := Read} -> Read(File);
         undefined -> regular_bytes(File)
@@ -2548,12 +2557,13 @@ delete(File) ->
 %% Report §11.5: a file named from the working directory, and a name the
 %% host gives as bytes as its bytes.
 -spec refused(file:filename_all(), term()) -> no_return().
-refused(File, {text, Text}) ->
-    fail(shown(File) ++ ": " ++ Text);
-refused(File, Error) when is_list(File) ->
-    fail(shown(File) ++ ": " ++ file:format_error(Error));
 refused(File, Error) ->
-    fail(bytes_text(File) ++ ": " ++ file:format_error(Error)).
+    fail(refusal(File, Error)).
+
+refusal(File, Error) when is_list(File) ->
+    shown(File) ++ ": " ++ reason(Error);
+refusal(File, Error) ->
+    bytes_text(File) ++ ": " ++ reason(Error).
 
 %% The file a path names, its links followed, as the host follows them, up
 %% to a depth past which the host would refuse the path.

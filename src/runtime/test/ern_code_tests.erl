@@ -76,6 +76,34 @@ file_forms_hold_the_units_code_test() ->
     ?assertEqual(none, Changed),
     ?assertEqual({ok, Recorded}, Held).
 
+%% report §11, §11.2: a unit whose file has become a named pipe since it
+%% was loaded is described by no forms, and the pipe is not opened; a read
+%% that opened it would not end, which is how the test shows that none
+%% does. A device and a socket are not covered
+file_forms_unopened_test() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_code_" ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    File = filename:join(Dir, "pipeform.erc"),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Pipeform'],
+                                                             "export fn one() : Int = 1\n"),
+    {ok, _, Beam} = ern_compile:compile(['Pipeform'], Typed, Interface, Env,
+                                        #{source_hash => <<>>, deps => []}),
+    Unit = 'ern@pipeform',
+    ok = file:write_file(File, Beam),
+    {module, Unit} = code:load_binary(Unit, File, Beam),
+    ok = ern_code:loaded(Unit, Beam),
+    ok = file:delete(File),
+    "" = os:cmd("mkfifo " ++ File),
+    Forms = ern_code:forms(Unit),
+    ern_code:unloaded(Unit),
+    code:purge(Unit),
+    code:delete(Unit),
+    code:purge(Unit),
+    ok = file:delete(File),
+    ?assertEqual(none, Forms).
+
 %% report §11.1, §11.2: a unit of the toolchain's own is no `.beam` of the
 %% code path but its `.erc`, found by the namespace its Erlang name gives
 %% in the standard library's directory, here a test's, and loaded from it
