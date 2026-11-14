@@ -25,7 +25,8 @@ library or the libraries is driven by a need met in use and recorded as
 
 MVP 4.16 comes next, a deadlock's scope and its report, a package's manifest and build, and the
 flake hunt, before the launch (the log's *MVP 4.16, the Proposals Before the Launch*). Then MVP
-4.17, the rest of packages, split from it on 2026-11-14 (the log's *The Milestone Split*). Then
+4.17, what a job trusts and the rest of packages, split from it on 2026-11-14 (the log's *The
+Milestone Split*). Then
 MVP 4.6, the server owning
 both ends of its socket, moved before the launch on 2026-11-10 (the log's *MVP 4.6 Before the
 Launch*). Then MVP 4.4, the cost, the full review and the launch's release, where the road ends
@@ -242,30 +243,64 @@ Item 43 is MVP 4.17's.
 46. **What item 42's round left to decide**, done 2026-11-14 (the log's *No Module's
     Source* and *An Index That Is No File*).
 
-## MVP 4.17 (the rest of packages: archives, the guide and the other repositories)
+## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
 Split from MVP 4.16 with the user on 2026-11-14 (the log's *The Milestone Split*), so that MVP
 4.16 ends with its small items, and the discussion of §11.9 opens a milestone, where it can
 change what is built. Its items keep the numbers they had in MVP 4.16, since the log cites
 them by number. It follows MVP 4.16 and its item 44, and comes before MVP 4.6, as its items
-did. Its length is said once item 43 has decided what §11.9 promises.
+did. Item 43 added items 47 to 49 and cut what item 8 builds.
 
-The discussion comes first.
+The discussion came first.
 
-43. **Whether §11.9 can promise less**, a discussion with the user before item 8 adds its
-    rules on archives, links and modes, decided with the user 2026-11-14. The first place
-    looked at is the defense against another user who may write a package's directory,
-    where most of item 42's sentences and code went (the log's *A Few at a Time*).
+43. **Whether §11.9 can promise less**, decided 2026-11-14 (the log's *The Trust Said
+    Once*).
 
-    It opens from a position the user stated 2026-11-14 (the log's *A Defense Names Its
-    Attacker*). Whoever the host's file permissions let write what a job reads or runs is
-    trusted with it, and Ernest's own part is the mode of what it creates. Each defense of
-    §11.9 against another user of the machine is put to `CLAUDE.md`'s test, who can make
-    the input and what they could do without it, and the ownership test's uses (§11.2)
-    after them. The report then says the trust once.
+What it decided is built next. Each item changes the report first, and its sentences are read
+cold before the build (the log's *The Trust Said Once*).
 
-    It also asks whether one sentence of §11 can replace the sentences on a named pipe at
-    each place, item 42's and item 46's, and which of their tests then go.
+47. **The trust said once, and the defenses that go**, decided with the user 2026-11-14.
+    §11 says the trust once: a job trusts whoever the host lets write what it is given, and
+    whoever may write the directory it is started in. Three guards stay, each with its
+    attacker: the sticky directory (§11.9), a node's key (§12.5) and the owner of
+    `ernest.pid` (§11.2). The item is two builds, and closes on `make test-full`.
+
+    The first build is §11.9's. A job started in a directory that every user may write and
+    that has the sticky bit is refused where the directory holds a manifest. No other path
+    of a package is tested, no link's directory, and not the directory `--package-dir`
+    names. What `ern build` writes under a named package is written as the root package's
+    files are: the staging directory and its refusal go.
+
+    The second build is the ownership test's, which goes: its paragraph in §11.2, its line
+    in Appendix F, `ern_ownership`, the shell's walk in Ernest and the helper's test of a
+    mode. A startup file and a node's configuration are held to no owner and no mode. A
+    node still refuses a key that any but its owner may read or write. `ern stop` and
+    `ern reload` refuse an `ernest.pid` that is another user's, and follow no link there.
+
+    The item sweeps the deployment guide's paragraph on who owns a node's directory, the
+    shell's design note at its two places, and `docs/code_style.md`'s glossary line
+    *Ownership, HoldingDirectory*.
+48. **One paragraph on a name that reaches no regular file**, decided with the user
+    2026-11-14. §11 says it once, in three sentences. A job reads only a regular file, a
+    link followed, and opens nothing else. A job that looks for a file passes over any
+    other name. A job that must read one, given it or walking to it, fails as for a file it
+    cannot read, `is no regular file`. The sentences on a named pipe at each place go, in
+    §11, §11.1 and §11.9. The clause on a file a job writes, §11.4's sentence and E.28's
+    stay.
+
+    Two behaviors change. A node's start refuses a named pipe in a root, as it refuses a
+    file it cannot read. A named pipe in a named package's `src` is held to the rule of the
+    package's namespaces, which reads no source.
+
+    The build first finds whether the toolchain's reads can pass through one function. A
+    test goes with its sentence where they do. Where a place keeps its own stat, its test
+    stays as a regression test that cites the paragraph. The glossary's *Unopened* follows
+    the code. The item closes on `make test-full`.
+49. **A control character in a path a job writes**, found 2026-11-14 by item 43's probe:
+    `ern build` of a file whose name holds an escape writes the escape to the terminal.
+    The guard stands where a path is written, as `\xHH`, the way a byte that is not UTF-8
+    is written (§11.1). The item first finds the report's sentence on how a path is written,
+    and whether one function writes it, the shell's lines among them.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
@@ -282,9 +317,15 @@ Then the packages proposal's build order,
    The item rewrites §11.9's paragraphs on an archive first: its paragraph on where a link
    may reach goes, and §11.9 states the rules of a member's name and kind itself. It decides
    there whether a member of a kind the host does not know is passed over or refused, a pax
-   global header among them, which `git archive` writes. It finds whether the host cleans a
-   name's empty and `.` segments, and so whether §11.9 can test them. A test over hostile
-   archives holds the rules.
+   global header among them, which `git archive` writes. A test over hostile archives holds
+   the rules.
+
+   Decided with the user 2026-11-14 (the log's *The Trust Said Once*): three rules of an
+   archive stay, its digest, a member's name under the archive's directory with no `..`,
+   and a member's kind. A name given twice is no fault, and the last stands. An empty or a
+   `.` segment, the kind of the directory's own member and a control character in a name
+   are not tested, and a broken archive fails with the host's reason. A file is made by
+   the mask, and of a member's mode only whether its owner may run it is read.
 
    Where the job's module stands under `Ernest` is decided as the item opens, and so is how
    its Ernest gets the manifest's entries. The shape: the command reads the manifest once, by
@@ -535,7 +576,7 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, 126 lines fixed and 25 decided | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, and the flake hunt | | | above |
-| MVP 4.17 | the rest of packages: archives, the guide and the other repositories | | | above |
+| MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round | | | above |
 | MVP 4.6 | the server owning both ends of its socket | | | above |
