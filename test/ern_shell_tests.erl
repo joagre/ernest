@@ -1307,12 +1307,11 @@ history_is_private() ->
     {ok, #file_info{mode = Unreadable}} = file:read_file_info(Dir),
     ?assertEqual(0, Unreadable band 8#077).
 
-%% report §11.2: a history file that is a link, or anything but a regular
-%% file of the user's own, is neither read nor written, and the session
+%% report §11.2: a history file that at start is a link, or then anything
+%% else but a regular file, is neither read nor written, and the session
 %% says so once and goes on; what the link leads to is left as it was. A
 %% regression test: the history was read and appended through a link, so
-%% what was typed went wherever it led; a file of
-%% another user's is not covered, since a test cannot make one
+%% what was typed went wherever it led
 history_kept_in_place_test_() ->
     ern_nodes_tests:counted_test({waits, 6}, fun history_kept_in_place/0).
 
@@ -1337,8 +1336,33 @@ history_kept_in_place() ->
                           file:make_symlink(Elsewhere, History)
                       end, " is a link"),
     ?assertEqual({ok, <<"11 + 11\n">>}, file:read_file(filename:join(LinkHome, "elsewhere"))),
-    _ = Unkept(fun(_, History) -> file:make_dir(History) end,
-               " is not a regular file of the user's own").
+    _ = Unkept(fun(_, History) -> file:make_dir(History) end, " is no regular file").
+
+%% report §11.2: where the host refuses to make `$HOME/.ernest`, a session
+%% at a terminal neither reads nor writes the history, says so once at
+%% start with the host's reason, and goes on. A regression test: the
+%% refusal was said as a history that could not be read. It does not cover
+%% a directory that is there whose mode the host refuses to set, which a
+%% test cannot make without another user or a mount of its own
+history_directory_refused_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun history_directory_refused/0).
+
+history_directory_refused() ->
+    Home = fresh_home(),
+    Dir = filename:join(Home, ".ernest"),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Home),
+    ok = file:change_mode(Home, 8#500),
+    Bytes = try
+                pty("HOME=" ++ Home ++ " ../bin/ern shell",
+                    [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}])
+            after
+                ok = file:change_mode(Home, Mode)
+            end,
+    Said = iolist_to_binary(["the history is not kept, since ", Dir,
+                             " could not be made its owner's alone: permission was denied"]),
+    ?assertMatch({_, _}, binary:match(Bytes, Said)),
+    ?assertEqual(1, length(binary:matches(Bytes, <<"the history is not kept">>))),
+    ?assertEqual(false, filelib:is_file(Dir)).
 
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs

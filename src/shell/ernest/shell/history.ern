@@ -44,10 +44,15 @@ export fn keepOwn() : Unit =
         }
     }
 
-/// Report §11.2: why the history is not kept: its file could not be read,
-/// or it is a link, or anything else but a regular file of the user's own,
-/// which the shell neither reads nor writes.
-export type Unkept = Unreadable(Io.Error) | Linked | NotOwn
+/// Report §11.2: why the history is not kept: the host refused to make its
+/// directory or to make it its owner's alone, or its file could not be
+/// read, or the file is a link, or anything else but a regular file, which
+/// the shell neither reads nor writes.
+export type Unkept =
+    Unmade(directory : Path, error : Io.Error)
+  | Unreadable(Io.Error)
+  | Linked
+  | OtherKind
 
 /// The inputs of the sessions before this one, newest first. A file that
 /// holds more than the last thousand is trimmed to them as it is read.
@@ -56,16 +61,16 @@ export fn read() : Either(Unkept, List(String)) =
         None ->
             Right([])
       | Some(path) -> {
-            let _ <- Either.mapLeft(makeDirectory(path), Unreadable);
+            let _ <- makeDirectory(path);
             let there <- inspect(path);
             if there then Either.mapLeft(readFile(path), Unreadable) else Right([])
         }
     }
 
 // Report §11.2: whether the history file is there, and one that is a
-// link, or anything but a regular file of the user's own, unkept, so that
-// what is typed goes nowhere but the directory made its owner's alone. No
-// file yet is a first session's.
+// link, or anything else but a regular file, unkept, so that what is typed
+// goes nowhere but the directory made its owner's alone. No file yet is a
+// first session's.
 fn inspect(path : Path) : Either(Unkept, Bool) =
     match Fs.readLink(path, fileMs) {
         Left(Io.NotFound) ->
@@ -76,13 +81,8 @@ fn inspect(path : Path) : Either(Unkept, Bool) =
             Left(Linked)
       | Right(None) ->
             match Fs.stat(path, fileMs) {
-                Left(error) ->
-                    Left(Unreadable(error))
-              | Right(entry) ->
-                    if entry.kind == Fs.File && entry.user == Os.user then
-                        Right(true)
-                    else
-                        Left(NotOwn)
+                Left(error) -> Left(Unreadable(error))
+              | Right(entry) -> if entry.kind == Fs.File then Right(true) else Left(OtherKind)
             }
     }
 
@@ -99,14 +99,15 @@ fn readFile(path : Path) : Either(Io.Error, List(String)) =
 // Report §11.2: the directory made where it is not there, as before a
 // first session, and its owner's alone to read, write and enter, so that no
 // one else reads what was typed, before the file is read, written or
-// trimmed.
-fn makeDirectory(path : Path) : Either(Io.Error, Unit) =
+// trimmed. Where the host refuses either, the history is not kept.
+fn makeDirectory(path : Path) : Either(Unkept, Unit) =
     match Path.parent(path) {
         None ->
             Right(Unit)
       | Some(directory) -> {
-            let _ <- Fs.makeDir(directory, fileMs);
-            Fs.setMode(directory, 0o700, fileMs)
+            let unmade = fn(error) = Unmade(=directory, =error);
+            let _ <- Either.mapLeft(Fs.makeDir(directory, fileMs), unmade);
+            Either.mapLeft(Fs.setMode(directory, 0o700, fileMs), unmade)
         }
     }
 

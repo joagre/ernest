@@ -450,13 +450,19 @@ fn readHistory() : #(List(String), Bool, List(String)) =
             }
     }
 
-// Report §11.2: why the history is not kept, its file named where it is
-// one the shell does not read and write.
+// Report §11.2: why the history is not kept, its directory named where the
+// host refused to make it its owner's alone, and its file where it is one
+// the shell does not read and write.
 fn unkeptReason(unkept : History.Unkept, path : Path) : String =
     match unkept {
-        History.Unreadable(error) -> "it could not be read: " <> trouble(error)
-      | History.Linked -> Path.toString(path) <> " is a link"
-      | History.NotOwn -> Path.toString(path) <> " is not a regular file of the user's own"
+        History.Unmade(=directory, =error) ->
+            Path.toString(directory) <> " could not be made its owner's alone: " <> trouble(error)
+      | History.Unreadable(error) ->
+            "it could not be read: " <> trouble(error)
+      | History.Linked ->
+            Path.toString(path) <> " is a link"
+      | History.OtherKind ->
+            Path.toString(path) <> " is no regular file"
     }
 
 // Report §11.2: where the startup files are, the person's first and then
