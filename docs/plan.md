@@ -69,7 +69,7 @@ log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 fol
 
 What is left is small, and each item stands alone: the flakes, items 11, 24, 32, 40 and 51; what
 the builds found, items 35, 36 and 38; and items 37 and 39, before MVP 4.4's item 4.
-Item 44 follows them, between this milestone and MVP 4.17.
+Of item 44 the copies' refresh is left.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -231,26 +231,10 @@ Item 23 is MVP 4.17's.
 Item 43 is MVP 4.17's.
 
 44. **A reading of `CLAUDE.md` for rules that contradict or repeat each other**, with the
-    user, decided 2026-11-14. It comes once the milestone's other items are done and before
-    the next milestone begins, when no build runs. It cuts and does not rewrite. The
-    template's `CLAUDE.md` is read and cut with it, the same way. Then `ernest-epx` and
-    `ernest-httpd` take the template's file once, from a tag of the template, each copy's
-    own differences read first and brought to the user. Until then the copies keep the
-    rules they have (the log's *A Few at a Time*). The cold reading of a batch's report
-    sentences (*Tests*) is among the rules read, to be cut or narrowed (the log's *A
-    Defense Names Its Attacker*).
-
-    A proposal for that rule, brought 2026-11-14 from MVP 4.17's item 48 and not decided.
-    A reading asks one question, whether a careful builder would build another reading
-    and a user would meet the difference. It runs once, and nothing is reworded for any
-    other point. Where a sentence reads one way only as a table, its test holds the
-    corner. A change to the grammar or to a rule of §3 to §9 keeps its reading as it is
-    (the log's *A Reading Names Its Builder*).
-
-    Decided with the user 2026-11-14, and written into *Done* with this reading: a report
-    names each thing that remains, specific enough to act on or to drop, and says nothing
-    where there is none. The user does not ask whether the work is good (the log's *A
-    Reading Names Its Builder*, its paragraph *What remains, or nothing*).
+    user, read and cut 2026-11-15 with the template's file (the log's *The Rules Read
+    Against Each Other*). What is left: a tag of the template, from which `ernest-epx` and
+    `ernest-httpd` take its file once, on the user's word. Neither copy has a difference
+    of its own, and until then each keeps the rules it has.
 45. **The milestone split in two**, done 2026-11-14 (the log's *The Milestone Split*).
 46. **What item 42's round left to decide**, done 2026-11-14 (the log's *No Module's
     Source* and *An Index That Is No File*).
@@ -264,7 +248,7 @@ Item 43 is MVP 4.17's.
 Split from MVP 4.16 with the user on 2026-11-14 (the log's *The Milestone Split*), so that MVP
 4.16 ends with its small items, and the discussion of §11.9 opens a milestone, where it can
 change what is built. Its items keep the numbers they had in MVP 4.16, since the log cites
-them by number. It follows MVP 4.16 and its item 44, and comes before MVP 4.6, as its items
+them by number. It follows MVP 4.16, and comes before MVP 4.6, as its items
 did. Item 43 added items 47 to 49 and cut what item 8 builds.
 
 The discussion came first.
@@ -272,8 +256,8 @@ The discussion came first.
 43. **Whether §11.9 can promise less**, decided 2026-11-14 (the log's *The Trust Said
     Once*).
 
-What it decided is built next. Each item changes the report first, and its sentences are read
-cold before the build (the log's *The Trust Said Once*).
+What it decided is built next. Each item changes the report first (the log's *The Trust Said
+Once*).
 
 47. **The trust said once, and the defenses that go**, done 2026-11-14 in two builds (the
     log's *The Trust Said Once*, its paragraphs *The first build* and *The second build*).
@@ -300,7 +284,7 @@ cold before the build (the log's *The Trust Said Once*).
     - "The person's" becomes "its user's".
     - §11.2 says that a link at `$HOME/.ernest` is followed. No guard is added.
 
-    The report changes first and is read cold. The build closes on `make test-shell` and
+    The report changes first. The build closes on `make test-shell` and
     `make test`.
 53. **What item 48's cold reading left**, dropped 2026-11-14 on the user's word: no more
     is spent on a name that reaches no regular file (the log's *The Trust Said Once*, its
@@ -428,7 +412,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
-   worked as it says, the batches' sentences read cold before the build.
+   worked as it says.
 
    Before its readers start, `tools/paragraphs.sh`, `tools/comments.sh` and
    `tools/unicode_width.escript` are weighed against CLAUDE.md's *Shims*, each written in Ernest
