@@ -33,7 +33,7 @@ MCowBQYDK2VwAyEA...
 
 The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
-The directory belongs to the user who runs the node. A node refuses to start from a directory, or a file of it the node reads, that is neither its user's own nor the superuser's, or that users other than its owner and its group may write, and from one whose private key any but its owner may read or write, and says so.
+A node refuses to start from a directory whose private key any but its owner may read or write, and says so (report §12.5).
 
 ### 1.2 The configuration
 
@@ -307,7 +307,7 @@ A program may also load a build itself at run time, `Code.load` from its own loa
 
 A shell attached to a node is the operator's window: `ern shell --config-dir ops --attach b` runs a session on `b`, each input checked against `b`'s modules, compiled on `b` and run in a process there, while the terminal, the history and the files the session reads stay with `ops`, the node the shell starts from (report §11.2, *The attached shell*). Every module of `b`'s build is in scope at the prompt. A file, `--main`, `--load-path` and `--libs-dir` are refused with `--attach`, since the program and the load path are the node's.
 
-`ops` is a directory of its own, made with `ern config` and no `--listen`, since the shell dials in. It lists `b` with its address, and `b` lists it without one, and on one machine `ern config --peer-dir` lists each in the other (section 2.1). Every peer `b` lists may attach to it, as every one may spawn on it. Where `b` runs as a service's user and the operator is another, neither can open the other's directory, so the superuser makes both, lists each in the other with `--peer-dir`, and gives each directory with its files to its user, `chown -R`, which section 1.1 allows; a later `--peer-dir` into either directory, and an `ern reload` of `b`, as section 8's reload step runs them, are then that directory's user's or the superuser's too.
+`ops` is a directory of its own, made with `ern config` and no `--listen`, since the shell dials in. It lists `b` with its address, and `b` lists it without one, and on one machine `ern config --peer-dir` lists each in the other (section 2.1). Every peer `b` lists may attach to it, as every one may spawn on it. Where `b` runs as a service's user and the operator is another, neither can open the other's directory, so the superuser makes both, lists each in the other with `--peer-dir`, and gives each directory with its files to its user, `chown -R`. A later `--peer-dir` into either directory is then that directory's user's or the superuser's. An `ern reload` of `b`, as section 8's reload step runs it, is the user's who runs `b`, since `ern reload` refuses an `ernest.pid` that is not its user's own (report §11.2).
 
 A session on section 8's `b`, whose counter `--main Counter.serve` started:
 

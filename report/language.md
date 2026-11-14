@@ -1455,7 +1455,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **or-pattern** — patterns joined by `or` in one clause, which matches when any of them does. §5.9.
 - **order** — a function `(T, T) -> Ordering` that keeps §3.10's laws, which a type's `compare` keeps, and `List.sort` and an ordered set or map require of it. §3.10, Appendix E.25.
 - **owner** — of a resource, the process that opened it or was given it, or that made a table or started a proxy, with which the resource ends; of a file, the user the host records as owning it. §6.9, §11.2, §11.9, §12.5, Appendix E.18, G.1, G.7.
-- **ownership test** — the test a path fails where what it reaches, a link followed, is neither its user's own nor the superuser's, or others than its owner and its group may write it; a link fails it too where the directory that holds what a link followed from it reaches does. §11.2.
 - **package** — a directory that holds a manifest, its Ernest under `src`. §11.9.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node this node lists in its `ernest.conf`, by a name, a public key and a network address. §8.3, §8.7.

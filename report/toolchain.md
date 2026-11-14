@@ -63,6 +63,8 @@ A job makes each path its command line gives, an argument or an option's value, 
 
 `ern` refuses to start in a working directory whose name is not UTF-8. `ern --help` and `ern --version` run in any working directory. A job reads from the directory it is started in only what its command line names or its user asks for, a file, a root, or a module the shell loads. The exception is a package: a job started in one, and given no `--package-dir`, reads its manifest and what the manifest names under `lib`, and `ern build` and `ern unpack` write there, as §11.9 says.
 
+A job trusts whoever the host lets write what it is given or the directory it is started in: it holds what it reads to no owner and no mode. The exceptions are three tests: of a root package's directory (§11.9), of a node's key (§12.5) and of `ernest.pid` (§11.2).
+
 `ern` starts the host without the flags and the code path the environment would give it, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS` and `ERL_LIBS`, and writing no crash dump, `ERL_CRASH_DUMP_SECONDS` set to 0 (§11.8), and calls the host's compiler without the options `ERL_COMPILER_OPTIONS` would give it. A program's environment is the one `ern` was started in all the same: those six, and what the host's own start sets or changes, `BINDIR`, `EMU`, `PROGNAME`, `ROOTDIR` and the head of `PATH`, reach a program as they were given (Appendix E.23). `PWD` is the exception: a program finds it naming the working directory, as the launcher's shell sets it, where it was unset or named another directory.
 
 A word of the command line that is not UTF-8 is refused before the job begins, `ern build: a word that is not UTF-8: n\xFFme.ern`, each byte past ASCII written `\xHH`; an argument of a program is refused as §11.2 says.
@@ -209,7 +211,7 @@ A module with neither tests nor examples is passed over and not run, and a direc
 
 `ern reload --config-dir dir` sends the node started with that directory, named by its `ernest.pid`, the hangup signal, and `ern stop --config-dir dir` sends it the termination signal (§8.6) and returns once the node has ended, which it waits for on the lock the node holds on `ernest.pid` (§12.5), released by the host at the node's end however it ends; a second `ern stop` while the first waits is a second termination (§8.6), and `kill -TERM` by `ernest.pid` signals without waiting.
 
-Each refuses an `ernest.pid` that fails the ownership test (**Startup and history**), the file tested and not its directory: `ern stop: dir/ernest.pid: is another user's, and names no node of this user's`, and `ern stop: dir/ernest.pid: may be written by every user`. Each follows no link at `ernest.pid`, and refuses one that is a link with the host's reason, `ern stop: dir/ernest.pid: too many levels of symbolic links`.
+Each refuses an `ernest.pid` that is not its user's own: `ern stop: dir/ernest.pid: is another user's, and names no node of this user's`. The superuser's is refused to another user, and another user's to the superuser. Each follows no link at `ernest.pid`, and refuses one that is a link with the host's reason, `ern stop: dir/ernest.pid: too many levels of symbolic links`.
 
 `ern config --listen` refuses an IPv4-mapped address, `ern config: --listen names an IPv4-mapped address, [::ffff:127.0.0.1]:0, which no listener takes`, and the node refuses it the same way when it reads `ernest.conf` (§12.5). Each signals only a node that holds `ernest.pid` (§12.5), and fails where there is no file or no node holds it. `ern config` is §11.3's.
 
@@ -359,11 +361,9 @@ A load or an arrival that would pass one of the host's limits on what it loads (
 
 **Startup and history.** At start the shell says `Ernest v, session n. :help for help.`, `v` the shell's version text (§11.7) and `n` the session's number on its node (**The attached shell**); an attached shell whose node runs another release of `ern` says `Ernest v, session n on ern w. :help for help.`, `w` the node's version text. Keys and a paste that arrive before the first prompt are kept, and are read after it as if typed there.
 
-After the file's entry point is spawned, the shell runs the inputs in `$HOME/.ernest/startup`, and then, where `--config-dir` names the configuration directory, those in its `startup`, neither file required. A file's inputs are taken from its lines as line mode takes them. A file both paths name is run once. Such an input is checked and run as a typed one, a command among them, and its value is not printed; one that fails is reported with the file and the line it came from, and the session goes on.
+After the file's entry point is spawned, the shell runs the inputs in `$HOME/.ernest/startup`, and then, where `--config-dir` names the configuration directory, those in its `startup`, neither file required. A file's inputs are taken from its lines as line mode takes them. A file both paths name is run once. Such an input is checked and run as a typed one, a command among them, and its value is not printed; one that fails is reported with the file and the line it came from, and the session goes on. A startup file that is not UTF-8 is reported and not run.
 
-A path *fails the ownership test* where what it reaches, a link followed, is neither the user's own nor the superuser's, or where its mode lets others write it, others being the users who are neither its owner nor of its group. The bits of a mode for its group are not read. A path that is a link fails the test too where the directory that holds what a link reaches fails it, for each link followed from the path to what it reaches. A path that is not there is not tested.
-
-A startup file that is not UTF-8 is reported and not run, and so is one that fails the ownership test or whose directory does. So is one where a link followed from the file or from its directory has a target that is not UTF-8. A startup file is checked as it is found, before the shell changes a mode; `$HOME/.ernest` is then made its owner's alone to read, write and enter, where it is there, and the directory `--config-dir` names keeps its mode.
+The shell makes `$HOME/.ernest` its owner's alone to read, write and enter as it starts, where it is there. The directory `--config-dir` names keeps its mode.
 
 The inputs of a session at a terminal are kept in `$HOME/.ernest/history`, in a directory made its owner's alone before the file is read or written, one input a line, a newline in an input written `\n` and a backslash `\\`. Each is appended as it is entered; a blank input and one equal to the input before it are not. A line `C-c` abandons is appended as an entered input is and runs nothing. The last thousand are kept, in the session as in the file, and the file is trimmed to them at start. A session in line mode neither reads the file nor writes it.
 
@@ -608,8 +608,6 @@ The examples here are of a job started in its root package. A refusal writes eac
 
 A job given no `--package-dir` is refused where every user may write its root package's directory and the directory has the sticky bit, as `/tmp` has: `ern run: .: may be written by every user`. Every user may write a directory where its mode lets those write it who are neither its owner nor of its group. The directory's owner is not tested.
 
-No other path of a package is tested for who may write it: not the manifest, not `lib`, not a named package's directory or a path under it, not the directory that holds what a link reaches, and not the directory `--package-dir` names.
-
 A named package stands under the root package's `lib` at its name, `lib/epx`, a directory or a link to one. A job that reads the manifest, `ern unpack` aside, refuses a named package that is not there: `ern build: package.conf: epx 0.2.1 is not under lib; ern unpack puts it there`. No job reads a `lib` but the root package's: a named package's own `lib` is passed over.
 
 A job says its root package's refusals in this order, each group whole: the manifest's form, the directory every user may write, the entries' namespaces (**The namespaces**), the named packages not under `lib`, a path given under `lib` (**The build**), and, in `ern build`, the build's rules. An entry's namespace and its place under `lib` are tested only where the entry is of its form.
@@ -799,8 +797,6 @@ The lines are ordered by their sites, then by their frames and then by their cal
 
 The carrier of §8.7 as a node runs it: its configuration read, its files, its start, what it says, a reload, and a connection with its keys and its floor.
 
-As it starts, a node refuses a configuration directory, or a file of it that the node reads, `ernest.pid` aside, that fails the ownership test (§11.2), and a key that any but its owner may read or write.
-
 **Its configuration.** `ernest.conf` (Appendix C) holds the node's `listen`, its public key, its peers, its `services`, its `measures`, its `utilization`, its `utilization-interval` and its `limits`. `listen` is what the node's listener binds to, an address of one interface, or `0.0.0.0` or `::` for every interface of its family, and a port, or port 0, at which the host picks one; a node without `listen` does not listen, and only dials. An IPv4-mapped address as `listen`, `[::ffff:a.b.c.d]:port`, is refused when the configuration is read and by `ern config --listen` (§11.3), as `Tcp.listen` refuses it (Appendix E.18).
 
 A peer has a name, which is not empty, a public key and a `network-address`, `host:port`, the host a name or an address, an IPv6 address in brackets; a name is resolved by the host at each dial, and not when the configuration is read. A peer listed without an address is never dialed, and is out of reach until it opens a connection itself.
@@ -819,7 +815,9 @@ A socket, a listener, a program the node starts, the node's listener, each conne
 
 A connection the operating system's limit of open files (§12) keeps the node's listener from taking waits unaccepted. The node tries to take it again each time 7 seconds have passed, the time after which §8.7 gives up a dial that nothing answers, and says once that a connection waits.
 
-A node refuses to start where `ernest.conf` is not JSON, gives a field it does not know or one twice, holds a number too large for the host to read, names a peer or an entry of `services` twice, gives two peers one public key, lists its own key as a peer's, names under a service of `services` a peer it does not list, gives `utilization` a value that is neither of its two, gives `utilization-interval` a value that is no whole number of at least one, or breaks a rule of **Its configuration**. Its key is `private-key.pem`'s: a `public-key` in `ernest.conf` that is not that key's is refused, and so is a `certificate.pem` that certifies another key or names another host than that key gives (**Connections**). A refusal names the file and the rule.
+A node refuses to start where `ernest.conf` is not JSON, gives a field it does not know or one twice, holds a number too large for the host to read, names a peer or an entry of `services` twice, gives two peers one public key, lists its own key as a peer's, names under a service of `services` a peer it does not list, gives `utilization` a value that is neither of its two, gives `utilization-interval` a value that is no whole number of at least one, or breaks a rule of **Its configuration**.
+
+Its key is `private-key.pem`'s: a `public-key` in `ernest.conf` that is not that key's is refused, and so is a `certificate.pem` that certifies another key or names another host than that key gives (**Connections**). A key whose mode lets any but its owner read or write it is refused. A refusal to start names the file and the rule.
 
 **Its start.** A node whose carrier cannot start, its port taken among the reasons, ends once its initializers have their values and before `main` runs (§8.7), as a job that cannot start: `ern run: the node's carrier did not start: r`, `r` the host's reason, or `its listen address a:p is in use` where that is the reason, `ern shell:` for a shell's own node, and status 1 (§11.8).
 

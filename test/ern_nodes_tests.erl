@@ -1098,12 +1098,11 @@ replaced(Base) ->
     lists(B, [{"a", A, PortA}]),
     Copy = filename:join(Base, "copy"),
     ok = file:make_dir(Copy),
-    ok = file:change_mode(Copy, 8#700),
     [{ok, _} = file:copy(filename:join(A, File), filename:join(Copy, File))
      || File <- ["ernest.conf", "certificate.pem", "private-key.pem"]],
+    %% report §12.5: the key read and written by none but its owner, which
+    %% a copy made under the mask is not
     ok = file:change_mode(filename:join(Copy, "private-key.pem"), 8#600),
-    [ok = file:change_mode(filename:join(Copy, File), 8#644)
-     || File <- ["ernest.conf", "certificate.pem"]],
     edit(Copy, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
@@ -5857,9 +5856,6 @@ attached_startup_diagnostic(Base) ->
     lists(Ops, [{"node", Node, bound_port(Node)}]),
     Startup = filename:join(Ops, "startup"),
     ok = file:write_file(Startup, "let a = 1\nlet b : Int = \"not an Int\"\n"),
-    %% report §11.2: a startup file that fails the ownership test is not run
-    ok = file:change_mode(Startup, 8#600),
-    ok = file:change_mode(Ops, 8#700),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
     {Shell, _} = Attached = launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN,

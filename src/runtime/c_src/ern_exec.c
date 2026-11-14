@@ -79,10 +79,6 @@
  * mask in the same run, so that no program starts the helper twice for
  * them.
  *
- * With the argument `user`, the helper writes the 'u' frame alone, which a
- * node's check of its directory reads, as it starts and at each reload
- * (report §12.5).
- *
  * With the arguments `signal`, a signal's number and a process number, the
  * helper sends that process the signal and exits 0 where it was sent, 1
  * where no such process lives, and 2 where the process lives and is not
@@ -110,14 +106,13 @@
  * the path, the process the file names, and exits 0; given `wait` after
  * them, it exits 0 once the lock has gone with the node, so that `ern
  * stop` returns once the node has ended (report §11.2). It exits 1 where
- * there is no such file, 2 where no node holds it, 8 where the file is
- * another user's and 9 where every user may write it, 3 where it names no
- * process, 4 where the process it names has ended, and 5 where that
- * process is not this user's to signal; an error is an 'f' frame and its
- * name, and 6. A signal reaches only a node so, never a process whose
- * number a file no node holds names by chance, and never one whose number
- * a user neither its owner nor of its group could have written (report
- * §11.2, §12.5). The file is opened through no link.
+ * there is no such file, 2 where no node holds it, 8 where the file is not
+ * this user's own, 3 where it names no process, 4 where the process it
+ * names has ended, and 5 where that process is not this user's to signal;
+ * an error is an 'f' frame and its name, and 6. A signal reaches only a
+ * node so, never a process whose number a file no node holds names by
+ * chance, and never one whose number a file of another user's names
+ * (report §11.2, §12.5). The file is opened through no link.
  *
  * The locks are POSIX's record locks, which a process holds until it
  * closes the file or ends, and which another can ask after without taking
@@ -812,27 +807,23 @@ static int hold_lock(int argc, char **argv)
 
 /* Report §11.2, §12.5: whether the file at fd names a process this user
    may signal as its node, the file alone tested, since it was opened
-   through no link: 8 where it is neither this user's own nor the
-   superuser's, 9 where every user may write it, the bits for its group
-   not read, 0 where neither holds, and 6 where the host cannot say, its
-   error in an 'f' frame. */
+   through no link: 0 where it is this user's own, 8 where it is not, the
+   superuser's to another user and another user's to the superuser among
+   them, and 6 where the host cannot say, its error in an 'f' frame. Its
+   mode is not tested. */
 static int own_file(int fd)
 {
     struct stat status;
     if (fstat(fd, &status) < 0)
         return fail('f', errno, 6);
-    if (status.st_uid != geteuid() && status.st_uid != 0)
-        return 8;
-    if (status.st_mode & S_IWOTH)
-        return 9;
-    return 0;
+    return status.st_uid == geteuid() ? 0 : 8;
 }
 
 /* `node PATH SIGNAL [wait]`: the signal sent to the node that holds the
    node's lock on the file (above). A node holds it for writing; held for
    reading, it is another `ern stop`'s, waiting, and no node's. The number
-   is read while its byte is held, from a file none but this user may have
-   written, and the lock waited for once it is let go. */
+   is read while its byte is held, from a file of this user's own, and the
+   lock waited for once it is let go. */
 static int signal_node(int argc, char **argv)
 {
     struct flock lock;
@@ -893,10 +884,6 @@ int main(int argc, char **argv)
         for (variable = environ; *variable != NULL; variable++)
             frame('v', (const unsigned char *)*variable, strlen(*variable));
         frame('x', (const unsigned char *)"\0\0\0\0", 4);
-        return 0;
-    }
-    if (strcmp(argv[1], "user") == 0) {
-        user_frame();
         return 0;
     }
     if (strcmp(argv[1], "signal") == 0)

@@ -14,19 +14,17 @@
 %% (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0, user/0,
+-export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0,
          umask/0, working_directory/0]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 %% The host's facts are read from a port, a wait inside foreign code for
 %% the look (host/0); the working directory is the host's file server's,
 %% whose functions the look reads on top of the process's stack as the
-%% host's work. user/0 reads the user `ern` runs as from a port in a
-%% process that is no program's: the job's, as a node starts or `ern
-%% config` reads a directory, and the carrier's at a reload (§12.5).
+%% host's work.
 -receives({foreign_wait, [host_read/1, variables/2]}).
 -receives({own_process, [serve/1, spawn_program/5, signal/2, locked/2, node_signaled/3,
-                         ended/1, starting/3, running/4, exited/2, over/2, user/0]}).
+                         ended/1, starting/3, running/4, exited/2, over/2]}).
 
 %% Report Appendix E.23: a running program's own, beside the reads that
 %% wait and what the helper owes them (running/4): the helper's port, its
@@ -217,9 +215,10 @@ locked(PidFile, ProcessNumber) ->
 %% when the node ends: `sent`; `no_file`; `no_node` where no node holds the
 %% file; `no_process` where the file names none; `none` where the process
 %% it names has ended; `others` where that process is another user's; or
-%% `{failed, Text}`, a file that is another user's or that every user may
-%% write among the ways, whose number names no node of this user's, since
-%% another could have written it.
+%% `{failed, Text}`, a file that is not this user's own among the ways, the
+%% superuser's to another user and another user's to the superuser, whose
+%% number names no node of this user's, since another user wrote it. The
+%% file's mode is not tested.
 -spec node_signaled(file:filename(), non_neg_integer(), boolean()) ->
           sent | no_file | no_node | no_process | none | others | {failed, string()}.
 node_signaled(PidFile, Number, Wait) ->
@@ -234,7 +233,6 @@ node_signaled(PidFile, Number, Wait) ->
         {Helper, {exit_status, 5}} -> others;
         {Helper, {exit_status, 8}} ->
             {failed, "is another user's, and names no node of this user's"};
-        {Helper, {exit_status, 9}} -> {failed, "may be written by every user"};
         {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
     end.
 
@@ -710,23 +708,6 @@ host_read(Helper) ->
         {Helper, {exit_status, _}} -> host_failed()
     end.
 
-%% Report §12.5: the user `ern` runs as, which the host has no word for, as
-%% the helper run with `user` writes it back, and nothing else: a node
-%% checks its directory by it as it starts and at each reload. The helper's
-%% failure faults, as host/0's does.
--spec user() -> non_neg_integer().
-user() ->
-    Helper = try open(["user"])
-             catch error:_ -> host_failed()
-             end,
-    receive
-        {Helper, {data, <<"u", User:32>>}} ->
-            receive
-                {Helper, {exit_status, _}} -> User
-            end;
-        {Helper, {exit_status, _}} -> host_failed()
-    end.
-
 %% Report Appendix E.17: the program's file mode creation mask, which the
 %% host has no word for, as the helper read it when the host was read,
 %% and read so where it has not been. It is kept for the program's life,
@@ -743,8 +724,7 @@ umask() ->
     end.
 
 %% Report Appendix E.23, §8.5: the helper failed as the host was read,
-%% which ends the program before `main` runs, or as the user was read for
-%% a node (user/0, §12.5).
+%% which ends the program before `main` runs.
 -spec host_failed() -> no_return().
 host_failed() ->
     {fault, Cause} = helper_failed(),

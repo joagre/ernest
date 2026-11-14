@@ -428,104 +428,102 @@ unreadable_directory_test() ->
     ?assertNotMatch({accepted, _}, Message),
     ?assertNotEqual(nomatch, string:find(Message, "not a directory")).
 
-%% report §12.5, §11.2: a node refuses a configuration directory, or a file
-%% of it that it reads, that fails the ownership test, which reads the bit
-%% of a mode for every user and not its group's, and a key any but its
-%% owner may read or write, its group among them; a file it needs that is
-%% not there is named with the command that makes a directory, and one it
-%% cannot read with the host's reason, a regression: such a file made `ern`
-%% fail with an internal error.
-%%
-%% A regression test, written after the code: a group's write bit, as a
-%% umask of 002 leaves it, was refused as every user's (the log's *A
-%% Package and Its Manifest*). Not covered: a directory or a file of
-%% another user's, which a test run as one user cannot make
-permissions_test() ->
+%% report §12.5, §11: a node's start holds its configuration directory,
+%% `ernest.conf` and `certificate.pem` to no owner and no mode: a node
+%% starts from a directory every user may write, with an `ernest.conf` and
+%% a `certificate.pem` every user may write. A regression test, written
+%% after the code: each was refused as `may be written by every user`. Not
+%% covered: a directory or a file of another user's, which a test run as
+%% one user cannot make
+modes_untested_test() ->
     Dir = made(),
-    Refused = fun(Path, Mode) ->
-                  {ok, #file_info{mode = Was}} = file:read_file_info(Path),
-                  ok = file:change_mode(Path, Mode),
-                  try refusal(fun() -> ern_node:read(Dir) end)
-                  after ok = file:change_mode(Path, Was band 8#7777)
-                  end
-              end,
+    [ok = file:change_mode(Path, Mode)
+     || {Path, Mode} <- [{Dir, 8#777}, {filename:join(Dir, "ernest.conf"), 8#666},
+                         {filename:join(Dir, "certificate.pem"), 8#666}]],
+    ?assertMatch(#configuration{}, ern_node:start(Dir)),
+    ok = ern_node:stop(Dir).
+
+%% report §12.5: a node refuses a key whose mode lets any but its owner
+%% read or write it, its group among them, and takes one its owner alone
+%% may read, and one others may only run; a file it needs that is not
+%% there is named with the command that makes a directory, and one it
+%% cannot read with the host's reason, a regression: such a file made `ern`
+%% fail with an internal error. A regression test of the key, written after
+%% the code
+key_mode_test() ->
+    Dir = made(),
+    Read = fun(Path, Mode) ->
+               {ok, #file_info{mode = Was}} = file:read_file_info(Path),
+               ok = file:change_mode(Path, Mode),
+               try refusal(fun() -> ern_node:read(Dir) end)
+               after ok = file:change_mode(Path, Was band 8#7777)
+               end
+           end,
     Conf = filename:join(Dir, "ernest.conf"),
     Key = filename:join(Dir, "private-key.pem"),
     Certificate = filename:join(Dir, "certificate.pem"),
-    ?assertEqual(Dir ++ " may be written by every user", Refused(Dir, 8#702)),
-    ?assertEqual(Conf ++ " may be written by every user", Refused(Conf, 8#646)),
-    ?assertEqual(Certificate ++ " may be written by every user", Refused(Certificate, 8#666)),
-    [?assertEqual(Key ++ " may be read or written by others than its owner", Refused(Key, Mode))
-     || Mode <- [8#640, 8#660, 8#604]],
-    %% written by its group, as a umask of 002 leaves a file, accepted
-    [?assertMatch({accepted, _}, Refused(Path, Mode))
-     || {Path, Mode} <- [{Conf, 8#664}, {Certificate, 8#664}, {Dir, 8#770}, {Conf, 8#644}]],
-    [?assertEqual(File ++ ": permission denied", Refused(File, 8#000))
+    [?assertEqual(Key ++ " may be read or written by others than its owner", Read(Key, Mode))
+     || Mode <- [8#640, 8#660, 8#620, 8#604, 8#602]],
+    [?assertMatch({accepted, _}, Read(Key, Mode)) || Mode <- [8#600, 8#400, 8#611]],
+    [?assertEqual(File ++ ": permission denied", Read(File, 8#000))
      || File <- [Conf, Key, Certificate]],
     ok = file:delete(Certificate),
     ?assertEqual(Certificate ++ " is not there; ern config --config-dir " ++ Dir
                  ++ " makes a configuration directory",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
-%% report §12.5, §11.2: where a path the node tests is a link, each link
-%% followed from it is taken in turn, and the directory that holds what
-%% each reaches is tested by its owner and by the bit for every user, the
-%% refusal naming the path tested: ernest.conf linked to a file in a
-%% directory every user may write is refused, and to one in a directory
-%% only its owner or its group may write is accepted; a chain of two links
-%% whose middle directory every user may write is refused; and the
-%% configuration directory given as a link is tested so, both ways.
+%% report §12.5, §11: a node's start follows a link in its configuration
+%% directory, and the directory given as a link, and tests no directory a
+%% link reaches through: `ernest.conf` a link to a file in a directory every
+%% user may write, or through a chain of two links whose middle directory
+%% every user may write, and the configuration directory given as a link to
+%% one in a directory every user may write, each start a node. The key's
+%% mode is read where its link leads.
 %%
-%% A link whose text ends in `..` is tested by the directory that holds
-%% what it reaches, and not by the one its text names last. A regression test,
-%% written after the code: a link was followed and nothing of its chain
-%% tested. Not covered: a directory of another user's in the chain, which a
-%% test run as one user cannot make
+%% A regression test, written after the code: the directory that held what
+%% each link reached was tested for who may write it. Not covered: a
+%% directory of another user's in the chain, which a test run as one user
+%% cannot make
 links_test() ->
     Dir = made(),
     Base = filename:dirname(Dir),
-    Within = fun(Name, Mode) ->
-                 Made = filename:join(Base, Name),
-                 ok = file:make_dir(Made),
-                 ok = file:change_mode(Made, Mode),
-                 Made
-             end,
+    Open = fun(Name) ->
+               Made = filename:join(Base, Name),
+               ok = file:make_dir(Made),
+               ok = file:change_mode(Made, 8#777),
+               Made
+           end,
+    Read = fun() -> refusal(fun() -> ern_node:read(Dir) end) end,
     Conf = filename:join(Dir, "ernest.conf"),
     {ok, Text} = file:read_file(Conf),
-    Open = Within("open", 8#777),
-    Shared = Within("shared", 8#770),
-    Middle = Within("middle", 8#777),
-    [ok = file:write_file(filename:join(At, "ernest.conf"), Text) || At <- [Open, Shared]],
+    Far = Open("far"),
+    Middle = Open("middle"),
+    ok = file:write_file(filename:join(Far, "ernest.conf"), Text),
     Linked = fun(Target) ->
                  ok = file:delete(Conf),
                  ok = file:make_symlink(Target, Conf),
-                 refusal(fun() -> ern_node:read(Dir) end)
+                 Read()
              end,
-    ?assertEqual(Conf ++ " may be written by every user", Linked("../open/ernest.conf")),
-    ?assertMatch({accepted, _}, Linked("../shared/ernest.conf")),
-    ok = file:make_symlink("../shared/ernest.conf", filename:join(Middle, "ernest.conf")),
-    ?assertEqual(Conf ++ " may be written by every user", Linked("../middle/ernest.conf")),
-    ok = file:change_mode(Middle, 8#755),
+    ?assertMatch({accepted, _}, Linked("../far/ernest.conf")),
+    ok = file:make_symlink("../far/ernest.conf", filename:join(Middle, "ernest.conf")),
     ?assertMatch({accepted, _}, Linked("../middle/ernest.conf")),
-    %% the configuration directory itself a link
-    Kept = Within("kept", 8#700),
-    _ = [ern_node:create(filename:join(At, "node"), "0.0.0.0:8654") || At <- [Open, Kept]],
+    %% the key a link to its owner's alone to read, in a directory every
+    %% user may write, and then to one its group may read
+    Key = filename:join(Dir, "private-key.pem"),
+    FarKey = filename:join(Far, "private-key.pem"),
+    ok = file:rename(Key, FarKey),
+    ok = file:make_symlink("../far/private-key.pem", Key),
+    ?assertMatch({accepted, _}, Read()),
+    ok = file:change_mode(FarKey, 8#640),
+    ?assertEqual(Key ++ " may be read or written by others than its owner", Read()),
+    %% the configuration directory itself a link, into a directory every
+    %% user may write
+    Elsewhere = Open("elsewhere"),
+    _ = ern_node:create(filename:join(Elsewhere, "node"), "0.0.0.0:8654"),
     Given = filename:join(Base, "given"),
-    GivenAs = fun(Target) ->
-                  _ = file:delete(Given),
-                  ok = file:make_symlink(Target, Given),
-                  refusal(fun() -> ern_node:read(Given) end)
-              end,
-    ?assertEqual(Given ++ " may be written by every user", GivenAs("open/node")),
-    ?assertMatch({accepted, _}, GivenAs("kept/node")),
-    %% `open/node/in/..` reaches open/node, which open holds, though `in`
-    %% is its owner's alone to write; `kept/node/in/..` reaches kept/node,
-    %% which kept holds, though every user may write `in`
-    [ok = file:make_dir(filename:join([At, "node", "in"])) || At <- [Open, Kept]],
-    ok = file:change_mode(filename:join([Open, "node", "in"]), 8#755),
-    ok = file:change_mode(filename:join([Kept, "node", "in"]), 8#777),
-    ?assertEqual(Given ++ " may be written by every user", GivenAs("open/node/in/..")),
-    ?assertMatch({accepted, _}, GivenAs("kept/node/in/..")).
+    ok = file:make_symlink("elsewhere/node", Given),
+    ?assertMatch(#configuration{}, ern_node:start(Given)),
+    ok = ern_node:stop(Given).
 
 %% report §12.5: a node writes its process number to ernest.pid as it
 %% starts, holds the file locked and removes it at its end; a file a living

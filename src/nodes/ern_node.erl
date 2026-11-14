@@ -200,7 +200,7 @@ add_peer(ConfigDir, PeerDir) ->
 %% `listen`: its directory, `ernest.conf` and certificate read as a node
 %% reads its own, the certificate naming the host its key gives.
 peer_read(PeerDir) ->
-    all_owned(PeerDir, [?CONF, ?CERTIFICATE]),
+    all_found(PeerDir, [?CONF, ?CERTIFICATE]),
     #configuration{listen = Listen} = configuration(PeerDir),
     Certificate = certificate(PeerDir),
     ern_carrier:names_own_host(Certificate)
@@ -270,14 +270,14 @@ file(ConfigDir, certificate) -> filename:join(ConfigDir, ?CERTIFICATE);
 file(ConfigDir, pid) -> filename:join(ConfigDir, ?PID_FILE).
 
 %% Report §12.5: the directory checked and `ernest.conf` read: the
-%% directory, and each file a node reads in it, passing the ownership test
-%% as the shell's startup files do (§11.2), and the key read by none but its
-%% owner, as ssh reads one; the file JSON, every field known; the key the
-%% one `ernest.conf` names and the certificate's, and the certificate naming
-%% the host the key gives.
+%% directory, and each file a node reads in it, there and of its kind, held
+%% to no owner and no mode (§11), and the key read and written by none but
+%% its owner, as ssh reads one; the file JSON, every field known; the key
+%% the one `ernest.conf` names and the certificate's, and the certificate
+%% naming the host the key gives.
 -spec read(file:filename()) -> #configuration{}.
 read(ConfigDir) ->
-    all_owned(ConfigDir, [?CONF, ?CERTIFICATE, ?KEY]),
+    all_found(ConfigDir, [?CONF, ?CERTIFICATE, ?KEY]),
     Configuration = configuration(ConfigDir),
     Key = private_key(ConfigDir),
     Own = public_der(Key),
@@ -295,18 +295,15 @@ read(ConfigDir) ->
                                        " of itself"),
     Configuration.
 
-%% The directory and each of its Files as owned/4 has them.
-all_owned(ConfigDir, Files) ->
-    User = ern_os:user(),
-    owned(ConfigDir, ConfigDir, directory, User),
-    lists:foreach(fun(File) -> owned(ConfigDir, filename:join(ConfigDir, File), regular, User) end,
+%% The directory and each of its Files as found/3 has them.
+all_found(ConfigDir, Files) ->
+    found(ConfigDir, ConfigDir, directory),
+    lists:foreach(fun(File) -> found(ConfigDir, filename:join(ConfigDir, File), regular) end,
                   Files).
 
-%% A file or the directory: there, of its kind, and passing the ownership
-%% test (§11.2), which names the path tested where a directory its links
-%% reach through fails it; the key neither read nor written by any but its
-%% owner.
-owned(ConfigDir, Path, Kind, User) ->
+%% A file or the directory: there, a link followed, and of its kind; the
+%% key neither read nor written by any but its owner (§12.5).
+found(ConfigDir, Path, Kind) ->
     Shown = ern_build:shown(Path),
     Info = case file:read_file_info(Path, [{time, posix}]) of
                {ok, Found} -> Found;
@@ -318,16 +315,7 @@ owned(ConfigDir, Path, Kind, User) ->
            end,
     Info#file_info.type =:= Kind
         orelse ern_build:fail(Shown ++ " is not a " ++ kind(Kind)),
-    case ern_ownership:failure(Path, Info, User) of
-        passes ->
-            ok;
-        another_users ->
-            ern_build:fail(Shown ++ " is another user's, and a node reads only its user's own or"
-                           " the superuser's");
-        every_user_may_write ->
-            ern_build:fail(Shown ++ " may be written by every user")
-    end,
-    filename:basename(Path) =/= ?KEY orelse Info#file_info.mode band 8#077 =:= 0
+    filename:basename(Path) =/= ?KEY orelse Info#file_info.mode band 8#066 =:= 0
         orelse ern_build:fail(Shown ++ " may be read or written by others than its owner"),
     ok.
 
@@ -441,9 +429,9 @@ measures_stopped() ->
 
 %% Report §12.5, §11.2: the signal sent to the node that runs from the
 %% directory, the one that holds its `ernest.pid`, the process the file
-%% names; where there is no file, no node holds it, or its process has
-%% ended or is another user's, the job fails, saying so, and nothing is
-%% signaled.
+%% names; where there is no file, no node holds it, the file is another
+%% user's, or its process has ended or is another user's, the job fails,
+%% saying so, and nothing is signaled.
 -spec signaled(file:filename(), non_neg_integer()) -> ok.
 signaled(ConfigDir, Number) ->
     node_signaled(ConfigDir, Number, false).

@@ -55,7 +55,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 `main` spawns the local half, which reads what the session needs and sends it, and `attach` is the local half itself. The two halves are ordered by what each step needs from the one before:
 
 1. Where the terminal answers a size, the local half holds it and waits until its subscription is granted or refused. A granted subscription means the terminal no longer echoes (§12.1 *Keys*), so nothing typed at an earlier prompt is echoed and read as a line.
-2. It checks and reads the startup files as it finds them, and only then makes the person's directory its owner's alone, so that a directory found open to others is seen as found; at a terminal it reads the history.
+2. It makes the person's directory its owner's alone, and then reads the startup files and, at a terminal, the history.
 3. It gives the session what it read: as a message to a plain shell's session, or in the spawn on the peer (*The attached shell*).
 4. The session spawns its screen and, at a terminal, its reader, marks its own processes, and starts the front end's session, which writes the screen's row. It then tells the local half its process and the addresses the keys and the shell's own node's output go to, a call, so that the output is routed before the next step.
 5. It says the greeting, subscribes to `Process.faults`, and only then spawns the file's entry point, so that a fault in the entry point is reported; then it says what the local half had to say of the files it read.
@@ -321,7 +321,7 @@ A spawn site in an input's module is written as §11.2 *Faults* says, under the 
 
 The local half finds the paths in Ernest, on the shell's own node: the person's beside the history's file, under the same rule for a `HOME` that is no absolute path, and then the configuration directory's, which the runner computes (§11.2). The host answers only what it alone knows, the configuration directory's file and whether two paths are one file, by device and node (the log's *The Full Review's Questions, One by One*). Each file is named from the working directory (§11.5).
 
-The local half applies the ownership test to each file and to its directory itself, with `Fs.stat`, `Fs.readLink` and `Os.user`, by §11.2 *Startup and history*'s rule (the log's *The Hardening Built*, *A Package and Its Manifest*). It reads the file with `Fs` too, and takes its inputs from its lines by line mode's rule, each carrying its file and the line it begins on; what it has to say of a file, one it did not run, it gives the session to say after the greeting.
+The local half reads each file with `Fs`, held to no owner and no mode (§11, the log's *The Trust Said Once*), and takes its inputs from its lines by line mode's rule, each carrying its file and the line it begins on; what it has to say of a file, one it did not run, it gives the session to say after the greeting.
 
 While a startup input runs, the session holds its file and line, which a refusal and a fault's report put before what they say. A command runs as a typed one does. Any other input runs with printing off and its file and line passed to `check`, so that a diagnostic names them and quotes the file's lines, which the local half reads again, the file being the operator's.
 

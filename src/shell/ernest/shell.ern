@@ -230,13 +230,6 @@ type Serving =
             startup : List(Path),
             output : Optional(Path))
 
-// Report §11.2: how a path fails the ownership test: what it reaches, or
-// the directory that holds what a link followed from it reaches, is
-// another user's, or every user may write it; or a link followed from it
-// has a target that is not UTF-8, which no `Path` names, so that what it
-// reaches cannot be judged.
-type Unowned = AnotherUsers | EveryUserMayWrite | UnnamedTarget
-
 // Report §11.2: a value is printed to a depth and a length, and 0 is
 // neither. The defaults print what a prompt is used for whole and stop a
 // value that would scroll the session away.
@@ -468,8 +461,8 @@ fn unkeptReason(unkept : History.Unkept, path : Path) : String =
 
 // Report §11.2: where the startup files are, the person's first and then
 // the configuration directory's, which runs only where `--config-dir`
-// names that directory; a file both paths name runs once. Whether they are
-// there, whose they are, and what they hold, is read where they are run.
+// names that directory; a file both paths name runs once. Whether each is
+// there, and what it holds, readFileInputs reads.
 fn startupFiles() : List(String) =
     match #(Optional.map(History.startup, fromWorkingDirectory), configStartup()) {
         #(Some(own), Some(configured)) ->
@@ -493,120 +486,10 @@ fn fromWorkingDirectory(path : Path) : String = {
         Path.toString(path)
 }
 
-// Report §11.2: the inputs of a startup file that is the user's own to
-// run, and what to say of one that is not: one that fails the ownership
-// test, or whose directory does, is said and not run, the file tested
-// before its directory.
-fn readOwnInputs(file : String) : #(List(#(String, Int, String)), List(String)) = {
-    let path = Path(file);
-    let directory = directoryOf(path);
-    match testOwnership(path) {
-        Some(failure) ->
-            #([], [file <> " " <> failing(failure) <> ", and is not run"])
-      | None ->
-            match testOwnership(directory) {
-                Some(failure) -> {
-                    let shown = Path.toString(directory);
-                    #([], [shown <> " " <> failing(failure) <> ", and " <> file <> " is not run"])
-                }
-              | None ->
-                    readFileInputs(file)
-            }
-    }
-}
-
-// The directory a path names its last segment in, as the host reads it: a
-// path without a directory names a file of the working directory, `.`.
-fn directoryOf(path : Path) : Path =
-    Optional.withDefault(Path.parent(path), Path("."))
-
-// Report §11.2: what a path that fails the ownership test is said to be.
-fn failing(failure : Unowned) : String =
-    match failure {
-        AnotherUsers -> "is another user's"
-      | EveryUserMayWrite -> "may be written by every user"
-      | UnnamedTarget -> "leads through a link whose target is not UTF-8"
-    }
-
-// Report §11.2: the ownership test of a path, and how the path fails it,
-// or none where it passes: what the path reaches, a link followed, is
-// judged first, and then the directory that holds what each link followed
-// from it reaches. A path that is not there is not tested, and one that
-// cannot be read is said where it is read.
-fn testOwnership(path : Path) : Optional(Unowned) =
-    match Fs.stat(path, fileMs) {
-        Right(entry) ->
-            match failureOf(entry) {
-                None -> testLinks(path, 0)
-              | failure -> failure
-            }
-      | Left(_) ->
-            None
-    }
-
-// Report §11.2: an entry judged by its user, the user's own or the
-// superuser's, whose number is 0, and then by the bit of its mode for the
-// users who are neither its owner nor of its group. The bits for its group
-// are not read.
-fn failureOf(entry : Fs.Entry) : Optional(Unowned) =
-    if entry.user != Os.user && entry.user != 0 then
-        Some(AnotherUsers)
-    else if Int.bitAnd(entry.mode, 0o002) != 0 then
-        Some(EveryUserMayWrite)
-    else
-        None
-
-// Report §11.2: each link followed from the path in turn, its target read
-// from the directory the link stands in, as the host reads it, and the
-// directory that holds what the target reaches judged as what it is, links
-// followed; nothing above that directory is tested. A path that is no link,
-// or no longer there, ends the walk. A target that is not UTF-8 is named by
-// no `Path`, so the directory that holds what it reaches cannot be judged,
-// and the path fails.
-//
-// The host followed the chain to reach what the path reaches, and follows
-// no more than its limit of links in one path, so a walk past the limit
-// meets a chain changed since, which the read after the test meets as well.
-fn testLinks(path : Path, followed : Int) : Optional(Unowned) =
-    if followed == mostLinks then
-        None
-    else match Fs.readLink(path, fileMs) {
-        Right(Some(text)) -> {
-            let target = directoryOf(path) <> text;
-            match heldFailure(target) {
-                None -> testLinks(target, followed + 1)
-              | failure -> failure
-            }
-        }
-      | Left(Io.NotUtf8(_)) ->
-            Some(UnnamedTarget)
-      | _ ->
-            None
-    }
-
-// The most links the host follows in one path, Linux's.
-let mostLinks = 40
-
-// Report §11.2: the directory that holds what a target reaches judged,
-// which is not tested where it is not there.
-fn heldFailure(target : Path) : Optional(Unowned) =
-    match Fs.stat(holdingDirectory(target), fileMs) {
-        Right(entry) -> failureOf(entry)
-      | Left(_) -> None
-    }
-
-// Report §11.2: the directory that holds what a target reaches: the one
-// its last name stands in, or, for a target that ends in `.` or `..` or is
-// the root, the directory above the one it reaches, which the host finds
-// by its `..`, the root's being the root.
-fn holdingDirectory(target : Path) : Path =
-    match Path.name(target) {
-        Some(name) when name != "." && name != ".." -> directoryOf(target)
-      | _ -> target <> Path("..")
-    }
-
-// A file that is not there is no error; one that cannot be read is said
-// and the session goes on. Each input carries the line it is on.
+// Report §11.2: the inputs of a startup file, read where it is found and
+// held to no owner and no mode (§11). A file that is not there is no
+// error; one that cannot be read, or is not UTF-8, is said, and the
+// session goes on. Each input carries the line it is on.
 fn readFileInputs(file : String) : #(List(#(String, Int, String)), List(String)) =
     match Fs.read(Path(file), fileMs) {
         Left(Io.NotFound) ->
@@ -2104,12 +1987,12 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
         }
     };
     let color = if Optional.isSome(size) && colorAllowed then Markdown.Styled else Markdown.Plain;
-    // report §11.2: the startup files are checked and read as they are
-    // found, and the person's directory is then made its owner's alone,
-    // before the history makes it so at a terminal
-    let startup = startupFiles();
-    let read = List.map(startup, readOwnInputs);
+    // report §11.2: the person's directory made its owner's alone as the
+    // shell starts, before a file of it is read, in line mode too, where
+    // the history is not read
     History.keepOwn();
+    let startup = startupFiles();
+    let read = List.map(startup, readFileInputs);
     let #(earlier, keeping, historyNotes) = match size {
         Some(_) -> readHistory()
       | None -> #([], false, [])

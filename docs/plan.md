@@ -67,7 +67,7 @@ and Its Manifest*).
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
 log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
 
-What is left is small, and each item stands alone: the flakes, items 11, 24, 32 and 40; what
+What is left is small, and each item stands alone: the flakes, items 11, 24, 32, 40 and 51; what
 the builds found, items 35, 36 and 38; and items 37 and 39, before MVP 4.4's item 4.
 Item 44 follows them, between this milestone and MVP 4.17.
 
@@ -242,6 +242,10 @@ Item 43 is MVP 4.17's.
 45. **The milestone split in two**, done 2026-11-14 (the log's *The Milestone Split*).
 46. **What item 42's round left to decide**, done 2026-11-14 (the log's *No Module's
     Source* and *An Index That Is No File*).
+51. **The flake of `delivery_foreign_code_arranges_test`**, seen 2026-11-14 once under
+    `make test`, over MVP 4.17's item 47: `ern_reaper_tests` said `the sender ended first`.
+    It passed alone and in the next run. The cause is not found. An agent finds it under
+    the light run's load, and fixes the test or the reaper at it.
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
@@ -259,24 +263,8 @@ The discussion came first.
 What it decided is built next. Each item changes the report first, and its sentences are read
 cold before the build (the log's *The Trust Said Once*).
 
-47. **The trust said once, and the defenses that go**, decided with the user 2026-11-14.
-    §11 says the trust once: a job trusts whoever the host lets write what it is given, and
-    whoever may write the directory it is started in. Three guards stay, each with its
-    attacker: the sticky directory (§11.9), a node's key (§12.5) and the owner of
-    `ernest.pid` (§11.2). The item is two builds, and closes on `make test-full`.
-
-    The first build, §11.9's, is done 2026-11-14 (the log's *The Trust Said Once*, its
-    paragraph *The first build*).
-
-    The second build is the ownership test's, which goes: its paragraph in §11.2, its line
-    in Appendix F, `ern_ownership`, the shell's walk in Ernest and the helper's test of a
-    mode. A startup file and a node's configuration are held to no owner and no mode. A
-    node still refuses a key that any but its owner may read or write. `ern stop` and
-    `ern reload` refuse an `ernest.pid` that is another user's, and follow no link there.
-
-    The item sweeps the deployment guide's paragraph on who owns a node's directory, the
-    shell's design note at its two places, and `docs/code_style.md`'s glossary line
-    *Ownership, HoldingDirectory*.
+47. **The trust said once, and the defenses that go**, done 2026-11-14 in two builds (the
+    log's *The Trust Said Once*, its paragraphs *The first build* and *The second build*).
 48. **One paragraph on a name that reaches no regular file**, decided with the user
     2026-11-14. §11 says it once, in three sentences. A job reads only a regular file, a
     link followed, and opens nothing else. A job that looks for a file passes over any
@@ -298,6 +286,13 @@ cold before the build (the log's *The Trust Said Once*).
     The guard stands where a path is written, as `\xHH`, the way a byte that is not UTF-8
     is written (§11.1). The item first finds the report's sentence on how a path is written,
     and whether one function writes it, the shell's lines among them.
+50. **The history file's owner**, found 2026-11-14 by the cold reading of item 47's second
+    build, and decided with the user. §11.2 holds a history file to its user's own, a fourth
+    test beside §11's three, which item 43 did not weigh. Either the owner half goes, as the
+    startup files' did, and the refusal of a link stays, or §11 names four. The item also
+    decides what the shell does with a `$HOME/.ernest` whose mode it cannot set, where the
+    report is silent and the code leaves the directory and says nothing (the log's *The
+    Trust Said Once*, its paragraph *A fourth test*).
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.

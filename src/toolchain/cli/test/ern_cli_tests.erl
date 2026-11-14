@@ -6795,45 +6795,69 @@ signal_jobs_test() ->
                  <<"ernest.pid: no node holds it: no node runs from the directory">>,
                  <<"ern reload: ", (list_to_binary(Dir))/binary, "/ernest.conf: is not JSON\n">>]].
 
-%% report §11.2, §12.5: `ern stop` refuses an ernest.pid a node holds that
-%% every user may write, and one that is a link to such a file, with the
-%% host's reason, each in its whole line, and the process the file names is
-%% sent nothing. A regression test, written after the code: the line said
-%% the file may be written by others than its owner, its group among them.
-%% A file its group may write, which is signaled, is ern_os_tests'
-%% node_file_test's; a file of another user's, which a test run as one user
-%% cannot make, is not covered
-stop_refuses_what_every_user_may_write_test() ->
+%% report §11.2: `ern reload` and `ern stop` act on an ernest.pid a node
+%% holds whose mode lets every user write it, its mode not tested: `ern
+%% reload` sends the process the file names the hangup, and `ern stop`
+%% sends it the termination and returns once the node's lock has gone. Each
+%% refuses a link at ernest.pid with the host's reason, in its whole line,
+%% and the process the file names is sent nothing.
+%%
+%% A regression test, written after the code: each refused such a file as
+%% `may be written by every user`. A file of another user's, the
+%% superuser's to another user or another user's to the superuser, which a
+%% test run as one user cannot make, is not covered
+signal_jobs_take_any_mode_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
     PidFile = Dir ++ "/ernest.pid",
-    %% a living process that is no node, which reads its input and echoes it
-    Living = open_port({spawn_executable, os:find_executable("cat")}, [binary]),
-    {os_pid, Number} = erlang:port_info(Living, os_pid),
+    Signal = fun(Job) -> ern_err([Job, "--config-dir", Dir]) end,
     Self = self(),
-    Holder = spawn(fun() ->
-                       Self ! {locked, ern_os:locked(PidFile, Number)},
-                       receive stop -> ok end
-                   end),
-    receive {locked, Locked} -> ?assertEqual(locked, Locked) end,
-    ok = file:change_mode(PidFile, 8#666),
-    _ = ?capturedOutput,
-    ?assertEqual(1, ern_err(["stop", "--config-dir", Dir])),
+    %% a living process that is no node, which reads its input and echoes
+    %% it, named in ernest.pid by a holder of the node's lock, the file then
+    %% made writable by every user
+    Held = fun() ->
+               Living = open_port({spawn_executable, os:find_executable("cat")},
+                                  [binary, exit_status]),
+               {os_pid, Number} = erlang:port_info(Living, os_pid),
+               Holder = spawn(fun() ->
+                                  Self ! {locked, ern_os:locked(PidFile, Number)},
+                                  receive stop -> ok end
+                              end),
+               receive {locked, Locked} -> ?assertEqual(locked, Locked) end,
+               ok = file:change_mode(PidFile, 8#666),
+               {Living, Holder}
+           end,
+    Released = fun(Holder) ->
+                   MonitorRef = erlang:monitor(process, Holder),
+                   Holder ! stop,
+                   receive {'DOWN', MonitorRef, process, Holder, _} -> ok end
+               end,
+    %% a program a signal ends exits with 128 and the signal's number
+    Ended = fun(Living) -> receive {Living, {exit_status, Status}} -> Status end end,
+    {Hung, Holder} = Held(),
     %% the file the node holds renamed, and a link to it in its place
     ok = file:rename(PidFile, Dir ++ "/held.pid"),
     ok = file:make_symlink("held.pid", PidFile),
-    ?assertEqual(1, ern_err(["stop", "--config-dir", Dir])),
+    _ = ?capturedOutput,
+    ?assertEqual([1, 1], [Signal(Job) || Job <- ["stop", "reload"]]),
     Said = unicode:characters_to_binary(?capturedOutput),
-    MonitorRef = erlang:monitor(process, Holder),
-    Holder ! stop,
-    receive {'DOWN', MonitorRef, process, Holder, _} -> ok end,
-    true = port_command(Living, <<"alive">>),
-    Echoed = receive {Living, {data, Data}} -> Data end,
-    port_close(Living),
-    ?assertEqual(<<"alive">>, Echoed),
-    [?assertMatch({_, _}, binary:match(Said, list_to_binary(["ern stop: ", ern_build:shown(PidFile),
-                                                             ": ", Reason, "\n"])))
-     || Reason <- ["may be written by every user", "too many levels of symbolic links"]].
+    [?assertMatch({_, _}, binary:match(Said, list_to_binary(["ern ", Job, ": ",
+                                                             ern_build:shown(PidFile),
+                                                             ": too many levels of symbolic"
+                                                             " links\n"])))
+     || Job <- ["stop", "reload"]],
+    true = port_command(Hung, <<"alive">>),
+    ?assertEqual(<<"alive">>, receive {Hung, {data, Data}} -> Data end),
+    ok = file:delete(PidFile),
+    ok = file:rename(Dir ++ "/held.pid", PidFile),
+    ?assertEqual(0, Signal("reload")),
+    ?assertEqual(128 + 1, Ended(Hung)),
+    Released(Holder),
+    {Terminated, Holding} = Held(),
+    _ = spawn_link(fun() -> Self ! {stopped, Signal("stop")} end),
+    ?assertEqual(128 + 15, Ended(Terminated)),
+    Released(Holding),
+    ?assertEqual(0, receive {stopped, Status} -> Status end).
 
 %% report §11.3: the configuration directory is its owner's alone, and one
 %% that exists is refused, whoever made it and however empty. A regression
@@ -6954,8 +6978,6 @@ config_peer_keeps_fields_test() ->
                           ", \"name\": \"b\"}], \"services\": {\"counter\": [\"b\"]},"
                           " \"listen\": \"127.0.0.1:8654\", \"measures\": {\"cpu\": {}},"
                           " \"limits\": {\"ports\": 4096, \"processes\": 65536}}"]),
-    %% report §12.5: written by none but its owner, whatever the umask
-    ok = file:change_mode(Elsewhere, 8#644),
     Conf = filename:join(A, "ernest.conf"),
     ok = file:delete(Conf),
     ok = file:make_symlink(Elsewhere, Conf),
@@ -7039,29 +7061,34 @@ config_peer_directories_test() ->
                     || Peer <- [Missing, Uncertified, Plain]]]].
 
 %% report §11.3, §12.5: the peer's directory, its `ernest.conf` and its
-%% certificate are read as a node reads its own: a file every user may
-%% write, a file that is not JSON and a certificate that is none are
-%% refused, each naming the peer's file, and nothing is written
+%% certificate are read as a node reads its own: a file that is not JSON
+%% and a certificate that is none are refused, each naming the peer's
+%% file, and nothing is written; a directory and an `ernest.conf` every
+%% user may write are read, and the peer is listed. The last is a
+%% regression test, written after the code: each was refused as `may be
+%% written by every user`
 config_peer_read_as_a_node_test() ->
     Dir = tmp(),
     [A, Open, Broken, Uncertified] = [filename:join(Dir, Name)
                                       || Name <- ["a", "open", "broken", "uncertified"]],
     [?assertEqual(0, ern_err(["config", "--config-dir", Made]))
      || Made <- [A, Open, Broken, Uncertified]],
-    ok = file:change_mode(filename:join(Open, "ernest.conf"), 8#666),
     ok = file:write_file(filename:join(Broken, "ernest.conf"), "{"),
     ok = file:write_file(filename:join(Uncertified, "certificate.pem"), "none"),
     {ok, Before} = file:read_file(filename:join(A, "ernest.conf")),
     _ = ?capturedOutput,
     [?assertEqual(1, ern_err(["config", "--config-dir", A, "--peer-dir", Peer]))
-     || Peer <- [Open, Broken, Uncertified]],
+     || Peer <- [Broken, Uncertified]],
     ?assertEqual({ok, Before}, file:read_file(filename:join(A, "ernest.conf"))),
     Said = unicode:characters_to_binary(?capturedOutput),
     Shown = fun(Made, File) -> ern_build:shown(filename:join(Made, File)) end,
     [?assertMatch({_, _}, binary:match(Said, list_to_binary("ern config: " ++ Line ++ "\n")))
-     || Line <- [Shown(Open, "ernest.conf") ++ " may be written by every user",
-                 Shown(Broken, "ernest.conf") ++ ": is not JSON",
-                 Shown(Uncertified, "certificate.pem") ++ ": is not one certificate in PEM"]].
+     || Line <- [Shown(Broken, "ernest.conf") ++ ": is not JSON",
+                 Shown(Uncertified, "certificate.pem") ++ ": is not one certificate in PEM"]],
+    ok = file:change_mode(Open, 8#777),
+    ok = file:change_mode(filename:join(Open, "ernest.conf"), 8#666),
+    ?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer-dir", Open])),
+    ?assertMatch(#{<<"peers">> := [#{<<"name">> := <<"open">>}]}, conf_of(A)).
 
 %% report §11.3: `--peer-dir` lists the peer in the directory a relative
 %% `--config-dir` names from the working directory
@@ -8223,8 +8250,9 @@ package_sticky_package_dir_test() ->
                                   said(["run", "--package-dir", Chart, "given.erc"]))
                  end).
 
-%% report §11.9: no other path of a package is tested for who may write
-%% it: a job is not refused where every user may write the manifest, `lib`,
+%% report §11, §11.9: a job holds what it reads to no owner and no mode, the
+%% root package's directory aside: a job is not refused where every user
+%% may write the manifest, `lib`,
 %% a named package's directory, its `src`, `build` and `ebin`, a file under
 %% it, and the directory that holds what a link at `lib/leaf` reaches, each
 %% directory with the sticky bit besides. A regression test, written after

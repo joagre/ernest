@@ -30,7 +30,6 @@ The modules of `cli`, under `src/toolchain/cli/`:
 |---|---|
 | `ern_cli` | the command, its jobs and the runner's start (*The tools*) |
 | `ern_build` | the build every job reaches (§11.1) |
-| `ern_ownership` | §11.2's ownership test, which a node applies to its configuration (§12.5), and a package's paths by their mode alone (§11.9) |
 | `ern_package` | a job's root package read, its manifest's faults and its named packages (§11.9) |
 | `ern_conf` | a JSON file of the toolchain's own read the one way, `ernest.conf` and `package.conf` (§12.5, §11.9) |
 | `ern_page` | §11.4's renderer, the pages of `ern doc` and the shell's `:doc` |

@@ -403,191 +403,104 @@ host_flags_cleared() ->
     ?assertEqual(nomatch, binary:match(Output, <<"leaked">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern ">>)).
 
-%% report §11.2: a startup file that fails the ownership test, or whose
-%% directory does, is said and not run, the file or the directory named
-%% with how it fails: one that every user may write, and one in a directory
-%% that every user may write; one that its group may write, and one in a
-%% directory its group may write, is run, the group's bits not read; the
-%% person's directory is its owner's alone after the session, in line mode
-%% too.
+%% report §11.2: a startup file is held to no owner and no mode, nor is its
+%% directory: one that every user may write, one in a directory every user
+%% may write, and one of both, is run; the person's directory is its
+%% owner's alone after the session, in line mode too.
 %%
-%% A regression test: each was run, and in line mode the directory kept
-%% its mode (the log's *The Full Review's Questions, One by One*); then the
-%% group's bits were refused as every user's (the log's *A Package and Its
-%% Manifest*), and the line said only that another user could change the
-%% file. Written after the code; a file of another user's is not covered,
-%% since a test cannot make one
-startup_of_anothers_test_() ->
-    ern_nodes_tests:counted_test({waits, 4}, fun startup_of_anothers/0).
+%% A regression test, written after the code: each was said and not run,
+%% as `may be written by every user`. Not covered: a file or a directory of
+%% another user's, which a test cannot make
+startup_any_mode_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun startup_any_mode/0).
 
-startup_of_anothers() ->
-    Run = fun(Change, Said) ->
+startup_any_mode() ->
+    Run = fun(Changes) ->
               Home = fresh_home(),
               Dir = filename:join(Home, ".ernest"),
               File = filename:join(Dir, "startup"),
               startup_file(File, "Io.println(\"planted\")\n"),
-              ok = Change(Dir, File),
+              [ok = file:change_mode(Path, Given) || {Path, Given} <- Changes(Dir, File)],
               {0, Output} = ern_pty:sh("echo 1 | HOME=" ++ Home ++ " ../bin/ern shell"),
-              ?assertMatch({_, _}, binary:match(Output, Said(Dir, File))),
+              ?assertMatch({_, _}, binary:match(Output, <<"planted\n">>)),
               ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)),
               {ok, #file_info{mode = Mode}} = file:read_file_info(Dir),
-              ?assertEqual(8#700, Mode band 8#777),
-              Output
+              ?assertEqual(8#700, Mode band 8#777)
           end,
-    Planted = fun(_Dir, _File) -> <<"planted\n">> end,
-    Refused = fun(Change, Said) ->
-                  ?assertEqual(nomatch, binary:match(Run(Change, Said), <<"planted">>))
-              end,
-    Refused(fun(_Dir, File) -> file:change_mode(File, 8#666) end,
-            fun(_Dir, File) ->
-                list_to_binary([ern_build:shown(File), " may be written by every user, and is not"
-                                " run"])
-            end),
-    _ = Run(fun(_Dir, File) -> file:change_mode(File, 8#664) end, Planted),
-    Refused(fun(Dir, _File) -> file:change_mode(Dir, 8#777) end,
-            fun(Dir, File) ->
-                list_to_binary([ern_build:shown(Dir), " may be written by every user, and ",
-                                ern_build:shown(File), " is not run"])
-            end),
-    _ = Run(fun(Dir, _File) -> file:change_mode(Dir, 8#770) end, Planted).
+    Run(fun(_Dir, File) -> [{File, 8#666}] end),
+    Run(fun(Dir, _File) -> [{Dir, 8#777}] end),
+    Run(fun(Dir, File) -> [{File, 8#666}, {Dir, 8#777}] end).
 
-%% report §11.2: where a startup file is a link, each link followed from it
-%% is taken in turn, and the directory that holds what each reaches is
-%% tested too, the refusal naming the startup file: a link to a file in a
-%% directory every user may write is refused, and one to a file in a
-%% directory only its owner or its group may write is run; a chain of two
-%% links whose middle directory every user may write is refused; and the
-%% person's directory given as a link is tested so, both ways.
+%% report §11.2: no link from a startup file or from its directory is
+%% read, and no directory a link reaches through is tested: the startup
+%% file a link to a file in a directory every user may write, through a
+%% chain of two links whose middle directory every user may write, or
+%% through a link whose target is not UTF-8, and the person's directory a
+%% link to one every user may write, each is run.
 %%
-%% The directories the links reach through are made here, since the test's
-%% home lies under one every user may write, which nothing but a link's
-%% target reaches. A regression test, written after the code: a link was followed
-%% and nothing of its chain tested. Not covered: a directory of another
-%% user's in the chain, which a test cannot make
+%% A regression test, written after the code: the directory that held what
+%% each link reached was tested, and a target that was not UTF-8 refused
+%% the file. Not covered: a directory of another user's in the chain, which
+%% a test cannot make
 startup_through_links_test_() ->
-    ern_nodes_tests:counted_test({waits, 6}, fun startup_through_links/0).
+    ern_nodes_tests:counted_test({waits, 4}, fun startup_through_links/0).
 
 startup_through_links() ->
-    Run = fun(Change) ->
+    Run = fun(Link) ->
               Home = fresh_home(),
               Dir = filename:join(Home, ".ernest"),
-              File = filename:join(Dir, "startup"),
-              %% a directory of Home's of the mode given, holding a startup
-              %% file of its own
-              Within = fun(Name, Mode) ->
-                           Made = filename:join(Home, Name),
-                           ok = file:make_dir(Made),
-                           ok = file:change_mode(Made, Mode),
-                           Planted = filename:join(Made, "startup"),
-                           ok = file:write_file(Planted, "Io.println(\"planted\")\n"),
-                           ok = file:change_mode(Planted, 8#644),
-                           Made
-                       end,
-              ok = filelib:ensure_path(Dir),
-              ok = file:change_mode(Dir, 8#700),
-              ok = Change(Within, Dir, File),
+              %% a directory of Home's every user may write, holding a
+              %% startup file of its own
+              Open = fun(Name) ->
+                         Made = filename:join(Home, Name),
+                         startup_file(filename:join(Made, "startup"), "Io.println(\"planted\")\n"),
+                         ok = file:change_mode(Made, 8#777),
+                         Made
+                     end,
+              ok = Link(Open, Dir),
               {0, Output} = ern_pty:sh("echo 1 | HOME=" ++ Home ++ " ../bin/ern shell"),
-              ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)),
-              {Output, Dir, File}
+              ?assertMatch({_, _}, binary:match(Output, <<"planted\n">>)),
+              ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>))
           end,
-    Refused = fun(Change, Failing) ->
-                  {Output, Dir, File} = Run(Change),
-                  ?assertEqual(nomatch, binary:match(Output, <<"planted">>)),
-                  Line = case Failing of
-                             file -> [ern_build:shown(File), " may be written by every user,"
-                                      " and is not run"];
-                             directory -> [ern_build:shown(Dir), " may be written by every user,"
-                                           " and ", ern_build:shown(File), " is not run"]
-                         end,
-                  ?assertMatch({_, _}, binary:match(Output, list_to_binary(Line)))
-              end,
-    Planted = fun(Change) ->
-                  {Output, _, _} = Run(Change),
-                  ?assertMatch({_, _}, binary:match(Output, <<"planted\n">>))
-              end,
-    Refused(fun(Within, _Dir, File) ->
-                _ = Within("open", 8#777),
-                file:make_symlink("../open/startup", File)
-            end, file),
-    Planted(fun(Within, _Dir, File) ->
-                _ = Within("shared", 8#770),
-                file:make_symlink("../shared/startup", File)
-            end),
-    Refused(fun(Within, _Dir, File) ->
-                _ = Within("kept", 8#700),
-                Middle = Within("middle", 8#777),
-                ok = file:make_symlink("../kept/startup", filename:join(Middle, "link")),
-                file:make_symlink("../middle/link", File)
-            end, file),
-    Planted(fun(Within, _Dir, File) ->
-                _ = Within("kept", 8#700),
-                Middle = Within("middle", 8#755),
-                ok = file:make_symlink("../kept/startup", filename:join(Middle, "link")),
-                file:make_symlink("../middle/link", File)
-            end),
-    Refused(fun(Within, Dir, _File) ->
-                Open = Within("open", 8#777),
-                startup_file(filename:join([Open, "real", "startup"]), "Io.println(\"planted\")\n"),
-                ok = file:del_dir(Dir),
-                file:make_symlink("open/real", Dir)
-            end, directory),
-    Planted(fun(Within, Dir, _File) ->
-                Kept = Within("kept", 8#755),
-                startup_file(filename:join([Kept, "real", "startup"]), "Io.println(\"planted\")\n"),
-                ok = file:del_dir(Dir),
-                file:make_symlink("kept/real", Dir)
-            end).
+    %% the person's directory made, its startup file a link to Target
+    Linked = fun(Dir, Target) ->
+                 ok = filelib:ensure_path(Dir),
+                 file:make_symlink(Target, filename:join(Dir, "startup"))
+             end,
+    Run(fun(Open, Dir) ->
+            _ = Open("far"),
+            Linked(Dir, "../far/startup")
+        end),
+    Run(fun(Open, Dir) ->
+            _ = Open("far"),
+            Middle = Open("middle"),
+            ok = file:make_symlink("../far/startup", filename:join(Middle, "link")),
+            Linked(Dir, "../middle/link")
+        end),
+    Run(fun(Open, Dir) ->
+            _ = Open(<<"x", 16#FF>>),
+            Linked(Dir, <<"../x", 16#FF, "/startup">>)
+        end),
+    Run(fun(Open, Dir) ->
+            _ = Open("far"),
+            file:make_symlink("far", Dir)
+        end).
 
-%% report §11.2: a startup file is not run where a link followed from it,
-%% or from its directory, has a target that is not UTF-8, and the line
-%% names the one that leads through it: the startup file a link to a
-%% directory so named, and the person's directory a link to one.
-%%
-%% A regression test, written after the code: nothing held the sentence.
-%% Not covered: such a link met further along a chain
-startup_through_unnamed_links_test_() ->
-    ern_nodes_tests:counted_test({waits, 2}, fun startup_through_unnamed_links/0).
+%% report §11.2: at a terminal too, a startup file in a directory every
+%% user may write is run, and the person's directory is then its owner's
+%% alone. A regression test, written after the code: such a file was said
+%% and not run
+startup_at_a_terminal_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun startup_at_a_terminal/0).
 
-startup_through_unnamed_links() ->
-    Run = fun(Link, Line) ->
-              Home = fresh_home(),
-              Dir = filename:join(Home, ".ernest"),
-              File = filename:join(Dir, "startup"),
-              %% a directory whose name is not UTF-8, holding a startup file
-              Unnamed = <<"x", 16#FF>>,
-              startup_file(filename:join([Home, Unnamed, "startup"]), "Io.println(\"planted\")\n"),
-              ok = Link(Unnamed, Dir, File),
-              {0, Output} = ern_pty:sh("echo 1 | HOME=" ++ Home ++ " ../bin/ern shell"),
-              ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)),
-              ?assertEqual(nomatch, binary:match(Output, <<"planted">>)),
-              ?assertMatch({_, _}, binary:match(Output, list_to_binary(Line(Dir, File))))
-          end,
-    Leads = " leads through a link whose target is not UTF-8, and ",
-    Run(fun(Unnamed, Dir, File) ->
-            ok = filelib:ensure_path(Dir),
-            ok = file:change_mode(Dir, 8#700),
-            file:make_symlink(<<"../", Unnamed/binary, "/startup">>, File)
-        end,
-        fun(_Dir, File) -> [ern_build:shown(File), Leads, "is not run"] end),
-    Run(fun(Unnamed, Dir, _File) -> file:make_symlink(Unnamed, Dir) end,
-        fun(Dir, File) -> [ern_build:shown(Dir), Leads, ern_build:shown(File), " is not run"] end).
-
-%% report §11.2: at a terminal too, a startup file is checked as it is
-%% found, before the history makes the person's directory its owner's
-%% alone. A regression test: the history's mode came first, so a startup
-%% file in a directory anyone could write was run at a terminal
-startup_checked_as_found_test_() ->
-    ern_nodes_tests:counted_test({waits, 3}, fun startup_checked_as_found/0).
-
-startup_checked_as_found() ->
+startup_at_a_terminal() ->
     Home = fresh_home(),
     Dir = filename:join(Home, ".ernest"),
-    ok = filelib:ensure_path(Dir),
-    ok = file:write_file(filename:join(Dir, "startup"), "Io.println(\"planted\")\n"),
+    startup_file(filename:join(Dir, "startup"), "let planted = \"ran\"\n"),
     ok = file:change_mode(Dir, 8#777),
-    Bytes = pty("HOME=" ++ Home ++ " ../bin/ern shell",
-                [{expect, "is not run"}, {expect, "> "}, {send, "04"}]),
-    ?assertEqual(nomatch, binary:match(Bytes, <<"planted">>)),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+            [{expect, "> "}, {send, hex("planted\r")}, {expect, "\"ran\" : String"},
+             {expect, "> "}, {send, "04"}]),
     {ok, #file_info{mode = Mode}} = file:read_file_info(Dir),
     ?assertEqual(8#700, Mode band 8#777).
 
@@ -6685,14 +6598,11 @@ alone(Command) ->
 fresh_home() ->
     scratch("ern_home_").
 
-%% A startup file the shell runs (report §11.2): its user's own, and it and
-%% its directory written by none but their owner, whatever the umask.
+%% A startup file the shell runs (report §11.2), its directory made where
+%% it is not there.
 startup_file(File, Text) ->
-    Dir = filename:dirname(File),
-    ok = filelib:ensure_path(Dir),
-    ok = file:change_mode(Dir, 8#700),
-    ok = file:write_file(File, Text),
-    ok = file:change_mode(File, 8#644).
+    ok = filelib:ensure_path(filename:dirname(File)),
+    ok = file:write_file(File, Text).
 
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).

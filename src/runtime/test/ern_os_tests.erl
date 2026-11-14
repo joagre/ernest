@@ -1082,16 +1082,15 @@ wait(Tag) ->
 
 %% report §12.5, §11.2: a node's ernest.pid is made writable by its owner
 %% alone, whatever the mask, and never through a link; and a signal to the
-%% node that holds it is refused, nothing sent, where the file fails the
-%% ownership test, every user able to write it, since another could then
-%% have written its number, and is sent where its group alone may, the
-%% group's bits not read, or where every user may write its directory,
-%% which is not tested. The number is this host's, which the signal 0 asks
-%% after. A regression test, written after the code: the file was made
-%% 0666 under the mask, group-writable under Ubuntu's 002, and a link was
-%% followed; then a file its group may write was refused as every user's.
-%% A file another user owns, which a test run as one user cannot make, is
-%% not covered
+%% node that holds it is sent where the file is its user's own, whatever
+%% its mode, its group or every user able to write it, and whoever may
+%% write its directory: neither is tested. The number is this host's, which
+%% the signal 0 asks after. A regression test, written after the code: the
+%% file was made 0666 under the mask, group-writable under Ubuntu's 002,
+%% and a link was followed; then a file its group may write was refused as
+%% every user's, and then one every user may write. A file another user
+%% owns, the superuser's to another user or another user's to the
+%% superuser, which a test run as one user cannot make, is not covered
 node_file_test() ->
     Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
                         "ern_os_node_" ++ os:getpid()),
@@ -1107,15 +1106,14 @@ node_file_test() ->
     {ok, #file_info{mode = Mode}} = file:read_file_info(PidFile),
     ?assertEqual(8#644 band bnot ern_os:umask(), Mode band 8#777),
     ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
-    ok = file:change_mode(PidFile, 8#664),
-    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
-    %% the file tested, and not its directory
-    ok = file:change_mode(Dir, 8#777),
-    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+    Signaled = fun(Path, Given) ->
+                   ok = file:change_mode(Path, Given),
+                   ern_os:node_signaled(PidFile, 0, false)
+               end,
+    ?assertEqual([sent, sent, sent],
+                 [Signaled(Path, Given)
+                  || {Path, Given} <- [{PidFile, 8#664}, {PidFile, 8#666}, {Dir, 8#777}]]),
     ok = file:change_mode(Dir, 8#700),
-    ok = file:change_mode(PidFile, 8#666),
-    ?assertEqual({failed, "may be written by every user"},
-                 ern_os:node_signaled(PidFile, 0, false)),
     MonitorRef = erlang:monitor(process, Holder),
     Holder ! stop,
     receive {'DOWN', MonitorRef, process, Holder, _} -> ok end,
@@ -1168,17 +1166,3 @@ signal_test() ->
         "root" -> ok;
         _ -> ?assertEqual(others, ern_os:signal(0, 1))
     end.
-
-%% report §12.5: the user `ern` runs as, read alone, which a node's check of
-%% its directory reads: the user host/0 reads, and the owner of a file this
-%% host makes. A regression test: the node read the whole of what the host
-%% says of a program, its environment among it, for the user alone
-user_test() ->
-    User = ern_os:user(),
-    ?assertMatch({'Host', User, _}, ern_os:host()),
-    File = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                         "ern_os_user_" ++ os:getpid()),
-    ok = file:write_file(File, <<>>),
-    {ok, #file_info{uid = Owner}} = file:read_file_info(File),
-    ok = file:delete(File),
-    ?assertEqual(User, Owner).
