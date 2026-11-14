@@ -3210,7 +3210,8 @@ compiled_refusals(Session, #compiled{namespace = Namespace, beam = Beam, erc = F
     Name = ern_namespace:text(Namespace),
     [Name ++ " was compiled against another standard library; build " ++ Name ++ " again"
      || not lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])]
-        ++ [another_interface(Name, File, Dependency, held_form(Session, Dependency, All))
+        ++ [another_interface(Session, Name, File, Dependency,
+                              held_form(Session, Dependency, All))
             || {Dependency, Hash} <- DependencyHashes,
                [Interface | _] <- [held_interfaces(Dependency, Interfaces)],
                ern_interface:hash(Interface) =/= Hash].
@@ -3220,10 +3221,12 @@ compiled_refusals(Session, #compiled{namespace = Namespace, beam = Beam, erc = F
 %% session holds, the form at Held; where the module is a library's, and
 %% the form held of a library's module is not that library's build's, the
 %% form held is named as §11.1 names a module that hides the library's
-%% (ern_build:hiding_found/4), as `ern run` names it.
-another_interface(Name, File, Dependency, Held) ->
+%% (ern_build:hiding_found/5), as `ern run` names it; a named package's
+%% module is held so too.
+another_interface(Session, Name, File, Dependency, Held) ->
     Hiding = File =/= none andalso Held =/= none
-        andalso ern_build:hiding_found(File, Dependency, Held, ern_tree:libraries()),
+        andalso ern_build:hiding_found(File, Dependency, Held, ern_tree:libraries(),
+                                       load_path(Session)),
     case Hiding of
         Refusal when is_list(Refusal) ->
             Refusal;
@@ -4661,7 +4664,7 @@ compiled_of(Session, Namespace) ->
 taken_form(Session, Namespace) ->
     case compiled_of(Session, Namespace) of
         {ok, File, Beam, _} = Taken ->
-            case form_refusal(File, Beam) of
+            case form_refusal(Session, File, Beam) of
                 none -> Taken;
                 Refusal -> {error, Refusal}
             end;
@@ -4671,21 +4674,22 @@ taken_form(Session, Namespace) ->
 
 %% Report §11.1: the refusal of a module `:load` takes, its source File or
 %% its compiled form File, Beam, where its namespace is that of a library's
-%% module on which a module of a library depends and its source lies
-%% outside that library's source root, the file named from the working
-%% directory; none (ern_build:hiding/4). Report §11.9: a source outside the
-%% named packages at a named package's namespace is refused too
+%% module on which a module of a library or of a named package depends and
+%% its source lies outside that library's source root, the file named from
+%% the working directory; none (ern_build:hiding/5). Report §11.9: a source
+%% outside the named packages at a named package's namespace is refused too
 %% (ern_build:outside_package/3).
 source_refusal(Session, Namespace, File) ->
     Source = ern_build:absolute(File),
     case ern_build:outside_package(Source, Namespace, load_path(Session)) of
-        none -> refusal_text(ern_build:hiding(Source, Namespace, Source, ern_tree:libraries()));
+        none -> refusal_text(ern_build:hiding(Source, Namespace, Source, ern_tree:libraries(),
+                                              load_path(Session)));
         Refusal -> refusal_text(Refusal)
     end.
 
-form_refusal(File, Beam) ->
+form_refusal(Session, File, Beam) ->
     {ok, Chunk} = ern_interface:read(Beam),
-    refusal_text(ern_build:form_hiding(File, Chunk, ern_tree:libraries())).
+    refusal_text(ern_build:form_hiding(File, Chunk, ern_tree:libraries(), load_path(Session))).
 
 refusal_text(none) -> none;
 refusal_text(Refusal) -> unicode:characters_to_binary(Refusal).
@@ -4703,7 +4707,8 @@ hidden(Session, Segments) ->
                                        source_refusal(Session, Namespace, File);
                                    none ->
                                        case compiled_of(Session, Namespace) of
-                                           {ok, File, Beam, _} -> form_refusal(File, Beam);
+                                           {ok, File, Beam, _} ->
+                                               form_refusal(Session, File, Beam);
                                            _ -> none
                                        end
                                end

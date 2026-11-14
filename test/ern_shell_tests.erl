@@ -4274,6 +4274,48 @@ package_load() ->
                                                 (shown(Pkg, "package.conf"))/binary,
                                                 " names\n">>)).
 
+%% report §11.2, §11.9: the shell started in a root package with no
+%% `--source-root` takes the package's `src` as its source root, whether the
+%% package is the working directory or named by `--package-dir`, and the
+%% working directory where the package has no `src`
+package_source_root_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun package_source_root/0).
+
+package_source_root() ->
+    Dir = scratch("ern_package_source_root_"),
+    [Pkg, Bare] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "bare"]],
+    Manifest = "{\"ernest\": \"0.11.0\", \"packages\": []}\n",
+    Write = fun(Root, File, Text) ->
+                Path = filename:join(Root, File),
+                ok = filelib:ensure_dir(Path),
+                ok = file:write_file(Path, Text)
+            end,
+    Write(Pkg, "package.conf", Manifest),
+    Write(Pkg, "src/ss_main.ern", "export fn word() : String = Inner.word()\n"),
+    Write(Pkg, "src/ss_main/inner.ern", "export fn word() : String = \"inner\"\n"),
+    Write(Bare, "package.conf", Manifest),
+    Write(Bare, "ss_top.ern", "export fn word() : String = \"top\"\n"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load SsMain\nSsMain.word()\n"),
+    BareInput = filename:join(Dir, "bare.in"),
+    ok = file:write_file(BareInput, ":load SsTop\nSsTop.word()\n"),
+    Ern = filename:absname("../bin/ern"),
+    Loaded = <<"SsMain.Inner, compiled from src/ss_main/inner.ern\n"
+               "SsMain, compiled from src/ss_main.ern\n> \"inner\" : String\n">>,
+    {0, Inside} = ern_pty:sh("cd " ++ Pkg ++ " && " ++ alone(Ern ++ " shell") ++ " < "
+                             ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Inside, Loaded)),
+    {0, Named} = ern_pty:sh("cd " ++ Dir ++ " && " ++ alone(Ern ++ " shell --package-dir pkg")
+                            ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Named, <<"SsMain.Inner, compiled from"
+                                               " pkg/src/ss_main/inner.ern\n"
+                                               "SsMain, compiled from pkg/src/ss_main.ern\n"
+                                               "> \"inner\" : String\n">>)),
+    {0, Top} = ern_pty:sh("cd " ++ Bare ++ " && " ++ alone(Ern ++ " shell") ++ " < "
+                          ++ BareInput),
+    ?assertMatch({_, _}, binary:match(Top, <<"SsTop, compiled from ss_top.ern\n"
+                                             "> \"top\" : String\n">>)).
+
 %% The refusal of a program's module of the library Time's namespace, its
 %% source or its compiled form File under Dir, which the library Http uses
 %% (Appendix G.11), the file named as the shell names it.

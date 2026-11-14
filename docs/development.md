@@ -453,7 +453,6 @@ The toolchain is the report, on one node and across nodes. Everything the report
 
 | Construct | Until | What you see today |
 |---|---|---|
-| the named packages' own manifests and `VERSION`s held to the root package's by `ern build`, which builds each named package and refuses a path given under `lib`; the root package's `src` and `build` as the default roots, and a named package as a dependent in the refusal of a module that hides a library's (report §11.1, §11.9) | MVP 4.16 | `ern build` reads the root package's manifest alone and builds no named package, and a job's roots are those it would take with no manifest |
 | `ern unpack`, a package's archive checked and unpacked under `lib` (report §11.9) | MVP 4.16 | `ern unpack: this job is not implemented` |
 
 Every refusal the toolchain makes for a later milestone's sake says `… is not implemented` in its error text and names no milestone, which the row here names, and `unimplemented_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

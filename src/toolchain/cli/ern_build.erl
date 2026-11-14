@@ -10,7 +10,7 @@
 -module(ern_build).
 
 -export([compile/4, compile_in_memory/5, held_another/4, verbose/2, package_said/2, modules_of/4,
-         hiding/4, form_hiding/3, hiding_found/4, outside_package/3, form_out_of_place/3,
+         hiding/5, form_hiding/4, hiding_found/5, outside_package/3, form_out_of_place/3,
          library_name/1, compiled_in_order/3,
          report_errors/3, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
          module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
@@ -39,11 +39,13 @@
 
 %% Report §11.1: the modules a path names compiled, each failure reported
 %% as the job named Job reports it; 0 where every module compiled, else 1.
+%% Report §11.9: in a root package each named package is built first, as a
+%% directory is, and under `--emit-erl` as without it.
 -spec compile(string(), [term()], file:filename(), io:device()) -> 0 | 1.
 compile(Job, Options, Path, ErrorDevice) ->
     Emit = case lists:member(emit_erl, Options) of
                true -> erl;
-               false -> erc
+               false -> {erc, masked}
            end,
     {Status, _} = compile(Job, Options, Path, ErrorDevice, Emit),
     Status.
@@ -60,19 +62,86 @@ compile_in_memory(Job, Options, Path, ErrorDevice, Given) ->
 
 compile(Job, Options, Path, ErrorDevice, Emit) ->
     filelib:is_file(Path) orelse fail(Path ++ ": no such file"),
-    IsDirectory = filelib:is_dir(Path),
     %% report §11.1: --verbose says each decision as it is made
     Say = verbose(Options, ErrorDevice),
-    SourceRoot = source_root(Options, Path, case IsDirectory of true -> Path; false -> "." end),
-    Say(["source root ", shown(SourceRoot)]),
-    BuildRoot = build_root(Options, SourceRoot),
-    Say(["build root ", shown(BuildRoot)]),
-    %% report §11.1, §11.9: `ern build` says the root package after the
-    %% build root; `ern doc` says it before anything (ern_cli:doc/3)
+    SourceRoot = source_root(Options, Path, case filelib:is_dir(Path) of
+                                                true -> Path;
+                                                false -> "."
+                                            end),
+    Roots = {SourceRoot, build_root(Options, SourceRoot),
+             proplists:is_defined(source_root, Options)},
+    said_roots(Roots, Say),
     case Emit of
-        {memory, _} -> ok;
-        _ -> package_said(Options, Say)
-    end,
+        {memory, _} ->
+            {Status, Compiled, _} = built_tree(Job, Path, Roots, load_path(Options), Emit,
+                                               ErrorDevice, Say),
+            {Status, Compiled};
+        _ ->
+            %% report §11.1, §11.9: `ern build` says the root package after
+            %% the build root, and `ern doc` before anything (ern_cli:doc/3);
+            %% then each named package's build, and the root package's
+            %% modules are compiled against them as built
+            package_said(Options, Say),
+            {PackagesStatus, Built} = packages_built(Job, Options, ErrorDevice, Say),
+            {Status, Compiled, _} = built_tree(Job, Path, Roots,
+                                               load_path(with_built(Options, Built)), Emit,
+                                               ErrorDevice, Say),
+            {max(PackagesStatus, Status), Compiled}
+    end.
+
+%% Report §11.1: --verbose's lines of the source root and the build root a
+%% build took.
+said_roots({SourceRoot, BuildRoot, _}, Say) ->
+    Say(["source root ", shown(SourceRoot)]),
+    Say(["build root ", shown(BuildRoot)]).
+
+%% Report §11.9: each named package built as a directory is (§11.1), its
+%% `src` into its build, its cleanup with it, after the packages its
+%% manifest names and otherwise in the root package's order, which the
+%% job's options carry, `{package_order, Names}`. Its load path is the
+%% standard library, the builds of the packages its own manifest names, as
+%% built here, and the builds of the toolchain's libraries; no option's
+%% directory and no other named package. What it writes may be written by
+%% its owner alone. A package with no `src` builds nothing. The status, 1
+%% where a package's module failed, and each package as built, by its name,
+%% with the namespaces of its modules that failed or were left uncompiled,
+%% which a module that uses one is not compiled for.
+packages_built(Job, Options, ErrorDevice, Say) ->
+    Named = [Package || {named_package, Package} <- Options],
+    lists:foldl(fun(Name, {Status, Built}) ->
+                        #named_package{src = Src, build = Build, uses = Uses} = Package =
+                            lists:keyfind(Name, #named_package.name, Named),
+                        case filelib:is_dir(Src) of
+                            false ->
+                                {Status, Built#{Name => Package}};
+                            true ->
+                                LoadPath = load_path([{named_package, maps:get(Used, Built)}
+                                                      || Used <- Uses]),
+                                Roots = {Src, Build, true},
+                                said_roots(Roots, Say),
+                                {Built1, _, Failed} = built_tree(Job, Src, Roots, LoadPath,
+                                                                 {erc, owner_alone}, ErrorDevice,
+                                                                 Say),
+                                {max(Status, Built1),
+                                 Built#{Name => Package#named_package{failed = Failed}}}
+                        end
+                end, {0, #{}}, [Name || {package_order, Names} <- Options, Name <- Names]).
+
+%% Options with each named package as packages_built/4 built it.
+with_built(Options, Built) ->
+    [case Option of
+         {named_package, #named_package{name = Name}} -> {named_package, maps:get(Name, Built)};
+         _ -> Option
+     end || Option <- Options].
+
+%% Report §11.1: one build, the modules Path names, a file or a directory,
+%% from the source root into the build root, Roots, which say whether the
+%% source root was given, over the load path LoadPath, each failure
+%% reported as the job named Job reports it, and a directory's cleanup made
+%% where every module compiled. The status, the modules compiled in memory,
+%% and the namespaces of the modules that failed or were left uncompiled.
+built_tree(Job, Path, {SourceRoot, BuildRoot, IsRootGiven}, LoadPath, Emit, ErrorDevice, Say) ->
+    IsDirectory = filelib:is_dir(Path),
     Files = case IsDirectory of
                 true -> sources(Path);
                 false -> [Path]
@@ -81,17 +150,20 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                true -> tree;
                false -> file
            end,
+    IsErc = case Emit of
+                {erc, _} -> true;
+                _ -> false
+            end,
     %% report §11.1: the roots a dependency is found under, the build root
     %% and then each root of the load path, and report §11.9: a named
     %% package's namespace under its build alone
-    DependencyRoots = with_root(BuildRoot, load_path(Options)),
+    DependencyRoots = with_root(BuildRoot, LoadPath),
     %% report §11.1: a path that is no module's fails that file alone, and
     %% the rest are built; so does a module whose .erc holds another's
     {Found, Misnamed} = modules_of(Files, SourceRoot, Mode, DependencyRoots),
-    IsRootGiven = proplists:is_defined(source_root, Options),
-    {Modules, Held} = case Emit of
-                          erc -> kept_or_held(Found, BuildRoot, IsRootGiven);
-                          _ -> {Found, []}
+    {Modules, Held} = case IsErc of
+                          true -> kept_or_held(Found, BuildRoot, IsRootGiven);
+                          false -> {Found, []}
                       end,
     SetAside = set_aside_installed_stdlib(SourceRoot),
     try
@@ -118,15 +190,16 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                   end,
         {Failed, Compiled} = built(order(Parsed, Outside), Unparsed,
                                    {SourceRoot, DependencyRoots, Emit, StdlibHash}, Say),
+        Namespaces = [Namespace || {Namespace, _, _} <- Failed, is_list(Namespace)],
         case [{Failure, Diagnostics} || {_, Failure, Diagnostics} <- Failed] of
             [] ->
-                IsDirectory andalso Emit =:= erc
+                IsDirectory andalso IsErc
                     andalso sweep(absolute(Path), SourceRoot, BuildRoot, Say),
-                {0, Compiled};
+                {0, Compiled, Namespaces};
             Reported ->
-                [report_failure(Job, Options, Failure, Diagnostics, ErrorDevice)
+                [report_failure(Job, Failure, Diagnostics, ErrorDevice)
                  || {Failure, Diagnostics} <- Reported],
-                {1, Compiled}
+                {1, Compiled, Namespaces}
         end
     after
         put_back(SetAside)
@@ -201,7 +274,7 @@ package_said(Options, Say) ->
 %% none's, keyed by the file, since it has no namespace. Report §11.1: a
 %% module that hides a library's module another depends on fails too, by
 %% its namespace, so that a module that uses it is not compiled either, and
-%% before it is parsed, so that its refusal is its only error (hiding/4).
+%% before it is parsed, so that its refusal is its only error (hiding/5).
 %% Report §11.9: a module outside the named packages at a named package's
 %% namespace fails so too, keyed by its file, since a module that uses its
 %% namespace finds the package's (outside_package/3).
@@ -214,7 +287,7 @@ modules_of(Files, SourceRoot, Mode, LoadPath) ->
                     try module_of(absolute(Source), SourceRoot, Mode) of
                         #build_module{namespace = Namespace, file = File} = Module ->
                             case {outside_package(File, Namespace, LoadPath),
-                                  hiding(File, Namespace, File, Libraries)} of
+                                  hiding(File, Namespace, File, Libraries, LoadPath)} of
                                 {none, none} ->
                                     {[Module | Modules], Misnamed};
                                 {none, Refusal} ->
@@ -231,31 +304,34 @@ modules_of(Files, SourceRoot, Mode, LoadPath) ->
 %% Report §4.2, §11.1: the refusal of the module of Namespace that File
 %% holds, a source or a compiled form, which hides a library's module of
 %% that namespace, where its source, Source, lies outside that library's
-%% source root and a module of a library depends on the library's module;
-%% none where it is no library module's namespace, is that library's own
-%% module, or no library depends on the module. Libraries are the builds of
-%% the toolchain's libraries in the load path's order, found once by the
-%% job (ern_tree:libraries/0). A library's files are read only where
-%% Namespace is a library module's, and its modules only where the module
-%% hides it.
--spec hiding(file:filename(), [atom()], file:filename() | none, [file:filename()]) ->
-          none | string().
-hiding(File, Namespace, Source, Libraries) ->
+%% source root and a module of a library or of a named package depends on
+%% the library's module; none where it is no library module's namespace,
+%% is that library's own module, or nothing depends on the module.
+%% Libraries are the builds of the toolchain's libraries in the load path's
+%% order, found once by the job (ern_tree:libraries/0), and the named
+%% packages are LoadPath's, whose builds stand before them. A library's
+%% files are read only where Namespace is a library module's, and its
+%% modules and the packages' only where the module hides it.
+-spec hiding(file:filename(), [atom()], file:filename() | none, [file:filename()],
+             load_path()) -> none | string().
+hiding(File, Namespace, Source, Libraries, LoadPath) ->
     case first_holding(ern_namespace:module_path(Namespace) ++ ".erc", Libraries) of
         none ->
             none;
         {Library, _} ->
             case Source =/= none andalso relative(Source, library_root(Library)) =/= outside of
                 true -> none;
-                false -> hides(File, Namespace, Library, [{library, Root} || Root <- Libraries])
+                false -> hides(File, Namespace, Library, dependents(Libraries, LoadPath))
             end
     end.
 
 %% Report §11.1, Appendix E.28: the same of a compiled form, File, by its
 %% interface chunk, its source the one the chunk records, from the root its
 %% namespace descends from; none recorded is outside every library's.
--spec form_hiding(file:filename(), ern_interface:chunk(), [file:filename()]) -> none | string().
-form_hiding(File, #{interface := #interface{namespace = Namespace}} = Chunk, Libraries) ->
+-spec form_hiding(file:filename(), ern_interface:chunk(), [file:filename()], load_path()) ->
+          none | string().
+form_hiding(File, #{interface := #interface{namespace = Namespace}} = Chunk, Libraries,
+            LoadPath) ->
     Source = case Chunk of
                  #{source_path := Recorded} ->
                      absolute(filename:join(root_of(absolute(File), Namespace),
@@ -263,29 +339,35 @@ form_hiding(File, #{interface := #interface{namespace = Namespace}} = Chunk, Lib
                  #{} ->
                      none
              end,
-    hiding(File, Namespace, Source, Libraries).
+    hiding(File, Namespace, Source, Libraries, LoadPath).
 
-%% Report §11.2: the refusal of a run whose module at UserFile, a library's,
-%% was compiled against another interface of Dependency, a library's
-%% module, than that of the form it found, Found, where Found is not the one
-%% that library's build holds: Found named as §11.1 names a module that
-%% hides the library's (hides/4); none where the refusal is §11.2's of a
-%% module compiled against another interface.
--spec hiding_found(file:filename(), [atom()], file:filename(), [file:filename()]) ->
-          none | string().
-hiding_found(UserFile, Dependency, Found, Libraries) ->
-    IsLibraryModule = lists:any(fun(Library) -> relative(UserFile, Library) =/= outside end,
-                                Libraries),
-    case IsLibraryModule
+%% Report §11.2: the refusal of a run whose module at UserFile, a library's
+%% or a named package's, was compiled against another interface of
+%% Dependency, a library's module, than that of the form it found, Found,
+%% where Found is not the one that library's build holds: Found named as
+%% §11.1 names a module that hides the library's (hides/4); none where the
+%% refusal is §11.2's of a module compiled against another interface.
+-spec hiding_found(file:filename(), [atom()], file:filename(), [file:filename()],
+                   load_path()) -> none | string().
+hiding_found(UserFile, Dependency, Found, Libraries, #load_path{named = Named} = LoadPath) ->
+    IsDependent = lists:any(fun(Root) -> relative(UserFile, Root) =/= outside end,
+                            Libraries ++ [Build || #named_package{build = Build} <- Named]),
+    case IsDependent
          andalso first_holding(ern_namespace:module_path(Dependency) ++ ".erc", Libraries) of
         {Library, Held} ->
             case absolute(Held) =:= absolute(Found) of
                 true -> none;
-                false -> hides(Found, Dependency, Library, [{library, Root} || Root <- Libraries])
+                false -> hides(Found, Dependency, Library, dependents(Libraries, LoadPath))
             end;
         _ ->
             none
     end.
+
+%% Report §11.1, §11.2: the builds whose modules may depend on a library's
+%% module, in the load path's order: each named package's, `{package,
+%% Package}`, and then each library's, `{library, Root}`.
+dependents(Libraries, #load_path{named = Named}) ->
+    [{package, Package} || Package <- Named] ++ [{library, Root} || Root <- Libraries].
 
 %% Report §11.9: the refusal of a module outside the named packages, its
 %% source File under no named package's `src`, at a named package's
@@ -359,10 +441,11 @@ package_at(Path, Named) ->
     end.
 
 %% Report §11.1: the refusal of File's module of Namespace, which hides the
-%% module of the library whose build is Library, naming the library of the
-%% first module of Dependents, in the load path's order, that depends on the
-%% hidden module, Library's own among them; none where none does. A
-%% dependent is a library's build, `{library, Root}`.
+%% module of the library whose build is Library, naming the library or the
+%% named package of the first module of Dependents, in the load path's
+%% order, that depends on the hidden module, Library's own among them; none
+%% where none does. A dependent is a named package's build, `{package,
+%% Package}`, or a library's, `{library, Root}`.
 hides(File, Namespace, Library, Dependents) ->
     case lists:search(fun(Dependent) -> is_dependent(Dependent, Namespace) end, Dependents) of
         {value, Dependent} ->
@@ -375,17 +458,25 @@ hides(File, Namespace, Library, Dependents) ->
 
 %% Whether a module of a dependent's build depends on the module of
 %% Namespace, as its compiled form records what it was compiled against; a
-%% form this build of `ern` cannot read records nothing.
+%% form this build of `ern` cannot read records nothing. Report §11.9: a
+%% named package's modules are those of its build as the job finds it, at
+%% the package's namespaces alone, which `ern build` builds first; a build
+%% that is not there holds none.
+is_dependent({package, #named_package{build = Build} = Package}, Namespace) ->
+    filelib:is_dir(Build)
+        andalso lists:any(fun({_, Erc}) -> is_compiled_using(Erc, Namespace) end,
+                          compiled_on(#load_path{roots = [Build], named = [Package]}));
 is_dependent({library, Root}, Namespace) ->
-    lists:any(fun(Erc) ->
-                  case read_erc(Erc) of
-                      {ok, #{deps := DependencyHashes}} ->
-                          lists:keymember(Namespace, 1, DependencyHashes);
-                      _ ->
-                          false
-                  end
-              end, compiled_under(Root)).
+    lists:any(fun(Erc) -> is_compiled_using(Erc, Namespace) end, compiled_under(Root)).
 
+is_compiled_using(Erc, Namespace) ->
+    case read_erc(Erc) of
+        {ok, #{deps := DependencyHashes}} -> lists:keymember(Namespace, 1, DependencyHashes);
+        _ -> false
+    end.
+
+dependent_text({package, #named_package{name = Name}}) ->
+    ["the package ", Name];
 dependent_text({library, Root}) ->
     ["the library ", library_name(Root)].
 
@@ -397,14 +488,14 @@ library_name(Library) ->
 
 %% Report §11.1, §11.5: a module's failure, its errors or the refusal of
 %% something it needs, as a refusal of the job is said.
-report_failure(Job, _Options, {refused, Refusal}, [], ErrorDevice) ->
+report_failure(Job, {refused, Refusal}, [], ErrorDevice) ->
     io:format(ErrorDevice, "~s: ~ts~n", [Job, Refusal]);
 %% report §11.1: a module left uncompiled is named, with the module it uses
 %% that failed
-report_failure(Job, _Options, {skipped, Namespace, Dependency}, [], ErrorDevice) ->
+report_failure(Job, {skipped, Namespace, Dependency}, [], ErrorDevice) ->
     io:format(ErrorDevice, "~s: ~ts is not compiled, since it uses ~ts, which failed~n",
               [Job, ern_namespace:text(Namespace), ern_namespace:text(Dependency)]);
-report_failure(_Job, _Options, File, Diagnostics, ErrorDevice) ->
+report_failure(_Job, File, Diagnostics, ErrorDevice) ->
     report_errors(File, Diagnostics, ErrorDevice).
 
 %% Report §11.1: the parsed modules Order compiled in memory in that order,
@@ -452,8 +543,13 @@ built(Order, Unparsed, {SourceRoot, DependencyRoots, Emit, StdlibHash}, Say) ->
                       build(Module, Interfaces, SourceRoot, DependencyRoots, Emit, Against,
                             Namespaces, Say)
                   end,
+    %% report §11.9: a module of a named package that the job's build of
+    %% the package failed, or left uncompiled, fails a module that uses it
+    Elsewhere = [{Namespace, failed}
+                 || #named_package{failed = Failed} <- DependencyRoots#load_path.named,
+                    Namespace <- Failed],
     {_, Failed, Compiled, Waiting} =
-        lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, BuildModule) end,
+        lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, BuildModule, Elsewhere) end,
                     {#{}, Unparsed, #{}, []}, Order),
     Skipped = [{Namespace, {skipped, Namespace, Waited}, []}
                || {Namespace, Waits, _} <- Waiting,
@@ -462,8 +558,10 @@ built(Order, Unparsed, {SourceRoot, DependencyRoots, Emit, StdlibHash}, Say) ->
     {Failed ++ Skipped, Compiled}.
 
 build_step(#build_module{namespace = Namespace, dependencies = Dependencies} = Module,
-           {Interfaces, Failed, Compiled, Waiting}, BuildModule) ->
-    case [Dependency || Dependency <- Dependencies, lists:keymember(Dependency, 1, Failed)] of
+           {Interfaces, Failed, Compiled, Waiting}, BuildModule, Elsewhere) ->
+    case [Dependency || Dependency <- Dependencies,
+                        lists:keymember(Dependency, 1, Failed)
+                            orelse lists:keymember(Dependency, 1, Elsewhere)] of
         [] ->
             try BuildModule(Module, Interfaces) of
                 {Interfaces1, none} ->
@@ -1122,7 +1220,23 @@ dependencies(Declarations, SourceRoot, LoadPath, TypeMembers) ->
 is_module(Relative, GivenRoot, LoadPath) ->
     {SourceRoot, Roots} = looked_in(Relative, GivenRoot, LoadPath),
     SourceRoot =/= none andalso is_source(filename:join(SourceRoot, Relative ++ ".ern"))
-        orelse is_compiled(Relative, Roots).
+        orelse is_compiled(Relative, Roots)
+        orelse is_failed(Relative, LoadPath).
+
+%% Report §11.9: whether the module at the path Relative is a named
+%% package's that the job's build of the package failed or left
+%% uncompiled, a module of the package all the same, which a module that
+%% uses it is not compiled for (built/4).
+is_failed(_Relative, #load_path{named = []}) ->
+    false;
+is_failed(Relative, #load_path{named = Named}) ->
+    case package_at(Relative, Named) of
+        none ->
+            false;
+        #named_package{failed = Failed} ->
+            lists:any(fun(Namespace) -> ern_namespace:module_path(Namespace) =:= Relative end,
+                      Failed)
+    end.
 
 %% Report §11.2: the function that answers the modules a doc example's
 %% declarations name, as dependencies/4 finds a module's where there is no
@@ -1203,34 +1317,46 @@ module_prefix(Path, IsModule) ->
 is_compiled(Relative, Roots) ->
     lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end, Roots).
 
-%% Report §11.1: the source root is --source-root; without it, the standard
-%% library's or the shell's root for a path under it, else Default.
+%% Report §11.1, §11.9: the source root is --source-root; without it, the
+%% standard library's or the shell's root for a path under it, the root
+%% package's `src` for a path under that, which the job's options carry as
+%% `{root_package, Dir}`, else Default.
 -spec source_root([term()], file:filename(), file:filename()) -> file:filename().
 source_root(Options, Path, Default) ->
     case proplists:get_value(source_root, Options) of
         undefined ->
-            case [Root || {Root, _} <- own_roots(), relative(Path, Root) =/= outside] of
+            case [Root || {Root, _} <- own_roots(), relative(Path, Root) =/= outside]
+                 ++ [Src || {Src, _} <- package_roots(Options), relative(Path, Src) =/= outside] of
                 [Root | _] -> Root;
                 [] -> absolute(Default)
             end;
         Given -> absolute(Given)
     end.
 
-%% Report §11.1: the build directory is --build-root; without it, the source
-%% root, and for the toolchain's own roots their builds beside it,
+%% Report §11.1, §11.9: the build directory is --build-root; without it, the
+%% source root, and for the toolchain's own roots their builds beside it,
 %% `build/stdlib` for the standard library's and `build/shell` for the
-%% shell's, where the Makefile builds them.
+%% shell's, where the Makefile builds them, and the root package's `build`
+%% where the source root is its `src`.
 -spec build_root([term()], file:filename()) -> file:filename().
 build_root(Options, SourceRoot) ->
     case proplists:get_value(build_root, Options) of
         undefined ->
-            case {is_stdlib_root(SourceRoot), is_shell_root(SourceRoot)} of
-                {true, _} -> ern_tree:build("stdlib");
-                {false, true} -> ern_tree:build("shell");
-                {false, false} -> SourceRoot
+            Packaged = [Build || {Src, Build} <- package_roots(Options),
+                                 Src =:= absolute(SourceRoot)],
+            case {is_stdlib_root(SourceRoot), is_shell_root(SourceRoot), Packaged} of
+                {true, _, _} -> ern_tree:build("stdlib");
+                {false, true, _} -> ern_tree:build("shell");
+                {false, false, [Build]} -> Build;
+                {false, false, []} -> SourceRoot
             end;
         Given -> absolute(Given)
     end.
+
+%% Report §11.9: the root package's `src` and `build`, absolute, where the
+%% job read a root package; none otherwise.
+package_roots(Options) ->
+    [{filename:join(Dir, "src"), filename:join(Dir, "build")} || {root_package, Dir} <- Options].
 
 %% Report §11.1: the standard library's own root takes its namespaces from
 %% this build's .erc files, so its installed copy, which the checker reads
@@ -1360,8 +1486,12 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
     OutputBase = filename:join(BuildRoot, filename:rootname(Relative)),
     Erc = OutputBase ++ ".erc",
     Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
-    case Emit =:= erc andalso current(Namespace, Erc, {SourceHash, SourcePath, Resolved},
-                                      DependencyHashes, Against, Given) of
+    IsErc = case Emit of
+                {erc, _} -> true;
+                _ -> false
+            end,
+    case IsErc andalso current(Namespace, Erc, {SourceHash, SourcePath, Resolved},
+                               DependencyHashes, Against, Given) of
         {true, Interface} ->
             {Interfaces#{Namespace => Interface}, none};
         false ->
@@ -1456,12 +1586,22 @@ emitted(erl, #build_module{namespace = Namespace, file = File} = Module,
                                                          shown(File), "\n", Source])),
     Say(compiled_line(Module, Erl)),
     none;
-emitted(erc, #build_module{namespace = Namespace} = Module, {Typed, Interface, Env}, Build,
-        OutputBase, Say) ->
+emitted({erc, Written}, #build_module{namespace = Namespace} = Module, {Typed, Interface, Env},
+        Build, OutputBase, Say) ->
     Erc = OutputBase ++ ".erc",
-    ok = make_dirs(Erc),
+    %% report §11.9: what `ern build` writes under a named package may be
+    %% written by its owner alone, each file and each directory, whatever
+    %% the user's mask; what it writes elsewhere takes the mask's mode
+    Mode = case Written of
+               masked ->
+                   ok = make_dirs(Erc),
+                   undefined;
+               owner_alone ->
+                   ok = make_owners_dirs(Erc),
+                   owner_alone
+           end,
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
-    ok = write_output(Erc, Beam),
+    ok = write_output(Erc, Beam, Mode),
     Say(compiled_line(Module, Erc)),
     none;
 emitted({memory, _}, #build_module{namespace = Namespace, file = File},
@@ -2179,7 +2319,10 @@ write_whole(File, Data) ->
 write_output(File, Data) ->
     write_output(File, Data, undefined).
 
--spec write_output(file:filename(), iodata(), non_neg_integer() | undefined) -> ok.
+%% Mode is the file's: undefined for the one it has or else the mask's, a
+%% mode, or `owner_alone`, either of those with no right for any other to
+%% write it (report §11.9).
+-spec write_output(file:filename(), iodata(), non_neg_integer() | undefined | owner_alone) -> ok.
 write_output(File, Data, Mode) ->
     write_at(File, File, Data, Mode).
 
@@ -2196,12 +2339,14 @@ write_at(File, Place, Data, Mode) ->
     Kept = case {Mode, Info} of
                {undefined, {ok, #file_info{type = regular, mode = Existing}}} ->
                    Existing band 8#7777;
-               {undefined, _} -> undefined;
+               {owner_alone, {ok, #file_info{type = regular, mode = Existing}}} ->
+                   owner_alone(Existing);
                {Given, _} -> Given
            end,
     {New, Device} = made_beside(File, Place, 0),
     %% the mode before the data, so that what is private is never readable
-    Steps = [fun() -> file:change_mode(New, Kept) end || Kept =/= undefined]
+    Steps = [fun() -> file:change_mode(New, Kept) end || is_integer(Kept)]
+        ++ [fun() -> owners_alone(New) end || Kept =:= owner_alone]
         ++ [fun() -> file:write(Device, Data) end, fun() -> file:close(Device) end,
             fun() -> file:rename(New, Place) end],
     case lists:foldl(fun(Step, ok) -> Step(); (_, Failed) -> Failed end, ok, Steps) of
@@ -2297,6 +2442,38 @@ make_dirs(File) ->
         ok -> ok;
         {error, Error} -> refused(filename:dirname(File), Error)
     end.
+
+%% Report §11.9: the same, each directory made with no right for any other
+%% to write it, whatever the user's mask, as `ern build` makes one under a
+%% named package; a directory that is there is left as it is.
+make_owners_dirs(File) ->
+    Dir = filename:dirname(File),
+    case filelib:is_dir(Dir) of
+        true ->
+            ok;
+        false ->
+            ok = make_owners_dirs(Dir),
+            Made = case file:make_dir(Dir) of
+                       ok -> owners_alone(Dir);
+                       Other -> Other
+                   end,
+            case Made of
+                ok -> ok;
+                {error, eexist} -> ok;
+                {error, Error} -> refused(Dir, Error)
+            end
+    end.
+
+%% Report §11.9: the file or directory at Path, as it was made, with the
+%% rights of others to write it taken away.
+owners_alone(Path) ->
+    case file:read_file_info(Path) of
+        {ok, #file_info{mode = Made}} -> file:change_mode(Path, owner_alone(Made));
+        {error, _} = Error -> Error
+    end.
+
+owner_alone(Mode) ->
+    Mode band 8#7777 band bnot 8#022.
 
 %% Report §8.3, §11.2: a directory made here or not at all, and its
 %% owner's alone before anything is written in it, so that no one else can

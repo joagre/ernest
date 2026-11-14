@@ -58,7 +58,7 @@ and its probes before it closes, and a finding changes the report first (the log
 and Its Manifest*).
 
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
-log's *A Reading by Decisions*), and are done. Item 5 followed, and item 6 comes next.
+log's *A Reading by Decisions*), and are done. Items 5 and 6 followed, and item 7 comes next.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -67,26 +67,31 @@ log's *A Reading by Decisions*), and are done. Item 5 followed, and item 6 comes
    given in a named package's build at another namespace is refused, and a job in a package
    reads the standard library's interfaces a second time, about 2.7 ms, which stays (§11.2,
    §11.9, E.28; the log's *The Root Package Read*).
-6. **`ern build`'s checks**: each named package's claims held against the root's lines, a
-   package's `src` and `build` as its roots, the root package's among them with the shell's
-   default `--source-root` (§11.1, §11.2), and the named packages built in their order. The
-   trial's table of refusals is its first test. Its tests take a named package's rebuild when
-   a package it names changes. It makes a named package a dependent of item 26's refusal, the
-   module that hides a library the package uses (§11.1).
-7. **`Crypto.sha256`, and libraries over the host's gzip and tar**, each an E.0 reading and its
-   section of Appendix G first. Decided 2026-11-13: the tar library's section takes the rules
-   that make an unpacking safe, a member's name, its kind, where a link may reach, a pax and a
-   GNU header, and the modes of what is written, and §11.9 cites it. A test over hostile
-   archives holds them. §11.9 keeps what makes an archive a package's: its one directory, its
-   manifest and `VERSION`, and its `.beam` names. The item draws the line in its E.0 reading
-   (the log's *A Reading by Decisions*). The host's `erl_tar` hands its caller a member's
-   kind and no link's target, and passes over a link where it unpacks into memory, so the
-   reading decides first whether the library reads the format itself (the log's *The Proposal
-   Held Against the Report*).
-8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
-   stands under `Ernest` is decided as the item opens, and so is how its Ernest gets the
-   manifest's entries. The shape: the command reads the manifest once, by the read every job
-   shares, and hands the job its entries (the log's *The Root Package Read*).
+6. **`ern build`'s checks and the named packages built**, done 2026-11-14. Decided in the
+   item: a `--build-root` under `lib` is refused as a path given there is, a cycle's line
+   names its packages in the order of the root package's entries, and every build in a
+   package pays about 3 ms for each module of its named packages, the cost of finding a
+   module current, which stays (§11.1, §11.9; the log's *The Named Packages Built*).
+7. **`Crypto.sha256`**, its E.0 reading and its line of Appendix G first. Decided with the
+   user 2026-11-14 (the log's *An Archive Without Links*): no library over tar or gzip is
+   written, and none reads the tar format in Ernest.
+8. **`ern unpack`**, in Ernest, over `Crypto.sha256` and the host's `erl_tar`. Decided with the
+   user 2026-11-14 (the log's *An Archive Without Links*): an archive's member is a directory
+   or a regular file, and an archive that holds anything else is refused. `erl_tar` lists the
+   members and hands over the files' bytes, a gzip archive read from its bytes, and the two
+   calls are foreign functions of the job's own module.
+
+   The item rewrites §11.9's paragraphs on an archive first: its paragraph on where a link
+   may reach goes, and §11.9 states the rules of a member's name and kind itself. It decides
+   there whether a member of a kind the host does not know is passed over or refused, a pax
+   global header among them, which `git archive` writes. It finds whether the host cleans a
+   name's empty and `.` segments, and so whether §11.9 can test them. A test over hostile
+   archives holds the rules.
+
+   Where the job's module stands under `Ernest` is decided as the item opens, and so is how
+   its Ernest gets the manifest's entries. The shape: the command reads the manifest once, by
+   the read every job shares, and hands the job its entries (the log's *The Root Package
+   Read*).
 9. **The guide's section on a package.** It says what an entry's digest promises: the archive
    that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
    log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
@@ -106,6 +111,12 @@ log's *A Reading by Decisions*), and are done. Item 5 followed, and item 6 comes
     `package.conf`. A program's own Erlang is named from a directory of its own, `erl` in a
     checkout, so that `lib` holds the named packages alone. The item's tests take a `priv`
     found through `code:priv_dir`.
+
+    Found 2026-11-14, reading ernest-epx's release step: the template's archive holds a
+    library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link copied through,
+    where §11.9 has a package's Erlang under its own `ebin` with its `priv` beside it. The
+    item moves it there, and holds the archive it makes to `ern unpack`'s rules on an
+    archive's members.
 11. **The flake hunt**, decided with the user 2026-11-10 (the log's *The Listings Before a
     Review*): a target of its own that runs the split suites of `make test-full` again and
     again in warm hosts beside busy loops, for as long as it is given, writes each failing test
@@ -237,6 +248,11 @@ log's *A Reading by Decisions*), and are done. Item 5 followed, and item 6 comes
     test's FIFO after the hangup. The test runs where there is no manifest. The cause is not
     found. An agent finds it under the full run's load, and fixes the test or the runner at
     it (the log's *The Root Package Read*).
+
+    Seen again 2026-11-14 over item 6's runs, in three tests beside it, each once:
+    `write_terminal_gone`, `shell_write_terminal_gone` and `shell_reload_terminal_gone` ended
+    with the status 0 where 129 was expected, their output whole. The agent takes the four
+    as one flake until it finds otherwise (the log's *The Named Packages Built*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

@@ -31,8 +31,9 @@ release() ->
     end.
 
 %% A release's major, minor and patch, of the three whole numbers its
-%% version writes, `0.4.0`, each part its digits alone; a version of
-%% another shape, which no release of `ern` has, is refused, naming it.
+%% version writes, `0.4.0`, each part its digits alone, by which a
+%% package's version is compared too (§11.9); a version of another shape,
+%% which no release of `ern` has, is refused, naming it.
 -spec release(string()) -> {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
 release(Version) ->
     Parts = string:split(Version, ".", all),

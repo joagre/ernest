@@ -282,44 +282,47 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
 %% reads none. The look for the manifest's name follows no link, and is
 %% all a job pays where there is none.
 root_package(Job, Options, Arguments) ->
-    case {package_use(Job), lists:keymember(attach, 1, Options),
+    case {reads_manifest(Job), lists:keymember(attach, 1, Options),
           proplists:get_value(package_dir, Options)} of
-        {none, _, _} ->
+        {false, _, _} ->
             Options;
-        {_, true, _} ->
+        {true, true, _} ->
             Options;
-        {Use, false, undefined} ->
+        {true, false, undefined} ->
             case lists:all(fun(Path) -> filename:pathtype(Path) =/= absolute end, Arguments) of
-                true -> packaged(Options, ".", optional, Use);
+                true -> packaged(Options, ".", optional, Job, Arguments);
                 false -> Options
             end;
-        {Use, false, Dir} ->
-            packaged(Options, Dir, required, Use)
+        {true, false, Dir} ->
+            packaged(Options, Dir, required, Job, Arguments)
     end.
 
-%% Report §11.9: the jobs that read a manifest, each with what the named
-%% packages put on its load path: their builds, and their `ebin`s too where
-%% the job runs code. `ern unpack` reads one too, and is not implemented.
-package_use("build") -> builds;
-package_use("doc") -> builds;
-package_use("run") -> builds_and_ebins;
-package_use("test") -> builds_and_ebins;
-package_use("shell") -> builds_and_ebins;
-package_use(_) -> none.
+%% Report §11.9: the jobs that read a manifest. What each takes of it is
+%% the package's (ern_package:read/3). `ern unpack` reads one too, and is
+%% not implemented.
+reads_manifest(Job) ->
+    lists:member(Job, ["build", "doc", "run", "test", "shell"]).
 
 %% Report §11.9: Options with the root package Dir, read where Dir holds
-%% the name `package.conf`, whatever it reaches: its named packages, as the
-%% load path holds them, and, where `--verbose` asks, what it says of them,
-%% as data, since the build, which is in the compiler's hash, calls no
-%% module of the package's (ern_build:load_path/1). A Dir
-%% `--package-dir` names that holds none is refused, and so is one whose
-%% name cannot be looked for.
-packaged(Options, Dir, Required, Use) ->
+%% the name `package.conf`, whatever it reaches, by the job Job given the
+%% paths Arguments and its `--build-root`: the package's directory, whose
+%% `src` and `build` are default roots (§11.1, §11.2), its named packages,
+%% as the load path holds them, under `ern build` the order it builds them
+%% in, and, where `--verbose` asks, what it says of them, as data, since the
+%% build, which is in the compiler's hash, calls no module of the package's
+%% (ern_build:load_path/1). A Dir `--package-dir` names that holds none is
+%% refused, and so is one whose name cannot be looked for.
+packaged(Options, Dir, Required, Job, Arguments) ->
     Manifest = filename:join(Dir, "package.conf"),
     case {file:read_link_info(Manifest, [raw]), Required} of
         {{ok, _}, _} ->
-            Package = ern_package:read(Dir, Use),
-            Options ++ [{named_package, Named} || Named <- ern_package:packages(Package)]
+            Given = [{argument, Path} || Path <- Arguments]
+                ++ [{build_root, Path} || {build_root, Path} <- Options],
+            Package = ern_package:read(Dir, Job, Given),
+            Options ++ [{root_package, ern_build:absolute(Dir)}]
+                ++ [{named_package, Named} || Named <- ern_package:packages(Package)]
+                ++ [{package_order, Order} || Order <- [ern_package:built_order(Package)],
+                                              Order =/= []]
                 ++ [{package_said, Line} || lists:member(verbose, Options),
                                             Line <- ern_package:said(Package)];
         {{error, enoent}, optional} ->
@@ -544,9 +547,10 @@ help_option() ->
 build_options() ->
     [{source_root, undefined, "source-root", string,
       "the directory whose layout yields namespaces; default: the working"
-      " directory, or src-dir"},
+      " directory, or src-dir, or the root package's src for a path under it"},
      {build_root, undefined, "build-root", string,
-      "where the compiled tree goes; default: the source root"},
+      "where the compiled tree goes; default: the source root, or the root"
+      " package's build where that is its src"},
      {load_path, undefined, "load-path", string,
       "a root of compiled modules a module may use; may be repeated"},
      {emit_erl, undefined, "emit-erl", undefined,
@@ -655,7 +659,8 @@ beam_of(Options, Path) ->
             %% named package's namespace, and one that hides a library's
             %% module another depends on, is refused before it is compiled
             case {ern_build:outside_package(File, Namespace, DependencyRoots),
-                  ern_build:hiding(File, Namespace, File, ern_tree:libraries())} of
+                  ern_build:hiding(File, Namespace, File, ern_tree:libraries(),
+                                   DependencyRoots)} of
                 {none, none} -> ok;
                 {none, Refusal} -> ern_build:fail(Refusal);
                 {Refusal, _} -> ern_build:fail(Refusal)
@@ -1070,7 +1075,8 @@ shell_options() ->
      libs_dir_option(),
      package_dir_option(),
      {source_root, undefined, "source-root", string,
-      "where the shell finds a module's source; default: the working directory"},
+      "where the shell finds a module's source; default: the root package's"
+      " src, or the working directory"},
      main_option("the function spawned beside the shell, from the file loaded"),
      {attach, undefined, "attach", string,
       "the listed peer the shell attaches to, its inputs run on that node"},
@@ -1321,14 +1327,14 @@ shell(Options, Rest, ErrorDevice) ->
                 GivenLoadPath = ern_build:load_path(Options),
                 host_path(GivenLoadPath),
                 ern_shell:loaded(#loaded{load_path = GivenLoadPath,
-                                         source_root = ern_build:source_root(Options, ".", "."),
+                                         source_root = shell_source_root(Options, "."),
                                          config_startup = config_startup(Options)}),
                 {init_fun([ErlangModule]), GivenLoadPath};
             [File] ->
                 {Namespace, FileLoadPath, Loaded} = program(File, Options, Say),
                 Entry = shell_entry(Options, Namespace),
                 ern_shell:loaded(#loaded{load_path = FileLoadPath,
-                                         source_root = ern_build:source_root(Options, File, "."),
+                                         source_root = shell_source_root(Options, File),
                                          interfaces = interfaces(Loaded),
                                          program = program_modules(
                                                      Loaded,
@@ -1363,6 +1369,19 @@ shell(Options, Rest, ErrorDevice) ->
     %% report §11.2, §11.8: an attached shell's end, its line said and its
     %% status given by its local half's Os.exit (Appendix E.23)
     report_shell_outcome(ErrorDevice, Outcome).
+
+%% Report §11.2, §11.9: where the shell finds a module's source: the root
+%% `--source-root` names, or else the root package's `src` where the shell
+%% read a manifest and the package has one, and the working directory
+%% otherwise; a path under the toolchain's own roots takes that root, as a
+%% build's does. An attached shell reads no manifest.
+shell_source_root(Options, Path) ->
+    Default = case [Src || {root_package, Dir} <- Options, Src <- [filename:join(Dir, "src")],
+                           filelib:is_dir(Src)] of
+                  [Src] -> Src;
+                  [] -> "."
+              end,
+    ern_build:source_root(Options, Path, Default).
 
 %% Report §11.2: `--attach` takes no file, `--main`, `--load-path`,
 %% `--libs-dir` or `--package-dir`, each refused naming it, and needs
@@ -2436,7 +2455,7 @@ same_stdlib(Namespace, Chunk, StdlibHash) ->
 %% refused; where the module is a library's and the form found for a
 %% library's module it uses is not that library's build's, the refusal
 %% names the form found as §11.1 names a module that hides the library's
-%% (ern_build:hiding_found/4), since no build of the program mends it.
+%% (ern_build:hiding_found/5), since no build of the program mends it.
 same_interface(Namespace, File, Dependency, Hash) ->
     Found = code:which(ern_namespace:erlang_module(Dependency)),
     {ok, Beam} = file:read_file(Found),
@@ -2445,7 +2464,7 @@ same_interface(Namespace, File, Dependency, Hash) ->
         orelse ern_build:fail(another_interface(Namespace, File, Dependency, Found)).
 
 another_interface(Namespace, File, Dependency, Found) ->
-    case ern_build:hiding_found(File, Dependency, Found, ern_tree:libraries()) of
+    case ern_build:hiding_found(File, Dependency, Found, ern_tree:libraries(), load_path()) of
         none ->
             Name = ern_namespace:text(Namespace),
             Name ++ " was compiled against another " ++ ern_namespace:text(Dependency) ++ "; build "

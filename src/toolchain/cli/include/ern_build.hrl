@@ -11,9 +11,14 @@
 %% A named package as a job's load path holds it (report §11.9): its name,
 %% `epx`, which is its namespace's path, its build and its `src`, absolute,
 %% the directories it puts on the load path, those of its build and its
-%% `ebin` that are there, and the manifest that names it, which a refusal
-%% names.
--record(named_package, {name, build, src, roots = [], manifest}).
+%% `ebin` that are there, its build alone under `ern build`, which makes it,
+%% and the manifest that names it, which a refusal names. Under `ern
+%% build`, beside them: the named packages its own manifest names, `uses`,
+%% by their names, whose builds its build's load path holds; and the
+%% namespaces of its modules that the job's build of it failed or left
+%% uncompiled, `failed`, which a module that uses one is not compiled for
+%% (ern_build:compile/4).
+-record(named_package, {name, build, src, roots = [], manifest, uses = [], failed = []}).
 
 %% A job's load path (report §11.1, §11.2, §11.9): its directories in
 %% order, `roots`, which the host's code path and a node's start take

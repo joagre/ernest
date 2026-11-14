@@ -968,14 +968,16 @@ synopses_are_the_reports_test_() ->
      || Job <- ["build", "doc", "format", "run", "test", "shell", "config", "reload", "stop",
                 "unpack"]].
 
-%% report §11.1, §11.2, §11.4: `--help` says the source root's default, the
-%% working directory or the directory given for `ern build` and `ern doc`,
-%% and the working directory for `ern shell`. A regression test, written
-%% after the code: the build's and the doc's said none. It does not cover
-%% the default itself, which §11.1's tests hold
+%% report §11.1, §11.2, §11.4, §11.9: `--help` says the source root's
+%% default, the working directory, the directory given or the root
+%% package's `src` for `ern build` and `ern doc`, and the root package's
+%% `src` or the working directory for `ern shell`. A regression test,
+%% written after the code: the build's and the doc's said none. It does not
+%% cover the default itself, which §11.1's and §11.9's tests hold
 source_root_default_said_test_() ->
     Root = "the directory whose layout yields namespaces;"
-        " default: the working directory, or src-dir",
+        " default: the working directory, or src-dir, or the root package's src"
+        " for a path under it",
     [{Job, fun() ->
                    {Help, 0} = help_of(Job),
                    Words = lists:flatten(lists:join(" ", string:lexemes(Help, " \n"))),
@@ -983,7 +985,8 @@ source_root_default_said_test_() ->
            end}
      || {Job, Said} <- [{"build", Root}, {"doc", Root},
                         {"shell", "where the shell finds a module's source;"
-                                  " default: the working directory"}]].
+                                  " default: the root package's src, or the working"
+                                  " directory"}]].
 
 %% A job's help as it prints it, and its status.
 help_of(Job) ->
@@ -1412,13 +1415,14 @@ first_dependent_named_test() ->
                       ern_build:shown(Program) ++ ": Zed hides the library Zed, which the library "
                           ++ Dependent ++ " uses"
               end,
-    ?assertEqual(Refusal("Alpha"), ern_build:hiding(Program, ['Zed'], Program, Libraries)),
-    ?assertEqual(Refusal("Beta"), ern_build:hiding(Program, ['Zed'], Program, [Beta, Zed])),
-    ?assertEqual(Refusal("Zed"), ern_build:hiding(Program, ['Zed'], Program, [Zed])),
-    ?assertEqual(Refusal("Alpha"), ern_build:hiding(Program, ['Zed'], none, Libraries)),
-    ?assertEqual(none, ern_build:hiding(Program, ['Alpha'], Program, Libraries)),
-    ?assertEqual(none, ern_build:hiding(Program, ['Zed', 'Extra'], Program, Libraries)),
-    ?assertEqual(none, ern_build:hiding(Program, ['Gamma'], Program, Libraries)).
+    Bare = ern_build:load_path_of([]),
+    ?assertEqual(Refusal("Alpha"), ern_build:hiding(Program, ['Zed'], Program, Libraries, Bare)),
+    ?assertEqual(Refusal("Beta"), ern_build:hiding(Program, ['Zed'], Program, [Beta, Zed], Bare)),
+    ?assertEqual(Refusal("Zed"), ern_build:hiding(Program, ['Zed'], Program, [Zed], Bare)),
+    ?assertEqual(Refusal("Alpha"), ern_build:hiding(Program, ['Zed'], none, Libraries, Bare)),
+    ?assertEqual(none, ern_build:hiding(Program, ['Alpha'], Program, Libraries, Bare)),
+    ?assertEqual(none, ern_build:hiding(Program, ['Zed', 'Extra'], Program, Libraries, Bare)),
+    ?assertEqual(none, ern_build:hiding(Program, ['Gamma'], Program, Libraries, Bare)).
 
 %% report §4.2: the root is one namespace, which the source root's modules
 %% and a load path root's stand in together: the program's `geo/a.ern`
@@ -7410,13 +7414,43 @@ given_path_empty_test() ->
 %% Packages, report §11.9
 %%
 
-%% A manifest for the release 0.11.0 naming Entries, each a name and a
-%% version, in their order.
+%% A manifest for the running `ern`'s release naming Entries, each a name
+%% and a version, in their order.
 manifest_of(Entries) ->
-    ["{\"ernest\": \"0.11.0\", \"packages\": [",
+    manifest_for(element(1, running_release()), Entries).
+
+%% A manifest for the release Ernest naming Entries.
+manifest_for(Ernest, Entries) ->
+    ["{\"ernest\": \"", Ernest, "\", \"packages\": [",
      lists:join(", ", [["{\"name\": \"", Name, "\", \"version\": \"", Version, "\"}"]
                        || {Name, Version} <- Entries]),
      "]}\n"].
+
+%% Report §11.7: the running `ern`'s release, the three numbers of its
+%% version text, and the text whole.
+running_release() ->
+    Text = ern_release:version_text(),
+    {lists:takewhile(fun(Char) -> Char =/= $- andalso Char =/= $+ end, Text), Text}.
+
+%% The release after the running `ern`'s, which the running `ern` is not of.
+later_release() ->
+    {Major, Minor, _} = ern_release:release(element(1, running_release())),
+    lists:flatten(io_lib:format("~B.~B.0", [Major, Minor + 1])).
+
+%% Under the working directory, the named package Name of their form: its
+%% manifest naming Entries, its `VERSION` saying Version, and its source,
+%% the module of its name, which is not compiled.
+whole_package(Name, Version, Entries) ->
+    Package = filename:join("lib", Name),
+    write(Package, "package.conf", manifest_of(Entries)),
+    write(Package, "VERSION", Version ++ "\n"),
+    write(Package, "src/" ++ Name ++ ".ern",
+          ["export fn hello() : String =\n    \"", Name, "\"\n"]),
+    Package.
+
+%% Every file and directory under the working directory, in order.
+listing() ->
+    lists:sort(filelib:wildcard("**")).
 
 %% What a job said and its status where it refused what it was given with
 %% Lines, a line each.
@@ -7428,11 +7462,14 @@ others_write(Path) ->
     {ok, #file_info{mode = Mode}} = file:read_file_info(Path),
     ok = file:change_mode(Path, Mode bor 8#002).
 
-%% Under the root package Root, the named package Name: its source, the
-%% module of its name, whose `hello()` gives Text, compiled into its build
-%% by a job started in the package, which holds no manifest, and its ebin.
-named_package(Root, Name, Text) ->
+%% Under the root package Root, the named package Name at Version: its
+%% manifest, which names no package, its `VERSION`, its source, the module of
+%% its name, whose `hello()` gives Text, compiled into its build by a job
+%% started in the package, and its ebin.
+named_package(Root, Name, Version, Text) ->
     Package = filename:join([Root, "lib", Name]),
+    write(Package, "package.conf", manifest_of([])),
+    write(Package, "VERSION", Version ++ "\n"),
     write(Package, "src/" ++ Name ++ ".ern",
           ["export fn hello() : String =\n    \"", Text, "\"\n"]),
     in_directory(Package,
@@ -7454,7 +7491,7 @@ package_manifest_form_test() ->
 
 package_manifest_form() ->
     write(".", "given.ern", hello()),
-    ok = filelib:ensure_path("lib/epx"),
+    whole_package("epx", "0.2.1", []),
     Version = "three numbers joined by `.`, none written with a leading zero",
     Name = "words joined by `_`, each a lowercase letter, then lowercase letters and digits",
     Digest = lists:duplicate(64, $a),
@@ -7586,7 +7623,9 @@ package_unreadable_manifest_test() ->
 %% owns, which a test run by one user cannot make
 package_paths_at_fault_test() ->
     Elsewhere = tmp(),
-    ok = filelib:ensure_path(filename:join(Elsewhere, "open/leaf")),
+    ok = filelib:ensure_path(filename:join(Elsewhere, "open")),
+    in_directory(filename:join(Elsewhere, "open"),
+                 fun() -> ok = file:rename(whole_package("leaf", "1.3.0", []), "leaf") end),
     others_write(filename:join(Elsewhere, "open")),
     in_directory(tmp(),
                  fun() ->
@@ -7596,6 +7635,7 @@ package_paths_at_fault_test() ->
                       || Sub <- ["src", "build", "ebin"]],
                      write(".", "lib/epx/src/epx.ern", hello()),
                      write(".", "lib/epx/VERSION", "0.2.1\n"),
+                     write(".", "lib/epx/package.conf", manifest_of([])),
                      ok = file:make_symlink(filename:join(Elsewhere, "open/leaf"), "lib/leaf"),
                      Open = ["package.conf", ".", "lib", "lib/epx", "lib/epx/src", "lib/epx/build",
                              "lib/epx/ebin"],
@@ -7626,7 +7666,7 @@ package_namespaces_test() ->
                  fun() ->
                      write(".", "given.ern", hello()),
                      Names = ["io", "json", "int", "ernest", "prelude", "down", "pixel_map"],
-                     [ok = filelib:ensure_path("lib/" ++ Name) || Name <- Names],
+                     [whole_package(Name, "1.0.0", []) || Name <- Names],
                      write(".", "package.conf", manifest_of([{Name, "1.0.0"} || Name <- Names])),
                      Taken = ", which no package may take",
                      ?assertEqual(refused_lines("build",
@@ -7651,13 +7691,13 @@ package_namespaces_test() ->
 %% order
 package_not_under_lib_test() ->
     Elsewhere = tmp(),
-    ok = filelib:ensure_path(filename:join(Elsewhere, "linked")),
+    in_directory(Elsewhere, fun() -> whole_package("linked", "1.0.0", []) end),
     in_directory(tmp(),
                  fun() ->
                      write(".", "given.ern", hello()),
                      write(".", "lib/leaf", "a file\n"),
                      ok = file:make_symlink("nothing", "lib/mid"),
-                     ok = file:make_symlink(filename:join(Elsewhere, "linked"), "lib/linked"),
+                     ok = file:make_symlink(filename:join(Elsewhere, "lib/linked"), "lib/linked"),
                      write(".", "package.conf",
                            manifest_of([{"epx", "0.2.1"}, {"leaf", "1.2.0"}, {"linked", "1.0.0"},
                                         {"mid", "0.4.0"}])),
@@ -7672,26 +7712,37 @@ package_not_under_lib_test() ->
                  end).
 
 %% report §11.9: a job says its refusals in this order, each group whole:
-%% the manifest's form, the paths at fault, the entries' namespaces, and
-%% the named packages not under `lib`
+%% the manifest's form, the paths at fault, the entries' namespaces, the
+%% named packages not under `lib`, a path given under `lib`, and, in `ern
+%% build`, the build's rules, of every entry of its form under `lib`, one
+%% whose namespace is refused among them; `ern doc` holds no rule
 package_refusal_order_test() ->
     in_directory(tmp(),
                  fun() ->
-                     write(".", "given.ern", hello()),
                      write(".", "package.conf",
-                           "{\"ernest\": \"0.11.0\", \"packages\": [{\"name\": \"epx\","
-                           " \"version\": \"0.2.1\"}, {\"name\": \"io\", \"version\": \"1.0.0\"}],"
-                           " \"x\": 1}\n"),
+                           ["{\"ernest\": \"", element(1, running_release()), "\", \"packages\":"
+                            " [{\"name\": \"epx\", \"version\": \"0.2.1\"},"
+                            " {\"name\": \"io\", \"version\": \"1.0.0\"},"
+                            " {\"name\": \"leaf\", \"version\": \"1.2.0\"}], \"x\": 1}\n"]),
                      ok = filelib:ensure_path("lib/io"),
+                     whole_package("leaf", "1.3.0", []),
                      others_write("package.conf"),
+                     Before = ["package.conf: the file has the unknown field x",
+                               "package.conf: may be written by every user",
+                               "package.conf: the entry for io names Io, which no package may take",
+                               "package.conf: epx 0.2.1 is not under lib; ern unpack puts it there",
+                               "lib/leaf/src/leaf.ern is the package leaf's, which ern build"
+                               " builds"],
                      ?assertEqual(refused_lines("build",
-                                                ["package.conf: the file has the unknown field x",
-                                                 "package.conf: may be written by every user",
-                                                 "package.conf: the entry for io names Io, which"
-                                                 " no package may take",
-                                                 "package.conf: epx 0.2.1 is not under lib; ern"
-                                                 " unpack puts it there"]),
-                                  said(["build", "given.ern"]))
+                                                Before
+                                                ++ ["package.conf: lib/io holds no package.conf",
+                                                    "package.conf: lib/io holds no VERSION",
+                                                    "package.conf: the entry for leaf says 1.2.0,"
+                                                    " and lib/leaf holds 1.3.0; remove it, and ern"
+                                                    " unpack puts 1.2.0 there"]),
+                                  said(["build", "lib/leaf/src/leaf.ern"])),
+                     ?assertEqual(refused_lines("doc", Before),
+                                  said(["doc", "lib/leaf/src/leaf.ern"]))
                  end).
 
 %% report §11.9, §11.7, §11.2: `--package-dir dir` of `ern run`, `ern test`
@@ -7794,11 +7845,11 @@ package_load_path() ->
 package_load_path_in() ->
     {ok, Cwd} = file:get_cwd(),
     In = fun(Path) -> filename:join(Cwd, Path) end,
-    named_package(".", "lp_epx", "epx"),
+    named_package(".", "lp_epx", "0.2.1", "epx"),
     compiled_erlang("lib/lp_epx/ebin", "ern_cli_package_native", "n/0", "n() -> 42."),
-    named_package(".", "lp_leaf", "leaf"),
+    named_package(".", "lp_leaf", "1.3.0", "leaf"),
     ok = file:del_dir("lib/lp_leaf/ebin"),
-    write(".", "lib/lp_none/src/lp_none.ern", "export fn one() : Int =\n    1\n"),
+    whole_package("lp_none", "1.0.0", []),
     write(".", "package.conf", manifest_of([{"lp_epx", "0.2.1"}, {"lp_leaf", "1.3.0"},
                                             {"lp_none", "1.0.0"}])),
     write(".", "lp_main.ern",
@@ -7812,21 +7863,22 @@ package_load_path_in() ->
     ?assertEqual({0, <<>>}, said(["build", "lp_checked.ern"])),
     Libraries = ern_tree:libraries(),
     ?assertEqual({0, <<"epxleaf42\n">>}, said(["run", "lp_main.erc"])),
-    ?assertEqual([Cwd, In("lib/lp_epx/build"), In("lib/lp_epx/ebin"), In("lib/lp_leaf/build")
-                  | Libraries], ern_build:directories(ern_cli:load_path())),
+    ?assertEqual([Cwd, In("lib/lp_epx/build"), In("lib/lp_epx/ebin"), In("lib/lp_leaf/build"),
+                  In("lib/lp_none/build") | Libraries], ern_build:directories(ern_cli:load_path())),
     ?assertEqual({0, <<"found: passed\n">>}, said(["test", "lp_checked.erc"])),
     {0, Page} = said(["doc", "lp_main.ern"]),
     ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module LpMain\n">>)),
     ?assertEqual({0, <<"epxleaf42\n">>},
                  said(["run", "--load-path", "lib/lp_leaf/build", "lp_main.erc"])),
-    ?assertEqual([Cwd, In("lib/lp_leaf/build"), In("lib/lp_epx/build"), In("lib/lp_epx/ebin")
-                  | Libraries], ern_build:directories(ern_cli:load_path())),
+    ?assertEqual([Cwd, In("lib/lp_leaf/build"), In("lib/lp_epx/build"), In("lib/lp_epx/ebin"),
+                  In("lib/lp_none/build") | Libraries], ern_build:directories(ern_cli:load_path())),
     ?assertEqual({0, <<"epxleaf42\n">>}, said(["run", "--libs-dir", "lib", "lp_main.erc"])),
-    ?assertEqual([Cwd, In("lib/lp_epx/ebin"), In("lib/lp_epx/build"), In("lib/lp_leaf/build")
-                  | Libraries], ern_build:directories(ern_cli:load_path())),
+    ?assertEqual([Cwd, In("lib/lp_epx/ebin"), In("lib/lp_epx/build"), In("lib/lp_leaf/build"),
+                  In("lib/lp_none/build") | Libraries], ern_build:directories(ern_cli:load_path())),
     %% the builds alone, where the job runs no code
-    Packages = ern_package:packages(ern_package:read(".", builds)),
-    ?assertEqual([In("lib/lp_epx/build"), In("lib/lp_leaf/build") | Libraries],
+    Packages = ern_package:packages(ern_package:read(".", "doc", [])),
+    ?assertEqual([In("lib/lp_epx/build"), In("lib/lp_leaf/build"), In("lib/lp_none/build")
+                  | Libraries],
                  ern_build:directories(ern_build:load_path([{named_package, Package}
                                                             || Package <- Packages]))).
 
@@ -7842,29 +7894,34 @@ package_verbose_test_() ->
 
 package_verbose() ->
     Elsewhere = tmp(),
-    named_package(Elsewhere, "vb_mid", "mid"),
-    write(Elsewhere, "lib/vb_mid/VERSION", "1.0.0\n"),
+    named_package(Elsewhere, "vb_mid", "1.0.0", "mid"),
     in_directory(tmp(), fun() -> package_verbose_in(Elsewhere) end).
 
 package_verbose_in(Elsewhere) ->
-    named_package(".", "vb_epx", "epx"),
-    write(".", "lib/vb_epx/VERSION", "0.2.1\n"),
-    named_package(".", "vb_leaf", "leaf"),
-    write(".", "lib/vb_leaf/VERSION", "1.3\n"),
+    named_package(".", "vb_epx", "0.2.1", "epx"),
+    named_package(".", "vb_leaf", "1.3.0", "leaf"),
     ok = file:make_symlink(filename:join(Elsewhere, "lib/vb_mid"), "lib/vb_mid"),
-    named_package("rel", "vb_rel", "rel"),
+    named_package("rel", "vb_rel", "2.0.0", "rel"),
     ok = file:make_symlink("../rel/lib/vb_rel", "lib/vb_rel"),
     write(".", "package.conf", manifest_of([{"vb_epx", "0.2.1"}, {"vb_leaf", "1.3.0"},
                                             {"vb_mid", "1.0.0"}, {"vb_rel", "2.0.0"}])),
     write(".", "vb_main.ern", "export fn main() : Unit =\n    Io.println(VbEpx.hello())\n"),
-    Said = lines(["manifest package.conf", "package vb_epx 0.2.1", "package vb_leaf no version",
-                  "package vb_mid 1.0.0 at " ++ Elsewhere ++ "/lib/vb_mid",
-                  "package vb_rel no version at rel/lib/vb_rel"]),
+    Built = lines(["source root .", "build root .", "manifest package.conf",
+                   "package vb_epx 0.2.1", "package vb_leaf 1.3.0",
+                   "package vb_mid 1.0.0 at " ++ Elsewhere ++ "/lib/vb_mid",
+                   "package vb_rel 2.0.0 at rel/lib/vb_rel"]),
     Prefixed = fun(Prefix, {0, Output}) ->
                    ?assertEqual(unicode:characters_to_binary(Prefix),
                                 binary:part(Output, 0, min(byte_size(Output), length(Prefix))))
                end,
-    Prefixed("source root .\nbuild root .\n" ++ Said, said(["build", "--verbose", "vb_main.ern"])),
+    Prefixed(Built, said(["build", "--verbose", "vb_main.ern"])),
+    %% `ern build` refuses a `VERSION` not of its form, and the other jobs
+    %% read no rule
+    write(".", "lib/vb_leaf/VERSION", "1.3\n"),
+    ok = file:delete("rel/lib/vb_rel/VERSION"),
+    Said = lines(["manifest package.conf", "package vb_epx 0.2.1", "package vb_leaf no version",
+                  "package vb_mid 1.0.0 at " ++ Elsewhere ++ "/lib/vb_mid",
+                  "package vb_rel no version at rel/lib/vb_rel"]),
     Prefixed(Said, said(["run", "--verbose", "vb_main.erc"])),
     Prefixed(Said, said(["test", "--verbose", "vb_main.erc"])),
     Prefixed(Said, said(["doc", "--verbose", "vb_main.ern"])).
@@ -7879,13 +7936,15 @@ package_verbose_target_not_utf8_test() ->
 package_verbose_target_not_utf8() ->
     ok = file:make_dir(<<"b", 16#FF>>),
     ok = file:make_dir(<<"b", 16#FF, "/vb_bytes">>),
+    ok = file:write_file(<<"b", 16#FF, "/vb_bytes/package.conf">>, manifest_of([])),
+    ok = file:write_file(<<"b", 16#FF, "/vb_bytes/VERSION">>, "1.0.0\n"),
     ok = file:make_dir("lib"),
     ok = file:make_symlink(<<"../b", 16#FF, "/vb_bytes">>, <<"lib/vb_bytes">>),
     write(".", "package.conf", manifest_of([{"vb_bytes", "1.0.0"}])),
     write(".", "vb_bytes_main.ern", "export fn main() : Unit =\n    Io.println(\"b\")\n"),
     {0, Said} = said(["build", "--verbose", "vb_bytes_main.ern"]),
     ?assertNotEqual(nomatch,
-                    binary:match(Said, <<"\npackage vb_bytes no version at b\\xFF/vb_bytes\n">>)).
+                    binary:match(Said, <<"\npackage vb_bytes 1.0.0 at b\\xFF/vb_bytes\n">>)).
 
 %% report §11.9, §11.1, §11.4, §11.6, §11.2: in directory mode a directory
 %% named `lib` that stands beside a `package.conf` is passed over by every
@@ -7948,7 +8007,7 @@ package_namespace_lookup_test_() ->
 package_namespace_lookup() ->
     Elsewhere = tmp(),
     write(".", "lib/nl_leaf/src/nl_leaf/inner.ern", "export fn word() : String =\n    \"inner\"\n"),
-    named_package(".", "nl_leaf", "package"),
+    named_package(".", "nl_leaf", "1.0.0", "package"),
     compiled_elsewhere(Elsewhere, "nl_other.ern", "export fn word() : String =\n    \"other\"\n",
                        "lib/nl_leaf/build/nl_other.erc"),
     Decoy = filename:join(Elsewhere, "decoy"),
@@ -7988,7 +8047,7 @@ package_namespace_refused_test_() ->
     {timeout, 60, fun() -> in_directory(tmp(), fun package_namespace_refused/0) end}.
 
 package_namespace_refused() ->
-    named_package(".", "nr_leaf", "package"),
+    named_package(".", "nr_leaf", "1.0.0", "package"),
     write(".", "package.conf", manifest_of([{"nr_leaf", "1.0.0"}])),
     write(".", "src/nr_leaf.ern", "export fn hello() : String =\n    \"source\"\n"),
     write(".", "src/nr_leaf/util.ern", "export fn one() : Int =\n    1\n"),
@@ -8025,7 +8084,7 @@ package_namespace_given_file_test_() ->
 package_namespace_given_file() ->
     write(".", "lib/ng_epx/src/ng_epx/tool.ern",
           "export fn main() : Unit =\n    Io.println(NgEpx.hello())\n"),
-    named_package(".", "ng_epx", "epx"),
+    named_package(".", "ng_epx", "0.2.1", "epx"),
     write(".", "package.conf", manifest_of([{"ng_epx", "0.2.1"}])),
     ok = filelib:ensure_path("build/ng_epx"),
     {ok, _} = file:copy("lib/ng_epx/build/ng_epx.erc", "build/ng_epx.erc"),
@@ -8048,7 +8107,7 @@ package_build_other_namespace_test_() ->
     {timeout, 60, fun() -> in_directory(tmp(), fun package_build_other_namespace/0) end}.
 
 package_build_other_namespace() ->
-    named_package(".", "po_epx", "epx"),
+    named_package(".", "po_epx", "0.2.1", "epx"),
     write(".", "package.conf", manifest_of([{"po_epx", "0.2.1"}])),
     Elsewhere = tmp(),
     Main = "export fn main() : Unit =\n    Io.println(\"stray\")\n",
@@ -8070,7 +8129,7 @@ package_tested_directory_test_() ->
     {timeout, 60, fun() -> in_directory(tmp(), fun package_tested_directory/0) end}.
 
 package_tested_directory() ->
-    named_package(".", "pt_epx", "epx"),
+    named_package(".", "pt_epx", "0.2.1", "epx"),
     write(".", "package.conf", manifest_of([{"pt_epx", "0.2.1"}])),
     ok = filelib:ensure_path("tested"),
     {ok, _} = file:copy("lib/pt_epx/build/pt_epx.erc", "tested/pt_epx.erc"),
@@ -8083,6 +8142,785 @@ package_tested_directory() ->
     ?assertEqual(refusal("test", "tested/pt_epx.erc holds PtEpx, the package pt_epx's, which"
                                  " package.conf names"),
                  said(["test", "tested"])).
+
+%% report §11.9: the trial's table of a package that loads a package, in the
+%% report's words: `app` names `mid` 1.0.0 and `leaf` 1.2.0, `mid` names
+%% `leaf` 1.1.0, and the build holds them to each other before it compiles.
+%% Where the change leaves the entry for `leaf` saying another version than
+%% `lib/leaf` holds, that rule is broken too. A module of `app` at `leaf`'s
+%% namespace fails that file alone
+package_build_trial_test() ->
+    in_directory(tmp(), fun package_build_trial/0).
+
+package_build_trial() ->
+    {_, Running} = running_release(),
+    Later = later_release(),
+    App = fun(Entries) -> write(".", "package.conf", manifest_of(Entries)) end,
+    Whole = [{"mid", "1.0.0"}, {"leaf", "1.2.0"}],
+    whole_package("mid", "1.0.0", [{"leaf", "1.1.0"}]),
+    whole_package("leaf", "1.2.0", []),
+    App(Whole),
+    write(".", "src/app.ern", "export fn main() : Unit =\n    Io.println(\"app\")\n"),
+    Built = fun() -> said(["build", "src"]) end,
+    ?assertEqual({0, <<>>}, Built()),
+    App([{"mid", "1.0.0"}]),
+    ?assertEqual(refusal("build", "package.conf: mid 1.0.0 needs leaf from 1.1.0, and no entry"
+                                  " names leaf"),
+                 Built()),
+    App([{"mid", "1.0.0"}, {"leaf", "1.0.0"}]),
+    ?assertEqual(refused_lines("build", ["package.conf: mid 1.0.0 needs leaf from 1.1.0, and the"
+                                         " entry for leaf says 1.0.0",
+                                         "package.conf: the entry for leaf says 1.0.0, and"
+                                         " lib/leaf holds 1.2.0; remove it, and ern unpack puts"
+                                         " 1.0.0 there"]),
+                 Built()),
+    App(Whole),
+    write(".", "lib/leaf/VERSION", "1.3.0\n"),
+    ?assertEqual(refusal("build", "package.conf: the entry for leaf says 1.2.0, and lib/leaf"
+                                  " holds 1.3.0; remove it, and ern unpack puts 1.2.0 there"),
+                 Built()),
+    write(".", "lib/leaf/VERSION", "1.2.0\n"),
+    App(Whole ++ [{"leaf", "1.2.0"}]),
+    ?assertEqual(refusal("build", "package.conf: two entries name leaf"), Built()),
+    App(Whole),
+    write(".", "lib/leaf/package.conf", manifest_of([{"mid", "1.0.0"}])),
+    ?assertEqual(refusal("build", "package.conf: a cycle among the packages: mid, leaf"), Built()),
+    write(".", "lib/leaf/package.conf", manifest_of([])),
+    write(".", "lib/leaf/src/util.ern", "export fn one() : Int =\n    1\n"),
+    ?assertEqual(refusal("build", "lib/leaf/src/util.ern: the package leaf provides Leaf and what"
+                                  " stands under it"),
+                 Built()),
+    ok = file:delete("lib/leaf/src/util.ern"),
+    write(".", "src/leaf.ern", "export fn hello() : String =\n    \"app\"\n"),
+    ?assertEqual(refusal("build", "src/leaf.ern: Leaf is the package leaf's, which package.conf"
+                                  " names"),
+                 Built()),
+    ?assert(filelib:is_regular("build/app.erc")),
+    ok = file:delete("src/leaf.ern"),
+    write(".", "lib/leaf/package.conf", manifest_for(Later, [])),
+    ?assertEqual(refusal("build", "package.conf: leaf 1.2.0 is written for ern from " ++ Later
+                                  ++ ", and this is ern " ++ Running),
+                 Built()).
+
+%% report §11.9: `ern build` says every rule broken before anything
+%% compiles, a line each: the running `ern`'s line first and each cycle's
+%% last, and between them each entry's lines in the order of the root
+%% package's entries, its manifest's form first, then the rules in the
+%% report's order, a module's by its path, and one entry's in the order of
+%% its manifest's list. A manifest with a fault of its form is held to the
+%% rules in what is of its form. Nothing is compiled and no file is written
+package_build_rules_said_test() ->
+    in_directory(tmp(), fun package_build_rules_said/0).
+
+package_build_rules_said() ->
+    {_, Running} = running_release(),
+    Later = later_release(),
+    write(".", "package.conf",
+          manifest_for(Later, [{"ra", "1.0.0"}, {"rb", "2.0.0"}, {"rc", "1.0.0"}, {"rd", "1.0.0"},
+                               {"re", "1.0.0"}])),
+    whole_package("ra", "1.1.0", []),
+    write(".", "lib/ra/package.conf",
+          ["{\"ernest\": \"", Later, "\", \"packages\": [{\"name\": \"zz\", \"version\":"
+           " \"1.0.0\"}, {\"name\": \"rb\", \"version\": \"3.0.0\"}], \"x\": 1}\n"]),
+    Module = "export fn one() : Int =\n    1\n",
+    [write(".", "lib/ra/src/" ++ File, Module)
+     || File <- ["stray.ern", "ra/inner.ern", "other/deep.ern"]],
+    ok = filelib:ensure_path("lib/rb"),
+    whole_package("rc", "1.0.0", [{"rd", "1.0.0"}]),
+    whole_package("rd", "1.0.0", [{"rc", "1.0.0"}]),
+    whole_package("re", "1.0.0", [{"re", "1.0.0"}]),
+    write(".", "src/main.ern", hello()),
+    Before = listing(),
+    Provides = ": the package ra provides Ra and what stands under it",
+    ?assertEqual(refused_lines("build",
+                               ["package.conf: written for ern from " ++ Later ++ ", and this is"
+                                " ern " ++ Running,
+                                "lib/ra/package.conf: the file has the unknown field x",
+                                "package.conf: the entry for ra says 1.0.0, and lib/ra holds 1.1.0;"
+                                " remove it, and ern unpack puts 1.0.0 there",
+                                "package.conf: ra 1.0.0 is written for ern from " ++ Later
+                                ++ ", and this is ern " ++ Running,
+                                "package.conf: ra 1.0.0 needs zz from 1.0.0, and no entry names zz",
+                                "package.conf: ra 1.0.0 needs rb from 3.0.0, and the entry for rb"
+                                " says 2.0.0",
+                                "lib/ra/src/other/deep.ern" ++ Provides,
+                                "lib/ra/src/stray.ern" ++ Provides,
+                                "package.conf: lib/rb holds no package.conf",
+                                "package.conf: lib/rb holds no VERSION",
+                                "package.conf: a cycle among the packages: rc, rd",
+                                "package.conf: a cycle among the packages: re"]),
+                 said(["build", "src"])),
+    ?assertEqual(Before, listing()).
+
+%% report §11.9: where a named package's directory is a link, the version
+%% line ends `; ern unpack puts 1.2.0 there`
+package_build_linked_version_test() ->
+    Elsewhere = tmp(),
+    in_directory(Elsewhere, fun() -> whole_package("leaf", "1.3.0", []) end),
+    in_directory(tmp(),
+                 fun() ->
+                     ok = file:make_dir("lib"),
+                     ok = file:make_symlink(filename:join(Elsewhere, "lib/leaf"), "lib/leaf"),
+                     write(".", "package.conf", manifest_of([{"leaf", "1.2.0"}])),
+                     write(".", "main.ern", hello()),
+                     ?assertEqual(refusal("build", "package.conf: the entry for leaf says 1.2.0,"
+                                                   " and lib/leaf holds 1.3.0; ern unpack puts"
+                                                   " 1.2.0 there"),
+                                  said(["build", "main.ern"]))
+                 end).
+
+%% report §11.9: an entry whose package no module uses is accepted; a named
+%% package with no `src` breaks no rule, and no source of a named package is
+%% parsed for the rules: a source that does not parse fails where `ern build`
+%% builds its package, after the rules are held, and the root package's
+%% module compiles
+package_build_unused_entry_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     whole_package("un_leaf", "1.0.0", []),
+                     write(".", "lib/un_leaf/src/un_leaf/broken.ern", "fn (\n"),
+                     whole_package("un_bare", "2.0.0", []),
+                     ok = file:delete("lib/un_bare/src/un_bare.ern"),
+                     ok = file:del_dir("lib/un_bare/src"),
+                     write(".", "package.conf", manifest_of([{"un_leaf", "1.0.0"},
+                                                             {"un_bare", "2.0.0"}])),
+                     write(".", "main.ern", hello()),
+                     ?assertEqual({1, <<"lib/un_leaf/src/un_leaf/broken.ern:1:4: expected a name"
+                                        " instead of `(`\n1 | fn (\n  |    ^\n\n">>},
+                                  said(["build", "main.ern"])),
+                     ?assert(filelib:is_regular("lib/un_leaf/build/un_leaf.erc")),
+                     ?assert(filelib:is_regular("main.erc"))
+                 end).
+
+%% report §11.9: a named package holds a manifest of its form, held as the
+%% root package's is, each fault naming the named package's file; one that
+%% holds no name `package.conf` holds no manifest. A FIFO at the name ends
+%% the job with its refusal. The rules are held of what is of its form
+package_build_named_manifest_test() ->
+    in_directory(tmp(), fun package_build_named_manifest/0).
+
+package_build_named_manifest() ->
+    whole_package("leaf", "1.2.0", []),
+    write(".", "package.conf", manifest_of([{"leaf", "1.2.0"}])),
+    write(".", "main.ern", hello()),
+    Refused = fun(Line) -> ?assertEqual(refusal("build", Line), said(["build", "main.ern"])) end,
+    Manifest = "lib/leaf/package.conf",
+    ok = file:delete(Manifest),
+    Refused("package.conf: lib/leaf holds no package.conf"),
+    ok = file:make_dir(Manifest),
+    Refused("lib/leaf/package.conf: is no regular file"),
+    ok = file:del_dir(Manifest),
+    "" = os:cmd("mkfifo " ++ Manifest),
+    Refused("lib/leaf/package.conf: is no regular file"),
+    ok = file:delete(Manifest),
+    ok = file:make_symlink("nothing", Manifest),
+    Refused("lib/leaf/package.conf: no such file"),
+    ok = file:delete(Manifest),
+    write(".", Manifest, "{"),
+    Refused("lib/leaf/package.conf: is not JSON"),
+    write(".", Manifest, manifest_of([])),
+    ok = file:change_mode(Manifest, 8#000),
+    Refused("lib/leaf/package.conf: permission denied"),
+    ok = file:change_mode(Manifest, 8#644),
+    write(".", Manifest, manifest_of([{"x", "1.0.0"}, {"x", "1.0.0"}])),
+    ?assertEqual(refused_lines("build", ["lib/leaf/package.conf: two entries name x",
+                                         "package.conf: leaf 1.2.0 needs x from 1.0.0, and no"
+                                         " entry names x"]),
+                 said(["build", "main.ern"])).
+
+%% report §11.9: a named package holds a `VERSION` of its form, one line
+%% that holds a version and ends in a line feed; one that is not, a
+%% directory, a FIFO, a file that cannot be read or a link to nothing among
+%% them, is refused, and none is compared with its entry's version. A FIFO
+%% ends `ern build` with its refusal, and `ern run --verbose`, which says the
+%% package has no version, runs
+package_build_version_form_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_version_form/0) end}.
+
+package_build_version_form() ->
+    named_package(".", "vf_leaf", "1.2.0", "leaf"),
+    write(".", "package.conf", manifest_of([{"vf_leaf", "1.2.0"}])),
+    write(".", "vf_main.ern", "export fn main() : Unit =\n    Io.println(VfLeaf.hello())\n"),
+    ?assertEqual({0, <<>>}, said(["build", "vf_main.ern"])),
+    Version = "lib/vf_leaf/VERSION",
+    Refused = fun(Line) ->
+                  ?assertEqual(refusal("build", "package.conf: " ++ Line),
+                               said(["build", "vf_main.ern"]))
+              end,
+    Not = "lib/vf_leaf/VERSION is not one line that holds a version",
+    [begin write(".", Version, Text), Refused(Not) end
+     || Text <- ["1.2\n", "1.2.0", "1.2.0\n\n", "1.2.0\r\n", "v1.2.0\n", ""]],
+    ok = file:change_mode(Version, 8#000),
+    Refused(Not),
+    ok = file:delete(Version),
+    Refused("lib/vf_leaf holds no VERSION"),
+    ok = file:make_dir(Version),
+    Refused(Not),
+    ok = file:del_dir(Version),
+    ok = file:make_symlink("nothing", Version),
+    Refused(Not),
+    ok = file:delete(Version),
+    "" = os:cmd("mkfifo " ++ Version),
+    Refused(Not),
+    {0, Said} = said(["run", "--verbose", "vf_main.erc"]),
+    ?assertNotEqual(nomatch, binary:match(Said, <<"\npackage vf_leaf no version\n">>)),
+    ?assertNotEqual(nomatch, binary:match(Said, <<"\nleaf\n">>)).
+
+%% report §11.9: a named package's entries are held to the root package's
+%% by name alone: an entry whose namespace no package may take is not
+%% refused for it, and the root package's manifest holds no entry of its
+%% name. A named package not under `lib` has its one line and no rule's
+package_build_named_entries_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     whole_package("leaf", "1.2.0", [{"io", "1.0.0"}]),
+                     write(".", "package.conf", manifest_of([{"leaf", "1.2.0"},
+                                                             {"gone", "1.0.0"}])),
+                     write(".", "main.ern", hello()),
+                     ?assertEqual(refused_lines("build",
+                                                ["package.conf: gone 1.0.0 is not under lib; ern"
+                                                 " unpack puts it there",
+                                                 "package.conf: leaf 1.2.0 needs io from 1.0.0, and"
+                                                 " no entry names io"]),
+                                  said(["build", "main.ern"]))
+                 end).
+
+%% report §11.9: the named packages hold no cycle, each with the packages
+%% its manifest names: a line for each cycle, a package that names itself
+%% among them, its packages in the order of the root package's entries,
+%% the lines in the order of their first packages; a package outside every
+%% cycle, and one not under `lib`, is in none
+package_build_cycles_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     whole_package("cx", "1.0.0", [{"cx", "1.0.0"}]),
+                     whole_package("cp", "1.0.0", [{"cq", "1.0.0"}]),
+                     whole_package("cq", "1.0.0", [{"cr", "1.0.0"}]),
+                     whole_package("cr", "1.0.0", [{"cz", "1.0.0"}, {"cp", "1.0.0"}]),
+                     whole_package("cs", "1.0.0", [{"cp", "1.0.0"}]),
+                     write(".", "package.conf",
+                           manifest_of([{Name, "1.0.0"}
+                                        || Name <- ["cs", "cq", "cx", "cp", "cr", "cz"]])),
+                     write(".", "main.ern", hello()),
+                     ?assertEqual(refused_lines("build",
+                                                ["package.conf: cz 1.0.0 is not under lib; ern"
+                                                 " unpack puts it there",
+                                                 "package.conf: a cycle among the packages: cq, cp,"
+                                                 " cr",
+                                                 "package.conf: a cycle among the packages: cx"]),
+                                  said(["build", "main.ern"]))
+                 end).
+
+%% report §11.9, §11: `ern build` refuses a path it is given that is the
+%% root package's `lib`, a named package's directory or a path under one,
+%% and `ern doc` a source or a directory given there, each compared as it
+%% is resolved, by its segments: a path under `lib` and under no named
+%% package's directory, or under an entry's that is not of its form, has
+%% the text of `lib`; a path given there that names nothing is refused so,
+%% the root package being read first. `ern doc` reads a named package's
+%% `.erc`
+package_build_given_under_lib_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_given_under_lib/0) end}.
+
+package_build_given_under_lib() ->
+    {ok, Cwd} = file:get_cwd(),
+    named_package(".", "gl_epx", "0.2.1", "epx"),
+    write(".", "lib/stray/x.ern", hello()),
+    write(".", "package.conf", manifest_of([{"gl_epx", "0.2.1"}, {"bad", "x"}])),
+    Bad = "package.conf: the entry for bad's version is not three numbers joined by `.`, none"
+        " written with a leading zero: \"x\"",
+    Lib = "lib holds the named packages, which ern build builds",
+    Epx = fun(Path) -> Path ++ " is the package gl_epx's, which ern build builds" end,
+    Sources = [{"lib", Lib}, {"lib/gl_epx", Epx("lib/gl_epx")},
+               {"lib/gl_epx/src", Epx("lib/gl_epx/src")},
+               {"lib/gl_epx/src/gl_epx.ern", Epx("lib/gl_epx/src/gl_epx.ern")},
+               {"lib/gl_epx/src/none.ern", Epx("lib/gl_epx/src/none.ern")},
+               {Cwd ++ "/lib/gl_epx/src/gl_epx.ern", Epx("lib/gl_epx/src/gl_epx.ern")},
+               {"src/../lib/gl_epx/", Epx("lib/gl_epx")},
+               {"lib/stray/x.ern", Lib}, {"lib/none.ern", Lib}, {"lib/bad/x.ern", Lib}],
+    [?assertEqual(refused_lines(Job, [Bad, Line]), said([Job, Path]))
+     || Job <- ["build", "doc"], {Path, Line} <- Sources],
+    ?assertEqual(refused_lines("build", [Bad, Epx("lib/gl_epx/build/gl_epx.erc")]),
+                 said(["build", "lib/gl_epx/build/gl_epx.erc"])),
+    write(".", "package.conf", manifest_of([{"gl_epx", "0.2.1"}])),
+    {0, Page} = said(["doc", "lib/gl_epx/build/gl_epx.erc"]),
+    ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module GlEpx\n">>)),
+    ?assertNot(filelib:is_file("lib/stray/x.erc")).
+
+%% report §11.9: `ern build` alone reads the named packages' manifests:
+%% `ern run`, `ern test` and `ern doc` in a root package whose named
+%% package breaks the build's rules do their work
+package_rules_build_alone_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_rules_build_alone/0) end}.
+
+package_rules_build_alone() ->
+    named_package(".", "ba_leaf", "1.0.0", "leaf"),
+    write(".", "package.conf", manifest_of([{"ba_leaf", "1.0.0"}])),
+    write(".", "ba_main.ern", "export fn main() : Unit =\n    Io.println(BaLeaf.hello())\n"),
+    write(".", "ba_checked.ern",
+          "let found : Test.Case(Never) =\n"
+          "    Test.Case(name = \"found\", run = fn() = Test.equal(BaLeaf.hello(), \"leaf\"))\n"),
+    ?assertEqual({0, <<>>}, said(["build", "ba_main.ern"])),
+    ?assertEqual({0, <<>>}, said(["build", "ba_checked.ern"])),
+    ok = file:delete("lib/ba_leaf/VERSION"),
+    write(".", "lib/ba_leaf/package.conf", manifest_for(later_release(), [{"gone", "1.0.0"}])),
+    {1, _} = said(["build", "ba_main.ern"]),
+    ?assertEqual({0, <<"leaf\n">>}, said(["run", "ba_main.erc"])),
+    ?assertEqual({0, <<"found: passed\n">>}, said(["test", "ba_checked.erc"])),
+    {0, Page} = said(["doc", "ba_main.ern"]),
+    ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module BaMain\n">>)).
+
+%% Under the working directory, the named package Name at 1.0.0 of its
+%% form, its manifest naming the packages Used, each at 1.0.0, and its
+%% sources, each a path under its `src` and its text.
+source_package(Name, Used, Sources) ->
+    Package = filename:join("lib", Name),
+    write(Package, "package.conf", manifest_of([{Used1, "1.0.0"} || Used1 <- Used])),
+    write(Package, "VERSION", "1.0.0\n"),
+    [write(Package, filename:join("src", Relative), Text) || {Relative, Text} <- Sources],
+    Package.
+
+%% A root package's manifest naming the packages Names, each at 1.0.0.
+root_manifest(Names) ->
+    write(".", "package.conf", manifest_of([{Name, "1.0.0"} || Name <- Names])).
+
+%% The lines of what `--verbose` said that name a module compiled.
+compiled_lines(Said) ->
+    [Line || Line <- string:split(binary_to_list(Said), "\n", all),
+             lists:prefix("compiled ", Line)].
+
+%% A file's or a directory's mode, its permission bits alone.
+mode_of(Path) ->
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Path),
+    Mode band 8#777.
+
+%% report §11.1, §11.9, §11.4: in a root package, a path under its `src`
+%% takes that `src` as its source root where `--source-root` is not given,
+%% and the build root is the package's `build` where the source root is its
+%% `src`, given or not, in single-file mode and in directory mode; `ern doc`
+%% takes the same roots. A path outside `src` takes the roots it would take
+%% with no manifest, and so does every path of a root package that has no
+%% `src`
+package_roots_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_roots/0) end}.
+
+package_roots() ->
+    root_manifest([]),
+    write(".", "src/ro_main.ern",
+          "export fn main() : Unit =\n    Io.println(RoNet.Http.word())\n"),
+    write(".", "src/ro_net/http.ern", "export fn word() : String =\n    \"http\"\n"),
+    write(".", "ro_top.ern", hello()),
+    ?assertEqual({0, <<"source root src\nbuild root build\nmanifest package.conf\n"
+                       "compiled RoNet.Http from src/ro_net/http.ern to build/ro_net/http.erc\n">>},
+                 said(["build", "--verbose", "src/ro_net/http.ern"])),
+    ?assertEqual({0, <<>>}, said(["build", "src/ro_main.ern"])),
+    ?assertEqual({0, <<"http\n">>}, said(["run", "build/ro_main.erc"])),
+    ?assertEqual({ok, ["ro_main.erc", "ro_net"]}, sorted_listing("build")),
+    ok = file:delete("build/ro_main.erc"),
+    ?assertEqual({0, <<>>}, said(["build", "--source-root", "src", "src/ro_main.ern"])),
+    ?assert(filelib:is_regular("build/ro_main.erc")),
+    [ok = file:delete(Erc) || Erc <- ["build/ro_main.erc", "build/ro_net/http.erc"]],
+    {0, Tree} = said(["build", "--verbose", "src/ro_net"]),
+    ?assertMatch(<<"source root src\nbuild root build\n", _/binary>>, Tree),
+    ?assert(filelib:is_regular("build/ro_net/http.erc")),
+    ?assertEqual({0, <<>>}, said(["build", "src"])),
+    ?assert(filelib:is_regular("build/ro_main.erc")),
+    ?assertEqual([], filelib:wildcard("src/**/*.erc")),
+    {0, Page} = said(["doc", "src/ro_net/http.ern"]),
+    ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module RoNet.Http\n">>)),
+    ?assertEqual({0, <<>>}, said(["doc", "src"])),
+    ?assert(filelib:is_regular("build/ro_net/http.md")),
+    ?assert(filelib:is_regular("build/index.md")),
+    ?assertEqual([], filelib:wildcard("src/**/*.md")),
+    %% a path outside `src` takes the roots it takes with no manifest
+    {0, Top} = said(["build", "--verbose", "ro_top.ern"]),
+    ?assertMatch(<<"source root .\nbuild root .\n", _/binary>>, Top),
+    ?assert(filelib:is_regular("ro_top.erc")),
+    %% a root package with no `src`
+    in_directory(tmp(),
+                 fun() ->
+                     root_manifest([]),
+                     write(".", "ro_bare.ern", hello()),
+                     write(".", "sub/ro_sub.ern", hello()),
+                     {0, Bare} = said(["build", "--verbose", "ro_bare.ern"]),
+                     ?assertMatch(<<"source root .\nbuild root .\n", _/binary>>, Bare),
+                     {0, Sub} = said(["build", "--verbose", "sub"]),
+                     ?assertMatch(<<"source root sub\nbuild root sub\n", _/binary>>, Sub),
+                     ?assert(filelib:is_regular("sub/ro_sub.erc"))
+                 end).
+
+%% A directory's names, in order.
+sorted_listing(Dir) ->
+    case file:list_dir(Dir) of
+        {ok, Names} -> {ok, lists:sort(Names)};
+        Error -> Error
+    end.
+
+%% report §11.9, §11.1, §11.2: `ern build` started in a root package builds
+%% each named package before the root package's modules, in single-file
+%% mode and in directory mode: each package's `src` into its `build` as a
+%% directory is compiled, after the packages its manifest names and
+%% otherwise in the root package's order, the entries written out of that
+%% order here; a package with no `src` builds nothing. `--verbose` says each
+%% package's build as it says the root package's, after the root package's
+%% lines. A module found current is not compiled again. Under `--emit-erl`
+%% the named packages are built as without it and the root package's
+%% modules are written as `.erl`. `ern run` takes the roots it takes
+%% elsewhere
+package_build_order_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_order/0) end}.
+
+package_build_order() ->
+    Hello = fun(Text) -> ["export fn hello() : String =\n    ", Text, "\n"] end,
+    source_package("bo_app", ["bo_mid", "bo_leaf"],
+                   [{"bo_app.ern", Hello("BoMid.hello() <> \"app\"")}]),
+    source_package("bo_bare", [], []),
+    source_package("bo_mid", ["bo_leaf"], [{"bo_mid.ern", Hello("BoLeaf.hello() <> \"mid\"")}]),
+    source_package("bo_leaf", [], [{"bo_leaf.ern", Hello("\"leaf\"")}]),
+    source_package("bo_zed", [], [{"bo_zed.ern", Hello("\"zed\"")}]),
+    root_manifest(["bo_app", "bo_bare", "bo_mid", "bo_leaf", "bo_zed"]),
+    write(".", "src/bo_main.ern",
+          "export fn main() : Unit =\n    Io.println(BoApp.hello() <> BoZed.hello())\n"),
+    Package = fun(Name, Read) ->
+                  ["source root lib/" ++ Name ++ "/src", "build root lib/" ++ Name ++ "/build"
+                   | ["read " ++ Module ++ " from lib/" ++ File ++ ".erc"
+                      || {Module, File} <- Read]]
+                  ++ ["compiled " ++ ern_namespace:text(ern_namespace:namespace([Name]))
+                      ++ " from lib/" ++ Name ++ "/src/" ++ Name ++ ".ern to lib/" ++ Name
+                      ++ "/build/" ++ Name ++ ".erc"]
+              end,
+    Said = ["source root src", "build root build", "manifest package.conf"]
+        ++ ["package " ++ Name ++ " 1.0.0" || Name <- ["bo_app", "bo_bare", "bo_mid", "bo_leaf",
+                                                        "bo_zed"]]
+        ++ Package("bo_leaf", [])
+        ++ Package("bo_mid", [{"BoLeaf", "bo_leaf/build/bo_leaf"}])
+        ++ Package("bo_app", [{"BoMid", "bo_mid/build/bo_mid"},
+                              {"BoLeaf", "bo_leaf/build/bo_leaf"}])
+        ++ Package("bo_zed", []),
+    {0, Built} = said(["build", "--verbose", "src/bo_main.ern"]),
+    ?assertEqual(unicode:characters_to_binary(lines(Said)),
+                 binary:part(Built, 0, length(lines(Said)))),
+    ?assertMatch({_, _}, binary:match(Built, <<"\ncompiled BoMain from src/bo_main.ern to"
+                                               " build/bo_main.erc\n">>)),
+    ?assertEqual({0, <<"leafmidappzed\n">>}, said(["run", "build/bo_main.erc"])),
+    ?assertNot(filelib:is_file("lib/bo_bare/build")),
+    %% found current, in directory mode
+    {0, Again} = said(["build", "--verbose", "src"]),
+    ?assertEqual([], compiled_lines(Again)),
+    ?assertMatch({_, _}, binary:match(Again, <<"\nsource root lib/bo_zed/src\n">>)),
+    %% --emit-erl
+    ok = file:delete("lib/bo_leaf/build/bo_leaf.erc"),
+    {0, Erl} = said(["build", "--emit-erl", "--verbose", "src/bo_main.ern"]),
+    ?assertEqual(["compiled BoLeaf from lib/bo_leaf/src/bo_leaf.ern to"
+                  " lib/bo_leaf/build/bo_leaf.erc",
+                  "compiled BoMain from src/bo_main.ern to build/bo_main.erl"],
+                 compiled_lines(Erl)),
+    ?assertNot(filelib:is_file("lib/bo_leaf/build/bo_leaf.erl")).
+
+%% report §11.9, §11.1: a named package is built again where a package it
+%% names changes, as a directory's module is where a module it uses
+%% changes: `mid`'s module, and the root package's, compiled again after
+%% `leaf`'s interface changes, and not after a change to a body that
+%% neither names
+package_rebuilt_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_rebuilt/0) end}.
+
+package_rebuilt() ->
+    Leaf = fun(Extra) ->
+               source_package("pr_leaf", [],
+                              [{"pr_leaf.ern",
+                                ["export fn hello() : String =\n    \"leaf\"\n\n"
+                                 "export fn other() : Int =\n    ", Extra, "\n"]}])
+           end,
+    Leaf("1"),
+    source_package("pr_mid", ["pr_leaf"],
+                   [{"pr_mid.ern",
+                     "export fn hello() : String =\n    PrLeaf.hello() <> \"mid\"\n"}]),
+    root_manifest(["pr_mid", "pr_leaf"]),
+    write(".", "src/pr_main.ern",
+          "export fn main() : Unit =\n    Io.println(PrMid.hello() <> PrLeaf.hello())\n"),
+    Compiled = fun() ->
+                   {0, Said} = said(["build", "--verbose", "src/pr_main.ern"]),
+                   [lists:nth(2, string:split(Line, " ", all)) || Line <- compiled_lines(Said)]
+               end,
+    ?assertEqual(["PrLeaf", "PrMid", "PrMain"], Compiled()),
+    ?assertEqual([], Compiled()),
+    Leaf("2"),
+    ?assertEqual(["PrLeaf"], Compiled()),
+    write(".", "lib/pr_leaf/src/pr_leaf.ern",
+          "export fn hello() : String =\n    \"leaf\"\n\nexport fn other() : Int =\n    2\n\n"
+          "export fn third() : Int =\n    3\n"),
+    ?assertEqual(["PrLeaf", "PrMid", "PrMain"], Compiled()),
+    ?assertEqual({0, <<"leafmidleaf\n">>}, said(["run", "build/pr_main.erc"])).
+
+%% report §11.9: a named package's build has the load path of the standard
+%% library, the builds of the packages its own manifest names, each under
+%% the root package's `lib`, and the builds of the toolchain's libraries:
+%% a module of a `--load-path` root is not found there, nor is a module of
+%% a named package its manifest does not name, which the root package's
+%% modules find. What the build says of such a module is shown here
+package_load_path_of_a_build_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_load_path_of_a_build/0) end}.
+
+package_load_path_of_a_build() ->
+    Decoy = tmp(),
+    Extra = filename:join(Decoy, "extra"),
+    compiled_elsewhere(Decoy, "lb_extra.ern", "export fn word() : String =\n    \"extra\"\n",
+                       filename:join(Extra, "lb_extra.erc")),
+    source_package("lb_codec", [],
+                   [{"lb_codec.ern", "export fn word() : String =\n    \"codec\"\n"}]),
+    source_package("lb_mid", [],
+                   [{"lb_mid.ern", "export fn word() : String =\n    \"mid\"\n"},
+                    {"lb_mid/coded.ern", "export fn word() : String =\n    LbCodec.word()\n"},
+                    {"lb_mid/extra.ern", "export fn word() : String =\n    LbExtra.word()\n"}]),
+    root_manifest(["lb_mid", "lb_codec"]),
+    write(".", "src/lb_main.ern",
+          "export fn main() : Unit =\n"
+          "    Io.println(LbMid.word() <> LbCodec.word() <> LbExtra.word())\n"),
+    Unknown = fun(File, Name) ->
+                  ["lib/lb_mid/src/lb_mid/", File, ".ern:2:5: unknown name ", Name, ".word\n"
+                   "1 | export fn word() : String =\n2 |     ", Name, ".word()\n"
+                   "  |     ^^^^^^^^^^^^\n\n"]
+              end,
+    ?assertEqual({1, iolist_to_binary([Unknown("coded", "LbCodec"), Unknown("extra", "LbExtra")])},
+                 said(["build", "--load-path", Extra, "src/lb_main.ern"])),
+    ?assert(filelib:is_regular("lib/lb_mid/build/lb_mid.erc")),
+    ?assertEqual({0, <<"midcodecextra\n">>},
+                 said(["run", "--load-path", Extra, "build/lb_main.erc"])).
+
+%% report §11.9: what `ern build` writes under a named package may be
+%% written by its owner alone, each file and each directory it makes,
+%% whatever the user's mask, a file written again among them; what it
+%% writes for the root package takes the mask's mode. The job runs as the
+%% launcher runs it, under a mask that lets the group write
+package_build_modes_test_() ->
+    {timeout, 60, fun package_build_modes/0}.
+
+package_build_modes() ->
+    Ern = filename:absname("bin/ern"),
+    Dir = tmp(),
+    Built = fun() ->
+                ?assertEqual("", os:cmd("cd " ++ Dir ++ " && umask 002 && " ++ Ern
+                                        ++ " build src/bm_main.ern 2>&1"))
+            end,
+    in_directory(Dir,
+                 fun() ->
+                     source_package("bm_leaf", [],
+                                    [{"bm_leaf.ern", "export fn one() : Int =\n    1\n"},
+                                     {"bm_leaf/deep/inner.ern",
+                                      "export fn two() : Int =\n    2\n"}]),
+                     root_manifest(["bm_leaf"]),
+                     write(".", "src/bm_main.ern",
+                           "export fn main() : Unit =\n"
+                           "    Io.println(Int.toString(BmLeaf.one()))\n")
+                 end),
+    Built(),
+    In = fun(Path) -> filename:join(Dir, Path) end,
+    [?assertEqual(0, mode_of(In(Path)) band 8#022)
+     || Path <- ["lib/bm_leaf/build", "lib/bm_leaf/build/bm_leaf", "lib/bm_leaf/build/bm_leaf/deep",
+                 "lib/bm_leaf/build/bm_leaf.erc", "lib/bm_leaf/build/bm_leaf/deep/inner.erc"]],
+    ?assertEqual(8#020, mode_of(In("build/bm_main.erc")) band 8#020),
+    ?assertEqual(8#020, mode_of(In("build")) band 8#020),
+    ok = file:change_mode(In("lib/bm_leaf/build/bm_leaf.erc"), 8#666),
+    write(Dir, "lib/bm_leaf/src/bm_leaf.ern", "export fn one() : Int =\n    11\n"),
+    Built(),
+    ?assertEqual(8#644, mode_of(In("lib/bm_leaf/build/bm_leaf.erc"))).
+
+%% report §11.9, §11.1: a named package's build is cleaned up as a
+%% directory's is, after a build in which each of its modules compiled: a
+%% `.erc` whose source is gone is removed, and the directory that leaves
+%% empty; a build of the package in which a module fails removes nothing
+package_build_cleanup_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_cleanup/0) end}.
+
+package_build_cleanup() ->
+    source_package("bc_leaf", [], [{"bc_leaf.ern", "export fn one() : Int =\n    1\n"},
+                                   {"bc_leaf/old.ern", "export fn two() : Int =\n    2\n"},
+                                   {"bc_leaf/kept/gone.ern",
+                                    "export fn three() : Int =\n    3\n"}]),
+    root_manifest(["bc_leaf"]),
+    write(".", "bc_main.ern", hello()),
+    ?assertEqual({0, <<>>}, said(["build", "bc_main.ern"])),
+    ok = file:delete("lib/bc_leaf/src/bc_leaf/kept/gone.ern"),
+    write(".", "lib/bc_leaf/src/bc_leaf/broken.ern", "export fn four() : Int =\n    \"x\"\n"),
+    {1, _} = said(["build", "bc_main.ern"]),
+    ?assert(filelib:is_regular("lib/bc_leaf/build/bc_leaf/kept/gone.erc")),
+    ok = file:delete("lib/bc_leaf/src/bc_leaf/broken.ern"),
+    ok = file:delete("lib/bc_leaf/src/bc_leaf/old.ern"),
+    {0, Said} = said(["build", "--verbose", "bc_main.ern"]),
+    ?assertMatch({_, _}, binary:match(Said, <<"\nremoved lib/bc_leaf/build/bc_leaf/kept/gone.erc\n"
+                                              "removed lib/bc_leaf/build/bc_leaf/old.erc\n">>)),
+    ?assertEqual({ok, ["bc_leaf.erc"]}, sorted_listing("lib/bc_leaf/build")).
+
+%% report §11.9, §11.1: a module of a named package that does not compile
+%% fails as §11.1 says: a module that uses it, of a named package or of the
+%% root package, is not compiled, and every failure is reported, every
+%% other module compiled; so where the package had never been built, and
+%% where a `.erc` of the module that fails stands from an earlier build
+package_build_failure_passes_on_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_failure_passes_on/0) end}.
+
+package_build_failure_passes_on() ->
+    Util = fun(Body) -> write(".", "lib/fp_leaf/src/fp_leaf/util.ern",
+                              ["export fn one() : Int =\n    ", Body, "\n"])
+           end,
+    source_package("fp_leaf", [],
+                   [{"fp_leaf.ern", "export fn hello() : String =\n    \"leaf\"\n"}]),
+    Util("\"x\""),
+    source_package("fp_mid", ["fp_leaf"],
+                   [{"fp_mid.ern", "export fn hello() : String =\n    FpLeaf.hello()\n"},
+                    {"fp_mid/user.ern", "export fn two() : Int =\n    FpLeaf.Util.one() + 1\n"}]),
+    root_manifest(["fp_mid", "fp_leaf"]),
+    write(".", "src/fp_main.ern",
+          "export fn main() : Unit =\n    Io.println(Int.toString(FpMid.User.two()))\n"),
+    write(".", "src/fp_other.ern",
+          "export fn main() : Unit =\n    Io.println(FpMid.hello())\n"),
+    Failed = fun() ->
+                 {1, Said} = said(["build", "src"]),
+                 ?assertMatch(<<"lib/fp_leaf/src/fp_leaf/util.ern:2:5: ", _/binary>>, Said),
+                 ?assertMatch({_, _},
+                              binary:match(Said, <<"\nern build: FpMid.User is not compiled, since"
+                                                   " it uses FpLeaf.Util, which failed\n"
+                                                   "ern build: FpMain is not compiled, since it"
+                                                   " uses FpMid.User, which failed\n">>)),
+                 [?assert(filelib:is_regular(Erc))
+                  || Erc <- ["lib/fp_leaf/build/fp_leaf.erc", "lib/fp_mid/build/fp_mid.erc",
+                             "build/fp_other.erc"]],
+                 ?assertNot(filelib:is_file("lib/fp_mid/build/fp_mid/user.erc")),
+                 ?assertNot(filelib:is_file("build/fp_main.erc"))
+             end,
+    Failed(),
+    ?assertNot(filelib:is_file("lib/fp_leaf/build/fp_leaf/util.erc")),
+    Util("1"),
+    ?assertEqual({0, <<>>}, said(["build", "src"])),
+    ?assertEqual({0, <<"2\n">>}, said(["run", "build/fp_main.erc"])),
+    Util("\"x\""),
+    ok = file:delete("build/fp_main.erc"),
+    ok = file:delete("lib/fp_mid/build/fp_mid/user.erc"),
+    Failed(),
+    ?assert(filelib:is_regular("lib/fp_leaf/build/fp_leaf/util.erc")).
+
+%% report §11.9: a named package whose build cannot be written fails its
+%% modules with the host's reason, as any file a build cannot write, and a
+%% module that uses one is not compiled. Not covered: a build another user
+%% owns, which a test run by one user cannot make
+package_build_unwritable_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_unwritable/0) end}.
+
+package_build_unwritable() ->
+    source_package("bu_leaf", [], [{"bu_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    source_package("bu_mid", ["bu_leaf"],
+                   [{"bu_mid.ern", "export fn two() : Int =\n    BuLeaf.one()\n"}]),
+    root_manifest(["bu_mid", "bu_leaf"]),
+    write(".", "bu_main.ern", hello()),
+    ok = file:make_dir("lib/bu_leaf/build"),
+    ok = file:change_mode("lib/bu_leaf/build", 8#555),
+    try
+        ?assertEqual(refused_lines("build", ["lib/bu_leaf/build: permission denied, and"
+                                             " bu_leaf.erc is written whole by a rename there",
+                                             "BuMid is not compiled, since it uses BuLeaf, which"
+                                             " failed"]),
+                     said(["build", "bu_main.ern"]))
+    after
+        ok = file:change_mode("lib/bu_leaf/build", 8#755)
+    end,
+    ?assert(filelib:is_regular("bu_main.erc")).
+
+%% report §11.9, §11.1: a path under a named package's `src` that breaks
+%% §11.1's rule of a path's shape is held to no namespace by the build's
+%% rules, and fails that file alone where the package is built, in §11.1's
+%% words; the package's other modules are built
+package_build_path_shape_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_path_shape/0) end}.
+
+package_build_path_shape() ->
+    source_package("ps_leaf", [], [{"ps_leaf.ern", "export fn one() : Int =\n    1\n"},
+                                   {"Util.ern", "export fn two() : Int =\n    2\n"}]),
+    root_manifest(["ps_leaf"]),
+    write(".", "ps_main.ern", hello()),
+    ?assertEqual(refusal("build", "lib/ps_leaf/src/Util.ern: path component `Util` must be"
+                                  " lowercase"),
+                 said(["build", "ps_main.ern"])),
+    ?assert(filelib:is_regular("lib/ps_leaf/build/ps_leaf.erc")),
+    ?assert(filelib:is_regular("ps_main.erc")).
+
+%% report §11.9, §11.4: `ern doc` builds no named package, and reads their
+%% builds as they stand
+package_doc_builds_none_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_doc_builds_none/0) end}.
+
+package_doc_builds_none() ->
+    source_package("dn_leaf", [], [{"dn_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    root_manifest(["dn_leaf"]),
+    write(".", "src/dn_main.ern",
+          "export fn main() : Unit =\n    Io.println(Int.toString(DnLeaf.one()))\n"),
+    {1, _} = said(["doc", "src/dn_main.ern"]),
+    {1, _} = said(["doc", "src"]),
+    ?assertNot(filelib:is_file("lib/dn_leaf/build")),
+    ?assertEqual({0, <<>>}, said(["build", "src"])),
+    {ok, Before} = file:read_file("lib/dn_leaf/build/dn_leaf.erc"),
+    write(".", "lib/dn_leaf/src/dn_leaf.ern",
+          "export fn one() : Int =\n    1\n\nexport fn two() : Int =\n    2\n"),
+    {0, Page} = said(["doc", "src/dn_main.ern"]),
+    ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module DnMain\n">>)),
+    ?assertEqual({0, <<>>}, said(["doc", "src"])),
+    ?assertEqual({ok, Before}, file:read_file("lib/dn_leaf/build/dn_leaf.erc")).
+
+%% report §11.9: `ern build` and `ern doc` refuse a `--build-root` that is
+%% the root package's `lib`, a named package's directory or a path under
+%% one, as they refuse a path given there, in the same words and in the same
+%% group of refusals, the argument's line first; nothing is written
+package_build_root_under_lib_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_root_under_lib/0) end}.
+
+package_build_root_under_lib() ->
+    source_package("ul_leaf", [], [{"ul_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    write(".", "package.conf", manifest_of([{"ul_leaf", "1.0.0"}, {"bad", "x"}])),
+    write(".", "src/ul_main.ern", hello()),
+    Bad = "package.conf: the entry for bad's version is not three numbers joined by `.`, none"
+        " written with a leading zero: \"x\"",
+    Leaf = fun(Path) -> Path ++ " is the package ul_leaf's, which ern build builds" end,
+    Lib = "lib holds the named packages, which ern build builds",
+    [?assertEqual(refused_lines(Job, [Bad, Line]),
+                  said([Job, "--source-root", "src", "--build-root", Root, "src/ul_main.ern"]))
+     || Job <- ["build", "doc"],
+        {Root, Line} <- [{"lib/ul_leaf/build", Leaf("lib/ul_leaf/build")}, {"lib", Lib},
+                         {"lib/elsewhere", Lib}, {"lib/ul_leaf/x.erc", Leaf("lib/ul_leaf/x.erc")}]],
+    [?assertEqual(refused_lines(Job, [Bad, Leaf("lib/ul_leaf/src/ul_leaf.ern"), Lib]),
+                  said([Job, "--build-root", "lib/other", "lib/ul_leaf/src/ul_leaf.ern"]))
+     || Job <- ["build", "doc"]],
+    write(".", "package.conf", manifest_of([{"ul_leaf", "1.0.0"}])),
+    ?assertEqual(refusal("build", Leaf("lib/ul_leaf/build")),
+                 said(["build", "--build-root", "lib/ul_leaf/build", "src/ul_main.ern"])),
+    ?assertEqual([], filelib:wildcard("lib/**/*.erc")),
+    ?assertNot(filelib:is_file("lib/other")).
+
+%% report §11.1, §11.9: a module of the root package at the namespace of a
+%% library's module on which a named package's module depends is refused,
+%% naming the package; the package's modules are those of its build as the
+%% job finds it, which `ern build` builds first, and `ern doc` reads as it
+%% stands
+package_hiding_dependent_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_hiding_dependent/0) end}.
+
+package_hiding_dependent() ->
+    source_package("hd_server", [],
+                   [{"hd_server.ern",
+                     "export fn decoded(text : String) : Optional(Bytes) =\n"
+                     "    Base64.decode(text)\n"}]),
+    root_manifest(["hd_server"]),
+    write(".", "src/base64.ern", "export fn mine() : String =\n    \"mine\"\n"),
+    write(".", "src/hd_main.ern", hello()),
+    Refused = fun(Job) ->
+                  refusal(Job, "src/base64.ern: Base64 hides the library Base64, which the package"
+                               " hd_server uses")
+              end,
+    ?assertEqual(Refused("build"), said(["build", "src"])),
+    ?assert(filelib:is_regular("lib/hd_server/build/hd_server.erc")),
+    ?assert(filelib:is_regular("build/hd_main.erc")),
+    ?assertEqual(Refused("build"), said(["build", "src/base64.ern"])),
+    ?assertEqual(Refused("doc"), said(["doc", "src/base64.ern"])),
+    ?assertEqual(Refused("doc"), said(["doc", "src"])).
 
 captured_output() ->
     group_leader() ! {get_output, self()},
