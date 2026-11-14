@@ -42,6 +42,16 @@
                named = [] :: [{string(), string()}],
                names = [] :: [string()]}).
 
+%% Report §11.9: a named package placed under `lib`, as `ern build` reads
+%% it: its entry's name and version, its directory under `lib`, and its
+%% manifest as read, the lines of its faults of form, each naming its file,
+%% and the #form{}.
+-record(placed_package, {name :: string(),
+                         version :: string(),
+                         directory :: file:filename(),
+                         form_lines :: [string()],
+                         form :: #form{}}).
+
 -opaque package() :: #package{}.
 -export_type([package/0]).
 
@@ -60,7 +70,7 @@
 read(Dir, Job, Given) ->
     Manifest = filename:join(Dir, "package.conf"),
     Lib = filename:join(Dir, "lib"),
-    #form{faults = Form, named = Named} = Read = manifest(Manifest),
+    #form{faults = Form, named = Named} = RootForm = manifest(Manifest),
     Shown = ern_build:shown(Manifest),
     Packages = [{Name, Version, filename:join(Lib, Name)} || {Name, Version} <- Named],
     %% report §11.9: the paths at fault, the root package's first and then
@@ -82,14 +92,14 @@ read(Dir, Job, Given) ->
                      Line <- given_under_lib(Job, Path, Lib, Named)],
     %% report §11.9: `ern build` alone reads the named packages' manifests,
     %% each under `lib`, which its rules hold and its builds follow
-    {Rules, Manifests} = case Job of
-                             "build" ->
-                                 Read1 = [{Name, Version, Package, named_manifest(Shown, Package)}
-                                          || {Name, Version, Package} <- Placed],
-                                 {rules(Shown, Read, Read1), Read1};
-                             _ ->
-                                 {[], []}
-                         end,
+    Manifests = [#placed_package{name = Name, version = Version, directory = Package,
+                                 form_lines = FormLines, form = PackageForm}
+                 || Job =:= "build", {Name, Version, Package} <- Placed,
+                    {FormLines, PackageForm} <- [named_manifest(Shown, Package)]],
+    Rules = case Job of
+                "build" -> rules(Shown, RootForm, Manifests);
+                _ -> []
+            end,
     case [Shown ++ ": " ++ Fault || Fault <- Form] ++ Open ++ Taken ++ Absent ++ Under ++ Rules of
         [] -> #package{manifest = Manifest, lib = Lib, named = Named,
                        packages = named_packages(Manifest, Packages, Job, Manifests),
@@ -159,9 +169,9 @@ named_packages(Manifest, Packages, Job, Manifests) ->
                                                                                Directory))],
                                      Job =:= "build" orelse filelib:is_dir(Root)],
                     manifest = ern_build:absolute(Manifest),
-                    uses = [Used || {Read, _, _, {_, #form{named = Uses}}} <- Manifests,
-                                    Read =:= Name, {Used, _} <- Uses,
-                                    lists:keymember(Used, 1, Packages)]}
+                    uses = [Used || #placed_package{form = #form{named = Uses}}
+                                        <- [lists:keyfind(Name, #placed_package.name, Manifests)],
+                                    {Used, _} <- Uses, lists:keymember(Used, 1, Packages)]}
      || {Name, _, Package} <- Packages].
 
 %% The named packages, which the job's options carry as `{named_package,
@@ -183,9 +193,10 @@ built_order(#package{order = Order}) ->
 %% as a directory's modules are ordered (§11.1); the rules have refused a
 %% cycle among them.
 in_built_order(Manifests) ->
-    Order = [Name || {Name, _, _, _} <- Manifests],
+    Order = [Name || #placed_package{name = Name} <- Manifests],
     Uses = maps:from_list([{Name, [Used || Used <- Order, lists:keymember(Used, 1, Named)]}
-                           || {Name, _, _, {_, #form{named = Named}}} <- Manifests]),
+                           || #placed_package{name = Name, form = #form{named = Named}}
+                                  <- Manifests]),
     {Built, _} = lists:foldl(fun(Name, Acc) -> ordered(Name, Uses, Acc) end, {[], #{}}, Order),
     lists:reverse(Built).
 
@@ -471,14 +482,16 @@ given_under_lib(Job, {Given, Path}, Lib, Named) ->
 %%
 
 %% Report §11.9: the build's rules broken, a line each: the running `ern`'s
-%% first, then the lines of each named package under `lib`, Read, each with
-%% its manifest as read, in the order of the root package's entries, and
-%% each cycle's last. Shown names the root package's manifest, read as Root.
-rules(Shown, #form{ernest = Ernest} = Root, Read) ->
+%% first, then the lines of each named package under `lib`, Manifests, each
+%% with its manifest as read, in the order of the root package's entries,
+%% and each cycle's last. Shown names the root package's manifest, read as
+%% RootForm.
+rules(Shown, #form{ernest = Ernest} = RootForm, Manifests) ->
     Running = running(),
     written_for(Shown ++ ": written for ern from ", Ernest, Running)
-        ++ lists:append([package_rules(Shown, Root, Package, Running) || Package <- Read])
-        ++ cycles(Shown, Read).
+        ++ lists:append([package_rules(Shown, RootForm, PlacedPackage, Running)
+                         || PlacedPackage <- Manifests])
+        ++ cycles(Shown, Manifests).
 
 %% Report §11.7: the running `ern`'s release, the three numbers of its
 %% version text, and the text whole.
@@ -499,13 +512,15 @@ written_for(Said, Ernest, {Release, Text}) ->
 %% Report §11.9: a named package's lines: its manifest's form first, then
 %% the rules in the report's order, its `VERSION`, its `ernest`, its entries
 %% in its manifest's order, and its modules, each by its path.
-package_rules(Shown, Root, {Name, Version, Package, {FormLines, Form}}, Running) ->
+package_rules(Shown, RootForm, #placed_package{name = Name, version = Version, directory = Package,
+                                               form_lines = FormLines, form = Form},
+              Running) ->
     Said = lists:flatten([Shown, ": ", Name, " ", Version]),
     FormLines
         ++ version_rule(Shown, Name, Version, Package)
         ++ written_for(Said ++ " is written for ern from ", Form#form.ernest, Running)
         ++ [lists:flatten([Said, " needs ", Needed, " from ", Least, ", and ", Unmet])
-            || {Needed, Least} <- Form#form.named, Unmet <- unmet(Needed, Least, Root)]
+            || {Needed, Least} <- Form#form.named, Unmet <- unmet(Needed, Least, RootForm)]
         ++ modules_outside(Name, Package).
 
 %% Report §11.9: a named package's manifest read as the root package's is,
@@ -543,11 +558,11 @@ version_rule(Shown, Name, Version, Package) ->
                             "ern unpack puts ", Version, " there"])]
     end.
 
-%% Report §11.9: what the root package's manifest, Root, lacks of an entry
-%% of a named package's that names Needed from the version Least: an entry
-%% of that name whose version is Least or a later one. An entry of the name
-%% whose version is not of its form lacks nothing here, since its own fault
-%% is said.
+%% Report §11.9: what the root package's manifest, RootForm, lacks of an
+%% entry of a named package's that names Needed from the version Least: an
+%% entry of that name whose version is Least or a later one. An entry of
+%% the name whose version is not of its form lacks nothing here, since its
+%% own fault is said.
 unmet(Needed, Least, #form{named = Named, names = Names}) ->
     case lists:keyfind(Needed, 1, Named) of
         {_, Given} ->
@@ -591,18 +606,18 @@ is_provided(Source, Src, Name) ->
     [First | _] = Components = filename:split(filename:rootname(ern_build:relative(Source, Src))),
     First =:= Name orelse not lists:all(fun ern_namespace:is_component/1, Components).
 
-%% Report §11.9: a line for each cycle among the named packages Read, each
-%% with the packages its manifest names among them, a package that names
-%% itself among the cycles, its packages in the order of the root package's
-%% entries, the lines in the order of their first packages.
-cycles(Shown, Read) ->
-    Order = [Name || {Name, _, _, _} <- Read],
+%% Report §11.9: a line for each cycle among the named packages Manifests,
+%% each with the packages its manifest names among them, a package that
+%% names itself among the cycles, its packages in the order of the root
+%% package's entries, the lines in the order of their first packages.
+cycles(Shown, Manifests) ->
+    Order = [Name || #placed_package{name = Name} <- Manifests],
     Graph = digraph:new(),
     try
         [digraph:add_vertex(Graph, Name) || Name <- Order],
         [digraph:add_edge(Graph, Name, Needed)
-         || {Name, _, _, {_, #form{named = Named}}} <- Read, {Needed, _} <- Named,
-            lists:member(Needed, Order)],
+         || #placed_package{name = Name, form = #form{named = Named}} <- Manifests,
+            {Needed, _} <- Named, lists:member(Needed, Order)],
         Cycles = [[Name || Name <- Order, lists:member(Name, Component)]
                   || Component <- digraph_utils:cyclic_strong_components(Graph)],
         [lists:flatten([Shown, ": a cycle among the packages: ", lists:join(", ", Cycle)])

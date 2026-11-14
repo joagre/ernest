@@ -157,10 +157,10 @@ packages_built(Job, Options, ErrorDevice, Say) ->
                                                       || Used <- Uses]),
                                 Roots = {Src, Build, true},
                                 said_roots(Roots, Say),
-                                {Built1, _, Failed} = built_tree(Job, Src, Roots, LoadPath,
-                                                                 {erc, owner_alone}, ErrorDevice,
-                                                                 Say),
-                                {max(Status, Built1),
+                                {PackageStatus, _, Failed} = built_tree(Job, Src, Roots, LoadPath,
+                                                                        {erc, owner_alone},
+                                                                        ErrorDevice, Say),
+                                {max(Status, PackageStatus),
                                  Built#{Name => Package#named_package{failed = Failed}}}
                         end
                 end, {0, #{}}, [Name || {package_order, Names} <- Options, Name <- Names]).

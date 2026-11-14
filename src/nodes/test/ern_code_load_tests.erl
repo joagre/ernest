@@ -830,6 +830,35 @@ package_build_other_namespace_test() ->
     ?assertEqual([<<"Left(Io.Invalid)">>, <<"Right(Unit)">>],
                  ran(filename:rootname(Main) ++ ".erc", ["--package-dir", Pkg])).
 
+%% Appendix E.28, report §11.1, §11.9: a compiled form of a program's module
+%% at the namespace of a library's module on which a named package's module
+%% depends, `Base64`, which the package `cd_server` uses and no library
+%% does, is Invalid, given and as a module of the reach, its source outside
+%% the library's source root. The program's forms are compiled in memory as
+%% `ern build` compiles one, since the build refuses the first. A
+%% regression test, written after the code
+package_dependent_hidden_test() ->
+    Dir = tmp(),
+    [Pkg, Plug] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "plug"]],
+    Server = filename:join(Pkg, "lib/cd_server"),
+    write(Server, "src/cd_server.ern",
+          "export fn decoded(text : String) : Optional(Bytes) =\n    Base64.decode(text)\n"),
+    [Src, Build] = [filename:join(Server, Sub) || Sub <- ["src", "build"]],
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Src, "--build-root", Build, Src])),
+    write(Pkg, "package.conf",
+          "{\"ernest\": \"0.11.0\",\n"
+          " \"packages\": [{\"name\": \"cd_server\", \"version\": \"1.0.0\"}]}\n"),
+    Hiding = compiled_form(Plug, "base64.ern", "export fn mine() : String = \"mine\"\n"),
+    Reaching = compiled_form(Plug, "reach.ern", "export fn mine() : String = Base64.mine()\n"),
+    Paths = lists:join("\", \"", [Hiding, Reaching]),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit =\n"
+                 "    List.forEach([\"" ++ Paths ++ "\"],\n"
+                 "                 fn(path) = Io.println(Io.show(Code.load(Path(path)))))\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Io.Invalid)">>, <<"Left(Io.Invalid)">>],
+                 ran(filename:rootname(Main) ++ ".erc", ["--package-dir", Pkg])).
+
 %% Appendix E.28, report §11: a compiled form whose code the host will not
 %% load, its code chunk gone, is Invalid, where the host holds no code of
 %% its name and where it holds another unit of it, beside which the load

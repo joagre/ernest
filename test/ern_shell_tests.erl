@@ -4421,6 +4421,76 @@ reload_hiding_a_library() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> ", (hides_time(Dir, "time.ern"))/binary,
                                                 "\nnothing was reloaded\n> 1970 : Int\n">>)).
 
+%% Under Dir, the root package `pkg`, which names the package `hs_server`,
+%% whose module, built, uses the library Base64, which no library uses; the
+%% root package's directory.
+base64_package(Dir) ->
+    Pkg = filename:join(Dir, "pkg"),
+    [Src, Build] = [filename:join([Pkg, "lib/hs_server", Sub]) || Sub <- ["src", "build"]],
+    ok = filelib:ensure_path(Src),
+    ok = file:write_file(filename:join(Src, "hs_server.ern"),
+                         "export fn decoded(text : String) : Optional(Bytes) =\n"
+                         "    Base64.decode(text)\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Src ++ " --build-root " ++ Build
+                        ++ " " ++ Src),
+    ok = file:write_file(filename:join(Pkg, "package.conf"),
+                         "{\"ernest\": \"0.11.0\",\n"
+                         " \"packages\": [{\"name\": \"hs_server\", \"version\": \"1.0.0\"}]}\n"),
+    ok = filelib:ensure_path(filename:join(Pkg, "src")),
+    Pkg.
+
+%% The refusal of a module of the root package Pkg, its source `src/base64.ern`,
+%% which hides the library Base64 that the package `hs_server` uses, the file
+%% named as the shell names it.
+hides_base64(Pkg) ->
+    <<(shown(Pkg, "src/base64.ern"))/binary, ": Base64 hides the library Base64, which the"
+      " package hs_server uses">>.
+
+%% The shell started in the root package Pkg, its source root the package's
+%% `src`, given the inputs Inputs: its status and what it wrote.
+package_session(Pkg, Inputs) ->
+    InputFile = scratch_file("ern_package_session_"),
+    ok = file:write_file(InputFile, Inputs),
+    ern_pty:sh(alone("../bin/ern shell --package-dir " ++ Pkg ++ " --source-root "
+                     ++ filename:join(Pkg, "src")) ++ " < " ++ InputFile).
+
+%% report §11.1, §11.2, §11.9: `:load` refuses a module of the root package
+%% at the namespace of a library's module on which a named package's module
+%% depends, naming the package, and the session goes on. A regression test,
+%% written after the code
+package_load_hiding_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun package_load_hiding/0).
+
+package_load_hiding() ->
+    Pkg = base64_package(scratch("ern_package_load_hiding_")),
+    ok = file:write_file(filename:join(Pkg, "src/base64.ern"),
+                         "export fn mine() : String = \"mine\"\n"),
+    {0, Output} = package_session(Pkg, ":load Base64\n1\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (hides_base64(Pkg))/binary,
+                                                "\n> 1 : Int\n">>)).
+
+%% report §11.2, §11.1, §11.9: a source that appears under the source root
+%% at the namespace of a module the session loaded from the library
+%% Base64's build, which a named package's module uses, is refused by
+%% `:reload`, naming the package, and nothing is reloaded. A regression
+%% test, written after the code
+package_reload_hiding_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun package_reload_hiding/0).
+
+package_reload_hiding() ->
+    Pkg = base64_package(scratch("ern_package_reload_hiding_")),
+    Encoded = "Base64.encode(String.toUtf8(\"hi\"))\n",
+    {0, Output} = package_session(Pkg, [":load Base64\n", Encoded,
+                                        write_source(Pkg, "src/base64.ern",
+                                                     "export fn mine() : String = \"mine\"\n"),
+                                        ":reload\n", Encoded]),
+    Library = ern_tree:build("libs/base64"),
+    ?assertMatch({_, _}, binary:match(Output, <<"Base64, from ",
+                                                (shown(Library, "base64.erc"))/binary,
+                                                "\n> \"aGk=\" : String\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (hides_base64(Pkg))/binary,
+                                                "\nnothing was reloaded\n> \"aGk=\" : String\n">>)).
+
 %% report §11.2: `ern shell` given a program that uses Http, whose root
 %% holds a compiled form of a program's Time, refuses it before the prompt,
 %% naming the file found as §11.1 names the module that hides the

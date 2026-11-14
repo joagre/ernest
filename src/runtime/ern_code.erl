@@ -1108,9 +1108,13 @@ frame_arity(Arguments) when is_list(Arguments) -> length(Arguments).
 %% host cannot read answers the host's reason (Appendix E.1).
 -spec hashes({'Path', binary()}) -> {'Right', [{binary(), binary()}]} | {'Left', term()}.
 hashes({'Path', Path}) ->
-    case is_unopened(Path) orelse file:read_file(Path) of
-        true ->
-            {'Left', 'NotAFile'};
+    case is_unopened(Path) of
+        true -> {'Left', 'NotAFile'};
+        false -> read_hashes(Path)
+    end.
+
+read_hashes(Path) ->
+    case file:read_file(Path) of
         {ok, Bytes} ->
             case {ern_interface:read(Bytes), ern_canonical:read(Bytes)} of
                 {{ok, _}, {ok, #recorded{definitions = Definitions}}} ->

@@ -58,8 +58,8 @@ and its probes before it closes, and a finding changes the report first (the log
 and Its Manifest*).
 
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
-log's *A Reading by Decisions*), and are done. Items 5, 6 and 41 followed. Item 42 comes next,
-before item 7.
+log's *A Reading by Decisions*), and are done. Items 5, 6, 41 and 42 followed. Item 45, the split,
+comes next.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -256,21 +256,8 @@ before item 7.
     as one flake until it finds otherwise (the log's *The Named Packages Built*).
 41. **An independent reading of item 6's commit**, `f9c5b972`, done 2026-11-14 (the log's
     *The Named Packages Read*).
-42. **The round of the reading's findings**, before item 7 builds on item 6
-    ([`findings.md`](findings.md); the log's *The Named Packages Read*). The `fix` lines, R3,
-    R7 and R9 to R12, are built as one batch by an agent. The `decide` lines are decided with
-    the user first, each with the session's recommendation in its line, and built the same
-    way:
-
-    - R1, a module's name that reaches no regular file, which hangs the build (§11.1).
-    - R2, a file a named package's build makes, writable by others until its mode is set
-      (§11.9).
-    - R4, a named package with no `src`, or with one that is no directory (§11.9).
-    - R5, the order of a refusal of the command line and of the given path against the
-      package's refusals and its builds (§11.9).
-    - R6, a path that reaches a named package through a link's target (§11, §11.9).
-    - R8, the modes a test expects and §11.9 does not state.
-    - R13, four tests that each hold several behaviors.
+42. **The round of the reading's findings**, done 2026-11-14 (the log's *The Reading's
+    Round*).
 43. **Whether §11.9 can promise less**, a discussion with the user before item 8 adds its
     rules on archives, links and modes, decided with the user 2026-11-14. The first place
     looked at is the defense against another user who may write a package's directory,
@@ -287,9 +274,8 @@ before item 7.
     builds found, and items 37 and 39. MVP 4.17, the rest of packages, opens with item 43
     and holds items 7 to 10 and 23, which keep their numbers. Item 44 stands between the two
     (the log's *A Few at a Time*).
-46. **What item 42's round left to decide**, each with the user, a few at a time
-    ([`findings.md`](findings.md)'s S18 to S23; the log's *The Reading's Round*). None waits
-    forever on a file any more but the fourth:
+46. **What item 42's round left to decide**, each with the user, a few at a time (the log's
+    *The Reading's Round*). None waits forever on a file any more but the fourth:
 
     - In single-file mode a nested module's member check passes over a parent's source
       that is a named pipe and reads the parent's `.erc`, where §11.1 calls it an error.
