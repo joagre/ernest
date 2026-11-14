@@ -290,18 +290,20 @@ cold before the build (the log's *The Trust Said Once*).
 50. **The history file's owner**, done 2026-11-14 (the log's *The Trust Said Once*, its
     paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third
     build*).
-52. **What item 50's cold reading left to decide**, found 2026-11-14 in §11.2's *Startup and
-    history*, each older than the item's edit (the log's *The Trust Said Once*, its paragraph
-    *What the third build found*). Four lines, each decided with the user before it is
-    written, the log searched first.
+52. **What item 50's cold reading left**, found 2026-11-14 in §11.2's *Startup and history*,
+    each older than the item's edit, and decided with the user the same day (the log's *The
+    Trust Said Once*, its paragraph *Four lines of the reading*).
 
-    - The shell says `permission was denied` of a file the host refuses, and every other
-      job says `permission denied`.
-    - Two cases of no history have no line in the report: a history file that cannot be
-      read or written, and a `HOME` unset or relative.
-    - "The person's" stands once in the report, which says "its user" elsewhere.
-    - A link or a regular file at `$HOME/.ernest` is in no sentence, and the shell sets the
-      mode of what a link there reaches.
+    - The shell says a host's refusal in the words every other job uses, `permission
+      denied`. The shell words fifteen errors of `Io` itself. The item first reads each
+      against §11's texts, and brings the table to the user before it is built.
+    - Each case of no history gets its line in §11.2: a history file that cannot be read or
+      written, and a `HOME` unset or relative.
+    - "The person's" becomes "its user's".
+    - §11.2 says that a link at `$HOME/.ernest` is followed. No guard is added.
+
+    The report changes first and is read cold. The build closes on `make test-shell` and
+    `make test`.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
