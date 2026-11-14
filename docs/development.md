@@ -453,6 +453,6 @@ The toolchain is the report, on one node and across nodes. Everything the report
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `ern unpack`, a package's archive checked and unpacked under `lib` (report §11.9) | MVP 4.16 | `ern unpack: this job is not implemented` |
+| `ern unpack`, a package's archive checked and unpacked under `lib` (report §11.9) | MVP 4.17 | `ern unpack: this job is not implemented` |
 
 Every refusal the toolchain makes for a later milestone's sake says `… is not implemented` in its error text and names no milestone, which the row here names, and `unimplemented_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.
