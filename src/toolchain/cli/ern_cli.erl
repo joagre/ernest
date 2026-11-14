@@ -259,6 +259,7 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
                 Resolved = [resolved_option(Option) || Option <- Options],
                 named_directories(Job, Spec, Resolved),
                 Arguments = resolved_arguments(Job, Rest),
+                counted(Job, Resolved, Arguments),
                 Work(root_package(Job, Resolved, Arguments), Arguments ++ Program, ErrorDevice)
         end
     catch
@@ -273,6 +274,43 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
         throw:{cli_errors, Refusals} ->
             [io:format(ErrorDevice, "~s: ~ts~n", [Name, Refusal]) || Refusal <- Refusals],
             1
+    end.
+
+%% Report §11, §11.9: the count of a job's arguments, refused with the
+%% rest of its command line, before its root package is read, so that a
+%% job that refuses it says no refusal of its root package; the words
+%% after `ern run`'s file are the program's, and are not counted. An
+%% attached shell's file is refused with `--attach` (attachable/2), and so
+%% is its `--main`. Report §8.1, §11.2: `--main` names a function of the
+%% file, so it is refused where none is given, and a bare node has no
+%% entry point.
+counted(Job, Options, Arguments) ->
+    case {Job, Arguments} of
+        {"build", [_]} -> ok;
+        {"doc", [_]} -> ok;
+        {"test", [_]} -> ok;
+        {Taken, _} when Taken =:= "build"; Taken =:= "doc" ->
+            usage_fail(one_argument("a file or a directory", "one file or directory", Arguments));
+        {"test", _} ->
+            usage_fail(one_argument("a .erc or a directory", "one .erc or directory", Arguments));
+        {"shell", [_, _ | _]} ->
+            lists:keymember(attach, 1, Options)
+                orelse usage_fail(too_many("one .erc or none", Arguments)),
+            ok;
+        {"shell", []} ->
+            lists:keymember(attach, 1, Options) orelse not lists:keymember(main, 1, Options)
+                orelse usage_fail(no_main_file(shell)),
+            ok;
+        {"run", []} ->
+            %% report §11.2: `--config-dir` makes a run a node, and a node
+            %% with no `.erc` is a bare node; a run that is no node runs a
+            %% program
+            is_node(Options)
+                orelse usage_fail("a .erc is required, or --config-dir for a bare node"),
+            not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(run)),
+            ok;
+        _ ->
+            ok
     end.
 
 %% Report §11, §11.9: the job's options, with its root package where it
@@ -567,15 +605,13 @@ doc_options() ->
             build_root ->
                 {build_root, undefined, "build-root", string,
                  "where the documents go, and where a current .erc is read from; default: the"
-                 " source root"};
+                 " source root, or the root package's build where that is its src"};
             _ ->
                 Option
         end || {Key, _, _, _, _} = Option <- build_options(), Key =/= emit_erl]].
 
 build(Options, [Path], ErrorDevice) ->
-    ern_build:compile("ern build", Options, Path, ErrorDevice);
-build(_Options, Rest, _ErrorDevice) ->
-    usage_fail(one_argument("a file or a directory", "one file or directory", Rest)).
+    ern_build:compile("ern build", Options, Path, ErrorDevice).
 
 %% Report §11: the refusal of a job's words that are not the one it takes:
 %% none, which names what is required, or several, which counts them.
@@ -596,16 +632,13 @@ doc(Options, [Path], ErrorDevice) ->
     try doc_path(Options, Path, ErrorDevice)
     catch
         throw:{ended, Status} -> Status
-    end;
-doc(_Options, Rest, _ErrorDevice) ->
-    usage_fail(one_argument("a file or a directory", "one file or directory", Rest)).
+    end.
 
 doc_path(Options, Path, ErrorDevice) ->
-    case filelib:is_dir(Path) of
-        true ->
+    case ern_build:path_kind(Path) of
+        directory ->
             doc_dir(Options, Path, ErrorDevice);
-        false ->
-            filelib:is_regular(Path) orelse ern_build:fail(Path ++ ": no such file"),
+        regular ->
             try
                 Beam = beam_of(Options, Path),
                 io:put_chars(page(Options, Beam, source_named(Path, Beam), ErrorDevice)),
@@ -613,7 +646,9 @@ doc_path(Options, Path, ErrorDevice) ->
             catch
                 throw:{errors, File, Diagnostics} ->
                     ern_build:report_errors(File, Diagnostics, ErrorDevice)
-            end
+            end;
+        Kind ->
+            ern_build:given_refused(Path, Kind)
     end.
 
 %% Report §11.4, §11.5: the source a page names, from the working
@@ -947,7 +982,9 @@ format(Options, Paths, ErrorDevice) ->
     %% report §11.6: `-` reads standard input, and stands alone
     lists:member(standard_input, Paths) andalso usage_fail("- stands alone, for standard input"),
     lists:foreach(fun(Path) ->
-                      filelib:is_file(Path) orelse ern_build:fail(Path ++ ": no such file")
+                      Kind = ern_build:path_kind(Path),
+                      Kind =:= regular orelse Kind =:= directory
+                          orelse ern_build:given_refused(Path, Kind)
                   end, Paths),
     Files = lists:append([files_named(Path) || Path <- Paths]),
     Results = [format_named(Options, File, Directory, ErrorDevice) || {File, Directory} <- Files],
@@ -965,7 +1002,11 @@ files_named(Path) ->
     end.
 
 %% Report §11.6, §11.1: a file laid out where it is a module, and refused
-%% where it is none, which fails that file alone, the rest laid out.
+%% where it is none, which fails that file alone, the rest laid out; one
+%% the walk found and did not open is refused so (ern_build:sources/1).
+format_named(_Options, {_File, Unopened}, _Directory, ErrorDevice) ->
+    io:format(ErrorDevice, "ern format: ~ts~n", [Unopened]),
+    error;
 format_named(Options, File, Directory, ErrorDevice) ->
     try shaped(File, Directory) of
         ok -> format_file(Options, File, ErrorDevice)
@@ -1100,6 +1141,7 @@ config_options() ->
      help_option()].
 
 run(Options, [File | Words], ErrorDevice) ->
+    given_file(File),
     Arguments = program_arguments(Words, 1),
     run_started(),
     Say = ern_build:verbose(Options, ErrorDevice),
@@ -1109,12 +1151,6 @@ run(Options, [File | Words], ErrorDevice) ->
     as_node(Options, LoadPath, Say,
             fun(Node) -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) end);
 run(Options, [], ErrorDevice) ->
-    %% report §11.2: `--config-dir` makes a run a node, and a node with no
-    %% `.erc` is a bare node; a run that is no node runs a program
-    is_node(Options) orelse usage_fail("a .erc is required, or --config-dir for a bare node"),
-    %% report §8.1, §11.2: --main names a function of the file, and a bare
-    %% node has no entry point
-    not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(run)),
     run_started(),
     Say = ern_build:verbose(Options, ErrorDevice),
     ern_build:package_said(Options, Say),
@@ -1157,33 +1193,36 @@ test(Options, [Path], ErrorDevice) ->
     Say = ern_build:verbose(Options, ErrorDevice),
     %% report §11.2, §11.9: --verbose says the root package first
     ern_build:package_said(Options, Say),
-    case filelib:is_dir(Path) of
-        true ->
-            Files = ern_build:compiled_under(Path),
+    case ern_build:path_kind(Path) of
+        directory ->
+            Files = ern_build:compiled_found_under(Path),
             LoadPath = ern_build:with_root(ern_build:absolute(Path), ern_build:load_path(Options)),
             as_node(Options, LoadPath, Say,
                     fun(Node) ->
                         report_tree(tree_tests(Files, Options, Say, ErrorDevice, Node))
                     end);
-        false ->
+        regular ->
             {Namespace, LoadPath, Loaded} = program(Path, Options, Say),
             as_node(Options, LoadPath, Say,
                     fun(Node) ->
                         run_tests(Namespace, Loaded, examples(Namespace, LoadPath, Loaded, Say),
                                   none, ErrorDevice, Node)
-                    end)
-    end;
-test(_Options, Rest, _ErrorDevice) ->
-    usage_fail(one_argument("a .erc or a directory", "one .erc or directory", Rest)).
+                    end);
+        Kind ->
+            ern_build:given_refused(Path, Kind)
+    end.
 
 %% Report §11.2: the modules of a directory in the order of their paths,
 %% each with tests run as `ern test file.erc` runs it, in a runtime of its
 %% own, its name before its tests' lines, and one without passed over,
 %% loaded and not run; the status of each run. A run a signal ended, or
 %% whose output could no longer be written, is the last. Say says each
-%% module read (--verbose).
+%% module read (--verbose). Report §11: a `.erc` found that reaches no
+%% regular file ends the job at its turn with its refusal.
 tree_tests([], _Options, _Say, _ErrorDevice, _Node) ->
     [];
+tree_tests([{_File, Refusal} | _], _Options, _Say, _ErrorDevice, _Node) ->
+    ern_build:fail(Refusal);
 tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
     {Namespace, LoadPath, Loaded} = program(File, Options, Say),
     %% report §11.2: a module's doc examples are cases as its tests are
@@ -1322,8 +1361,6 @@ shell(Options, Rest, ErrorDevice) ->
                                          attach = Attach}),
                 {init_fun([ErlangModule]), GivenLoadPath};
             [] ->
-                %% report §11.2: --main names a function of the file
-                not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(shell)),
                 GivenLoadPath = ern_build:load_path(Options),
                 host_path(GivenLoadPath),
                 ern_shell:loaded(#loaded{load_path = GivenLoadPath,
@@ -1331,6 +1368,7 @@ shell(Options, Rest, ErrorDevice) ->
                                          config_startup = config_startup(Options)}),
                 {init_fun([ErlangModule]), GivenLoadPath};
             [File] ->
+                given_file(File),
                 {Namespace, FileLoadPath, Loaded} = program(File, Options, Say),
                 Entry = shell_entry(Options, Namespace),
                 ern_shell:loaded(#loaded{load_path = FileLoadPath,
@@ -1341,9 +1379,7 @@ shell(Options, Rest, ErrorDevice) ->
                                                      hd(ern_build:directories(FileLoadPath))),
                                          entry = Entry,
                                          config_startup = config_startup(Options)}),
-                {init_fun(Loaded ++ [ErlangModule]), FileLoadPath};
-            _ ->
-                usage_fail(too_many("one .erc or none", Rest))
+                {init_fun(Loaded ++ [ErlangModule]), FileLoadPath}
         end,
     %% report §11.2: the sinks are the screen's, which the shell names
     Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
@@ -1633,11 +1669,18 @@ not_compiled(File) ->
         _ -> File ++ " does not end in .erc"
     end.
 
-%% The module of a `.erc`, its load path, and every module loaded for it:
-%% the file's own dependencies first (report §11.2, §4.2), each said by Say
-%% as it is read (--verbose).
+%% Report §11: a file a job that takes a file alone is given, which reaches
+%% a regular file, a link followed; it is refused otherwise, and not opened.
+given_file(File) ->
+    case ern_build:path_kind(File) of
+        regular -> ok;
+        Kind -> ern_build:given_refused(File, Kind)
+    end.
+
+%% The module of a `.erc` that is a regular file, its load path, and every
+%% module loaded for it: the file's own dependencies first (report §11.2,
+%% §4.2), each said by Say as it is read (--verbose).
 program(File, Options, Say) ->
-    filelib:is_regular(File) orelse ern_build:fail(File ++ ": no such file"),
     filename:extension(File) =:= ".erc" orelse ern_build:fail(not_compiled(File)),
     Absolute = ern_build:absolute(File),
     Beam = compiled(File),

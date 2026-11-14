@@ -1318,6 +1318,29 @@ misshapen_load_path(Base) ->
                  Run("dashed")),
     ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
 
+%% report §11, §11.2, §8.7: a node, which reads every module of its load
+%% path, passes over a `.erc` there that reaches a named pipe, and does not
+%% open it: the program runs and the node stops. It does not cover a
+%% device, a socket, or a pipe under a named package's build
+unopened_load_path_test_() ->
+    nodes_test({waits, 2}, fun unopened_load_path/1).
+
+unopened_load_path(Base) ->
+    Lone = made(Base, "lone", none),
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "main.ern"),
+                         "export fn main() : Unit = Io.println(\"ran\")\n"),
+    Build = filename:join(Base, "build"),
+    0 = built(["--build-root", Build, Source]),
+    Pipes = filename:join(Base, "pipes"),
+    ok = filelib:ensure_path(Pipes),
+    "" = os:cmd("mkfifo " ++ filename:join(Pipes, "x.erc")),
+    ?assertEqual({0, "ran\n"},
+                 finished([?ERN, " run --config-dir ", Lone, " --load-path ", Pipes, " ",
+                           filename:join(Build, "main.erc"), " 2>&1"])),
+    ?assertNot(filelib:is_regular(filename:join(Lone, "ernest.pid"))).
+
 %% report §11.2, §8.7: a node, which reads every module of its load path,
 %% refuses before anything runs a program whose root holds a current
 %% compiled form of a program's Time, which hides the library Time that the

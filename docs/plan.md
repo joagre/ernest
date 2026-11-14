@@ -271,6 +271,36 @@ before item 7.
     - R6, a path that reaches a named package through a link's target (§11, §11.9).
     - R8, the modes a test expects and §11.9 does not state.
     - R13, four tests that each hold several behaviors.
+43. **Whether §11.9 can promise less**, a discussion with the user before item 8 adds its
+    rules on archives, links and modes, decided with the user 2026-11-14. The first place
+    looked at is the defense against another user who may write a package's directory,
+    where most of item 42's sentences and code went (the log's *A Few at a Time*).
+44. **A reading of `CLAUDE.md` for rules that contradict or repeat each other**, with the
+    user, decided 2026-11-14. It comes once the milestone's other items are done and before
+    the next milestone begins, when no build runs. It cuts and does not rewrite. The
+    template's `CLAUDE.md` is read and cut with it, the same way. Then `ernest-epx` and
+    `ernest-httpd` take the template's file once, from a tag of the template, each copy's
+    own differences read first and brought to the user. Until then the copies keep the
+    rules they have (the log's *A Few at a Time*).
+45. **The milestone split in two**, decided with the user 2026-11-14, made when item 42 is
+    closed. MVP 4.16 keeps what is done and its small items: the flakes, the defects the
+    builds found, and items 37 and 39. MVP 4.17, the rest of packages, opens with item 43
+    and holds items 7 to 10 and 23, which keep their numbers. Item 44 stands between the two
+    (the log's *A Few at a Time*).
+46. **What item 42's round left to decide**, each with the user, a few at a time
+    ([`findings.md`](findings.md)'s S18 to S23; the log's *The Reading's Round*). None waits
+    forever on a file any more but the fourth:
+
+    - In single-file mode a nested module's member check passes over a parent's source
+      that is a named pipe and reads the parent's `.erc`, where §11.1 calls it an error.
+    - A doc example whose recorded source is a named pipe fails with `which no longer
+      exists` (§11.2).
+    - The shell's `:load` and `:reload` pass over a source that is a named pipe (§11.2).
+    - `ern doc src-dir` reads `index.md` in the build root whatever it reaches, and waits
+      on a named pipe there (§11.4).
+    - The shell says `is not a regular file` where the report says `is no regular file`.
+    - `ern_carrier:code_digest/0` and `ern_shell:read_beam/1` read the toolchain's own
+      files with no test of their kind.
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

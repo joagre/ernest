@@ -103,11 +103,15 @@ cannot(#found{namespace = Namespace}, Reason) ->
 
 %% The module at Path and every module it uses, directly or through
 %% another, each once, those it uses before it, found under the module's
-%% root and then on the load path Given. Report §11.9: a module at a named
-%% package's namespace outside that package's build, and one in a named
-%% package's build at another namespace, is `Invalid`.
+%% root and then on the load path Given. Appendix E.28: a path that names
+%% a named pipe, a device or a socket is `NotAFile`, and is not opened; a
+%% module of the reach is found where a regular file stands
+%% (compiled_file/2). Report §11.9: a module at a named package's
+%% namespace outside that package's build, and one in a named package's
+%% build at another namespace, is `Invalid`.
 reach(Path, Given) ->
     File = ern_build:absolute(unicode:characters_to_list(Path)),
+    ern_code:is_unopened(File) andalso refuse('NotAFile'),
     #found{namespace = Namespace} = Module = found(File, any),
     Root = root(File, Namespace),
     ern_build:form_out_of_place(File, Namespace, Given) =:= none orelse refuse('Invalid'),

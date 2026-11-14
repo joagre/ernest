@@ -971,22 +971,32 @@ synopses_are_the_reports_test_() ->
 %% report §11.1, §11.2, §11.4, §11.9: `--help` says the source root's
 %% default, the working directory, the directory given or the root
 %% package's `src` for `ern build` and `ern doc`, and the root package's
-%% `src` or the working directory for `ern shell`. A regression test,
-%% written after the code: the build's and the doc's said none. It does not
-%% cover the default itself, which §11.1's and §11.9's tests hold
+%% `src` or the working directory for `ern shell`; and the build root's,
+%% the source root or the root package's `build` where the source root is
+%% its `src`, for `ern build` and `ern doc`. A regression test, written
+%% after the code, of the source root's text, which the build's and the
+%% doc's said none of, and of the build's build root; the doc's build root
+%% was held before its code. It does not cover the defaults themselves,
+%% which §11.1's and §11.9's tests hold
 source_root_default_said_test_() ->
     Root = "the directory whose layout yields namespaces;"
         " default: the working directory, or src-dir, or the root package's src"
         " for a path under it",
-    [{Job, fun() ->
-                   {Help, 0} = help_of(Job),
-                   Words = lists:flatten(lists:join(" ", string:lexemes(Help, " \n"))),
-                   ?assertNotEqual(nomatch, string:find(Words, "--source-root " ++ Said))
-           end}
-     || {Job, Said} <- [{"build", Root}, {"doc", Root},
-                        {"shell", "where the shell finds a module's source;"
-                                  " default: the root package's src, or the working"
-                                  " directory"}]].
+    Build = "default: the source root, or the root package's build where that is its src",
+    [{Job ++ " " ++ Option,
+      fun() ->
+              {Help, 0} = help_of(Job),
+              Words = lists:flatten(lists:join(" ", string:lexemes(Help, " \n"))),
+              ?assertNotEqual(nomatch, string:find(Words, Option ++ " " ++ Said))
+      end}
+     || {Job, Option, Said} <-
+            [{"build", "--source-root", Root}, {"doc", "--source-root", Root},
+             {"shell", "--source-root", "where the shell finds a module's source;"
+                                        " default: the root package's src, or the working"
+                                        " directory"},
+             {"build", "--build-root", "where the compiled tree goes; " ++ Build},
+             {"doc", "--build-root", "where the documents go, and where a current .erc is read"
+                                     " from; " ++ Build}]].
 
 %% A job's help as it prints it, and its status.
 help_of(Job) ->
@@ -7410,6 +7420,289 @@ given_path_empty_test() ->
                    ?assertNot(filelib:is_file("given.erc"))
            end).
 
+%% report §11: an argument that reaches, a link followed, what is neither a
+%% regular file nor a directory, a named pipe or a device, is refused where
+%% one that names nothing is, and is not opened, under every job that takes
+%% a path; so is a directory given to a job that takes a file alone; a link
+%% to nothing names nothing
+given_path_unopened_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     "" = os:cmd("mkfifo f.ern f.erc"),
+                     ok = file:make_symlink("/dev/null", "dev.ern"),
+                     ok = file:make_symlink("nothing", "gone.erc"),
+                     ok = file:make_dir("dd"),
+                     Unopened = fun(Path) -> Path ++ ": is no regular file" end,
+                     [?assertEqual(refusal(Job, Line), said([Job | Words]))
+                      || {Job, Words, Line} <-
+                             [{"build", ["f.ern"], Unopened("f.ern")},
+                              {"build", ["dev.ern"], Unopened("dev.ern")},
+                              {"doc", ["f.ern"], Unopened("f.ern")},
+                              {"format", ["f.ern"], Unopened("f.ern")},
+                              {"run", ["f.erc"], Unopened("f.erc")},
+                              {"run", ["dd"], Unopened("dd")},
+                              {"run", ["gone.erc"], "gone.erc: no such file"},
+                              {"test", ["f.erc"], Unopened("f.erc")},
+                              {"shell", ["dd"], Unopened("dd")},
+                              {"shell", ["f.erc"], Unopened("f.erc")}]]
+                 end).
+
+%% report §11: an argument whose kind the host will not say, a directory
+%% above it closed, is refused with the host's reason under every job that
+%% takes a path. It assumes a user the directory's mode binds, which root
+%% is not
+given_path_closed_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "closed/x.ern", hello()),
+                     ok = file:change_mode("closed", 8#000),
+                     try
+                         [?assertEqual(refusal(Job, "closed/" ++ File ++ ": permission denied"),
+                                       said([Job, "closed/" ++ File]))
+                          || {Job, File} <- [{"build", "x.ern"}, {"doc", "x.ern"},
+                                             {"format", "x.ern"}, {"run", "x.erc"},
+                                             {"test", "x.erc"}, {"shell", "x.erc"}]]
+                     after
+                         ok = file:change_mode("closed", 8#755)
+                     end
+                 end).
+
+%% report §11, Appendix E.17: an argument through a regular file, or
+%% through a loop of links, names nothing, as `Fs.read` finds it. A
+%% regression test, written after the code
+given_path_names_nothing_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "f.ern", hello()),
+                     ok = file:make_symlink("loop.erc", "loop.erc"),
+                     [?assertEqual(refusal(Job, Path ++ ": no such file"), said([Job, Path]))
+                      || Job <- ["build", "doc", "format", "run", "test", "shell"],
+                         Path <- ["f.ern/x.erc", "loop.erc"]]
+                 end).
+
+%% report §11, §11.1: a `.erc` of one of a build's sources that reaches a
+%% named pipe is not opened: it is no compiled module, and its module is
+%% compiled and written in its place. A regression test, written after the
+%% code
+erc_unopened_of_source_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "src/dep.ern", "export fn one() : Int =\n    1\n"),
+                     write(".", "src/main.ern",
+                           "export fn main() : Unit =\n    Io.println(Int.toString(Dep.one()))\n"),
+                     "" = os:cmd("mkfifo src/dep.erc"),
+                     ?assertEqual({0, <<>>}, said(["build", "src"])),
+                     ?assert(filelib:is_regular("src/dep.erc")),
+                     ?assertEqual({0, <<"1\n">>}, said(["run", "src/main.erc"]))
+                 end).
+
+%% report §11, §11.1: the build's cleanup takes a `.erc` that reaches a
+%% named pipe for one it cannot read, and leaves it. A regression test,
+%% written after the code
+erc_unopened_cleanup_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "src/main.ern", hello()),
+                     "" = os:cmd("mkfifo src/old.erc"),
+                     ?assertEqual({0, <<>>}, said(["build", "src"])),
+                     ?assertMatch({ok, #file_info{type = other}},
+                                  file:read_file_info("src/old.erc"))
+                 end).
+
+%% report §11, §11.2: a `.erc` under a directory given to `ern test` that
+%% reaches a named pipe is refused as an argument is, and not opened. A
+%% regression test, written after the code
+erc_unopened_tested_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     ok = file:make_dir("t"),
+                     "" = os:cmd("mkfifo t/x.erc"),
+                     ?assertEqual(refusal("test", "t/x.erc: is no regular file"),
+                                  said(["test", "t"]))
+                 end).
+
+%% report §11: a lookup passes over a `.erc` that reaches a named pipe: a
+%% module found by its namespace on the load path is none there. A
+%% regression test, written after the code
+erc_unopened_lookup_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     ok = file:make_dir("lp"),
+                     "" = os:cmd("mkfifo lp/dep.erc"),
+                     write(".", "main.ern",
+                           "export fn main() : Unit =\n    Io.println(Int.toString(Dep.one()))\n"),
+                     {1, Said} = said(["build", "--load-path", "lp", "main.ern"]),
+                     ?assertMatch({_, _}, binary:match(Said, <<"unknown name Dep.one">>))
+                 end).
+
+%% Under the working directory, the module `src/ok.ern`, and beside it a
+%% named pipe at `src/g.ern`, another at `src/Bad.ern`, whose name breaks
+%% the path's shape, and a link at `src/d.ern` to a device.
+walked_unopened() ->
+    write(".", "src/ok.ern", "export fn one() : Int =\n    1\n"),
+    "" = os:cmd("mkfifo src/g.ern src/Bad.ern"),
+    ok = file:make_symlink("/dev/null", "src/d.ern").
+
+%% The lines a walk of `src` says of walked_unopened/0's files that reach
+%% no regular file, in the order of their paths.
+unopened_lines(Job) ->
+    [["ern ", Job, ": src/", Name, ": is no regular file\n"]
+     || Name <- ["Bad.ern", "d.ern", "g.ern"]].
+
+%% report §11.1: a `.ern` that directory mode finds, which reaches, a link
+%% followed, a named pipe or a device, is an error and is not opened, the
+%% file's only error, one whose name breaks the path's shape among them; it
+%% fails that file alone, and the other modules are built
+walk_unopened_build_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     walked_unopened(),
+                     ?assertEqual({1, iolist_to_binary(unopened_lines("build"))},
+                                  said(["build", "src"])),
+                     ?assert(filelib:is_regular("src/ok.erc"))
+                 end).
+
+%% report §11.1, §11.4: `ern doc` given a directory refuses such a `.ern`
+%% as `ern build` does, and opens none
+walk_unopened_doc_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     walked_unopened(),
+                     ?assertEqual({1, iolist_to_binary(unopened_lines("doc"))},
+                                  said(["doc", "src"]))
+                 end).
+
+%% report §11.1, §11.6: `ern format` given a directory refuses such a
+%% `.ern` and opens none, and lays out the other modules
+walk_unopened_format_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     walked_unopened(),
+                     write(".", "src/ok.ern", "fn f(x) = x+1\n"),
+                     ?assertEqual({1, iolist_to_binary(unopened_lines("format"))},
+                                  said(["format", "src"])),
+                     ?assertEqual({ok, <<"fn f(x) =\n    x + 1\n">>}, file:read_file("src/ok.ern"))
+                 end).
+
+%% report §11.1: a file whose name does not end in `.ern` is refused by
+%% `ern build` in single-file mode, and nothing is written. A regression
+%% test, written after the code; the same refusal under a root package is
+%% package_build_path_judged_first's
+build_not_ern_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "notes.txt", "notes\n"),
+                     ?assertEqual(refusal("build", "notes.txt does not end in .ern"),
+                                  said(["build", "notes.txt"])),
+                     ?assertEqual(["notes.txt"], every_name("."))
+                 end).
+
+%% report §11.1: a module of the source root that a build's file uses,
+%% which is not among its sources, and whose `.erc` under the build root
+%% reaches a named pipe, fails the file as one with no `.erc` does, with
+%% the reason `is no regular file`, and the pipe is not opened. A
+%% regression test, written after the code
+compile_first_unopened_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "src/util.ern", "export fn one() : Int =\n    1\n"),
+                     write(".", "src/main.ern",
+                           "export fn main() : Unit =\n    Io.println(Int.toString(Util.one()))\n"),
+                     ok = file:make_dir("build"),
+                     "" = os:cmd("mkfifo build/util.erc"),
+                     ?assertEqual(refusal("build", "compile Util first, which Main uses:"
+                                                   " build/util.erc: is no regular file"),
+                                  said(["build", "--source-root", "src", "--build-root", "build",
+                                        "src/main.ern"])),
+                     ?assertNot(filelib:is_file("build/main.erc"))
+                 end).
+
+%% report §11.1: a `.ern` under a directory that the job cannot read, a
+%% link to nothing among them, is an error with the host's reason, and
+%% fails that file alone. A regression test, written after the code; it
+%% assumes a user the file's mode binds, which root is not
+walk_unreadable_source_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "src/closed.ern", "export fn one() : Int =\n    1\n"),
+                     write(".", "src/ok.ern", "export fn two() : Int =\n    2\n"),
+                     ok = file:make_symlink("nothing", "src/gone.ern"),
+                     ok = file:change_mode("src/closed.ern", 8#000),
+                     ?assertEqual(refused_lines("build",
+                                                ["src/closed.ern: permission denied",
+                                                 "src/gone.ern: no such file or directory"]),
+                                  said(["build", "src"])),
+                     ?assert(filelib:is_regular("src/ok.erc"))
+                 end).
+
+%% report §11.1: a directory under `src-dir` that the job cannot read is
+%% refused with the host's reason, and nothing is compiled. A regression
+%% test, written after the code; it assumes a user the directory's mode
+%% binds, which root is not
+walk_unreadable_directory_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "src/sub/x.ern", "export fn one() : Int =\n    1\n"),
+                     write(".", "src/ok.ern", "export fn two() : Int =\n    2\n"),
+                     ok = file:change_mode("src/sub", 8#000),
+                     try
+                         ?assertEqual(refusal("build", "src/sub: permission denied"),
+                                      said(["build", "src"]))
+                     after
+                         ok = file:change_mode("src/sub", 8#755)
+                     end,
+                     ?assertNot(filelib:is_file("src/ok.erc"))
+                 end).
+
+%% Under the working directory, the module `src/main/stack.ern`, and a
+%% named pipe at its parent's source, `src/main.ern`, which the check of
+%% its members against the parent's type would read (§11.1).
+member_source_unopened() ->
+    write(".", "src/main/stack.ern", "export fn one() : Int =\n    1\n"),
+    "" = os:cmd("mkfifo src/main.ern").
+
+%% report §11.1: a directory's `.ern` that reaches a named pipe is its own
+%% only error, and fails that file alone: a module beneath it, whose
+%% members are checked against its type, is built, and the pipe is opened
+%% by neither `ern build` nor `ern doc`
+member_source_unopened_tree_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     member_source_unopened(),
+                     [?assertEqual(refusal(Job, "src/main.ern: is no regular file"),
+                                   said([Job, "src"]))
+                      || Job <- ["build", "doc"]],
+                     ?assert(filelib:is_regular("src/main/stack.erc"))
+                 end).
+
+%% report §11.1: the check of a file's members does not open its parent's
+%% source where that reaches a named pipe; the job ends. What it says of
+%% the pipe is not held here
+member_source_unopened_file_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     member_source_unopened(),
+                     [?assertMatch({_, _},
+                                   said([Job, "--source-root", "src", "src/main/stack.ern"]))
+                      || Job <- ["build", "doc"]]
+                 end).
+
+%% report §11.1, §11.2: `ern test` does not open the source a module's
+%% `.erc` records, for its doc examples, where that source now reaches a
+%% named pipe; the module's run ends. What a case says of the pipe is not
+%% held here
+example_source_unopened_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "src/ex.ern",
+                           "/// ```ernest\n/// Ex.one()\n/// // => 1\n/// ```\n"
+                           "export fn one() : Int =\n    1\n"),
+                     ?assertEqual({0, <<>>}, said(["build", "src"])),
+                     ok = file:delete("src/ex.ern"),
+                     "" = os:cmd("mkfifo src/ex.ern"),
+                     ?assertMatch({_, _}, said(["test", "src/ex.erc"]))
+                 end).
+
 %%
 %% Packages, report §11.9
 %%
@@ -7570,9 +7863,9 @@ package_manifest_form() ->
 %% the refusal; a link to nothing is refused as a path that names nothing
 %% is; and a file the job cannot read with the host's reason. A job that
 %% cannot tell whether the directory holds the name is refused with the
-%% host's reason, and nothing else is said. The shell is given `--main`
-%% with no file, which it refuses, so that it never starts where the
-%% manifest is not read
+%% host's reason, and nothing else is said. The shell is given a file
+%% that is not there, whose refusal the manifest's stands in place of, so
+%% that it never starts
 package_unreadable_manifest_test() ->
     in_directory(tmp(),
                  fun() ->
@@ -7606,7 +7899,7 @@ package_unreadable_manifest_test() ->
                      ok = file:change_mode(Dir, 8#600),
                      try
                          ?assertEqual(refusal("shell", "package.conf: permission denied"),
-                                      said(["shell", "--main", "Given.none"]))
+                                      said(["shell", "given.erc"]))
                      after
                          ok = file:change_mode(Dir, 8#755)
                      end
@@ -7762,7 +8055,7 @@ package_dir_test() ->
     Outside = tmp(),
     write(Outside, "outside.ern", hello()),
     ?assertEqual(0, ern_err(["build", "--source-root", Outside, Outside ++ "/outside.ern"])),
-    Jobs = [{"run", ["given.erc"]}, {"test", ["given.erc"]}, {"shell", ["--main", "Given.none"]}],
+    Jobs = [{"run", ["given.erc"]}, {"test", ["given.erc"]}, {"shell", ["none.erc"]}],
     in_directory(tmp(),
                  fun() ->
                      write(".", "given.ern", hello()),
@@ -7821,8 +8114,9 @@ package_given_path_test() ->
                                         "../" ++ filename:basename(Outside) ++ "/outside.ern"])),
                      in_directory("sub",
                                   fun() -> ?assertEqual({0, <<>>}, said(["build", "sub.ern"])) end),
-                     ?assertEqual(refusal("shell", "package.conf: is not JSON"),
-                                  said(["shell", "--main", "Given.none"])),
+                     ok = file:make_dir("node"),
+                     ?assertEqual(refusal("run", "package.conf: is not JSON"),
+                                  said(["run", "--config-dir", "node"])),
                      {1, Attached} = said(["shell", "--attach", "peer"]),
                      ?assertMatch(<<"ern shell: --attach needs --config-dir", _/binary>>, Attached)
                  end).
@@ -8921,6 +9215,301 @@ package_hiding_dependent() ->
     ?assertEqual(Refused("build"), said(["build", "src/base64.ern"])),
     ?assertEqual(Refused("doc"), said(["doc", "src/base64.ern"])),
     ?assertEqual(Refused("doc"), said(["doc", "src"])).
+
+%% report §11.9, §11.1: a `.ern` under a named package's `src` that reaches
+%% a named pipe is held to no namespace by the rule of a package's modules,
+%% and fails that file alone where the package is built, in §11.1's words;
+%% the package's other modules and the root package's are built
+package_build_unopened_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_unopened/0) end}.
+
+package_build_unopened() ->
+    source_package("pu_leaf", [], [{"pu_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    "" = os:cmd("mkfifo lib/pu_leaf/src/stray.ern lib/pu_leaf/src/Odd.ern"),
+    root_manifest(["pu_leaf"]),
+    write(".", "src/pu_main.ern", hello()),
+    ?assertEqual(refused_lines("build", ["lib/pu_leaf/src/Odd.ern: is no regular file",
+                                         "lib/pu_leaf/src/stray.ern: is no regular file"]),
+                 said(["build", "src"])),
+    ?assert(filelib:is_regular("lib/pu_leaf/build/pu_leaf.erc")),
+    ?assert(filelib:is_regular("build/pu_main.erc")).
+
+%% report §11.9: a named package's `src` that is there and reaches no
+%% directory, a file or a link to nothing, is refused in the place of the
+%% package's modules, and nothing is compiled
+package_build_src_not_a_directory_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_src_not_a_directory/0) end}.
+
+package_build_src_not_a_directory() ->
+    source_package("nd_leaf", [], []),
+    root_manifest(["nd_leaf"]),
+    write(".", "src/nd_main.ern", hello()),
+    Refused = refusal("build", "lib/nd_leaf/src: not a directory"),
+    write(".", "lib/nd_leaf/src", "a file\n"),
+    ?assertEqual(Refused, said(["build", "src"])),
+    ok = file:delete("lib/nd_leaf/src"),
+    ok = file:make_symlink("nothing", "lib/nd_leaf/src"),
+    ?assertEqual(Refused, said(["build", "src"])),
+    ?assertEqual([], filelib:wildcard("**/*.erc")).
+
+%% report §11.9: a named package whose directory does not hold the name
+%% `src` has no module: its build compiles nothing, writes nothing and
+%% removes nothing, a `.erc` its build holds from before among it, and
+%% `--verbose` names no root of it. A regression test, written after the
+%% code
+package_build_no_src_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_no_src/0) end}.
+
+package_build_no_src() ->
+    source_package("ns_leaf", [], [{"ns_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    root_manifest(["ns_leaf"]),
+    write(".", "src/ns_main.ern", hello()),
+    ?assertEqual({0, <<>>}, said(["build", "src"])),
+    ok = file:delete("lib/ns_leaf/src/ns_leaf.ern"),
+    ok = file:del_dir("lib/ns_leaf/src"),
+    Held = fun() ->
+               [{Path, Type, Size, Mode, Modified, Inode}
+                || Path <- every_name("lib"),
+                   {ok, #file_info{type = Type, size = Size, mode = Mode, mtime = Modified,
+                                   inode = Inode}}
+                       <- [file:read_file_info(filename:join("lib", Path))]]
+           end,
+    Before = Held(),
+    ?assertMatch([_ | _], [Path || {Path, _, _, _, _, _} <- Before,
+                                   Path =:= "ns_leaf/build/ns_leaf.erc"]),
+    {0, Said} = said(["build", "--verbose", "src"]),
+    ?assertEqual(nomatch, binary:match(Said, <<"lib/ns_leaf">>)),
+    ?assertEqual(Before, Held()).
+
+%% Under the working directory, a root package that is refused, its named
+%% package's `VERSION` saying another version than its entry, and a module.
+refused_root_package() ->
+    whole_package("rr_leaf", "1.2.0", []),
+    root_manifest(["rr_leaf"]),
+    write(".", "rr_main.ern", hello()).
+
+%% report §11.9, §11: a job refuses its command line first, the count of
+%% its arguments among it, and says no refusal of its root package: so in
+%% a root package that is refused, under every job that reads one
+package_count_first_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     refused_root_package(),
+                     [begin
+                          {1, Said} = said([Job | Words]),
+                          ?assertMatch({0, _}, binary:match(Said, iolist_to_binary(
+                                                                    ["ern ", Job, ": ", Line,
+                                                                     "\n"])))
+                      end
+                      || {Job, Words, Line} <-
+                             [{"build", [], "a file or a directory is required"},
+                              {"build", ["src", "src"],
+                               "one file or directory is taken, and 2 were given"},
+                              {"doc", [], "a file or a directory is required"},
+                              {"doc", ["src", "src"],
+                               "one file or directory is taken, and 2 were given"},
+                              {"test", [], "a .erc or a directory is required"},
+                              {"test", ["t", "t"],
+                               "one .erc or directory is taken, and 2 were given"},
+                              {"shell", ["a.erc", "b.erc"],
+                               "one .erc or none is taken, and 2 were given"},
+                              {"run", [], "a .erc is required, or --config-dir for a bare node"}]]
+                 end).
+
+%% report §11.9, §11.2: `--main` given with no file is refused with the
+%% command line, before the root package is read, by `ern run` and by
+%% `ern shell`, which say no refusal of a root package whose manifest is
+%% not of its form
+package_main_first_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "package.conf", "{ not json\n"),
+                     ok = file:make_dir("node"),
+                     [begin
+                          {1, Said} = said([Job | Words]),
+                          ?assertMatch({0, _}, binary:match(Said, iolist_to_binary(
+                                                                    ["ern ", Job, ": ", Line,
+                                                                     "\n"]))),
+                          ?assertEqual(nomatch, binary:match(Said, <<"package.conf">>))
+                      end
+                      || {Job, Words, Line} <-
+                             [{"run", ["--config-dir", "node", "--main", "Rr_main.main"],
+                               "--main names the entry point of the file run, and no file is"
+                               " given; a bare node has none"},
+                              {"shell", ["--main", "Rr_main.main"],
+                               "--main names the function to spawn from the file the shell"
+                               " loads, and no file is given"}]]
+                 end).
+
+%% report §11.9, §11.1: `ern build` refuses the path it is given before it
+%% builds a named package, a name that is no module's and a path that
+%% breaks §11.1's rule of its shape among it, and where it refuses the path
+%% it builds no named package
+package_build_path_judged_first_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_path_judged_first/0) end}.
+
+package_build_path_judged_first() ->
+    source_package("pj_leaf", [], [{"pj_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    root_manifest(["pj_leaf"]),
+    write(".", "Notes.ern", hello()),
+    write(".", "notes.txt", "notes\n"),
+    ?assertEqual(refusal("build", "Notes.ern: path component `Notes` must be lowercase"),
+                 said(["build", "Notes.ern"])),
+    ?assertEqual(refusal("build", "notes.txt does not end in .ern"),
+                 said(["build", "notes.txt"])),
+    ?assertNot(filelib:is_file("lib/pj_leaf/build")).
+
+%% Under the working directory, `lib` a link to `store`, which holds the
+%% named package `leaf`, and a root package that names it.
+linked_lib() ->
+    whole_package("leaf", "1.0.0", []),
+    ok = file:rename("lib", "store"),
+    ok = file:make_symlink("store", "lib"),
+    root_manifest(["leaf"]).
+
+%% report §11.9: a path is under `lib` by its segments as §11 resolves
+%% them, and no link is followed: where `lib` is a link to `store`, a path
+%% through `lib` is refused and one through `store` is not. A regression
+%% test, written after the code
+package_given_through_link_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_given_through_link/0) end}.
+
+package_given_through_link() ->
+    linked_lib(),
+    ?assertEqual(refusal("build", "lib/leaf/src/leaf.ern is the package leaf's, which ern build"
+                                  " builds"),
+                 said(["build", "lib/leaf/src/leaf.ern"])),
+    ?assertMatch({0, _}, said(["build", "store/leaf/src/leaf.ern"])).
+
+%% report §11.9: a named package that is a link is refused by its segments
+%% under `lib` as one that is a directory is. A regression test, written
+%% after the code
+package_given_linked_package_test() ->
+    Elsewhere = tmp(),
+    in_directory(Elsewhere, fun() -> whole_package("leaf", "1.0.0", []) end),
+    in_directory(tmp(),
+                 fun() ->
+                     ok = file:make_dir("lib"),
+                     ok = file:make_symlink(filename:join(Elsewhere, "lib/leaf"), "lib/leaf"),
+                     root_manifest(["leaf"]),
+                     ?assertEqual(refusal("build", "lib/leaf is the package leaf's, which ern"
+                                                   " build builds"),
+                                  said(["build", "lib/leaf"]))
+                 end).
+
+%% report §11.9: what `ern build` writes under a named package may be
+%% written by its owner alone, under a mask that lets every user write, and
+%% it leaves nothing beside what it wrote, the directory each file was made
+%% in among it. A regression test, written after the code: it holds the
+%% modes once written, and cannot hold that no other user could open a
+%% file or plant an entry in a directory while it was made, which is a race
+%% between two users
+package_build_owner_alone_test_() ->
+    {timeout, 60, fun package_build_owner_alone/0}.
+
+package_build_owner_alone() ->
+    Ern = filename:absname("bin/ern"),
+    Dir = tmp(),
+    in_directory(Dir,
+                 fun() ->
+                     source_package("oa_leaf", [],
+                                    [{"oa_leaf.ern", "export fn one() : Int =\n    1\n"},
+                                     {"oa_leaf/deep/inner.ern",
+                                      "export fn two() : Int =\n    2\n"}]),
+                     root_manifest(["oa_leaf"]),
+                     write(".", "src/oa_main.ern", hello())
+                 end),
+    ?assertEqual("", os:cmd("cd " ++ Dir ++ " && umask 000 && " ++ Ern ++ " build src 2>&1")),
+    Build = filename:join(Dir, "lib/oa_leaf/build"),
+    Written = every_name(Build),
+    ?assertEqual(["oa_leaf", "oa_leaf.erc", "oa_leaf/deep", "oa_leaf/deep/inner.erc"], Written),
+    [?assertEqual(0, mode_of(filename:join(Build, Path)) band 8#022) || Path <- ["." | Written]].
+
+%% What Work answers, while a file server stands in the host's place that
+%% passes every request on to it, but for the make of a directory Dir for
+%% which IsRaced(Dir) is true: it makes the directory, puts an entry of
+%% the job's own user in it, `.meanwhile`, as a job beside this one would,
+%% and only then answers. A job's files are made through the host's file
+%% server, so the entry stands in the directory as the job made it.
+entered_as_made(IsRaced, Work) ->
+    Host = whereis(file_server_2),
+    Racer = spawn_link(fun() -> racing(Host, IsRaced) end),
+    true = unregister(file_server_2),
+    true = register(file_server_2, Racer),
+    try
+        Work()
+    after
+        true = unregister(file_server_2),
+        true = register(file_server_2, Host),
+        unlink(Racer),
+        exit(Racer, kill)
+    end.
+
+racing(Host, IsRaced) ->
+    receive
+        {'$gen_call', From, {make_dir, Dir} = Request} = Call ->
+            case IsRaced(Dir) of
+                true ->
+                    Made = gen_server:call(Host, Request, infinity),
+                    ok = prim_file:write_file(filename:join(Dir, ".meanwhile"), <<>>),
+                    gen_server:reply(From, Made);
+                false ->
+                    Host ! Call
+            end;
+        Other ->
+            Host ! Other
+    end,
+    racing(Host, IsRaced).
+
+%% Whether a directory's path ends in Parts.
+ends_in(Dir, Parts) ->
+    lists:suffix(Parts, filename:split(Dir)).
+
+%% report §11.9: a directory `ern build` makes under a named package that
+%% an entry of the job's own user stands in as it is made, as one another
+%% build of that user puts there meanwhile, is taken, and the build goes
+%% on. An entry of another user's, which refuses the build, is not
+%% covered, since a test run as one user cannot make one
+package_build_own_entry_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_own_entry/0) end}.
+
+package_build_own_entry() ->
+    source_package("oe_leaf", [], [{"oe_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    root_manifest(["oe_leaf"]),
+    write(".", "src/oe_main.ern", hello()),
+    ?assertEqual({0, <<>>},
+                 entered_as_made(fun(Dir) -> ends_in(Dir, ["lib", "oe_leaf", "build"]) end,
+                                 fun() -> said(["build", "src"]) end)),
+    ?assertEqual([".meanwhile", "oe_leaf.erc"], every_name("lib/oe_leaf/build")).
+
+%% report §11.9: the directory beside its place that a file its owner alone
+%% may write is made in holds nothing as it is made, and an entry of the
+%% job's own user there refuses the build. A regression test, written
+%% after the code
+package_build_staged_entry_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_staged_entry/0) end}.
+
+package_build_staged_entry() ->
+    source_package("os_leaf", [], [{"os_leaf.ern", "export fn one() : Int =\n    1\n"}]),
+    root_manifest(["os_leaf"]),
+    write(".", "src/os_main.ern", hello()),
+    IsStaged = fun(Dir) ->
+                   ends_in(filename:dirname(Dir), ["lib", "os_leaf", "build"])
+                       andalso filename:extension(Dir) =:= ".new"
+               end,
+    ?assertEqual(refusal("build", "lib/os_leaf/build: it was written to by another as it was"
+                                  " made, and os_leaf.erc is written whole by a rename there"),
+                 entered_as_made(IsStaged, fun() -> said(["build", "src"]) end)).
+
+%% Every name under Dir, dot names among them, each its path from Dir, in
+%% order.
+every_name(Dir) ->
+    {ok, Names} = file:list_dir_all(Dir),
+    lists:sort(lists:append([[Name | [filename:join(Name, Under) || Under <- every_name(Path)]]
+                             || Name <- Names, Path <- [filename:join(Dir, Name)],
+                                filelib:is_dir(Path)]
+                            ++ [[Name] || Name <- Names,
+                                          not filelib:is_dir(filename:join(Dir, Name))])).
 
 captured_output() ->
     group_leader() ! {get_output, self()},

@@ -9,19 +9,20 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/4, compile_in_memory/5, held_another/4, verbose/2, package_said/2, modules_of/4,
+-export([compile/4, compile_in_memory/5, path_kind/1, given_refused/2, held_another/4, verbose/2,
+         package_said/2, modules_of/4,
          hiding/5, form_hiding/4, hiding_found/5, outside_package/3, form_out_of_place/3,
          library_name/1, compiled_in_order/3,
-         report_errors/3, shown/1, sources/1, compiled_under/1, bytes_text/1, module_of/2,
-         module_of/3, shape/2, compile_order/2, compile_order/3, module_cycle/1,
-         resolved_module/3, namespace_test/3, compiled_dependencies/1, source_root/3,
-         build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4, stdlib_hash/0,
-         dependency_interfaces/5, load_path/1, load_path_of/1, with_root/2, directories/1,
-         looked_in/3, compiled_on/1, is_compiled_against/4, compiler_modules/0,
-         compiler_build/0, sweep_pages/5, compile_source/5, compile_source/6, absolute/1,
-         relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1,
-         read_through/2, source_read/1, is_source/1, make_dirs/1, make_private_dir/1,
-         refused/2, fail/1]).
+         report_errors/3, shown/1, sources/1, compiled_found_under/1, compiled_under/1,
+         bytes_text/1, module_of/2, module_of/3, shape/2, compile_order/2, compile_order/3,
+         module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
+         source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
+         stdlib_hash/0, dependency_interfaces/5, load_path/1, load_path_of/1, with_root/2,
+         directories/1, looked_in/3, compiled_on/1, is_compiled_against/4, compiler_modules/0,
+         compiler_build/0, regular_bytes/1, sweep_pages/5, compile_source/5, compile_source/6,
+         absolute/1, relative/2, root_of/2, write_whole/2, write_output/2, write_output/3, read/1,
+         read_through/2, source_read/1, is_source/1, make_dirs/1, make_private_dir/1, refused/2,
+         fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -35,7 +36,10 @@
 -define(SOURCES, '$ern_sources').
 
 -type load_path() :: #load_path{}.
--export_type([load_path/0]).
+%% Report §11.1: a file a walk found, or one it found and did not open,
+%% with its refusal (sources/1).
+-type found() :: file:filename() | {file:filename(), string()}.
+-export_type([load_path/0, found/0]).
 
 %% Report §11.1: the modules a path names compiled, each failure reported
 %% as the job named Job reports it; 0 where every module compiled, else 1.
@@ -61,10 +65,12 @@ compile_in_memory(Job, Options, Path, ErrorDevice, Given) ->
     compile(Job, Options, Path, ErrorDevice, {memory, Given}).
 
 compile(Job, Options, Path, ErrorDevice, Emit) ->
-    filelib:is_file(Path) orelse fail(Path ++ ": no such file"),
+    Kind = path_kind(Path),
+    Kind =:= regular orelse Kind =:= directory orelse given_refused(Path, Kind),
     %% report §11.1: --verbose says each decision as it is made
     Say = verbose(Options, ErrorDevice),
-    SourceRoot = source_root(Options, Path, case filelib:is_dir(Path) of
+    IsDirectory = Kind =:= directory,
+    SourceRoot = source_root(Options, Path, case IsDirectory of
                                                 true -> Path;
                                                 false -> "."
                                             end),
@@ -77,6 +83,10 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                                                ErrorDevice, Say),
             {Status, Compiled};
         _ ->
+            %% report §11.9: `ern build` refuses the file it is given, a name
+            %% that is no module's or a path that breaks the rule of its
+            %% shape, before it builds a named package, and then builds none
+            IsDirectory orelse module_of(absolute(Path), SourceRoot, file),
             %% report §11.1, §11.9: `ern build` says the root package after
             %% the build root, and `ern doc` before anything (ern_cli:doc/3);
             %% then each named package's build, and the root package's
@@ -88,6 +98,34 @@ compile(Job, Options, Path, ErrorDevice, Emit) ->
                                                ErrorDevice, Say),
             {max(PackagesStatus, Status), Compiled}
     end.
+
+%% Report §11: what a path a job is given reaches, a link followed, read
+%% without opening it: a regular file, a directory, what is neither, a
+%% named pipe, a device or a socket among them, `other`, or `none` where
+%% it names nothing, a link to nothing among them, and a path through a
+%% regular file or a loop of links, as `Fs` finds them (Appendix E.17);
+%% else the host's reason, where it will not say what the path reaches.
+-spec path_kind(file:filename()) -> regular | directory | other | none | {error, term()}.
+path_kind(Path) ->
+    case file:read_file_info(Path) of
+        {ok, #file_info{type = regular}} -> regular;
+        {ok, #file_info{type = directory}} -> directory;
+        {ok, _} -> other;
+        {error, Error} when Error =:= enoent; Error =:= enotdir; Error =:= eloop -> none;
+        {error, _} = Error -> Error
+    end.
+
+%% Report §11: the refusal of a path a job is given that reaches what the
+%% job does not take: nothing, or what is no regular file, a directory
+%% given to a job that takes a file alone among it, or what the host will
+%% not say, with its reason.
+-spec given_refused(file:filename(), directory | other | none | {error, term()}) -> no_return().
+given_refused(Path, none) ->
+    fail(Path ++ ": no such file");
+given_refused(Path, {error, Error}) ->
+    fail(Path ++ ": " ++ file:format_error(Error));
+given_refused(Path, _) ->
+    fail(Path ++ ": is no regular file").
 
 %% Report §11.1: --verbose's lines of the source root and the build root a
 %% build took.
@@ -272,33 +310,38 @@ package_said(Options, Say) ->
 
 %% The modules the files are, and a failure for each file whose path is
 %% none's, keyed by the file, since it has no namespace. Report §11.1: a
-%% module that hides a library's module another depends on fails too, by
-%% its namespace, so that a module that uses it is not compiled either, and
-%% before it is parsed, so that its refusal is its only error (hiding/5).
-%% Report §11.9: a module outside the named packages at a named package's
-%% namespace fails so too, keyed by its file, since a module that uses its
-%% namespace finds the package's (outside_package/3).
--spec modules_of([file:filename()], file:filename(), tree | file, load_path()) ->
+%% file the walk found and did not open fails so, its refusal its only
+%% error. A module that hides a library's module another depends on fails
+%% too, by its namespace, so that a module that uses it is not compiled
+%% either, and before it is parsed, so that its refusal is its only error
+%% (hiding/5). Report §11.9: a module outside the named packages at a named
+%% package's namespace fails so too, keyed by its file, since a module that
+%% uses its namespace finds the package's (outside_package/3).
+-spec modules_of([found()], file:filename(), tree | file, load_path()) ->
           {[#build_module{}],
            [{{file, file:filename()} | [atom()], {refused, string()}, []}]}.
 modules_of(Files, SourceRoot, Mode, LoadPath) ->
     Libraries = ern_tree:libraries(),
-    lists:foldr(fun(Source, {Modules, Misnamed}) ->
-                    try module_of(absolute(Source), SourceRoot, Mode) of
-                        #build_module{namespace = Namespace, file = File} = Module ->
-                            case {outside_package(File, Namespace, LoadPath),
-                                  hiding(File, Namespace, File, Libraries, LoadPath)} of
-                                {none, none} ->
-                                    {[Module | Modules], Misnamed};
-                                {none, Refusal} ->
-                                    {Modules, [{Namespace, {refused, Refusal}, []} | Misnamed]};
-                                {Refusal, _} ->
-                                    {Modules, [{{file, File}, {refused, Refusal}, []} | Misnamed]}
-                            end
-                    catch
-                        throw:{cli_error, Refusal} ->
-                            {Modules, [{{file, Source}, {refused, Refusal}, []} | Misnamed]}
-                    end
+    lists:foldr(fun({Source, Unopened}, {Modules, Misnamed}) ->
+                        {Modules, [{{file, Source}, {refused, Unopened}, []} | Misnamed]};
+                   (Source, {Modules, Misnamed}) ->
+                        try module_of(absolute(Source), SourceRoot, Mode) of
+                            #build_module{namespace = Namespace, file = File} = Module ->
+                                case {outside_package(File, Namespace, LoadPath),
+                                      hiding(File, Namespace, File, Libraries, LoadPath)} of
+                                    {none, none} ->
+                                        {[Module | Modules], Misnamed};
+                                    {none, Refusal} ->
+                                        {Modules,
+                                         [{Namespace, {refused, Refusal}, []} | Misnamed]};
+                                    {Refusal, _} ->
+                                        {Modules,
+                                         [{{file, File}, {refused, Refusal}, []} | Misnamed]}
+                                end
+                        catch
+                            throw:{cli_error, Refusal} ->
+                                {Modules, [{{file, Source}, {refused, Refusal}, []} | Misnamed]}
+                        end
                 end, {[], []}, Files).
 
 %% Report §4.2, §11.1: the refusal of the module of Namespace that File
@@ -642,16 +685,31 @@ shown(File) ->
 %% directory whose name begins with a dot, which is no module, each
 %% symbolic link to a directory, and a `lib` beside a `package.conf`
 %% (§11.9). The host gives a name that is not UTF-8 as its bytes, and one
-%% of a `.ern` or of a directory that holds one is an error.
--spec sources(file:filename()) -> [file:filename()].
+%% of a `.ern` or of a directory that holds one is an error. A `.ern` that
+%% reaches, a link followed, what is neither a regular file nor a
+%% directory, a named pipe, a device or a socket, is found with its
+%% refusal, and is not opened.
+-spec sources(file:filename()) -> [found()].
 sources(Dir) ->
     files_under(Dir, ".ern").
 
 %% Report §11.2: every `.erc` under a directory, found as its sources are,
-%% in the order of their paths, which `ern test` runs them in.
+%% in the order of their paths, which `ern test` runs them in, one that
+%% reaches what is no regular file with its refusal (§11).
+-spec compiled_found_under(file:filename()) -> [found()].
+compiled_found_under(Dir) ->
+    [Found || {_, Found} <- lists:sort([{found_path(Found), Found}
+                                        || Found <- files_under(Dir, ".erc")])].
+
+found_path({Path, _Refusal}) -> Path;
+found_path(Path) -> Path.
+
+%% Report §11: the same, each that reaches a regular file, which a job that
+%% reads every module of a directory reads, a node's start among them
+%% (§11.2), passing over any other.
 -spec compiled_under(file:filename()) -> [file:filename()].
 compiled_under(Dir) ->
-    lists:sort(files_under(Dir, ".erc")).
+    [File || File <- compiled_found_under(Dir), is_list(File)].
 
 files_under(Dir, Extension) ->
     Names = case file:list_dir_all(Dir) of
@@ -671,10 +729,17 @@ file_under(Dir, Name, Extension) when is_binary(Name) ->
     [];
 file_under(Dir, Name, Extension) ->
     Path = filename:join(Dir, Name),
-    case {filelib:is_dir(Path), is_link(Path)} of
-        {true, false} -> files_under(Path, Extension);
-        {true, true} -> [];
-        {false, _} -> [Path || filename:extension(Name) =:= Extension]
+    case file:read_file_info(Path) of
+        {ok, #file_info{type = directory}} ->
+            case is_link(Path) of
+                false -> files_under(Path, Extension);
+                true -> []
+            end;
+        {ok, #file_info{type = Type}} when Type =/= regular ->
+            [{Path, shown(Path) ++ ": is no regular file"}
+             || filename:extension(Name) =:= Extension];
+        _ ->
+            [Path || filename:extension(Name) =:= Extension]
     end.
 
 is_dot_name(<<$., _/binary>>) -> true;
@@ -1130,9 +1195,10 @@ type_members(Parent, Type, SourceRoot, LoadPath, Declared) ->
             end
     end.
 
-%% The declarations a source holds; none when it is absent or does not parse.
+%% The declarations a source holds; none when it is absent, reaches no
+%% regular file, which is not opened (report §11.1), or does not parse.
 source_declarations(File) ->
-    case source_read(File) of
+    case regular_source(File) of
         {ok, Bytes} ->
             case ern_parser:parse_string(Bytes) of
                 {ok, Declarations} -> {ok, Declarations};
@@ -1997,7 +2063,7 @@ is_number_text(Text) ->
 %% load its code as the module's unit (§11).
 current(Namespace, Erc, {SourceHash, SourcePath, Resolved}, DependencyHashes,
         #{stdlib := StdlibHash, compiler := CompilerBuild}, DependencyInterfaces) ->
-    case file:read_file(Erc) of
+    case regular_bytes(Erc) of
         {ok, Beam} ->
             case ern_interface:read(Beam) of
                 {ok, #{interface := Interface, source_hash := SourceHash,
@@ -2086,9 +2152,21 @@ code_md5(ErlangModule) ->
     end.
 
 read_erc(Erc) ->
-    case file:read_file(Erc) of
+    case regular_bytes(Erc) of
         {ok, Bytes} -> ern_interface:read(Bytes);
+        {error, unopened} -> {error, "is no regular file"};
         {error, Error} -> {error, file:format_error(Error)}
+    end.
+
+%% Report §11, §11.1: a file's bytes, read where it reaches a regular
+%% file, a link followed, and `unopened` where it reaches what is no
+%% regular file, a named pipe, a device or a socket, which no job opens.
+-spec regular_bytes(file:filename()) -> {ok, binary()} | {error, term()}.
+regular_bytes(File) ->
+    case file:read_file_info(File) of
+        {ok, #file_info{type = regular}} -> file:read_file(File);
+        {ok, _} -> {error, unopened};
+        {error, _} = Error -> Error
     end.
 
 %% Report §11.1: remove every stale .erc under the mirror of the compiled
@@ -2343,18 +2421,26 @@ write_at(File, Place, Data, Mode) ->
                    owner_alone(Existing);
                {Given, _} -> Given
            end,
-    {New, Device} = made_beside(File, Place, 0),
+    %% report §11.9: a file its owner alone may write is made in a
+    %% directory only its owner can enter, so that no other opens it before
+    %% its mode is set, and renamed out with that mode
+    {New, Device, Stage} = case Mode of
+                               owner_alone -> made_alone(File, Place, 0);
+                               _ -> made_beside(File, Place, 0)
+                           end,
     %% the mode before the data, so that what is private is never readable
     Steps = [fun() -> file:change_mode(New, Kept) end || is_integer(Kept)]
         ++ [fun() -> owners_alone(New) end || Kept =:= owner_alone]
         ++ [fun() -> file:write(Device, Data) end, fun() -> file:close(Device) end,
-            fun() -> file:rename(New, Place) end],
+            fun() -> file:rename(New, Place) end]
+        ++ [fun() -> file:del_dir(Stage) end || Stage =/= none],
     case lists:foldl(fun(Step, ok) -> Step(); (_, Failed) -> Failed end, ok, Steps) of
         ok ->
             ok;
         {error, Error} ->
             _ = file:close(Device),
             _ = file:delete(New),
+            _ = Stage =/= none andalso file:del_dir(Stage),
             fail(shown(File) ++ ": " ++ file:format_error(Error))
     end.
 
@@ -2363,20 +2449,50 @@ write_at(File, Place, Data, Mode) ->
 %% the last rename wins (report §11). It is made here or not at all: the
 %% host refuses a name that is there, a link among them, so that a name
 %% another planted is passed over for the next and is never written
-%% through.
+%% through. It stands in no directory of its own, `none`.
 made_beside(File, Place, Tries) ->
-    Own = os:getpid() ++ "." ++ integer_to_list(erlang:unique_integer([positive])),
-    New = filename:join(filename:dirname(Place),
-                        "." ++ filename:basename(Place) ++ "." ++ Own ++ ".new"),
+    New = own_name(Place),
     case file:open(New, [write, exclusive, raw]) of
-        {ok, Device} -> {New, Device};
+        {ok, Device} -> {New, Device, none};
         {error, eexist} when Tries < 16 -> made_beside(File, Place, Tries + 1);
-        %% report §11: the file is written whole by a rename in its
-        %% directory, so a directory that takes no file is the refusal's
-        {error, Error} ->
-            fail(shown(filename:dirname(Place)) ++ ": " ++ file:format_error(Error) ++ ", and "
-                 ++ filename:basename(File) ++ " is written whole by a rename there")
+        {error, Error} -> unwritable(File, Place, file:format_error(Error))
     end.
+
+%% Report §11.9: the same, in a directory of its own beside Place, made as
+%% make_private_dir/1 makes one, which no other can enter, the file at
+%% Place's name in it, with the directory.
+made_alone(File, Place, Tries) ->
+    Stage = own_name(Place),
+    case make_private_dir(Stage) of
+        ok ->
+            New = filename:join(Stage, filename:basename(Place)),
+            case file:open(New, [write, exclusive, raw]) of
+                {ok, Device} ->
+                    {New, Device, Stage};
+                {error, Error} ->
+                    _ = file:del_dir(Stage),
+                    unwritable(File, Place, file:format_error(Error))
+            end;
+        exists when Tries < 16 ->
+            made_alone(File, Place, Tries + 1);
+        exists ->
+            unwritable(File, Place, file:format_error(eexist));
+        {error, Reason} ->
+            unwritable(File, Place, Reason)
+    end.
+
+%% A name of this writer's own beside Place, which begins with a dot, so
+%% that no job reads it as a module (report §11.1).
+own_name(Place) ->
+    Own = os:getpid() ++ "." ++ integer_to_list(erlang:unique_integer([positive])),
+    filename:join(filename:dirname(Place), "." ++ filename:basename(Place) ++ "." ++ Own ++ ".new").
+
+%% Report §11: the file is written whole by a rename in its directory, so a
+%% directory that takes no file is the refusal's, with the host's Reason.
+-spec unwritable(file:filename(), file:filename(), string()) -> no_return().
+unwritable(File, Place, Reason) ->
+    fail(shown(filename:dirname(Place)) ++ ": " ++ Reason ++ ", and " ++ filename:basename(File)
+         ++ " is written whole by a rename there").
 
 %% Report §11.8: a file a job cannot read, a directory it cannot make, and
 %% a file it cannot remove are refused with the host's reason, status 1.
@@ -2420,6 +2536,17 @@ source_read(File) ->
         undefined -> file:read_file(File)
     end.
 
+%% The same, where the source reaches a regular file: a shell's access
+%% reads no other, as `Fs.read` reads none (report Appendix E.1), and a
+%% job's own disk is asked first. A read whose file was asked already is
+%% source_read/1's.
+-spec regular_source(file:filename()) -> {ok, binary()} | {error, term()}.
+regular_source(File) ->
+    case get(?SOURCES) of
+        #{read := Read} -> Read(File);
+        undefined -> regular_bytes(File)
+    end.
+
 %% Whether a source is there, a regular file.
 -spec is_source(file:filename()) -> boolean().
 is_source(File) ->
@@ -2445,7 +2572,9 @@ make_dirs(File) ->
 
 %% Report §11.9: the same, each directory made with no right for any other
 %% to write it, whatever the user's mask, as `ern build` makes one under a
-%% named package; a directory that is there is left as it is.
+%% named package, and listed once it is so, as make_private_dir/1 lists
+%% one, so that nothing another put in it before is written through; a
+%% directory that is there is left as it is.
 make_owners_dirs(File) ->
     Dir = filename:dirname(File),
     case filelib:is_dir(Dir) of
@@ -2453,14 +2582,10 @@ make_owners_dirs(File) ->
             ok;
         false ->
             ok = make_owners_dirs(Dir),
-            Made = case file:make_dir(Dir) of
-                       ok -> owners_alone(Dir);
-                       Other -> Other
-                   end,
-            case Made of
+            case made_dir(Dir, owner_alone) of
                 ok -> ok;
-                {error, eexist} -> ok;
-                {error, Error} -> refused(Dir, Error)
+                exists -> ok;
+                {error, Reason} -> fail(shown(Dir) ++ ": " ++ Reason)
             end
     end.
 
@@ -2483,17 +2608,52 @@ owner_alone(Mode) ->
 %% stands at its path, and otherwise why it was not made.
 -spec make_private_dir(file:filename()) -> ok | exists | {error, string()}.
 make_private_dir(Dir) ->
+    made_dir(Dir, 8#700).
+
+%% A directory made with the mode Mode, or `owner_alone`, as it was made
+%% with no right for any other to write it, and then listed, as
+%% make_private_dir/1 says. Report §11.9: under `owner_alone` an entry of
+%% the job's own user passes, as another build of that user may put one
+%% there meanwhile, and another user's refuses the build.
+made_dir(Dir, Mode) ->
     case file:make_dir(Dir) of
         ok ->
-            ok = file:change_mode(Dir, 8#700),
-            case file:list_dir_all(Dir) of
-                {ok, []} -> ok;
-                _ -> {error, "it was written to by another as it was made"}
+            Narrowed = case Mode of
+                           owner_alone -> owners_alone(Dir);
+                           _ -> file:change_mode(Dir, Mode)
+                       end,
+            case {Narrowed, file:list_dir_all(Dir)} of
+                {ok, {ok, []}} -> ok;
+                {ok, {ok, Names}} when Mode =:= owner_alone ->
+                    case is_owners(Dir, Names) of
+                        true -> ok;
+                        false -> {error, "it was written to by another as it was made"}
+                    end;
+                {ok, _} -> {error, "it was written to by another as it was made"};
+                {{error, Error}, _} -> {error, file:format_error(Error)}
             end;
         {error, eexist} ->
             exists;
         {error, Error} ->
             {error, file:format_error(Error)}
+    end.
+
+%% Whether each entry of the directory Dir, by its name in Names, is the
+%% directory's owner's, the job's own user who made it, a link's own owner
+%% asked and not its file's; an entry gone since it was listed holds
+%% nothing to be written through.
+is_owners(Dir, Names) ->
+    case file:read_file_info(Dir) of
+        {ok, #file_info{uid = Owner}} ->
+            lists:all(fun(Name) ->
+                              case file:read_link_info(filename:join(Dir, Name)) of
+                                  {ok, #file_info{uid = Uid}} -> Uid =:= Owner;
+                                  {error, enoent} -> true;
+                                  {error, _} -> false
+                              end
+                      end, Names);
+        {error, _} ->
+            false
     end.
 
 delete(File) ->

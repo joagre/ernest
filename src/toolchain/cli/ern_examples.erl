@@ -222,13 +222,15 @@ example_line(DocLine, Offset) -> DocLine + Offset.
 %% Report §11.2: the source of the module, Namespace, that its `.erc`, Erc,
 %% was compiled from, as Beam records it, and whether it is the standard
 %% library's own; or why no source holds the module as it was compiled:
-%% gone, or changed since, which the `.erc`'s hash of it tells.
+%% gone, or changed since, which the `.erc`'s hash of it tells. A source
+%% that reaches what is no regular file is not opened (§11.1), and is gone
+%% as a build finds it gone (ern_build:gone/3).
 module_source(Namespace, Erc, Beam) ->
     {ok, #{source_path := SourcePath, source_hash := Hash}} = ern_interface:read(Beam),
     BuildRoot = ern_build:root_of(Erc, Namespace),
     File = filename:join(BuildRoot, unicode:characters_to_list(SourcePath)),
     Compiled = [ern_build:shown(Erc), " was compiled from ", ern_build:shown(File)],
-    case file:read_file(File) of
+    case ern_build:regular_bytes(File) of
         {ok, Source} ->
             case crypto:hash(sha256, Source) of
                 Hash ->

@@ -84,8 +84,10 @@
 /// module of a cycle through the load path (report §4.1), a directory, and a
 /// file at a module's path that holds another module (report §11.2) answer
 /// `Left(Invalid)`; a path with no file, and a
-/// module the load path lacks, `Left(NotFound)`; and a file the host cannot
-/// read answers the host's error, `Left(Denied)` among them.
+/// module the load path lacks, `Left(NotFound)`; a path that names a named
+/// pipe, a device or a socket, which is not opened, `Left(NotAFile)`; and a
+/// file the host cannot read answers the host's error, `Left(Denied)` among
+/// them.
 ///
 /// A binding that faults answers `Left(Other(text))`, `text` the fault as
 /// `ern run` reports it, `Init.bad:3 faulted: division by zero`: nothing is
@@ -107,9 +109,11 @@ export foreign fn load(path : Path) : Either(Io.Error, Unit) =
 /// The definitions the compiled module at `path` holds, each as its qualified
 /// name and its hash, the digest in lowercase hexadecimal, in the order the
 /// module declares them. A foreign declaration has no hash and is left out. A
-/// file that is no `.erc` of this `ern` answers `Left(Invalid)`, and a path that
-/// names no file `Left(NotFound)`. A file whose code alone the host will not load
-/// answers its definitions all the same, which its forms give (report §11).
+/// file that is no `.erc` of this `ern` answers `Left(Invalid)`, a path that
+/// names no file `Left(NotFound)`, and one that names a named pipe, a device or
+/// a socket, which is not opened, `Left(NotAFile)`. A file whose code alone the
+/// host will not load answers its definitions all the same, which its forms
+/// give (report §11).
 ///
 /// ### Examples
 ///

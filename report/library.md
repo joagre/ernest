@@ -1049,7 +1049,7 @@ A node's code after its start (§8.7, §11.2): a compiled module loaded by the p
 
 `load` answers `Left(Invalid)` for a file that is no `.erc` of this `ern`, one another build of `ern` wrote and one whose code the host will not load among them (§11, §11.1), that was compiled against another interface than the node holds, that is a module of a cycle through the load path (§4.1), that holds a module at a named package's namespace or under it, outside that package's build, or at any other namespace in a named package's build (§11.9), that holds a module at the namespace of a library's module on which a module of a library or of a named package depends, its source outside that library's source root (§11.1), or that is a directory or a file at a module's path that holds another module (§11.2).
 
-`load` answers `Left(NotFound)` for a path with no file or a module of the reach the load path lacks, and the host's error for a file the host cannot read (Appendix E.1).
+`load` and `hashes` answer `Left(NotAFile)` for a path that names a named pipe, a device or a socket, as `Fs.read` does (Appendix E.1), and do not open it. `load` answers `Left(NotFound)` for a path with no file or a module of the reach the load path lacks, and the host's error for a file the host cannot read (Appendix E.1).
 
 A module of the reach whose file is such a file answers `Left(Invalid)` as the file given does.
 

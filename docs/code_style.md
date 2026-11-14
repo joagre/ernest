@@ -227,6 +227,7 @@ An entry gives the name, what it names and where the code holds it. The mechanis
 - **Step**: a step of a test, each wait the harness runs, a node's line, its end, what it said, a command's or a bare `erl`'s run, a build, and a terminal session's expect and its end, which the harness's own wait functions take as they run it (`ern_nodes_tests:step/1`) against the test's count, `{waits, Count}`, which `nodes_test/2` and `counted_test/2` set and read at the test's end. Not `Stage`, nor `Wait`, which is what waits for a node's end.
 - **WaitMs**: the harness's time for one wait, `ern_nodes_tests:wait_ms/0`, which bounds a step, in which a test's limit is counted, and which the programs the tests run give each of their waits, `Harness.waitMs()` under `test/fixtures/peers/` and `waitMs()` in a program a test writes.
 - **Message**: a message, the Erlang variable; a mailbox type in Ernest ends in `Msg` as the guide says. Not `Msg` for the variable.
+- **Unopened**: a file no job opens, since its name reaches a named pipe, a device or a socket (§11, §11.1, E.28): `unopened` in `ern_build:regular_bytes/1`, the refusal a walk's `found()` carries, `ern_code:is_unopened/1`. Not `fifo`, `special`.
 
 **Ernest**
 

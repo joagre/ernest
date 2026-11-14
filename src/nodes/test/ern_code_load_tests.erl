@@ -1012,6 +1012,39 @@ hashes_test() ->
                  ern_code:hashes({'Path', list_to_binary(filename:join(Dir, "none.erc"))})),
     ?assertEqual({'Left', 'Invalid'}, ern_code:hashes({'Path', list_to_binary(File)})).
 
+%% Under Dir, a named pipe at `f.erc`, a link to a device at `dev.erc`,
+%% and a directory at `d.erc`, each by its path.
+unopened(Dir) ->
+    Pipe = filename:join(Dir, "f.erc"),
+    "" = os:cmd("mkfifo " ++ Pipe),
+    Device = filename:join(Dir, "dev.erc"),
+    ok = file:make_symlink("/dev/null", Device),
+    Directory = filename:join(Dir, "d.erc"),
+    ok = file:make_dir(Directory),
+    [Pipe, Device, Directory].
+
+%% Appendix E.28: `load` answers `Left(NotAFile)` for a path that names a
+%% named pipe or a device, a link followed, and does not open it; a
+%% directory answers `Left(Invalid)`. A socket is not covered
+load_unopened_test() ->
+    Dir = tmp(),
+    Paths = unopened(Dir),
+    Main = write(Dir, "main.ern",
+                 ["fn shown(path : String) : Unit =\n"
+                  "    Io.println(Io.show(Code.load(Path(path))))\n\n"
+                  "export fn main() : Unit = {\n",
+                  lists:join(";\n", ["    shown(\"" ++ Path ++ "\")" || Path <- Paths]),
+                  "\n}\n"]),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Io.NotAFile)">>, <<"Left(Io.NotAFile)">>, <<"Left(Io.Invalid)">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
+%% Appendix E.28: `hashes` answers as `load` does of the same paths, and
+%% opens neither the pipe nor the device. A socket is not covered
+hashes_unopened_test() ->
+    ?assertEqual([{'Left', 'NotAFile'}, {'Left', 'NotAFile'}, {'Left', 'Invalid'}],
+                 [ern_code:hashes({'Path', list_to_binary(Path)}) || Path <- unopened(tmp())]).
+
 %%
 %% Code.running, Appendix E.28
 %%

@@ -61,8 +61,8 @@
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2,
          function_text/3, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
-         placement/4, running/1, hashes/1, binding_keys/1, nearing/0, nearing/1, nearing/2, line/3,
-         counts/0]).
+         placement/4, running/1, hashes/1, is_unopened/1, binding_keys/1, nearing/0, nearing/1,
+         nearing/2, line/3, counts/0]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("checker/include/ern_types.hrl").
@@ -1102,12 +1102,15 @@ frame_arity(Arguments) when is_list(Arguments) -> length(Arguments).
 %% digest in lowercase hexadecimal, in the order of their forms, which is
 %% the order the module declares them; a foreign declaration has no hash
 %% and no definition (Appendix H). A path that names no file answers
-%% `NotFound`, and a file that is no `.erc` of this `ern`, whose interface
-%% or forms are of another format or none, `Invalid`; a file the host
-%% cannot read answers the host's reason (Appendix E.1).
+%% `NotFound`, one that names a named pipe, a device or a socket
+%% `NotAFile`, unopened, and a file that is no `.erc` of this `ern`, whose
+%% interface or forms are of another format or none, `Invalid`; a file the
+%% host cannot read answers the host's reason (Appendix E.1).
 -spec hashes({'Path', binary()}) -> {'Right', [{binary(), binary()}]} | {'Left', term()}.
 hashes({'Path', Path}) ->
-    case file:read_file(Path) of
+    case is_unopened(Path) orelse file:read_file(Path) of
+        true ->
+            {'Left', 'NotAFile'};
         {ok, Bytes} ->
             case {ern_interface:read(Bytes), ern_canonical:read(Bytes)} of
                 {{ok, _}, {ok, #recorded{definitions = Definitions}}} ->
@@ -1120,6 +1123,16 @@ hashes({'Path', Path}) ->
             end;
         {error, Error} ->
             {'Left', read_error(Error)}
+    end.
+
+%% Appendix E.28: whether a path reaches, a link followed, what is neither
+%% a regular file nor a directory, a named pipe, a device or a socket,
+%% which `load` and `hashes` do not open, since its read may never end.
+-spec is_unopened(file:name_all()) -> boolean().
+is_unopened(Path) ->
+    case file:read_file_info(Path, [raw]) of
+        {ok, #file_info{type = Type}} -> Type =/= regular andalso Type =/= directory;
+        {error, _} -> false
     end.
 
 %% Appendix E.28, E.1: a path that names no file, one whose directory does

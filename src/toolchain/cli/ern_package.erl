@@ -561,19 +561,30 @@ unmet(Needed, Least, #form{named = Named, names = Names}) ->
 %% not stand at the namespace of the package's name or under it, by its
 %% path, found as directory mode finds the modules under a directory; its
 %% namespace is its path's, and no source is parsed. A file whose path is
-%% not of a module's shape stands at no namespace, and the package's build
-%% refuses it (§11.1). A walk that cannot be made is said as its refusal,
-%% which names its path as §11.5 writes one.
+%% not of a module's shape, and one the walk does not open, stands at no
+%% namespace, and the package's build refuses it (§11.1). A walk that
+%% cannot be made is said as its refusal, which names its path as §11.5
+%% writes one. A package that holds no name `src` has no module, and a
+%% `src` that reaches no directory is refused in their place.
 modules_outside(Name, Package) ->
     Src = ern_build:shown(filename:join(Package, "src")),
     {ok, Provided} = ern_namespace:segment(Name),
-    try [Source || filelib:is_dir(Src), Source <- ern_build:sources(Src)] of
-        Sources ->
-            [lists:flatten([ern_build:shown(Source), ": the package ", Name, " provides ",
-                            Provided, " and what stands under it"])
-             || Source <- Sources, not is_provided(Source, Src, Name)]
-    catch
-        throw:{cli_error, Refusal} -> [Refusal]
+    case {file:read_link_info(Src, [raw]), file:read_file_info(Src)} of
+        {{error, enoent}, _} ->
+            [];
+        {_, {ok, #file_info{type = directory}}} ->
+            try ern_build:sources(Src) of
+                Sources ->
+                    [lists:flatten([ern_build:shown(Source), ": the package ", Name, " provides ",
+                                    Provided, " and what stands under it"])
+                     || Source <- Sources, is_list(Source), not is_provided(Source, Src, Name)]
+            catch
+                throw:{cli_error, Refusal} -> [Refusal]
+            end;
+        {{ok, _}, _} ->
+            [Src ++ ": not a directory"];
+        {{error, Error}, _} ->
+            [Src ++ ": " ++ file:format_error(Error)]
     end.
 
 is_provided(Source, Src, Name) ->
