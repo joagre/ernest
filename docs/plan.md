@@ -199,25 +199,17 @@ Items 30, 29, 31, 33 and 26 to 28 came first, decided with the user on 2026-11-1
     Refused*).
 37. **The library's functions written in a program**, decided with the user 2026-11-14, before
     MVP 4.4's item 4, so that the full review reads the library with them in it. A script in
-    the session's scratchpad lists each private function of the Ernest here outside the
-    standard library, `examples/`, `tour/`, `tools/`, `src/libs` and `src/shell`, with its
-    signature, and marks those whose type names no type of their program's own (the log's *A
-    Library's Function in a Program*).
+    the session's scratchpad lists the name and type of each private function of the Ernest
+    outside the standard library: here `examples/`, `tour/`, `tools/`, `src/libs` and
+    `src/shell`, and the three applications, read and not written. The session reads the
+    list, and reads the body of each function whose name and type look like a library's (the
+    log's *A Library's Function in a Program*).
 
-    Three readers judge the list side by side, `examples/`, `tour/` and `tools/` together,
-    `src/libs`, and `src/shell`, each given E.0, what Appendix E holds and its candidates'
-    bodies. A reader gives each marked function the module it would stand in and its verdict
-    by E.0, and finds among the unmarked each that names a type of its program's and never
-    looks inside it. The session judges a line its reader hesitates over and every admission,
-    and brings the user only what it wants to discuss. One admitted goes to Appendix E and
-    the library, a build each, and its program calls it there.
-
-    The three applications are swept from here too, read and not written: the script lists
-    their private functions, and two more readers judge them, ernest-httpd, and ernest-epx
-    with ernest-template. Their list stands here under each program's name. A message tells
-    an application's session, on the user's word, which of its functions the library takes,
-    and it drops each at its floor's rise. `ernest-template` takes CLAUDE.md's rule in a tag,
-    by its own session and in its own words, for what is written from then on.
+    The session judges each by E.0 and brings the user only what it wants to discuss. One
+    admitted goes to Appendix E and the library, a build each, and its program calls it there.
+    A message tells an application's session, on the user's word, which of its functions the
+    library takes, and it drops each at its floor's rise. `ernest-template` takes CLAUDE.md's
+    rule in a tag, by its own session and in its own words, for what is written from then on.
 38. **ern(1) written again after `make doc`**, found 2026-11-14 by item 28's full run: after a
     change to the toolchain's code, `make`, then `make doc`, then `make manual` writes
     `build/man/ern.1` a second time. The documents `make doc` writes into `build/stdlib`
