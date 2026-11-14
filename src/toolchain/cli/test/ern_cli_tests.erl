@@ -7969,6 +7969,19 @@ others_write(Path) ->
     {ok, #file_info{mode = Mode}} = file:read_file_info(Path),
     ok = file:change_mode(Path, Mode bor 8#002).
 
+%% Path given the mode Mode, its sticky bit among it, which
+%% file:change_mode/2 does not set.
+sticky_mode(Path, Mode) ->
+    ?assertEqual("", os:cmd(lists:flatten(io_lib:format("chmod ~.8B '~s'", [Mode, Path])))).
+
+%% Run Run in a fresh working directory of the mode Mode that holds the
+%% program `given.ern`.
+in_sticky_root(Mode, Run) ->
+    Dir = tmp(),
+    write(Dir, "given.ern", hello()),
+    sticky_mode(Dir, Mode),
+    in_directory(Dir, Run).
+
 %% Under the root package Root, the named package Name at Version: its
 %% manifest, which names no package, its `VERSION`, its source, the module of
 %% its name, whose `hello()` gives Text, compiled into its build by a job
@@ -8087,11 +8100,12 @@ package_unreadable_manifest_test() ->
                      ok = file:make_dir("package.conf"),
                      ?assertEqual(refusal("build", "package.conf: is no regular file"),
                                   said(["build", "given.ern"])),
-                     others_write("package.conf"),
+                     sticky_mode(".", 8#1777),
                      ?assertEqual(refused_lines("build",
                                                 ["package.conf: is no regular file",
-                                                 "package.conf: may be written by every user"]),
+                                                 ".: may be written by every user"]),
                                   said(["build", "given.ern"])),
+                     ok = file:change_mode(".", 8#755),
                      ok = file:del_dir("package.conf"),
                      "" = os:cmd("mkfifo package.conf"),
                      ?assertEqual(refusal("run", "package.conf: is no regular file"),
@@ -8119,21 +8133,112 @@ package_unreadable_manifest_test() ->
                      end
                  end).
 
-%% report §11.9, §11.2: a job that reads the manifest refuses it, the root
-%% package's directory, its `lib`, and a named package's directory, `src`,
-%% `build` and `ebin`, where every user may write it, by its mode, or by the
-%% mode of the directory that holds what a link reaches; every path at
-%% fault said, the root package's first and then each named package's, in
-%% the manifest's order, the root package's directory written `.`. Nothing
-%% under those directories is tested, and a named package whose entry is
-%% not of its form has no path tested. Not covered: a package another user
-%% owns, which a test run by one user cannot make
-package_paths_at_fault_test() ->
+%% report §11.9: a job given no `--package-dir` is refused where every user
+%% may write its root package's directory and the directory has the sticky
+%% bit, as `/tmp` has, with the one line that writes the directory `.`, each
+%% job that reads a manifest; `ern shell` is given a file that is not there,
+%% whose refusal the root package's stands in place of, so that it never
+%% starts. A regression test, written after the code. Not covered: a
+%% directory another user owns, which a test run by one user cannot make,
+%% and whose owner is not tested
+package_sticky_directory_test() ->
+    in_sticky_root(8#1777,
+                   fun() ->
+                       write(".", "package.conf", manifest_of([])),
+                       [?assertEqual(refusal(Job, ".: may be written by every user"),
+                                     said([Job, Given]))
+                        || {Job, Given} <- [{"build", "given.ern"}, {"doc", "given.ern"},
+                                            {"run", "given.erc"}, {"test", "given.erc"},
+                                            {"shell", "none.erc"}]],
+                       ?assertNot(filelib:is_file("given.erc"))
+                   end).
+
+%% report §11.9: every user may write a directory where its mode lets those
+%% write it who are neither its owner nor of its group, and the job is
+%% refused only where the directory has the sticky bit too: a directory of
+%% mode 0777 is not refused. A regression test, written after the code
+package_sticky_bit_needed_test() ->
+    in_sticky_root(8#777,
+                   fun() ->
+                       write(".", "package.conf", manifest_of([])),
+                       ?assertEqual({0, <<>>}, said(["build", "given.ern"]))
+                   end).
+
+%% report §11.9: a directory with the sticky bit that the users who are
+%% neither its owner nor of its group may not write is not refused, of mode
+%% 1755, or of mode 1775, which lets its group write it. A regression test,
+%% written after the code
+package_sticky_others_write_needed_test() ->
+    [in_sticky_root(Mode,
+                    fun() ->
+                        write(".", "package.conf", manifest_of([])),
+                        ?assertEqual({0, <<>>}, said(["build", "given.ern"]))
+                    end)
+     || Mode <- [8#1755, 8#1775]].
+
+%% report §11.9: the working directory is tested only where the job has a
+%% root package there: a directory of mode 1777 that holds no manifest is
+%% not refused. A regression test, written after the code
+package_sticky_without_manifest_test() ->
+    in_sticky_root(8#1777,
+                   fun() -> ?assertEqual({0, <<>>}, said(["build", "given.ern"])) end).
+
+%% report §11.9, §11: a job given a path outside the working directory
+%% reads no manifest there, and so does not test the directory: a job
+%% started in a directory of mode 1777 that holds a manifest builds and
+%% runs a program outside it. A regression test, written after the code
+package_sticky_path_outside_test() ->
+    Outside = tmp(),
+    write(Outside, "outside.ern", hello()),
+    in_sticky_root(8#1777,
+                   fun() ->
+                       write(".", "package.conf", manifest_of([])),
+                       ?assertEqual({0, <<>>}, said(["build", "--source-root", Outside,
+                                                     Outside ++ "/outside.ern"])),
+                       ?assertEqual({0, <<"hello, world\n">>},
+                                    said(["run", Outside ++ "/outside.erc"]))
+                   end).
+
+%% report §11.9: the directory `--package-dir` names is not tested for who
+%% may write it: a root package of mode 1777 named so is not refused, the
+%% job started elsewhere or started in it, under `ern run`. A regression
+%% test, written after the code. Not covered: `ern test` and `ern shell`,
+%% which take the option through the same function
+package_sticky_package_dir_test() ->
+    Chart = tmp(),
+    write(Chart, "package.conf", manifest_of([])),
+    write(Chart, "given.ern", hello()),
+    in_directory(Chart, fun() -> ?assertEqual(0, ern_err(["build", "given.ern"])) end),
+    sticky_mode(Chart, 8#1777),
+    in_directory(tmp(),
+                 fun() ->
+                     ?assertEqual({0, <<"hello, world\n">>},
+                                  said(["run", "--package-dir", Chart, Chart ++ "/given.erc"]))
+                 end),
+    in_directory(Chart,
+                 fun() ->
+                     ?assertEqual({0, <<"hello, world\n">>},
+                                  said(["run", "--package-dir", ".", "given.erc"])),
+                     ?assertEqual({0, <<"hello, world\n">>},
+                                  said(["run", "--package-dir", Chart, "given.erc"]))
+                 end).
+
+%% report §11.9: no other path of a package is tested for who may write
+%% it: a job is not refused where every user may write the manifest, `lib`,
+%% a named package's directory, its `src`, `build` and `ebin`, a file under
+%% it, and the directory that holds what a link at `lib/leaf` reaches, each
+%% directory with the sticky bit besides. A regression test, written after
+%% the code. Not covered: `ern doc`, `ern test` and `ern shell`, whose root
+%% package is read by the same function
+package_paths_untested_test_() ->
+    {timeout, 60, fun package_paths_untested/0}.
+
+package_paths_untested() ->
     Elsewhere = tmp(),
     ok = filelib:ensure_path(filename:join(Elsewhere, "open")),
     in_directory(filename:join(Elsewhere, "open"),
                  fun() -> ok = file:rename(whole_package("leaf", "1.3.0", []), "leaf") end),
-    others_write(filename:join(Elsewhere, "open")),
+    sticky_mode(filename:join(Elsewhere, "open"), 8#1777),
     in_directory(tmp(),
                  fun() ->
                      write(".", "given.ern", hello()),
@@ -8144,24 +8249,13 @@ package_paths_at_fault_test() ->
                      write(".", "lib/epx/VERSION", "0.2.1\n"),
                      write(".", "lib/epx/package.conf", manifest_of([])),
                      ok = file:make_symlink(filename:join(Elsewhere, "open/leaf"), "lib/leaf"),
-                     Open = ["package.conf", ".", "lib", "lib/epx", "lib/epx/src", "lib/epx/build",
-                             "lib/epx/ebin"],
-                     [others_write(Path) || Path <- Open ++ ["lib/epx/src/epx.ern",
-                                                             "lib/epx/VERSION"]],
-                     ?assertEqual(refused_lines("build",
-                                                [Path ++ ": may be written by every user"
-                                                 || Path <- Open ++ ["lib/leaf"]]),
-                                  said(["build", "given.ern"])),
-                     ok = filelib:ensure_path("lib/bad"),
-                     others_write("lib/bad"),
-                     write(".", "package.conf", manifest_of([{"epx", "0.2.1"}, {"bad", "x"}])),
-                     ?assertEqual(refused_lines("build",
-                                                ["package.conf: the entry for bad's version is not"
-                                                 " three numbers joined by `.`, none written with a"
-                                                 " leading zero: \"x\""
-                                                 | [Path ++ ": may be written by every user"
-                                                    || Path <- Open]]),
-                                  said(["build", "given.ern"]))
+                     [sticky_mode(Path, 8#1777)
+                      || Path <- ["lib", "lib/epx", "lib/epx/src", "lib/epx/build",
+                                  "lib/epx/ebin"]],
+                     [others_write(Path) || Path <- ["package.conf", "lib/epx/src/epx.ern",
+                                                     "lib/epx/VERSION"]],
+                     ?assertEqual({0, <<>>}, said(["build", "given.ern"])),
+                     ?assertEqual({0, <<"hello, world\n">>}, said(["run", "given.erc"]))
                  end).
 
 %% report §11.9, §4.2: an entry whose namespace is one §4.2 takes, the
@@ -8219,10 +8313,11 @@ package_not_under_lib_test() ->
                  end).
 
 %% report §11.9: a job says its refusals in this order, each group whole:
-%% the manifest's form, the paths at fault, the entries' namespaces, the
-%% named packages not under `lib`, a path given under `lib`, and, in `ern
-%% build`, the build's rules, of every entry of its form under `lib`, one
-%% whose namespace is refused among them; `ern doc` holds no rule
+%% the manifest's form, the directory every user may write, the entries'
+%% namespaces, the named packages not under `lib`, a path given under
+%% `lib`, and, in `ern build`, the build's rules, of every entry of its form
+%% under `lib`, one whose namespace is refused among them; `ern doc` holds
+%% no rule
 package_refusal_order_test() ->
     in_directory(tmp(),
                  fun() ->
@@ -8233,9 +8328,9 @@ package_refusal_order_test() ->
                             " {\"name\": \"leaf\", \"version\": \"1.2.0\"}], \"x\": 1}\n"]),
                      ok = filelib:ensure_path("lib/io"),
                      whole_package("leaf", "1.3.0", []),
-                     others_write("package.conf"),
+                     sticky_mode(".", 8#1777),
                      Before = ["package.conf: the file has the unknown field x",
-                               "package.conf: may be written by every user",
+                               ".: may be written by every user",
                                "package.conf: the entry for io names Io, which no package may take",
                                "package.conf: epx 0.2.1 is not under lib; ern unpack puts it there",
                                "lib/leaf/src/leaf.ern is the package leaf's, which ern build"
@@ -8262,7 +8357,6 @@ package_refusal_order_test() ->
 package_dir_test() ->
     Chart = tmp(),
     write(Chart, "package.conf", manifest_of([{"epx", "0.2.1"}])),
-    others_write(Chart),
     Empty = tmp(),
     Good = tmp(),
     write(Good, "package.conf", manifest_of([])),
@@ -8276,8 +8370,7 @@ package_dir_test() ->
                      ?assertEqual(0, ern_err(["build", "given.ern"])),
                      write(".", "package.conf", "{"),
                      write(".", "p", "a file\n"),
-                     At = [Chart ++ ": may be written by every user",
-                           Chart ++ "/package.conf: epx 0.2.1 is not under " ++ Chart
+                     At = [Chart ++ "/package.conf: epx 0.2.1 is not under " ++ Chart
                            ++ "/lib; ern unpack puts it there"],
                      [?assertEqual(refused_lines(Job, At),
                                    said([Job, "--package-dir", Chart | Rest]))
@@ -8384,7 +8477,7 @@ package_load_path_in() ->
     ?assertEqual([Cwd, In("lib/lp_epx/ebin"), In("lib/lp_epx/build"), In("lib/lp_leaf/build"),
                   In("lib/lp_none/build") | Libraries], ern_build:directories(ern_cli:load_path())),
     %% the builds alone, where the job runs no code
-    Packages = ern_package:packages(ern_package:read(".", "doc", [])),
+    Packages = ern_package:packages(ern_package:read(".", working_directory, "doc", [])),
     ?assertEqual([In("lib/lp_epx/build"), In("lib/lp_leaf/build"), In("lib/lp_none/build")
                   | Libraries],
                  ern_build:directories(ern_build:load_path([{named_package, Package}
@@ -9365,23 +9458,19 @@ package_load_path_of_a_build() ->
     ?assertEqual({0, <<"midcodecextra\n">>},
                  said(["run", "--load-path", Extra, "build/lb_main.erc"])).
 
-%% report §11.9: what `ern build` writes under a named package may be
-%% written by its owner alone, neither the group nor others given the right
-%% to write it, each file and each directory it makes, whatever the user's
-%% mask, a file written again that others could write among them. The
-%% sentence ends at the named package: what the job writes for the root
-%% package keeps the group's right the mask gives. The job runs as the
-%% launcher runs it, under a mask that lets the group write
+%% report §11.9, §11.1: what `ern build` writes under a named package is
+%% written as the root package's files are: under one mask, here one that
+%% lets the group write, a file it makes under a named package's build has
+%% the mode a file it makes under the root package's build has, and so has
+%% each directory it makes there. The job runs as the launcher runs it,
+%% under that mask. A regression test, written after the code: it does not
+%% cover a file written again, which keeps its mode under any root (§11)
 package_build_modes_test_() ->
     {timeout, 60, fun package_build_modes/0}.
 
 package_build_modes() ->
     Ern = filename:absname("bin/ern"),
     Dir = tmp(),
-    Built = fun() ->
-                ?assertEqual("", os:cmd("cd " ++ Dir ++ " && umask 002 && " ++ Ern
-                                        ++ " build src/bm_main.ern 2>&1"))
-            end,
     in_directory(Dir,
                  fun() ->
                      source_package("bm_leaf", [],
@@ -9391,19 +9480,19 @@ package_build_modes() ->
                      root_manifest(["bm_leaf"]),
                      write(".", "src/bm_main.ern",
                            "export fn main() : Unit =\n"
-                           "    Io.println(Int.toString(BmLeaf.one()))\n")
+                           "    Io.println(Int.toString(BmLeaf.one()))\n"),
+                     write(".", "src/bm_main/deep/inner.ern", "export fn two() : Int =\n    2\n")
                  end),
-    Built(),
+    ?assertEqual("", os:cmd("cd " ++ Dir ++ " && umask 002 && " ++ Ern
+                            ++ " build src 2>&1")),
     In = fun(Path) -> filename:join(Dir, Path) end,
-    [?assertEqual(0, mode_of(In(Path)) band 8#022)
-     || Path <- ["lib/bm_leaf/build", "lib/bm_leaf/build/bm_leaf", "lib/bm_leaf/build/bm_leaf/deep",
-                 "lib/bm_leaf/build/bm_leaf.erc", "lib/bm_leaf/build/bm_leaf/deep/inner.erc"]],
-    ?assertEqual(8#020, mode_of(In("build/bm_main.erc")) band 8#020),
-    ?assertEqual(8#020, mode_of(In("build")) band 8#020),
-    ok = file:change_mode(In("lib/bm_leaf/build/bm_leaf.erc"), 8#666),
-    write(Dir, "lib/bm_leaf/src/bm_leaf.ern", "export fn one() : Int =\n    11\n"),
-    Built(),
-    ?assertEqual(0, mode_of(In("lib/bm_leaf/build/bm_leaf.erc")) band 8#022).
+    ?assertEqual(8#664, mode_of(In("build/bm_main.erc"))),
+    ?assertEqual([mode_of(In(Path)) || Path <- ["build/bm_main.erc", "build/bm_main/deep/inner.erc",
+                                                "build", "build/bm_main", "build/bm_main/deep"]],
+                 [mode_of(In(Path)) || Path <- ["lib/bm_leaf/build/bm_leaf.erc",
+                                                "lib/bm_leaf/build/bm_leaf/deep/inner.erc",
+                                                "lib/bm_leaf/build", "lib/bm_leaf/build/bm_leaf",
+                                                "lib/bm_leaf/build/bm_leaf/deep"]]).
 
 %% report §11.9, §11.1: a named package's build is cleaned up as a
 %% directory's is, after a build in which each of its modules compiled: a
@@ -9744,17 +9833,17 @@ streams(Args) ->
 
 %% report §11, §11.9: a refusal of the root package is written on standard
 %% error and nothing on standard output, one of each group in the order's:
-%% the manifest's form, the paths at fault, the entries' namespaces, the
-%% named packages not under `lib`, a path given under `lib`, and the
-%% build's rules. A regression test, written after the code
+%% the manifest's form, the directory every user may write, the entries'
+%% namespaces, the named packages not under `lib`, a path given under
+%% `lib`, and the build's rules. A regression test, written after the code
 package_refusal_stream_test() ->
     Refusals =
         [{fun() -> write(".", "package.conf", "{") end, "given.ern", "package.conf: is not JSON"},
          {fun() ->
                   write(".", "package.conf", manifest_of([])),
-                  others_write("package.conf")
+                  sticky_mode(".", 8#1777)
           end,
-          "given.ern", "package.conf: may be written by every user"},
+          "given.ern", ".: may be written by every user"},
          {fun() ->
                   whole_package("io", "1.0.0", []),
                   write(".", "package.conf", manifest_of([{"io", "1.0.0"}]))
@@ -9978,110 +10067,6 @@ package_given_linked_package_test() ->
                                                    " build builds"),
                                   said(["build", "lib/leaf"]))
                  end).
-
-%% report §11.9: what `ern build` writes under a named package may be
-%% written by its owner alone, under a mask that lets every user write, and
-%% it leaves nothing beside what it wrote, the directory each file was made
-%% in among it. A regression test, written after the code: it holds the
-%% modes once written, and cannot hold that no other user could open a
-%% file or plant an entry in a directory while it was made, which is a race
-%% between two users
-package_build_owner_alone_test_() ->
-    {timeout, 60, fun package_build_owner_alone/0}.
-
-package_build_owner_alone() ->
-    Ern = filename:absname("bin/ern"),
-    Dir = tmp(),
-    in_directory(Dir,
-                 fun() ->
-                     source_package("oa_leaf", [],
-                                    [{"oa_leaf.ern", "export fn one() : Int =\n    1\n"},
-                                     {"oa_leaf/deep/inner.ern",
-                                      "export fn two() : Int =\n    2\n"}]),
-                     root_manifest(["oa_leaf"]),
-                     write(".", "src/oa_main.ern", hello())
-                 end),
-    ?assertEqual("", os:cmd("cd " ++ Dir ++ " && umask 000 && " ++ Ern ++ " build src 2>&1")),
-    Build = filename:join(Dir, "lib/oa_leaf/build"),
-    Written = every_name(Build),
-    ?assertEqual(["oa_leaf", "oa_leaf.erc", "oa_leaf/deep", "oa_leaf/deep/inner.erc"], Written),
-    [?assertEqual(0, mode_of(filename:join(Build, Path)) band 8#022) || Path <- ["." | Written]].
-
-%% What Work answers, while a file server stands in the host's place that
-%% passes every request on to it, but for the make of a directory Dir for
-%% which IsRaced(Dir) is true: it makes the directory, puts an entry of
-%% the job's own user in it, `.meanwhile`, as a job beside this one would,
-%% and only then answers. A job's files are made through the host's file
-%% server, so the entry stands in the directory as the job made it.
-entered_as_made(IsRaced, Work) ->
-    Host = whereis(file_server_2),
-    Racer = spawn_link(fun() -> racing(Host, IsRaced) end),
-    true = unregister(file_server_2),
-    true = register(file_server_2, Racer),
-    try
-        Work()
-    after
-        true = unregister(file_server_2),
-        true = register(file_server_2, Host),
-        unlink(Racer),
-        exit(Racer, kill)
-    end.
-
-racing(Host, IsRaced) ->
-    receive
-        {'$gen_call', From, {make_dir, Dir} = Request} = Call ->
-            case IsRaced(Dir) of
-                true ->
-                    Made = gen_server:call(Host, Request, infinity),
-                    ok = prim_file:write_file(filename:join(Dir, ".meanwhile"), <<>>),
-                    gen_server:reply(From, Made);
-                false ->
-                    Host ! Call
-            end;
-        Other ->
-            Host ! Other
-    end,
-    racing(Host, IsRaced).
-
-%% Whether a directory's path ends in Parts.
-ends_in(Dir, Parts) ->
-    lists:suffix(Parts, filename:split(Dir)).
-
-%% report §11.9: a directory `ern build` makes under a named package that
-%% an entry of the job's own user stands in as it is made, as one another
-%% build of that user puts there meanwhile, is taken, and the build goes
-%% on. An entry of another user's, which refuses the build, is not
-%% covered, since a test run as one user cannot make one
-package_build_own_entry_test_() ->
-    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_own_entry/0) end}.
-
-package_build_own_entry() ->
-    source_package("oe_leaf", [], [{"oe_leaf.ern", "export fn one() : Int =\n    1\n"}]),
-    root_manifest(["oe_leaf"]),
-    write(".", "src/oe_main.ern", hello()),
-    ?assertEqual({0, <<>>},
-                 entered_as_made(fun(Dir) -> ends_in(Dir, ["lib", "oe_leaf", "build"]) end,
-                                 fun() -> said(["build", "src"]) end)),
-    ?assertEqual([".meanwhile", "oe_leaf.erc"], every_name("lib/oe_leaf/build")).
-
-%% report §11.9: the directory beside its place that a file its owner alone
-%% may write is made in holds nothing as it is made, and an entry of the
-%% job's own user there refuses the build. A regression test, written
-%% after the code
-package_build_staged_entry_test_() ->
-    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_staged_entry/0) end}.
-
-package_build_staged_entry() ->
-    source_package("os_leaf", [], [{"os_leaf.ern", "export fn one() : Int =\n    1\n"}]),
-    root_manifest(["os_leaf"]),
-    write(".", "src/os_main.ern", hello()),
-    IsStaged = fun(Dir) ->
-                   ends_in(filename:dirname(Dir), ["lib", "os_leaf", "build"])
-                       andalso filename:extension(Dir) =:= ".new"
-               end,
-    ?assertEqual(refusal("build", "lib/os_leaf/build: it was written to by another as it was"
-                                  " made, and os_leaf.erc is written whole by a rename there"),
-                 entered_as_made(IsStaged, fun() -> said(["build", "src"]) end)).
 
 %% Every name under Dir, dot names among them, each its path from Dir, in
 %% order.

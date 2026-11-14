@@ -265,11 +265,8 @@ cold before the build (the log's *The Trust Said Once*).
     attacker: the sticky directory (§11.9), a node's key (§12.5) and the owner of
     `ernest.pid` (§11.2). The item is two builds, and closes on `make test-full`.
 
-    The first build is §11.9's. A job started in a directory that every user may write and
-    that has the sticky bit is refused where the directory holds a manifest. No other path
-    of a package is tested, no link's directory, and not the directory `--package-dir`
-    names. What `ern build` writes under a named package is written as the root package's
-    files are: the staging directory and its refusal go.
+    The first build, §11.9's, is done 2026-11-14 (the log's *The Trust Said Once*, its
+    paragraph *The first build*).
 
     The second build is the ownership test's, which goes: its paragraph in §11.2, its line
     in Appendix F, `ern_ownership`, the shell's walk in Ernest and the helper's test of a

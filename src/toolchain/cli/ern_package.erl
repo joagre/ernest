@@ -1,19 +1,19 @@
 %% Report §11.9: a job's root package read, the directory whose manifest,
-%% `package.conf`, the job reads: the manifest held to its form, the paths
-%% every user may write, each entry's namespace, each named package under
-%% the root package's `lib`, a path given under `lib`, and, in `ern build`,
-%% the named packages' manifests and `VERSION`s held to the root package's
-%% by the build's rules, every fault said, a line each, in the order §11.9
-%% gives them, before the job does anything else. It gives the job its
-%% named packages, as its load path holds them, and what `--verbose` says
-%% of them.
+%% `package.conf`, the job reads: the manifest held to its form, the
+%% directory every user may write, each entry's namespace, each named
+%% package under the root package's `lib`, a path given under `lib`, and, in
+%% `ern build`, the named packages' manifests and `VERSION`s held to the
+%% root package's by the build's rules, every fault said, a line each, in
+%% the order §11.9 gives them, before the job does anything else. It gives
+%% the job its named packages, as its load path holds them, and what
+%% `--verbose` says of them.
 %%
 %% Whether a directory holds a manifest, the look, is the job's
 %% (ern_cli:root_package/3), so that a job started where there is none
 %% loads nothing of this module.
 -module(ern_package).
 
--export([read/3, packages/1, built_order/1, said/1]).
+-export([read/4, packages/1, built_order/1, said/1]).
 
 -include_lib("kernel/include/file.hrl").
 -include_lib("cli/include/ern_build.hrl").
@@ -55,30 +55,28 @@
 -opaque package() :: #package{}.
 -export_type([package/0]).
 
-%% Report §11.9: the root package Dir, which holds a manifest, read by the
-%% job Job, `"build"`, `"doc"`, `"run"`, `"test"` or `"shell"`, given the
-%% paths Given, as resolved (§11), each an `{argument, Path}` or the
-%% `{build_root, Path}` its `--build-root` names. The job's load path takes
-%% each named package's build, and its `ebin` too where the job runs code.
-%% `ern build` and `ern doc` refuse a path given under `lib`, and `ern
-%% build` alone holds the build's rules. A job that cannot read the
-%% manifest has one fault of its form, and the other groups are said all
-%% the same. Every fault is thrown, a line each, as `{cli_errors, Lines}`,
-%% which the job writes after its name.
--spec read(file:filename(), string(),
+%% Report §11.9: the root package Dir, which holds a manifest, Place being
+%% where it is, the `working_directory` the job was started in or the
+%% `package_dir` its `--package-dir` names, read by the job Job, `"build"`,
+%% `"doc"`, `"run"`, `"test"` or `"shell"`, given the paths Given, as
+%% resolved (§11), each an `{argument, Path}` or the `{build_root, Path}`
+%% its `--build-root` names. The job's load path takes each named package's
+%% build, and its `ebin` too where the job runs code. `ern build` and `ern
+%% doc` refuse a path given under `lib`, and `ern build` alone holds the
+%% build's rules. A job that cannot read the manifest has one fault of its
+%% form, and the other groups are said all the same. Every fault is thrown,
+%% a line each, as `{cli_errors, Lines}`, which the job writes after its
+%% name.
+-spec read(file:filename(), working_directory | package_dir, string(),
            [{argument, file:filename()} | {build_root, file:filename()}]) -> package().
-read(Dir, Job, Given) ->
+read(Dir, Place, Job, Given) ->
     Manifest = filename:join(Dir, "package.conf"),
     Lib = filename:join(Dir, "lib"),
     #form{faults = Form, named = Named} = RootForm = manifest(Manifest),
     Shown = ern_build:shown(Manifest),
     Packages = [{Name, Version, filename:join(Lib, Name)} || {Name, Version} <- Named],
-    %% report §11.9: the paths at fault, the root package's first and then
-    %% each named package's, in the manifest's order
-    Open = [ern_build:shown(Path) ++ ": may be written by every user"
-            || Path <- [Manifest, Dir, Lib | lists:append([package_paths(Package)
-                                                           || {_, _, Package} <- Packages])],
-               is_open(Path)],
+    Open = [ern_build:shown(Dir) ++ ": may be written by every user"
+            || Place =:= working_directory, is_sticky_open(Dir)],
     Taken = case Named of
                 [] -> [];
                 _ -> taken(Named, Shown)
@@ -135,18 +133,17 @@ text(Manifest) ->
             {fault, file:format_error(Error)}
     end.
 
-%% Report §11.9: the paths of a named package that are tested, in the
-%% order they are said.
-package_paths(Package) ->
-    [Package | [filename:join(Package, Directory) || Directory <- ["src", "build", "ebin"]]].
-
-%% Report §11.9: a path every user may write, by its mode or by the mode of
-%% the directory that holds what a link reaches, the ownership test's with
-%% no owner tested (§11.2); a path that is not there is not tested.
-is_open(Path) ->
-    case file:read_file_info(Path) of
-        {ok, Info} -> ern_ownership:failure(Path, Info, any) =:= every_user_may_write;
-        {error, _} -> false
+%% Report §11.9: whether every user may write the working directory, Dir,
+%% and it has the sticky bit: its mode lets those write it who are neither
+%% its owner nor of its group, and its owner is not tested. One stat, made
+%% only where the job has a root package there. A directory whose mode the
+%% host will not give refuses the job with the host's reason, as one whose
+%% manifest's name cannot be looked for does: only a directory changed
+%% since that look gives it.
+is_sticky_open(Dir) ->
+    case file:read_file_info(Dir) of
+        {ok, #file_info{mode = Mode}} -> Mode band 8#1002 =:= 8#1002;
+        {error, Error} -> ern_build:refused(Dir, Error)
     end.
 
 %% Report §11.9, §11.1, §11.2: each named package, in the manifest's

@@ -328,44 +328,46 @@ root_package(Job, Options, Arguments) ->
             Options;
         {true, false, undefined} ->
             case lists:all(fun(Path) -> filename:pathtype(Path) =/= absolute end, Arguments) of
-                true -> packaged(Options, ".", optional, Job, Arguments);
+                true -> packaged(Options, ".", working_directory, Job, Arguments);
                 false -> Options
             end;
         {true, false, Dir} ->
-            packaged(Options, Dir, required, Job, Arguments)
+            packaged(Options, Dir, package_dir, Job, Arguments)
     end.
 
 %% Report §11.9: the jobs that read a manifest. What each takes of it is
-%% the package's (ern_package:read/3). `ern unpack` reads one too, and is
+%% the package's (ern_package:read/4). `ern unpack` reads one too, and is
 %% not implemented.
 reads_manifest(Job) ->
     lists:member(Job, ["build", "doc", "run", "test", "shell"]).
 
-%% Report §11.9: Options with the root package Dir, read where Dir holds
-%% the name `package.conf`, whatever it reaches, by the job Job given the
-%% paths Arguments and its `--build-root`: the package's directory, whose
-%% `src` and `build` are default roots (§11.1, §11.2), its named packages,
-%% as the load path holds them, under `ern build` the order it builds them
-%% in, and, where `--verbose` asks, what it says of them, as data, since the
-%% build, which is in the compiler's hash, calls no module of the package's
-%% (ern_build:load_path/1). A Dir `--package-dir` names that holds none is
-%% refused, and so is one whose name cannot be looked for.
-packaged(Options, Dir, Required, Job, Arguments) ->
+%% Report §11.9: Options with the root package Dir, Place being the
+%% `working_directory` or the `package_dir` `--package-dir` names, read
+%% where Dir holds the name `package.conf`, whatever it reaches, by the job
+%% Job given the paths Arguments and its `--build-root`: the package's
+%% directory, whose `src` and `build` are default roots (§11.1, §11.2), its
+%% named packages, as the load path holds them, under `ern build` the order
+%% it builds them in, and, where `--verbose` asks, what it says of them, as
+%% data, since the build, which is in the compiler's hash, calls no module
+%% of the package's (ern_build:load_path/1). A Dir `--package-dir` names
+%% that holds none is refused, and so is one whose name cannot be looked
+%% for.
+packaged(Options, Dir, Place, Job, Arguments) ->
     Manifest = filename:join(Dir, "package.conf"),
-    case {file:read_link_info(Manifest, [raw]), Required} of
+    case {file:read_link_info(Manifest, [raw]), Place} of
         {{ok, _}, _} ->
             Given = [{argument, Path} || Path <- Arguments]
                 ++ [{build_root, Path} || {build_root, Path} <- Options],
-            Package = ern_package:read(Dir, Job, Given),
+            Package = ern_package:read(Dir, Place, Job, Given),
             Options ++ [{root_package, ern_build:absolute(Dir)}]
                 ++ [{named_package, Named} || Named <- ern_package:packages(Package)]
                 ++ [{package_order, Order} || Order <- [ern_package:built_order(Package)],
                                               Order =/= []]
                 ++ [{package_said, Line} || lists:member(verbose, Options),
                                             Line <- ern_package:said(Package)];
-        {{error, enoent}, optional} ->
+        {{error, enoent}, working_directory} ->
             Options;
-        {{error, enoent}, required} ->
+        {{error, enoent}, package_dir} ->
             ern_build:fail(ern_build:shown(Manifest) ++ ": no such file");
         {{error, Error}, _} ->
             ern_build:refused(Manifest, Error)

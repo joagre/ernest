@@ -49,7 +49,7 @@
 compile(Job, Options, Path, ErrorDevice) ->
     Emit = case lists:member(emit_erl, Options) of
                true -> erl;
-               false -> {erc, masked}
+               false -> erc
            end,
     {Status, _} = compile(Job, Options, Path, ErrorDevice, Emit),
     Status.
@@ -139,11 +139,10 @@ said_roots({SourceRoot, BuildRoot, _}, Say) ->
 %% job's options carry, `{package_order, Names}`. Its load path is the
 %% standard library, the builds of the packages its own manifest names, as
 %% built here, and the builds of the toolchain's libraries; no option's
-%% directory and no other named package. What it writes may be written by
-%% its owner alone. A package with no `src` builds nothing. The status, 1
-%% where a package's module failed, and each package as built, by its name,
-%% with the namespaces of its modules that failed or were left uncompiled,
-%% which a module that uses one is not compiled for.
+%% directory and no other named package. A package with no `src` builds
+%% nothing. The status, 1 where a package's module failed, and each package
+%% as built, by its name, with the namespaces of its modules that failed or
+%% were left uncompiled, which a module that uses one is not compiled for.
 packages_built(Job, Options, ErrorDevice, Say) ->
     Named = [Package || {named_package, Package} <- Options],
     lists:foldl(fun(Name, {Status, Built}) ->
@@ -158,8 +157,7 @@ packages_built(Job, Options, ErrorDevice, Say) ->
                                 Roots = {Src, Build, true},
                                 said_roots(Roots, Say),
                                 {PackageStatus, _, Failed} = built_tree(Job, Src, Roots, LoadPath,
-                                                                        {erc, owner_alone},
-                                                                        ErrorDevice, Say),
+                                                                        erc, ErrorDevice, Say),
                                 {max(Status, PackageStatus),
                                  Built#{Name => Package#named_package{failed = Failed}}}
                         end
@@ -188,10 +186,7 @@ built_tree(Job, Path, {SourceRoot, BuildRoot, IsRootGiven}, LoadPath, Emit, Erro
                true -> tree;
                false -> file
            end,
-    IsErc = case Emit of
-                {erc, _} -> true;
-                _ -> false
-            end,
+    IsErc = Emit =:= erc,
     %% report §11.1: the roots a dependency is found under, the build root
     %% and then each root of the load path, and report §11.9: a named
     %% package's namespace under its build alone
@@ -1552,10 +1547,7 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
     OutputBase = filename:join(BuildRoot, filename:rootname(Relative)),
     Erc = OutputBase ++ ".erc",
     Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
-    IsErc = case Emit of
-                {erc, _} -> true;
-                _ -> false
-            end,
+    IsErc = Emit =:= erc,
     case IsErc andalso current(Namespace, Erc, {SourceHash, SourcePath, Resolved},
                                DependencyHashes, Against, Given) of
         {true, Interface} ->
@@ -1652,22 +1644,12 @@ emitted(erl, #build_module{namespace = Namespace, file = File} = Module,
                                                          shown(File), "\n", Source])),
     Say(compiled_line(Module, Erl)),
     none;
-emitted({erc, Written}, #build_module{namespace = Namespace} = Module, {Typed, Interface, Env},
+emitted(erc, #build_module{namespace = Namespace} = Module, {Typed, Interface, Env},
         Build, OutputBase, Say) ->
     Erc = OutputBase ++ ".erc",
-    %% report §11.9: what `ern build` writes under a named package may be
-    %% written by its owner alone, each file and each directory, whatever
-    %% the user's mask; what it writes elsewhere takes the mask's mode
-    Mode = case Written of
-               masked ->
-                   ok = make_dirs(Erc),
-                   undefined;
-               owner_alone ->
-                   ok = make_owners_dirs(Erc),
-                   owner_alone
-           end,
+    ok = make_dirs(Erc),
     {ok, _, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
-    ok = write_output(Erc, Beam, Mode),
+    ok = write_output(Erc, Beam),
     Say(compiled_line(Module, Erc)),
     none;
 emitted({memory, _}, #build_module{namespace = Namespace, file = File},
@@ -2397,10 +2379,9 @@ write_whole(File, Data) ->
 write_output(File, Data) ->
     write_output(File, Data, undefined).
 
-%% Mode is the file's: undefined for the one it has or else the mask's, a
-%% mode, or `owner_alone`, either of those with no right for any other to
-%% write it (report §11.9).
--spec write_output(file:filename(), iodata(), non_neg_integer() | undefined | owner_alone) -> ok.
+%% Mode is the file's: undefined for the one it has or else the mask's, or
+%% a mode.
+-spec write_output(file:filename(), iodata(), non_neg_integer() | undefined) -> ok.
 write_output(File, Data, Mode) ->
     write_at(File, File, Data, Mode).
 
@@ -2417,30 +2398,19 @@ write_at(File, Place, Data, Mode) ->
     Kept = case {Mode, Info} of
                {undefined, {ok, #file_info{type = regular, mode = Existing}}} ->
                    Existing band 8#7777;
-               {owner_alone, {ok, #file_info{type = regular, mode = Existing}}} ->
-                   owner_alone(Existing);
                {Given, _} -> Given
            end,
-    %% report §11.9: a file its owner alone may write is made in a
-    %% directory only its owner can enter, so that no other opens it before
-    %% its mode is set, and renamed out with that mode
-    {New, Device, Stage} = case Mode of
-                               owner_alone -> made_alone(File, Place, 0);
-                               _ -> made_beside(File, Place, 0)
-                           end,
+    {New, Device} = made_beside(File, Place, 0),
     %% the mode before the data, so that what is private is never readable
     Steps = [fun() -> file:change_mode(New, Kept) end || is_integer(Kept)]
-        ++ [fun() -> owners_alone(New) end || Kept =:= owner_alone]
         ++ [fun() -> file:write(Device, Data) end, fun() -> file:close(Device) end,
-            fun() -> file:rename(New, Place) end]
-        ++ [fun() -> file:del_dir(Stage) end || Stage =/= none],
+            fun() -> file:rename(New, Place) end],
     case lists:foldl(fun(Step, ok) -> Step(); (_, Failed) -> Failed end, ok, Steps) of
         ok ->
             ok;
         {error, Error} ->
             _ = file:close(Device),
             _ = file:delete(New),
-            _ = Stage =/= none andalso file:del_dir(Stage),
             fail(shown(File) ++ ": " ++ file:format_error(Error))
     end.
 
@@ -2449,36 +2419,13 @@ write_at(File, Place, Data, Mode) ->
 %% the last rename wins (report §11). It is made here or not at all: the
 %% host refuses a name that is there, a link among them, so that a name
 %% another planted is passed over for the next and is never written
-%% through. It stands in no directory of its own, `none`.
+%% through.
 made_beside(File, Place, Tries) ->
     New = own_name(Place),
     case file:open(New, [write, exclusive, raw]) of
-        {ok, Device} -> {New, Device, none};
+        {ok, Device} -> {New, Device};
         {error, eexist} when Tries < 16 -> made_beside(File, Place, Tries + 1);
         {error, Error} -> unwritable(File, Place, file:format_error(Error))
-    end.
-
-%% Report §11.9: the same, in a directory of its own beside Place, made as
-%% make_private_dir/1 makes one, which no other can enter, the file at
-%% Place's name in it, with the directory.
-made_alone(File, Place, Tries) ->
-    Stage = own_name(Place),
-    case make_private_dir(Stage) of
-        ok ->
-            New = filename:join(Stage, filename:basename(Place)),
-            case file:open(New, [write, exclusive, raw]) of
-                {ok, Device} ->
-                    {New, Device, Stage};
-                {error, Error} ->
-                    _ = file:del_dir(Stage),
-                    unwritable(File, Place, file:format_error(Error))
-            end;
-        exists when Tries < 16 ->
-            made_alone(File, Place, Tries + 1);
-        exists ->
-            unwritable(File, Place, file:format_error(eexist));
-        {error, Reason} ->
-            unwritable(File, Place, Reason)
     end.
 
 %% A name of this writer's own beside Place, which begins with a dot, so
@@ -2570,36 +2517,6 @@ make_dirs(File) ->
         {error, Error} -> refused(filename:dirname(File), Error)
     end.
 
-%% Report §11.9: the same, each directory made with no right for any other
-%% to write it, whatever the user's mask, as `ern build` makes one under a
-%% named package, and listed once it is so, as make_private_dir/1 lists
-%% one, so that nothing another put in it before is written through; a
-%% directory that is there is left as it is.
-make_owners_dirs(File) ->
-    Dir = filename:dirname(File),
-    case filelib:is_dir(Dir) of
-        true ->
-            ok;
-        false ->
-            ok = make_owners_dirs(Dir),
-            case made_dir(Dir, owner_alone) of
-                ok -> ok;
-                exists -> ok;
-                {error, Reason} -> fail(shown(Dir) ++ ": " ++ Reason)
-            end
-    end.
-
-%% Report §11.9: the file or directory at Path, as it was made, with the
-%% rights of others to write it taken away.
-owners_alone(Path) ->
-    case file:read_file_info(Path) of
-        {ok, #file_info{mode = Made}} -> file:change_mode(Path, owner_alone(Made));
-        {error, _} = Error -> Error
-    end.
-
-owner_alone(Mode) ->
-    Mode band 8#7777 band bnot 8#022.
-
 %% Report §8.3, §11.2: a directory made here or not at all, and its
 %% owner's alone before anything is written in it, so that no one else can
 %% open a file there or put a link where a job writes; what another put in
@@ -2608,27 +2525,10 @@ owner_alone(Mode) ->
 %% stands at its path, and otherwise why it was not made.
 -spec make_private_dir(file:filename()) -> ok | exists | {error, string()}.
 make_private_dir(Dir) ->
-    made_dir(Dir, 8#700).
-
-%% A directory made with the mode Mode, or `owner_alone`, as it was made
-%% with no right for any other to write it, and then listed, as
-%% make_private_dir/1 says. Report §11.9: under `owner_alone` an entry of
-%% the job's own user passes, as another build of that user may put one
-%% there meanwhile, and another user's refuses the build.
-made_dir(Dir, Mode) ->
     case file:make_dir(Dir) of
         ok ->
-            Narrowed = case Mode of
-                           owner_alone -> owners_alone(Dir);
-                           _ -> file:change_mode(Dir, Mode)
-                       end,
-            case {Narrowed, file:list_dir_all(Dir)} of
+            case {file:change_mode(Dir, 8#700), file:list_dir_all(Dir)} of
                 {ok, {ok, []}} -> ok;
-                {ok, {ok, Names}} when Mode =:= owner_alone ->
-                    case is_owners(Dir, Names) of
-                        true -> ok;
-                        false -> {error, "it was written to by another as it was made"}
-                    end;
                 {ok, _} -> {error, "it was written to by another as it was made"};
                 {{error, Error}, _} -> {error, file:format_error(Error)}
             end;
@@ -2636,24 +2536,6 @@ made_dir(Dir, Mode) ->
             exists;
         {error, Error} ->
             {error, file:format_error(Error)}
-    end.
-
-%% Whether each entry of the directory Dir, by its name in Names, is the
-%% directory's owner's, the job's own user who made it, a link's own owner
-%% asked and not its file's; an entry gone since it was listed holds
-%% nothing to be written through.
-is_owners(Dir, Names) ->
-    case file:read_file_info(Dir) of
-        {ok, #file_info{uid = Owner}} ->
-            lists:all(fun(Name) ->
-                              case file:read_link_info(filename:join(Dir, Name)) of
-                                  {ok, #file_info{uid = Uid}} -> Uid =:= Owner;
-                                  {error, enoent} -> true;
-                                  {error, _} -> false
-                              end
-                      end, Names);
-        {error, _} ->
-            false
     end.
 
 delete(File) ->
