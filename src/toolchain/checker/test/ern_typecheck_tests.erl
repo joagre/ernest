@@ -4625,6 +4625,25 @@ receive_guard_forms_test() ->
     [?assertEqual({Guard, ok}, {Guard, ok(Head ++ Guard ++ Tail)}) || Guard <- Accepted],
     ?assertEqual("this clause can never match", refusal(Head ++ "N(_) when false" ++ Tail)).
 
+%% report §6.3: an operand, and a guard expression, may stand in
+%% parentheses: a variable, a literal, a negative literal, a nullary
+%% constructor, a top-level `let` and a field on either side of a
+%% comparison, a Bool operand alone, and a comparison, a negation and a
+%% joined guard expression, nested and beside bare ones. A regression
+%% test, written after the code; what the guard then selects is the
+%% emitter's tests'
+receive_guard_parentheses_test() ->
+    Head = "type Msg = N(Int) | O(Ordering)\ntype State = State(at : Int)\nlet limit = 5\n"
+           "fn loop(flag : Bool, s : State) : Unit receiving Msg = receive { ",
+    Tail = " -> Unit | _ -> Unit }",
+    Accepted = ["N(k) when (k) > 1", "N(k) when 1 < (k)", "N(k) when ((k)) >= (-1)",
+                "N(k) when (k) == (limit)", "N(k) when (s.at) != k", "O(o) when (o) == (Less)",
+                "N(_) when (flag)", "N(_) when (true)", "N(k) when (k > 1)",
+                "N(k) when ((k > 1))", "N(k) when (k > 1) && (flag)",
+                "N(k) when !((k) > 1) || (flag && k != limit)",
+                "N(k) when (!flag || (k <= (s.at)))"],
+    [?assertEqual({Guard, ok}, {Guard, ok(Head ++ Guard ++ Tail)}) || Guard <- Accepted].
+
 %% report §6.3: a comparison's operands are operands, so a comparison, a
 %% negation, arithmetic, or a negated variable is not one; a top-level `let`
 %% is one, which the `receive` reads before it waits. The top-level half is

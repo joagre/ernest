@@ -2412,7 +2412,7 @@ deadlock_lines_by_callee_test() ->
                    "    2 processes of Split.split:11 wait in Split.client:4 on Split.split:10\n">>,
                  Listed).
 
-%% report §12.4, Appendix E.21: a caller waiting in `Process.run` waits in
+%% report §12.4, §8.6, Appendix E.21: a caller waiting in `Process.run` waits in
 %% a call on the library's own process, which the line names by its site,
 %% the spawn's line in `run`'s body in the library's source; that process
 %% waits in the library's frame, and the process that runs `f` has the
@@ -2441,6 +2441,74 @@ deadlock_line_of_a_run_test() ->
                                 "    1 process of Run\\.main:7 waits in Run\\.runs:3"
                                 " on Process\\.run:\\1\n"
                                 "    1 process of Run\\.runs:3 waits in Run\\.runs:3\n\\z")).
+
+%% report §12.4, Appendix E.18: a listener is among the processes a
+%% deadlock lists, its line its count and its site with no frame. A
+%% regression test, written after the code; a listener of `Tcp.listenTls`
+%% is not covered
+deadlock_line_of_a_listener_test() ->
+    Lines = deadlock_lines("listening",
+                           "    let _ = Tcp.listen(\"127.0.0.1\", 0);\n"
+                           "    let _ = Tcp.listen(\"127.0.0.1\", 0);\n"),
+    ?assertEqual(<<"    2 processes of Tcp.listen wait\n">>, Lines).
+
+%% report §12.4, Appendix E.18: a socket is among the processes a deadlock
+%% lists, its line its count and its site with no frame, the one the
+%% connect opened and the one the accept opened told apart by their sites,
+%% beside their listener's. A regression test, written after the code; a
+%% socket over TLS is not covered
+deadlock_line_of_a_socket_test() ->
+    Lines = deadlock_lines("connected",
+                           "    match Tcp.listen(\"127.0.0.1\", 0) {\n"
+                           "        Right(listener) -> match Tcp.port(listener) {\n"
+                           "            Right(port) -> {\n"
+                           "                let _ = Tcp.connect(\"127.0.0.1\", port, 5000);\n"
+                           "                let _ = Tcp.accept(listener, 5000);\n"
+                           "                Unit\n"
+                           "            }\n"
+                           "          | Left(_) -> Unit\n"
+                           "        }\n"
+                           "      | Left(_) -> Unit\n"
+                           "    };\n"),
+    ?assertEqual(<<"    1 process of Tcp.accept waits\n"
+                   "    1 process of Tcp.connect waits\n"
+                   "    1 process of Tcp.listen waits\n">>, Lines).
+
+%% report §12.4, §8.6, Appendix E.23: a running program is among the
+%% processes a deadlock lists, its line its count and its site with no
+%% frame, once a read has answered its exit, before which it is no
+%% deadlock (§8.6). A regression test, written after the code; a program of
+%% `Os.startTerminal` is not covered
+deadlock_line_of_a_program_test() ->
+    Lines = deadlock_lines("started",
+                           "    match Os.start(Os.command(\"true\", [])) {\n"
+                           "        Right(program) -> exited(program)\n"
+                           "      | Left(_) -> Unit\n"
+                           "    };\n"),
+    ?assertEqual(<<"    1 process of Os.start waits\n">>, Lines).
+
+%% The lines of the deadlock a program's `main` ends in once Opening has
+%% run, its entry process waiting in a `receive` for what no one sends,
+%% the trace's frame left out.
+deadlock_lines(Name, Opening) ->
+    Dir = tmp(),
+    Module = [string:to_upper(hd(Name)) | tl(Name)],
+    write(Dir, "src/" ++ Name ++ ".ern",
+          "type Waits = Waits\n"
+          "fn exited(program : Address(Os.ProgramMsg)) : Unit = match Os.read(program, 5000) {\n"
+          "    Right(Os.Exited(_)) -> Unit\n"
+          "  | Right(_) -> exited(program)\n"
+          "  | Left(error) -> fault(Io.show(error))\n"
+          "}\n"
+          "export fn main() : Unit receiving Waits = {\n" ++ Opening ++
+          "    receive { Waits -> Unit }\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {Errors, 1} = standard_error_of(["run", Dir ++ "/build/" ++ Name ++ ".erc"]),
+    {match, [Lines]} = re:run(Errors, "^" ++ Module ++ ".main faulted: deadlock\n    "
+                                      ++ Module ++ ".main:[0-9]+\n(.*)$",
+                              [dotall, {capture, [1], binary}]),
+    Lines.
 
 %% report §11.2, §12.4: under `ern test` the test's name alone is its
 %% process's spawn site, so a process that calls the test's process names

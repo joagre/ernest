@@ -2208,6 +2208,34 @@ receive_guard_not_test() ->
         "}\n"),
     ?assertEqual(<<"2\n100\n-4\n">>, Output).
 
+%% report §6.3: an operand, and a guard expression, in parentheses select as
+%% the bare form does, the messages a guard rejects staying in the mailbox:
+%% operands in parentheses on both sides of a comparison, and a joined
+%% guard expression in parentheses with each of its parts. A regression
+%% test, written after the code; the forms the checker takes are its own
+%% tests'
+receive_guard_parentheses_test() ->
+    {ok, Output} = run(
+        "type Msg = N(Int) | Stop\n"
+        "fn operands(limit : Int) : Int receiving Msg = receive {\n"
+        "    N(k) when (k) > (limit) -> k\n"
+        "  | Stop -> 0\n"
+        "}\n"
+        "fn grouped(limit : Int) : Int receiving Msg = receive {\n"
+        "    N(k) when ((k > limit) && (k != 7)) -> k\n"
+        "  | Stop -> 0\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    List.forEach([N(1), N(7), N(9), N(3), Stop, Stop], fn(m) = send(self(), m));\n"
+        "    Io.println(Int.toString(grouped(5)));\n"
+        "    Io.println(Int.toString(operands(5)));\n"
+        "    Io.println(Int.toString(grouped(5)));\n"
+        "    Io.println(Int.toString(operands(5)));\n"
+        "    receive { N(k) -> Io.println(Int.toString(k)) };\n"
+        "    receive { N(k) -> Io.println(Int.toString(k)) }\n"
+        "}\n"),
+    ?assertEqual(<<"9\n7\n0\n0\n1\n3\n">>, Output).
+
 %% report §5.9, §4.6: a match guard may read a top-level `let`, which is
 %% read through its getter, so the guard is not compiled as an Erlang guard
 match_guard_top_level_let_test() ->

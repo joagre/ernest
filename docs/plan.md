@@ -57,8 +57,8 @@ of §11.9's diff runs: each of items 5 to 8 reads its own sentences of §11.9 ag
 and its probes before it closes, and a finding changes the report first (the log's *A Package
 and Its Manifest*).
 
-Items 30, 29, 31, 33 and 26 to 28 came first, decided with the user on 2026-11-13 (the log's
-*A Reading by Decisions*), and are done. Item 34 comes next, then item 5.
+Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
+log's *A Reading by Decisions*), and are done. Item 5 comes next.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -177,13 +177,10 @@ Items 30, 29, 31, 33 and 26 to 28 came first, decided with the user on 2026-11-1
     fewer than 25600 over TLS, and the runtime has the host's TLS take one piece of a
     connection at a time, where it took a hundred ahead (E.18; the log's *What One Read
     Answers*).
-34. **Regression tests of the sentences item 29 stated**, found 2026-11-13: each sentence
-    states what the toolchain does, a probe showed it, and no test holds it. An agent
-    writes them before item 5: a guard and an operand in parentheses (§6.3), `Test.faults` in
-    a deadlock and a started program that has exited and no read has taken (§8.6), a
-    deadlock's line without a frame (§12.4), a `Set` of `Bool` printed ascending (E.1), a
-    request given no time on an ended socket, listener and program (E.18, E.23), and `status`
-    of a host process no code of the program started (E.21).
+34. **Regression tests of the sentences item 29 stated**, done 2026-11-14. Decided in the
+    item: `make test` needs Linux, where the test of an exit no read has taken reads `/proc`
+    ([`development.md`](development.md)'s *Building*; the log's *The Sentences Held by
+    Tests*).
 35. **A compiled module's dependency that has only a source**, found 2026-11-13 by item 26's
     build: `:load Main`, taken from `main.erc`, answers `no module Util on the load path`
     where the source root holds `util.ern` and no `util.erc`, and a `:load Util` takes that

@@ -188,6 +188,94 @@ lost_program_holds_no_timer_test() ->
     ?assertEqual({message_queue_len, 0}, wait(queued)),
     ?assertEqual({fault, <<"the runtime's helper ern_exec failed">>}, wait(read)).
 
+%% report §8.6, Appendix E.23: a program `Os.start` started counts as a
+%% computation whose completion would deliver until a read has answered its
+%% exit or it has been killed. Here `true` has exited, as the host shows of
+%% it, and no read has asked: the reaper's look answers that something can
+%% still deliver while the run's one process waits as Ernest waits, and
+%% once the program is killed the same wait is a deadlock. A regression
+%% test, written after the code; a program `Os.startTerminal` started is not
+%% covered
+unread_exit_is_no_deadlock_test_() ->
+    {timeout, 30, fun unread_exit_is_no_deadlock/0}.
+
+unread_exit_is_no_deadlock() ->
+    Self = self(),
+    Observer = spawn(fun() ->
+                         receive {started, Main, Program} ->
+                             %% killed however the look went, so that the
+                             %% run ends
+                             try
+                                 ok = unread_exited(Program),
+                                 ok = ern_waits:calling(Main),
+                                 Self ! {looked, next_look()}
+                             after
+                                 ern_rt:kill(Program)
+                             end
+                         end
+                     end),
+    Outcome = ern_rt:run_main(fun() ->
+                                  {'Right', Program} = start(<<"true">>, []),
+                                  Observer ! {started, self(), Program},
+                                  ern_waits:forever()
+                              end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(delivering, wait(looked)),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome).
+
+%% report §8.6, Appendix E.23: once a read has answered a program's exit,
+%% it is no computation that could deliver, and a run whose one process
+%% then waits as Ernest waits is a deadlock, the program's process living
+%% on. A regression test, written after the code
+answered_exit_is_a_deadlock_test() ->
+    Outcome = ern_rt:run_main(fun() ->
+                                  {'Right', Program} = start(<<"true">>, []),
+                                  {<<>>, 0} = read_to_end(Program, <<>>),
+                                  ern_waits:forever()
+                              end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({fault, <<"deadlock">>, _}, Outcome).
+
+%% Until the program a running program's process started has exited, as
+%% the host shows it: a child of the helper whose state is a zombie's,
+%% since the helper reaps it only as it reports the exit, which no read has
+%% asked for (ern_exec.c). Nothing tells this process of another program's
+%% exit, so the host is asked again at once each time, within a bound for a
+%% failure.
+unread_exited(Program) ->
+    {links, Links} = process_info(Program, links),
+    [Helper] = [Link || Link <- Links, is_port(Link)],
+    {os_pid, HelperPid} = erlang:port_info(Helper, os_pid),
+    Children = lists:concat(["/proc/", HelperPid, "/task/", HelperPid, "/children"]),
+    {ok, Listed} = file:read_file(Children),
+    [Child] = string:lexemes(binary_to_list(Listed), " \n"),
+    zombie(Child, erlang:monotonic_time(millisecond) + 5000).
+
+zombie(Child, Deadline) ->
+    {ok, Stat} = file:read_file("/proc/" ++ Child ++ "/stat"),
+    %% the state follows the command's name, which ends at the last `)`
+    [_, After] = string:split(binary_to_list(Stat), ")", trailing),
+    case string:trim(After, leading) of
+        [$Z | _] ->
+            ok;
+        _ ->
+            erlang:monotonic_time(millisecond) < Deadline orelse erlang:error(not_exited),
+            zombie(Child, Deadline)
+    end.
+
+%% Report §8.6: what the reaper's next look for a deadlock answers,
+%% `deadlock`, `running` or `delivering`, which the host shows by tracing
+%% the look's return; a look begun before the trace is not traced.
+next_look() ->
+    Reaper = ern_rt:launch_reaper(),
+    MFA = {ern_rt, look, 0},
+    1 = erlang:trace_pattern(MFA, [{'_', [], [{return_trace}]}], [local]),
+    erlang:trace(Reaper, true, [call]),
+    try
+        receive {trace, Reaper, return_from, MFA, Answer} -> Answer end
+    after
+        erlang:trace(Reaper, false, [call]),
+        erlang:trace_pattern(MFA, false, [local])
+    end.
+
 %% Appendix E.23: an argument longer than the host takes is the program's
 %% failure to start, with the host's reason. A regression test: the
 %% arguments were the helper's own, which the host would not start, and

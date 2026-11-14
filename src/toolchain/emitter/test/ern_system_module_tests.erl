@@ -836,6 +836,21 @@ opened_processes_are_live_test() ->
         "}\n"]),
     ?assertEqual(<<"#(\"Tcp.listen\", \"Tcp.connect\", true, true)\nOs.start\n">>, Output).
 
+%% Appendix E.21, report §8.4: `Process.status` answers `None` for a process
+%% the runtime did not start, here the host's process that serves the
+%% program's group as its leader, which foreign code gives as a `Process`
+%% and as an `Address(Never)`. A regression test, written after the code;
+%% such a process on another node is not covered
+host_process_has_no_status_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        "foreign fn leader() : Process = \"erlang:group_leader/0\"\n"
+        "foreign fn leaderAddress() : Address(Never) = \"erlang:group_leader/0\"\n"
+        "export fn main() : Unit = {\n"
+        "    Io.println(Io.show(Process.status(leader())));\n"
+        "    Io.println(Io.show(Process.status(Process.fromAddress(leaderAddress()))))\n"
+        "}\n"),
+    ?assertEqual(<<"None\nNone\n">>, Output).
+
 %% Appendix E.21, E.18, E.23: `Process.owned` answers the listener, the
 %% socket and the running program a process opened, told apart by their
 %% sites, a socket given to another process no longer among them once it
@@ -1136,3 +1151,52 @@ tcp_write_waits_test() ->
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
     ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Output).
+
+%% Appendix E.18, E.23, E.0 shape rule 8: a request given no time answers
+%% `Left(Timeout)` before any other answer, but on a process that has ended
+%% it faults all the same, as `Address.callForever` does on an ended
+%% process (§6.6): a read and a write on a closed socket, an accept on a
+%% closed listener, and a read and a write on a killed program, each run by
+%% `Process.run`, which answers the fault. A regression test, written after
+%% the code; a socket or a listener over TLS, a program of
+%% `Os.startTerminal`, and a process ended by its owner's death are not
+%% covered
+ended_given_no_time_faults_test() ->
+    {ok, Output} = ern_emitter_tests:run(['M'],
+        "type Gone = Gone(Down)\n"
+        "fn ended(p : Process) : Unit receiving Gone = {\n"
+        "    monitor(p, Gone);\n"
+        "    receive { Gone(_) -> Unit }\n"
+        "}\n"
+        "fn sockets() : Unit receiving Gone = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "    Right(l) -> match Either.andThen(Tcp.port(l), fn(port) ="
+        " Tcp.connect(\"127.0.0.1\", port, 5000)) {\n"
+        "        Right(c) -> {\n"
+        "            Tcp.close(c);\n"
+        "            ended(Process.fromAddress(c));\n"
+        "            Io.println(Io.show(Process.run(fn() = Tcp.read(c, 0))));\n"
+        "            Io.println(Io.show(Process.run(fn() = Tcp.write(c, <<1>>, 0))));\n"
+        "            Tcp.closeListener(l);\n"
+        "            ended(Process.fromAddress(l));\n"
+        "            Io.println(Io.show(Process.run(fn() = Tcp.accept(l, 0))))\n"
+        "        }\n"
+        "      | Left(e) -> Io.println(Io.show(e))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"
+        "fn program() : Unit receiving Gone = match Os.start(Os.command(\"cat\", [])) {\n"
+        "    Right(p) -> {\n"
+        "        kill(Process.fromAddress(p));\n"
+        "        ended(Process.fromAddress(p));\n"
+        "        Io.println(Io.show(Process.run(fn() = Os.read(p, 0))));\n"
+        "        Io.println(Io.show(Process.run(fn() = Os.write(p, <<1>>, 0))))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"
+        "export fn main() : Unit receiving Gone = {\n"
+        "    sockets();\n"
+        "    program()\n"
+        "}\n",
+        #{stderr => fun(_) -> ok end}),
+    Ended = <<"Left(Fault(\"callee had ended\"))\n">>,
+    ?assertEqual(binary:copy(Ended, 5), Output).

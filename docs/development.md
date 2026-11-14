@@ -158,7 +158,9 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 
 ## Building
 
-Beyond what the README's *Installing* needs, the tests need python3: `make test` for the runtime's test of `Os.resize`, whose program under a terminal says its size when told it changed, and for the tests of a program whose input a process out of its group holds past its exit, and `make test-full` besides to signal `ern` in the tests of how it ends and to watch, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux. `make sanitize` needs clang, and `make test-browser` Chrome or Chromium, which it says it lacks, with the status 2, where none is found. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
+Beyond what the README's *Installing* needs, the tests need python3: `make test` for the runtime's test of `Os.resize`, whose program under a terminal says its size when told it changed, and for the tests of a program whose input a process out of its group holds past its exit, and `make test-full` besides to signal `ern` in the tests of how it ends and to watch, through Linux's inotify, the files a program writes in the tests that wait for them, which therefore need Linux. `make test` needs Linux too: the runtime's test of a started program whose exit no read has taken reads the exit in `/proc`.
+
+`make sanitize` needs clang, and `make test-browser` Chrome or Chromium, which it says it lacks, with the status 2, where none is found. Emacs, man, and groff or mandoc are optional: where one is missing, the tests that need it say so and are skipped, and so are the Emacs mode's under an Emacs older than 29, which the mode needs.
 
 ```
 make            # build the helper, with the C library's checks of its buffers and
