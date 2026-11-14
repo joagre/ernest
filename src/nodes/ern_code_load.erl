@@ -7,6 +7,7 @@
 %% The module at the path names its root, the directory its namespace
 %% descends from (§11.2), and each module it uses is found by its namespace
 %% under that root and then on the run's load path (ern_cli:load_path/0),
+%% a named package's namespace under that package's build alone (§11.9),
 %% each verified against its hashes (ern_canonical:is_verified/1) and
 %% checked against the build of `ern` that wrote it, the interfaces it was
 %% compiled against and the standard library the node holds, and a module
@@ -102,12 +103,15 @@ cannot(#found{namespace = Namespace}, Reason) ->
 
 %% The module at Path and every module it uses, directly or through
 %% another, each once, those it uses before it, found under the module's
-%% root and then on Dirs.
-reach(Path, Dirs) ->
+%% root and then on the load path Given. Report §11.9: a module at a named
+%% package's namespace outside that package's build, and one in a named
+%% package's build at another namespace, is `Invalid`.
+reach(Path, Given) ->
     File = ern_build:absolute(unicode:characters_to_list(Path)),
     #found{namespace = Namespace} = Module = found(File, any),
     Root = root(File, Namespace),
-    LoadPath = lists:uniq([Root | Dirs]),
+    ern_build:form_out_of_place(File, Namespace, Given) =:= none orelse refuse('Invalid'),
+    LoadPath = ern_build:with_root(Root, Given),
     {Order, _} = with_dependencies(Module, LoadPath, [Namespace], {[], #{Namespace => Module}}),
     Reach = lists:reverse(Order),
     lists:foreach(fun(Found) -> same_interfaces(Found, Reach) end, Reach),
@@ -154,11 +158,13 @@ with_dependencies(#found{chunk = #{deps := Dependencies}} = Module, LoadPath, Wa
     {[Module | Order1], Seen1}.
 
 %% Report §11.2: a module's compiled form found by its namespace on the
-%% load path, the first root that holds it; one the load path lacks is
-%% `NotFound`.
+%% load path, the first root that holds it, and report §11.9: a named
+%% package's under its build alone; one the load path lacks is `NotFound`.
 compiled_file(Namespace, LoadPath) ->
-    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
-    case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
+    Path = ern_namespace:module_path(Namespace),
+    Relative = Path ++ ".erc",
+    {none, Roots} = ern_build:looked_in(Path, none, LoadPath),
+    case [Found || Dir <- Roots, Found <- [filename:join(Dir, Relative)],
                    filelib:is_regular(Found)] of
         [Found | _] -> Found;
         [] -> refuse('NotFound')

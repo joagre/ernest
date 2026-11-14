@@ -58,24 +58,18 @@ and its probes before it closes, and a finding changes the report first (the log
 and Its Manifest*).
 
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
-log's *A Reading by Decisions*), and are done. Item 5 comes next.
+log's *A Reading by Decisions*), and are done. Item 5 followed, and item 6 comes next.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
-5. **The manifest read and the load path**: every job finds `package.conf` in the directory it
-   is started in and puts the named packages on its load path, `lib/` filled by hand. The look
-   is measured on a job with no manifest before anything is built on it, and the test
-   of the modes on a job in a package of ten named packages, since the proposal's cost
-   counted one look (the log's *The Proposal Held Against the Report*).
-
-   `ern run`, `ern test` and `ern shell` take `--package-dir`, which names the root package
-   from any directory, and the refusal that stands in its place goes (§11.9; the log's *An
-   Installed Program's Packages*). The item decides, in the report first, what a job does
-   with a `package.conf` that is no file it can read, a directory or a link to nothing, which
-   §11.9 does not say. The shape: the name makes the directory a package, and the job refuses
-   the file as any it cannot read.
+5. **The manifest read and the load path**, done 2026-11-14. Decided in the item: a
+   `package.conf` that reaches no regular file is refused before it is read, a compiled file
+   given in a named package's build at another namespace is refused, and a job in a package
+   reads the standard library's interfaces a second time, about 2.7 ms, which stays (§11.2,
+   §11.9, E.28; the log's *The Root Package Read*).
 6. **`ern build`'s checks**: each named package's claims held against the root's lines, a
-   package's `src` and `build` as its roots, and the named packages built in their order. The
+   package's `src` and `build` as its roots, the root package's among them with the shell's
+   default `--source-root` (§11.1, §11.2), and the named packages built in their order. The
    trial's table of refusals is its first test. Its tests take a named package's rebuild when
    a package it names changes. It makes a named package a dependent of item 26's refusal, the
    module that hides a library the package uses (§11.1).
@@ -90,7 +84,9 @@ log's *A Reading by Decisions*), and are done. Item 5 comes next.
    reading decides first whether the library reads the format itself (the log's *The Proposal
    Held Against the Report*).
 8. **`ern unpack`**, in Ernest, over the three, as §11.9 states it. Where the job's module
-   stands under `Ernest` is decided as the item opens.
+   stands under `Ernest` is decided as the item opens, and so is how its Ernest gets the
+   manifest's entries. The shape: the command reads the manifest once, by the read every job
+   shares, and hands the job its entries (the log's *The Root Package Read*).
 9. **The guide's section on a package.** It says what an entry's digest promises: the archive
    that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
    log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
@@ -137,8 +133,9 @@ log's *A Reading by Decisions*), and are done. Item 5 comes next.
     release, as *A Built Proposal's Sweep Is an Item* places one.
 24. **The flake of `reads_limited_test`**, seen 2026-11-11 once under `make test`, item 4's
     run: the socket's reader read `Running` where `Calling` was expected, after
-    `ern_waits:calling` had returned for it. The cause is not found. An agent finds it
-    under `make test`'s load, and fixes the test or the runtime at it.
+    `ern_waits:calling` had returned for it. Seen twice more 2026-11-14 under `make test`, in
+    item 5's runs, the same way. The cause is not found. An agent finds it under
+    `make test`'s load, and fixes the test or the runtime at it.
 25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
     Manifest*).
 26. **A module that hides a library another uses**, done 2026-11-13 (the log's *A Hiding
@@ -170,7 +167,8 @@ log's *A Reading by Decisions*), and are done. Item 5 comes next.
     expects first. Seen twice more 2026-11-13, in item 26's runs: once in two runs of
     `make test-full`, where the client's line stood after the case's lines and the test
     expects nothing after them, and once in two runs of `make test`, the client's line first
-    again. The cause is not found. An agent finds under that target's load
+    again. Seen once more 2026-11-14 under `make test`, in item 5's runs, the client's line
+    after the case's. The cause is not found. An agent finds under that target's load
     whether §11.2 promises the order, and fixes the test or `ern test` at it.
 33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
     decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
@@ -215,6 +213,30 @@ log's *A Reading by Decisions*), and are done. Item 5 comes next.
     agent builds it: the page's prerequisite is what its SEE ALSO reads, the pages, and not
     every file of the directory, and the test runs `make doc` between its two makes (the
     log's *A Given Path Resolved Once*).
+39. **The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
+    item 4, so that the full review reads the page the launch's source link lands on. It
+    opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
+    started on another node brings its code along, and a module keeps every version it has
+    had, where Erlang keeps two. The mailbox's type follows, then the counter and the
+    session, in the repository's voice (the log's *The Front Page From Its Motive*).
+
+    After the session it says that the session runs in a browser, in the site's shell. The
+    sentences on the four `ern config` commands, the two waits and `let far <-` go, since the
+    tour says them. The refused build stays, and everything from *What Ernest adds* down
+    stays as it is.
+
+    It sharpens the page of 2026-11-06 and keeps its lead, code that travels (the log's *The
+    README Recut*). What that entry tied to the page follows it: the release's README, which
+    begins with the page's first sentence, and GitHub's About, which reads the page's words.
+    The tests that hold the page stay green, the tour's run of its console,
+    `readme_refused_test_`, `readme_counter_is_the_tours_test` and `claims_test` among them.
+    The homepage takes nothing from the page and does not change. The session writes it, and
+    it closes on `make test`.
+40. **The flake of `log_terminal_gone_test_`**, seen 2026-11-14 once in three runs of
+    `make test-full`, item 5's: the terminal harness found its `put` unmet, the write to the
+    test's FIFO after the hangup. The test runs where there is no manifest. The cause is not
+    found. An agent finds it under the full run's load, and fixes the test or the runner at
+    it (the log's *The Root Package Read*).
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 

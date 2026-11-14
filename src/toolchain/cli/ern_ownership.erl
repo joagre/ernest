@@ -2,7 +2,9 @@
 %% configuration directory and the files of it that it reads (§12.5). The
 %% shell's startup files are tested the same way in its own Ernest, and a
 %% node's ernest.pid, at which no link is followed, by the runtime's
-%% helper alone.
+%% helper alone. Report §11.9: a package's manifest and directories are
+%% held to its mode alone, the same reading of a mode and the same walk of
+%% the links, with no owner tested.
 -module(ern_ownership).
 
 -export([failure/3]).
@@ -18,8 +20,9 @@
 %% what a link followed from it reaches, is neither User's own nor the
 %% superuser's; or `every_user_may_write`, where every user may write one
 %% of them. Each is judged by its owner before its mode, and what the path
-%% reaches before its links, in the order they are followed.
--spec failure(file:filename_all(), #file_info{}, non_neg_integer()) ->
+%% reaches before its links, in the order they are followed. Report §11.9:
+%% User `any` tests no owner, so that a path fails by its mode alone.
+-spec failure(file:filename_all(), #file_info{}, non_neg_integer() | any) ->
           passes | another_users | every_user_may_write.
 failure(Path, Info, User) ->
     case judged(Info, User) of
@@ -31,7 +34,7 @@ failure(Path, Info, User) ->
 %% bit of its mode for the users who are neither its owner nor of its
 %% group. The bits for its group are not read.
 judged(Info, User) ->
-    case lists:member(Info#file_info.uid, [User, 0]) of
+    case User =:= any orelse lists:member(Info#file_info.uid, [User, 0]) of
         false -> another_users;
         true when Info#file_info.mode band 8#002 =/= 0 -> every_user_may_write;
         true -> passes

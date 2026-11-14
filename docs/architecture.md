@@ -30,7 +30,9 @@ The modules of `cli`, under `src/toolchain/cli/`:
 |---|---|
 | `ern_cli` | the command, its jobs and the runner's start (*The tools*) |
 | `ern_build` | the build every job reaches (§11.1) |
-| `ern_ownership` | §11.2's ownership test, which a node applies to its configuration (§12.5) |
+| `ern_ownership` | §11.2's ownership test, which a node applies to its configuration (§12.5), and a package's paths by their mode alone (§11.9) |
+| `ern_package` | a job's root package read, its manifest's faults and its named packages (§11.9) |
+| `ern_conf` | a JSON file of the toolchain's own read the one way, `ernest.conf` and `package.conf` (§12.5, §11.9) |
 | `ern_page` | §11.4's renderer, the pages of `ern doc` and the shell's `:doc` |
 | `ern_examples` | a module's doc examples as the cases of `ern test` (§11.2) |
 | `ern_release` | the version text, `-dev` marking a build that is no release |
@@ -327,11 +329,13 @@ A library under `src/libs/` stands on the host as the standard library does. The
 
 `ern_cli:ern/2` takes the job from the first word (`jobs/0`), each job's options a getopt spec of its own. `no_job/1` refuses a word that is no job, and `one_spelling/2` an option's second spelling.
 
-`ern_build` holds the build and what every other job takes from it: a module's source and namespace, an interface, the load path, and a file written whole (`write_whole/2`, `write_output/2,3`, §11). It alone of the jobs is in the compiler's hash (`compiler_modules/0`, §11.1). `load_path/1` is every job's load path past the roots the job puts first: the options' directories, then the build of each library, which `ern_tree:libraries/0` lists (§11.1, §11.2).
+`ern_build` holds the build and what every other job takes from it: a module's source and namespace, an interface, the load path, and a file written whole (`write_whole/2`, `write_output/2,3`, §11). It alone of the jobs is in the compiler's hash (`compiler_modules/0`, §11.1). `load_path/1` is every job's load path past the roots the job puts first, `with_root/2`: the options' directories, then the named packages' of the root package the job read, `ern_package:packages/1`, then the build of each library, which `ern_tree:libraries/0` lists (§11.1, §11.2, §11.9). Every lookup by namespace asks `looked_in/3` where to look, which finds a named package's namespace under its build alone and no other there, and a node's start walks the load path through `compiled_on/1` (§11.9).
+
+`ern_cli:root_package/3` looks for a manifest's name once, as a job that reads one begins, and gives the job's options its root package, which `ern_package:read/2` reads and refuses whole, as data, the named packages and the lines `--verbose` says, so that `ern_build` calls nothing of the package's; a job with no manifest loads nothing more (§11.9).
 
 `ern run`, `ern test` and `ern shell` also install `ern_signals`, for a test that calls the job, and lower the host's logger to warnings.
 
-- **`ern build`** (§11.1): `modules_of/3` finds the modules, and `compile_order/3` orders them over a `digraph` that holds the build root's and the load path's modules too (`recorded_uses/4`), each after those it uses and otherwise in the order of their paths (`ordered/2`); `module_cycle/1` refuses a cycle. A checked module is written once every module its forms name is checked (`built/4`).
+- **`ern build`** (§11.1): `modules_of/4` finds the modules, and `compile_order/3` orders them over a `digraph` that holds the build root's and the load path's modules too (`recorded_uses/4`), each after those it uses and otherwise in the order of their paths (`ordered/2`); `module_cycle/1` refuses a cycle. A checked module is written once every module its forms name is checked (`built/4`).
 - **`ern run`** (§11.2): `program/2` loads the `.erc` and its dependencies (`loaded_unit/3`, `no_cycle/2`) and calls `run_main`. `reporting_options/2` gives the run `report_fault/3` as its `faults`.
 - With `--config-dir` and no `.erc`, `ern run` starts a bare node (`as_node/4`, `run_bare/2`, §8.7).
 - **`ern shell`** loads a file and names its entry point (`shell_entry/2`); `ern_cli:shell/3` starts the shell (*The shell*).

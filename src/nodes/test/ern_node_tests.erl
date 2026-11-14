@@ -277,6 +277,19 @@ read_refusals_test() ->
     ?assertEqual(filename:join(Dir, "ernest.conf") ++ ": is not JSON",
                  refusal(fun() -> ern_node:read(Dir) end)).
 
+%% report §12.5, Appendix C: a refusal names a field and quotes a value past
+%% ASCII as the file gives them, each a character, the same way a
+%% package's manifest is refused (ern_conf). A regression test, written
+%% after the code: each byte of the text's UTF-8 was a character of its
+%% own, `"Ã©"` for `"é"`
+read_refusals_not_ascii_test() ->
+    Dir = made(),
+    Peer = #{<<"name">> => <<"é"/utf8>>, <<"public-key">> => other_key()},
+    with(Dir, #{<<"peers">> => [Peer, Peer#{<<"public-key">> => other_key()}]}),
+    ?assert(ends(refusal(fun() -> ern_node:read(Dir) end), "two peers are named \"é\"")),
+    with(Dir, #{<<"é"/utf8>> => 1}),
+    ?assert(ends(refusal(fun() -> ern_node:read(Dir) end), "the file has the unknown field é")).
+
 %% report §12.5: a peer's name is not resolved when the configuration is
 %% read: a name that resolves to nothing, and one that resolves only to the
 %% other family, are kept for the dial, which resolves them and checks the

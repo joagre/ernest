@@ -1359,7 +1359,7 @@ current_time(Root) ->
     ok = file:write_file(Source, "export fn mine() : String = \"mine\"\n"),
     SourceRoot = ern_build:absolute(Root),
     Order = ern_build:compile_order([ern_build:module_of(ern_build:absolute(Source), SourceRoot)],
-                                    SourceRoot, [SourceRoot]),
+                                    SourceRoot, ern_build:load_path_of([SourceRoot])),
     {[], #{['Time'] := Beam}} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
     Erc = filename:join(Root, "time.erc"),
     ok = file:write_file(Erc, Beam),
@@ -6420,6 +6420,50 @@ verbose_node_start(Base) ->
                                 File <- ern_build:compiled_under(Library)]),
                  lists:sort([lists:last(string:split(Line, " from "))
                              || Line <- string:split(Libraries, "\n", all), Line =/= <<>>])).
+
+%% report §11.9, §11.2, §8.7: a node started in a root package finds a
+%% named package's namespace under that package's build alone, the
+%% program's and its start's reads alike: a module at it under the loaded
+%% module's root is passed over, and so is a module at another namespace in
+%% the package's build, which provides none
+package_node_start_test_() ->
+    nodes_test({waits, 5}, fun package_node_start/1).
+
+package_node_start(Base) ->
+    E = made(Base, "e", none),
+    [Pkg, Root, Elsewhere] = [filename:join(Base, Leaf) || Leaf <- ["pkg", "root", "elsewhere"]],
+    Package = filename:join(Pkg, "lib/ns_leaf"),
+    [Src, Build] = [filename:join(Package, Sub) || Sub <- ["src", "build"]],
+    Write = fun(Dir, File, Source) ->
+                Path = filename:join(Dir, File),
+                ok = filelib:ensure_dir(Path),
+                ok = file:write_file(Path, Source),
+                Path
+            end,
+    Write(Src, "ns_leaf.ern", "export let word : String = \"package\"\n"),
+    0 = built(["--source-root", Src, "--build-root", Build, Src]),
+    Write(Pkg, "package.conf",
+          "{\"ernest\": \"0.11.0\",\n"
+          " \"packages\": [{\"name\": \"ns_leaf\", \"version\": \"1.0.0\"}]}\n"),
+    Other = Write(Elsewhere, "ns_other.ern", "export let word : String = \"other\"\n"),
+    Decoy = Write(Elsewhere, "ns_leaf.ern", "export let word : String = \"decoy\"\n"),
+    [0 = built(["--source-root", Elsewhere, File]) || File <- [Other, Decoy]],
+    {ok, _} = file:copy(filename:join(Elsewhere, "ns_other.erc"),
+                        filename:join(Build, "ns_other.erc")),
+    Main = Write(Root, "main.ern", "export fn main() : Unit = Io.println(NsLeaf.word)\n"),
+    0 = built(["--source-root", Root, "--load-path", Build, Main]),
+    {ok, _} = file:copy(filename:join(Elsewhere, "ns_leaf.erc"),
+                        filename:join(Root, "ns_leaf.erc")),
+    Err = E ++ ".err",
+    ?assertEqual({0, "package\n"},
+                 finished([?ERN, " run --verbose --config-dir ", E, " --package-dir ", Pkg, " ",
+                           filename:join(Root, "main.erc"), " 2> ", Err])),
+    {ok, Said} = file:read_file(Err),
+    Read = unicode:characters_to_binary(["read NsLeaf from ", Build, "/ns_leaf.erc\n"]),
+    ?assertMatch({_, _}, binary:match(Said, Read)),
+    ?assertEqual(nomatch, binary:match(Said, <<"NsOther">>)),
+    ?assertEqual(nomatch, binary:match(Said, unicode:characters_to_binary(
+                                               ["NsLeaf from ", Root]))).
 
 %% report §8.7, §12.7, §8.4, Appendix E.27: a lambda crosses as the definition
 %% that encloses it, and what that definition names beyond the lambda's

@@ -766,11 +766,69 @@ compiled_form(Root, Relative, Text) ->
     SourceRoot = ern_build:absolute(Root),
     [#build_module{namespace = Namespace}] = Order =
         ern_build:compile_order([ern_build:module_of(ern_build:absolute(Source), SourceRoot)],
-                                SourceRoot, [SourceRoot]),
+                                SourceRoot, ern_build:load_path_of([SourceRoot])),
     {[], #{Namespace := Beam}} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
     Erc = filename:rootname(Source) ++ ".erc",
     ok = file:write_file(Erc, Beam),
     Erc.
+
+%% Appendix E.28, report §11.9: Code.load finds a named package's namespace
+%% under that package's build alone, a module at it under the loaded
+%% module's root passed over, and answers Invalid for a file that holds a
+%% module at a named package's namespace outside that package's build; one
+%% in the build loads
+package_namespace_test() ->
+    Dir = tmp(),
+    [Pkg, Plug, Decoy] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "plug", "decoy"]],
+    Leaf = filename:join(Pkg, "lib/cl_leaf"),
+    write(Leaf, "src/cl_leaf.ern", "export let word : String = \"package\"\n"),
+    [Src, Build] = [filename:join(Leaf, Sub) || Sub <- ["src", "build"]],
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Src, "--build-root", Build, Src])),
+    write(Pkg, "package.conf",
+          "{\"ernest\": \"0.11.0\",\n"
+          " \"packages\": [{\"name\": \"cl_leaf\", \"version\": \"1.0.0\"}]}\n"),
+    User = write(Plug, "cl_user.ern", "let said : Unit = Io.println(ClLeaf.word)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Plug, "--load-path", Build, User])),
+    write(Decoy, "cl_leaf.ern", "export let word : String = \"decoy\"\n"),
+    built(Decoy, "cl_leaf.ern"),
+    {ok, _} = file:copy(filename:join(Decoy, "cl_leaf.erc"), filename:join(Plug, "cl_leaf.erc")),
+    Paths = lists:join("\", \"", [filename:join(Plug, "cl_user.erc"),
+                                  filename:join(Plug, "cl_leaf.erc"),
+                                  filename:join(Build, "cl_leaf.erc")]),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit =\n"
+                 "    List.forEach([\"" ++ Paths ++ "\"],\n"
+                 "                 fn(path) = Io.println(Io.show(Code.load(Path(path)))))\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"package">>, <<"Right(Unit)">>, <<"Left(Io.Invalid)">>, <<"Right(Unit)">>],
+                 ran(filename:rootname(Main) ++ ".erc", ["--package-dir", Pkg])).
+
+%% Appendix E.28, report §11.9: Code.load answers Invalid for a file given
+%% in a named package's build at another namespace than the package's, and
+%% loads the package's own module beside it
+package_build_other_namespace_test() ->
+    Dir = tmp(),
+    [Pkg, Elsewhere] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "elsewhere"]],
+    Leaf = filename:join(Pkg, "lib/co_leaf"),
+    write(Leaf, "src/co_leaf.ern", "export let word : String = \"package\"\n"),
+    [Src, Build] = [filename:join(Leaf, Sub) || Sub <- ["src", "build"]],
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Src, "--build-root", Build, Src])),
+    write(Pkg, "package.conf",
+          "{\"ernest\": \"0.11.0\",\n"
+          " \"packages\": [{\"name\": \"co_leaf\", \"version\": \"1.0.0\"}]}\n"),
+    write(Elsewhere, "co_stray.ern", "export let word : String = \"stray\"\n"),
+    built(Elsewhere, "co_stray.ern"),
+    {ok, _} = file:copy(filename:join(Elsewhere, "co_stray.erc"),
+                        filename:join(Build, "co_stray.erc")),
+    Paths = lists:join("\", \"", [filename:join(Build, "co_stray.erc"),
+                                  filename:join(Build, "co_leaf.erc")]),
+    Main = write(Dir, "main.ern",
+                 "export fn main() : Unit =\n"
+                 "    List.forEach([\"" ++ Paths ++ "\"],\n"
+                 "                 fn(path) = Io.println(Io.show(Code.load(Path(path)))))\n"),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"Left(Io.Invalid)">>, <<"Right(Unit)">>],
+                 ran(filename:rootname(Main) ++ ".erc", ["--package-dir", Pkg])).
 
 %% Appendix E.28, report §11: a compiled form whose code the host will not
 %% load, its code chunk gone, is Invalid, where the host holds no code of

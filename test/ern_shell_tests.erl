@@ -4227,6 +4227,53 @@ reload_passes_over_a_taken_namespace() ->
     ?assertEqual(2, length(binary:matches(Output, <<"> 3 : Int\n">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"list.ern">>)).
 
+%% report §11.9, §11.2: the shell started in a root package finds a named
+%% package's namespace under that package's build alone, a `--load-path`
+%% root's module at it passed over; the package's build provides no other
+%% namespace; and `:load` refuses a source under the source root at the
+%% package's namespace, which lies outside the named packages
+package_load_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun package_load/0).
+
+package_load() ->
+    Dir = scratch("ern_package_load_"),
+    [Pkg, Decoy, Elsewhere] = [filename:join(Dir, Leaf) || Leaf <- ["pkg", "decoy", "elsewhere"]],
+    Package = filename:join(Pkg, "lib/sl_leaf"),
+    [Src, Build] = [filename:join(Package, Sub) || Sub <- ["src", "build"]],
+    Write = fun(Root, File, Text) ->
+                Path = filename:join(Root, File),
+                ok = filelib:ensure_dir(Path),
+                ok = file:write_file(Path, Text)
+            end,
+    Write(Src, "sl_leaf.ern", "export fn hello() : String = \"package\"\n"),
+    {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Src ++ " --build-root " ++ Build
+                        ++ " " ++ Src),
+    Write(Pkg, "package.conf",
+          "{\"ernest\": \"0.11.0\",\n"
+          " \"packages\": [{\"name\": \"sl_leaf\", \"version\": \"1.0.0\"}]}\n"),
+    Write(Pkg, "src/sl_leaf/extra.ern", "export fn one() : Int = 1\n"),
+    Write(Decoy, "sl_leaf.ern", "export fn hello() : String = \"decoy\"\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Decoy),
+    Write(Elsewhere, "sl_other.ern", "export fn word() : String = \"other\"\n"),
+    {0, _} = ern_pty:sh("../bin/ern build " ++ Elsewhere),
+    {ok, _} = file:copy(filename:join(Elsewhere, "sl_other.erc"),
+                        filename:join(Build, "sl_other.erc")),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load SlLeaf\nSlLeaf.hello()\n:load SlOther\n"
+                                    ":load SlLeaf.Extra\n"),
+    {0, Output} = ern_pty:sh(alone("../bin/ern shell --package-dir " ++ Pkg ++ " --source-root "
+                                   ++ filename:join(Pkg, "src") ++ " --load-path " ++ Decoy)
+                             ++ " < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"SlLeaf, from ",
+                                                (shown(Build, "sl_leaf.erc"))/binary,
+                                                "\n> \"package\" : String\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no module SlOther under the source root or on"
+                                                " the load path\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Pkg, "src/sl_leaf/extra.ern"))/binary,
+                                                ": SlLeaf.Extra is the package sl_leaf's, which ",
+                                                (shown(Pkg, "package.conf"))/binary,
+                                                " names\n">>)).
+
 %% The refusal of a program's module of the library Time's namespace, its
 %% source or its compiled form File under Dir, which the library Http uses
 %% (Appendix G.11), the file named as the shell names it.
@@ -4248,7 +4295,7 @@ forms(Dir, Files) ->
     SourceRoot = ern_build:absolute(Dir),
     Sources = [ern_build:absolute(filename:join(Dir, File)) || File <- Files],
     Order = ern_build:compile_order([ern_build:module_of(Source, SourceRoot) || Source <- Sources],
-                                    SourceRoot, [SourceRoot]),
+                                    SourceRoot, ern_build:load_path_of([SourceRoot])),
     {[], Beams} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
     [ok = file:write_file(filename:rootname(File) ++ ".erc", maps:get(Namespace, Beams))
      || #build_module{namespace = Namespace, file = File} <- Order],

@@ -173,12 +173,12 @@ add_peer(ConfigDir, PeerDir) ->
     Key =/= Own
         orelse ern_build:fail(Shown ++ " has this node's own key, and a node is no peer of itself"),
     not lists:keymember(Name, #peer.name, Peers)
-        orelse fail(ConfigDir, ?CONF, "a peer is named " ++ json_quoted(Name) ++ " already"),
+        orelse fail(ConfigDir, ?CONF, "a peer is named " ++ ern_conf:quoted(Name) ++ " already"),
     case lists:keyfind(Key, #peer.public_key, Peers) of
         false -> ok;
         #peer{name = Listed} ->
-            fail(ConfigDir, ?CONF, "the peer " ++ json_quoted(Listed) ++ " has the key of " ++ Shown
-                                   ++ " already")
+            fail(ConfigDir, ?CONF, "the peer " ++ ern_conf:quoted(Listed) ++ " has the key of "
+                                   ++ Shown ++ " already")
     end,
     Entry = maps:merge(#{<<"name">> => Name,
                          <<"public-key">> => pem([{'SubjectPublicKeyInfo', Key, not_encrypted}])},
@@ -526,54 +526,33 @@ configuration(ConfigDir) ->
                                             maps:get(<<"utilization-interval">>, Fields, 5000)),
                    limits = limits(ConfigDir, maps:get(<<"limits">>, Fields, none))}.
 
-%% `ernest.conf` as one JSON value, each object in it `{object, Pairs}`,
-%% its fields in the file's order, twice where the file gives one twice.
+%% `ernest.conf` as one JSON value, read as every JSON file of the
+%% toolchain's is (ern_conf), the file and the fault named where it is not
+%% one a node reads: no JSON, more than one value, or a number too long for
+%% the host to hold (report §12.5).
 decoded(ConfigDir) ->
-    Text = ern_build:read(file(ConfigDir, conf)),
-    Decoders = #{object_start => fun(_) -> [] end,
-                 object_push => fun(Name, Item, Acc) -> [{Name, Item} | Acc] end,
-                 object_finish => fun(Acc, Outer) -> {{object, lists:reverse(Acc)}, Outer} end,
-                 integer => fun(Numeral) -> integer(ConfigDir, Numeral) end},
-    try json:decode(Text, ok, Decoders) of
-        {Decoded, ok, Rest} ->
-            string:trim(Rest) =:= <<>>
-                orelse fail(ConfigDir, ?CONF, "holds more than one JSON value"),
-            Decoded
-    catch
-        error:_ -> fail(ConfigDir, ?CONF, "is not JSON")
+    case ern_conf:decoded(ern_build:read(file(ConfigDir, conf))) of
+        {ok, Decoded} -> Decoded;
+        {fault, Fault} -> fail(ConfigDir, ?CONF, Fault)
     end.
 
-%% A whole number of the file, as the host reads its numeral; one too long
-%% for the host to hold, which the host would raise for, is refused with the
-%% file and the rule (report §12.5).
-integer(ConfigDir, Numeral) ->
-    try binary_to_integer(Numeral)
-    catch
-        error:system_limit ->
-            fail(ConfigDir, ?CONF, "holds a number too large for the host to read")
+%% A JSON object's fields as a map, each name among Known and none given
+%% twice, the first fault refused.
+object(ConfigDir, What, Item, Known) ->
+    case ern_conf:fields(What, Item, Known) of
+        {Fields, []} -> Fields;
+        {_, [Fault | _]} -> fail(ConfigDir, ?CONF, Fault);
+        not_object -> fail(ConfigDir, ?CONF, What ++ " is not a JSON object")
     end.
-
-%% A JSON object's fields as a map, each name among Known.
-object(ConfigDir, What, {object, Pairs}, Known) ->
-    lists:foldl(fun({Name, Item}, Acc) ->
-                    lists:member(Name, Known)
-                        orelse fail(ConfigDir, ?CONF, What ++ " has the unknown field "
-                                                      ++ binary_to_list(Name)),
-                    is_map_key(Name, Acc)
-                        andalso fail(ConfigDir, ?CONF, What ++ " gives " ++ binary_to_list(Name)
-                                                       ++ " twice"),
-                    Acc#{Name => Item}
-                end, #{}, Pairs);
-object(ConfigDir, What, _, _) ->
-    fail(ConfigDir, ?CONF, What ++ " is not a JSON object").
 
 %% Report §12.5: `listen`, an address of one interface, or `0.0.0.0` or `::`
 %% for all, and a port, 0 for one the host picks.
 listen(ConfigDir, Text) when is_binary(Text) ->
     case listener(Text) of
         {ok, Listen} -> Listen;
-        not_endpoint -> fail(ConfigDir, ?CONF, "listen is not address:port: " ++ json_quoted(Text));
-        no_address -> fail(ConfigDir, ?CONF, "listen names no address: " ++ json_quoted(Text));
+        not_endpoint ->
+            fail(ConfigDir, ?CONF, "listen is not address:port: " ++ ern_conf:quoted(Text));
+        no_address -> fail(ConfigDir, ?CONF, "listen names no address: " ++ ern_conf:quoted(Text));
         {mapped, Mapped} -> fail(ConfigDir, ?CONF, "listen names " ++ mapped_text(Mapped))
     end;
 listen(ConfigDir, _) ->
@@ -653,7 +632,7 @@ peers(ConfigDir, List, Listen) when is_list(List) ->
     Keys = [Key || #peer{public_key = Key} <- Peers],
     case Names -- lists:usort(Names) of
         [] -> ok;
-        [Twice | _] -> fail(ConfigDir, ?CONF, "two peers are named " ++ json_quoted(Twice))
+        [Twice | _] -> fail(ConfigDir, ?CONF, "two peers are named " ++ ern_conf:quoted(Twice))
     end,
     length(Keys) =:= length(lists:usort(Keys))
         orelse fail(ConfigDir, ?CONF, "two peers have one public-key, and two nodes with one key"
@@ -668,7 +647,7 @@ peer(ConfigDir, Item, Listen) ->
                #{<<"name">> := Text} when is_binary(Text), Text =/= <<>> -> Text;
                _ -> fail(ConfigDir, ?CONF, "a peer has no name")
            end,
-    Shown = "peer " ++ json_quoted(Name),
+    Shown = "peer " ++ ern_conf:quoted(Name),
     Key = case Fields of
               #{<<"public-key">> := Pem} ->
                   public_key_der(ConfigDir, Shown ++ "'s public-key", Pem);
@@ -697,7 +676,7 @@ address(ConfigDir, Shown, Text, Listen) when is_binary(Text) ->
             end;
         _ ->
             fail(ConfigDir, ?CONF, Shown ++ "'s network-address is not host:port with a port from"
-                                            " 1 to 65535: " ++ json_quoted(Text))
+                                            " 1 to 65535: " ++ ern_conf:quoted(Text))
     end;
 address(ConfigDir, Shown, _, _) ->
     fail(ConfigDir, ?CONF, Shown ++ "'s network-address is not a string").
@@ -715,7 +694,7 @@ same_family(ConfigDir, Shown, Text, PeerFamily, Listen) ->
                       none -> ", since it has no listener";
                       _ -> ", its listener's family"
                   end,
-            fail(ConfigDir, ?CONF, Shown ++ "'s network-address " ++ json_quoted(Text) ++ " is "
+            fail(ConfigDir, ?CONF, Shown ++ "'s network-address " ++ ern_conf:quoted(Text) ++ " is "
                                    ++ Other ++ ", and this node runs over " ++ Own ++ Why)
     end.
 
@@ -743,7 +722,7 @@ services(ConfigDir, Item, Peers) ->
                 _ -> fail(ConfigDir, ?CONF, "services is not a JSON object")
             end,
     lists:foldl(fun({Name, Listed}, Acc) ->
-                    Shown = "service " ++ json_quoted(Name),
+                    Shown = "service " ++ ern_conf:quoted(Name),
                     Name =/= <<>>
                         orelse fail(ConfigDir, ?CONF, "services names a service with no name"),
                     is_map_key(Name, Acc)
@@ -753,7 +732,7 @@ services(ConfigDir, Item, Peers) ->
                     lists:foreach(fun(Peer) ->
                                       lists:member(Peer, PeerNames)
                                           orelse fail(ConfigDir, ?CONF,
-                                                      Shown ++ " names " ++ json_quoted(Peer)
+                                                      Shown ++ " names " ++ ern_conf:quoted(Peer)
                                                       ++ ", which is no peer's name")
                                   end, Listed),
                     length(Listed) =:= length(lists:usort(Listed))
@@ -805,7 +784,7 @@ utilization(_ConfigDir, <<"run-queue">>) ->
 utilization(_ConfigDir, <<"schedulers">>) ->
     schedulers;
 utilization(ConfigDir, Text) when is_binary(Text) ->
-    fail(ConfigDir, ?CONF, "utilization is " ++ json_quoted(Text) ++ ", which is neither"
+    fail(ConfigDir, ?CONF, "utilization is " ++ ern_conf:quoted(Text) ++ ", which is neither"
                            " \"run-queue\" nor \"schedulers\"");
 utilization(ConfigDir, _) ->
     fail(ConfigDir, ?CONF, "utilization is neither \"run-queue\" nor \"schedulers\"").
@@ -840,11 +819,6 @@ limit(ConfigDir, Name, _) ->
 %%
 %% Utilities
 %%
-
-%% A text as JSON writes it, in its quotes, as a refusal shows a value of
-%% the file.
-json_quoted(Text) ->
-    binary_to_list(iolist_to_binary(json:encode(Text))).
 
 -spec fail(file:filename(), string(), iodata()) -> no_return().
 fail(ConfigDir, File, Message) ->

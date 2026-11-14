@@ -60,7 +60,8 @@
 %% has examples: a private declaration's example is compiled inside it, and
 %% every example's frames name the line of the source that holds it
 %% (frames/2).
--spec cases([atom()], [module()], [file:filename()], load()) -> {[example()], [module()]}.
+-spec cases([atom()], [module()], ern_build:load_path(), load()) ->
+          {[example()], [module()]}.
 cases(Namespace, [ErlangModule | _] = Loaded, LoadPath, Load) ->
     Erc = code:which(ErlangModule),
     {ok, Beam} = file:read_file(Erc),

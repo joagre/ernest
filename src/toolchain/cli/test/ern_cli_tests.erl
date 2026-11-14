@@ -77,7 +77,7 @@ stdlib_order() ->
     BuildRoot = ern_build:absolute("build/stdlib"),
     Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot)
                || File <- ern_build:sources(SourceRoot)],
-    Taken = ern_build:compile_order(Modules, SourceRoot, []),
+    Taken = ern_build:compile_order(Modules, SourceRoot, ern_build:load_path_of([])),
     Latest = latest(Taken, []),
     ?assertNotEqual(Taken, Latest),
     Units = fun(Order) ->
@@ -1186,7 +1186,7 @@ libs_dir_test() ->
     ?assertEqual(0, ern_err(["test", "--libs-dir", Tested, Dir ++ "/build/checked.erc"])),
     ?assertEqual(<<"42\nfound: passed\n">>, iolist_to_binary(?capturedOutput)),
     ?assertEqual([Libs ++ "/helper-1.0/ebin", Libs ++ "/other/ebin" | ern_tree:libraries()],
-                 ern_build:load_path([{libs_dir, Libs}])).
+                 ern_build:directories(ern_build:load_path([{libs_dir, Libs}]))).
 
 %% report §11.1, §11.2, Appendix G: the build of each library of the
 %% toolchain's own ends the load path, so that a program using
@@ -1276,7 +1276,7 @@ current_form(Root, Relative, Text) ->
     SourceRoot = ern_build:absolute(Root),
     [#build_module{namespace = Namespace}] = Order =
         ern_build:compile_order([ern_build:module_of(ern_build:absolute(Source), SourceRoot)],
-                                SourceRoot, [SourceRoot]),
+                                SourceRoot, ern_build:load_path_of([SourceRoot])),
     {[], #{Namespace := Beam}} = ern_build:compiled_in_order(Order, SourceRoot, SourceRoot),
     Erc = filename:rootname(Source) ++ ".erc",
     ok = file:write_file(Erc, Beam),
@@ -4848,9 +4848,11 @@ shell_load_hashed_test() ->
     Dir = tmp(),
     write(Dir, "geo.ern", "export fn area(w : Int, h : Int) : Int = w * h\n"),
     write(Dir, "room.ern", "export fn floor() : Int = Geo.area(3, 4)\n"),
-    {ok, ['Geo'], Geo, _} = ern_build:compile_source(Dir ++ "/geo.ern", Dir, [Dir], #{}, #{}),
+    {ok, ['Geo'], Geo, _} = ern_build:compile_source(Dir ++ "/geo.ern", Dir,
+                                                        ern_build:load_path_of([Dir]), #{}, #{}),
     {ok, #{interface := GeoInterface}} = ern_interface:read(Geo),
-    {ok, ['Room'], Room, _} = ern_build:compile_source(Dir ++ "/room.ern", Dir, [Dir],
+    {ok, ['Room'], Room, _} = ern_build:compile_source(Dir ++ "/room.ern", Dir,
+                                                         ern_build:load_path_of([Dir]),
                                                          #{['Geo'] => GeoInterface}, #{}),
     {ok, #recorded{definitions = [#definition{hash = Area}]}} = ern_canonical:read(Geo),
     ?assertEqual(Area, maps:get(['Geo', area], GeoInterface#interface.identities)),
@@ -6113,23 +6115,6 @@ unpack_not_implemented_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"ern unpack: unpack takes no argument\n"
                                         "Usage: ern unpack\n">>)).
-
-%% report §11.7, §11.9: `--package-dir` of `ern run`, `ern test` and `ern
-%% shell` is refused as not implemented, in one line with status 1 and no
-%% usage, before anything of the job runs, so a directory that is not
-%% there is not looked for; `ern build` refuses it as an option it does
-%% not take, with the jobs that take it. A regression test, written after
-%% the code; it does not cover the option's work, which is not built
-package_dir_not_implemented_test() ->
-    Jobs = ["run", "test", "shell"],
-    [?assertEqual(1, ern_err([Job, "--package-dir", "nonexist", "x.erc"])) || Job <- Jobs],
-    ?assertEqual(iolist_to_binary([["ern ", Job, ": --package-dir is not implemented\n"]
-                                   || Job <- Jobs]),
-                 iolist_to_binary(?capturedOutput)),
-    ?assertEqual(1, ern_err(["build", "--package-dir", "x", "x.ern"])),
-    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
-                                      <<"ern build: --package-dir is not an option of ern"
-                                        " build; ern run, ern test and ern shell take it\n">>)).
 
 %% report §11: a compiled module given first is refused with the job that
 %% runs it, an option before the job with where it goes, and a spelling of
@@ -7420,6 +7405,684 @@ given_path_empty_test() ->
                     || Job <- ["build", "doc", "format", "run", "test", "shell"]],
                    ?assertNot(filelib:is_file("given.erc"))
            end).
+
+%%
+%% Packages, report §11.9
+%%
+
+%% A manifest for the release 0.11.0 naming Entries, each a name and a
+%% version, in their order.
+manifest_of(Entries) ->
+    ["{\"ernest\": \"0.11.0\", \"packages\": [",
+     lists:join(", ", [["{\"name\": \"", Name, "\", \"version\": \"", Version, "\"}"]
+                       || {Name, Version} <- Entries]),
+     "]}\n"].
+
+%% What a job said and its status where it refused what it was given with
+%% Lines, a line each.
+refused_lines(Job, Lines) ->
+    {1, iolist_to_binary([["ern ", Job, ": ", Line, "\n"] || Line <- Lines])}.
+
+%% Path's mode with the bit that lets others write it.
+others_write(Path) ->
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Path),
+    ok = file:change_mode(Path, Mode bor 8#002).
+
+%% Under the root package Root, the named package Name: its source, the
+%% module of its name, whose `hello()` gives Text, compiled into its build
+%% by a job started in the package, which holds no manifest, and its ebin.
+named_package(Root, Name, Text) ->
+    Package = filename:join([Root, "lib", Name]),
+    write(Package, "src/" ++ Name ++ ".ern",
+          ["export fn hello() : String =\n    \"", Text, "\"\n"]),
+    in_directory(Package,
+                 fun() -> ?assertEqual(0, ern_err(["build", "--build-root", "build", "src"])) end),
+    ok = filelib:ensure_path(filename:join(Package, "ebin")),
+    Package.
+
+%% report §11.9: a manifest that is not JSON, that gives a field it does
+%% not know or one twice, that lacks a field it must give, that gives a
+%% field a value not of its form, or that names one package in two
+%% entries, is refused before the job does anything else: every fault, a
+%% line each, after the manifest's name, in the order of where each stands,
+%% an absent field's at the end of the object that lacks it, `ernest`'s
+%% before `packages`' and `name`'s before `version`'s. A field given twice
+%% keeps its first value. A url is held to its entry's name and version
+%% only where both are of their form
+package_manifest_form_test() ->
+    in_directory(tmp(), fun package_manifest_form/0).
+
+package_manifest_form() ->
+    write(".", "given.ern", hello()),
+    ok = filelib:ensure_path("lib/epx"),
+    Version = "three numbers joined by `.`, none written with a leading zero",
+    Name = "words joined by `_`, each a lowercase letter, then lowercase letters and digits",
+    Digest = lists:duplicate(64, $a),
+    Cases =
+        [{"{", ["is not JSON"]},
+         {"{} {}", ["holds more than one JSON value"]},
+         {"[]", ["the file is not a JSON object"]},
+         {"{}", ["names no ernest", "names no packages"]},
+         {"{\"packages\": [{\"name\": \"a\"}]}",
+          ["the entry for a has no version", "names no ernest"]},
+         {"{\"x\": 1, \"ernest\": \"0.11\", \"ernest\": \"1.0.0\"}",
+          ["the file has the unknown field x", "ernest is not " ++ Version ++ ": \"0.11\"",
+           "the file gives ernest twice", "names no packages"]},
+         {"{\"ernest\": 11, \"packages\": {}, \"x\": null}",
+          ["ernest is not a string", "packages is not a JSON array",
+           "the file has the unknown field x"]},
+         {"{\"ernest\": \"0.11.0\", \"packages\": [], \"packages\": 3}",
+          ["the file gives packages twice"]},
+         {"{\"ernest\": \"0.11.0\", \"packages\": [\n"
+          "  3,\n"
+          "  {\"version\": \"1.2\", \"name\": \"leaf\"},\n"
+          "  {\"name\": \"Leaf\", \"version\": \"1.0.0\", \"color\": \"red\"},\n"
+          "  {\"version\": \"1.0.0\"},\n"
+          "  {\"name\": 7},\n"
+          "  {\"name\": \"epx\", \"version\": \"0.2.1\","
+          " \"url\": \"http://example.org/epx-0.2.1.tar.gz\", \"sha256\": \"ABC\"},\n"
+          "  {\"name\": \"leaf\", \"version\": \"1.3.0\", \"version\": \"1.4.0\"},\n"
+          "  {\"name\": \"mid\"},\n"
+          "  {\"name\": \"codec\", \"version\": \"01.0.0\", \"url\": \"unread\", \"sha256\": 5},\n"
+          "  {\"name\": \"base\", \"version\": \"1.0.0.1\","
+          " \"url\": \"https://example.org/base-1.0.0.tar.gz\"},\n"
+          "  {\"name\": \"zip\", \"version\": \"2.0.0\","
+          " \"url\": \"https://example.org/zip/zip-2.0.1.tar.gz\", \"sha256\": \"" ++ Digest
+          ++ "0\"}\n"
+          "]}\n",
+          ["an entry is not a JSON object",
+           "the entry for leaf's version is not " ++ Version ++ ": \"1.2\"",
+           "an entry's name is not " ++ Name ++ ": \"Leaf\"",
+           "an entry has the unknown field color",
+           "an entry has no name",
+           "an entry's name is not a string",
+           "an entry has no version",
+           "the entry for epx's url is not an https URL whose path's last segment is"
+           " epx-0.2.1.tar.gz: \"http://example.org/epx-0.2.1.tar.gz\"",
+           "the entry for epx's sha256 is not 64 hexadecimal digits, their letters lowercase:"
+           " \"ABC\"",
+           "the entry for leaf gives version twice",
+           "two entries name leaf",
+           "the entry for mid has no version",
+           "the entry for codec's version is not " ++ Version ++ ": \"01.0.0\"",
+           "the entry for codec's sha256 is not a string",
+           "the entry for base's version is not " ++ Version ++ ": \"1.0.0.1\"",
+           "the entry for zip's url is not an https URL whose path's last segment is"
+           " zip-2.0.0.tar.gz: \"https://example.org/zip/zip-2.0.1.tar.gz\"",
+           "the entry for zip's sha256 is not 64 hexadecimal digits, their letters lowercase: \""
+           ++ Digest ++ "0\""]}],
+    lists:foreach(fun({Text, Lines}) ->
+                      write(".", "package.conf", Text),
+                      ?assertEqual(refused_lines("build", ["package.conf: " ++ Line
+                                                           || Line <- Lines]),
+                                   said(["build", "given.ern"]))
+                  end, Cases),
+    ?assertNot(filelib:is_file("given.erc")),
+    %% a manifest of its form, a url and a digest among it
+    write(".", "package.conf",
+          "{\"packages\": [{\"sha256\": \"" ++ Digest ++ "\", \"name\": \"epx\","
+          " \"url\": \"https://example.org/epx/epx-0.2.1.tar.gz\", \"version\": \"0.2.1\"}],"
+          " \"ernest\": \"0.11.0\"}\n"),
+    ?assertEqual({0, <<>>}, said(["build", "given.ern"])).
+
+%% report §11.9: a directory holds a manifest where it holds the name
+%% `package.conf`, whatever the name reaches. A manifest the job cannot read
+%% is one fault of its form, and the other groups of refusals are said
+%% after it: a name that reaches no regular file, a directory or a FIFO, is
+%% refused before it is read, so that a FIFO no one writes ends the job with
+%% the refusal; a link to nothing is refused as a path that names nothing
+%% is; and a file the job cannot read with the host's reason. A job that
+%% cannot tell whether the directory holds the name is refused with the
+%% host's reason, and nothing else is said. The shell is given `--main`
+%% with no file, which it refuses, so that it never starts where the
+%% manifest is not read
+package_unreadable_manifest_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "given.ern", hello()),
+                     ok = file:make_dir("package.conf"),
+                     ?assertEqual(refusal("build", "package.conf: is no regular file"),
+                                  said(["build", "given.ern"])),
+                     others_write("package.conf"),
+                     ?assertEqual(refused_lines("build",
+                                                ["package.conf: is no regular file",
+                                                 "package.conf: may be written by every user"]),
+                                  said(["build", "given.ern"])),
+                     ok = file:del_dir("package.conf"),
+                     "" = os:cmd("mkfifo package.conf"),
+                     ?assertEqual(refusal("run", "package.conf: is no regular file"),
+                                  said(["run", "given.erc"])),
+                     ok = file:delete("package.conf"),
+                     ok = file:make_symlink("nothing", "package.conf"),
+                     ?assertEqual(refusal("build", "package.conf: no such file"),
+                                  said(["build", "given.ern"])),
+                     ok = file:delete("package.conf"),
+                     write(".", "package.conf", manifest_of([])),
+                     ok = file:change_mode("package.conf", 8#000),
+                     ?assertEqual(refusal("doc", "package.conf: permission denied"),
+                                  said(["doc", "given.ern"])),
+                     ?assertNot(filelib:is_file("given.erc"))
+                 end),
+    Dir = tmp(),
+    in_directory(Dir,
+                 fun() ->
+                     ok = file:change_mode(Dir, 8#600),
+                     try
+                         ?assertEqual(refusal("shell", "package.conf: permission denied"),
+                                      said(["shell", "--main", "Given.none"]))
+                     after
+                         ok = file:change_mode(Dir, 8#755)
+                     end
+                 end).
+
+%% report §11.9, §11.2: a job that reads the manifest refuses it, the root
+%% package's directory, its `lib`, and a named package's directory, `src`,
+%% `build` and `ebin`, where every user may write it, by its mode, or by the
+%% mode of the directory that holds what a link reaches; every path at
+%% fault said, the root package's first and then each named package's, in
+%% the manifest's order, the root package's directory written `.`. Nothing
+%% under those directories is tested, and a named package whose entry is
+%% not of its form has no path tested. Not covered: a package another user
+%% owns, which a test run by one user cannot make
+package_paths_at_fault_test() ->
+    Elsewhere = tmp(),
+    ok = filelib:ensure_path(filename:join(Elsewhere, "open/leaf")),
+    others_write(filename:join(Elsewhere, "open")),
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "given.ern", hello()),
+                     write(".", "package.conf", manifest_of([{"epx", "0.2.1"}, {"leaf", "1.3.0"}])),
+                     [ok = filelib:ensure_path("lib/epx/" ++ Sub)
+                      || Sub <- ["src", "build", "ebin"]],
+                     write(".", "lib/epx/src/epx.ern", hello()),
+                     write(".", "lib/epx/VERSION", "0.2.1\n"),
+                     ok = file:make_symlink(filename:join(Elsewhere, "open/leaf"), "lib/leaf"),
+                     Open = ["package.conf", ".", "lib", "lib/epx", "lib/epx/src", "lib/epx/build",
+                             "lib/epx/ebin"],
+                     [others_write(Path) || Path <- Open ++ ["lib/epx/src/epx.ern",
+                                                             "lib/epx/VERSION"]],
+                     ?assertEqual(refused_lines("build",
+                                                [Path ++ ": may be written by every user"
+                                                 || Path <- Open ++ ["lib/leaf"]]),
+                                  said(["build", "given.ern"])),
+                     ok = filelib:ensure_path("lib/bad"),
+                     others_write("lib/bad"),
+                     write(".", "package.conf", manifest_of([{"epx", "0.2.1"}, {"bad", "x"}])),
+                     ?assertEqual(refused_lines("build",
+                                                ["package.conf: the entry for bad's version is not"
+                                                 " three numbers joined by `.`, none written with a"
+                                                 " leading zero: \"x\""
+                                                 | [Path ++ ": may be written by every user"
+                                                    || Path <- Open]]),
+                                  said(["build", "given.ern"]))
+                 end).
+
+%% report §11.9, §4.2: an entry whose namespace is one §4.2 takes, the
+%% prelude's, the standard library's or the toolchain's own, is refused, and
+%% so is one whose namespace a library of the toolchain's own provides; a
+%% prelude type without members takes no namespace
+package_namespaces_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "given.ern", hello()),
+                     Names = ["io", "json", "int", "ernest", "prelude", "down", "pixel_map"],
+                     [ok = filelib:ensure_path("lib/" ++ Name) || Name <- Names],
+                     write(".", "package.conf", manifest_of([{Name, "1.0.0"} || Name <- Names])),
+                     Taken = ", which no package may take",
+                     ?assertEqual(refused_lines("build",
+                                                ["package.conf: the entry for io names Io" ++ Taken,
+                                                 "package.conf: the entry for json names Json,"
+                                                 " which a library of the toolchain's own provides",
+                                                 "package.conf: the entry for int names Int"
+                                                 ++ Taken,
+                                                 "package.conf: the entry for ernest names Ernest"
+                                                 ++ Taken,
+                                                 "package.conf: the entry for prelude names"
+                                                 " Prelude" ++ Taken]),
+                                  said(["build", "given.ern"])),
+                     write(".", "package.conf", manifest_of([{"down", "1.0.0"},
+                                                             {"pixel_map", "1.0.0"}])),
+                     ?assertEqual({0, <<>>}, said(["build", "given.ern"]))
+                 end).
+
+%% report §11.9: a named package stands under the root package's `lib` at
+%% its name, a directory or a link to one; one that is not there, or is a
+%% file or a link to nothing, is refused, a line each in the manifest's
+%% order
+package_not_under_lib_test() ->
+    Elsewhere = tmp(),
+    ok = filelib:ensure_path(filename:join(Elsewhere, "linked")),
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "given.ern", hello()),
+                     write(".", "lib/leaf", "a file\n"),
+                     ok = file:make_symlink("nothing", "lib/mid"),
+                     ok = file:make_symlink(filename:join(Elsewhere, "linked"), "lib/linked"),
+                     write(".", "package.conf",
+                           manifest_of([{"epx", "0.2.1"}, {"leaf", "1.2.0"}, {"linked", "1.0.0"},
+                                        {"mid", "0.4.0"}])),
+                     ?assertEqual(refused_lines("build",
+                                                ["package.conf: " ++ Package
+                                                 ++ " is not under lib; ern unpack puts it there"
+                                                 || Package <- ["epx 0.2.1", "leaf 1.2.0",
+                                                                "mid 0.4.0"]]),
+                                  said(["build", "given.ern"])),
+                     write(".", "package.conf", manifest_of([{"linked", "1.0.0"}])),
+                     ?assertEqual({0, <<>>}, said(["build", "given.ern"]))
+                 end).
+
+%% report §11.9: a job says its refusals in this order, each group whole:
+%% the manifest's form, the paths at fault, the entries' namespaces, and
+%% the named packages not under `lib`
+package_refusal_order_test() ->
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "given.ern", hello()),
+                     write(".", "package.conf",
+                           "{\"ernest\": \"0.11.0\", \"packages\": [{\"name\": \"epx\","
+                           " \"version\": \"0.2.1\"}, {\"name\": \"io\", \"version\": \"1.0.0\"}],"
+                           " \"x\": 1}\n"),
+                     ok = filelib:ensure_path("lib/io"),
+                     others_write("package.conf"),
+                     ?assertEqual(refused_lines("build",
+                                                ["package.conf: the file has the unknown field x",
+                                                 "package.conf: may be written by every user",
+                                                 "package.conf: the entry for io names Io, which"
+                                                 " no package may take",
+                                                 "package.conf: epx 0.2.1 is not under lib; ern"
+                                                 " unpack puts it there"]),
+                                  said(["build", "given.ern"]))
+                 end).
+
+%% report §11.9, §11.7, §11.2: `--package-dir dir` of `ern run`, `ern test`
+%% and `ern shell` makes `dir` the root package, whose manifest the job
+%% reads whatever path it is given, and no other: a refusal writes each
+%% path of it as §11.5 writes a path, absolute outside the working
+%% directory; a `dir` that holds no manifest is refused, and so are one
+%% that names no directory and one that names a file. `--package-dir` is
+%% not given with `--attach`, and `ern build` does not take it
+package_dir_test() ->
+    Chart = tmp(),
+    write(Chart, "package.conf", manifest_of([{"epx", "0.2.1"}])),
+    others_write(Chart),
+    Empty = tmp(),
+    Good = tmp(),
+    write(Good, "package.conf", manifest_of([])),
+    Outside = tmp(),
+    write(Outside, "outside.ern", hello()),
+    ?assertEqual(0, ern_err(["build", "--source-root", Outside, Outside ++ "/outside.ern"])),
+    Jobs = [{"run", ["given.erc"]}, {"test", ["given.erc"]}, {"shell", ["--main", "Given.none"]}],
+    in_directory(tmp(),
+                 fun() ->
+                     write(".", "given.ern", hello()),
+                     ?assertEqual(0, ern_err(["build", "given.ern"])),
+                     write(".", "package.conf", "{"),
+                     write(".", "p", "a file\n"),
+                     At = [Chart ++ ": may be written by every user",
+                           Chart ++ "/package.conf: epx 0.2.1 is not under " ++ Chart
+                           ++ "/lib; ern unpack puts it there"],
+                     [?assertEqual(refused_lines(Job, At),
+                                   said([Job, "--package-dir", Chart | Rest]))
+                      || {Job, Rest} <- Jobs],
+                     ?assertEqual(refused_lines("run", At),
+                                  said(["run", "--package-dir", Chart, Outside ++ "/outside.erc"])),
+                     [?assertEqual(refusal(Job, Empty ++ "/package.conf: no such file"),
+                                   said([Job, "--package-dir", Empty | Rest]))
+                      || {Job, Rest} <- Jobs],
+                     ?assertEqual(refusal("run", "nonexist: no such directory, which --package-dir"
+                                                 " names"),
+                                  said(["run", "--package-dir", "nonexist", "given.erc"])),
+                     ?assertEqual(refusal("run", "p: not a directory, which --package-dir names"),
+                                  said(["run", "--package-dir", "p", "given.erc"])),
+                     ?assertEqual({0, <<"hello, world\n">>},
+                                  said(["run", "--package-dir", Good, "given.erc"])),
+                     {1, Attached} = said(["shell", "--package-dir", Good, "--attach", "peer"]),
+                     ?assertMatch(<<"ern shell: --package-dir is not given with --attach: the load"
+                                    " path is the node's\n", _/binary>>, Attached),
+                     {1, Built} = said(["build", "--package-dir", "x", "given.ern"]),
+                     ?assertMatch(<<"ern build: --package-dir is not an option of ern build; ern"
+                                    " run, ern test and ern shell take it\n", _/binary>>, Built)
+                 end).
+
+%% report §11.9: a job given a path reads the manifest only where the path,
+%% resolved, begins with the working directory's segments, an absolute path
+%% under it among them; no job looks for a manifest in a directory above
+%% the one it is started in; a job given no path reads it; and an attached
+%% shell reads none, refused here as it is without `--config-dir`
+package_given_path_test() ->
+    Outside = tmp(),
+    write(Outside, "outside.ern", hello()),
+    in_directory(tmp(),
+                 fun() ->
+                     {ok, Cwd} = file:get_cwd(),
+                     write(".", "given.ern", hello()),
+                     write(".", "sub/sub.ern", hello()),
+                     write(".", "package.conf", "{"),
+                     Refused = refusal("build", "package.conf: is not JSON"),
+                     ?assertEqual(Refused, said(["build", "given.ern"])),
+                     ?assertEqual(Refused, said(["build", Cwd ++ "/given.ern"])),
+                     ?assertEqual(Refused, said(["build", "--source-root", Outside,
+                                                 "sub/../given.ern"])),
+                     ?assertEqual({0, <<>>}, said(["build", "--source-root", Outside,
+                                                   Outside ++ "/outside.ern"])),
+                     ?assertEqual({0, <<>>},
+                                  said(["build", "--source-root", Outside,
+                                        "../" ++ filename:basename(Outside) ++ "/outside.ern"])),
+                     in_directory("sub",
+                                  fun() -> ?assertEqual({0, <<>>}, said(["build", "sub.ern"])) end),
+                     ?assertEqual(refusal("shell", "package.conf: is not JSON"),
+                                  said(["shell", "--main", "Given.none"])),
+                     {1, Attached} = said(["shell", "--attach", "peer"]),
+                     ?assertMatch(<<"ern shell: --attach needs --config-dir", _/binary>>, Attached)
+                 end).
+
+%% report §11.9, §11.1, §11.2, Appendix E.28: the build of each named
+%% package stands on the load path in the manifest's order, after the
+%% directories the options add and before the toolchain's libraries, under
+%% `ern build`, `ern doc`, `ern run` and `ern test`, and its `ebin` beside it
+%% under `ern run` and `ern test` alone, where a `foreign fn` finds its
+%% module; a build or an `ebin` that is not there adds nothing, and a
+%% directory an option names too stands once, at the option's place. The
+%% shell's and a bare node's load path are the same function's, and not
+%% covered here
+package_load_path_test_() ->
+    {timeout, 60, fun package_load_path/0}.
+
+package_load_path() ->
+    in_directory(tmp(), fun package_load_path_in/0).
+
+package_load_path_in() ->
+    {ok, Cwd} = file:get_cwd(),
+    In = fun(Path) -> filename:join(Cwd, Path) end,
+    named_package(".", "lp_epx", "epx"),
+    compiled_erlang("lib/lp_epx/ebin", "ern_cli_package_native", "n/0", "n() -> 42."),
+    named_package(".", "lp_leaf", "leaf"),
+    ok = file:del_dir("lib/lp_leaf/ebin"),
+    write(".", "lib/lp_none/src/lp_none.ern", "export fn one() : Int =\n    1\n"),
+    write(".", "package.conf", manifest_of([{"lp_epx", "0.2.1"}, {"lp_leaf", "1.3.0"},
+                                            {"lp_none", "1.0.0"}])),
+    write(".", "lp_main.ern",
+          "foreign fn native() : Int = \"ern_cli_package_native:n/0\"\n\n"
+          "export fn main() : Unit =\n"
+          "    Io.println(LpEpx.hello() <> LpLeaf.hello() <> Int.toString(native()))\n"),
+    write(".", "lp_checked.ern",
+          "let found : Test.Case(Never) =\n"
+          "    Test.Case(name = \"found\", run = fn() = Test.equal(LpLeaf.hello(), \"leaf\"))\n"),
+    ?assertEqual({0, <<>>}, said(["build", "lp_main.ern"])),
+    ?assertEqual({0, <<>>}, said(["build", "lp_checked.ern"])),
+    Libraries = ern_tree:libraries(),
+    ?assertEqual({0, <<"epxleaf42\n">>}, said(["run", "lp_main.erc"])),
+    ?assertEqual([Cwd, In("lib/lp_epx/build"), In("lib/lp_epx/ebin"), In("lib/lp_leaf/build")
+                  | Libraries], ern_build:directories(ern_cli:load_path())),
+    ?assertEqual({0, <<"found: passed\n">>}, said(["test", "lp_checked.erc"])),
+    {0, Page} = said(["doc", "lp_main.ern"]),
+    ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module LpMain\n">>)),
+    ?assertEqual({0, <<"epxleaf42\n">>},
+                 said(["run", "--load-path", "lib/lp_leaf/build", "lp_main.erc"])),
+    ?assertEqual([Cwd, In("lib/lp_leaf/build"), In("lib/lp_epx/build"), In("lib/lp_epx/ebin")
+                  | Libraries], ern_build:directories(ern_cli:load_path())),
+    ?assertEqual({0, <<"epxleaf42\n">>}, said(["run", "--libs-dir", "lib", "lp_main.erc"])),
+    ?assertEqual([Cwd, In("lib/lp_epx/ebin"), In("lib/lp_epx/build"), In("lib/lp_leaf/build")
+                  | Libraries], ern_build:directories(ern_cli:load_path())),
+    %% the builds alone, where the job runs no code
+    Packages = ern_package:packages(ern_package:read(".", builds)),
+    ?assertEqual([In("lib/lp_epx/build"), In("lib/lp_leaf/build") | Libraries],
+                 ern_build:directories(ern_build:load_path([{named_package, Package}
+                                                            || Package <- Packages]))).
+
+%% report §11.9, §11.1, §11.2, §11.4: `--verbose` of `ern build`, after the
+%% build root, and of `ern run`, `ern test` and `ern doc`, before anything
+%% else, names the manifest read and each named package put on the load
+%% path, with the version its `VERSION` holds, or `no version` where it is
+%% not of its form or not there, and, where `lib/<name>` is a link, its
+%% target taken from `lib` and written as §11.5 writes a path, absolute
+%% outside the working directory
+package_verbose_test_() ->
+    {timeout, 60, fun package_verbose/0}.
+
+package_verbose() ->
+    Elsewhere = tmp(),
+    named_package(Elsewhere, "vb_mid", "mid"),
+    write(Elsewhere, "lib/vb_mid/VERSION", "1.0.0\n"),
+    in_directory(tmp(), fun() -> package_verbose_in(Elsewhere) end).
+
+package_verbose_in(Elsewhere) ->
+    named_package(".", "vb_epx", "epx"),
+    write(".", "lib/vb_epx/VERSION", "0.2.1\n"),
+    named_package(".", "vb_leaf", "leaf"),
+    write(".", "lib/vb_leaf/VERSION", "1.3\n"),
+    ok = file:make_symlink(filename:join(Elsewhere, "lib/vb_mid"), "lib/vb_mid"),
+    named_package("rel", "vb_rel", "rel"),
+    ok = file:make_symlink("../rel/lib/vb_rel", "lib/vb_rel"),
+    write(".", "package.conf", manifest_of([{"vb_epx", "0.2.1"}, {"vb_leaf", "1.3.0"},
+                                            {"vb_mid", "1.0.0"}, {"vb_rel", "2.0.0"}])),
+    write(".", "vb_main.ern", "export fn main() : Unit =\n    Io.println(VbEpx.hello())\n"),
+    Said = lines(["manifest package.conf", "package vb_epx 0.2.1", "package vb_leaf no version",
+                  "package vb_mid 1.0.0 at " ++ Elsewhere ++ "/lib/vb_mid",
+                  "package vb_rel no version at rel/lib/vb_rel"]),
+    Prefixed = fun(Prefix, {0, Output}) ->
+                   ?assertEqual(unicode:characters_to_binary(Prefix),
+                                binary:part(Output, 0, min(byte_size(Output), length(Prefix))))
+               end,
+    Prefixed("source root .\nbuild root .\n" ++ Said, said(["build", "--verbose", "vb_main.ern"])),
+    Prefixed(Said, said(["run", "--verbose", "vb_main.erc"])),
+    Prefixed(Said, said(["test", "--verbose", "vb_main.erc"])),
+    Prefixed(Said, said(["doc", "--verbose", "vb_main.ern"])).
+
+%% report §11.9, §11.1, §11.5: `--verbose` writes a link's target that is
+%% not UTF-8 with each byte past ASCII as `\xHH`, and then as a path is
+%% written, its `.` and `..` resolved. A regression test, written after the
+%% code; not covered: a target that holds a control character
+package_verbose_target_not_utf8_test() ->
+    in_directory(tmp(), fun package_verbose_target_not_utf8/0).
+
+package_verbose_target_not_utf8() ->
+    ok = file:make_dir(<<"b", 16#FF>>),
+    ok = file:make_dir(<<"b", 16#FF, "/vb_bytes">>),
+    ok = file:make_dir("lib"),
+    ok = file:make_symlink(<<"../b", 16#FF, "/vb_bytes">>, <<"lib/vb_bytes">>),
+    write(".", "package.conf", manifest_of([{"vb_bytes", "1.0.0"}])),
+    write(".", "vb_bytes_main.ern", "export fn main() : Unit =\n    Io.println(\"b\")\n"),
+    {0, Said} = said(["build", "--verbose", "vb_bytes_main.ern"]),
+    ?assertNotEqual(nomatch,
+                    binary:match(Said, <<"\npackage vb_bytes no version at b\\xFF/vb_bytes\n">>)).
+
+%% report §11.9, §11.1, §11.4, §11.6, §11.2: in directory mode a directory
+%% named `lib` that stands beside a `package.conf` is passed over by every
+%% job that walks a directory: `ern build` compiles nothing under it and its
+%% sweep removes nothing there, `ern doc` documents nothing under it and
+%% removes no page there, `ern format` lays out nothing there, and `ern
+%% test` runs no test there; a `lib` that stands beside no manifest is
+%% walked. Not covered: a node's start, which reads every module of its load
+%% path by the same walk
+package_lib_passed_over_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_lib_passed_over/0) end}.
+
+package_lib_passed_over() ->
+    write(".", "top.ern", "export fn main() : Unit =\n    Io.println(\"top\")\n"),
+    write(".", "lib/old.ern", "export fn one() : Int =\n    1\n"),
+    write(".", "lib/checked.ern",
+          "let counted : Test.Case(Never) =\n"
+          "    Test.Case(name = \"counted\", run = fn() = Test.equal(1, 1))\n"),
+    ?assertEqual({0, <<>>}, said(["build", "."])),
+    ?assertEqual({0, <<>>}, said(["doc", "."])),
+    ?assert(filelib:is_regular("lib/old.erc")),
+    ?assert(filelib:is_regular("lib/old.md")),
+    ok = file:delete("lib/old.ern"),
+    write(".", "lib/broken.ern", "fn (\n"),
+    write(".", "lib/loose.ern", "fn f(x) = x+1\n"),
+    write(".", "sub/lib/inner.ern", "export fn two() : Int =\n    2\n"),
+    write(".", "package.conf", manifest_of([])),
+    ?assertEqual({0, <<>>}, said(["build", "."])),
+    ?assert(filelib:is_regular("lib/old.erc")),
+    ?assertNot(filelib:is_file("lib/broken.erc")),
+    ?assert(filelib:is_regular("sub/lib/inner.erc")),
+    ?assertEqual({0, <<>>}, said(["doc", "."])),
+    ?assert(filelib:is_regular("lib/old.md")),
+    ?assert(filelib:is_regular("sub/lib/inner.md")),
+    ?assertEqual({0, <<>>}, said(["format", "--check", "."])),
+    {0, Tested} = said(["test", "."]),
+    ?assertEqual(nomatch, binary:match(Tested, <<"counted">>)).
+
+%% Under the directory Dir, which names no manifest, the module Name, a file
+%% of Dir's own, `name.ern` or `name/inner.ern`, compiled there from Text,
+%% and its `.erc` copied to Destination: a module at a namespace that stands
+%% elsewhere too.
+compiled_elsewhere(Dir, Relative, Text, Destination) ->
+    write(Dir, Relative, Text),
+    in_directory(Dir, fun() -> ?assertEqual(0, ern_err(["build", Relative])) end),
+    Compiled = filename:rootname(Relative) ++ ".erc",
+    ok = filelib:ensure_dir(Destination),
+    {ok, _} = file:copy(filename:join(Dir, Compiled), Destination),
+    ok.
+
+%% report §11.9, §4.2, §11.1, §11.2: a named package's namespace, and every
+%% namespace under it, is found under that package's build alone, by `ern
+%% build`, `ern doc`, `ern run` and `ern test`: a module at it under the
+%% build root, which is also the loaded module's root, or under a
+%% `--load-path` root is passed over; and the package's build provides no
+%% other namespace, a module at another's path in it being no module
+package_namespace_lookup_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_namespace_lookup/0) end}.
+
+package_namespace_lookup() ->
+    Elsewhere = tmp(),
+    write(".", "lib/nl_leaf/src/nl_leaf/inner.ern", "export fn word() : String =\n    \"inner\"\n"),
+    named_package(".", "nl_leaf", "package"),
+    compiled_elsewhere(Elsewhere, "nl_other.ern", "export fn word() : String =\n    \"other\"\n",
+                       "lib/nl_leaf/build/nl_other.erc"),
+    Decoy = filename:join(Elsewhere, "decoy"),
+    compiled_elsewhere(Decoy, "nl_leaf.ern", "export fn hello() : Int =\n    7\n",
+                       "nl_leaf.erc"),
+    compiled_elsewhere(Decoy, "nl_leaf/inner.ern", "export fn word() : Int =\n    8\n",
+                       filename:join(Decoy, "nl_leaf/inner.erc")),
+    write(".", "package.conf", manifest_of([{"nl_leaf", "1.0.0"}])),
+    write(".", "nl_main.ern",
+          "export fn main() : Unit =\n    Io.println(NlLeaf.hello() <> NlLeaf.Inner.word())\n"),
+    write(".", "nl_checked.ern",
+          "let found : Test.Case(Never) =\n"
+          "    Test.Case(name = \"found\",\n"
+          "              run = fn() = Test.equal(NlLeaf.hello(), \"package\"))\n"),
+    write(".", "nl_other_user.ern", "export fn main() : Unit =\n    Io.println(NlOther.word())\n"),
+    ?assertEqual({0, <<>>}, said(["build", "--load-path", Decoy, "nl_main.ern"])),
+    ?assertEqual({0, <<>>}, said(["build", "--load-path", Decoy, "nl_checked.ern"])),
+    ?assertEqual({0, <<"packageinner\n">>}, said(["run", "--load-path", Decoy, "nl_main.erc"])),
+    {0, Read} = said(["run", "--verbose", "--load-path", Decoy, "nl_main.erc"]),
+    ?assertNotEqual(nomatch, binary:match(Read, <<"read NlLeaf from lib/nl_leaf/build/nl_leaf.erc\n"
+                                                  "read NlLeaf.Inner from"
+                                                  " lib/nl_leaf/build/nl_leaf/inner.erc\n">>)),
+    ?assertEqual({0, <<"found: passed\n">>},
+                 said(["test", "--load-path", Decoy, "nl_checked.erc"])),
+    {0, Page} = said(["doc", "--load-path", Decoy, "nl_main.ern"]),
+    ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module NlMain\n">>)),
+    {1, Unfound} = said(["build", "nl_other_user.ern"]),
+    ?assertMatch({_, _}, binary:match(Unfound, <<"NlOther">>)),
+    ?assertNot(filelib:is_file("nl_other_user.erc")).
+
+%% report §11.9, §11.1: a module outside the named packages, its source
+%% under no named package's `src`, at a named package's namespace or under
+%% it, is refused by `ern build` and `ern doc`, which fail that file alone,
+%% as a module that does not compile fails: a module that uses the
+%% namespace is compiled against the package's build
+package_namespace_refused_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_namespace_refused/0) end}.
+
+package_namespace_refused() ->
+    named_package(".", "nr_leaf", "package"),
+    write(".", "package.conf", manifest_of([{"nr_leaf", "1.0.0"}])),
+    write(".", "src/nr_leaf.ern", "export fn hello() : String =\n    \"source\"\n"),
+    write(".", "src/nr_leaf/util.ern", "export fn one() : Int =\n    1\n"),
+    write(".", "src/nr_main.ern", "export fn main() : Unit =\n    Io.println(NrLeaf.hello())\n"),
+    %% in the order the build walks the tree, a directory before the file
+    %% of its name
+    Refused = fun(Job) ->
+                  refused_lines(Job, ["src/nr_leaf/util.ern: NrLeaf.Util is the package"
+                                      " nr_leaf's, which package.conf names",
+                                      "src/nr_leaf.ern: NrLeaf is the package nr_leaf's, which"
+                                      " package.conf names"])
+              end,
+    Tree = ["--source-root", "src", "--build-root", "build", "src"],
+    ?assertEqual(Refused("build"), said(["build" | Tree])),
+    ?assert(filelib:is_regular("build/nr_main.erc")),
+    ?assertNot(filelib:is_file("build/nr_leaf.erc")),
+    ?assertNot(filelib:is_file("build/nr_leaf/util.erc")),
+    ?assertEqual({0, <<"package\n">>}, said(["run", "build/nr_main.erc"])),
+    ?assertEqual(Refused("doc"), said(["doc" | Tree])),
+    ?assertNot(filelib:is_file("build/nr_leaf.md")),
+    ?assertEqual(refusal("build", "src/nr_leaf.ern: NrLeaf is the package nr_leaf's, which"
+                                  " package.conf names"),
+                 said(["build", "--source-root", "src", "src/nr_leaf.ern"])),
+    ?assertEqual(refusal("doc", "src/nr_leaf.ern: NrLeaf is the package nr_leaf's, which"
+                                " package.conf names"),
+                 said(["doc", "--source-root", "src", "src/nr_leaf.ern"])).
+
+%% report §11.9, §11.2: `ern run` and `ern test` refuse a file given at a
+%% named package's namespace or under it, outside that package's build,
+%% before anything runs, and run one given in it
+package_namespace_given_file_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_namespace_given_file/0) end}.
+
+package_namespace_given_file() ->
+    write(".", "lib/ng_epx/src/ng_epx/tool.ern",
+          "export fn main() : Unit =\n    Io.println(NgEpx.hello())\n"),
+    named_package(".", "ng_epx", "epx"),
+    write(".", "package.conf", manifest_of([{"ng_epx", "0.2.1"}])),
+    ok = filelib:ensure_path("build/ng_epx"),
+    {ok, _} = file:copy("lib/ng_epx/build/ng_epx.erc", "build/ng_epx.erc"),
+    {ok, _} = file:copy("lib/ng_epx/build/ng_epx/tool.erc", "build/ng_epx/tool.erc"),
+    ?assertEqual({0, <<"epx\n">>}, said(["run", "lib/ng_epx/build/ng_epx/tool.erc"])),
+    [?assertEqual(refusal(Job, "build/ng_epx/tool.erc holds NgEpx.Tool, the package ng_epx's,"
+                               " which package.conf names"),
+                  said([Job, "build/ng_epx/tool.erc"]))
+     || Job <- ["run", "test"]],
+    [?assertEqual(refusal(Job, "build/ng_epx.erc holds NgEpx, the package ng_epx's, which"
+                               " package.conf names"),
+                  said([Job, "build/ng_epx.erc"]))
+     || Job <- ["run", "test"]].
+
+%% report §11.9, §11.2: `ern run`, `ern test`, and `ern shell` given a file,
+%% refuse a compiled module given in a named package's build at another
+%% namespace than the package's, at the build's top and below it, before
+%% anything runs; the shell itself is not started
+package_build_other_namespace_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_build_other_namespace/0) end}.
+
+package_build_other_namespace() ->
+    named_package(".", "po_epx", "epx"),
+    write(".", "package.conf", manifest_of([{"po_epx", "0.2.1"}])),
+    Elsewhere = tmp(),
+    Main = "export fn main() : Unit =\n    Io.println(\"stray\")\n",
+    compiled_elsewhere(Elsewhere, "po_tool.ern", Main, "lib/po_epx/build/po_tool.erc"),
+    compiled_elsewhere(Elsewhere, "po_deep/tool.ern", Main, "lib/po_epx/build/po_deep/tool.erc"),
+    [?assertEqual(refusal(Job, File ++ " holds " ++ Name ++ ", and the package po_epx provides"
+                               " PoEpx and what stands under it"),
+                  said([Job, File]))
+     || Job <- ["run", "test", "shell"],
+        {File, Name} <- [{"lib/po_epx/build/po_tool.erc", "PoTool"},
+                         {"lib/po_epx/build/po_deep/tool.erc", "PoDeep.Tool"}]].
+
+%% report §11.9, §11.2: `ern test` of a directory that holds a compiled
+%% module at a named package's namespace, outside that package's build,
+%% ends on that file's refusal, as a module that cannot be loaded ends it:
+%% the module after it is not tested. A regression test, written after the
+%% code
+package_tested_directory_test_() ->
+    {timeout, 60, fun() -> in_directory(tmp(), fun package_tested_directory/0) end}.
+
+package_tested_directory() ->
+    named_package(".", "pt_epx", "epx"),
+    write(".", "package.conf", manifest_of([{"pt_epx", "0.2.1"}])),
+    ok = filelib:ensure_path("tested"),
+    {ok, _} = file:copy("lib/pt_epx/build/pt_epx.erc", "tested/pt_epx.erc"),
+    Elsewhere = tmp(),
+    compiled_elsewhere(Elsewhere, "zz_checked.ern",
+                       "let found : Test.Case(Never) =\n"
+                       "    Test.Case(name = \"found\", run = fn() = Test.Passed)\n",
+                       "tested/zz_checked.erc"),
+    ?assertEqual({0, <<"found: passed\n">>}, said(["test", "tested/zz_checked.erc"])),
+    ?assertEqual(refusal("test", "tested/pt_epx.erc holds PtEpx, the package pt_epx's, which"
+                                 " package.conf names"),
+                 said(["test", "tested"])).
 
 captured_output() ->
     group_leader() ! {get_output, self()},

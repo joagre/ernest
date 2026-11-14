@@ -64,7 +64,8 @@
 %% root, the interfaces of the modules behind the session, and the scope
 %% those modules make (report §11.2), which the checker takes as its fourth
 %% argument.
--record(session, {number = 1, namespace = ['$Session1'], load_path = [], source_root = ".",
+-record(session, {number = 1, namespace = ['$Session1'], load_path = #load_path{},
+                  source_root = ".",
                   last_input = 0, moved = [],
                   last_holder = 0, free = [], interfaces = [],
                   scope = #{}, beams = #{}, source_hashes = #{}, source_expected = #{},
@@ -469,7 +470,8 @@ first_modules() ->
 %% input is checked against the code the node runs. The standard library's
 %% units, which the prelude's environment holds, are not among them.
 load_path_interfaces(LoadPath) ->
-    Roots = [filename:join(ern_build:absolute(Root), "") ++ "/" || Root <- LoadPath],
+    Roots = [filename:join(ern_build:absolute(Root), "") ++ "/"
+             || Root <- ern_build:directories(LoadPath)],
     lists:sort([{Interface, Hash}
                 || {Unit, #{interface := Interface, source_hash := Hash}} <- ern_code:chunks(),
                    File <- [code:which(Unit)], is_list(File),
@@ -2256,7 +2258,8 @@ is_module_file(#session{source_root = SourceRoot} = Session, Segments) ->
             is_source(Session, filename:join(SourceRoot, Relative ++ ".ern"))
                 orelse lists:any(fun(Root) ->
                                      filelib:is_regular(filename:join(Root, Relative ++ ".erc"))
-                                 end, [ern_prelude:stdlib_directory() | load_path(Session)]);
+                                 end, [ern_prelude:stdlib_directory()
+                                       | form_roots(Session, Relative)]);
         false ->
             false
     end.
@@ -2372,8 +2375,9 @@ is_unloaded_module(#session{source_root = SourceRoot, interfaces = Interfaces} =
 %% The name is made a namespace only where a compiled form is at its path,
 %% as segments/2 makes no atom of a name no file holds.
 is_form_loadable(Session, Segments) ->
-    Relative = ern_namespace:path(Segments) ++ ".erc",
-    lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative)) end, load_path(Session))
+    Path = ern_namespace:path(Segments),
+    lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Path ++ ".erc")) end,
+              form_roots(Session, Path))
         andalso case compiled_of(Session, ern_namespace:namespace(Segments)) of
                     {ok, _, _, _} -> true;
                     _ -> false
@@ -3159,10 +3163,20 @@ with_sources(#session{source_root = SourceRoot, source_hashes = Loaded} = Sessio
                 catch
                     throw:_ -> []
                 end,
-            More = [{Dependency, SourceFile} || Dependency <- Dependencies,
-                                            not is_map_key(Dependency, Loaded),
-                                            {ok, SourceFile} <- [source_of(Session, Dependency)]],
+            More = [{Dependency, SourceFile}
+                    || Dependency <- Dependencies, not is_map_key(Dependency, Loaded),
+                       {ok, SourceFile} <- [dependency_source(Session, Dependency)]],
             with_sources(Session, Rest ++ More, Acc ++ [{Namespace, File}])
+    end.
+
+%% Report §11.9: the source under the source root of a module that a
+%% module to compile uses, where the module is looked for there: a named
+%% package's module has none there, and is its build's.
+dependency_source(#session{source_root = SourceRoot} = Session, Dependency) ->
+    case ern_build:looked_in(ern_namespace:module_path(Dependency), SourceRoot,
+                             load_path(Session)) of
+        {none, _} -> none;
+        _ -> source_of(Session, Dependency)
     end.
 
 %% The modules of a `:load` loaded, what they use that the session had not
@@ -3757,9 +3771,11 @@ compile_all(Session, ChangedSources) ->
 %% be compiled.
 compile_in_order(Session, Set) ->
     %% report §11.1: a module that hides a library's module another library
-    %% depends on is refused before any is parsed, its refusal its only error
+    %% depends on is refused before any is parsed, its refusal its only error,
+    %% and report §11.9: so is a module outside the named packages at a named
+    %% package's namespace
     case [<<Refusal/binary, "\n">> || {Namespace, File} <- Set,
-                                      Refusal <- [source_refusal(Namespace, File)],
+                                      Refusal <- [source_refusal(Session, Namespace, File)],
                                       Refusal =/= none] of
         [] -> compiled_set(Session, Set);
         Refusals -> {error, Refusals}
@@ -3890,10 +3906,10 @@ current_form(#session{source_root = SourceRoot} = Session,
                        [Interface || {_, Interface} <- DependencyInterfaces],
                        #{stdlib => ern_build:stdlib_hash(),
                          compiler => ern_build:compiler_build()}},
+            Path = ern_namespace:module_path(Namespace),
             Candidates = [{Root, Erc}
-                          || Root <- load_path(Session),
-                             Erc <- [filename:join(Root, ern_namespace:module_path(Namespace)
-                                                   ++ ".erc")],
+                          || Root <- form_roots(Session, Path),
+                             Erc <- [filename:join(Root, Path ++ ".erc")],
                              filelib:is_regular(Erc)],
             case [Dependency || {Dependency, _} <- DependencyInterfaces,
                                 is_map_key(Dependency, Units)] of
@@ -4581,7 +4597,14 @@ diagnosed(Session, File, Diagnostics) ->
 load_path(#session{load_path = LoadPath, attached = true}) ->
     LoadPath;
 load_path(#session{load_path = LoadPath, source_root = SourceRoot}) ->
-    lists:uniq([filename:absname(SourceRoot) | LoadPath]).
+    ern_build:with_root(filename:absname(SourceRoot), LoadPath).
+
+%% Report §11.2, §11.9: the roots of the session's load path under which
+%% the compiled form of the module at the path Path, `epx/window`, is looked
+%% for, a named package's under its build alone (ern_build:looked_in/3).
+form_roots(Session, Path) ->
+    {none, Roots} = ern_build:looked_in(Path, none, load_path(Session)),
+    Roots.
 
 source_of(#session{source_root = SourceRoot} = Session, Namespace) ->
     File = filename:join(SourceRoot, ern_namespace:module_path(Namespace) ++ ".ern"),
@@ -4598,8 +4621,10 @@ source_of(#session{source_root = SourceRoot} = Session, Namespace) ->
 %% will not load as `ern run` refuses a dependency so (§11), the file
 %% named from the working directory (§11.5).
 compiled_of(Session, Namespace) ->
-    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
-    case [Candidate || Dir <- load_path(Session), Candidate <- [filename:join(Dir, Relative)],
+    Path = ern_namespace:module_path(Namespace),
+    Relative = Path ++ ".erc",
+    case [Candidate || Dir <- form_roots(Session, Path),
+                       Candidate <- [filename:join(Dir, Relative)],
                        filelib:is_regular(Candidate)] of
         [File | _] ->
             case file:read_file(File) of
@@ -4648,10 +4673,15 @@ taken_form(Session, Namespace) ->
 %% its compiled form File, Beam, where its namespace is that of a library's
 %% module on which a module of a library depends and its source lies
 %% outside that library's source root, the file named from the working
-%% directory; none (ern_build:hiding/4).
-source_refusal(Namespace, File) ->
+%% directory; none (ern_build:hiding/4). Report §11.9: a source outside the
+%% named packages at a named package's namespace is refused too
+%% (ern_build:outside_package/3).
+source_refusal(Session, Namespace, File) ->
     Source = ern_build:absolute(File),
-    refusal_text(ern_build:hiding(Source, Namespace, Source, ern_tree:libraries())).
+    case ern_build:outside_package(Source, Namespace, load_path(Session)) of
+        none -> refusal_text(ern_build:hiding(Source, Namespace, Source, ern_tree:libraries()));
+        Refusal -> refusal_text(Refusal)
+    end.
 
 form_refusal(File, Beam) ->
     {ok, Chunk} = ern_interface:read(Beam),
@@ -4670,7 +4700,7 @@ hidden(Session, Segments) ->
                            fun() ->
                                case source_of(Session, Namespace) of
                                    {ok, File} ->
-                                       source_refusal(Namespace, File);
+                                       source_refusal(Session, Namespace, File);
                                    none ->
                                        case compiled_of(Session, Namespace) of
                                            {ok, File, Beam, _} -> form_refusal(File, Beam);

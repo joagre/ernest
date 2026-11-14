@@ -8,6 +8,21 @@
 -record(build_module, {namespace, file, relative, declarations, dependencies = [],
                        resolved = [], shortest, too_long = []}).
 
+%% A named package as a job's load path holds it (report §11.9): its name,
+%% `epx`, which is its namespace's path, its build and its `src`, absolute,
+%% the directories it puts on the load path, those of its build and its
+%% `ebin` that are there, and the manifest that names it, which a refusal
+%% names.
+-record(named_package, {name, build, src, roots = [], manifest}).
+
+%% A job's load path (report §11.1, §11.2, §11.9): its directories in
+%% order, `roots`, which the host's code path and a node's start take
+%% whole, and the named packages, `named`, in the manifest's order, each of
+%% whose namespaces is found under its build alone, which provides no other.
+%% ern_build makes and reads it (load_path/1, looked_in/3); no other module
+%% looks inside it.
+-record(load_path, {roots = [], named = []}).
+
 %% The entry point a program is run from (report §8.1): the unit, the
 %% function of it that holds the entry point, named by its number (report
 %% §11.1), and the site its process is spawned at.
@@ -20,7 +35,7 @@
 %% library's, the #entry_point{} to spawn beside the prompt or none, the
 %% startup file of the configuration directory `--config-dir` names, or
 %% none, and the listed peer `--attach` names, or none.
--record(loaded, {load_path = [], source_root = ".", interfaces = [], program = [],
+-record(loaded, {load_path = #load_path{}, source_root = ".", interfaces = [], program = [],
                  entry = none, config_startup = none, attach = none}).
 
 %% A doc example as `ern test` runs it (report §11.2, ern_examples): its

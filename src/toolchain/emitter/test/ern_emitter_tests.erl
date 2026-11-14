@@ -585,7 +585,7 @@ units_from_forms_alone() ->
 %% forms with and without the source and compared; how many were made.
 units_from_forms(Root, Files, LoadPath) ->
     SourceRoot = ern_build:absolute(Root),
-    Roots = [filename:join(scratch(), "build") | LoadPath],
+    Roots = ern_build:load_path_of([filename:join(scratch(), "build") | LoadPath]),
     Standard = ern_build:is_stdlib_root(SourceRoot),
     Modules = [ern_build:module_of(ern_build:absolute(File), SourceRoot) || File <- Files],
     {_, Made} =

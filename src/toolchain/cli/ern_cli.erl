@@ -256,14 +256,10 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
             {true, _} -> usage_fail("--help stands alone: " ++ Name ++ " --help");
             {false, _} ->
                 given_once(Options, Spec),
-                %% report §11.9: no job reads a manifest yet, so the root
-                %% package `--package-dir` names is refused, and nothing of
-                %% the job runs
-                lists:keymember(package_dir, 1, Options)
-                    andalso ern_build:fail("--package-dir is not implemented"),
                 Resolved = [resolved_option(Option) || Option <- Options],
                 named_directories(Job, Spec, Resolved),
-                Work(Resolved, resolved_arguments(Job, Rest) ++ Program, ErrorDevice)
+                Arguments = resolved_arguments(Job, Rest),
+                Work(root_package(Job, Resolved, Arguments), Arguments ++ Program, ErrorDevice)
         end
     catch
         throw:{cli_usage, Usage} ->
@@ -272,7 +268,66 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
             1;
         throw:{cli_error, Refusal} ->
             io:format(ErrorDevice, "~s: ~ts~n", [Name, Refusal]),
+            1;
+        %% report §11.9: every fault of a root package, a line each
+        throw:{cli_errors, Refusals} ->
+            [io:format(ErrorDevice, "~s: ~ts~n", [Name, Refusal]) || Refusal <- Refusals],
             1
+    end.
+
+%% Report §11, §11.9: the job's options, with its root package where it
+%% reads one: the directory `--package-dir` names, which holds a manifest,
+%% or else the working directory where it holds one and the job's
+%% arguments lie under it, none naming a path outside; an attached shell
+%% reads none. The look for the manifest's name follows no link, and is
+%% all a job pays where there is none.
+root_package(Job, Options, Arguments) ->
+    case {package_use(Job), lists:keymember(attach, 1, Options),
+          proplists:get_value(package_dir, Options)} of
+        {none, _, _} ->
+            Options;
+        {_, true, _} ->
+            Options;
+        {Use, false, undefined} ->
+            case lists:all(fun(Path) -> filename:pathtype(Path) =/= absolute end, Arguments) of
+                true -> packaged(Options, ".", optional, Use);
+                false -> Options
+            end;
+        {Use, false, Dir} ->
+            packaged(Options, Dir, required, Use)
+    end.
+
+%% Report §11.9: the jobs that read a manifest, each with what the named
+%% packages put on its load path: their builds, and their `ebin`s too where
+%% the job runs code. `ern unpack` reads one too, and is not implemented.
+package_use("build") -> builds;
+package_use("doc") -> builds;
+package_use("run") -> builds_and_ebins;
+package_use("test") -> builds_and_ebins;
+package_use("shell") -> builds_and_ebins;
+package_use(_) -> none.
+
+%% Report §11.9: Options with the root package Dir, read where Dir holds
+%% the name `package.conf`, whatever it reaches: its named packages, as the
+%% load path holds them, and, where `--verbose` asks, what it says of them,
+%% as data, since the build, which is in the compiler's hash, calls no
+%% module of the package's (ern_build:load_path/1). A Dir
+%% `--package-dir` names that holds none is refused, and so is one whose
+%% name cannot be looked for.
+packaged(Options, Dir, Required, Use) ->
+    Manifest = filename:join(Dir, "package.conf"),
+    case {file:read_link_info(Manifest, [raw]), Required} of
+        {{ok, _}, _} ->
+            Package = ern_package:read(Dir, Use),
+            Options ++ [{named_package, Named} || Named <- ern_package:packages(Package)]
+                ++ [{package_said, Line} || lists:member(verbose, Options),
+                                            Line <- ern_package:said(Package)];
+        {{error, enoent}, optional} ->
+            Options;
+        {{error, enoent}, required} ->
+            ern_build:fail(ern_build:shown(Manifest) ++ ": no such file");
+        {{error, Error}, _} ->
+            ern_build:refused(Manifest, Error)
     end.
 
 %% Report §11, §11.7: the option parser's refusal in the usage's words: an
@@ -336,7 +391,7 @@ resolved_path(Path) ->
 named_directories(Job, Spec, Options) ->
     Creates = Job =:= "config" andalso not lists:keymember(peer_dir, 1, Options),
     lists:foreach(fun({Key, Directory}) when Key =:= load_path; Key =:= libs_dir;
-                                            Key =:= source_root;
+                                            Key =:= package_dir; Key =:= source_root;
                                             Key =:= config_dir andalso not Creates ->
                           Named = ", which " ++ long_name(Spec, Key) ++ " names",
                           case {filelib:is_dir(Directory), filelib:is_file(Directory)} of
@@ -532,6 +587,8 @@ too_many(One, Rest) ->
 %% build directory, one document per module and an index, or with --man one
 %% manual page per module and no index.
 doc(Options, [Path], ErrorDevice) ->
+    %% report §11.4, §11.9: --verbose says the root package first
+    ern_build:package_said(Options, ern_build:verbose(Options, ErrorDevice)),
     try doc_path(Options, Path, ErrorDevice)
     catch
         throw:{ended, Status} -> Status
@@ -589,15 +646,19 @@ beam_of(Options, Path) ->
             SourceRoot = ern_build:source_root(Options, Path, "."),
             BuildRoot = ern_build:build_root(Options, SourceRoot),
             %% report §11.1: a module outside the source root is found under
-            %% build-root, then under each --load-path root
-            DependencyRoots = [BuildRoot | ern_build:load_path(Options)],
+            %% build-root, then under each --load-path root, and report
+            %% §11.9: a named package's under its build alone
+            DependencyRoots = ern_build:with_root(BuildRoot, ern_build:load_path(Options)),
             #build_module{namespace = Namespace, file = File} = Module =
                 ern_build:module_of(ern_build:absolute(Path), SourceRoot, file),
-            %% report §11.1: a module that hides a library's module another
-            %% depends on is refused before it is compiled
-            case ern_build:hiding(File, Namespace, File, ern_tree:libraries()) of
-                none -> ok;
-                Refusal -> ern_build:fail(Refusal)
+            %% report §11.9, §11.1: a module outside the named packages at a
+            %% named package's namespace, and one that hides a library's
+            %% module another depends on, is refused before it is compiled
+            case {ern_build:outside_package(File, Namespace, DependencyRoots),
+                  ern_build:hiding(File, Namespace, File, ern_tree:libraries())} of
+                {none, none} -> ok;
+                {none, Refusal} -> ern_build:fail(Refusal);
+                {Refusal, _} -> ern_build:fail(Refusal)
             end,
             [#build_module{namespace = Namespace, file = File, relative = Relative,
                            dependencies = Dependencies} = Ordered] =
@@ -661,7 +722,8 @@ doc_dir(Options, Path, ErrorDevice) ->
     BuildRoot = ern_build:build_root(Options, SourceRoot),
     %% the modules by their files and namespaces, which is all that tells
     %% whether a page is current, so no source is parsed to tell it
-    {Unsorted, Misnamed} = ern_build:modules_of(ern_build:sources(Path), SourceRoot, tree),
+    {Unsorted, Misnamed} = ern_build:modules_of(ern_build:sources(Path), SourceRoot, tree,
+                                                ern_build:load_path(Options)),
     Modules = lists:sort(Unsorted),
     IsStdlib = ern_build:is_stdlib_root(SourceRoot),
     Kind = case lists:member(man, Options) of
@@ -1035,6 +1097,8 @@ run(Options, [File | Words], ErrorDevice) ->
     Arguments = program_arguments(Words, 1),
     run_started(),
     Say = ern_build:verbose(Options, ErrorDevice),
+    %% report §11.2, §11.9: --verbose says the root package first
+    ern_build:package_said(Options, Say),
     {Namespace, LoadPath, Loaded} = program(File, Options, Say),
     as_node(Options, LoadPath, Say,
             fun(Node) -> run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) end);
@@ -1046,10 +1110,11 @@ run(Options, [], ErrorDevice) ->
     %% node has no entry point
     not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file(run)),
     run_started(),
+    Say = ern_build:verbose(Options, ErrorDevice),
+    ern_build:package_said(Options, Say),
     LoadPath = ern_build:load_path(Options),
     host_path(LoadPath),
-    as_node(Options, LoadPath, ern_build:verbose(Options, ErrorDevice), bare,
-            fun(Node) -> run_bare(ErrorDevice, Node) end).
+    as_node(Options, LoadPath, Say, bare, fun(Node) -> run_bare(ErrorDevice, Node) end).
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
 %% UTF-8 text, one that is not UTF-8 refused by its position before
@@ -1084,10 +1149,12 @@ waits() ->
 test(Options, [Path], ErrorDevice) ->
     run_started(),
     Say = ern_build:verbose(Options, ErrorDevice),
+    %% report §11.2, §11.9: --verbose says the root package first
+    ern_build:package_said(Options, Say),
     case filelib:is_dir(Path) of
         true ->
             Files = ern_build:compiled_under(Path),
-            LoadPath = [ern_build:absolute(Path) | ern_build:load_path(Options)],
+            LoadPath = ern_build:with_root(ern_build:absolute(Path), ern_build:load_path(Options)),
             as_node(Options, LoadPath, Say,
                     fun(Node) ->
                         report_tree(tree_tests(Files, Options, Say, ErrorDevice, Node))
@@ -1263,7 +1330,9 @@ shell(Options, Rest, ErrorDevice) ->
                 ern_shell:loaded(#loaded{load_path = FileLoadPath,
                                          source_root = ern_build:source_root(Options, File, "."),
                                          interfaces = interfaces(Loaded),
-                                         program = program_modules(Loaded, hd(FileLoadPath)),
+                                         program = program_modules(
+                                                     Loaded,
+                                                     hd(ern_build:directories(FileLoadPath))),
                                          entry = Entry,
                                          config_startup = config_startup(Options)}),
                 {init_fun(Loaded ++ [ErlangModule]), FileLoadPath};
@@ -1295,8 +1364,9 @@ shell(Options, Rest, ErrorDevice) ->
     %% status given by its local half's Os.exit (Appendix E.23)
     report_shell_outcome(ErrorDevice, Outcome).
 
-%% Report §11.2: `--attach` takes no file, `--main`, `--load-path` or
-%% `--libs-dir`, each refused naming it, and needs `--config-dir`.
+%% Report §11.2: `--attach` takes no file, `--main`, `--load-path`,
+%% `--libs-dir` or `--package-dir`, each refused naming it, and needs
+%% `--config-dir`.
 attachable(Options, Rest) ->
     Rest =:= [] orelse usage_fail("a file is not given with --attach: the node's program runs"
                                   " there, and :load loads a module"),
@@ -1306,14 +1376,16 @@ attachable(Options, Rest) ->
                                              " --attach: ", Why])
                   end, [{main, "the node's program runs there"},
                         {load_path, "the load path is the node's"},
-                        {libs_dir, "the load path is the node's"}]),
+                        {libs_dir, "the load path is the node's"},
+                        {package_dir, "the load path is the node's"}]),
     is_node(Options)
         orelse usage_fail("--attach needs --config-dir: the shell attaches from a node of its"
                           " own").
 
 option_word(main) -> "main";
 option_word(load_path) -> "load-path";
-option_word(libs_dir) -> "libs-dir".
+option_word(libs_dir) -> "libs-dir";
+option_word(package_dir) -> "package-dir".
 
 %% Report §8.3: a run given `--config-dir` is a node.
 is_node(Options) ->
@@ -1564,7 +1636,15 @@ program(File, Options, Say) ->
     Relative =:= ern_namespace:module_path(Namespace) ++ ".erc"
         orelse ern_build:fail(File ++ " is not at the path of its namespace "
                               ++ ern_namespace:text(Namespace)),
-    LoadPath = [ModuleRoot | ern_build:load_path(Options)],
+    Given = ern_build:load_path(Options),
+    %% report §11.9: a file at a named package's namespace outside that
+    %% package's build, and one in a named package's build at another
+    %% namespace, is refused before anything runs
+    case ern_build:form_out_of_place(Absolute, Namespace, Given) of
+        none -> ok;
+        Refusal -> ern_build:fail(Refusal)
+    end,
+    LoadPath = ern_build:with_root(ModuleRoot, Given),
     host_path(LoadPath),
     {Namespace, LoadPath, load(Namespace, [], LoadPath, [], reading(program, Say))}.
 
@@ -1589,14 +1669,15 @@ shaped_under(File, Relative) ->
 host_path(LoadPath) ->
     persistent_term:put({?MODULE, load_path}, LoadPath),
     Libraries = ern_tree:libraries(),
-    ok = code:add_pathsz(Libraries ++ (LoadPath -- Libraries)).
+    ok = code:add_pathsz(Libraries ++ (ern_build:directories(LoadPath) -- Libraries)).
 
-%% Appendix E.28, report §11.2: the load path of the run in progress, its
-%% roots in order, the standard library aside, which every run holds; none
-%% where no run of `ern` gave one, as in a test that runs a program itself.
--spec load_path() -> [file:filename()].
+%% Appendix E.28, report §11.2, §11.9: the load path of the run in
+%% progress, its roots in order, the standard library aside, which every
+%% run holds, and its named packages; none where no run of `ern` gave one,
+%% as in a test that runs a program itself.
+-spec load_path() -> ern_build:load_path().
 load_path() ->
-    persistent_term:get({?MODULE, load_path}, []).
+    persistent_term:get({?MODULE, load_path}, ern_build:load_path_of([])).
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts
 %% in the session's scope, each with the hash of the source it was compiled
@@ -2236,10 +2317,12 @@ say_read(Say, Namespace, File) ->
 
 %% Report §8.7: every compiled module on the load path loaded, as the
 %% modules a program uses are, with the same checks, and none initialized,
-%% each said by Say as it is read (§11.2, --verbose).
+%% each said by Say as it is read (§11.2, --verbose); report §11.9: a
+%% named package's namespace under its build alone, which provides no other
+%% (ern_build:compiled_on/1).
 whole_build(LoadPath, Say) ->
     Namespaces = [placed(Root, File, Beam, Namespace)
-                  || Root <- LoadPath, File <- ern_build:compiled_under(Root),
+                  || {Root, File} <- ern_build:compiled_on(LoadPath),
                      Beam <- [ern_build:read(File)],
                      {ok, #{interface := #interface{namespace = Namespace}}}
                          <- [ern_interface:read(Beam)]],
@@ -2298,12 +2381,15 @@ placed(Root, File, Beam, Namespace) ->
     end.
 
 %% Report §11.2: a module's compiled form, found by its namespace on the
-%% load path. One the path lacks is named with the module that uses it;
-%% report §8.7: and, for a node, with the rule that makes a module the
-%% program does not use its need.
+%% load path, and report §11.9: a named package's under its build alone.
+%% One the path lacks is named with the module that uses it; report §8.7:
+%% and, for a node, with the rule that makes a module the program does not
+%% use its need.
 compiled_file(Namespace, Waiting, LoadPath, Reader) ->
-    Relative = ern_namespace:module_path(Namespace) ++ ".erc",
-    case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
+    Path = ern_namespace:module_path(Namespace),
+    Relative = Path ++ ".erc",
+    {none, Roots} = ern_build:looked_in(Path, none, LoadPath),
+    case [Found || Dir <- Roots, Found <- [filename:join(Dir, Relative)],
                    filelib:is_regular(Found)] of
         [Found | _] ->
             Found;
