@@ -15,6 +15,8 @@ It writes only while the application's session is not running, in a commit by pa
 
 What the program says is the application's own session's: its sources, tests and examples beyond a moved file's paths, its design, its plan, its log, its findings and its feedback file.
 
+The program holds its proposal in its own repository, and what it asks of Ernest stays in Ernest's `docs/proposals/` under the program's name, the two citing each other by address. A proposal begun in Ernest's repository before the application's exists is written whole, and split along that line in the commit that makes the repository.
+
 `ernest-template` holds no program, and Ernest's session writes it whole.
 
 ## The messages

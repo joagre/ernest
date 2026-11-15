@@ -48,7 +48,7 @@ For every Ernest source and every Ernest block of the report and the guide. The 
 
 ### Shims
 
-How the standard library's and the libraries' operations stand on the host, which CLAUDE.md's *Shims* points at.
+How the standard library's and the libraries' operations stand on the host, which CLAUDE.md's *Ernest or Erlang* points at.
 
 - **The standard library and the libraries stand on the host.** Where a host function does exactly an operation's work, the operation is its shim, so that Ernest runs at the host's speed wherever the host does the work.
 

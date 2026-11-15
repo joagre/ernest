@@ -238,6 +238,9 @@ Item 43 is MVP 4.17's.
     `make test`, over MVP 4.17's item 47: `ern_reaper_tests` said `the sender ended first`.
     It passed alone and in the next run. The cause is not found. An agent finds it under
     the light run's load, and fixes the test or the reaper at it.
+55. **A reading of `CLAUDE.md` for clarity**, with the user, done 2026-11-15 (the log's *The
+    Rules Read for Clarity*). Left: `ernest-template` takes the file and `docs/agents.md` in a
+    tag, in its own words, and `ernest-epx` and `ernest-httpd` take both from the tag.
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
@@ -429,7 +432,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    worked as it says.
 
    Before its readers start, `tools/paragraphs.sh`, `tools/comments.sh` and
-   `tools/unicode_width.escript` are weighed against CLAUDE.md's *Shims*, each written in Ernest
+   `tools/unicode_width.escript` are weighed against CLAUDE.md's *Ernest or Erlang*, each written in Ernest
    or its reason to stay stated (the log's *The Layout's Proposal Read*).
 
    Before them too, `docs/soundness.md`'s section 7 is recut, decided 2026-11-07: its paragraphs

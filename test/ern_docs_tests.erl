@@ -645,7 +645,7 @@ user_text_timeline_test() ->
     ?assertEqual([], Read(ern_repository:modules() ++ shell(),
                           "\"[^\"]*(" ++ Timeline ++ ")[^\"]*\"")).
 
-%% CLAUDE.md's row of CHANGES.md: a release's note says what the release
+%% docs/reviews/release.md, of CHANGES.md: a release's note says what the release
 %% is and where each change is read. Below its title it names no date but
 %% in a release's heading, no log entry, no review and no step of the plan;
 %% each change line ends at a section of the report or a file of the guide.

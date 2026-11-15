@@ -17,7 +17,7 @@ It does not run while the findings of the last one are open.
 - An area a release review's reader read whole since the last full review is read again only where it changed since: the release review's findings name the commit it read, and `git diff` from it says what changed.
 - Every reader names, in its area, each thing that exists for a reason an earlier milestone had and a later rule removed: a copy, a helper, a table, a check or a rule kept because nothing broke. The pattern is a decision made when the toolchain was small and followed by every later rule in the same shape; the log says what each was for, and the reader asks whether anything still needs it.
 - Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
-- A reader hands its list back as text and writes it to a file under the review's session's scratchpad, as CLAUDE.md says of an agent.
+- A reader hands its list back as text and writes it to a file under the review's session's scratchpad, as [`agents.md`](../agents.md) says of an agent.
 
 Once the lists are in, the round:
 
@@ -70,9 +70,9 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 
 ## The models
 
-CLAUDE.md's *The repository* gives the models. C, E, S, H, T and B, the readers of the code and of what the toolchain does, run on the coding model at the stronger effort, each part alike; every other reader on the stronger model.
+[`agents.md`](../agents.md) gives the models. C, E, S, H, T and B, the readers of the code and of what the toolchain does, run on the coding model at the stronger effort, each part alike; every other reader on the stronger model.
 
-Working the findings follows the same file: a design question, a sentence of the report or of §0, and a reading of an argument are the session's; a defect whose fix the finding names goes to an agent, at the efforts that file gives a build.
+Working the findings follows CLAUDE.md's *The repository*: a design question, a sentence of the report or of §0, and a reading of an argument are the session's; a defect whose fix the finding names goes to an agent, at the efforts `agents.md` gives a build.
 
 ## The findings
 
