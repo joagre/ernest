@@ -564,7 +564,7 @@ Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, 
 
 `Path.<>` is the prelude's, §9.6; this module provides it (§9). `<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. `join` writes each segment as given, one separator between them, a root first staying a root: a segment that holds a separator, or is empty, is written as it is, and the path reads as the segments its text holds, so `join(["/x", "etc"])` is `Path("/x/etc")`, `join(["root", "/x"])` is `Path("root//x")`, `join(["/", "etc"])` is `Path("/etc")`, and `join(["", "x"])` is `Path("/x")`, absolute.
 
-The primitives are `isAbsolute`, `separator`, the host's separator, and `parts`, the text between each occurrence of a separator or a `.`, the last two private to the module (E.0 rule 1); the rest is Ernest over them and `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
+The primitives are `isAbsolute`, `separator`, the host's separator, and `parts`, the text between each occurrence of a separator or a `.`, the last two private to the module (E.0 rule 1); the rest is Ernest over them and `String`. `under` and `from` read the path's text alone: a link under the root that leads out of it is the file system's (E.17).
 
 ```
 Path.join : (List(String)) -> Path // the segments as a path, a root first staying a root and one separator between the others; the inverse of split for segments that are neither empty nor hold a separator
@@ -575,6 +575,7 @@ Path.extension : (Path) -> Optional(String) // after the last "." of the name, w
 Path.withExtension : (Path, String) -> Path // replaced or added, the rest as written; an empty one leaves the dot; the root, "." and ".." are left as they are
 Path.withoutExtension : (Path) -> Path // removed, the rest as written; the root, "." and ".." are left as they are
 Path.under : (Path, Path) -> Optional(Path) // the second under the first, where it is relative and each segment names an entry: None for an absolute or empty path, or one with a "." or ".." segment
+Path.from : (Path, Path) -> Optional(Path) // the first from the second, the path under places there: None where the first does not begin with the second's segments, is the second itself, or has a "." or ".." segment after them
 Path.isAbsolute : (Path) -> Bool
 Path.toString : (Path) -> String
 ```

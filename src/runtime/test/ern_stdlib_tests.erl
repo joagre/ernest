@@ -1604,6 +1604,41 @@ path_edges_test() ->
     ?assertEqual(AsPath(<<"a//b.md">>), Path(withExtension)(AsPath(<<"a//b.txt">>), <<"md">>)),
     ?assertEqual(AsPath(<<"a/b/c">>), Path('<>')(AsPath(<<"a//b">>), AsPath(<<"c">>))).
 
+%% report Appendix E.14: `from`'s edge cases, which the laws draw seldom or
+%% never: the directory itself, a path that does not begin with the
+%% directory's segments, a step after them, a step inside them, the
+%% separators as `split` reads them, and the empty directory
+path_from_test() ->
+    Path = ern_named:functions('ern@path'),
+    From = fun(Text, Directory) -> Path(from)({'Path', Text}, {'Path', Directory}) end,
+    Some = fun(Text) -> {'Some', {'Path', Text}} end,
+    %% the directory itself, which `under` would place no path to give
+    ?assertEqual('None', From(<<"a/b">>, <<"a/b">>)),
+    ?assertEqual('None', From(<<"/srv">>, <<"/srv/">>)),
+    ?assertEqual('None', From(<<"/">>, <<"/">>)),
+    %% a path that does not begin with the directory's segments, by
+    %% segment and not by text, and either absolute alone
+    ?assertEqual('None', From(<<"a/c">>, <<"a/b">>)),
+    ?assertEqual('None', From(<<"ab/c">>, <<"a">>)),
+    ?assertEqual('None', From(<<"a">>, <<"a/b">>)),
+    ?assertEqual('None', From(<<"srv/a">>, <<"/srv">>)),
+    ?assertEqual('None', From(<<"/srv/a">>, <<"srv">>)),
+    %% a `.` or `..` after the directory's segments, which leaves it
+    ?assertEqual('None', From(<<"/srv/../etc">>, <<"/srv">>)),
+    ?assertEqual('None', From(<<"/srv/./a">>, <<"/srv">>)),
+    ?assertEqual('None', From(<<"/srv/a/..">>, <<"/srv">>)),
+    %% a `.` or `..` among the directory's own segments refuses nothing
+    ?assertEqual(Some(<<"b">>), From(<<"./a/b">>, <<"./a">>)),
+    ?assertEqual(Some(<<"y/z">>), From(<<"../x/y/z">>, <<"../x">>)),
+    %% doubled and trailing separators read as `split` reads them
+    ?assertEqual(Some(<<"a/b">>), From(<<"/srv//a/b/">>, <<"/srv/">>)),
+    ?assertEqual(Some(<<"etc/hosts">>), From(<<"/etc/hosts">>, <<"/">>)),
+    %% the empty directory: an absolute path is none of its, a relative
+    %% one is itself
+    ?assertEqual('None', From(<<"/a">>, <<"">>)),
+    ?assertEqual(Some(<<"a/b">>), From(<<"a/b">>, <<"">>)),
+    ?assertEqual('None', From(<<"">>, <<"">>)).
+
 %% report Appendix E.16, E.5: columns counts by grapheme, by its first code
 %% point that counts: a combining mark adds none, alone it takes none; an
 %% emoji sequence joined by ZWJ and a flag are one wide grapheme; a

@@ -482,15 +482,10 @@ fn startupFiles() : List(String) =
     }
 
 // Report §11.5: a file is named from the working directory where it lies
-// under it, and by its absolute path where it does not.
-fn fromWorkingDirectory(path : Path) : String = {
-    let directory = Path.split(Os.workingDirectory);
-    let segments = Path.split(path);
-    if List.take(segments, List.size(directory)) == directory then
-        Path.toString(Path.join(List.drop(segments, List.size(directory))))
-    else
-        Path.toString(path)
-}
+// under it, and as it was given where it does not, the working directory
+// itself and a path with a `.` or `..` segment after it among them.
+fn fromWorkingDirectory(path : Path) : String =
+    Path.toString(Optional.withDefault(Path.from(path, Os.workingDirectory), path))
 
 // Report §11.2: the inputs of a startup file, read where it is found and
 // held to no owner and no mode (§11). A file that is not there is no
@@ -2249,15 +2244,12 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
 fn isRead(serving : Serving, path : Path) : Bool =
     List.contains(serving.startup, path) || isUnder(serving.sourceRoot, path)
 
-// Report §11.2: whether a path, named from the working directory where it
-// is relative, lies under the root, which it may name itself, and takes no
-// step out of it, `..` or `.`, which `Path.under` refuses.
+// Report §11.2: whether a path, placed under the working directory where
+// it is relative, names the root itself, or is named from the root by
+// `Path.from`, which refuses a step out of it, `..` or `.`.
 fn isUnder(root : Path, path : Path) : Bool = {
-    let rootSegments = Path.split(root);
-    let segments = Path.split(Os.workingDirectory <> path);
-    let rest = List.drop(segments, List.size(rootSegments));
-    List.take(segments, List.size(rootSegments)) == rootSegments
-        && (List.isEmpty(rest) || Optional.isSome(Path.under(root, Path.join(rest))))
+    let placed = Os.workingDirectory <> path;
+    Path.split(placed) == Path.split(root) || Optional.isSome(Path.from(placed, root))
 }
 
 // Report §11.2, §11.8: an attached session's end, and the shell's with it:

@@ -224,7 +224,8 @@ fn extended(path : Path, suffix : String) : Path = {
 /// it: where `path` is absolute or empty, or has a `.` or `..` segment. Use it
 /// for a name that comes from outside the program, a request or a file a peer
 /// sends, where `<>` would let it leave `root`. It reads the text alone: a link
-/// under `root` may still lead out, which the file system decides.
+/// under `root` may still lead out, which the file system decides. `from` is
+/// its inverse.
 ///
 /// ### Examples
 ///
@@ -243,6 +244,33 @@ export fn under(root : Path, path : Path) : Optional(Path) =
       | segments ->
             if isAbsolute(path) || List.any(segments, isStep) then None else Some(root <> path)
     }
+
+/// `path` named from `directory`, the inverse of `under`: the path that `under`
+/// places there to give `path`. `None` where `path` does not begin with the
+/// segments of `directory`, is `directory` itself, or has a `.` or `..` segment
+/// after them. It reads the text alone, segment by segment, so `Path("ab")` is
+/// not from `Path("a")`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Optional.map(Path.from(Path("/srv/site/index.html"), Path("/srv")), Path.toString),
+///   Path.from(Path("/srv"), Path("/srv")),
+///   Path.from(Path("/srv/../etc"), Path("/srv")),
+///   Path.from(Path("/etc/hosts"), Path("/srv")))
+/// // => #(Some("site/index.html"), None, None, None)
+/// ```
+///
+/// since 0.11.0
+export fn from(path : Path, directory : Path) : Optional(Path) = {
+    let leading = split(directory);
+    let segments = split(path);
+    let rest = join(List.drop(segments, List.size(leading)));
+    if List.take(segments, List.size(leading)) == leading then
+        Optional.map(under(directory, rest), fn(_) = rest)
+    else
+        None
+}
 
 // A segment that names no entry but a step from where it stands.
 fn isStep(segment : String) : Bool =

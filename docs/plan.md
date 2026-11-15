@@ -71,11 +71,10 @@ What is left is small, and each item stands alone: the flakes, items 32, 40, 51,
 59 and 61 to 64; what the builds found, items 35, 36, 38 and 56; what item 11 left to decide, item
 60; and items 37 and 39, before MVP 4.4's item 4.
 
-Their order, decided with the user on 2026-11-15: what item 37's reading left first, so
-that no program writes `Path.from` by hand meanwhile; then items 56 and 38, which make a check
+Their order, decided with the user on 2026-11-15: items 56 and 38 first, which make a check
 say less than it found; the flakes, the most often seen first, items 32, 40, 62, 51, 57, 59, 58,
 61, 64 and 63, one at a time; the builds, items 35 and 36; and what needs the user, items 60 and
-39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
+39 and what is left of item 37. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
 within it is reported as not found, its line kept.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
@@ -154,8 +153,11 @@ Item 23 is MVP 4.17's.
     `make test-full`, where the client's line stood after the case's lines and the test
     expects nothing after them, and once in two runs of `make test`, the client's line first
     again. Seen once more 2026-11-14 under `make test`, in item 5's runs, the client's line
-    after the case's. The cause is not found. An agent finds under that target's load
-    whether §11.2 promises the order, and fixes the test or `ern test` at it.
+    after the case's, and once 2026-11-15 in two runs of `make test`, item 37's, the
+    client's line first.
+
+    The cause is not found. An agent finds under that target's load whether §11.2 promises
+    the order, and fixes the test or `ern test` at it.
 
     Seen in three of item 11's hunts 2026-11-15, so `make flakes` is where the agent looks
     first: beside 15 loops in a host's first round, the client's line after the case's, and
@@ -183,32 +185,15 @@ Item 23 is MVP 4.17's.
     failed or uses one that failed. The item says in §11.4 first what `index.md` lists then.
     Item 26's test of `ern doc` takes the other module's document (the log's *A Hiding Module
     Refused*).
-37. **The library's functions written in a program**, decided with the user 2026-11-14, before
-    MVP 4.4's item 4, so that the full review reads the library with them in it. A script in
-    the session's scratchpad lists the name and type of each private function of the Ernest
-    outside the standard library: here `examples/`, `tour/`, `tools/`, `src/libs` and
-    `src/shell`, and the three applications, read and not written. The session reads the
-    list, and reads the body of each function whose name and type look like a library's (the
-    log's *A Library's Function in a Program*).
+37. **The library's functions written in a program**, read and built 2026-11-15. Decided in
+    the item: one function is admitted, `Path.from(path, directory)`, the inverse of
+    `Path.under`; every other candidate stays its program's, and the applications lose no
+    function to the library (E.14; the log's *A Library's Function in a Program*, *The
+    Sweep's Reading*).
 
-    The session judges each by E.0 and brings the user only what it wants to discuss. One
-    admitted goes to Appendix E and the library, a build each, and its program calls it there.
-    A message tells an application's session, on the user's word, which of its functions the
-    library takes, and it drops each at its floor's rise. `ernest-template` takes CLAUDE.md's
-    rule in a tag, by its own session and in its own words, for what is written from then on.
-
-    Read 2026-11-15, and decided with the user (the log's *The Sweep's Reading*): one
-    function is admitted, a path named from a directory, and every other candidate stays its
-    program's. The applications lose no function to the library. What is left:
-
-    - Decided with the user: it is `Path.from(path, directory)`, the inverse of
-      `Path.under`, and so `None` for the directory itself and for a `.` or `..` segment
-      after it.
-    - E.14 first, then the build: the function in `Path`, and the shell's `isUnder` and
-      `fromWorkingDirectory` calling it.
-    - The shell's `Editor.suffix` goes, `String.drop` at its five call sites.
-    - A message to `ernest-httpd`'s session: its `src` no longer checks against this
-      checkout, since `Process.Calling` changed shape.
+    What is left: `ernest-template` takes CLAUDE.md's rule on a function over the library's
+    types in a tag, by its own session and in its own words, for what is written from then
+    on. The message to its session waits for the user's word.
 38. **ern(1) written again after `make doc`**, found 2026-11-14 by item 28's full run: after a
     change to the toolchain's code, `make`, then `make doc`, then `make manual` writes
     `build/man/ern.1` a second time. The documents `make doc` writes into `build/stdlib`

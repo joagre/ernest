@@ -783,21 +783,27 @@ path_laws_test_() ->
            fun path_joined/1},
           {"under: the second under the first, but an absolute second or one that steps",
            fun two_segments/1, fun path_under/1},
+          {"from: under's inverse, both ways", fun two_segments/1, fun path_from/1},
           {"isAbsolute, toString", fun segments/1, fun path_text_of/1},
           {"the empty path: no segments, and nothing under a root", fun segments/1,
            fun path_empty/1}]).
 
 %% The empty path, which no other draw makes: no segments, no parent, name
-%% or extension, its extension left as it is, and `under` refusing it.
+%% or extension, its extension left as it is, `under` refusing it, `from`
+%% naming nothing from a directory with it, and every path from it as
+%% `under` places the path under it.
 path_empty(Segments) ->
     Empty = {'Path', <<>>},
+    Path = ?PATH(join)(Segments),
     ?PATH(split)(Empty) =:= [] andalso ?PATH(join)([]) =:= Empty
         andalso ?PATH(parent)(Empty) =:= 'None' andalso ?PATH(name)(Empty) =:= 'None'
         andalso ?PATH(extension)(Empty) =:= 'None'
         andalso ?PATH(withExtension)(Empty, <<"md">>) =:= Empty
         andalso ?PATH(withoutExtension)(Empty) =:= Empty
-        andalso ?PATH(under)(?PATH(join)(Segments), Empty) =:= 'None'
-        andalso ?PATH('<>')(?PATH(join)(Segments), Empty) =:= ?PATH(join)(Segments).
+        andalso ?PATH(under)(Path, Empty) =:= 'None'
+        andalso ?PATH('<>')(Path, Empty) =:= Path
+        andalso ?PATH(from)(Empty, Path) =:= 'None' andalso ?PATH(from)(Empty, Empty) =:= 'None'
+        andalso ?PATH(from)(Path, Empty) =:= ?PATH(under)(Empty, Path).
 
 path_join_split(Text) ->
     ?PATH(join)(?PATH(split)({'Path', Text})) =:= {'Path', normal_path(Text)}.
@@ -853,6 +859,31 @@ path_under({First, Second}) ->
                    false -> {'Some', ?PATH('<>')(Root, Path)}
                end,
     ?PATH(under)(Root, Path) =:= Expected.
+
+%% `from` undoes `under`: a path placed under a root is named from it as it
+%% was, and a path named from a directory is placed under it as the first,
+%% each up to `join` of `split`. The pairs asked of `from` are the draws
+%% either way round and the two joined, so that some begin with the other.
+path_from({First, Second}) ->
+    Root = ?PATH(join)(First),
+    Path = ?PATH(join)(Second),
+    Normal = fun(Of) -> ?PATH(join)(?PATH(split)(Of)) end,
+    Inverse = case ?PATH(under)(Root, Path) of
+                  {'Some', Placed} -> ?PATH(from)(Placed, Root) =:= {'Some', Normal(Path)};
+                  'None' -> true
+              end,
+    Pairs = [{Root, Path}, {Path, Root}, {?PATH(join)(First ++ Second), Root}],
+    Undone = fun({Whole, Directory}) ->
+                     case ?PATH(from)(Whole, Directory) of
+                         {'Some', Rest} ->
+                             case ?PATH(under)(Directory, Rest) of
+                                 {'Some', Back} -> Normal(Back) =:= Normal(Whole);
+                                 'None' -> false
+                             end;
+                         'None' -> true
+                     end
+             end,
+    Inverse andalso lists:all(Undone, Pairs).
 
 path_text_of(Segments) ->
     Path = ?PATH(join)(Segments),

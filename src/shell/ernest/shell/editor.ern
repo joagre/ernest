@@ -415,7 +415,7 @@ fn stride(search : Search) : Int =
 export fn insert(state : Editing, text : String) : Editing = {
     let Editing(text = line, =cursor) = state;
     let before = String.slice(line, 0, cursor) <> text;
-    Editing(..state, text = before <> suffix(line, cursor), cursor = String.size(before))
+    Editing(..state, text = before <> String.drop(line, cursor), cursor = String.size(before))
 }
 
 fn deleteBefore(state : Editing) : Editing =
@@ -424,7 +424,7 @@ fn deleteBefore(state : Editing) : Editing =
             state
       | Editing(=text, =cursor) ->
             Editing(..state,
-                    text = String.slice(text, 0, cursor - 1) <> suffix(text, cursor),
+                    text = String.slice(text, 0, cursor - 1) <> String.drop(text, cursor),
                     cursor = cursor - 1)
     }
 
@@ -433,7 +433,7 @@ fn deleteAt(state : Editing, index : Int) : Editing = {
     if index >= String.size(text) then
         state
     else
-        Editing(..state, text = String.slice(text, 0, index) <> suffix(text, index + 1))
+        Editing(..state, text = String.slice(text, 0, index) <> String.drop(text, index + 1))
 }
 
 // Kill back to `index`, keeping what was killed for `C-y`; a kill of
@@ -444,7 +444,7 @@ fn killBackTo(state : Editing, index : Int) : Editing = {
         state
     else
         Editing(..state,
-                text = String.slice(text, 0, index) <> suffix(text, cursor),
+                text = String.slice(text, 0, index) <> String.drop(text, cursor),
                 cursor = index,
                 killed = String.slice(text, index, cursor))
 }
@@ -456,12 +456,9 @@ fn killForwardTo(state : Editing, index : Int) : Editing = {
         state
     else
         Editing(..state,
-                text = String.slice(text, 0, cursor) <> suffix(text, index),
+                text = String.slice(text, 0, cursor) <> String.drop(text, index),
                 killed = String.slice(text, cursor, index))
 }
-
-fn suffix(text : String, index : Int) : String =
-    String.drop(text, index)
 
 // report §11.2: the start of the word before the cursor, over what is not
 // in a word and then over the word itself; `inWord` says what a word is,
