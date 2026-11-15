@@ -205,8 +205,10 @@ option_name(Word) ->
 long_name(Spec, Key) ->
     hd(["--" ++ Long || {Taken, _, Long, _, _} <- Spec, Taken =:= Key]).
 
+%% Report §11: a refusal before a job, its text holding no control
+%% character (ern_build:control_free/1).
 refuse(Message, ErrorDevice) ->
-    io:format(ErrorDevice, "ern: ~ts~n", [Message]),
+    io:format(ErrorDevice, "ern: ~ts~n", [ern_build:control_free(Message)]),
     usage(ErrorDevice),
     1.
 
@@ -1053,12 +1055,12 @@ format_file(Options, File, Text, ErrorDevice) ->
         {ok, Text} -> ok;
         {ok, Output} ->
             case lists:member(check, Options) of
-                true -> io:format("~ts~n", [ern_build:shown(File)]), changed;
+                true -> io:format("~ts~n", [ern_build:path_text(File)]), changed;
                 false -> ok = ern_build:write_whole(File, Output)
             end;
         {error, Diagnostic} ->
             io:format(ErrorDevice, "~ts~n",
-                      [ern_diagnostic:format(ern_build:shown(File), Text, Diagnostic)]),
+                      [ern_diagnostic:format(ern_build:path_text(File), Text, Diagnostic)]),
             error
     end.
 
@@ -2525,6 +2527,8 @@ another_interface(Namespace, File, Dependency, Found) ->
             Refusal
     end.
 
+%% Report §11: a refusal of a job's usage, its text holding no control
+%% character (ern_build:control_free/1).
 -spec usage_fail(io_lib:chars()) -> no_return().
 usage_fail(Message) ->
-    throw({cli_usage, lists:flatten(Message)}).
+    throw({cli_usage, ern_build:control_free(Message)}).

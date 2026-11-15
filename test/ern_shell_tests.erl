@@ -1364,6 +1364,106 @@ history_directory_refused() ->
     ?assertEqual(1, length(binary:matches(Bytes, <<"the history is not kept">>))),
     ?assertEqual(false, filelib:is_file(Dir)).
 
+%% report §11, §11.2, §2.1: at a terminal the line that says the history is
+%% not kept writes each control character of its file as its bytes in
+%% UTF-8, each `\xHH`
+history_control_written_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun history_control_written/0).
+
+history_control_written() ->
+    Home = filename:join(fresh_home(), "h\eh"),
+    ok = filelib:ensure_path(filename:join([Home, ".ernest", "history"])),
+    Bytes = pty("HOME='" ++ Home ++ "' ../bin/ern shell",
+                [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}]),
+    Written = string:replace(Home, "\e", "\\x1B"),
+    Said = iolist_to_binary(["the history is not kept, since ", Written,
+                             "/.ernest/history is no regular file\r\n"]),
+    ?assertMatch({_, _}, binary:match(Bytes, Said)).
+
+%% report §11, §11.2, §2.1: the shell writes each control character of a
+%% path it names as its bytes in UTF-8, each `\xHH`: `:load`'s note, its
+%% refusal, which a later name of the module is answered with too, and a
+%% diagnostic's first line, and `:output`'s answers and its refusal
+load_and_output_control_written_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_and_output_control_written/0).
+
+load_and_output_control_written() ->
+    Dir = fresh_home(),
+    Source = filename:join(Dir, "s\es"),
+    Library = filename:join(Dir, "l\el"),
+    ok = filelib:ensure_path(Source),
+    ok = filelib:ensure_path(Library),
+    ok = file:write_file(filename:join(Source, "ok.ern"), "export fn h() : Int = 1\n"),
+    ok = file:write_file(filename:join(Source, "bad.ern"), "export let x = = 1\n"),
+    ok = file:write_file(filename:join(Source, "m.ern"), "export fn f() : Int = Lib.g()\n"),
+    ok = file:write_file(filename:join(Library, "lib.erc"), "not a module"),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":load Ok\n:load Bad\n:load M\nM.f()\n:output s\es/o.txt\n"
+                                    ":output\n:output -\n:output s\es/no/x\n:output o\tk\n"),
+    Ern = filename:absname("../bin/ern"),
+    {0, Output} = ern_pty:sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ Ern
+                             ++ " shell --source-root 's\es' --load-path 'l\el' < " ++ InputFile),
+    Refused = <<"compile Lib first, which M uses: l\\x1Bl/lib.erc: not a compiled module\n">>,
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"> Ok, compiled from s\\x1Bs/ok.ern\n"
+                                        "> s\\x1Bs/bad.ern:1:16: expected an expression instead"
+                                        " of `=`\n1 | export let x = = 1\n  |                ^\n"
+                                        "> ", Refused/binary, "> input 4:1:1: unknown name M.f\n"
+                                        "1 | M.f()\n  | ^^^\n  | = help: :load M was refused: ",
+                                        Refused/binary,
+                                        "> output goes to s\\x1Bs/o.txt\n"
+                                        "> output goes to s\\x1Bs/o.txt\n"
+                                        "> output goes to standard output\n"
+                                        "> cannot write to s\\x1Bs/no/x: its directory is not"
+                                        " there\n"
+                                        "> output goes to o\\x09k\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<27>>)).
+
+%% report §11, §11.2, §2.1: a startup file's lines write each control
+%% character of its path as its bytes in UTF-8, each `\xHH`, an escape and
+%% U+009B among them: a refusal and a fault named by its line, a
+%% diagnostic's first line, the site of a spawn in it, which a fault's line
+%% and a trace name as the diagnostics name the file, and the file that is
+%% not UTF-8. The third input waits for its process's Down, which comes
+%% once the fault's report to the session is under way, so that the fault
+%% is reported before the shell ends; it may be written after the fourth
+%% input's diagnostic, so the two are held apart. The U+009B a regression
+%% test: the front end read the file's name as Latin-1, and wrote its
+%% bytes past ASCII twice encoded
+startup_control_written_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun startup_control_written/0).
+
+startup_control_written() ->
+    Dir = fresh_home(),
+    ConfigDir = filename:join(Dir, "c\ed\x{9B}"),
+    node_dir(ConfigDir),
+    Startup = filename:join(ConfigDir, "startup"),
+    startup_file(Startup, ":load Nope\n1 / 0\n"
+                          "{ let p : Address(Int) = spawn(fn() = fault(\"bang\"));"
+                          " monitor(Process.fromAddress(p), fn(d : Down) = d);"
+                          " receive { _ -> Unit } }\n1 +\n"),
+    Empty = filename:join(Dir, "session.in"),
+    ok = file:write_file(Empty, ""),
+    Ern = filename:absname("../bin/ern"),
+    Command = "cd " ++ Dir ++ " && HOME=" ++ fresh_home() ++ " " ++ Ern
+        ++ " shell --config-dir 'c\ed\x{9B}' < " ++ Empty,
+    {0, Output} = ern_pty:sh(Command),
+    File = <<"c\\x1Bd\\xC2\\x9B/startup">>,
+    ?assertMatch({_, _},
+                 binary:match(Output, <<File/binary, ":1: no module Nope under the source root"
+                                        " or on the load path\n",
+                                        File/binary, ":2: fault: division by zero\n"
+                                        "    erlang:'div'/2\n"
+                                        "    $Session1.", File/binary, ":2\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<File/binary, ":4:4: expected an expression"
+                                                " instead of end of input\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"$Session1.", File/binary, ":3 faulted: bang\n"
+                                                "    $Session1.", File/binary, ":3\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, [<<27>>, <<16#C2, 16#9B>>])),
+    ok = file:write_file(Startup, <<255, 254, "\n">>),
+    {0, Bad} = ern_pty:sh(Command),
+    ?assertMatch({_, _}, binary:match(Bad, <<File/binary, " is not UTF-8, and is not run\n">>)).
+
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs
 %% write and the line being typed under it. What a program writes is

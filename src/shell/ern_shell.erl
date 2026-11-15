@@ -1106,11 +1106,12 @@ generalized(Binds, _Typed, _Env) ->
 %% Report §11.2 *Faults*: the name and the line offset a spawn site in the
 %% input is written with: the session's namespace as it prints and the
 %% file the input's diagnostics name, `$Session2.input 3` or the startup
-%% file's, and the lines as they count them.
+%% file's as they write it (ern_build:path_text/1), and the lines as they
+%% count them.
 site(Session, {typed, Name}) ->
     {site_name(Session, Name), 0};
 site(Session, #startup_input{file = File, line = Line}) ->
-    {site_name(Session, ern_build:shown(binary_to_list(File))), Line - 1}.
+    {site_name(Session, ern_build:path_text(unicode:characters_to_list(File))), Line - 1}.
 
 site_name(Session, File) ->
     unicode:characters_to_binary([ern_namespace:text(printed_namespace(Session)), ".", File]).
@@ -2981,12 +2982,12 @@ diagnostic(_Session, {typed, Name}, Input, Diagnostics) ->
                                   || Diagnostic <- Diagnostics]);
 diagnostic(Session, #startup_input{file = File, line = Line, column = Column}, Input,
            Diagnostics) ->
-    SourceText = case source_read(Session, binary_to_list(File)) of
+    SourceText = case source_read(Session, unicode:characters_to_list(File)) of
                      {ok, Read} -> Read;
                      {error, _} -> Input
                  end,
     unicode:characters_to_binary(
-      [ern_diagnostic:format(ern_build:shown(binary_to_list(File)), SourceText,
+      [ern_diagnostic:format(ern_build:path_text(unicode:characters_to_list(File)), SourceText,
                              moved(Diagnostic, Line - 1, Column - 1))
        || Diagnostic <- Diagnostics]).
 
@@ -3117,7 +3118,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                 _ ->
                     {'Left', <<(unicode:characters_to_binary(ern_namespace:text(Declared)))/binary,
                                " is declared in ",
-                               (unicode:characters_to_binary(ern_build:shown(File)))/binary,
+                               (unicode:characters_to_binary(ern_build:path_text(File)))/binary,
                                ", which is not where ", Name/binary, " belongs\n">>}
             end;
         none ->
@@ -3131,7 +3132,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                             loaded_with(Session, All,
                                         <<Name/binary, ", from ",
                                           (unicode:characters_to_binary(
-                                             ern_build:shown(File)))/binary>>);
+                                             ern_build:path_text(File)))/binary>>);
                         {_, Refusal} ->
                             {'Left', Refusal}
                     end;
@@ -3229,7 +3230,7 @@ another_interface(Session, Name, File, Dependency, Held) ->
                                        load_path(Session)),
     case Hiding of
         Refusal when is_list(Refusal) ->
-            Refusal;
+            ern_build:control_free(Refusal);
         _ ->
             Name ++ " was compiled against another " ++ ern_namespace:text(Dependency)
                 ++ "; build " ++ Name ++ " again"
@@ -3704,12 +3705,12 @@ compiled_line(Session, Compiled) ->
 %% Report §11.2: what `:load` says of a module whose source it holds: the
 %% file of the current compiled form it took, `Greet, from greet.erc`, or
 %% the source it compiled, `Greet, compiled from greet.ern`, each named from
-%% the working directory as §11.5 names a file (ern_build:shown/1).
+%% the working directory as §11.5 names a file (ern_build:path_text/1).
 loaded_line(Session, #compiled{namespace = Namespace, erc = none}) ->
     {ok, File} = source_of(Session, Namespace),
-    [ern_namespace:text(Namespace), ", compiled from ", ern_build:shown(File)];
+    [ern_namespace:text(Namespace), ", compiled from ", ern_build:path_text(File)];
 loaded_line(_Session, #compiled{namespace = Namespace, erc = Erc}) ->
-    [ern_namespace:text(Namespace), ", from ", ern_build:shown(Erc)].
+    [ern_namespace:text(Namespace), ", from ", ern_build:path_text(Erc)].
 
 %% Report §11.2: a reloaded module's binding that faulted, after which the
 %% bindings the reload left as they were keep what the previous version
@@ -4259,7 +4260,7 @@ out_of_scope(#session{scope = Scope} = Session, [Segment], Origin) ->
 input_name({typed, Name}) ->
     Name;
 input_name(#startup_input{file = File, line = Line}) ->
-    unicode:characters_to_binary([ern_build:shown(binary_to_list(File)), ":",
+    unicode:characters_to_binary([ern_build:path_text(unicode:characters_to_list(File)), ":",
                                   integer_to_list(Line)]).
 
 %%
@@ -4558,7 +4559,7 @@ sourceless(_Session, []) ->
     [];
 sourceless(#session{source_root = SourceRoot}, Names) ->
     Text = lists:join(", ", [ern_namespace:text(Namespace) || Namespace <- Names]),
-    [unicode:characters_to_binary(["the source root ", ern_build:shown(SourceRoot),
+    [unicode:characters_to_binary(["the source root ", ern_build:path_text(SourceRoot),
                                    " holds no source of ", Text])].
 
 %% Report §11.2: a module compiled against the modules the session has
@@ -4586,7 +4587,8 @@ diagnosed(Session, File, Diagnostics) ->
                      {ok, Bytes} -> Bytes;
                      {error, _} -> <<>>
                  end,
-    Shown = ern_build:read_through(source_access(Session), fun() -> ern_build:shown(File) end),
+    Shown = ern_build:read_through(source_access(Session),
+                                   fun() -> ern_build:path_text(File) end),
     unicode:characters_to_binary([ern_diagnostic:format(Shown, SourceText, Diagnostic)
                                   || Diagnostic <- Diagnostics]).
 
@@ -4642,12 +4644,12 @@ compiled_of(Session, Namespace) ->
                                     {ok, File, Beam, Hash};
                                 false ->
                                     {error, unicode:characters_to_binary(
-                                              [ern_build:shown(File),
+                                              [ern_build:path_text(File),
                                                ": not a compiled module"])}
                             end;
                         {ok, #{interface := #interface{namespace = Held}}} ->
-                            {error, unicode:characters_to_binary(
-                                      ern_build:held_another(File, Held, Namespace, rebuild))};
+                            {error, unicode:characters_to_binary(ern_build:control_free(
+                                      ern_build:held_another(File, Held, Namespace, rebuild)))};
                         {error, _} ->
                             none
                     end;
@@ -4693,7 +4695,7 @@ form_refusal(Session, File, Beam) ->
     refusal_text(ern_build:form_hiding(File, Chunk, ern_tree:libraries(), load_path(Session))).
 
 refusal_text(none) -> none;
-refusal_text(Refusal) -> unicode:characters_to_binary(Refusal).
+refusal_text(Refusal) -> unicode:characters_to_binary(ern_build:control_free(Refusal)).
 
 %% Report §11.2: the refusal `:load` would give the module of these
 %% segments, whose source or compiled form the session finds, as §11.1

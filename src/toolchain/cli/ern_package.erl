@@ -66,7 +66,7 @@
 %% build's rules. A job that cannot read the manifest has one fault of its
 %% form, and the other groups are said all the same. Every fault is thrown,
 %% a line each, as `{cli_errors, Lines}`, which the job writes after its
-%% name.
+%% name, each holding no control character (ern_build:control_free/1).
 -spec read(file:filename(), working_directory | package_dir, string(),
            [{argument, file:filename()} | {build_root, file:filename()}]) -> package().
 read(Dir, Place, Job, Given) ->
@@ -102,7 +102,7 @@ read(Dir, Place, Job, Given) ->
         [] -> #package{manifest = Manifest, lib = Lib, named = Named,
                        packages = named_packages(Manifest, Packages, Job, Manifests),
                        order = in_built_order(Manifests)};
-        Lines -> throw({cli_errors, Lines})
+        Lines -> throw({cli_errors, [ern_build:control_free(Line) || Line <- Lines]})
     end.
 
 %% Report §11.9: a manifest's faults of form, read where it is a file the

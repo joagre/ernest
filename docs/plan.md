@@ -260,11 +260,8 @@ Once*).
 48. **One paragraph on a name that reaches no regular file**, done 2026-11-15 in two
     builds (the log's *The Trust Said Once*, its paragraphs *The fourth build's sentences*
     to *The corner closed*).
-49. **A control character in a path a job writes**, found 2026-11-14 by item 43's probe:
-    `ern build` of a file whose name holds an escape writes the escape to the terminal.
-    The guard stands where a path is written, as `\xHH`, the way a byte that is not UTF-8
-    is written (§11.1). The item first finds the report's sentence on how a path is written,
-    and whether one function writes it, the shell's lines among them.
+49. **A control character in a path a job writes**, done 2026-11-15 (the log's *A Refusal
+    Holds No Control Character*): a refusal holds none, and §11 says so.
 50. **The history file's owner**, done 2026-11-14 (the log's *The Trust Said Once*, its
     paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third
     build*).
@@ -285,6 +282,27 @@ Once*).
 53. **What item 48's cold reading left**, dropped 2026-11-14 on the user's word: no more
     is spent on a name that reaches no regular file (the log's *The Trust Said Once*, its
     paragraph *The corner closed*).
+
+54. **What item 49 left to decide**, found 2026-11-15 by its survey and its build (the
+    log's *A Refusal Holds No Control Character*). Each line is decided with the user, and
+    carries the session's recommendation.
+
+    - A path written into a document. `--emit-erl`'s first line writes the source's path
+      raw, where a line feed in it ends the comment, and a page's last line writes it as
+      `\u{1B}`. Recommended: both as `\xHH`, and the sentence in §11.5, since §11.1 and
+      §11.4 say "as §11.5 writes one".
+    - The shell names the history file by its absolute path where it lies under the
+      working directory, and the startup file beside it from that directory. Recommended:
+      both as §11.5 names a file.
+    - A text read from a file in a line that is no refusal: a peer's name in a reload's
+      note is written raw. Recommended: the note is written as a refusal is. The host's
+      log text and the text after `ern: internal error` are the host's, and stay.
+    - A value a refusal quotes from a configuration is written with a control character
+      below U+0020 as JSON's `\u001B`, and DEL and U+0080 to U+009F as `\x7F`.
+      Recommended: the quoting writes every control character of §2.1 as JSON does.
+    - The attached shell's end has no test of a cause that holds a control character.
+      Recommended: none, since it would be a nodes' test for one call.
+    - Feedback 253, base 16 answering an `Optional` that is never `None`.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.

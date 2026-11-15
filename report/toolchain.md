@@ -65,6 +65,8 @@ A directory that a walk meets is no such name: it is walked as §11.1 says. Wher
 
 A job makes each path its command line gives, an argument or an option's value, absolute from the working directory, the one the host names with no link in it, and resolves its `.` and `..` segments without following a link. A `..` at the root names the root, and a `/` that ends a path or stands beside another names no segment. It judges, writes and opens the path as resolved. A refusal names the path as resolved, as §11.5 writes a file.
 
+A refusal holds no control character (§2.1). One in a path, in a word of the command line or in a text read from a file is written as its bytes in UTF-8, each as `\xHH`: `ern build: a\x1Bb.ern: no such file`, and U+009B is written `\xC2\x9B`. A backslash is written as itself. A path is written so in a `--verbose` line, in an error's first line (§11.5), in a line of `ern format --check` (§11.6), and in what the shell says (§11.2).
+
 `ern` refuses to start in a working directory whose name is not UTF-8. `ern --help` and `ern --version` run in any working directory. A job reads from the directory it is started in only what its command line names or its user asks for, a file, a root, or a module the shell loads. The exception is a package: a job started in one, and given no `--package-dir`, reads its manifest and what the manifest names under `lib`, and `ern build` and `ern unpack` write there, as §11.9 says.
 
 A job trusts whoever the host lets write what it is given or the directory it is started in: it holds what it reads to no owner and no mode. The exceptions are three tests: of a root package's directory (§11.9), of a node's key (§12.5) and of `ernest.pid` (§11.2).

@@ -123,7 +123,8 @@ in_directory(#example{test_case = {'Case', Name, _}} = Example, Run, ErrorDevice
                         remove(Name, Dir, ErrorDevice)
                     end;
                 {error, Why} ->
-                    Run(failed(Name, ["its directory cannot be made under ", Base, ": ", Why]))
+                    Run(failed(Name, ["its directory cannot be made under ",
+                                      ern_build:control_free(Base), ": ", Why]))
             end;
         {error, Error} ->
             Run(failed(Name, ["the working directory cannot be read: ",
@@ -156,7 +157,8 @@ remove(Name, Dir, ErrorDevice) ->
             io:put_chars(ErrorDevice,
                          unicode:characters_to_binary(
                            ["ern test: the directory of ", ern_show:controls(Name, line), ", ",
-                            Dir, ", cannot be removed: ", file:format_error(Error), "\n"]))
+                            ern_build:control_free(Dir), ", cannot be removed: ",
+                            file:format_error(Error), "\n"]))
     end.
 
 %% The units the examples' compiling loaded, the values their bindings
@@ -229,7 +231,7 @@ module_source(Namespace, Erc, Beam) ->
     {ok, #{source_path := SourcePath, source_hash := Hash}} = ern_interface:read(Beam),
     BuildRoot = ern_build:root_of(Erc, Namespace),
     File = filename:join(BuildRoot, unicode:characters_to_list(SourcePath)),
-    Compiled = [ern_build:shown(Erc), " was compiled from ", ern_build:shown(File)],
+    Compiled = [ern_build:path_text(Erc), " was compiled from ", ern_build:path_text(File)],
     case ern_build:regular_bytes(File) of
         {ok, Source} ->
             case crypto:hash(sha256, Source) of

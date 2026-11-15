@@ -415,6 +415,87 @@ word_not_utf8_test() ->
                   end, ["build", "doc", "format", "run", "test", "shell", "config", "reload",
                         "stop", "unpack"]).
 
+%% report §11, §2.1: a refusal holds no control character. One in a path
+%% is written as its bytes in UTF-8, each `\xHH`, and a backslash as
+%% itself: an escape, a line feed, a tab, DEL and U+009B in the name of a
+%% file that is not there, and in a directory a node's job is given
+refusal_control_written_test() ->
+    Dir = tmp(),
+    lists:foreach(fun({Name, Written}) ->
+                      ?assertEqual(refusal("build", Dir ++ "/" ++ Written ++ ": no such file"),
+                                   said(["build", Dir ++ "/" ++ Name]))
+                  end,
+                  [{"a\eb.ern", "a\\x1Bb.ern"}, {"a\nb.ern", "a\\x0Ab.ern"},
+                   {"a\tb.ern", "a\\x09b.ern"}, {"a\x7Fb.ern", "a\\x7Fb.ern"},
+                   {[$a, 16#9B, $b | ".ern"], "a\\xC2\\x9Bb.ern"}, {"a\\b.ern", "a\\b.ern"}]),
+    ?assertEqual(refusal("stop", Dir ++ "/c\\x1Bg: no such directory, which --config-dir names"),
+                 said(["stop", "--config-dir", Dir ++ "/c\eg"])).
+
+%% report §11, §2.1: a word of the command line is written so in a usage
+%% refusal and in the refusal before a job, the usage after it as it was
+usage_refusal_control_written_test() ->
+    {1, Usage} = said(["build", "--bo\egus"]),
+    ?assertMatch({0, _}, binary:match(Usage, <<"ern build: --bo\\x1Bgus is not an option of"
+                                               " ern build\nUsage: ern build ">>)),
+    {1, NoJob} = said(["bu\tild"]),
+    ?assertMatch({0, _}, binary:match(NoJob, <<"ern: no job bu\\x09ild; the jobs are build, doc,"
+                                               " format, run, test, shell, config, reload, stop"
+                                               " and unpack; ern --help describes them\n"
+                                               "Usage: ern <job> ">>)).
+
+%% report §11, §11.1, §2.1: a word or a name that is not UTF-8 writes each
+%% byte past ASCII `\xHH`, and each control byte too
+not_utf8_control_written_test() ->
+    {1, Word} = said([{error, "n\e", <<16#FF, "me.ern">>}]),
+    ?assertMatch({0, _}, binary:match(Word, <<"ern: a word that is not UTF-8: n\\x1B\\xFFme.ern\n"
+                                              "Usage: ern <job> ">>)),
+    Dir = tmp(),
+    ok = filelib:ensure_path(filename:join(Dir, "src")),
+    ok = file:write_file(filename:join(Dir, <<"src/n", 27, 16#FF, "me.ern">>), <<>>),
+    ?assertEqual(refusal("build", "a name that is not UTF-8: " ++ Dir ++ "/src/n\\x1B\\xFFme.ern"),
+                 said(["build", Dir ++ "/src"])).
+
+%% report §11, §11.9, §2.1: a manifest's refusal writes so the path of its
+%% directory and a field's name read from the file
+package_refusal_control_written_test() ->
+    Dir = tmp(),
+    write(Dir ++ "/p\eq", "package.conf",
+          ["{\"x\\u001by\": 1, \"ernest\": \"", element(1, running_release()),
+           "\", \"packages\": []}\n"]),
+    ?assertEqual(refusal("run", Dir ++ "/p\\x1Bq/package.conf: the file has the unknown"
+                                " field x\\x1By"),
+                 said(["run", "--package-dir", Dir ++ "/p\eq", "x.erc"])).
+
+%% report §11, §11.5, §2.1: an error's first line writes its file so, a
+%% module of a directory the build walks among them
+directory_error_control_written_test() ->
+    Dir = tmp(),
+    write(Dir ++ "/d\x7Fd", "m.ern", "export let x = = 1\n"),
+    {1, Said} = said(["build", Dir ++ "/d\x7Fd"]),
+    ?assertEqual([list_to_binary(Dir ++ "/d\\x7Fd/m.ern:1:16: expected an expression instead"
+                                       " of `=`"),
+                  <<"1 | export let x = = 1">>],
+                 lists:sublist(binary:split(Said, <<"\n">>, [global]), 2)),
+    ?assertEqual(nomatch, binary:match(Said, <<16#7F>>)).
+
+%% report §11, §11.1, §2.1: a `--verbose` line writes a path so
+verbose_control_written_test() ->
+    Dir = tmp(),
+    write(Dir ++ "/v\ev", "m.ern", "export let x : Int = 1\n"),
+    Written = Dir ++ "/v\\x1Bv",
+    ?assertEqual({0, list_to_binary(["source root ", Written, "\nbuild root ", Written,
+                                     "\ncompiled M from ", Written, "/m.ern to ", Written,
+                                     "/m.erc\n"])},
+                 said(["build", "--verbose", "--source-root", Dir ++ "/v\ev",
+                       Dir ++ "/v\ev/m.ern"])).
+
+%% report §11, §11.6, §2.1: a line of `ern format --check` writes its path so
+format_check_control_written_test() ->
+    Dir = tmp(),
+    write(Dir ++ "/f\tf", "m.ern", "export let x : Int =  1\n"),
+    ?assertEqual({1, list_to_binary(Dir ++ "/f\\x09f/m.ern\n")},
+                 said(["format", "--check", Dir ++ "/f\tf"])).
+
 %% report §11.6: a file named alone is a module when its name ends in
 %% `.ern` and is otherwise one word, and those under a directory are found
 %% as `ern build` finds them (§11.1); a file that is none is refused and

@@ -456,13 +456,13 @@ fn readHistory() : #(List(String), Bool, List(String)) =
 fn unkeptReason(unkept : History.Unkept, path : Path) : String =
     match unkept {
         History.Unmade(=directory, =error) ->
-            Path.toString(directory) <> " could not be made its owner's alone: " <> trouble(error)
+            pathText(directory) <> " could not be made its owner's alone: " <> trouble(error)
       | History.Unreadable(error) ->
             "it could not be read: " <> trouble(error)
       | History.Linked ->
-            Path.toString(path) <> " is a link"
+            pathText(path) <> " is a link"
       | History.OtherKind ->
-            Path.toString(path) <> " is no regular file"
+            pathText(path) <> " is no regular file"
     }
 
 // Report §11.2: where the startup files are, the person's first and then
@@ -501,11 +501,11 @@ fn readFileInputs(file : String) : #(List(#(String, Int, String)), List(String))
         Left(Io.NotFound) ->
             #([], [])
       | Left(error) ->
-            #([], [file <> " could not be read: " <> trouble(error)])
+            #([], [controlFree(file) <> " could not be read: " <> trouble(error)])
       | Right(bytes) ->
             match String.fromUtf8(bytes) {
                 Some(text) -> #(startupInputs(file, List.indexed(String.lines(text))), [])
-              | None -> #([], [file <> " is not UTF-8, and is not run"])
+              | None -> #([], [controlFree(file) <> " is not UTF-8, and is not run"])
             }
     }
 
@@ -591,7 +591,7 @@ fn redirectOutput(local : Address(LocalMsg),
                 Left(cannotWrite(path, error))
           | Right(_) -> {
                 send(screen, Redirect(Some(path)));
-                Right("output goes to " <> argument)
+                Right("output goes to " <> controlFree(argument))
             }
         }
     }
@@ -626,7 +626,7 @@ fn cannotWrite(path : Path, error : Io.Error) : String = {
       | Io.NotFound -> "its directory is not there"
       | _ -> trouble(error)
     };
-    "cannot write to " <> Path.toString(path) <> ": " <> why
+    "cannot write to " <> pathText(path) <> ": " <> why
 }
 
 // Report §11.2: a startup input runs as a typed one, a command among them,
@@ -1046,6 +1046,26 @@ fn escapedChar(char : Char) : String =
                 Char.toString(char)
     }
 
+// Report §11, §2.1: a path, a word of the command line or a text read from
+// a file as the shell names it, each control character written as its bytes
+// in UTF-8, each `\xHH`, as every job writes one, and every other character,
+// a backslash among them, as itself.
+fn controlFree(text : String) : String =
+    String.join(List.map(String.toList(text), controlFreeChar), "")
+
+// A path as the shell names it, through `controlFree`.
+fn pathText(path : Path) : String =
+    controlFree(Path.toString(path))
+
+fn controlFreeChar(char : Char) : String =
+    if Char.isControl(char) then
+        String.join(List.map(Bytes.toList(String.toUtf8(Char.toString(char))), hexByte), "")
+    else
+        Char.toString(char)
+
+fn hexByte(byte : Int) : String =
+    "\\x" <> String.padStart(Optional.withDefault(Int.toStringBase(byte, 16), ""), 2, "0")
+
 // A diagnostic, its first line colored as a fault (report §11.2).
 fn diagnose(screen : Address(ScreenMsg), color : Markdown.Output, text : String) : Unit =
     send(screen, Said(Style.diagnostic(text, color) <> "\n"))
@@ -1071,7 +1091,7 @@ fn origin(state : State, column : Int) : Origin =
 // file and line, as its diagnostic is.
 fn placed(state : State, text : String) : String =
     match state.startupLine {
-        Some(#(file, line)) -> file <> ":" <> Int.toString(line) <> ": " <> text
+        Some(#(file, line)) -> controlFree(file) <> ":" <> Int.toString(line) <> ": " <> text
       | None -> text
     }
 
@@ -1475,7 +1495,7 @@ fn appendOutput(local : Address(LocalMsg),
 // the live region at a terminal and standard output in line mode.
 fn place(destination : Optional(Path), screenPlace : String) : String =
     match destination {
-        Some(path) -> Path.toString(path)
+        Some(path) -> pathText(path)
       | None -> screenPlace
     }
 
@@ -2072,7 +2092,7 @@ fn holdKeys() : Optional(Terminal.Size) receiving LocalMsg =
 // that could not compile or load the shell's definitions answers why
 // (§12.7), which the shell says as it is.
 fn refusal(name : String, error : Io.Error) : String = {
-    let peer = "ern shell: the peer " <> name;
+    let peer = "ern shell: the peer " <> controlFree(name);
     match error {
         Io.NotListed -> peer <> " is not listed"
       | Io.Unreachable -> peer <> " is unreachable"
@@ -2095,7 +2115,7 @@ fn startRefusal(name : String, reason : Reason) : String =
 // Report §11.2: a refusal of what the node itself did, `words` after its
 // name.
 fn nodeRefusal(name : String, words : String) : String =
-    "ern shell: the node " <> name <> " " <> words
+    "ern shell: the node " <> controlFree(name) <> " " <> words
 
 // Report §11.2: until the session has its screen, the terminal's events
 // waiting meanwhile; an attached shell, `deadline` the moment its wait
@@ -2255,7 +2275,7 @@ fn endWithSession(name : String, down : Down, ending : String) : Unit = {
             end(0, "")
       | reason -> {
             write(ending);
-            let #(status, line) = nodeEnd(name, reason);
+            let #(status, line) = nodeEnd(controlFree(name), reason);
             end(status, line)
         }
     }
@@ -2272,12 +2292,12 @@ fn end(status : Int, line : String) : Unit = {
 // Report §11.2, §11.8: the status and the line of a session's end other
 // than a detach: a node that ended says so and exits with status 0, and a
 // node lost says so and exits with status 1; any other end is a failure of
-// the shell's own.
+// the shell's own, a fault's cause written through `escaped`.
 fn nodeEnd(name : String, reason : Reason) : #(Int, String) =
     match reason {
         ProgramEnd -> #(0, "the node " <> name <> " ended")
       | Unreachable -> #(1, "the node " <> name <> " is lost")
-      | Fault(cause) -> #(70, "fault: the session on the node " <> name <> ": " <> cause)
+      | Fault(cause) -> #(70, "fault: the session on the node " <> name <> ": " <> escaped(cause))
       | other -> #(70, "fault: the session on the node " <> name <> " ended: " <> Io.show(other))
     }
 

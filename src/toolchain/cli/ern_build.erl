@@ -13,8 +13,9 @@
          package_said/2, modules_of/4,
          hiding/5, form_hiding/4, hiding_found/5, outside_package/3, form_out_of_place/3,
          library_name/1, compiled_in_order/3,
-         report_errors/3, shown/1, sources/1, found_path/1, compiled_under/1, bytes_text/1,
-         module_of/2, module_of/3, shape/2, compile_order/2, compile_order/3,
+         report_errors/3, shown/1, path_text/1, sources/1, found_path/1, compiled_under/1,
+         bytes_text/1, control_free/1, module_of/2, module_of/3, shape/2, compile_order/2,
+         compile_order/3,
          module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
          source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
          stdlib_hash/0, dependency_interfaces/5, load_path/1, load_path_of/1, with_root/2,
@@ -288,11 +289,12 @@ advice(kept, _File, Name) ->
 
 %% Report §11.1, §11.2: what --verbose writes with, a line on the job's
 %% ErrorDevice for each decision as the job makes it, where Options hold
-%% the flag, and nothing where they do not.
+%% the flag, and nothing where they do not. A path it names is written as
+%% control_free/1 writes it (§11).
 -spec verbose([term()], io:device()) -> fun((iodata()) -> ok).
 verbose(Options, ErrorDevice) ->
     case lists:member(verbose, Options) of
-        true -> fun(Line) -> io:format(ErrorDevice, "~ts~n", [Line]) end;
+        true -> fun(Line) -> io:format(ErrorDevice, "~ts~n", [control_free(Line)]) end;
         false -> fun(_) -> ok end
     end.
 
@@ -664,7 +666,7 @@ report_errors(File, Diagnostics, ErrorDevice) ->
                  {ok, Bytes} -> Bytes;
                  _ -> <<>>
              end,
-    Shown = shown(File),
+    Shown = path_text(File),
     lists:foreach(fun(Diagnostic) ->
                       io:format(ErrorDevice, "~ts~n",
                                 [ern_diagnostic:format(Shown, Source, Diagnostic)])
@@ -686,6 +688,13 @@ shown(File) ->
         outside -> absolute(File);
         Relative -> Relative
     end.
+
+%% Report §11, §11.5: a file as a line a job writes names it, named as
+%% shown/1 names it and written as control_free/1 writes a text; what the
+%% job opens is the file as shown/1 gives it.
+-spec path_text(file:filename()) -> string().
+path_text(File) ->
+    control_free(shown(File)).
 
 %% Report §11.1: every `.ern` under a directory, passing over each file and
 %% directory whose name begins with a dot, which is no module, each
@@ -753,17 +762,35 @@ is_dot_name(_) -> false.
 is_packages("lib", Names) -> lists:member("package.conf", Names);
 is_packages(_, _) -> false.
 
-%% A name the host could not decode, each byte past ASCII as `\xHH`, and
-%% one it could as it is. A directory's name may be either, so a name is
-%% any path the host gives.
+%% Report §11.1: a name the host could not decode, each byte past ASCII and
+%% each control byte as `\xHH`, and one it could as control_free/1 writes
+%% it. A directory's name may be either, so a name is any path the host
+%% gives.
 -spec bytes_text(file:filename_all()) -> string().
 bytes_text(Name) when is_list(Name) ->
-    Name;
+    control_free(Name);
 bytes_text(Name) ->
-    lists:append([case Byte < 16#80 of
+    lists:append([case Byte >= 16#20 andalso Byte < 16#7F of
                       true -> [Byte];
-                      false -> lists:flatten(io_lib:format("\\x~2.16.0B", [Byte]))
+                      false -> hex_byte(Byte)
                   end || <<Byte>> <= Name]).
+
+%% Report §11, §2.1: a text as a job writes it on standard output or
+%% standard error, each control character as its bytes in UTF-8, each
+%% `\xHH`, and every other character, a backslash among them, as itself;
+%% a text that holds none is as it was. A refusal's text is made so where
+%% the refusal is made, and a path where a line that is no refusal names
+%% it (path_text/1), since the path a job opens is the one shown/1 gives.
+-spec control_free(unicode:chardata()) -> string().
+control_free(Text) ->
+    lists:append([case Char < 16#20 orelse (Char >= 16#7F andalso Char =< 16#9F) of
+                      true -> lists:append([hex_byte(Byte)
+                                            || <<Byte>> <= unicode:characters_to_binary([Char])]);
+                      false -> [Char]
+                  end || Char <- unicode:characters_to_list(Text)]).
+
+hex_byte(Byte) ->
+    lists:flatten(io_lib:format("\\x~2.16.0B", [Byte])).
 
 is_link(Path) ->
     case file:read_link_info(Path) of
@@ -2575,7 +2602,9 @@ followed(Path, Depth) ->
         {error, _} -> Path
     end.
 
+%% Report §11: a refusal, its text holding no control character
+%% (control_free/1).
 -spec fail(iodata()) -> no_return().
 fail(Message) ->
-    throw({cli_error, lists:flatten(Message)}).
+    throw({cli_error, control_free(Message)}).
 
