@@ -247,5 +247,5 @@ Read against each owner below, from both sides, on 2026-11-09. What the reading 
 
 **The way of working.**
 
-- What this proposal says was weighed and set aside goes to the log with the first step, the report's sentences, and the trial is its experiment (CLAUDE.md's *Proposals*).
+- What this proposal says was weighed and set aside goes to the log with the first step, the report's sentences, and the trial is its experiment (CLAUDE.md's *Writing*).
 - A job written in Ernest stands under `Ernest`, which the shell's source root alone provides today (§4.2). Where `ern unpack` stands is decided when it is built.
