@@ -193,7 +193,8 @@ Item 23 is MVP 4.17's.
 
     What is left: `ernest-template` takes CLAUDE.md's rule on a function over the library's
     types in a tag, by its own session and in its own words, for what is written from then
-    on. The message to its session waits for the user's word.
+    on. Its session was asked 2026-11-15, on the user's word, and the two copies refresh
+    from the tag it names.
 38. **ern(1) written again after `make doc`**, found 2026-11-14 by item 28's full run: after a
     change to the toolchain's code, `make`, then `make doc`, then `make manual` writes
     `build/man/ern.1` a second time. The documents `make doc` writes into `build/stdlib`
