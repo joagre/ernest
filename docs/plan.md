@@ -69,12 +69,12 @@ log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 fol
 
 What is left is small, and each item stands alone: the flakes, items 32, 40, 51, 57 to
 59 and 61 to 64; what the builds found, items 35, 36, 38 and 56; what item 11 left to decide, item
-60; and items 37 and 39, before MVP 4.4's item 4.
+60; and item 39, before MVP 4.4's item 4.
 
 Their order, decided with the user on 2026-11-15: items 56 and 38 first, which make a check
 say less than it found; the flakes, the most often seen first, items 32, 40, 62, 51, 57, 59, 58,
 61, 64 and 63, one at a time; the builds, items 35 and 36; and what needs the user, items 60 and
-39 and what is left of item 37. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
+39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
 within it is reported as not found, its line kept.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
@@ -185,16 +185,12 @@ Item 23 is MVP 4.17's.
     failed or uses one that failed. The item says in §11.4 first what `index.md` lists then.
     Item 26's test of `ern doc` takes the other module's document (the log's *A Hiding Module
     Refused*).
-37. **The library's functions written in a program**, built 2026-11-15. Decided in the item:
+37. **The library's functions written in a program**, done 2026-11-15. Decided in the item:
     one function is admitted, `Path.from(path, directory)`, the inverse of `Path.under`;
     every other candidate stays its program's, and the applications lose no function to the
-    library. The template took the rule in its `v0.10.5`, without the search for a repeated
-    form, and both copies took the tag (E.14; the log's *A Library's Function in a Program*,
-    *The Sweep's Reading*).
-
-    What is left, decided with the user 2026-11-15: the repositories keep the same rules, so
-    the template takes the search for a repeated form too. Its session was asked the same
-    day, and the two copies refresh from the tag it names.
+    library. The repositories keep the same rules: the template took the rule and both
+    searches of the read-back in its `v0.10.5` and `v0.10.6`, and both copies took the tags
+    (E.14; the log's *A Library's Function in a Program*, *The Sweep's Reading*).
 38. **ern(1) written again after `make doc`**, found 2026-11-14 by item 28's full run: after a
     change to the toolchain's code, `make`, then `make doc`, then `make manual` writes
     `build/man/ern.1` a second time. The documents `make doc` writes into `build/stdlib`
