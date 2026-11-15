@@ -192,6 +192,11 @@ process_status_test() ->
 %% regression test, written after the code; it does not cover the other
 %% requests that make the call, Tcp's accept, write and connect and Os's
 %% write, which share it (call_limited/2)
+%%
+%% A callee watches its reader when it takes the read, which can be after
+%% the reader waits. The host takes the watch in the reader, and the
+%% reader reads Running while it does (E.21). So each reader is read once
+%% its callee watches it and it waits in its call again.
 reads_limited_test() ->
     Self = self(),
     Tcp = ern_named:functions('ern@tcp'),
@@ -205,6 +210,8 @@ reads_limited_test() ->
                Readers = [ern_rt:spawn(fun() -> (Tcp(read))(Socket, 600000) end, <<"M.tcp:1">>),
                           ern_rt:spawn(fun() -> (Os(read))(Cat, 600000) end, <<"M.os:2">>)],
                ern_rt:timed(),
+               [ok = ern_waits:watching(ern_rt:process_of(Callee), ern_rt:process_of(Reader))
+                || {Reader, Callee} <- lists:zip(Readers, [Socket, Cat])],
                [ok = ern_waits:calling(ern_rt:process_of(Reader)) || Reader <- Readers],
                ern_rt:untimed(),
                Self ! {reads, [ern_rt:status(ern_rt:process_of(Reader)) || Reader <- Readers],

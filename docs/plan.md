@@ -67,9 +67,16 @@ and Its Manifest*).
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
 log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
 
-What is left is small, and each item stands alone: the flakes, items 24, 32, 40, 51, 57 to
-59 and 61; what the builds found, items 35, 36, 38 and 56; what item 11 left to decide, item
+What is left is small, and each item stands alone: the flakes, items 32, 40, 51, 57 to
+59 and 61 to 64; what the builds found, items 35, 36, 38 and 56; what item 11 left to decide, item
 60; and items 37 and 39, before MVP 4.4's item 4.
+
+Their order, decided with the user on 2026-11-15: what item 37's reading left first, so
+that no program writes `Path.from` by hand meanwhile; then items 56 and 38, which make a check
+say less than it found; the flakes, the most often seen first, items 32, 40, 62, 51, 57, 59, 58,
+61, 64 and 63, one at a time; the builds, items 35 and 36; and what needs the user, items 60 and
+39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
+within it is reported as not found, its line kept.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -111,14 +118,10 @@ Items 7 to 10 are MVP 4.17's.
 
 Item 23 is MVP 4.17's.
 
-24. **The flake of `reads_limited_test`**, seen 2026-11-11 once under `make test`, item 4's
-    run: the socket's reader read `Running` where `Calling` was expected, after
-    `ern_waits:calling` had returned for it. Seen twice more 2026-11-14 under `make test`, in
-    item 5's runs, the same way. Seen three times more 2026-11-15 in item 11's runs, the
-    same way: under `make test`, under `make test-full`, and in a host's second round of
-    `make flakes` with no loops.
-    The cause is not found. An agent finds it under `make test`'s load or the hunt's, and
-    fixes the test or the runtime at it.
+24. **The flake of `reads_limited_test`**, done 2026-11-15. Decided in the item: the runtime
+    is right and the test read the status too soon, and a `Running` that the changed test
+    can still read under heavy load, about once in 4,400 runs beside 24 busy loops, is left
+    with its numbers (E.21; the log's *A Status Read Before the Watch*).
 25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
     Manifest*).
 26. **A module that hides a library another uses**, done 2026-11-13 (the log's *A Hiding
@@ -157,7 +160,7 @@ Item 23 is MVP 4.17's.
     Seen in three of item 11's hunts 2026-11-15, so `make flakes` is where the agent looks
     first: beside 15 loops in a host's first round, the client's line after the case's, and
     in a second round beside 15 loops and beside none, the client's line first (the log's
-    *The Flake Hunt*).
+    *The Flake Hunt*). Seen in each of item 24's five hunts, in 1 to 8 rounds of an hour.
 33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
     decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
     fewer than 25600 over TLS, and the runtime has the host's TLS take one piece of a
@@ -193,6 +196,19 @@ Item 23 is MVP 4.17's.
     A message tells an application's session, on the user's word, which of its functions the
     library takes, and it drops each at its floor's rise. `ernest-template` takes CLAUDE.md's
     rule in a tag, by its own session and in its own words, for what is written from then on.
+
+    Read 2026-11-15, and decided with the user (the log's *The Sweep's Reading*): one
+    function is admitted, a path named from a directory, and every other candidate stays its
+    program's. The applications lose no function to the library. What is left:
+
+    - Decided with the user: it is `Path.from(path, directory)`, the inverse of
+      `Path.under`, and so `None` for the directory itself and for a `.` or `..` segment
+      after it.
+    - E.14 first, then the build: the function in `Path`, and the shell's `isUnder` and
+      `fromWorkingDirectory` calling it.
+    - The shell's `Editor.suffix` goes, `String.drop` at its five call sites.
+    - A message to `ernest-httpd`'s session: its `src` no longer checks against this
+      checkout, since `Process.Calling` changed shape.
 38. **ern(1) written again after `make doc`**, found 2026-11-14 by item 28's full run: after a
     change to the toolchain's code, `make`, then `make doc`, then `make manual` writes
     `build/man/ern.1` a second time. The documents `make doc` writes into `build/stdlib`
@@ -234,6 +250,9 @@ Item 23 is MVP 4.17's.
     Seen twice more 2026-11-15 in item 11's runs, in `shell_write_terminal_gone`: under
     `make test-full` its line `the shell ends: its terminal is gone` was not said, and under
     `make test-shell` its `put` was unmet. The area passed in three runs after.
+
+    Seen once more 2026-11-15 under `make test-full`, item 24's run, in
+    `shell_write_terminal_gone`, its line not said.
 41. **An independent reading of item 6's commit**, `f9c5b972`, done 2026-11-14 (the log's
     *The Named Packages Read*).
 42. **The round of the reading's findings**, done 2026-11-14 (the log's *The Reading's
@@ -250,6 +269,9 @@ Item 43 is MVP 4.17's.
     `make test`, over MVP 4.17's item 47: `ern_reaper_tests` said `the sender ended first`.
     It passed alone and in the next run. The cause is not found. An agent finds it under
     the light run's load, and fixes the test or the reaper at it.
+
+    Seen in four of item 24's five hunts 2026-11-15, in 1 to 5 rounds, so `make flakes` is
+    where the agent looks first.
 55. **A reading of `CLAUDE.md` for clarity**, with the user, done 2026-11-15 (the log's *The
     Rules Read for Clarity*).
 56. **A test canceled at its limit ends its host's later tests**, found 2026-11-15 by item
@@ -266,7 +288,8 @@ Item 43 is MVP 4.17's.
     expects that twice and `supervisor restart limit reached`, in a host's second round.
     `count_survives_restart_in_place_test` wrote `2` where it expects `0`, in a third round.
     The cause is not found. An agent finds under `make flakes` whether either needs a host
-    that has run the tests before, and fixes the test or the supervisor at it.
+    that has run the tests before, and fixes the test or the supervisor at it. Both were
+    seen again in item 24's hunts, the second in four of the five.
 58. **The flake of `adapted_is_not_a_process_test`**, seen 2026-11-15 once under `make test`,
     item 11's run: 63 processes alive where it expects 62. It shares its part with
     `ern_flakes_tests`' tests of the hunt's program, which run before it, and it passed in
@@ -285,6 +308,19 @@ Item 43 is MVP 4.17's.
     `"mine" : String` and the line that names the hiding module after it. It passed in
     three runs after. The cause is not found. An agent finds it under the shell area's
     load, and fixes the test or the shell at it.
+62. **The flake of `signal_jobs_take_any_mode_test`**, seen 2026-11-15 in each of item 24's
+    five hunts, with loops and without, in 1 to 7 rounds of an hour: `ern_cli_tests` read
+    `{held, Pid}` where it expects `locked`. In two hunts it was also canceled at its limit,
+    and its round ran no test after it (item 56). The cause is not found. An agent finds it
+    under `make flakes`, and fixes the test or the job at it.
+63. **The flake of `subscribed_while_the_end_waits_test`**, seen 2026-11-15 once in item
+    24's hunt with no loops, in a host's round 157: `ern_terminating_tests`' output did not
+    hold `the end waits for 1 subscriber: M.main:26`. The cause is not found. An agent finds
+    it under `make flakes`, and fixes the test or the runtime at it.
+64. **The flake of `ern_os_tests:terminal_test`**, seen 2026-11-15 in rounds 64 and 138 of a
+    host's 197, in item 24's hunt with no loops: the output did not hold `exit 3\r\n`. The
+    cause is not found. An agent finds it under `make flakes`, and fixes the test or `Os` at
+    it.
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
