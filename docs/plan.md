@@ -134,7 +134,9 @@ item names beside it.
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
   started on another node brings its code along, and a module keeps every version it has
   had, where Erlang keeps two. The mailbox's type follows, then the counter and the
-  session, in the repository's voice (the log's *The Front Page From Its Motive*).
+  session, in the repository's voice (the log's *The Front Page From Its Motive*). The
+  launch's announcement, the user's `~/announcement.txt` outside the repository, is its
+  model, and is read before the page is written.
 
   After the session it says that the session runs in a browser, in the site's shell. The
   sentences on the four `ern config` commands, the two waits and `let far <-` go, since the
