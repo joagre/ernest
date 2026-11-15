@@ -6,35 +6,26 @@ the report in [`report/`](../report/), how the code is arranged to
 [`architecture.md`](architecture.md), and the commands and what the toolchain does not do yet
 to [`development.md`](development.md).
 
-Read "Where we are" first, then the milestones to come, in order; the table of every milestone ends the file. A gap
-stands in the milestone whose item closes it, a defect of OTP's in [`otp_bugs.md`](otp_bugs.md),
-and a feature declined in a dated entry of the log; nothing stands between.
+Read "Where we are" first, then the milestones to come, in order; the table of every milestone
+ends the file. A gap stands in the milestone whose item closes it, a defect of OTP's in
+[`otp_bugs.md`](otp_bugs.md), and a feature declined in a dated entry of the log; nothing stands
+between.
 
 ---
 
 ## Where we are
 
-**Ernest 0.10.0 is the last release**, of 2026-11-10, what the server taught: a node at the
-host's limits, relative names, `kill` on a `Process`, a worker's value or its end, a program's
-environment and signals, `libs/uri`, and the release review before it, which read the
-milestone's diff, its 126 lines fixed and 25 decided in eighteen decisions (the log's *The
-Release Review Before 0.10.0* and the entries MVP 4.15's row names), and the checkout works
-toward 0.11.0. No promise of stability is made, and a change to the language, the standard
-library or the libraries is driven by a need met in use and recorded as
-`docs/language_feedback.md` records one.
+**Ernest 0.10.0 is the last release**, of 2026-11-10, and the checkout works toward 0.11.0. The
+table's rows for MVP 4.15 and Ernest 0.10.0 say what it holds. No promise of stability is made,
+and a change to the language, the standard library or the libraries is driven by a need met in
+use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
+outside the project depends on it, as MVP 4.4's opening says.
 
-MVP 4.16 comes next, a deadlock's scope and its report, a package's manifest and build, and the
-flake hunt, before the launch (the log's *MVP 4.16, the Proposals Before the Launch*). Then MVP
-4.17, what a job trusts and the rest of packages, split from it on 2026-11-14 (the log's *The
-Milestone Split*). Then
-MVP 4.6, the server owning
-both ends of its socket, moved before the launch on 2026-11-10 (the log's *MVP 4.6 Before the
-Launch*). Then MVP 4.4, the cost, the full review and the launch's release, where the road ends
-and a program begins (the log's *MVP 4.4, the Road's End*). MVP 4.5, the shell's second round,
-follows the launch (the log's *MVP 4.3 Becomes MVP 4.5*).
+**The next item is MVP 4.16's item 40**, the first of its flakes.
 
-Ernest stays at 0.x until someone outside the project depends on it, as MVP 4.4's opening
-says.
+The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
+launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
+log entry that placed it.
 
 ---
 
@@ -43,252 +34,165 @@ says.
 Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*): two
 proposals built before the launch, so that the full review reads them and the launch shows them.
 It follows Ernest 0.10.0, and the checkout then works toward the launch's minor. Its item 11,
-the flake hunt, stands apart from the two, and its item 12, the feedback, is taken first.
+the flake hunt, stands apart from the two.
 
 Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to 10, 23 and
 43, is MVP 4.17's, each under the number it had here (the log's *The Milestone Split*).
 
-The first three items are the deadlock proposal's, read and swept by item 20 (the log's *A
-Deadlock of the Whole Program*).
+### What is left
 
-1. **A deadlock's claim given its scope**, done 2026-11-11 (the log's *A Deadlock of the Whole
-   Program*).
-2. **The callee in a deadlock's report**, done 2026-11-11 (the log's *A Deadlock of the Whole
-   Program*).
-3. **Who waits on whom**, done 2026-11-11 (the log's *A Deadlock of the Whole Program*).
+What is left is small, and each item stands alone. Its order, decided with the user on
+2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
+left*): the flakes, the most often seen first, items 40, 62, 51, 57, 59, 58, 61, 64 and 63, one
+at a time; what the builds found, items 35 and 36; and what needs the user, items 60 and 39.
+Items 65 and 66, each seen once in item 32's hunt, follow item 63. The items stand below in that
+order.
 
-Items 4 to 6 are the first of the packages proposal's build order,
-[`proposals/package_manager/`](proposals/package_manager/README.md), and items 7 to 10 are
-MVP 4.17's. No further cold reading
-of §11.9's diff runs: each of items 5 to 8 reads its own sentences of §11.9 against its build
-and its probes before it closes, and a finding changes the report first (the log's *A Package
-and Its Manifest*).
+A flake seen once or twice is hunted to a bound its brief states, and one that does not show
+within it is reported as not found, its line kept. Of each flake below the cause is not found.
+An agent finds it under the load the item names, and fixes at the cause the test or what the
+item names beside it.
 
-Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
-log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
-
-What is left is small, and each item stands alone: the flakes, items 40, 51, 57 to
-59 and 61 to 66; what the builds found, items 35 and 36; what item 11 left to decide, item
-60; and item 39, before MVP 4.4's item 4.
-
-Their order, decided with the user on 2026-11-15: the flakes, the most often seen first,
-items 40, 62, 51, 57, 59, 58, 61, 64 and 63, one at a time; the builds, items 35 and 36;
-and what needs the user, items 60 and 39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
-within it is reported as not found, its line kept. Items 65 and 66, each seen once in item
-32's hunt, follow item 63.
-
-4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
-   Manifest*).
-5. **The manifest read and the load path**, done 2026-11-14. Decided in the item: a
-   `package.conf` that reaches no regular file is refused before it is read, a compiled file
-   given in a named package's build at another namespace is refused, and a job in a package
-   reads the standard library's interfaces a second time, about 2.7 ms, which stays (§11.2,
-   §11.9, E.28; the log's *The Root Package Read*).
-6. **`ern build`'s checks and the named packages built**, done 2026-11-14. Decided in the
-   item: a `--build-root` under `lib` is refused as a path given there is, a cycle's line
-   names its packages in the order of the root package's entries, and every build in a
-   package pays about 3 ms for each module of its named packages, the cost of finding a
-   module current, which stays (§11.1, §11.9; the log's *The Named Packages Built*).
-
-Items 7 to 10 are MVP 4.17's.
-
-11. **The flake hunt**, done 2026-11-15. Decided in the item: `make flakes MINUTES=n` is the
-    Ernest program `tools/flakes.ern` over a host for each part, its loops are by default the
-    processors less the nine parts, no time limit is scaled, and an interrupt leaves the
-    rounds' directories (the log's *The Flake Hunt*).
-12. **The feedback of the release review before 0.10.0, and the applications'**, feedback 237 to
-    247 and the applications' three lines, feedback 249 to 251, done 2026-11-11 in one session
-    (the log's *The Review's Feedback Decided*): six build, items 14 to 19, and eight are dropped
-    there.
-13. **The checkout's manual pages**, done 2026-11-11 (the log's *One Copy of the Pages*).
-14. **`Tcp.accept` at the limit of open files**, done 2026-11-11 (the log's *The Review's Feedback
-    Decided*, 249).
-15. **`List.tryForEach`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 239).
-16. **`Bool.compare`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 243).
-17. **`Char`'s six class predicates**, done 2026-11-11 (the log's *The Review's Feedback Decided*,
-    247).
-18. **`Http.target` and the characters a browser sends raw**, done 2026-11-11 (the log's *The Review's
-    Feedback Decided*, 250).
-19. **The help at `++`**, done 2026-11-11 (the log's *The Review's Feedback Decided*, 251).
-20. **The deadlock proposal's reading and sweep**, done 2026-11-11 (the log's *A Deadlock of the
-    Whole Program*).
-21. **Item 3's follow-up**, done 2026-11-11 (the log's *A Deadlock of the Whole Program*).
-22. **ern(1)'s SYNOPSIS**, done 2026-11-11 (the log's *The Synopsis's Rule*).
-
-Item 23 is MVP 4.17's.
-
-24. **The flake of `reads_limited_test`**, done 2026-11-15. Decided in the item: the runtime
-    is right and the test read the status too soon, and a `Running` that the changed test
-    can still read under heavy load, about once in 4,400 runs beside 24 busy loops, is left
-    with its numbers (E.21; the log's *A Status Read Before the Watch*).
-25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
-    Manifest*).
-26. **A module that hides a library another uses**, done 2026-11-13 (the log's *A Hiding
-    Module Refused*).
-27. **The ownership test's group bits**, done 2026-11-14. Decided in the item: `ernest.pid`
-    follows no link and takes no chain, and the superuser's `ern stop` and `ern reload` refuse
-    another user's `ernest.pid`, as the test says (§11.2, §12.5; the log's *The Ownership Test
-    Built*).
-28. **A given path opened as resolved**, done 2026-11-14. Decided in the item, with the user: a
-    refusal names a given path as resolved, as §11.5 writes a file (§11, the log's *A Given
-    Path Resolved Once*).
-29. **A reading of MVP 4.16's design on the stronger model**, done 2026-11-13. Decided with
-    the user: a package is held to the modes alone, where §11.9 tested its owner too, and
-    §8.6 counts a started program until a read has answered its exit (§11.9, §8.6; the log's
-    *The Proposal Held Against the Report*).
-30. **The root's modules, as the lookup and the loaders find them**, done 2026-11-13. Decided
-    with the user: the root is one namespace, a module is found at the first root that holds
-    its file, the source root first, and a module hides only a module of its namespace (§4.2,
-    §11.1, §11.2; the log's *One Namespace at the Root*).
-31. **An independent reading's four points on a package**, done 2026-11-13. Decided with the
-    user: the manifest decides an installed program's packages too, through `--package-dir` of
-    `ern run`, `ern test` and `ern shell`, and a file a job writes is whole at a job's end,
-    where a machine's end is the file system's (§11, §11.2, §11.7, §11.9; the log's *An
-    Installed Program's Packages*).
-32. **The flake of `deadlock_line_on_a_test_test`**, done 2026-11-15. Decided in the item:
-    the report orders nothing between the client's fault and the entry process's end, so
-    the test asked for more than it promises, and now holds the case's lines on standard
-    output and the client's line or nothing on standard error (§11.2, §8.6; the log's *The
-    Client's Line*).
-33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
-    decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
-    fewer than 25600 over TLS, and the runtime has the host's TLS take one piece of a
-    connection at a time, where it took a hundred ahead (E.18; the log's *What One Read
-    Answers*).
-34. **Regression tests of the sentences item 29 stated**, done 2026-11-14. Decided in the
-    item: `make test` needs Linux, where the test of an exit no read has taken reads `/proc`
-    ([`development.md`](development.md)'s *Building*; the log's *The Sentences Held by
-    Tests*).
-35. **A compiled module's dependency that has only a source**, found 2026-11-13 by item 26's
-    build: `:load Main`, taken from `main.erc`, answers `no module Util on the load path`
-    where the source root holds `util.ern` and no `util.erc`, and a `:load Util` takes that
-    source (§11.2). An agent builds it: the load places each module a compiled form uses as
-    `:load` takes a module, its source first. `:load Http` beside a program's `time.ern` is
-    then refused as §11.1 says, and a test holds it (the log's *A Hiding Module Refused*).
-36. **`ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
-    the job writes no document where one module of the directory fails, and §11.4 compiles
-    the directory as `ern build` does, where a module that does not compile does not stop the
-    others (§11.1). An agent builds it: every document is written but that of a module that
-    failed or uses one that failed. The item says in §11.4 first what `index.md` lists then.
-    Item 26's test of `ern doc` takes the other module's document (the log's *A Hiding Module
-    Refused*).
-37. **The library's functions written in a program**, done 2026-11-15. Decided in the item:
-    one function is admitted, `Path.from(path, directory)`, the inverse of `Path.under`;
-    every other candidate stays its program's, and the applications lose no function to the
-    library. The repositories keep the same rules: the template took the rule and both
-    searches of the read-back in its `v0.10.5` and `v0.10.6`, and both copies took the tags
-    (E.14; the log's *A Library's Function in a Program*, *The Sweep's Reading*).
-38. **ern(1) written again after `make doc`**, done 2026-11-15. Decided in the item: the
-    page's prerequisite is the pages' names, kept in a file, since make does not see a page
-    that has gone; and the code §11.4 names for a page is named for ern(1) too, which the
-    directory had held unsaid (§11.4; the log's *What the Toolchain's Page Is Made From*).
-39. **The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
-    item 4, so that the full review reads the page the launch's source link lands on. It
-    opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
-    started on another node brings its code along, and a module keeps every version it has
-    had, where Erlang keeps two. The mailbox's type follows, then the counter and the
-    session, in the repository's voice (the log's *The Front Page From Its Motive*).
-
-    After the session it says that the session runs in a browser, in the site's shell. The
-    sentences on the four `ern config` commands, the two waits and `let far <-` go, since the
-    tour says them. The refused build stays, and everything from *What Ernest adds* down
-    stays as it is.
-
-    It sharpens the page of 2026-11-06 and keeps its lead, code that travels (the log's *The
-    README Recut*). What that entry tied to the page follows it: the release's README, which
-    begins with the page's first sentence, and GitHub's About, which reads the page's words.
-    The tests that hold the page stay green, the tour's run of its console,
-    `readme_refused_test_`, `readme_counter_is_the_tours_test` and `claims_test` among them.
-    The homepage takes nothing from the page and does not change. The session writes it, and
-    it closes on `make test`.
-40. **The flake of `log_terminal_gone_test_`**, seen 2026-11-14 once in three runs of
-    `make test-full`, item 5's: the terminal harness found its `put` unmet, the write to the
-    test's FIFO after the hangup. The test runs where there is no manifest. The cause is not
-    found. An agent finds it under the full run's load, and fixes the test or the runner at
-    it (the log's *The Root Package Read*).
-
-    Seen again 2026-11-14 over item 6's runs, in three tests beside it, each once:
-    `write_terminal_gone`, `shell_write_terminal_gone` and `shell_reload_terminal_gone` ended
-    with the status 0 where 129 was expected, their output whole. The agent takes the four
-    as one flake until it finds otherwise (the log's *The Named Packages Built*).
-
-    Seen twice more 2026-11-15 in item 11's runs, in `shell_write_terminal_gone`: under
+- **40. `log_terminal_gone_test_` and three tests beside it**, under the full run's load; the
+  test or the runner. The agent takes the four as one flake until it finds otherwise.
+  - Seen 2026-11-14 once in three runs of `make test-full`, item 5's: the terminal harness
+    found `log_terminal_gone_test_`'s `put` unmet, the write to the test's FIFO after the
+    hangup. The test runs where there is no manifest (the log's *The Root Package Read*).
+  - Seen 2026-11-14 over item 6's runs, each once: `write_terminal_gone`,
+    `shell_write_terminal_gone` and `shell_reload_terminal_gone` ended with the status 0 where
+    129 was expected, their output whole (the log's *The Named Packages Built*).
+  - Seen twice more 2026-11-15 in item 11's runs, in `shell_write_terminal_gone`: under
     `make test-full` its line `the shell ends: its terminal is gone` was not said, and under
     `make test-shell` its `put` was unmet. The area passed in three runs after.
-
-    Seen once more 2026-11-15 under `make test-full`, item 24's run, in
+  - Seen once more 2026-11-15 under `make test-full`, item 24's run, in
     `shell_write_terminal_gone`, its line not said.
-41. **An independent reading of item 6's commit**, `f9c5b972`, done 2026-11-14 (the log's
-    *The Named Packages Read*).
-42. **The round of the reading's findings**, done 2026-11-14 (the log's *The Reading's
-    Round*).
+- **62. `signal_jobs_take_any_mode_test`**, under `make flakes`; the test or the job. Seen
+  2026-11-15 in each of item 24's five hunts, with loops and without, in 1 to 7 rounds of an
+  hour: `ern_cli_tests` read `{held, Pid}` where it expects `locked`. In two hunts it was also
+  canceled at its limit, and its round ran no test after it (item 56).
+- **51. `delivery_foreign_code_arranges_test`**, under the light run's load, `make flakes`
+  first; the test or the reaper. Seen 2026-11-14 once under `make test`, over MVP 4.17's item
+  47: `ern_reaper_tests` said `the sender ended first`. It passed alone and in the next run.
+  Seen 2026-11-15 in four of item 24's five hunts, in 1 to 5 rounds.
+- **57. Two tests of `ern_supervisor_tests`**, under `make flakes`, where the agent finds
+  whether either needs a host that has run the tests before; the test or the supervisor. Seen
+  2026-11-15 in item 11's hunts beside 15 loops, each once.
+  `limit_reports_only_real_faults_test` wrote `division by zero` where it expects that twice
+  and `supervisor restart limit reached`, in a host's second round.
+  `count_survives_restart_in_place_test` wrote `2` where it expects `0`, in a third round.
+  Both were seen again in item 24's hunts, the second in four of the five.
+- **59. `write_given_no_time_test` past its limit**, under `make flakes`, where the agent finds
+  whether the test waits on what the loops starve or on what never comes; the test or `Tcp`.
+  Seen 2026-11-15 once in item 11's hunt beside 15 loops, in a host's third round: EUnit ended
+  it at five seconds.
+- **58. `adapted_is_not_a_process_test`**, under the light run's load, where the agent finds
+  whether a test before it leaves a process; that test or this one. Seen 2026-11-15 once under
+  `make test`, item 11's run: 63 processes alive where it expects 62. It shares its part with
+  `ern_flakes_tests`' tests of the hunt's program, which run before it, and it passed in six
+  runs after.
+- **61. `load_beside_a_module_hiding_a_library`**, under the shell area's load; the test or
+  the shell. Seen 2026-11-15 once under `make test-shell`, item 11's run, beside item 40's:
+  the shell's output did not hold `"mine" : String` and the line that names the hiding module
+  after it. It passed in three runs after.
+- **64. `ern_os_tests:terminal_test`**, under `make flakes`; the test or `Os`. Seen 2026-11-15
+  in rounds 64 and 138 of a host's 197, in item 24's hunt with no loops: the output did not
+  hold `exit 3\r\n`.
+- **63. `subscribed_while_the_end_waits_test`**, under `make flakes`; the test or the runtime.
+  Seen 2026-11-15 once in item 24's hunt with no loops, in a host's round 157:
+  `ern_terminating_tests`' output did not hold `the end waits for 1 subscriber: M.main:26`.
+- **65. `ern_os_tests:resize_test` past its limit**, under `make flakes`, where the agent finds
+  whether the program's end waits on what the loops starve or on what never comes; the test or
+  the runtime. Seen 2026-11-15 once in item 32's hunt beside 15 loops, in a host's round 67:
+  EUnit ended it at five seconds, in `ern_rt:entry_end` under its `run_main`.
+- **66. `write_holds_up_no_read`**, under `make flakes`; the test or `Tcp`. Seen 2026-11-15
+  once in item 32's hunt beside 15 loops, in a host's round 115: `ern_tcp_tests`' `run_main`
+  answered the fault `deadlock` where the test expects `ok`.
+- **35. A compiled module's dependency that has only a source**, found 2026-11-13 by item 26's
+  build: `:load Main`, taken from `main.erc`, answers `no module Util on the load path`
+  where the source root holds `util.ern` and no `util.erc`, and a `:load Util` takes that
+  source (§11.2). An agent builds it: the load places each module a compiled form uses as
+  `:load` takes a module, its source first. `:load Http` beside a program's `time.ern` is
+  then refused as §11.1 says, and a test holds it (the log's *A Hiding Module Refused*).
+- **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
+  the job writes no document where one module of the directory fails, and §11.4 compiles
+  the directory as `ern build` does, where a module that does not compile does not stop the
+  others (§11.1). An agent builds it: every document is written but that of a module that
+  failed or uses one that failed. The item says in §11.4 first what `index.md` lists then.
+  Item 26's test of `ern doc` takes the other module's document (the log's *A Hiding Module
+  Refused*).
+- **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
+  line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
+  tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
+  user with a recommendation (the log's *The Flake Hunt*).
+- **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
+  item 4, so that the full review reads the page the launch's source link lands on. It
+  opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
+  started on another node brings its code along, and a module keeps every version it has
+  had, where Erlang keeps two. The mailbox's type follows, then the counter and the
+  session, in the repository's voice (the log's *The Front Page From Its Motive*).
 
-Item 43 is MVP 4.17's.
+  After the session it says that the session runs in a browser, in the site's shell. The
+  sentences on the four `ern config` commands, the two waits and `let far <-` go, since the
+  tour says them. The refused build stays, and everything from *What Ernest adds* down
+  stays as it is.
 
-44. **A reading of `CLAUDE.md` for rules that contradict or repeat each other**, with the
-    user, done 2026-11-15 (the log's *The Rules Read Against Each Other*).
-45. **The milestone split in two**, done 2026-11-14 (the log's *The Milestone Split*).
-46. **What item 42's round left to decide**, done 2026-11-14 (the log's *No Module's
-    Source* and *An Index That Is No File*).
-51. **The flake of `delivery_foreign_code_arranges_test`**, seen 2026-11-14 once under
-    `make test`, over MVP 4.17's item 47: `ern_reaper_tests` said `the sender ended first`.
-    It passed alone and in the next run. The cause is not found. An agent finds it under
-    the light run's load, and fixes the test or the reaper at it.
+  It sharpens the page of 2026-11-06 and keeps its lead, code that travels (the log's *The
+  README Recut*). What that entry tied to the page follows it: the release's README, which
+  begins with the page's first sentence, and GitHub's About, which reads the page's words.
+  The tests that hold the page stay green, the tour's run of its console,
+  `readme_refused_test_`, `readme_counter_is_the_tours_test` and `claims_test` among them.
+  The homepage takes nothing from the page and does not change. The session writes it, and
+  it closes on `make test`.
 
-    Seen in four of item 24's five hunts 2026-11-15, in 1 to 5 rounds, so `make flakes` is
-    where the agent looks first.
-55. **A reading of `CLAUDE.md` for clarity**, with the user, done 2026-11-15 (the log's *The
-    Rules Read for Clarity*).
-56. **A test canceled at its limit ends its host's later tests**, done 2026-11-15. Decided in
-    the item: the promise is a test function's, so a limit inside a generator still ends
-    that generator's tests after it (the log's *A Limit Ends Its Own Test*).
-57. **The flakes of `ern_supervisor_tests`**, seen 2026-11-15 in item 11's hunts beside 15
-    loops, each once. `limit_reports_only_real_faults_test` wrote `division by zero` where it
-    expects that twice and `supervisor restart limit reached`, in a host's second round.
-    `count_survives_restart_in_place_test` wrote `2` where it expects `0`, in a third round.
-    The cause is not found. An agent finds under `make flakes` whether either needs a host
-    that has run the tests before, and fixes the test or the supervisor at it. Both were
-    seen again in item 24's hunts, the second in four of the five.
-58. **The flake of `adapted_is_not_a_process_test`**, seen 2026-11-15 once under `make test`,
-    item 11's run: 63 processes alive where it expects 62. It shares its part with
-    `ern_flakes_tests`' tests of the hunt's program, which run before it, and it passed in
-    six runs after. The cause is not found. An agent finds under the light run's load
-    whether a test before it leaves a process, and fixes that test or this one.
-59. **`write_given_no_time_test` past its limit**, seen 2026-11-15 once in item 11's hunt
-    beside 15 loops, in a host's third round: EUnit ended it at five seconds. The cause is
-    not found. An agent finds under `make flakes` whether the test waits on what the loops
-    starve or on what never comes, and fixes the test or `Tcp` at it.
-60. **What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
-    line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
-    tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
-    user with a recommendation (the log's *The Flake Hunt*).
-61. **The flake of `load_beside_a_module_hiding_a_library`**, seen 2026-11-15 once under
-    `make test-shell`, item 11's run, beside item 40's: the shell's output did not hold
-    `"mine" : String` and the line that names the hiding module after it. It passed in
-    three runs after. The cause is not found. An agent finds it under the shell area's
-    load, and fixes the test or the shell at it.
-62. **The flake of `signal_jobs_take_any_mode_test`**, seen 2026-11-15 in each of item 24's
-    five hunts, with loops and without, in 1 to 7 rounds of an hour: `ern_cli_tests` read
-    `{held, Pid}` where it expects `locked`. In two hunts it was also canceled at its limit,
-    and its round ran no test after it (item 56). The cause is not found. An agent finds it
-    under `make flakes`, and fixes the test or the job at it.
-63. **The flake of `subscribed_while_the_end_waits_test`**, seen 2026-11-15 once in item
-    24's hunt with no loops, in a host's round 157: `ern_terminating_tests`' output did not
-    hold `the end waits for 1 subscriber: M.main:26`. The cause is not found. An agent finds
-    it under `make flakes`, and fixes the test or the runtime at it.
-64. **The flake of `ern_os_tests:terminal_test`**, seen 2026-11-15 in rounds 64 and 138 of a
-    host's 197, in item 24's hunt with no loops: the output did not hold `exit 3\r\n`. The
-    cause is not found. An agent finds it under `make flakes`, and fixes the test or `Os` at
-    it.
-65. **`ern_os_tests:resize_test` past its limit**, seen 2026-11-15 once in item 32's hunt
-    beside 15 loops, in a host's round 67: EUnit ended it at five seconds, in
-    `ern_rt:entry_end` under its `run_main`. The cause is not found. An agent finds under
-    `make flakes` whether the program's end waits on what the loops starve or on what never
-    comes, and fixes the test or the runtime at it.
-66. **The flake of `write_holds_up_no_read`**, seen 2026-11-15 once in item 32's hunt beside
-    15 loops, in a host's round 115: `ern_tcp_tests`' `run_main` answered the fault
-    `deadlock` where the test expects `ok`. The cause is not found. An agent finds it under
-    `make flakes`, and fixes the test or `Tcp` at it.
+### What is done
+
+Items 1 to 3 are the deadlock proposal's, read and swept by item 20. Items 4 to 6 are the first
+of the packages proposal's build order,
+[`proposals/package_manager/`](proposals/package_manager/README.md). Item 12, the feedback, was
+taken first. Items 30, 29, 31, 33, 26 to 28 and 34 came before items 5 and 6, decided with the
+user on 2026-11-13 (the log's *A Reading by Decisions*), and items 41, 42, 45 and 46 followed
+them. What an item decided is its log entry's, and the report's at the sections its row names.
+
+| Item | What | Done | The report's sections; the log's entries |
+|---|---|---|---|
+| 1 | A deadlock's claim given its scope | 2026-11-11 | *A Deadlock of the Whole Program* |
+| 2 | The callee in a deadlock's report | 2026-11-11 | *A Deadlock of the Whole Program* |
+| 3 | Who waits on whom | 2026-11-11 | *A Deadlock of the Whole Program* |
+| 4 | The report's sentences on a package | 2026-11-11 | *A Package and Its Manifest* |
+| 5 | The manifest read and the load path | 2026-11-14 | §11.2, §11.9, E.28; *The Root Package Read* |
+| 6 | `ern build`'s checks and the named packages built | 2026-11-14 | §11.1, §11.9; *The Named Packages Built* |
+| 11 | The flake hunt | 2026-11-15 | *The Flake Hunt* |
+| 12 | The feedback of the release review before 0.10.0, and the applications': feedback 237 to 247 and the applications' three lines, feedback 249 to 251, in one session; six build, items 14 to 19, and eight are dropped there | 2026-11-11 | *The Review's Feedback Decided* |
+| 13 | The checkout's manual pages | 2026-11-11 | *One Copy of the Pages* |
+| 14 | `Tcp.accept` at the limit of open files | 2026-11-11 | *The Review's Feedback Decided*, 249 |
+| 15 | `List.tryForEach` | 2026-11-11 | *The Review's Feedback Decided*, 239 |
+| 16 | `Bool.compare` | 2026-11-11 | *The Review's Feedback Decided*, 243 |
+| 17 | `Char`'s six class predicates | 2026-11-11 | *The Review's Feedback Decided*, 247 |
+| 18 | `Http.target` and the characters a browser sends raw | 2026-11-11 | *The Review's Feedback Decided*, 250 |
+| 19 | The help at `++` | 2026-11-11 | *The Review's Feedback Decided*, 251 |
+| 20 | The deadlock proposal's reading and sweep | 2026-11-11 | *A Deadlock of the Whole Program* |
+| 21 | Item 3's follow-up | 2026-11-11 | *A Deadlock of the Whole Program* |
+| 22 | ern(1)'s SYNOPSIS | 2026-11-11 | *The Synopsis's Rule* |
+| 24 | The flake of `reads_limited_test` | 2026-11-15 | E.21; *A Status Read Before the Watch* |
+| 25 | A second cold reading of §11.9 | 2026-11-11 | *A Package and Its Manifest* |
+| 26 | A module that hides a library another uses | 2026-11-13 | *A Hiding Module Refused* |
+| 27 | The ownership test's group bits | 2026-11-14 | §11.2, §12.5; *The Ownership Test Built* |
+| 28 | A given path opened as resolved, with the user | 2026-11-14 | §11; *A Given Path Resolved Once* |
+| 29 | A reading of MVP 4.16's design on the stronger model, with the user | 2026-11-13 | §11.9, §8.6; *The Proposal Held Against the Report* |
+| 30 | The root's modules, as the lookup and the loaders find them, with the user | 2026-11-13 | §4.2, §11.1, §11.2; *One Namespace at the Root* |
+| 31 | An independent reading's four points on a package, with the user | 2026-11-13 | §11, §11.2, §11.7, §11.9; *An Installed Program's Packages* |
+| 32 | The flake of `deadlock_line_on_a_test_test` | 2026-11-15 | §11.2, §8.6; *The Client's Line* |
+| 33 | What one `Tcp.read` answers, and what an unread socket holds, with the user | 2026-11-13 | E.18; *What One Read Answers* |
+| 34 | Regression tests of the sentences item 29 stated | 2026-11-14 | [`development.md`](development.md)'s *Building*; *The Sentences Held by Tests* |
+| 37 | The library's functions written in a program; the applications lose no function to the library | 2026-11-15 | E.14; *A Library's Function in a Program*, *The Sweep's Reading* |
+| 38 | ern(1) written again after `make doc` | 2026-11-15 | §11.4; *What the Toolchain's Page Is Made From* |
+| 41 | An independent reading of item 6's commit, `f9c5b972` | 2026-11-14 | *The Named Packages Read* |
+| 42 | The round of the reading's findings | 2026-11-14 | *The Reading's Round* |
+| 44 | A reading of `CLAUDE.md` for rules that contradict or repeat each other, with the user | 2026-11-15 | *The Rules Read Against Each Other* |
+| 45 | The milestone split in two | 2026-11-14 | *The Milestone Split* |
+| 46 | What item 42's round left to decide | 2026-11-14 | *No Module's Source*, *An Index That Is No File* |
+| 55 | A reading of `CLAUDE.md` for clarity, with the user | 2026-11-15 | *The Rules Read for Clarity* |
+| 56 | A test canceled at its limit ends its host's later tests | 2026-11-15 | *A Limit Ends Its Own Test* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
@@ -298,122 +202,121 @@ change what is built. Its items keep the numbers they had in MVP 4.16, since the
 them by number. It follows MVP 4.16, and comes before MVP 4.6, as its items
 did. Item 43 added items 47 to 49 and cut what item 8 builds.
 
-The discussion came first.
+### What is left
 
-43. **Whether §11.9 can promise less**, decided 2026-11-14 (the log's *The Trust Said
-    Once*).
+What item 43's discussion decided is built first, each item changing the report first (the
+log's *The Trust Said Once*). Items 52 and 54 are left of it.
 
-What it decided is built next. Each item changes the report first (the log's *The Trust Said
-Once*).
+- **52. What item 50's cold reading left**, found 2026-11-14 in §11.2's *Startup and history*,
+  each older than the item's edit, and decided with the user the same day (the log's *The
+  Trust Said Once*, its paragraph *Four lines of the reading*).
 
-47. **The trust said once, and the defenses that go**, done 2026-11-14 in two builds (the
-    log's *The Trust Said Once*, its paragraphs *The first build* and *The second build*).
-48. **One paragraph on a name that reaches no regular file**, done 2026-11-15 in two
-    builds (the log's *The Trust Said Once*, its paragraphs *The fourth build's sentences*
-    to *The corner closed*).
-49. **A control character in a path a job writes**, done 2026-11-15 (the log's *A Refusal
-    Holds No Control Character*): a refusal holds none, and §11 says so.
-50. **The history file's owner**, done 2026-11-14 (the log's *The Trust Said Once*, its
-    paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third
-    build*).
-52. **What item 50's cold reading left**, found 2026-11-14 in §11.2's *Startup and history*,
-    each older than the item's edit, and decided with the user the same day (the log's *The
-    Trust Said Once*, its paragraph *Four lines of the reading*).
+  - The shell says a host's refusal in the words every other job uses, `permission
+    denied`. The shell words fifteen errors of `Io` itself. The item first reads each
+    against §11's texts, and brings the table to the user before it is built.
+  - Each case of no history gets its line in §11.2: a history file that cannot be read or
+    written, and a `HOME` unset or relative.
+  - "The person's" becomes "its user's".
+  - §11.2 says that a link at `$HOME/.ernest` is followed. No guard is added.
 
-    - The shell says a host's refusal in the words every other job uses, `permission
-      denied`. The shell words fifteen errors of `Io` itself. The item first reads each
-      against §11's texts, and brings the table to the user before it is built.
-    - Each case of no history gets its line in §11.2: a history file that cannot be read or
-      written, and a `HOME` unset or relative.
-    - "The person's" becomes "its user's".
-    - §11.2 says that a link at `$HOME/.ernest` is followed. No guard is added.
+  The report changes first. The build closes on `make test-shell` and
+  `make test`.
+- **54. What item 49 left to decide**, found 2026-11-15 by its survey and its build (the
+  log's *A Refusal Holds No Control Character*). Each line is decided with the user, and
+  carries the session's recommendation.
 
-    The report changes first. The build closes on `make test-shell` and
-    `make test`.
-53. **What item 48's cold reading left**, dropped 2026-11-14 on the user's word: no more
-    is spent on a name that reaches no regular file (the log's *The Trust Said Once*, its
-    paragraph *The corner closed*).
-
-54. **What item 49 left to decide**, found 2026-11-15 by its survey and its build (the
-    log's *A Refusal Holds No Control Character*). Each line is decided with the user, and
-    carries the session's recommendation.
-
-    - A path written into a document. `--emit-erl`'s first line writes the source's path
-      raw, where a line feed in it ends the comment, and a page's last line writes it as
-      `\u{1B}`. Recommended: both as `\xHH`, and the sentence in §11.5, since §11.1 and
-      §11.4 say "as §11.5 writes one".
-    - The shell names the history file by its absolute path where it lies under the
-      working directory, and the startup file beside it from that directory. Recommended:
-      both as §11.5 names a file.
-    - A text read from a file in a line that is no refusal: a peer's name in a reload's
-      note is written raw. Recommended: the note is written as a refusal is. The host's
-      log text and the text after `ern: internal error` are the host's, and stay.
-    - A value a refusal quotes from a configuration is written with a control character
-      below U+0020 as JSON's `\u001B`, and DEL and U+0080 to U+009F as `\x7F`.
-      Recommended: the quoting writes every control character of §2.1 as JSON does.
-    - The attached shell's end has no test of a cause that holds a control character.
-      Recommended: none, since it would be a nodes' test for one call.
-    - Feedback 253, base 16 answering an `Optional` that is never `None`.
+  - A path written into a document. `--emit-erl`'s first line writes the source's path
+    raw, where a line feed in it ends the comment, and a page's last line writes it as
+    `\u{1B}`. Recommended: both as `\xHH`, and the sentence in §11.5, since §11.1 and
+    §11.4 say "as §11.5 writes one".
+  - The shell names the history file by its absolute path where it lies under the
+    working directory, and the startup file beside it from that directory. Recommended:
+    both as §11.5 names a file.
+  - A text read from a file in a line that is no refusal: a peer's name in a reload's
+    note is written raw. Recommended: the note is written as a refusal is. The host's
+    log text and the text after `ern: internal error` are the host's, and stay.
+  - A value a refusal quotes from a configuration is written with a control character
+    below U+0020 as JSON's `\u001B`, and DEL and U+0080 to U+009F as `\x7F`.
+    Recommended: the quoting writes every control character of §2.1 as JSON does.
+  - The attached shell's end has no test of a cause that holds a control character.
+    Recommended: none, since it would be a nodes' test for one call.
+  - Feedback 253, base 16 answering an `Optional` that is never `None`.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
+No further cold reading of §11.9's diff runs: each of items 7 and 8 reads its own sentences of
+§11.9 against its build and its probes before it closes, as items 5 and 6 did, and a finding
+changes the report first (the log's *A Package and Its Manifest*).
 
-7. **`Crypto.sha256`**, its E.0 reading and its line of Appendix G first. Decided with the
-   user 2026-11-14 (the log's *An Archive Without Links*): no library over tar or gzip is
-   written, and none reads the tar format in Ernest.
-8. **`ern unpack`**, in Ernest, over `Crypto.sha256` and the host's `erl_tar`. Decided with the
-   user 2026-11-14 (the log's *An Archive Without Links*): an archive's member is a directory
-   or a regular file, and an archive that holds anything else is refused. `erl_tar` lists the
-   members and hands over the files' bytes, a gzip archive read from its bytes, and the two
-   calls are foreign functions of the job's own module.
+- **7. `Crypto.sha256`**, its E.0 reading and its line of Appendix G first. Decided with the
+  user 2026-11-14 (the log's *An Archive Without Links*): no library over tar or gzip is
+  written, and none reads the tar format in Ernest.
+- **8. `ern unpack`**, in Ernest, over `Crypto.sha256` and the host's `erl_tar`. Decided with the
+  user 2026-11-14 (the log's *An Archive Without Links*): an archive's member is a directory
+  or a regular file, and an archive that holds anything else is refused. `erl_tar` lists the
+  members and hands over the files' bytes, a gzip archive read from its bytes, and the two
+  calls are foreign functions of the job's own module.
 
-   The item rewrites §11.9's paragraphs on an archive first: its paragraph on where a link
-   may reach goes, and §11.9 states the rules of a member's name and kind itself. It decides
-   there whether a member of a kind the host does not know is passed over or refused, a pax
-   global header among them, which `git archive` writes. A test over hostile archives holds
-   the rules.
+  The item rewrites §11.9's paragraphs on an archive first: its paragraph on where a link
+  may reach goes, and §11.9 states the rules of a member's name and kind itself. It decides
+  there whether a member of a kind the host does not know is passed over or refused, a pax
+  global header among them, which `git archive` writes. A test over hostile archives holds
+  the rules.
 
-   Decided with the user 2026-11-14 (the log's *The Trust Said Once*): three rules of an
-   archive stay, its digest, a member's name under the archive's directory with no `..`,
-   and a member's kind. A name given twice is no fault, and the last stands. An empty or a
-   `.` segment, the kind of the directory's own member and a control character in a name
-   are not tested, and a broken archive fails with the host's reason. A file is made by
-   the mask, and of a member's mode only whether its owner may run it is read.
+  Decided with the user 2026-11-14 (the log's *The Trust Said Once*): three rules of an
+  archive stay, its digest, a member's name under the archive's directory with no `..`,
+  and a member's kind. A name given twice is no fault, and the last stands. An empty or a
+  `.` segment, the kind of the directory's own member and a control character in a name
+  are not tested, and a broken archive fails with the host's reason. A file is made by
+  the mask, and of a member's mode only whether its owner may run it is read.
 
-   Where the job's module stands under `Ernest` is decided as the item opens, and so is how
-   its Ernest gets the manifest's entries. The shape: the command reads the manifest once, by
-   the read every job shares, and hands the job its entries (the log's *The Root Package
-   Read*).
-9. **The guide's section on a package.** It says what an entry's digest promises: the archive
-   that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
-   log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
-   started from another directory.
-10. **The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
-    manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
-    host part as the proposal's question 5 says. ernest-httpd's four matches on a bare
-    `Process.Calling` take `Process.Calling()` then, since item 3 gave it fields (E.21).
-    Decided with the user 2026-11-11: this session writes the packages' part in the three,
-    their sessions closed, as a change across the repositories in their shape alone
-    (`docs/clean_room.md`): each manifest, the template's Makefile and `TEMPLATE.md`, and
-    ernest-epx's moved files and Makefile. ernest-epx's release and ernest-httpd's four matches
-    stay their own sessions'.
+  Where the job's module stands under `Ernest` is decided as the item opens, and so is how
+  its Ernest gets the manifest's entries. The shape: the command reads the manifest once, by
+  the read every job shares, and hands the job its entries (the log's *The Root Package
+  Read*).
+- **9. The guide's section on a package.** It says what an entry's digest promises: the archive
+  that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
+  log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
+  started from another directory.
+- **10. The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
+  manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
+  host part as the proposal's question 5 says. ernest-httpd's four matches on a bare
+  `Process.Calling` take `Process.Calling()` then, since item 3 gave it fields (E.21).
+  Decided with the user 2026-11-11: this session writes the packages' part in the three,
+  their sessions closed, as a change across the repositories in their shape alone
+  (`docs/clean_room.md`): each manifest, the template's Makefile and `TEMPLATE.md`, and
+  ernest-epx's moved files and Makefile. ernest-epx's release and ernest-httpd's four matches
+  stay their own sessions'.
 
-    Decided with the user 2026-11-13 (the log's *An Installed Program's Packages*): the
-    launcher gives `--package-dir` with its root and loses its loop, and `make install` copies
-    `package.conf`. A program's own Erlang is named from a directory of its own, `erl` in a
-    checkout, so that `lib` holds the named packages alone. The item's tests take a `priv`
-    found through `code:priv_dir`.
+  Decided with the user 2026-11-13 (the log's *An Installed Program's Packages*): the
+  launcher gives `--package-dir` with its root and loses its loop, and `make install` copies
+  `package.conf`. A program's own Erlang is named from a directory of its own, `erl` in a
+  checkout, so that `lib` holds the named packages alone. The item's tests take a `priv`
+  found through `code:priv_dir`.
 
-    Found 2026-11-14, reading ernest-epx's release step: the template's archive holds a
-    library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link copied through,
-    where §11.9 has a package's Erlang under its own `ebin` with its `priv` beside it. The
-    item moves it there, and holds the archive it makes to `ern unpack`'s rules on an
-    archive's members.
+  Found 2026-11-14, reading ernest-epx's release step: the template's archive holds a
+  library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link copied through,
+  where §11.9 has a package's Erlang under its own `ebin` with its `priv` beside it. The
+  item moves it there, and holds the archive it makes to `ern unpack`'s rules on an
+  archive's members.
 
 The proposal's sweep is last.
 
-23. **The packages proposal's reading and sweep**, once item 10 is done and before MVP 4.4's
-    release, as *A Built Proposal's Sweep Is an Item* places one.
+- **23. The packages proposal's reading and sweep**, once item 10 is done and before MVP 4.4's
+  release, as *A Built Proposal's Sweep Is an Item* places one.
+
+### What is done
+
+The discussion came first, item 43, and items 47 to 50 built what it decided.
+
+| Item | What | Done | The log's entries |
+|---|---|---|---|
+| 43 | Whether §11.9 can promise less | decided 2026-11-14 | *The Trust Said Once* |
+| 47 | The trust said once, and the defenses that go | 2026-11-14, in two builds | *The Trust Said Once*, its paragraphs *The first build* and *The second build* |
+| 48 | One paragraph on a name that reaches no regular file | 2026-11-15, in two builds | *The Trust Said Once*, its paragraphs *The fourth build's sentences* to *The corner closed* |
+| 49 | A control character in a path a job writes: a refusal holds none, and §11 says so | 2026-11-15 | *A Refusal Holds No Control Character* |
+| 50 | The history file's owner | 2026-11-14 | *The Trust Said Once*, its paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third build* |
+| 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
@@ -438,12 +341,14 @@ on a path the rehearsal has walked.
    The server serves the client as *The client* states it since 2026-11-10, said by message, and
    the rehearsal serves it at `https://ernest-lang.org:8443/` from the same day until the
    launch's switch; item 2 begins after MVP 4.17, against it.
-2. **Ernest's side**, built against the rehearsal's server once it serves the client. `site.js`'s
-   session imports the client, an ES module, on demand. The generator takes no configuration, and `make site` the tag alone.
-   The shell's page takes its numbers from the client's limits and names no memory. The browser
-   test serves a stub client that speaks the agreed interface. `docs/design/site.md` changes in five sections, citing the server's
-   design's *The client* for the interface, with the sweep the proposal lists. It goes live with the launch's switch, and closes on `make test`, the site's
-   targets and `make test-browser`.
+2. **Ernest's side**, built against the rehearsal's server once it serves the client.
+   `site.js`'s session imports the client, an ES module, on demand. The generator takes no
+   configuration, and `make site` the tag alone. The shell's page takes its numbers from the
+   client's limits and names no memory. The browser test serves a stub client that speaks the
+   agreed interface. `docs/design/site.md` changes in five sections, citing the server's
+   design's *The client* for the interface, with the sweep the proposal lists. It goes live
+   with the launch's switch, and closes on `make test`, the site's targets and
+   `make test-browser`.
 
 ---
 
@@ -479,32 +384,34 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
 
-   Before its readers start, `tools/paragraphs.sh`, `tools/comments.sh` and
-   `tools/unicode_width.escript` are weighed against CLAUDE.md's *Ernest or Erlang*, each written in Ernest
-   or its reason to stay stated (the log's *The Layout's Proposal Read*).
+   Before its readers start:
 
-   Before them too, `docs/soundness.md`'s section 7 is recut, decided 2026-11-07: its paragraphs
-   cut at their turns and ordered by claim, not by the history of the rules that wrote them, and
-   section 1 naming the two claims it argues beyond the four, that no process runs after the end
-   and that a process's code stands while it runs, with no paragraph's content changed, so that
-   the cold reader reads the argument and not its history (the log's *The Argument Recut*).
+   - **The tools weighed.** `tools/paragraphs.sh`, `tools/comments.sh` and
+     `tools/unicode_width.escript` are weighed against CLAUDE.md's *Ernest or Erlang*, each
+     written in Ernest or its reason to stay stated (the log's *The Layout's Proposal Read*).
+   - **The argument recut**, decided 2026-11-07. `docs/soundness.md`'s section 7 is recut: its
+     paragraphs cut at their turns and ordered by claim, not by the history of the rules that
+     wrote them, and section 1 naming the two claims it argues beyond the four, that no process
+     runs after the end and that a process's code stands while it runs, with no paragraph's
+     content changed, so that the cold reader reads the argument and not its history (the log's
+     *The Argument Recut*).
+   - **The checks that cost cycles**, built, decided with the user 2026-11-10, so that the
+     readers start from what a tool lists (the log's *The Listings Before a Review*).
 
-   Before them too, the checks that cost cycles are built, decided with the user 2026-11-10, so
-   that the readers start from what a tool lists (the log's *The Listings Before a Review*). The
-   refusals left after the four built before the release review before 0.10.0 (the log's *The
-   Refusals Before the Release Review, Built*), each added with the tree cleaned to zero: `xref`'s
-   unused exports and its layers, with a short list of the exports called by name, each with
-   its reason, and near misses for the checker beside the typed programs. From then on each
-   runs with the checks of its kind: `xref`'s in `make xref`, and the near misses
-   in `make test-full`.
+     The refusals left after the four built before the release review before 0.10.0 (the log's
+     *The Refusals Before the Release Review, Built*), each added with the tree cleaned to
+     zero: `xref`'s unused exports and its layers, with a short list of the exports called by
+     name, each with its reason, and near misses for the checker beside the typed programs.
+     From then on each runs with the checks of its kind: `xref`'s in `make xref`, and the near
+     misses in `make test-full`.
 
-   The listings, which a review runs: `cover` over `make test-full` for the full review, clones
-   and each module's size for the full and the release reviews, and the slowest tests for the
-   release review. `docs/reviews/full.md`, `release.md` and `development.md` name each check in
-   the commit that builds it.
+     The listings, which a review runs: `cover` over `make test-full` for the full review,
+     clones and each module's size for the full and the release reviews, and the slowest tests
+     for the release review. `docs/reviews/full.md`, `release.md` and `development.md` name
+     each check in the commit that builds it.
 
-   Decided first, with the user: whether the checker warns of a private function no code
-   calls (§11).
+     Decided first, with the user: whether the checker warns of a private function no code
+     calls (§11).
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the
@@ -571,8 +478,7 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
    Erlang's `recon_trace` has one; the runtime has no tracing hook today, so the design decides
-   how a function of a unit is traced by its position and what the bound is. Built after MVP 4.0,
-   on the node.
+   how a function of a unit is traced by its position and what the bound is. Built on the node.
 
 ---
 
@@ -627,9 +533,9 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | Ernest 0.9.0 | the server's release: what ernest-httpd asked of Ernest, and the release review before it, 112 lines fixed and 23 decided | 2026-11-03 | tag `v0.9.0` | the log's *The Release Review Before 0.9.0* |
 | MVP 4.2 | the website, built and live with MVP 4.4's item 6: what Ernest is, its characteristics, the three doors, the tour, the guide, the report and the library's pages, generated from a tag by `make site`, the projects' page, the live shell's page side, and the browser test that holds it | 2026-11-06 | | the design note `docs/design/site.md`; the log's *ehttpd and the Website*, *The Tour Written*, *The Generator Before MVP 4.15*, *A Node's Limits*, *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Generator's Third Stage*, *The Pages Read Against the Principles*, *A Release Carries No History*, *The Start Line's Length*, *The Client's Questions*, *The Site Goes Live With 1.0*, *The Mode's Brackets*, *Projects, a Page of Their Own*, *The Browser Test's Flake*, *The Site's Proposal Read* |
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
-| Ernest 0.10.0 | the release of what the server taught, and the release review before it, 126 lines fixed and 25 decided | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
+| Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, and the flake hunt | | | above |
 | MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
+| MVP 4.6 | the server owning both ends of its socket | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round | | | above |
-| MVP 4.6 | the server owning both ends of its socket | | | above |
