@@ -119,6 +119,8 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    installs and archives, for make install, uninstall and release;
                    paragraphs.sh lists the long paragraphs, for make paragraphs and make
                    test-docs, and comments.sh the long comment blocks, for make comments;
+                   flakes.ern runs the flake hunt's hosts beside busy loops and says
+                   what they found, for make flakes;
                    and version.sh sets VERSION and the lines the tests hold to it, for
                    make version
 build/             build products, not in git, an installation holding what it ships:
@@ -133,8 +135,9 @@ build/             build products, not in git, an installation holding what it s
                    generated from; each root's test/ from the tests that compile it,
                    on no job's code path; release/ from make
                    release; units/ from make units; dialyzer.plt from make dialyzer;
-                   sanitize/ from make sanitize. The tests under test/ build beside themselves, in
-                   test/ebin/ and test/build/, as an application's do
+                   sanitize/ from make sanitize; flakes/ from make flakes. The tests under
+                   test/ build beside themselves, in test/ebin/ and test/build/, as an
+                   application's do
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention, and the logos', which `assets/README.md` lists.
@@ -238,6 +241,25 @@ make load       # the loads of docs/memory_checks.md; not part of make test-full
 make service    # a program run by the host's service manager, a user's systemd or
                 # launchd: started, stopped, started again after Os.exit(1); not
                 # part of make test-full
+make flakes MINUTES=n
+                # the flake hunt, tools/flakes.ern: build, then the nine parts make test
+                # runs the emitter's, the runtime's and the command line's tests in, side
+                # by side beside LOOPS=n busy loops, each part in one host running its
+                # tests round after round, each round in an ERN_TEST_DIR of its own,
+                # until MINUTES have passed; a round begun is finished. The loops stand
+                # in for the other jobs make test-full's first phase runs beside the
+                # parts, so by default they are the processors less the nine parts, and
+                # none where that leaves none. Each test that does not pass is named on
+                # the terminal and written with its reason and what it wrote to
+                # build/flakes/<part>.txt, and what its host writes on standard error
+                # goes to build/flakes/<part>.err; build/flakes/ is made where it is
+                # missing, and of what stands there only the parts' own files are
+                # removed first; the summary gives each part's rounds and each such
+                # test with the rounds it did not pass in, and the status is 1 where
+                # one did not pass or a host ended early. A termination leaves
+                # nothing running and no rounds' directory; an interrupt leaves nothing
+                # running, and the rounds' directories under TMPDIR. Run by hand, and
+                # part of neither make test-full nor a review
 make bench      # what each of a few operations costs in Ernest beside the same operation
                 # in Erlang, in nanoseconds, a raise at each backtrace depth among them, in
                 # test/build/bench/bench.txt; then every function of the library beside the

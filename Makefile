@@ -350,13 +350,13 @@ test-erl: all
 	@$(MAKE) -s -j $(APP_TESTS)
 endif
 
-# The tests of the root $(1), every $(2)nd from the $(3)th, each module's found
-# in its test directory, so that make test can run one root's in several hosts
-# at once. A unit of the standard library, the shell or a library the shell is
-# compiled against is loaded from its .erc by namespace
-# (ern_code:ensure_loaded/1). A test makes what it needs under one directory
-# of the run's own, ERN_TEST_DIR, which is removed when the run ends, whatever
-# its outcome.
+# The tests of the root $(1), every $(2)nd from the $(3)th, bound to Mine,
+# each module's found in its test directory, so that make test can run one
+# root's in several hosts at once, and the host they run in. A unit of the
+# standard library, the shell or a library the shell is compiled against is
+# loaded from its .erc by namespace (ern_code:ensure_loaded/1). A test makes
+# what it needs under one directory of the run's own, ERN_TEST_DIR, which is
+# removed when the run ends, whatever its outcome.
 UNIT_TESTS = Modules = [list_to_atom(filename:basename(File, ".beam")) \
 	           || File <- lists:sort(filelib:wildcard("build/$(1)/test/*_tests.beam"))], \
 	Tests = [case lists:suffix("_test_", atom_to_list(Function)) of \
@@ -365,12 +365,13 @@ UNIT_TESTS = Modules = [list_to_atom(filename:basename(File, ".beam")) \
 	            lists:suffix("_test", atom_to_list(Function)) \
 	            orelse lists:suffix("_test_", atom_to_list(Function))], \
 	Mine = [Test || {Index, Test} <- lists:enumerate(0, Tests), \
-	                Index rem $(2) =:= $(3)], \
-	halt(case eunit:test(Mine, []) of ok -> 0; _ -> 1 end).
+	                Index rem $(2) =:= $(3)]
+UNIT_HOST = erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
+	-pa $(CURDIR)/build/$(1) -pa $(CURDIR)/build/$(1)/test
 RUN_UNIT_TESTS = @dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_test_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
-	  -pa $(CURDIR)/build/$(1) -pa $(CURDIR)/build/$(1)/test \
-	  -eval '$(call UNIT_TESTS,$(1),$(2),$(3))'; \
+	  ERN_TEST_DIR=$$dir $(call UNIT_HOST,$(1)) \
+	  -eval '$(call UNIT_TESTS,$(1),$(2),$(3)), \
+	  halt(case eunit:test(Mine, []) of ok -> 0; _ -> 1 end).'; \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 $(APP_TESTS) $(SHIM_TESTS): test-app-%: $$(call test_beams,$$(call root,$$*)) \
@@ -388,6 +389,32 @@ $(APP_PARTS): test-app-%: \
 	  $$(call test_beams,$$(call root,$$(firstword $$(subst -, ,$$*)))) \
 	  $$(call test_beams,runtime)
 	$(call RUN_UNIT_TESTS,$(call root,$(firstword $(subst -, ,$*))),3,$(lastword $(subst -, ,$*)))
+
+# The flake hunt, run by hand and in neither review: tools/flakes.ern runs
+# the split suites' nine parts side by side, each in one host from the
+# hunt's start to its end, round after round of the tests make test gives
+# it (ern_flakes), beside LOOPS busy loops, until MINUTES have passed. Each
+# test that does not pass goes to build/flakes/<part>.txt with what it
+# wrote, and what its host writes on standard error, its logger's reports
+# among it, to build/flakes/<part>.err; the program removes the parts' own
+# files there first, and nothing else. Each host's command is given to the
+# program word by word, after a -- and the part's name.
+FLAKES = build/flakes
+FLAKE_PARTS = $(APP_PARTS:test-app-%=%)
+# The busy loops stand in for the other jobs make test-full's first phase
+# runs beside the nine parts, JOBS at once: the processors less the parts,
+# and none where that leaves none.
+LOOPS = $(shell n=$$(($(JOBS) - $(words $(FLAKE_PARTS)))); [ $$n -gt 0 ] && echo $$n || echo 0)
+flake_root = $(call root,$(firstword $(subst -, ,$(1))))
+FLAKE_HOST = -- $(1) $(call UNIT_HOST,$(call flake_root,$(1))) \
+	  -kernel logger '[{handler, default, logger_std_h, \#{config => \#{type => standard_error}}}]' \
+	  -eval '$(call UNIT_TESTS,$(call flake_root,$(1)),3,$(lastword $(subst -, ,$(1)))), \
+	  halt(ern_flakes:hunt(Mine)).'
+
+flakes:
+	@$(MAKE) -s all $(foreach a,runtime $(SPLIT_APPS),$(call test_beams,$(call root,$(a))))
+	@bin/ern run build/tools/flakes.erc "$(MINUTES)" "$(LOOPS)" $(FLAKES) \
+	  $(foreach p,$(FLAKE_PARTS),$(call FLAKE_HOST,$(p)))
 
 # ern_named, by which a test calls a unit's function by its Ernest name, and
 # ern_waits, with the rest of the runtime's tests' modules, which test/Makefile
@@ -689,6 +716,6 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         sections coverage golden xref contents site-expected site-unrunnable format doc install \
         uninstall release \
         version site \
-        unicode \
+        unicode flakes \
         paragraphs comments \
         dialyzer units sanitize diagnostics

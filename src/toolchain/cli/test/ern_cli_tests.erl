@@ -6098,7 +6098,10 @@ docs_chunk_test() ->
     true = code:add_patha(BuildRoot),
     {module, ErlangModule} = code:ensure_loaded(ErlangModule),
     ?assertMatch({ok, {docs_v1, _, ernest, _, _, _, _}}, code:get_doc(ErlangModule)),
+    %% the old code purged too, so that the test runs again in this host,
+    %% where a module with old code cannot be deleted
     true = code:delete(ErlangModule),
+    _ = code:purge(ErlangModule),
     true = code:del_path(BuildRoot).
 
 %% report §9, §11.4: `ern doc` of the standard library's own source root

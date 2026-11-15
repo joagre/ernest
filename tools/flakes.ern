@@ -1,0 +1,371 @@
+//
+// The flake hunt, which `make flakes` runs (docs/development.md,
+// *Building*): the split suites' parts side by side, each in a host of its
+// own that runs its tests round after round until the hunt's time is up
+// (src/runtime/test/ern_flakes.erl), beside busy loops that stand in for
+// the jobs make test-full runs beside them. It relays each whole line a
+// host writes on standard output, keeps what a host writes on standard
+// error in a file of the part's own, and once every host has ended, ends
+// the loops and says what the hunt found.
+//
+// `ern run flakes.erc minutes loops records -- part program argument...`,
+// a `--` and the part's name before each host's command: `minutes` the
+// time after which no round begins, `loops` how many busy loops, and
+// `records` the directory the hosts write their records in, made where it
+// is missing. Of what stands there, only the files of the parts given are
+// removed first, each a `PartFile`. Each host is told the hunt in its
+// environment, as ern_flakes reads it.
+//
+// A termination ends the hosts and removes the rounds' directories before
+// the program ends (report §8.6). The host's interrupt ends the program at
+// once, and with it every program it started (Appendix E.23), but the
+// rounds' directories stay.
+//
+
+// What the command line gives.
+type Hunt = Hunt(minutes : Int, loops : Int, records : Path, parts : List(Part))
+
+// A part of the split suites, by its name, and its host's command.
+type Part = Part(name : String, program : String, arguments : List(String))
+
+// What the hunt's entry process is told: a host's end, and the program's
+// end, which it answers once the hosts are ended and the rounds'
+// directories removed.
+type HuntMsg = Ended(part : String, outcome : Outcome) | Stop(Reply(Unit))
+
+// How a host ended: it ran to its exit status, or could not be run.
+type Outcome = Ran(status : Int) | NotRun(error : Io.Error)
+
+// A part's files in the records' directory, each named by the part and an
+// extension of its own: the records of what did not pass, which ern_flakes
+// writes and the hunt adds an early end to; each round's seconds, which
+// ern_flakes writes; what the host wrote on standard error; and the host's
+// crash dump. `partFiles` lists every one, and the hunt removes them, and
+// nothing else, before it starts.
+type PartFile = Records | Rounds | Errors | CrashDump
+
+let partFiles : List(PartFile) = [Records, Rounds, Errors, CrashDump]
+
+// A part's line of the summary, each test its file records as not passed,
+// once for each round, and whether its host ended before its time.
+type PartSummary = PartSummary(line : String, failed : List(String), early : Bool)
+
+let usage : String = "usage: flakes minutes loops records -- part program argument..."
+
+// A file's time and rm's, as the other tools give theirs.
+let fileMs : Int = 10000
+
+let newline : Bytes = String.toUtf8("\n")
+
+// A busy loop, which keeps one processor busy until it is killed.
+let busyLoop : Os.Command = Os.command("sh", ["-c", "while :; do :; done"])
+
+export fn main() : Unit receiving HuntMsg =
+    match Either.andThen(parsed(Os.arguments), hunted) {
+        Right(0) -> Unit
+      | Right(status) -> Os.exit(status)
+      | Left(message) -> quit(message)
+    }
+
+fn parsed(arguments : List(String)) : Either(String, Hunt) =
+    match arguments {
+        minutes :: loops :: records :: words -> {
+            let minutes <- match String.toInt(minutes) {
+                Some(count) when count > 0 -> Right(count)
+              | _ -> Left("MINUTES=n, a positive whole number, is required")
+            };
+            let loops <- match String.toInt(loops) {
+                Some(count) when count >= 0 -> Right(count)
+              | _ -> Left("LOOPS=n, a whole number, is required")
+            };
+            let parts <- partsOf(words);
+            if List.isEmpty(parts) then
+                Left(usage)
+            else
+                Right(Hunt(=minutes, =loops, records = Path(records), =parts))
+        }
+      | _ ->
+            Left(usage)
+    }
+
+// The parts the words after the records' directory give, each a `--`, its
+// name and its host's command.
+fn partsOf(words : List(String)) : Either(String, List(Part)) =
+    match words {
+        [] ->
+            Right([])
+      | "--" :: name :: program :: rest -> {
+            let #(arguments, later) = List.span(rest, fn(word) = word != "--");
+            let parts <- partsOf(later);
+            Right(Part(=name, =program, =arguments) :: parts)
+        }
+      | _ ->
+            Left(usage)
+    }
+
+// The hunt from the loops' start to the summary, and its status. The
+// program's end is subscribed to first, so that a termination at any
+// point from then on is answered (`waited`). The rounds' directory is made
+// last of what can fail, so that a step that fails leaves none, and a loop
+// started before a failure ends with the program, which ends at once
+// (Appendix E.23).
+fn hunted(hunt : Hunt) : Either(String, Int) receiving HuntMsg = {
+    Os.termination(Stop);
+    let records = Os.workingDirectory <> hunt.records;
+    let _ <-
+        Either.mapLeft(Fs.makeDir(records, fileMs),
+                       fn(error) =
+                           "cannot make " <> Path.toString(records) <> ": " <> Io.show(error));
+    let _ <- List.tryForEach(hunt.parts, fn(part) = cleared(records, part));
+    let loops <-
+        Either.mapLeft(List.tryMap(List.range(1, hunt.loops), fn(_) = Os.start(busyLoop)),
+                       fn(error) = "cannot start a busy loop: " <> Io.show(error));
+    let rounds <-
+        Either.mapLeft(Fs.makeTempDir(fileMs),
+                       fn(error) = "cannot make the rounds' directory: " <> Io.show(error));
+    let ms = 60000 * hunt.minutes;
+    let until = Clock.now() + ms;
+    let hunter = self();
+    let hosts = List.map(hunt.parts, fn(part) = {
+        let environment = told(part, records, until, rounds);
+        Process.fromAddress(spawn(fn() = relayed(part, environment, records, ms, hunter)))
+    });
+    let outcomes = waited(hosts, rounds, List.size(hunt.parts), Map.empty);
+    List.forEach(loops, fn(loop) = kill(Process.fromAddress(loop)));
+    let _ <- removed(rounds);
+    summary(hunt, records, outcomes)
+}
+
+// What a host is told in its environment, as ern_flakes reads it, and
+// where the host, which is erl, writes a crash dump.
+fn told(part : Part, records : Path, until : Int, rounds : Path) : List(#(String, String)) =
+    [#("ERN_FLAKES_PART", part.name),
+     #("ERN_FLAKES_RECORDS", Path.toString(records)),
+     #("ERN_FLAKES_UNTIL", Int.toString(until)),
+     #("ERN_FLAKES_ROUNDS", Path.toString(rounds)),
+     #("ERL_CRASH_DUMP", Path.toString(partFile(records, part, CrashDump)))]
+
+// The outcome of each host by its part's name, once every host has ended.
+// At the program's end the hosts are ended and the rounds' directories
+// removed before the end is answered, so that nothing is left (report
+// §8.6); a host is ended with the process that started it (Appendix E.23).
+fn waited(hosts : List(Process),
+          rounds : Path,
+          count : Int,
+          outcomes : Map(String, Outcome)) : Map(String, Outcome) receiving HuntMsg =
+    if count == 0 then
+        outcomes
+    else receive {
+        Ended(=part, =outcome) ->
+            waited(hosts, rounds, count - 1, Map.put(outcomes, part, outcome))
+      | Stop(reply) -> {
+            List.forEach(hosts, kill);
+            match removed(rounds) {
+                Right(_) -> Unit
+              | Left(message) -> said(message)
+            };
+            answer(reply, Unit);
+            waited(hosts, rounds, count, outcomes)
+        }
+    }
+
+// The part's host, started and read until it has exited; then the hunt is
+// told how it ended.
+fn relayed(part : Part,
+           environment : List(#(String, String)),
+           records : Path,
+           ms : Int,
+           hunter : Address(HuntMsg)) : Unit = {
+    let command = Os.Command(..Os.command(part.program, part.arguments), =environment);
+    let errors = partFile(records, part, Errors);
+    let outcome =
+        match Either.andThen(Os.start(command), fn(host) = relay(host, errors, ms, <<>>)) {
+            Right(status) -> Ran(=status)
+          | Left(error) -> NotRun(=error)
+        };
+    send(hunter, Ended(part = part.name, =outcome))
+}
+
+// What the host writes, read until its exit status. No time bounds the
+// read, since a round has none: a read whose time passes reads again, and
+// its time, the hunt's length, says only how often it does.
+//
+// On standard output, each line is written to the terminal once it is
+// whole, the lines a piece completes with one write, so that no host's
+// line is cut by another's; on standard error, what it writes is appended
+// to the part's file of its own. A last line with no line feed is written
+// with one.
+fn relay(host : Address(Os.ProgramMsg),
+         errors : Path,
+         ms : Int,
+         pending : Bytes) : Either(Io.Error, Int) =
+    match Os.read(host, ms) {
+        Right(Os.Stdout(bytes)) -> {
+            let written = pending <> bytes;
+            match Bytes.lastIndexOf(written, newline) {
+                Some(index) -> {
+                    Io.write(Bytes.slice(written, 0, index + 1));
+                    relay(host, errors, ms, Bytes.drop(written, index + 1))
+                }
+              | None ->
+                    relay(host, errors, ms, written)
+            }
+        }
+      | Right(Os.Stderr(bytes)) -> {
+            match Fs.append(errors, bytes, fileMs) {
+                Right(_) ->
+                    Unit
+              | Left(error) ->
+                    said("cannot append to " <> Path.toString(errors) <> ": " <> Io.show(error))
+            };
+            relay(host, errors, ms, pending)
+        }
+      | Right(Os.Exited(status)) -> {
+            if Bytes.isEmpty(pending) then Unit else Io.write(pending <> newline);
+            Right(status)
+        }
+      | Left(Io.Timeout) ->
+            relay(host, errors, ms, pending)
+      | Left(error) ->
+            Left(error)
+    }
+
+// The summary, and the hunt's status: 1 where a test did not pass or a
+// host ended before its time, and 0 otherwise.
+fn summary(hunt : Hunt, records : Path, outcomes : Map(String, Outcome)) : Either(String, Int) = {
+    Io.println("make flakes: the rounds each part ran in "
+                   <> Int.toString(hunt.minutes)
+                   <> " min beside "
+                   <> Int.toString(hunt.loops)
+                   <> (if hunt.loops == 1 then " busy loop:" else " busy loops:"));
+    let ended =
+        List.filterMap(hunt.parts,
+                       fn(part) =
+                           Optional.map(Map.get(outcomes, part.name),
+                                        fn(outcome) = #(part, outcome)));
+    let parts <- List.tryMap(ended, fn(#(part, outcome)) = partSummary(part, records, outcome));
+    List.forEach(parts, fn(part) = Io.println("  " <> part.line));
+    let counts =
+        List.foldLeft(List.flatMap(parts, fn(part) = part.failed),
+                      Map.empty,
+                      fn(counts, failed) =
+                          Map.update(counts,
+                                     failed,
+                                     fn(count) = Optional.withDefault(count, 0) + 1));
+    if Map.isEmpty(counts) then
+        Io.println("No test failed, was skipped or was canceled.")
+    else {
+        Io.println("Each that did not pass, after the number of rounds it did not pass in:");
+        List.forEach(List.sort(Map.toList(counts)),
+                     fn(#(failed, count)) =
+                         Io.println("  " <> Int.toString(count) <> " " <> failed))
+    };
+    Io.println("Each part's records are in "
+                   <> Path.toString(hunt.records <> Path("<part>.txt"))
+                   <> ", and what its host wrote on standard error in "
+                   <> Path.toString(hunt.records <> Path("<part>.err"))
+                   <> ".");
+    Right(if Map.isEmpty(counts) && List.all(parts, fn(part) = !part.early) then 0 else 1)
+}
+
+// The part's rounds and the longest of them, what its file records, and
+// how its host ended, which the file records too where it ended early.
+fn partSummary(part : Part, records : Path, outcome : Outcome) : Either(String, PartSummary) = {
+    let file = partFile(records, part, Records);
+    let ending = match outcome {
+        Ran(status = 0) -> ""
+      | Ran(=status) -> "ended before its time, with status " <> Int.toString(status)
+      | NotRun(=error) -> "could not be run: " <> Io.show(error)
+    };
+    let _ <- if ending == "" then
+        Right(Unit)
+    else
+        Either.mapLeft(Fs.append(file,
+                                 String.toUtf8("\n== " <> part.name <> " " <> ending <> "\n"),
+                                 fileMs),
+                       fn(error) =
+                           "cannot append to " <> Path.toString(file) <> ": " <> Io.show(error));
+    let rounds <- linesOf(partFile(records, part, Rounds));
+    let recorded <- linesOf(file);
+    let seconds = List.filterMap(rounds, String.toInt);
+    let count = List.size(seconds);
+    let longest = if count == 0 then
+        ""
+    else
+        ", the longest " <> Int.toString(List.foldLeft(seconds, 0, Int.max)) <> " s";
+    let line =
+        part.name
+            <> ": "
+            <> Int.toString(count)
+            <> (if count == 1 then " round" else " rounds")
+            <> longest
+            <> (if ending == "" then "" else ", then " <> ending);
+    Right(PartSummary(=line,
+                      failed = List.filterMap(recorded, fn(text) = notPassed(part, text)),
+                      early = ending != ""))
+}
+
+// A record's first line, `== part, round n: what did not pass`, as what
+// did not pass in the part, `part: what`.
+fn notPassed(part : Part, text : String) : Optional(String) = {
+    let rest <- String.stripPrefix(text, "== " <> part.name <> ", round ");
+    let #(round, what) <- String.splitOnce(rest, ": ");
+    let _ <- String.toInt(round);
+    Some(part.name <> ": " <> what)
+}
+
+// The part's file of the records' directory.
+fn partFile(records : Path, part : Part, file : PartFile) : Path = {
+    let extension = match file {
+        Records -> "txt"
+      | Rounds -> "rounds"
+      | Errors -> "err"
+      | CrashDump -> "dump"
+    };
+    records <> Path(part.name <> "." <> extension)
+}
+
+// The part's files removed from the records' directory, a file that is not
+// there being none to remove.
+fn cleared(records : Path, part : Part) : Either(String, Unit) =
+    List.tryForEach(partFiles, fn(file) = {
+        let path = partFile(records, part, file);
+        match Fs.remove(path, fileMs) {
+            Right(_) -> Right(Unit)
+          | Left(Io.NotFound) -> Right(Unit)
+          | Left(error) -> Left("cannot remove " <> Path.toString(path) <> ": " <> Io.show(error))
+        }
+    })
+
+// The lines of a file, none where it is not there.
+fn linesOf(path : Path) : Either(String, List(String)) =
+    match Fs.read(path, fileMs) {
+        Right(bytes) -> Right(String.lines(String.fromUtf8Lossy(bytes)))
+      | Left(Io.NotFound) -> Right([])
+      | Left(error) -> Left("cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
+    }
+
+// Removes the rounds' directory, which the program made, with everything in
+// it, by the host's rm, as the log's *Fs.removeAll Removed* leaves it to a
+// program.
+fn removed(path : Path) : Either(String, Unit) = {
+    let finished <-
+        Either.mapLeft(Os.run(Os.command("rm", ["-rf", Path.toString(path)]), fileMs),
+                       fn(error) = "cannot run rm: " <> Io.show(error));
+    if finished.status == 0 then
+        Right(Unit)
+    else
+        Left("cannot remove "
+                 <> Path.toString(path)
+                 <> ": "
+                 <> String.fromUtf8Lossy(finished.stderr))
+}
+
+fn quit(message : String) : Unit = {
+    said(message);
+    Os.exit(1)
+}
+
+// A line of the hunt's own on standard error.
+fn said(message : String) : Unit =
+    Io.printlnError("make flakes: " <> message)

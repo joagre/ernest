@@ -67,8 +67,9 @@ and Its Manifest*).
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
 log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
 
-What is left is small, and each item stands alone: the flakes, items 11, 24, 32, 40 and 51; what
-the builds found, items 35, 36 and 38; and items 37 and 39, before MVP 4.4's item 4.
+What is left is small, and each item stands alone: the flakes, items 24, 32, 40, 51, 57 to
+59 and 61; what the builds found, items 35, 36, 38 and 56; what item 11 left to decide, item
+60; and items 37 and 39, before MVP 4.4's item 4.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -85,11 +86,10 @@ the builds found, items 35, 36 and 38; and items 37 and 39, before MVP 4.4's ite
 
 Items 7 to 10 are MVP 4.17's.
 
-11. **The flake hunt**, decided with the user 2026-11-10 (the log's *The Listings Before a
-    Review*): a target of its own that runs the split suites of `make test-full` again and
-    again in warm hosts beside busy loops, for as long as it is given, writes each failing test
-    with its output, and ends the loops by their numbers. It runs on the user's word alone, in
-    neither review, and `docs/development.md` names it.
+11. **The flake hunt**, done 2026-11-15. Decided in the item: `make flakes MINUTES=n` is the
+    Ernest program `tools/flakes.ern` over a host for each part, its loops are by default the
+    processors less the nine parts, no time limit is scaled, and an interrupt leaves the
+    rounds' directories (the log's *The Flake Hunt*).
 12. **The feedback of the release review before 0.10.0, and the applications'**, feedback 237 to
     247 and the applications' three lines, feedback 249 to 251, done 2026-11-11 in one session
     (the log's *The Review's Feedback Decided*): six build, items 14 to 19, and eight are dropped
@@ -114,8 +114,11 @@ Item 23 is MVP 4.17's.
 24. **The flake of `reads_limited_test`**, seen 2026-11-11 once under `make test`, item 4's
     run: the socket's reader read `Running` where `Calling` was expected, after
     `ern_waits:calling` had returned for it. Seen twice more 2026-11-14 under `make test`, in
-    item 5's runs, the same way. The cause is not found. An agent finds it under
-    `make test`'s load, and fixes the test or the runtime at it.
+    item 5's runs, the same way. Seen three times more 2026-11-15 in item 11's runs, the
+    same way: under `make test`, under `make test-full`, and in a host's second round of
+    `make flakes` with no loops.
+    The cause is not found. An agent finds it under `make test`'s load or the hunt's, and
+    fixes the test or the runtime at it.
 25. **A second cold reading of §11.9**, done 2026-11-11 (the log's *A Package and Its
     Manifest*).
 26. **A module that hides a library another uses**, done 2026-11-13 (the log's *A Hiding
@@ -150,6 +153,11 @@ Item 23 is MVP 4.17's.
     again. Seen once more 2026-11-14 under `make test`, in item 5's runs, the client's line
     after the case's. The cause is not found. An agent finds under that target's load
     whether §11.2 promises the order, and fixes the test or `ern test` at it.
+
+    Seen in three of item 11's hunts 2026-11-15, so `make flakes` is where the agent looks
+    first: beside 15 loops in a host's first round, the client's line after the case's, and
+    in a second round beside 15 loops and beside none, the client's line first (the log's
+    *The Flake Hunt*).
 33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
     decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
     fewer than 25600 over TLS, and the runtime has the host's TLS take one piece of a
@@ -222,6 +230,10 @@ Item 23 is MVP 4.17's.
     `write_terminal_gone`, `shell_write_terminal_gone` and `shell_reload_terminal_gone` ended
     with the status 0 where 129 was expected, their output whole. The agent takes the four
     as one flake until it finds otherwise (the log's *The Named Packages Built*).
+
+    Seen twice more 2026-11-15 in item 11's runs, in `shell_write_terminal_gone`: under
+    `make test-full` its line `the shell ends: its terminal is gone` was not said, and under
+    `make test-shell` its `put` was unmet. The area passed in three runs after.
 41. **An independent reading of item 6's commit**, `f9c5b972`, done 2026-11-14 (the log's
     *The Named Packages Read*).
 42. **The round of the reading's findings**, done 2026-11-14 (the log's *The Reading's
@@ -240,6 +252,39 @@ Item 43 is MVP 4.17's.
     the light run's load, and fixes the test or the reaper at it.
 55. **A reading of `CLAUDE.md` for clarity**, with the user, done 2026-11-15 (the log's *The
     Rules Read for Clarity*).
+56. **A test canceled at its limit ends its host's later tests**, found 2026-11-15 by item
+    11's build. `make test` gives EUnit a part's tests as one list, which one process runs,
+    and EUnit ends that process at a test's time limit. The tests after it do not run and
+    are counted nowhere: the run says `Passed: N` short of the part's count, with the status
+    1. A test ended so inside `file:set_cwd` leaves the host in its own directory.
+
+    An agent builds it: a limit ends its own test alone, the host's working directory is
+    the run's again before the next test, and the hunt's record of a round cut short goes
+    (the log's *The Flake Hunt*).
+57. **The flakes of `ern_supervisor_tests`**, seen 2026-11-15 in item 11's hunts beside 15
+    loops, each once. `limit_reports_only_real_faults_test` wrote `division by zero` where it
+    expects that twice and `supervisor restart limit reached`, in a host's second round.
+    `count_survives_restart_in_place_test` wrote `2` where it expects `0`, in a third round.
+    The cause is not found. An agent finds under `make flakes` whether either needs a host
+    that has run the tests before, and fixes the test or the supervisor at it.
+58. **The flake of `adapted_is_not_a_process_test`**, seen 2026-11-15 once under `make test`,
+    item 11's run: 63 processes alive where it expects 62. It shares its part with
+    `ern_flakes_tests`' tests of the hunt's program, which run before it, and it passed in
+    six runs after. The cause is not found. An agent finds under the light run's load
+    whether a test before it leaves a process, and fixes that test or this one.
+59. **`write_given_no_time_test` past its limit**, seen 2026-11-15 once in item 11's hunt
+    beside 15 loops, in a host's third round: EUnit ended it at five seconds. The cause is
+    not found. An agent finds under `make flakes` whether the test waits on what the loops
+    starve or on what never comes, and fixes the test or `Tcp` at it.
+60. **What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
+    line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
+    tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
+    user with a recommendation (the log's *The Flake Hunt*).
+61. **The flake of `load_beside_a_module_hiding_a_library`**, seen 2026-11-15 once under
+    `make test-shell`, item 11's run, beside item 40's: the shell's output did not hold
+    `"mine" : String` and the line that names the hiding module after it. It passed in
+    three runs after. The cause is not found. An agent finds it under the shell area's
+    load, and fixes the test or the shell at it.
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
