@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 62**, the first of its flakes.
+**The next item is MVP 4.16's item 51**, the first of the flakes left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,8 +43,8 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, the most often seen first, items 62, 51, 57, 59, 58, 61, 64 and 63, one
-at a time; what the builds found, items 35 and 36; and what needs the user, items 60, 68 and 39.
+left*): the flakes, the most often seen first, items 51, 57, 59, 58, 61, 64 and 63, one at a
+time; what the builds found, items 35, 36 and 69; and what needs the user, items 60, 68 and 39.
 Items 65 and 66, each seen once in item 32's hunt, follow item 63, and item 67 is hunted again
 only where it shows again. The items stand below in that order.
 
@@ -53,10 +53,6 @@ within it is reported as not found, its line kept. Of each flake below the cause
 An agent finds it under the load the item names, and fixes at the cause the test or what the
 item names beside it.
 
-- **62. `signal_jobs_take_any_mode_test`**, under `make flakes`; the test or the job. Seen
-  2026-11-15 in each of item 24's five hunts, with loops and without, in 1 to 7 rounds of an
-  hour: `ern_cli_tests` read `{held, Pid}` where it expects `locked`. In two hunts it was also
-  canceled at its limit, and its round ran no test after it (item 56).
 - **51. `delivery_foreign_code_arranges_test`**, under the light run's load, `make flakes`
   first; the test or the reaper. Seen 2026-11-14 once under `make test`, over MVP 4.17's item
   47: `ern_reaper_tests` said `the sender ended first`. It passed alone and in the next run.
@@ -112,6 +108,13 @@ item names beside it.
   failed or uses one that failed. The item says in §11.4 first what `index.md` lists then.
   Item 26's test of `ern doc` takes the other module's document (the log's *A Hiding Module
   Refused*).
+- **69. OTP's 22nd report: a port's number given before its program takes the termination**,
+  found 2026-11-15 by item 62's diagnosis (the log's *A Program Named Before It Runs*).
+  `erl_child_setup` ignores the termination, and the process it forks sets it back as its
+  first act, after the host has the fork's number. So a termination sent to
+  `erlang:port_info(Port, os_pid)` soon after `open_port` can be lost. An agent reproduces
+  it with OTP alone, which item 62 did not, and writes the report in
+  [`otp_bugs.md`](otp_bugs.md). Filing is the user's.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -201,6 +204,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 46 | What item 42's round left to decide | 2026-11-14 | *No Module's Source*, *An Index That Is No File* |
 | 55 | A reading of `CLAUDE.md` for clarity, with the user | 2026-11-15 | *The Rules Read for Clarity* |
 | 56 | A test canceled at its limit ends its host's later tests | 2026-11-15 | *A Limit Ends Its Own Test* |
+| 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

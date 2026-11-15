@@ -6947,19 +6947,28 @@ signal_jobs_test() ->
 %% A regression test, written after the code: each refused such a file as
 %% `may be written by every user`. A file of another user's, the
 %% superuser's to another user or another user's to the superuser, which a
-%% test run as one user cannot make, is not covered
+%% test run as one user cannot make, is not covered, nor an `ern stop` that
+%% returns before the lock has gone
 signal_jobs_take_any_mode_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
     PidFile = Dir ++ "/ernest.pid",
     Signal = fun(Job) -> ern_err([Job, "--config-dir", Dir]) end,
     Self = self(),
+    Echoed = fun(Living, Bytes) ->
+                 true = port_command(Living, Bytes),
+                 ?assertEqual(Bytes, receive {Living, {data, Data}} -> Data end)
+             end,
     %% a living process that is no node, which reads its input and echoes
-    %% it, named in ernest.pid by a holder of the node's lock, the file then
-    %% made writable by every user
+    %% it, named in ernest.pid by a holder of the node's lock once it has
+    %% echoed, the file then made writable by every user. The host gives a
+    %% program's number as it forks it, and the forked process ignores the
+    %% termination, as erl_child_setup does, until it first runs: a number
+    %% named before the echo may be sent the termination to no effect
     Held = fun() ->
                Living = open_port({spawn_executable, os:find_executable("cat")},
                                   [binary, exit_status]),
+               Echoed(Living, <<"running">>),
                {os_pid, Number} = erlang:port_info(Living, os_pid),
                Holder = spawn(fun() ->
                                   Self ! {locked, ern_os:locked(PidFile, Number)},
@@ -6976,7 +6985,7 @@ signal_jobs_take_any_mode_test() ->
                end,
     %% a program a signal ends exits with 128 and the signal's number
     Ended = fun(Living) -> receive {Living, {exit_status, Status}} -> Status end end,
-    {Hung, Holder} = Held(),
+    {Terminated, Holder} = Held(),
     %% the file the node holds renamed, and a link to it in its place
     ok = file:rename(PidFile, Dir ++ "/held.pid"),
     ok = file:make_symlink("held.pid", PidFile),
@@ -6988,18 +6997,20 @@ signal_jobs_take_any_mode_test() ->
                                                              ": too many levels of symbolic"
                                                              " links\n"])))
      || Job <- ["stop", "reload"]],
-    true = port_command(Hung, <<"alive">>),
-    ?assertEqual(<<"alive">>, receive {Hung, {data, Data}} -> Data end),
+    Echoed(Terminated, <<"alive">>),
     ok = file:delete(PidFile),
     ok = file:rename(Dir ++ "/held.pid", PidFile),
-    ?assertEqual(0, Signal("reload")),
-    ?assertEqual(128 + 1, Ended(Hung)),
-    Released(Holder),
-    {Terminated, Holding} = Held(),
     _ = spawn_link(fun() -> Self ! {stopped, Signal("stop")} end),
     ?assertEqual(128 + 15, Ended(Terminated)),
-    Released(Holding),
-    ?assertEqual(0, receive {stopped, Status} -> Status end).
+    Released(Holder),
+    ?assertEqual(0, receive {stopped, Status} -> Status end),
+    %% the lock goes once its holder's helper has read the end of its input
+    %% and exited, after the holder's end, and `ern stop` returns only then:
+    %% the next holder takes the file
+    {Hung, Holding} = Held(),
+    ?assertEqual(0, Signal("reload")),
+    ?assertEqual(128 + 1, Ended(Hung)),
+    Released(Holding).
 
 %% report §11.3: the configuration directory is its owner's alone, and one
 %% that exists is refused, whoever made it and however empty. A regression

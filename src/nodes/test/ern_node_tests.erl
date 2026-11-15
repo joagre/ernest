@@ -641,6 +641,10 @@ signaled_test() ->
     ?assertEqual(Pid ++ ": no such file: no node runs from the directory",
                  refusal(fun() -> ern_node:signaled(Dir, 0) end)),
     Waiting = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary]),
+    %% named once it has echoed: until it first runs, the process the host
+    %% forks ignores the termination, and one sent it then would not show
+    true = port_command(Waiting, <<"running">>),
+    ?assertEqual(<<"running">>, receive {Waiting, {data, Ran}} -> Ran end),
     {os_pid, Living} = erlang:port_info(Waiting, os_pid),
     ok = file:write_file(Pid, integer_to_list(Living) ++ "\n"),
     [?assertEqual(Pid ++ ": no node holds it: no node runs from the directory",

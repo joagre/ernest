@@ -3659,7 +3659,7 @@ stop_in_order(Base) ->
 %% code (the log's *MVP 3.1 Read*): a start was refused by a file whose
 %% number a living process held, and the jobs signaled that process
 pid_lock_test_() ->
-    nodes_test({waits, 10}, fun pid_lock/1).
+    nodes_test({waits, 11}, fun pid_lock/1).
 
 pid_lock(Base) ->
     A = made(Base, "a", none),
@@ -3681,8 +3681,12 @@ pid_lock(Base) ->
     stop(A, WaitA),
     {_, Err} = said(A),
     ?assertEqual(nomatch, string:find(Err, "configuration directory")),
-    %% a living process that is no node, which reads its input and echoes it
+    %% a living process that is no node, which reads its input and echoes it,
+    %% named once it has echoed: until it first runs, the process the host
+    %% forks ignores the termination, and one sent it then would not show
     Living = open_port({spawn_executable, os:find_executable("cat")}, [binary]),
+    true = port_command(Living, <<"running">>),
+    ?assertEqual(<<"running">>, output(Living)),
     {os_pid, LivingNumber} = erlang:port_info(Living, os_pid),
     ok = file:write_file(PidFile, integer_to_list(LivingNumber) ++ "\n"),
     [begin
