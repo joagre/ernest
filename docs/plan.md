@@ -114,7 +114,9 @@ item names beside it.
   first act, after the host has the fork's number. So a termination sent to
   `erlang:port_info(Port, os_pid)` soon after `open_port` can be lost. An agent reproduces
   it with OTP alone, which item 62 did not, and writes the report in
-  [`otp_bugs.md`](otp_bugs.md). Filing is the user's.
+  [`otp_bugs.md`](otp_bugs.md). The three tests that name a cat once it has echoed,
+  `signal_jobs_take_any_mode_test`, `signaled_test` and `pid_lock`, then cite the report in
+  their comments. Filing is the user's.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
