@@ -67,14 +67,15 @@ and Its Manifest*).
 Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-11-13 (the
 log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
 
-What is left is small, and each item stands alone: the flakes, items 32, 40, 51, 57 to
-59 and 61 to 64; what the builds found, items 35 and 36; what item 11 left to decide, item
+What is left is small, and each item stands alone: the flakes, items 40, 51, 57 to
+59 and 61 to 66; what the builds found, items 35 and 36; what item 11 left to decide, item
 60; and item 39, before MVP 4.4's item 4.
 
 Their order, decided with the user on 2026-11-15: the flakes, the most often seen first,
-items 32, 40, 62, 51, 57, 59, 58, 61, 64 and 63, one at a time; the builds, items 35 and 36;
+items 40, 62, 51, 57, 59, 58, 61, 64 and 63, one at a time; the builds, items 35 and 36;
 and what needs the user, items 60 and 39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
-within it is reported as not found, its line kept.
+within it is reported as not found, its line kept. Items 65 and 66, each seen once in item
+32's hunt, follow item 63.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -144,24 +145,11 @@ Item 23 is MVP 4.17's.
     `ern run`, `ern test` and `ern shell`, and a file a job writes is whole at a job's end,
     where a machine's end is the file system's (§11, §11.2, §11.7, §11.9; the log's *An
     Installed Program's Packages*).
-32. **The flake of `deadlock_line_on_a_test_test`**, seen 2026-11-13 once under
-    `make test-erl APP=cli`, item 30's run, and not in six runs alone nor in a second run of
-    the target. The client's line, `Asks.stuck:8 faulted: deadlock, the fault of the callee
-    stuck`, was written before the case's line, `stuck: faulted: deadlock`, which the test
-    expects first. Seen twice more 2026-11-13, in item 26's runs: once in two runs of
-    `make test-full`, where the client's line stood after the case's lines and the test
-    expects nothing after them, and once in two runs of `make test`, the client's line first
-    again. Seen once more 2026-11-14 under `make test`, in item 5's runs, the client's line
-    after the case's, and once 2026-11-15 in two runs of `make test`, item 37's, the
-    client's line first.
-
-    The cause is not found. An agent finds under that target's load whether §11.2 promises
-    the order, and fixes the test or `ern test` at it.
-
-    Seen in three of item 11's hunts 2026-11-15, so `make flakes` is where the agent looks
-    first: beside 15 loops in a host's first round, the client's line after the case's, and
-    in a second round beside 15 loops and beside none, the client's line first (the log's
-    *The Flake Hunt*). Seen in each of item 24's five hunts, in 1 to 8 rounds of an hour.
+32. **The flake of `deadlock_line_on_a_test_test`**, done 2026-11-15. Decided in the item:
+    the report orders nothing between the client's fault and the entry process's end, so
+    the test asked for more than it promises, and now holds the case's lines on standard
+    output and the client's line or nothing on standard error (§11.2, §8.6; the log's *The
+    Client's Line*).
 33. **What one `Tcp.read` answers, and what an unread socket holds**, done 2026-11-13,
     decided with the user: a read is the host's delivery, 9216 bytes at most over TCP and
     fewer than 25600 over TLS, and the runtime has the host's TLS take one piece of a
@@ -292,6 +280,15 @@ Item 43 is MVP 4.17's.
     host's 197, in item 24's hunt with no loops: the output did not hold `exit 3\r\n`. The
     cause is not found. An agent finds it under `make flakes`, and fixes the test or `Os` at
     it.
+65. **`ern_os_tests:resize_test` past its limit**, seen 2026-11-15 once in item 32's hunt
+    beside 15 loops, in a host's round 67: EUnit ended it at five seconds, in
+    `ern_rt:entry_end` under its `run_main`. The cause is not found. An agent finds under
+    `make flakes` whether the program's end waits on what the loops starve or on what never
+    comes, and fixes the test or the runtime at it.
+66. **The flake of `write_holds_up_no_read`**, seen 2026-11-15 once in item 32's hunt beside
+    15 loops, in a host's round 115: `ern_tcp_tests`' `run_main` answered the fault
+    `deadlock` where the test expects `ok`. The cause is not found. An agent finds it under
+    `make flakes`, and fixes the test or `Tcp` at it.
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

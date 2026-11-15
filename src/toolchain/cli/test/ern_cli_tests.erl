@@ -2609,9 +2609,18 @@ deadlock_lines(Name, Opening) ->
 %% process's spawn site, so a process that calls the test's process names
 %% it so: here the test's `run` spawns a client that calls it with
 %% `callForever`, and then waits in a `receive` for something else, so that
-%% the test faults with a deadlock, the client's line beneath its trace.
-%% A regression test, written after the code; it does not cover a doc
-%% example's case, which runs as a program of its own
+%% the test faults with a deadlock, the client's waiting line beneath its
+%% trace.
+%%
+%% The client's own fault, carried from the test's (§6.6), is every other
+%% fault of §11.2: written on standard error where it comes before the
+%% entry process's end, and not written where it comes after it (§8.6).
+%% Nothing orders the two, which each follow the test's end, so standard
+%% error holds the client's fault line or nothing.
+%%
+%% A regression test, written after the code. It does not cover a doc
+%% example's case, which runs as a program of its own, which of the two a
+%% run takes, or a fault written after the entry process's end
 deadlock_line_on_a_test_test() ->
     Dir = tmp(),
     write(Dir, "src/asks.ern",
@@ -2626,11 +2635,16 @@ deadlock_line_on_a_test_test() ->
           "    receive { Other -> Test.Passed }\n"
           "})\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    ?assertEqual(1, ern_err(["test", Dir ++ "/build/asks.erc"])),
+    {Errors, Status} = standard_error_of(["test", Dir ++ "/build/asks.erc"]),
+    ?assertEqual(1, Status),
     {match, [Listed]} = re:run(iolist_to_binary(?capturedOutput),
                                "^stuck: faulted: deadlock\n    Asks\\.[^\n]*\n(.*)$",
                                [dotall, {capture, [1], binary}]),
-    ?assertEqual(<<"    1 process of Asks.stuck:8 waits in Asks.client:3 on stuck\n">>, Listed).
+    ?assertEqual(<<"    1 process of Asks.stuck:8 waits in Asks.client:3 on stuck\n">>, Listed),
+    Client = <<"Asks.stuck:8 faulted: deadlock, the fault of the callee stuck\n"
+               "    Asks.client:3\n">>,
+    ?assertMatch(Said when Said =:= <<>>; Said =:= Client,
+                 unicode:characters_to_binary(Errors)).
 
 %% report §4.4: an abstract type's constructor is not visible outside its module
 abstract_constructor_outside_test() ->
