@@ -68,13 +68,12 @@ Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-
 log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
 
 What is left is small, and each item stands alone: the flakes, items 32, 40, 51, 57 to
-59 and 61 to 64; what the builds found, items 35, 36 and 38; what item 11 left to decide, item
+59 and 61 to 64; what the builds found, items 35 and 36; what item 11 left to decide, item
 60; and item 39, before MVP 4.4's item 4.
 
-Their order, decided with the user on 2026-11-15: item 38 first, which makes a check say
-less than it found, as item 56 did before it; the flakes, the most often seen first, items 32, 40, 62, 51, 57, 59, 58,
-61, 64 and 63, one at a time; the builds, items 35 and 36; and what needs the user, items 60 and
-39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
+Their order, decided with the user on 2026-11-15: the flakes, the most often seen first,
+items 32, 40, 62, 51, 57, 59, 58, 61, 64 and 63, one at a time; the builds, items 35 and 36;
+and what needs the user, items 60 and 39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
 within it is reported as not found, its line kept.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
@@ -191,14 +190,10 @@ Item 23 is MVP 4.17's.
     library. The repositories keep the same rules: the template took the rule and both
     searches of the read-back in its `v0.10.5` and `v0.10.6`, and both copies took the tags
     (E.14; the log's *A Library's Function in a Program*, *The Sweep's Reading*).
-38. **ern(1) written again after `make doc`**, found 2026-11-14 by item 28's full run: after a
-    change to the toolchain's code, `make`, then `make doc`, then `make manual` writes
-    `build/man/ern.1` a second time. The documents `make doc` writes into `build/stdlib`
-    change the directory's time, which is the page's prerequisite. So `make test-full` run
-    first after such a change fails `manual_written_once_test`, and passes when run again. An
-    agent builds it: the page's prerequisite is what its SEE ALSO reads, the pages, and not
-    every file of the directory, and the test runs `make doc` between its two makes (the
-    log's *A Given Path Resolved Once*).
+38. **ern(1) written again after `make doc`**, done 2026-11-15. Decided in the item: the
+    page's prerequisite is the pages' names, kept in a file, since make does not see a page
+    that has gone; and the code §11.4 names for a page is named for ern(1) too, which the
+    directory had held unsaid (§11.4; the log's *What the Toolchain's Page Is Made From*).
 39. **The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
     item 4, so that the full review reads the page the launch's source link lands on. It
     opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process

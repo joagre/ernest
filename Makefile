@@ -192,8 +192,8 @@ $(LIBS:%=pages-%): pages-%:
 # or the one there is older than what it is made from (report §11.4), and
 # make writes ern(1) likewise by its prerequisites, so that a make with
 # nothing to do writes none. ern(1) is made by a make of its own, which
-# reads build/stdlib after `ern doc` has written there. A page is written
-# whole or not at all.
+# takes the names of the pages in build/stdlib after `ern doc` has written
+# them. A page is written whole or not at all.
 MANUALS = manual-stdlib $(LIBS:%=manual-%)
 manual:
 	@$(MAKE) -s $(SIDE_BY_SIDE) -O libs shell tools $(MANUALS)
@@ -205,11 +205,24 @@ manual-stdlib: stdlib lib-markdown
 $(LIBS:%=manual-%): manual-%: lib-% lib-markdown
 	@bin/ern doc --man --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
 
-# ern(1)'s SEE ALSO names the pages in build/stdlib, so the directory is a
-# prerequisite: its time changes whenever a file there is written, added or
-# removed, a page among them, and a make with nothing to do changes none.
-build/man/ern.1: report/toolchain.md build/tools/manual.erc VERSION build/stdlib
-	@mkdir -p build/man
+# ern(1) is made from the report's §11, the version, the program
+# tools/manual.ern and the names of the pages in build/stdlib, which its
+# SEE ALSO names. As `ern doc` makes a page (report §11.4), it is made too
+# from the compiled libs/markdown, which lays it out, and from the
+# toolchain's own code, the beams `beams` makes.
+#
+# build/man/ern.1.pages holds the pages' names, sorted, one a line, and no
+# installation copies it. FORCE is no file, so the list's rule runs at
+# every make that reaches ern(1), and it writes the list only where its
+# text would differ from the one there. So a page added or removed writes
+# ern(1) again, and a document written beside the pages does not.
+build/man/ern.1.pages: FORCE
+	@mkdir -p build/man && LC_ALL=C ls build/stdlib | sed -n '/\.3ern$$/p' > $@.new && \
+	  if cmp -s $@.new $@; then rm $@.new; else mv $@.new $@; fi
+FORCE:
+
+build/man/ern.1: report/toolchain.md VERSION build/tools/manual.erc build/man/ern.1.pages \
+	  build/libs/markdown/markdown.erc $(ROOT_BEAMS) $(SHIM_BEAMS)
 	@bin/ern run --verbose build/tools/manual.erc \
 	  report/toolchain.md $$(cat VERSION) build/stdlib > $@.new
 	@mv $@.new $@
@@ -702,7 +715,7 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
 
-.PHONY: all beams stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) \
+.PHONY: all beams stdlib libs $(LIB_BUILDS) shell tools manual $(MANUALS) FORCE \
         $(PAGES) \
         test test-full test-erl \
         test-programs $(PROGRAM_PARTS) test-library test-docs test-guide test-site test-grammar \

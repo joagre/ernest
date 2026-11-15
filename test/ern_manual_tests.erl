@@ -1,8 +1,9 @@
 %% The manual pages as `make manual` writes them, held to §11 and rendered.
 %% Run from this directory by its Makefile, never beside ern_install_tests:
-%% both write the pages under ../build/stdlib, these tests by `ern doc
-%% --man` and by `make manual`, and those by make. The helpers that run a
-%% command and build are ern_integration_tests'.
+%% both write under ../build/stdlib, these tests by `ern doc --man`, by
+%% `make manual` and `make doc`, and by a file of their own, and those by
+%% make. The helpers that run a command and build are
+%% ern_integration_tests'.
 -module(ern_manual_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -93,19 +94,94 @@ usage(Job) ->
 %% report §11.4: make writes ern(1) as `ern doc` writes a page, only where
 %% it is older than what it is made from, so `make manual` after a make,
 %% which this target's make runs first, leaves it as it is: its time, and
-%% its file, which a writing replaces whole. Written after the code, a
-%% regression test; what each prerequisite of ern(1) makes it is the
-%% Makefile's rule, and is not covered, since the test touches no file of
-%% the tree.
+%% its file, which a writing replaces whole. `make doc` runs between the
+%% two and writes into build/stdlib, beside the pages, the document this
+%% test removes first, which leaves ern(1) as it is too. ern(1)'s
+%% prerequisites are the Makefile's rule: the tests below hold two of
+%% them, the pages' names and the compiled libs/markdown, and none holds
+%% the others.
 manual_written_once_test_() ->
     {timeout, 120, fun manual_written_once/0}.
 
 manual_written_once() ->
     {ok, #file_info{mtime = Written, inode = Inode}} =
         file:read_file_info("../build/man/ern.1", [{time, posix}]),
+    _ = file:delete("../build/stdlib/bool.md"),
+    _ = ern_integration_tests:succeed("make -s -C .. doc"),
+    ?assert(filelib:is_regular("../build/stdlib/bool.md")),
     _ = ern_integration_tests:succeed("make -s -C .. manual"),
     ?assertMatch({ok, #file_info{mtime = Written, inode = Inode}},
                  file:read_file_info("../build/man/ern.1", [{time, posix}])).
+
+%% report §11.4: ern(1)'s SEE ALSO names the pages in build/stdlib, so a
+%% page added there makes the next `make manual` write ern(1) again with
+%% its name, and the page removed makes the next write it again without.
+%% The file added is no page of a module, which the sweep of `ern doc
+%% --man` keeps. The test removes it whatever its assertions answer, and
+%% makes ern(1) again.
+%%
+%% Written after the code, a regression test, which passes with the
+%% directory build/stdlib as ern(1)'s prerequisite too. It does not cover a
+%% page that `ern doc --man` removes itself, of a module whose source is
+%% gone.
+manual_names_pages_test_() ->
+    {timeout, 120, fun manual_names_pages/0}.
+
+manual_names_pages() ->
+    Page = "../build/stdlib/Ernest.ManualTestPage.3ern",
+    Named = <<"\\fBErnest.ManualTestPage\\fR(3ern)">>,
+    try
+        Before = written(),
+        ok = file:write_file(Page, <<"no page of a module\n">>),
+        _ = ern_integration_tests:succeed("make -s -C .. manual"),
+        Added = written(),
+        ?assertNotEqual(Before, Added),
+        ?assertMatch({_, _}, binary:match(manual(), Named)),
+        ok = file:delete(Page),
+        _ = ern_integration_tests:succeed("make -s -C .. manual"),
+        ?assertNotEqual(Added, written()),
+        ?assertEqual(nomatch, binary:match(manual(), Named))
+    after
+        _ = file:delete(Page),
+        _ = ern_integration_tests:succeed("make -s -C .. manual")
+    end.
+
+%% report §11.4: ern(1) is written where it is older than what it is made
+%% from, the compiled libs/markdown that lays it out among it, so the
+%% compiled libs/markdown made newer than ern(1) makes the next `make
+%% manual` write ern(1) again. Its time alone is made newer, a nanosecond
+%% past ern(1)'s, which is past already, so that no file's time is in the
+%% future and nothing is written again for it after the test's make.
+%%
+%% It does not cover the toolchain's own code, which the same rule names:
+%% a file of it made newer would have every later job in the run write its
+%% pages again.
+manual_follows_markdown_test_() ->
+    {timeout, 120, fun manual_follows_markdown/0}.
+
+manual_follows_markdown() ->
+    Before = written(),
+    _ = ern_integration_tests:succeed("touch -d @" ++ past("../build/man/ern.1")
+                                      ++ " ../build/libs/markdown/markdown.erc"),
+    _ = ern_integration_tests:succeed("make -s -C .. manual"),
+    ?assertNotEqual(Before, written()).
+
+%% The time a nanosecond past File's, as `touch -d @` reads one.
+past(File) ->
+    Stat = ern_integration_tests:succeed("stat -c %.9Y " ++ File, [{env, [{"LC_ALL", "C"}]}]),
+    [Seconds, Fraction] = binary:split(string:trim(Stat), <<".">>),
+    Past = binary_to_integer(Seconds) * 1000000000 + binary_to_integer(Fraction) + 1,
+    lists:flatten(io_lib:format("~B.~9..0B", [Past div 1000000000, Past rem 1000000000])).
+
+%% ern(1)'s time and its file, which a writing replaces whole.
+written() ->
+    {ok, #file_info{mtime = Time, inode = Inode}} =
+        file:read_file_info("../build/man/ern.1", [{time, posix}]),
+    {Time, Inode}.
+
+manual() ->
+    {ok, Manual} = file:read_file("../build/man/ern.1"),
+    Manual.
 
 rendered(Pages) ->
     case {os:find_executable("groff"), os:find_executable("mandoc")} of
