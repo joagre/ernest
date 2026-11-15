@@ -69,7 +69,6 @@ log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 fol
 
 What is left is small, and each item stands alone: the flakes, items 11, 24, 32, 40 and 51; what
 the builds found, items 35, 36 and 38; and items 37 and 39, before MVP 4.4's item 4.
-Of item 44 the copies' refresh is left.
 
 4. **The report's sentences on a package**, done 2026-11-11 (the log's *A Package and Its
    Manifest*).
@@ -231,10 +230,7 @@ Item 23 is MVP 4.17's.
 Item 43 is MVP 4.17's.
 
 44. **A reading of `CLAUDE.md` for rules that contradict or repeat each other**, with the
-    user, read and cut 2026-11-15 with the template's file (the log's *The Rules Read
-    Against Each Other*). What is left: a tag of the template, from which `ernest-epx` and
-    `ernest-httpd` take its file once, on the user's word. Neither copy has a difference
-    of its own, and until then each keeps the rules it has.
+    user, done 2026-11-15 (the log's *The Rules Read Against Each Other*).
 45. **The milestone split in two**, done 2026-11-14 (the log's *The Milestone Split*).
 46. **What item 42's round left to decide**, done 2026-11-14 (the log's *No Module's
     Source* and *An Index That Is No File*).
