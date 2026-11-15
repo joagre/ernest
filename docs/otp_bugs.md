@@ -1,10 +1,10 @@
 # Defects found in OTP
 
-The defects of OTP that building Ernest has found, each written as a report for OTP's tracker, [github.com/erlang/otp/issues](https://github.com/erlang/otp/issues), ready to file, and reproduced with OTP alone. Filing is the user's. A report stays here until OTP has fixed its defect in a release Ernest requires. Where a defect still shows in Ernest, the code's comment at the place says how, and the decisions log why Ernest meets it as it does.
+The defects of OTP that building Ernest has found, each written as a report for OTP's tracker, [github.com/erlang/otp/issues](https://github.com/erlang/otp/issues), and reproduced with OTP alone. Filing is the user's, and a report's first line names its issue once it is filed. A report stays here until OTP has fixed its defect in a release Ernest requires, and one OTP will not fix stays; the release review reads OTP's release notes and the issues' states against the reports ([`reviews/release.md`](reviews/release.md), step 6). Where a defect still shows in Ernest, the code's comment at the place says how, and the decisions log why Ernest meets it as it does.
 
 ## 1. `erl_child_setup` prints a line when the emulator ends while a port starts
 
-Not filed. Found on 2026-10-01; the log's *A Port Lost While It Starts*.
+Filed 2026-11-15 as [erlang/otp#12203](https://github.com/erlang/otp/issues/12203). Found on 2026-10-01; the log's *A Port Lost While It Starts*.
 
 **Title:** erl_child_setup: "failed with error 32 on line 284" when the emulator dies while a port is starting
 
@@ -49,7 +49,7 @@ Every emulator that looks up its host name at start, as the kernel application d
 
 ## 2. A termination signal sent while the emulator starts is lost
 
-Not filed. Found on 2026-10-02; the log's *MVP 2.99b's Questions, One by One*, item 6's second question.
+Filed 2026-11-15 as [erlang/otp#12204](https://github.com/erlang/otp/issues/12204). Found on 2026-10-02; the log's *MVP 2.99b's Questions, One by One*, item 6's second question.
 
 **Title:** SIGTERM sent in the emulator's first ~250 ms is silently ignored
 
@@ -88,7 +88,7 @@ Blocking `SIGTERM` in the parent before it starts `erl` does not help: the emula
 
 ## 3. The compiler's validator refuses what its type pass made, through `rem`
 
-Not filed. Found on 2026-10-05; the log's *OTP's Compiler, Worked Around*.
+Filed 2026-11-15 as [erlang/otp#12205](https://github.com/erlang/otp/issues/12205). Found on 2026-10-05; the log's *OTP's Compiler, Worked Around*.
 
 **Title:** Internal consistency check failed: bad_arg_type after `rem` in a recursive call
 
@@ -137,7 +137,7 @@ Found by a generator of random well-typed programs in a compiler that emits Erla
 
 ## 4. `string`'s searches match from inside a grapheme cluster
 
-Not filed. Found on 2026-10-05; the log's *String Stands on the Host*.
+Filed 2026-11-15 as [erlang/otp#12206](https://github.com/erlang/otp/issues/12206). Found on 2026-10-05; the log's *String Stands on the Host*.
 
 **Title:** string:find/split/replace/trim can match inside a grapheme cluster
 
@@ -184,7 +184,7 @@ The same holds of a list argument, line 5. Splitting text at `"\n"` that has Win
 
 ## 5. `memsup` closes its port while a collection is under way
 
-Not filed. Found on 2026-10-09; `src/nodes/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
+Filed 2026-11-15 as [erlang/otp#12207](https://github.com/erlang/otp/issues/12207). Found on 2026-10-09; `src/nodes/test/ern_node_tests.erl`'s `collected/0` says how Ernest meets it.
 
 **Title:** memsup: "Error writing to pipe: Broken pipe" when os_mon is stopped during a memory collection
 
@@ -231,7 +231,7 @@ The line comes from the port program, not from the emulator, so no logger filter
 
 ## 6. `erl_lint`'s check of unused functions costs the square of the module
 
-Not filed. Found on 2026-10-26; the log's *The Build's Cost per Function*.
+Filed 2026-11-15 as [erlang/otp#12208](https://github.com/erlang/otp/issues/12208). Found on 2026-10-26; the log's *The Build's Cost per Function*.
 
 **Title:** erl_lint: check_unused_functions is quadratic in the number of unused functions
 
@@ -271,7 +271,7 @@ Found by measuring a compiler that emits Erlang, whose test module of 7,000 unex
 
 ## 7. The type pass types a function again after each local function it calls
 
-Not filed. Found on 2026-10-26, measured on 2026-10-30; the log's *The Build's Cost per Function* and *One Function per Initializer*.
+Filed 2026-11-15 as [erlang/otp#12209](https://github.com/erlang/otp/issues/12209). Found on 2026-10-26, measured on 2026-10-30; the log's *The Build's Cost per Function* and *One Function per Initializer*.
 
 **Title:** beam_ssa_type: signatures/2 is quadratic in the number of distinct local functions one function calls in sequence
 
@@ -318,7 +318,7 @@ Found by a compiler that emits Erlang, whose module initialization calls one fun
 
 ## 8. A module's purge costs the process limit, not the processes alive
 
-Not filed, and a misfeature rather than a bug: nothing in OTP's documentation promises otherwise, and a fixed process table is the emulator's design. Found on 2026-10-30; the log's *A Line-Mode Input's Cost*.
+Filed 2026-11-15 as [erlang/otp#12210](https://github.com/erlang/otp/issues/12210), and a misfeature rather than a bug: nothing in OTP's documentation promises otherwise, and a fixed process table is the emulator's design. Found on 2026-10-30; the log's *A Line-Mode Input's Cost*.
 
 **Title:** code:purge/1 walks the whole process table, so its cost follows +P and not the number of live processes
 
@@ -367,7 +367,7 @@ Found by measuring a shell that compiles each input to a module of its own and p
 
 ## 9. `ssl:format_error` does not describe the file errors `ssl:listen` returns
 
-Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `src/runtime/ern_tcp.erl`'s `file_error/2` reads the file and the reason from the term instead (the log's *Two Lines on TLS*).
+Filed 2026-11-15 as [erlang/otp#12211](https://github.com/erlang/otp/issues/12211). Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `src/runtime/ern_tcp.erl`'s `file_error/2` reads the file and the reason from the term instead (the log's *Two Lines on TLS*).
 
 **Title:** ssl:format_error/1 gives "Invalid TLS option" for a certfile or keyfile ssl:listen cannot read
 
@@ -417,7 +417,7 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 
 ## 10. `ssl:close/2` ignores the time it is given
 
-Not filed. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/3` hands a socket over TLS to its closer, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
+Filed 2026-11-15 as [erlang/otp#12212](https://github.com/erlang/otp/issues/12212). Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/3` hands a socket over TLS to its closer, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
 
 **Title:** ssl:close/2 closes a TLS connection in its own two 5-second waits whatever Timeout it is given
 
@@ -481,7 +481,7 @@ The two waits are `?DEFAULT_TIMEOUT` of `ssl_internal.hrl`. A program that close
 
 ## 11. `json:decode` answers a broken literal by the count of bytes after it, not by the byte that differs
 
-Not filed. Found on 2026-11-02 by the release review before 0.9.0 (its finding E4-2); `src/libs/json/ern_json.erl`'s `broken_literal/2` reads the text for the byte that differs instead.
+Filed 2026-11-15 as [erlang/otp#12213](https://github.com/erlang/otp/issues/12213). Found on 2026-11-02 by the release review before 0.9.0 (its finding E4-2); `src/libs/json/ern_json.erl`'s `broken_literal/2` reads the text for the byte that differs instead.
 
 **Title:** json:decode/1,3: a broken `true`, `false` or `null` raises unexpected_end, or invalid_byte at the byte after its first, whichever byte differs
 
@@ -534,7 +534,7 @@ An escape meets the same rule: `["\u12"]` raises `{unexpected_sequence, <<"\\u12
 
 ## 12. A connection accepted or dialed at a full table of processes ends the distribution
 
-Not filed, its filing the user's. Found on 2026-11-08 (the log's *A Node's Own Processes at a Full Table*), the dial on the same day (the log's *The Carrier's Acceptor at a Full Table*); a node's own acceptor over `inet_tls_dist` closes a connection it cannot serve (`ern_tls_dist`), and report §12.5 states that the dial, which no distribution module reaches, ends the node (the log's *A Full Table's Answers, Built*).
+Filed 2026-11-15 as [erlang/otp#12214](https://github.com/erlang/otp/issues/12214). Found on 2026-11-08 (the log's *A Node's Own Processes at a Full Table*), the dial on the same day (the log's *The Carrier's Acceptor at a Full Table*); a node's own acceptor over `inet_tls_dist` closes a connection it cannot serve (`ern_tls_dist`), and report §12.5 states that the dial, which no distribution module reaches, ends the node (the log's *A Full Table's Answers, Built*).
 
 **Title:** net_kernel terminates, and with it the emulator, when a connection is accepted or dialed while the process table is full
 
@@ -628,7 +628,7 @@ The emulator's own `Too many processes` report is printed for each refused spawn
 
 ## 13. At the limit of open files the code server answers `nofile`, and the application controller "no such file or directory"
 
-Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); Ernest loads what its runtime calls at a run's start (report §12), and the host's TLS as the host loads it, so a handshake at the limit fails (report E.18; the log's *Lean at the Limits*).
+Filed 2026-11-15 as [erlang/otp#12215](https://github.com/erlang/otp/issues/12215). Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); Ernest loads what its runtime calls at a run's start (report §12), and the host's TLS as the host loads it, so a handshake at the limit fails (report E.18; the log's *Lean at the Limits*).
 
 **Title:** code:ensure_loaded/1 answers {error,nofile} and application:load/1 "no such file or directory" when the process has no file descriptor left
 
@@ -682,7 +682,7 @@ OTP 29, erts 17.1.1, kernel 11.0.4, stdlib 8.1.1, on Linux x86_64.
 
 ## 14. `net_kernel` spins while a connection waits at the limit of open files
 
-Not filed. Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); `inet_tls_dist`'s acceptor does the same, and a node's own acceptor waits a dial's time instead (`ern_tls_dist`; the log's *The Carrier's Acceptor at a Full Table*).
+Filed 2026-11-15 as [erlang/otp#12216](https://github.com/erlang/otp/issues/12216). Found on 2026-11-08 (the log's *The Runtime at the Limit of Open Files*); `inet_tls_dist`'s acceptor does the same, and a node's own acceptor waits a dial's time instead (`ern_tls_dist`; the log's *The Carrier's Acceptor at a Full Table*).
 
 **Title:** net_kernel restarts the acceptor at once after an accept fails with emfile, and spins on a scheduler while the connection waits
 
@@ -732,7 +732,7 @@ OTP 29, erts 17.1.1, kernel 11.0.4, on Linux x86_64.
 
 ## 15. `ssl` raises a failed match, or answers `{dtls_upgrade, notsup}`, when the process table is full
 
-Not filed. Found on 2026-11-08 (the log's *The Carrier's Acceptor at a Full Table*), the raises on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a node's acceptor reads the handshake's answer as the full table (`ern_tls_dist`), and a program's TLS reads the raise so and answers the full table as a value (`ern_tcp`, the log's *The Shell at a Full Table*).
+Filed 2026-11-15 as [erlang/otp#12217](https://github.com/erlang/otp/issues/12217). Found on 2026-11-08 (the log's *The Carrier's Acceptor at a Full Table*), the raises on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a node's acceptor reads the handshake's answer as the full table (`ern_tls_dist`), and a program's TLS reads the raise so and answers the full table as a value (`ern_tcp`, the log's *The Shell at a Full Table*).
 
 **Title:** ssl:connect/4, ssl:listen/2 and ssl:transport_accept/2 raise badmatch, and ssl:handshake/3 answers {error,{dtls_upgrade,notsup}}, when the process table is full
 
@@ -800,7 +800,7 @@ Where the connection's supervisor is started but one of its children is not, the
 
 ## 16. `ssl:format_error/1` raises `badarg` for a reason it does not name
 
-Not filed. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's TLS writes such a reason as the host prints it (`ern_tcp`).
+Filed 2026-11-15 as [erlang/otp#12218](https://github.com/erlang/otp/issues/12218). Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's TLS writes such a reason as the host prints it (`ern_tcp`).
 
 **Title:** ssl:format_error/1 raises badarg for a reason that is neither an atom nor a form it names
 
@@ -830,7 +830,7 @@ The reasons `ssl:connect/4` and its kin give a caller who catches their raise (1
 
 ## 17. An application started at a full process table ends the emulator, or never answers
 
-Not filed, its filing the user's. Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's first request over TLS starts the host's TLS, and report E.18 states that the start may end the run or never answer (the log's *Lean at the Limits*).
+Filed 2026-11-15 as [erlang/otp#12219](https://github.com/erlang/otp/issues/12219). Found on 2026-11-09 (the log's *A Program's TLS at a Full Table*); a program's first request over TLS starts the host's TLS, and report E.18 states that the start may end the run or never answer (the log's *Lean at the Limits*).
 
 **Title:** application:ensure_all_started/1 at a full process table terminates the application controller or the logger, or hangs
 
@@ -871,7 +871,7 @@ OTP 29, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.
 
 ## 18. `beam_lib:chunks/2,3` raises, and `beam_lib:md5/1` answers `{'EXIT', _}`, for a module whose atom chunk it cannot read
 
-Not filed. Found on 2026-11-09 (the log's *A Compiled Module the Host Cannot Read*); Ernest reads a chunk and a digest through `ern_chunk`, which takes both answers as the error.
+Filed 2026-11-15 as [erlang/otp#12220](https://github.com/erlang/otp/issues/12220). Found on 2026-11-09 (the log's *A Compiled Module the Host Cannot Read*); Ernest reads a chunk and a digest through `ern_chunk`, which takes both answers as the error.
 
 **Title:** beam_lib:chunks/2,3 raises badmatch, and beam_lib:md5/1 returns {'EXIT', ...}, for a malformed atom chunk
 
@@ -905,7 +905,7 @@ A file cut short at any length is answered with an error. Of the 10,384 copies o
 
 ## 19. A load past the module, export or fun table's limit ends the emulator, and the system limits page names none of the three
 
-Not filed. Found on 2026-11-10 (the log's *A Load Past the Host's Limits*); Ernest's report states the end (§11.2), and the runtime says a limit's four fifths before it.
+Filed 2026-11-15 as [erlang/otp#12221](https://github.com/erlang/otp/issues/12221). Found on 2026-11-10 (the log's *A Load Past the Host's Limits*); Ernest's report states the end (§11.2), and the runtime says a limit's four fifths before it.
 
 **Title:** Loading code past the module, export or fun table's limit terminates the emulator, and the system limits page names none of the three limits
 
@@ -947,7 +947,7 @@ Modules of 2,000 exported functions each, loaded one after another, end it at th
 
 ## 20. `gen_tcp:listen/2` keeps a backlog's low 16 bits
 
-Not filed. Found on 2026-11-10 (the log's *A Listener's Backlog*); Ernest gives the host 65535, the largest it keeps whole (E.18).
+Filed 2026-11-15 as [erlang/otp#12222](https://github.com/erlang/otp/issues/12222). Found on 2026-11-10 (the log's *A Listener's Backlog*); Ernest gives the host 65535, the largest it keeps whole (E.18).
 
 **Title:** gen_tcp:listen/2 silently takes the {backlog, N} option modulo 65536, so 65536 listens with a backlog of 0
 
@@ -980,7 +980,7 @@ OTP 29, erts 17.1.1, on Linux x86_64.
 
 ## 21. `string:prefix/2` disagrees with `string:to_graphemes/1` on where a prefix may end
 
-Not filed. Found on 2026-11-10 by the release review's bench (the log's *The Release Review Before 0.10.0*); Ernest keeps `String.stripPrefix` in Ernest over its own graphemes (E.5).
+Filed 2026-11-15 as [erlang/otp#12223](https://github.com/erlang/otp/issues/12223). Found on 2026-11-10 by the release review's bench (the log's *The Release Review Before 0.10.0*); Ernest keeps `String.stripPrefix` in Ernest over its own graphemes (E.5).
 
 **Title:** string:prefix/2 answers nomatch for a prefix that is a whole grapheme cluster, and matches a prefix that ends inside one
 

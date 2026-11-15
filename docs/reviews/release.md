@@ -37,5 +37,6 @@ What a release runs to be ready, and nothing else. Between releases an item that
    - that until 1.0 a release may refuse a program the previous release accepted, and that the release's report is what holds;
    - the report's diff between the last release's tag and this one's, `git diff v0.2.0 v0.3.0 -- report/` for 0.3.0;
    - and what changed, one line a change naming the report's section or Appendix E's entry where it is read, and nothing else.
+6. **OTP's release notes and the issues' states**, read beside the machines, before the findings are made: the notes of each OTP release since the last review, and each issue's state on OTP's tracker, against the issue numbers in [`otp_bugs.md`](../otp_bugs.md). A defect OTP has fixed is a finding: its report's first line names the release that fixes it, and the report goes, with the code that meets the defect, once Ernest requires that release. An issue closed with no fix keeps its report, its first line saying so, since Ernest still meets the defect.
 
 **The models.** The readers run as [`full.md`](full.md)'s *The models* says, and the machines need none. Of the findings, a design question or a sentence of the report is the session's, and a named fix an agent's. The release itself the session runs.
