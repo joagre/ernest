@@ -71,12 +71,16 @@ start() ->
     %% report §12.5, §11.2: the lines a node's gateway or its checks said
     %% since its last launch's end are written before the job ends
     ok = ern_rt:wait_for_later(),
-    case ern_signals:ended() of
-        none -> ok;
-        Signal -> ern_signals:die(Signal, Status)
-    end,
-    ok = ern_out:finish(ErrorDevice),
-    halt(Status).
+    %% report §11.8: the job's streams written out before it ends, whatever
+    %% ends it, so that what it said last, a shell's line of its end among
+    %% it, is not lost to the signal it sends itself; the signal that ended
+    %% the program stands over a stream found gone as the end waited (§8.6)
+    Gone = ern_out:finish(ErrorDevice),
+    case {ern_signals:ended(), Gone} of
+        {none, []} -> halt(Status);
+        {none, [Stream | _]} -> ern_out:end_job(Stream);
+        {Signal, _} -> ern_signals:die(Signal, Status)
+    end.
 
 %% Report §12.5, §11.8: a node's dial from a full table of processes ends
 %% the host, which writes its line and exits with status 1 once its kernel

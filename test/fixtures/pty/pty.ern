@@ -19,10 +19,12 @@
 //     resize:RxC    give the terminal a new size, as a window manager does
 //     put:PATH      open the named pipe PATH for writing and close it,
 //                   once the program has opened it for reading, which ends
-//                   the read of it that the program waits in
+//                   the read of it that the program waits in; met where
+//                   the pipe was opened, though the program ended first
 //     hangup        hang the terminal up, as closing its window does: the
 //                   program's read of it ends, and it is sent the hangup,
-//                   nothing it writes after arriving
+//                   nothing it writes after arriving; met once the
+//                   terminal is hung up
 //
 // Each wait is bounded by MS milliseconds of its own, the caller's time for
 // one wait, so that a wait that fails is told by its own bound: an expect met
@@ -41,7 +43,14 @@
 // harness waits on, a write, a put or the time; the harness waits in a
 // `receive` whose `after` is what is left of the wait in progress. A put
 // runs `sh` in a process of its own, whose open of the pipe waits until the
-// program has opened it, and which says how the open went.
+// program has opened it, and which says how the open went. Its answer and
+// the program's end come by two ways, and the put may be what ends the
+// program, so the end does not decide the put.
+//
+// A hangup is a message to the program's process, which hangs the terminal
+// up as it takes it (Appendix E.23), so the step that follows could reach
+// the program first. The step waits for a write after the hangup, which
+// that process takes after it and answers that the input is closed.
 //
 
 type Step = Expect(Bytes) | Send(Bytes) | Resize(Terminal.Size) | Put(String) | Hangup
@@ -243,8 +252,17 @@ fn take(run : Run, step : Step) : Stepped receiving HarnessMsg =
         }
       | Hangup -> {
             Os.closeInput(run.program);
-            Met(run)
+            hungUp(run)
         }
+    }
+
+// Report Appendix E.23: the hangup made, which a write of nothing after it
+// shows: the program's process takes the write once it has hung the
+// terminal up, and answers `Left(Closed)`, the input it would take gone.
+fn hungUp(run : Run) : Stepped =
+    match Os.write(run.program, <<>>, remaining(run)) {
+        Left(Io.Closed) -> Met(run)
+      | _ -> Unmet(run)
     }
 
 // An expect: the text found after the cursor, which moves past it, and the
@@ -264,8 +282,9 @@ fn awaitText(run : Run, text : Bytes) : Stepped receiving HarnessMsg =
     }
 
 // A put: the answer of its process, each piece the program writes taken
-// meanwhile; the process is killed, and its `sh` with it, where the
-// program ends or the wait does first.
+// meanwhile, and its exit status where it ends first, since the put may
+// have ended it; the process is killed, and its `sh` with it, where the
+// wait ends first.
 fn awaitPut(run : Run, putter : Address(Never)) : Stepped receiving HarnessMsg =
     receive {
         Opened ->
@@ -274,10 +293,8 @@ fn awaitPut(run : Run, putter : Address(Never)) : Stepped receiving HarnessMsg =
             Unmet(run)
       | Wrote(bytes) ->
             awaitPut(Run(..run, screen = shown(run.screen, bytes)), putter)
-      | Ended(status) -> {
-            kill(Process.fromAddress(putter));
-            Unmet(Run(..run, status = Some(status)))
-        }
+      | Ended(status) ->
+            awaitPut(Run(..run, status = Some(status)), putter)
       | Unread(error) ->
             failRead(error)
       | after remaining(run) -> {

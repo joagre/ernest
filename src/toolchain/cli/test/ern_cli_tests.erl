@@ -4501,7 +4501,7 @@ logged_at_a_full_table_test() ->
            "Refs = [begin R = monitor(process, P), P ! stop, R end || P <- Held], "
            "[receive {'DOWN', R, _, _, _} -> ok end || R <- Refs], "
            "logger:warning(\"after it\"), ok = ern_rt:wait_for_later(), "
-           "ok = ern_out:finish(ErrorDevice), halt(0).",
+           "[] = ern_out:finish(ErrorDevice), halt(0).",
     Host = open_port({spawn_executable, filename:join([code:root_dir(), "bin", "erl"])},
                      [{args, ["-noshell", "-noinput", "+P", "1024" | Paths] ++ ["-eval", Logs]},
                       {env, [{"ERL_CRASH_DUMP_SECONDS", "0"}]}, binary, stderr_to_stdout,
@@ -4510,6 +4510,50 @@ logged_at_a_full_table_test() ->
     ?assertEqual({0, [<<"at a full table">>, <<"after it">>]},
                  {Status, [Line || Line <- binary:split(Written, <<"\n">>, [global]),
                                    lists:member(Line, [<<"at a full table">>, <<"after it">>])]}).
+
+%% report §11.8, §8.6: a job's streams are written out before it ends, each
+%% whatever the other's state, and the signal that ended the job stands over
+%% a stream found gone as its end waited. A host of its own takes its streams
+%% as a job does (ern_out:take/0), its standard output a pipe whose reader
+%% has gone and its standard error a file. It says a line on standard error,
+%% writes one on standard output, whose device is held until the end's wait
+%% on it is in its mailbox (ern_out:finish/1), and ends by a signal. The line
+%% is written, the wait answers that standard output has gone, and the status
+%% is the signal's.
+%%
+%% A regression test, written after the code: the end sent its signal before
+%% the streams were written out, and a stream found gone ended the job before
+%% the other was, so a shell's line of its end could be lost to the hangup.
+%% It forces the order the race made. It does not cover the loss itself,
+%% which the host's writer thread makes a race, nor ern_cli:start/0's end,
+%% which the terminal tests hold.
+finished_beside_a_gone_stream_test() ->
+    Dir = tmp(),
+    Pipe = filename:join(Dir, "out.pipe"),
+    "" = os:cmd("mkfifo " ++ Pipe),
+    Err = filename:join(Dir, "err"),
+    Paths = lists:append([["-pa", filename:dirname(code:which(Module))]
+                          || Module <- [ern_out, ern_rt, ern_tty, ern_cli, ern_os, ern_signals]]),
+    Ends = "ErrorDevice = ern_out:take(), Out = group_leader(), "
+           "ok = io:put_chars(ErrorDevice, <<\"said\\n\">>), "
+           "true = erlang:suspend_process(Out), "
+           "Out ! {io_request, self(), written, {put_chars, latin1, <<\"lost\\n\">>}}, "
+           "1 = erlang:trace(Out, true, ['receive', {tracer, self()}]), Self = self(), "
+           "spawn(fun() -> Self ! {finished, ern_out:finish(ErrorDevice)} end), "
+           "receive {trace, Out, 'receive', {finish, _, _}} -> ok end, "
+           "true = erlang:resume_process(Out), "
+           "[stdout] = receive {finished, Gone} -> Gone end, "
+           "ern_signals:die(sigterm, 143).",
+    %% The pipe is opened for reading and writing, standard output on it, and
+    %% the reading end closed, so the host's first write finds no reader.
+    Opened = "exec 3<>\"$1\" >\"$1\" 2>\"$2\" 3<&-; shift 2; exec \"$@\"",
+    Host = open_port({spawn_executable, "/bin/sh"},
+                     [{args, ["-c", Opened, "sh", Pipe, Err,
+                              filename:join([code:root_dir(), "bin", "erl"]),
+                              "-noshell", "-noinput" | Paths] ++ ["-eval", Ends]},
+                      {env, [{"ERL_CRASH_DUMP_SECONDS", "0"}]}, binary, exit_status]),
+    {Status, _} = host_written(Host, <<>>),
+    ?assertEqual({143, {ok, <<"said\n">>}}, {Status, file:read_file(Err)}).
 
 %% What a host of its own wrote on its standard output and its standard
 %% error, and the status it ended with.

@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 40**, the first of its flakes.
+**The next item is MVP 4.16's item 62**, the first of its flakes.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,29 +43,16 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, the most often seen first, items 40, 62, 51, 57, 59, 58, 61, 64 and 63, one
-at a time; what the builds found, items 35 and 36; and what needs the user, items 60 and 39.
-Items 65 and 66, each seen once in item 32's hunt, follow item 63. The items stand below in that
-order.
+left*): the flakes, the most often seen first, items 62, 51, 57, 59, 58, 61, 64 and 63, one
+at a time; what the builds found, items 35 and 36; and what needs the user, items 60, 68 and 39.
+Items 65 and 66, each seen once in item 32's hunt, follow item 63, and item 67 is hunted again
+only where it shows again. The items stand below in that order.
 
 A flake seen once or twice is hunted to a bound its brief states, and one that does not show
 within it is reported as not found, its line kept. Of each flake below the cause is not found.
 An agent finds it under the load the item names, and fixes at the cause the test or what the
 item names beside it.
 
-- **40. `log_terminal_gone_test_` and three tests beside it**, under the full run's load; the
-  test or the runner. The agent takes the four as one flake until it finds otherwise.
-  - Seen 2026-11-14 once in three runs of `make test-full`, item 5's: the terminal harness
-    found `log_terminal_gone_test_`'s `put` unmet, the write to the test's FIFO after the
-    hangup. The test runs where there is no manifest (the log's *The Root Package Read*).
-  - Seen 2026-11-14 over item 6's runs, each once: `write_terminal_gone`,
-    `shell_write_terminal_gone` and `shell_reload_terminal_gone` ended with the status 0 where
-    129 was expected, their output whole (the log's *The Named Packages Built*).
-  - Seen twice more 2026-11-15 in item 11's runs, in `shell_write_terminal_gone`: under
-    `make test-full` its line `the shell ends: its terminal is gone` was not said, and under
-    `make test-shell` its `put` was unmet. The area passed in three runs after.
-  - Seen once more 2026-11-15 under `make test-full`, item 24's run, in
-    `shell_write_terminal_gone`, its line not said.
 - **62. `signal_jobs_take_any_mode_test`**, under `make flakes`; the test or the job. Seen
   2026-11-15 in each of item 24's five hunts, with loops and without, in 1 to 7 rounds of an
   hour: `ern_cli_tests` read `{held, Pid}` where it expects `locked`. In two hunts it was also
@@ -93,7 +80,8 @@ item names beside it.
 - **61. `load_beside_a_module_hiding_a_library`**, under the shell area's load; the test or
   the shell. Seen 2026-11-15 once under `make test-shell`, item 11's run, beside item 40's:
   the shell's output did not hold `"mine" : String` and the line that names the hiding module
-  after it. It passed in three runs after.
+  after it. It passed in three runs after. Seen again 2026-11-15 in 2 of 12 runs of
+  `make test-shell` before item 40's change, and in none of 13 after it.
 - **64. `ern_os_tests:terminal_test`**, under `make flakes`; the test or `Os`. Seen 2026-11-15
   in rounds 64 and 138 of a host's 197, in item 24's hunt with no loops: the output did not
   hold `exit 3\r\n`.
@@ -107,6 +95,10 @@ item names beside it.
 - **66. `write_holds_up_no_read`**, under `make flakes`; the test or `Tcp`. Seen 2026-11-15
   once in item 32's hunt beside 15 loops, in a host's round 115: `ern_tcp_tests`' `run_main`
   answered the fault `deadlock` where the test expects `ok`.
+- **67. `shell_reload_terminal_gone` ended with the status 0**, not found. Seen 2026-11-14
+  once over item 6's runs, where 129 was expected, its output whole. Item 40's hunt did not
+  meet it in 2,304 runs, 96 at once, and none of that item's three causes reaches it, since
+  no step follows its hangup (the log's *The Shell's Last Line*).
 - **35. A compiled module's dependency that has only a source**, found 2026-11-13 by item 26's
   build: `:load Main`, taken from `main.erc`, answers `no module Util on the load path`
   where the source root holds `util.ern` and no `util.erc`, and a `:load Util` takes that
@@ -123,7 +115,20 @@ item names beside it.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
-  user with a recommendation (the log's *The Flake Hunt*).
+  user with a recommendation (the log's *The Flake Hunt*). Feedback 258, `Os.closeInput`
+  saying nothing of when the hangup is made, found by item 40's read-back, is decided with
+  them (the log's *The Shell's Last Line*).
+- **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
+  diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
+  a job outside a run at once, and so does the host's termination or hangup (§11). Neither
+  end writes the other stream out, and the host writes a stream from a thread of its own, so
+  a line the job has said on standard error may be lost where its standard output's reader
+  has gone. That is read from the code, and the item first runs a program that shows it.
+
+  Decided with the user: whether an end at once writes out what the other stream took.
+  Recommended: it does where a stream has gone, as the job's own end does since item 40,
+  and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
+  hold a termination.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
@@ -186,6 +191,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 34 | Regression tests of the sentences item 29 stated | 2026-11-14 | [`development.md`](development.md)'s *Building*; *The Sentences Held by Tests* |
 | 37 | The library's functions written in a program; the applications lose no function to the library | 2026-11-15 | E.14; *A Library's Function in a Program*, *The Sweep's Reading* |
 | 38 | ern(1) written again after `make doc` | 2026-11-15 | §11.4; *What the Toolchain's Page Is Made From* |
+| 40 | The flake of `log_terminal_gone_test_` and three tests beside it | 2026-11-15 | §11.8, §8.6, E.23; *The Shell's Last Line* |
 | 41 | An independent reading of item 6's commit, `f9c5b972` | 2026-11-14 | *The Named Packages Read* |
 | 42 | The round of the reading's findings | 2026-11-14 | *The Reading's Round* |
 | 44 | A reading of `CLAUDE.md` for rules that contradict or repeat each other, with the user | 2026-11-15 | *The Rules Read Against Each Other* |

@@ -15,10 +15,10 @@
 %% own lines go (log/2).
 -module(ern_out).
 
--export([take/0, logged/0, log/2, is_terminal/1, finish/1]).
+-export([take/0, logged/0, log/2, is_terminal/1, finish/1, end_job/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({own_process, [finish/1, loop/2, dropping/1]}).
+-receives({own_process, [finished/1, loop/2, dropping/1]}).
 
 %% Standard output becomes the calling process's group leader, which the
 %% processes it starts inherit; the answer is standard error's device. Which
@@ -91,20 +91,27 @@ log(Event, #{formatter := {Formatter, Config}}) ->
 is_terminal(Stream) ->
     lists:member(Stream, persistent_term:get({?MODULE, terminals}, [])).
 
-%% The job's streams written out before `ern` ends, standard output's and
-%% the device given; where one can no longer be written, `ern` ends there.
--spec finish(pid() | atom()) -> ok.
+%% Report §11.8: the job's streams written out before `ern` ends, standard
+%% output's and the device given, each whatever the other's state, so that
+%% what one took is written though the other has gone; the answer is the
+%% streams that could no longer be written, standard output's first, which
+%% the job's end then ends by (end_job/1). The host writes each stream from
+%% a thread of its own, so a write a device has answered may not be written
+%% yet, and a signal the job sends itself loses what is not.
+-spec finish(pid() | atom()) -> [stdout | stderr].
 finish(ErrorDevice) when is_pid(ErrorDevice) ->
-    lists:foreach(fun(Device) ->
-                      MonitorRef = erlang:monitor(process, Device),
-                      Device ! {finish, self(), MonitorRef},
-                      receive
-                          {MonitorRef, finished} -> erlang:demonitor(MonitorRef, [flush]);
-                          {'DOWN', MonitorRef, process, _, _} -> ok
-                      end
-                  end, [group_leader(), ErrorDevice]);
+    [Stream || {Stream, Device} <- [{stdout, group_leader()}, {stderr, ErrorDevice}],
+               finished(Device) =:= gone];
 finish(_) ->
-    ok.
+    [].
+
+finished(Device) ->
+    MonitorRef = erlang:monitor(process, Device),
+    Device ! {finish, self(), MonitorRef},
+    receive
+        {MonitorRef, Finished} -> erlang:demonitor(MonitorRef, [flush]), Finished;
+        {'DOWN', MonitorRef, process, _, _} -> finished
+    end.
 
 %% A device writes each request in the encoding the request names: text as
 %% UTF-8, and Latin-1, the bytes file:write gives, as they are. So it keeps
@@ -142,7 +149,8 @@ loop(Port, Stream) ->
                     From ! {Ref, finished},
                     loop(Port, Stream);
                 gone ->
-                    end_job(Stream)
+                    From ! {Ref, gone},
+                    dropping(Stream)
             end;
         {'EXIT', Port, _} ->
             told(Stream),
@@ -194,7 +202,8 @@ told(Stream) ->
 %% Report §8.6: what is written to a stream that has gone is dropped, and
 %% every request but getopts is answered ok, a setting among them, so that
 %% no caller waits or faults for a stream that ended; and the job's end
-%% finds it gone, which ends the job by it in place of what ended it.
+%% finds it gone, which ends the job by it in place of what ended it
+%% (finish/1).
 dropping(Stream) ->
     receive
         {io_request, From, ReplyAs, getopts} ->
@@ -203,8 +212,9 @@ dropping(Stream) ->
         {io_request, From, ReplyAs, _} ->
             From ! {io_reply, ReplyAs, ok},
             dropping(Stream);
-        {finish, _, _} ->
-            end_job(Stream);
+        {finish, From, Ref} ->
+            From ! {Ref, gone},
+            dropping(Stream);
         _ ->
             dropping(Stream)
     end.
