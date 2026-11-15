@@ -24,22 +24,17 @@
 %% milliseconds since the epoch; and the directory each round's directory
 %% stands in, ERN_FLAKES_ROUNDS.
 %%
-%% Each round begins in the directory the hunt began in, as a run begins in
-%% the repository's root, since a test ended at its limit may leave the
-%% host in a directory of its own. The part's file is Part.txt in the
-%% records' directory, and each round's seconds are a line of Part.rounds
-%% there. A directory a round's tests leave that cannot be removed is a
-%% record of its own.
+%% The part's file is Part.txt in the records' directory, and each round's
+%% seconds are a line of Part.rounds there. A directory a round's tests
+%% leave that cannot be removed is a record of its own.
 -spec hunt([term()]) -> 0.
 hunt(Tests) ->
-    {ok, Cwd} = file:get_cwd(),
     Until = list_to_integer(os:getenv("ERN_FLAKES_UNTIL")),
     hunt(Tests, Until, #{part => os:getenv("ERN_FLAKES_PART"),
                          records => os:getenv("ERN_FLAKES_RECORDS"),
-                         rounds => os:getenv("ERN_FLAKES_ROUNDS"), cwd => Cwd}, 1).
+                         rounds => os:getenv("ERN_FLAKES_ROUNDS")}, 1).
 
-hunt(Tests, Until, #{part := Part, records := Records, rounds := Rounds, cwd := Cwd} = Hunt,
-     Round) ->
+hunt(Tests, Until, #{part := Part, records := Records, rounds := Rounds} = Hunt, Round) ->
     case os:system_time(millisecond) >= Until of
         true ->
             0;
@@ -47,7 +42,6 @@ hunt(Tests, Until, #{part := Part, records := Records, rounds := Rounds, cwd := 
             Start = erlang:monotonic_time(second),
             File = filename:join(Records, Part ++ ".txt"),
             Dir = filename:join(Rounds, Part ++ "." ++ integer_to_list(Round)),
-            ok = file:set_cwd(Cwd),
             ok = file:make_dir(Dir),
             true = os:putenv("ERN_TEST_DIR", Dir),
             _ = round(Tests, Round, Part, File),
@@ -95,16 +89,16 @@ handle_end(test, Data, Options) ->
 handle_end(group, _, Options) ->
     Options.
 
-%% A group is canceled with no reason where its tests were skipped, each
-%% told of on its own, and with a test's blame where that test was canceled:
-%% EUnit then runs none of the group's tests after it and counts them
-%% nowhere, the round being one group, so the record says so. Any other
-%% cancel of a group is its own record.
+%% A group is canceled with no reason where its tests were skipped, and with
+%% a test's blame where that test was canceled, each test told of on its
+%% own: the group blamed is the canceled test's alone (ern_eunit), or a
+%% generator's, whose tests after it EUnit runs none of, which the canceled
+%% test's record stands for. Any other cancel of a group is its own record.
 -spec handle_cancel(group | test, list(), map()) -> map().
 handle_cancel(group, Data, Options) ->
     case proplists:get_value(reason, Data) of
         undefined -> Options;
-        {blame, _} -> unrun(Options, Data);
+        {blame, _} -> Options;
         Reason -> told(Options, Data, "canceled", io_lib:format("~tp", [Reason]))
     end;
 handle_cancel(test, Data, Options) ->
@@ -122,12 +116,6 @@ told(#{round := Round, part := Part, file := File} = Options, Data, What, Reason
                  Written -> Written
              end,
     written(File, Part, Round, [Name, " ", What], [Reason, "\n-- what it wrote:\n"], Output),
-    Options.
-
-unrun(#{round := Round, part := Part, file := File} = Options, Data) ->
-    Header = [name(Data), " did not run its tests after the canceled one"],
-    io:format("make flakes: ~ts, round ~B: ~ts~n", [Part, Round, Header]),
-    written(File, Part, Round, Header, "", ""),
     Options.
 
 %% A record of the part's file: a line that names the part, the round and

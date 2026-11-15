@@ -68,11 +68,11 @@ Items 30, 29, 31, 33, 26 to 28 and 34 came first, decided with the user on 2026-
 log's *A Reading by Decisions*), and are done. Items 5, 6, 41, 42, 45 and 46 followed.
 
 What is left is small, and each item stands alone: the flakes, items 32, 40, 51, 57 to
-59 and 61 to 64; what the builds found, items 35, 36, 38 and 56; what item 11 left to decide, item
+59 and 61 to 64; what the builds found, items 35, 36 and 38; what item 11 left to decide, item
 60; and item 39, before MVP 4.4's item 4.
 
-Their order, decided with the user on 2026-11-15: items 56 and 38 first, which make a check
-say less than it found; the flakes, the most often seen first, items 32, 40, 62, 51, 57, 59, 58,
+Their order, decided with the user on 2026-11-15: item 38 first, which makes a check say
+less than it found, as item 56 did before it; the flakes, the most often seen first, items 32, 40, 62, 51, 57, 59, 58,
 61, 64 and 63, one at a time; the builds, items 35 and 36; and what needs the user, items 60 and
 39. A flake seen once or twice is hunted to a bound its brief states, and one that does not show
 within it is reported as not found, its line kept.
@@ -256,15 +256,9 @@ Item 43 is MVP 4.17's.
     where the agent looks first.
 55. **A reading of `CLAUDE.md` for clarity**, with the user, done 2026-11-15 (the log's *The
     Rules Read for Clarity*).
-56. **A test canceled at its limit ends its host's later tests**, found 2026-11-15 by item
-    11's build. `make test` gives EUnit a part's tests as one list, which one process runs,
-    and EUnit ends that process at a test's time limit. The tests after it do not run and
-    are counted nowhere: the run says `Passed: N` short of the part's count, with the status
-    1. A test ended so inside `file:set_cwd` leaves the host in its own directory.
-
-    An agent builds it: a limit ends its own test alone, the host's working directory is
-    the run's again before the next test, and the hunt's record of a round cut short goes
-    (the log's *The Flake Hunt*).
+56. **A test canceled at its limit ends its host's later tests**, done 2026-11-15. Decided in
+    the item: the promise is a test function's, so a limit inside a generator still ends
+    that generator's tests after it (the log's *A Limit Ends Its Own Test*).
 57. **The flakes of `ern_supervisor_tests`**, seen 2026-11-15 in item 11's hunts beside 15
     loops, each once. `limit_reports_only_real_faults_test` wrote `division by zero` where it
     expects that twice and `supervisor restart limit reached`, in a host's second round.

@@ -1,38 +1,90 @@
 %% The flake hunt: its host (ern_flakes), which tools/flakes.ern starts for
-%% each part of the split suites, and the program, over hosts that stand
-%% in for the real ones.
+%% each part of the split suites, with the tests make test gives it, each
+%% alone (ern_eunit), and the program, over hosts that stand in for the
+%% real ones.
 -module(ern_flakes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% docs/development.md "Building", `make flakes`: a round writes each test
-%% that fails to the part's file with its name, its reason and what it
-%% wrote, each canceled at its time limit with its name and its reason, then
-%% that the round ran none of its tests after that one, and nothing of a
-%% test that passes. A regression test, written after the code; it does not
-%% cover the rounds of hunt/1, which the program's test does not run either.
+%% docs/development.md "Building", `make flakes`: a round of the tests of a
+%% module, each alone, writes each test that fails to the part's file with
+%% its name, its reason and what it wrote, and the one canceled at its time
+%% limit with its name and its reason, and nothing of a test that passes.
+%% The limit ends its own test alone: the test after it runs, is counted, as
+%% its failure's record shows, and begins in the run's directory, though
+%% the canceled one was ended in another. A regression test, written after
+%% the code; it does not cover the rounds of hunt/1, which the program's
+%% test does not run either, nor a generator that answers several tests,
+%% whose tests after a canceled one still do not run.
 round_writes_what_did_not_pass_test() ->
-    File = filename:join(os:getenv("ERN_TEST_DIR"), "flakes-round.txt"),
-    Tests = [{"says and fails", fun() -> io:format("said before failing~n"), error(broken) end},
-             {"passes", fun() -> io:format("said by the passing one~n") end},
-             %% waits for a message no one sends, which its limit ends
-             {timeout, 0.1, {"passes its limit", fun() -> receive never -> ok end end}}],
-    ?assertEqual(error, ern_flakes:round(Tests, 7, "emitter-1", File)),
+    Dir = os:getenv("ERN_TEST_DIR"),
+    File = filename:join(Dir, "flakes-round.txt"),
+    {ok, Cwd} = file:get_cwd(),
+    Module = loaded(ern_flakes_round, [
+        "says_and_fails_test() -> io:format(\"said before failing~n\"), error(broken).",
+        "passes_test() -> io:format(\"said by the passing one~n\").",
+        %% waits for a message no one sends, which its limit ends
+        io_lib:format("passes_its_limit_test_() -> {timeout, 0.1, {\"passes its limit\","
+                      " fun() -> ok = file:set_cwd(~p), receive never -> ok end end}}.", [Dir]),
+        io_lib:format("runs_after_the_limit_test() ->"
+                      " error({began_in_the_runs_directory, file:get_cwd() =:= {ok, ~p}}).",
+                      [Cwd])]),
+    try
+        ?assertEqual(error, ern_flakes:round(ern_eunit:alone([Module]), 7, "emitter-1", File))
+    after
+        ok = file:set_cwd(Cwd),
+        unloaded(Module)
+    end,
     {ok, Text} = file:read_file(File),
     Records = [Record || Record <- binary:split(Text, <<"\n== ">>, [global]), Record =/= <<>>],
     ?assertMatch([<<"== emitter-1, round 7: ", _/binary>>, _, _], Records),
-    [Failed, Canceled, Unrun] = Records,
-    ?assertMatch({match, _}, re:run(Failed, "^== emitter-1, round 7: ern_flakes_tests:\\S+"
-                                    " \"says and fails\" failed\n")),
+    [Failed, Canceled, After] = Records,
+    ?assertMatch({match, _}, re:run(Failed, "^== emitter-1, round 7: ern_flakes_round:"
+                                    "says_and_fails_test/0 failed\n")),
     ?assertMatch({_, _}, binary:match(Failed, <<"broken">>)),
     ?assertMatch({_, _}, binary:match(Failed, <<"said before failing">>)),
-    ?assertMatch({match, _}, re:run(Canceled, "^emitter-1, round 7: ern_flakes_tests:\\S+"
+    ?assertMatch({match, _}, re:run(Canceled, "^emitter-1, round 7: ern_flakes_round:\\S+"
                                     " \"passes its limit\" canceled\n")),
     ?assertMatch({_, _}, binary:match(Canceled, <<"timeout">>)),
-    ?assertMatch(<<"emitter-1, round 7: the round did not run its tests after the canceled one\n",
-                   _/binary>>, Unrun),
-    ?assertEqual(nomatch, binary:match(Text, <<"passes\"">>)),
+    ?assertMatch({match, _}, re:run(After, "^emitter-1, round 7: ern_flakes_round:"
+                                    "runs_after_the_limit_test/0 failed\n")),
+    ?assertMatch({_, _}, binary:match(After, <<"{began_in_the_runs_directory,true}">>)),
+    ?assertEqual(nomatch, binary:match(Text, <<"passes_test">>)),
     ?assertEqual(nomatch, binary:match(Text, <<"said by the passing one">>)).
+
+%% docs/development.md "Building": the tests make test gives a host are
+%% each test function of its modules, in the order each module exports
+%% them, a function whose name ends in `_test_` a generator, and no other
+%% function. A regression test, written after the code.
+alone_takes_each_test_function_test() ->
+    Module = loaded(ern_flakes_listed, [
+        "second_test() -> ok.", "first_test_() -> [].", "helper() -> ok.",
+        "helper_test(_) -> ok."]),
+    try
+        ?assertMatch([{setup, spawn, _, {Module, second_test}},
+                      {setup, spawn, _, {generator, Module, first_test_}}],
+                     ern_eunit:alone([Module]))
+    after
+        unloaded(Module)
+    end.
+
+%% Module compiled from Lines, each a form, every function of no argument
+%% exported, and loaded; it is purged once the test ends, since the hunt
+%% runs the test again in the same host.
+loaded(Module, Lines) ->
+    Source = [io_lib:format("-module(~w).~n-compile([export_all, nowarn_export_all]).~n",
+                            [Module]) | [[Line, "\n"] || Line <- Lines]],
+    File = filename:join(os:getenv("ERN_TEST_DIR"), atom_to_list(Module) ++ ".erl"),
+    ok = file:write_file(File, Source),
+    {ok, Module, Binary} = compile:file(File, [binary, report]),
+    {module, Module} = code:load_binary(Module, File, Binary),
+    Module.
+
+unloaded(Module) ->
+    _ = code:purge(Module),
+    true = code:delete(Module),
+    _ = code:purge(Module),
+    ok.
 
 %% docs/development.md "Building", `make flakes`, tools/flakes.ern: the
 %% program refuses a MINUTES that is not a positive whole number and a

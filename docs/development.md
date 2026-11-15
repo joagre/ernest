@@ -436,7 +436,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 
 Which programs the tests compile and run is [`architecture.md`](architecture.md)'s *Tests*.
 
-One root's test module runs alone as the suite runs it: its test beam by `make -s build/shared/test/ern_chunk_tests.beam`, then, from the repository's root, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa build/*/ebin build/toolchain/*/ebin build/runtime/test build/shared/test -eval 'eunit:test(ern_chunk_tests, [])' -s init stop`. A whole `make test-full` takes about ten minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
+One root's test module runs alone as the suite runs it, each test in a process of its own, begun in the run's directory (`ern_eunit`): its test beam and that module's by `make -s build/shared/test/ern_chunk_tests.beam build/runtime/test/ern_eunit.beam`, then, from the repository's root, `ERN_TEST_DIR=$(mktemp -d) erl -noshell -pa build/*/ebin build/toolchain/*/ebin build/runtime/test build/shared/test -eval 'eunit:test(ern_eunit:alone([ern_chunk_tests]), [])' -s init stop`. A whole `make test-full` takes about ten minutes: run it with its output in a file, and read the file for "timed out" and for EUnit's word for a canceled test, which it spells the British way, beside "failed", since EUnit prints `Failed: 0` beside a canceled test.
 
 ## Using
 

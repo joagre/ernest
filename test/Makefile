@@ -53,20 +53,32 @@ BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) 
 	  $(DEPLOYMENT) $(TOUR) $(MANUAL) $(INSTALL) $(DOCS) $(XREF) $(GUIDE) $(SITE) $(SITE_SHELL) \
 	  $(BROWSER) $(GRAMMAR) ern_grammar \
 	  $(TYPED) \
-	  $(SHELL_TESTS) ern_pty ern_repository ern_measure)
+	  $(SHELL_TESTS) ern_pty ern_repository ern_measure) $(ALONE)
+
+# ern_eunit, by which EUNIT runs each test alone, a module of the runtime's
+# tests, compiled by the repository's one rule where its source is newer.
+ALONE = ../build/runtime/test/ern_eunit.beam
+$(ALONE): ../src/runtime/test/ern_eunit.erl ../VERSION
+	@$(MAKE) -s -C .. build/runtime/test/ern_eunit.beam
 
 # A host with the toolchain and the modules here on its code path, which
 # reads no input: the loads' runs and the bench's.
 HOST = erl -noinput $(CODE_PATH) -pa $(EBIN)
 
-# Run the EUnit modules $(1), with the toolchain on the code path.
+# Run the EUnit modules $(1), with the toolchain on the code path, each
+# test alone (ern_eunit), so that one ended at its time limit ends no other
+# and the next begins in the run's directory.
 EUNIT = erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
-	  'halt(case eunit:test([$(subst $(space),$(comma) ,$(strip $(1)))]) of ok -> 0; _ -> 1 end).'
+	  'halt(case eunit:test(ern_eunit:alone([$(subst $(space),$(comma) ,$(strip $(1)))])) of \
+	  ok -> 0; _ -> 1 end).'
 comma := ,
 space := $(subst ,, )
 
 # The same, each module's tests side by side, as many at once as the host
 # has schedulers, for the areas whose tests each start a host of their own.
+# EUnit runs each of their tests in a process of its own, a generator's
+# among them, so that a limit ends its own test alone; they share the
+# host's directory, which none of them changes.
 EUNIT_SIDE_BY_SIDE = erl -noshell $(CODE_PATH) -pa $(EBIN) \
 	  -eval 'N = erlang:system_info(schedulers_online), \
 	  Ms = [$(subst $(space),$(comma) ,$(strip $(1)))], \
@@ -273,7 +285,7 @@ load: $(EBIN)/ern_load.beam measured named
 # the user's systemd on Linux and launchd on macOS (ern_service_tests.erl);
 # not part of `make test-full`, which a host without a service manager runs
 # too, and run before every release (docs/reviews/release.md).
-service: measured
+service: measured $(ALONE)
 	$(call EUNIT,ern_service_tests)
 
 # The benchmark, in parts, each run alone by a target of its own,

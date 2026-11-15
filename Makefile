@@ -352,19 +352,16 @@ endif
 
 # The tests of the root $(1), every $(2)nd from the $(3)th, bound to Mine,
 # each module's found in its test directory, so that make test can run one
-# root's in several hosts at once, and the host they run in. A unit of the
+# root's in several hosts at once, and the host they run in. Each test runs
+# alone (ern_eunit), so that one ended at its time limit ends no other and
+# the next begins in the run's directory. A unit of the
 # standard library, the shell or a library the shell is compiled against is
 # loaded from its .erc by namespace (ern_code:ensure_loaded/1). A test makes
 # what it needs under one directory of the run's own, ERN_TEST_DIR, which is
 # removed when the run ends, whatever its outcome.
 UNIT_TESTS = Modules = [list_to_atom(filename:basename(File, ".beam")) \
 	           || File <- lists:sort(filelib:wildcard("build/$(1)/test/*_tests.beam"))], \
-	Tests = [case lists:suffix("_test_", atom_to_list(Function)) of \
-	             true -> {generator, Module, Function}; false -> {Module, Function} end \
-	         || Module <- Modules, {Function, 0} <- Module:module_info(exports), \
-	            lists:suffix("_test", atom_to_list(Function)) \
-	            orelse lists:suffix("_test_", atom_to_list(Function))], \
-	Mine = [Test || {Index, Test} <- lists:enumerate(0, Tests), \
+	Mine = [Test || {Index, Test} <- lists:enumerate(0, ern_eunit:alone(Modules)), \
 	                Index rem $(2) =:= $(3)]
 UNIT_HOST = erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
 	-pa $(CURDIR)/build/$(1) -pa $(CURDIR)/build/$(1)/test
