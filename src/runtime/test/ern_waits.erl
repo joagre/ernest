@@ -2,13 +2,15 @@
 %% (CLAUDE.md, *No fixed sleep*): a process in a state, blocked in a receive
 %% or in a call, or watching another or no longer, among them, a process
 %% having called a function or returned from it, the runtime's reaper
-%% having looked for a deadlock, and the deliveries to a process having
-%% ended. All but the last read what the host reports of a process by
-%% tracing it, and stop tracing when they return.
+%% having looked for a deadlock, the deliveries to a process having
+%% delivered, and processes having ended. All but the last two read what
+%% the host reports of a process by tracing it, and stop tracing when they
+%% return.
 -module(ern_waits).
 
 -export([until/2, waiting/1, running/1, calling/1, watching/2, unwatched/2, called/3,
-         returned/3, looked/1, delivered/1, forever/0, with_room/1, freed/2, references/2]).
+         returned/3, looked/1, delivered/1, ended/1, forever/0, with_room/1, freed/2,
+         references/2]).
 
 %% What Work answers, every process it starts given a heap with room. The
 %% host collects a process when its heap fills, which a new process's small
@@ -209,16 +211,21 @@ looked(Count) ->
     called(ern_rt:launch_reaper(), {ern_rt, look, 0}, Count).
 
 %% Report §6.9: until every delivery the runtime started to Recipient, of a
-%% monitor's Down, an alarm or a subscriber's telling, has ended. A delivery sends
-%% before it ends, so what it delivered is in Recipient's mailbox then.
+%% monitor's Down, an alarm or a subscriber's telling, has delivered, each
+%% whose row stands waited for until it ends. A delivery sends, then takes
+%% its row, and then ends, so what it delivered is in Recipient's mailbox
+%% then; one that has taken its row may not yet have ended.
 -spec delivered(pid()) -> ok.
 delivered(Recipient) ->
-    Deliveries = [Pid || {{Target, _, Pid}, _} <- ets:tab2list(ern_deliveries),
-                         Target =:= Recipient],
+    ended([Pid || {{Target, _, Pid}, _} <- ets:tab2list(ern_deliveries), Target =:= Recipient]).
+
+%% Until each of Pids has ended.
+-spec ended([pid()]) -> ok.
+ended(Pids) ->
     lists:foreach(fun(Pid) ->
                       MonitorRef = erlang:monitor(process, Pid),
                       receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
-                  end, Deliveries).
+                  end, Pids).
 
 %% Report §8.6, §6.6: waits for ever as an Ernest process waits with
 %% nothing in flight, in a callForever nothing answers, its own, which the

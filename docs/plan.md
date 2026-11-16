@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 58**, the first of the flakes left.
+**The next item is MVP 4.16's item 61**, the first of the flakes left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,8 +43,8 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, the most often seen first, items 58, 61, 64 and 63, one at a
-time; what the builds found, items 35, 36, 69, 72, 70, 73 and 74; and what needs the user, items
+left*): the flakes, the most often seen first, items 61, 64 and 63, one at a
+time; what the builds found, items 35, 36, 69, 72, 70, 73, 74 and 75; and what needs the user, items
 60, 68 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand
 below in that order.
 
@@ -57,12 +57,6 @@ sighting, and the hunt after the fix runs three times the rounds one sighting to
 flake below the cause is not found. An agent finds it under the load the item names,
 and fixes at the cause the test or what the item names beside it.
 
-- **58. `adapted_is_not_a_process_test`**, under the light run's load, where the agent finds
-  whether a test before it leaves a process; that test or this one. Seen 2026-11-15 once under
-  `make test`, item 11's run: 63 processes alive where it expects 62. It shares its part with
-  `ern_flakes_tests`' tests of the hunt's program, which run before it, and it passed in six
-  runs after. Seen 2026-11-16 under `make flakes`, in rounds 15, 59 and 208 of a host in item
-  51's first hunt: 104 processes where it expects 103.
 - **61. `load_beside_a_module_hiding_a_library`**, under the shell area's load; the test or
   the shell. Seen 2026-11-15 once under `make test-shell`, item 11's run, beside item 40's:
   the shell's output did not hold `"mine" : String` and the line that names the hiding module
@@ -146,6 +140,14 @@ and fixes at the cause the test or what the item names beside it.
   `Restarted` of one process. An agent first shows it with a `wrap` that is held. The shape of
   the fix: a process's end ends its deliveries of `Restarted` not yet placed, as a loss does
   (§8.7). What §6.9 says of it is decided with the user once it is shown.
+- **75. The style test reads no export list of a unit test's module**, found 2026-11-16 by
+  item 58's read-back (the log's *A Delivery Counted Before Its End*). `exports_test` of
+  `ern_style_tests` reads the modules a release ships and those under `test/` and `tools/`,
+  and none of the 43 under `src/**/test/`, which `docs/code_style.md`'s rule does not except.
+  Its own check, run over them, finds five out of order, `ern_rt_tests`, `ern_tcp_tests`,
+  `ern_waits`, `ern_emitter_tests` and `ern_reaper_tests`, and 29 exported functions
+  without a `-spec` in the last two. An agent has the test read them, puts the five in order
+  and writes the specs.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -237,6 +239,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 55 | A reading of `CLAUDE.md` for clarity, with the user | 2026-11-15 | *The Rules Read for Clarity* |
 | 56 | A test canceled at its limit ends its host's later tests | 2026-11-15 | *A Limit Ends Its Own Test* |
 | 57 | The flakes of three tests of `ern_supervisor_tests` | 2026-11-16 | §6.4, §6.9, E.21, E.22; *Three Orders the Supervisor Tests Read* |
+| 58 | The flake of `adapted_is_not_a_process_test` | 2026-11-16 | §6.5, §6.9; *A Delivery Counted Before Its End* |
 | 59 | The flake of `write_given_no_time_test` | 2026-11-16 | E.18; *A Listener Closed Before Its Accept* |
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |

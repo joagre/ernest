@@ -2318,9 +2318,14 @@ adapted_in_flight_test() ->
 %% report §6.5: an address seen through a function is the target and the
 %% function, not a process, so adapting costs nothing that accumulates. An
 %% alarm's delivery is a process of its own until it has delivered (§6.9),
-%% so the live processes are counted once those have ended; they were
-%% counted at once, and the count failed when one had delivered and not yet
-%% ended
+%% linked to the clock, which links to nothing else (counted_link/3), so
+%% the live processes are counted once each process the clock links to has
+%% ended.
+%%
+%% A regression test: they were counted once each delivery had taken its
+%% row, which it does before it ends, and the count held one that had not
+%% yet ended. It covers the alarms' deliveries alone, and one that never
+%% ends cancels it at its time limit
 adapted_is_not_a_process_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -2333,7 +2338,8 @@ adapted_is_not_a_process_test() ->
                              end, lists:seq(1, 100)),
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
                ern_rt:timed(),
-               ern_waits:delivered(erlang:self()),
+               {links, Deliveries} = erlang:process_info(Clock, links),
+               ern_waits:ended(Deliveries),
                ern_rt:untimed(),
                Self ! {counts, Before, alive()}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
