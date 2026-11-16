@@ -10,23 +10,24 @@ It does not run while the findings of the last one are open.
 
 ## How it runs
 
-- Each reader is a session of its own. It is given its brief and the files it reads, and nothing that argues for them, such as the log or another reader's list.
+- Each reader is an agent of its own. It is given its brief and the files it reads, and nothing that argues for them, such as the log or another reader's list.
+- What a brief needs of the log, the last counts and the earlier newcomers' programs, the session writes into it.
 - A reader edits nothing in the repository. It tries a program in a scratch directory of its own, with `bin/ern`.
 - The readers read one commit, which the findings name, and run side by side.
 - An area too large for one reader is read in parts, each by a reader of its own with the same brief.
 - An area a release review's reader read whole since the last full review is read again only where it changed since: the release review's findings name the commit it read, and `git diff` from it says what changed.
-- Every reader names, in its area, each thing that exists for a reason an earlier milestone had and a later rule removed: a copy, a helper, a table, a check or a rule kept because nothing broke. The pattern is a decision made when the toolchain was small and followed by every later rule in the same shape; the log says what each was for, and the reader asks whether anything still needs it.
+- Every reader names, in its area, each thing that exists for a reason an earlier milestone had and a later rule removed: a copy, a helper, a table, a check or a rule kept because nothing broke. The pattern is a decision made when the toolchain was small and followed by every later rule in the same shape; the reader asks whether anything still needs it, and the session reads in the log what each was for when it sorts the finding.
 - Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
 - A reader hands its list back as text and writes it to a file under the review's session's scratchpad, as [`agents.md`](../agents.md) says of an agent.
 
 Once the lists are in, the round:
 
-- The findings are sorted as *The findings* says, and the `fix` lines are made at once by agents, as *The models* says, each owning its files and no other's, the report's, the checker's, the runtime's among them.
+- The findings are sorted and the `fix` lines made at once, as *The findings* says. An agent owns its files and no other's, the checker's, the runtime's among them.
 - No agent runs `make`. Each compiles what it changed into a scratch directory of its own and tests there.
 - What crosses between agents, a cause text, a frame's form, a glossary word, goes through the session as sentences, the report's sentence first.
 - The `decide` lines are a second round: the no-brainers taken by the session's judgment and recorded as decided, the rest with the user one at a time, the argument before the verdict, after the log is searched and the program run, as CLAUDE.md's *Before code* says; then built by agents as the `fix` lines were.
 - The session integrates: it builds the tree, runs `make test-full`, closes the seams between the agents' files, and reads every diff back before the commit.
-- `git status --short` is compared before and after a round, since an agent may delete an untracked file.
+- `git status --short` is read before the readers start and compared after them and after a round, as [`agents.md`](../agents.md)'s *Before and after* says.
 
 ## The readers
 
@@ -48,23 +49,25 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 
   "Apart, report every place the language itself, not the guide, made your program harder to write than you expected; and, apart again, every name of the prelude and of the standard library you met whose word you could not have predicted from the thing it names, with the word you expected."
 
-  The program is one no earlier newcomer wrote; the log's entry for each full review and the notes of each release name them. The newcomer hands in the program's source and whether it ran.
+  The program is one no earlier newcomer wrote; the log's entries for each full review and each release review name them. The newcomer hands in the program's source and whether it ran.
 - **L, the Erlang programmer.** Reads `README.md`, `guide/why.md`, the tour and `guide/faq.md`, in that order, then the guide's chapters that changed since the last review, or the language guide and the deployment guide whole at the readers' first run, and uses `bin/ern`.
 
   "You have written Erlang/OTP for years: gen_server, supervisors, hot code loading, distribution with cookies, epmd, global and pg. You have seen typed Erlangs fail and you are in a hurry. Read each document as that person. Report where you would close the page and why; the first question you asked that the document does not answer; every place it shows you something Erlang cannot do and every place it only restates what you have; every sentence you suspect of a trick, a demo arranged to work; and, in the guide, every sentence you tripped on or did not believe. End with what convinced you, if anything, and whether you would try Ernest." It argues the documents' claims nowhere and proposes no change to the language.
 - **M, the Gleam programmer.** Reads what L reads, in L's order, and uses `bin/ern`.
 
   "You write Gleam: typed processes through `Subject`, no type classes, no distribution and no reload, and you chose that. Read each document as that person. Report, chapter by chapter, what it shows you that Gleam lacks and where it only asserts it; whether the mailbox in the function's type buys anything over a `Subject` that you can see on the page; whether a requirement is convincing as not a type class; where it is too long for what it shows; and, in the guide, every sentence you tripped on or did not believe. Check each line of Gleam the documents show against Gleam's own documentation as it stands, and report one that is not Gleam's. End with what convinced you, if anything, and whether you would try Ernest." The same two closing rules as L's.
-- **D, the documents.** Reads every tracked Markdown file but the report's three files, the guide and the log: `README.md`, `CLAUDE.md`, `ACKNOWLEDGMENTS.md`, `report/README.md`, `tour/README.md`, `examples/README.md`, `src/shell/README.md`, `editors/emacs/README.md`, `release/README.md`, `assets/README.md` and `docs/`. "Read each document against the report and the code it describes. Report every statement that is false or stale, and every fact restated outside its owner or owned by no document (CLAUDE.md's *Who owns each fact*). List every list that lives in two places, with the test that holds it equal, or none."
-- **C, the toolchain's code.** Reads the Erlang under `src/`, the Erlang and the scripts of `test/`, the pseudo-terminal's harness `test/fixtures/pty/pty.ern` among them, the scripts under `tools/`, the Makefiles, `bin/ern` and `editors/emacs/`, in six parts of about the same size: the front end (the lexer, the parser, the formatter and the utilities) with the Emacs mode, whose indentation follows the formatter's; the checker; the emitter; the runtime with its helper in C; the shell's Erlang, `ern_shell` with its tests and the terminal's; and the rest of the command line with `test/`, the Makefiles and `bin/ern`.
+- **D, the documents.** Reads every tracked Markdown file but the report's three files, the guide, the log and the fixtures under `test/`: `README.md`, `CLAUDE.md`, `CHANGES.md`, `CONTRIBUTING.md`, `SECURITY.md`, `ACKNOWLEDGMENTS.md`, `report/README.md`, `tour/README.md`, `examples/README.md`, `src/shell/README.md`, `editors/emacs/README.md`, `release/README.md`, `assets/README.md`, the Markdown under `site/` and `docs/`. "Read each document against the report and the code it describes. Report every statement that is false or stale, and every fact restated outside its owner or owned by no document (CLAUDE.md's *Who owns each fact*). List every list that lives in two places, with the test that holds it equal, or none."
+- **C, the toolchain's code.** Reads the Erlang under `src/`, the Erlang and the scripts of `test/`, the pseudo-terminal's harness `test/fixtures/pty/pty.ern` among them, the Erlang and the scripts under `tools/`, the Makefiles, `bin/ern` and `editors/emacs/`, in six parts of about the same size: the front end (the lexer, the parser, the formatter and the utilities) with the Emacs mode, whose indentation follows the formatter's; the checker; the emitter; the runtime with its helper in C; the shell's Erlang, `ern_shell` with its tests and the terminal's; and the rest of the command line with `test/`, `tools/`, the Makefiles and `bin/ern`.
 
   "Read the part whole, the sources and their tests, against `docs/code_style.md` and the report sections its comments cite. Report defects, comments that no longer hold, code that could be shorter and clearer, and every name that does not say what its value or its work is, or that names one thing two ways."
-- **E, the Ernest code.** Reads `src/stdlib/`, `src/shell/`, `src/libs/`, `examples/` and `tools/` in three parts, `src/stdlib/`, `src/shell/` and the rest, with the page `ern doc` writes of each module.
+- **E, the Ernest code.** Reads `src/stdlib/`, `src/shell/`, `src/libs/`, `examples/`, the programs of `tour/` and `tools/` in three parts, `src/stdlib/`, `src/shell/` and the rest, with the page `ern doc` writes of each module.
 
-  "Read the part whole against the report sections it implements, Appendix E.0, the principles and `docs/code_style.md`, and read each module's page as a programmer would. Report defects, code that could be shorter and clearer, every name that does not say what its value or its work is, what a reader who knows the rest of Ernest would not predict, every `foreign fn` whose work Ernest could do given the layers beneath it (Appendix E.0 rule 1), and what a page leaves a programmer unable to use; and, apart, every place the language made the code harder than it should be: a workaround that should not be needed, a second way, something invisible, a function the standard library lacks."
+  "Read the part whole against the report sections it implements, Appendix E.0, the principles, `guide/style.md` and `docs/code_style.md`, and read each module's page as a programmer would. Report defects, code that could be shorter and clearer, every name that does not say what its value or its work is, what a reader who knows the rest of Ernest would not predict, every `foreign fn` whose work Ernest could do given the layers beneath it (Appendix E.0 rule 1), and what a page leaves a programmer unable to use."
+
+  "Apart, report every place the language made the code harder than it should be: a workaround that should not be needed, a second way, something invisible, a function the standard library lacks, a private function whose type names no type of its program's own, and a form the code repeats at site after site, each of the last two with its count over the sources."
 - **T, the tools.** Has read the guide, and uses `bin/ern`'s jobs, options and messages and the shell's commands, with `ern(1)` and the report's §0. "Report every job done two ways (principle 2), everything the toolchain does that its user does not see (3), and every behavior a user who knows the rest would not predict (1)." A finding gives the command, what it did and what was expected.
 - **X, the diagnostics.** Reads `docs/diagnostics.md` and the report, and not the toolchain's code. "For each program of the catalog, read the message it gives against §11.5, and say whether, having made that mistake, you would know the fix." It says how many entries it judged clear.
-- **S, security.** Reads the runtime, its helper, `ern config`, the shell and the standard library, against the report's §8.4, §11.2, §11.3, E.17, E.18 and E.23. "Read the foreign boundary's checks, the configuration directory and its key, a path from the network, a socket's input, a program's arguments and environment, the host programs `Os` starts and what they write back, and the shell's history file. Report each place where untrusted input reaches something it should not, with an input that shows it." Real exposures stand apart from hardening.
+- **S, security.** Reads the runtime, its helper, `ern config`, the shell, the standard library and the libraries under `src/libs/`, against the report's §8.4, §11.2, §11.3, E.17, E.18 and E.23. "Read the foreign boundary's checks, the configuration directory and its key, a path from the network, a socket's input, a program's arguments and environment, the host programs `Os` starts and what they write back, and the shell's history file. Report each place where untrusted input reaches something it should not, with an input that shows it." Real exposures stand apart from hardening.
 - **H, the shell's guide.** Knows Ernest and not the shell's code. Reads `src/shell/README.md` alone, then `src/shell/`. "Find in the shell's code what the README says is there. Report every place you were lost or it led you wrong."
 - **B, the broken program.** Has read the guide, and uses `bin/ern`. "Write a small program against each area, a process and a call, a file, a socket, a test, a peer, and break each on purpose: a fault deep in a chain of calls, in a lambda, a division by zero, a deadlock, a foreign raise, one carried from a peer. Run each under `ern run`, under `ern test` and in the shell, and judge the output by one question: could a developer who did not write the program pinpoint the fault from it alone?" A finding gives the program, the output and what could not be found.
 
@@ -72,14 +75,14 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 
 [`agents.md`](../agents.md) gives the models. C, E, S, H, T and B, the readers of the code and of what the toolchain does, run on the coding model at the stronger effort, each part alike; every other reader on the stronger model.
 
-Working the findings follows CLAUDE.md's *The repository*: a design question, a sentence of the report or of §0, and a reading of an argument are the session's; a defect whose fix the finding names goes to an agent, at the efforts `agents.md` gives a build.
+Who works a finding is *The findings*'s. An agent that makes a fix runs at the efforts `agents.md` gives a build.
 
 ## The findings
 
 - The lists become one document, the findings file CLAUDE.md's owner table names, beside the plan while they are open: a line per finding, by area, each naming its reader's letter and number.
-- A line carries its decision: `fix`, `decide`, a milestone's number, planned there, or `dropped`, with the reason; and `done`, with the date, once made.
+- A line carries its decision: `fix`; `decide`; `felt`, an entry of [`language_feedback.md`](../language_feedback.md) with its number; a milestone's number, planned there; or `dropped`, with the reason; and `done`, with the date, once made.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
-- The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose by the session; code or a test as one batch by agents, built from a brief that names each line and the shape of its fix (*The models*).
+- The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose by the session; code or a test by agents, each from a brief that names the lines in its files and the shape of each fix (CLAUDE.md, *The repository*; *The models*).
 
   Every other line is `decide`: a rule, a sentence of §0 or E.0, what an error text means, a fix that could go two ways, a departure from a proposal. Each is discussed with the user one at a time, the argument before the verdict, with a recommendation that weighs the candidate rule against §0's five principles and names the one that decided (CLAUDE.md, *Authority*).
 
@@ -88,9 +91,9 @@ Working the findings follows CLAUDE.md's *The repository*: a design question, a 
   A milestone's read (the log's *MVP 3.0 Read Without a Release*) sorts its lines the same way.
 - A decision that adds a word to the language, a primitive, a member or a reason, is built in the review's round, and ships in the next release only with a program under `examples/` or in the tour that needs it; without one it waits a release.
 - The plan gives the list a milestone.
-- The document goes when every line is done or dropped, or stands in the plan as an item of its own.
+- The document goes when every line is done, dropped or carried to `language_feedback.md`, or stands in the plan as an item of its own.
 - The log gains an entry for the review: its date and commit, the principles reader's counts, the newcomer's program, and how many findings took each decision.
 
 ## Its cost
 
-Twenty-two sessions, counting the parts of C and E, for most of a day; then the milestone the plan gives the findings.
+Twenty-two agents, counting the parts of C and E, for most of a day; then the milestone the plan gives the findings.

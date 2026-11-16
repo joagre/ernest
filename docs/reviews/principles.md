@@ -9,11 +9,11 @@ The report's rules and the guide judged on §0, and §0 on what it decided. It r
 
 ## How it runs
 
-As the full review's readers run ([`full.md`](full.md), *How it runs*): each reader a session of its own, given its brief and its files and nothing that argues for them, editing nothing, all on one revision of the report, each handing in a numbered list, most serious first. A reader in doubt of what a rule means reads the code that implements it, `src/`, as what is built and never as what is right.
+As the full review's readers run ([`full.md`](full.md), *How it runs*): each reader an agent of its own, given its brief and its files and nothing that argues for them, editing nothing, all on one revision of the report, each handing in a numbered list, most serious first. A reader in doubt of what a rule means reads the code that implements it, `src/`, as what is built and never as what is right.
 
 ## The readers
 
-Four readers in five sessions.
+Four readers in five agents.
 
 - **P, the principles**, with the full review's brief, in two parts: §0 to §11 with Appendices A to D, and Appendix E with F and G. Beside the report it reads what the plan proposes to add, told that it is proposed and not decided, so that the addition is judged with what is there.
 
@@ -39,4 +39,4 @@ Every reader runs as [`full.md`](full.md)'s *The models* says, none of them a re
 
 ## Its cost
 
-Five sessions, half a day; the decisions at the user's pace; then the milestone the plan gives the edits.
+Five agents, half a day; the decisions at the user's pace; then the milestone the plan gives the edits.

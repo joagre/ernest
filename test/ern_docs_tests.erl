@@ -386,20 +386,20 @@ line_matches(Text, Pattern) ->
 
 %% docs/reviews/full.md, docs/reviews/principles.md, docs/reviews/release.md:
 %% each review counts its readers as its *The readers* lists them, a reader
-%% being an item named by its letter, and its sessions as their parts, a
-%% reader read in parts being a session each; and the readers the release
+%% being an item named by its letter, and its agents as their parts, a
+%% reader read in parts being an agent each; and the readers the release
 %% review names are the full review's. A regression test: the full review
 %% counted twelve readers and nineteen sessions where it listed fifteen in
 %% twenty-two parts.
 readers_counted_test() ->
     Reviews = [ern_repository:read(File)
                || File <- ["docs/reviews/full.md", "docs/reviews/principles.md"]],
-    ?assertEqual([], [{Readers, Sessions}
+    ?assertEqual([], [{Readers, Agents}
                       || Review <- Reviews, {Letters, Parts} <- [readers(Review)],
                          Readers <- [number_word(length(Letters))],
-                         Sessions <- [number_word(lists:sum(Parts))],
+                         Agents <- [number_word(lists:sum(Parts))],
                          re:run(Review, ["\\b", Readers, " readers\\b"], [caseless]) =:= nomatch
-                             orelse re:run(Review, ["\\b", Sessions, " sessions\\b"], [caseless])
+                             orelse re:run(Review, ["\\b", Agents, " agents\\b"], [caseless])
                                     =:= nomatch]),
     {Full, _} = readers(hd(Reviews)),
     Release = ern_repository:read("docs/reviews/release.md"),
