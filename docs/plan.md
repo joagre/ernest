@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 81**, the last of its batch of six, and items 72 and 82
-follow it, as the milestone's *What is left* gives them.
+**The next item is MVP 4.16's item 72**, and item 82 follows it, as the milestone's *What
+is left* gives them.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -45,23 +45,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 72, 82, 36, 69, 70, 73, 74 and 84; and what needs the
-user, items 60, 68 and 39. Items 72 and 82 came first on 2026-11-16 (the log's
-*Twenty-Seven Hosts for Nothing*). The items stand below in that order, after item 81.
+user, items 60, 68, 86 and 39. Items 72 and 82 came first on 2026-11-16 (the log's
+*Twenty-Seven Hosts for Nothing*). The items stand below in that order.
 
-Item 81 is built first. It is what is left of the batch of six decided with the user on
-2026-11-16 (the log's *A Batch of Six*), whose other five items are done. The session
-reads its diff and runs `make test-full` once over the batch, on a machine that runs
-nothing else.
-
-- **81. `listen_of_one_family_test` refused its port**, found 2026-11-16 by item 66's
-  diagnosis, once in 226 rounds of nine copies of one part side by side, a load no target
-  runs. The test listens on `"0.0.0.0"` at the port the host gave its listener on `"::"`, and
-  then the other way round. Another socket of the machine can hold that port in the other
-  family, so `make test` can meet it, at a rate not known. The shape of the fix: where the
-  second listener is refused, the test tells a foreign holder from the regression it holds,
-  under which the listener on `"::"` takes an IPv4 connection, and takes a new pair of ports
-  for a foreign holder. An agent shows the failure first, with another process's socket on
-  the port.
 - **72. A build with nothing to do takes 1.6 s and 19 s of processor time**, found 2026-11-16
   by item 51's diagnosis. The session measured it on a quiet machine (the log's
   *Twenty-Seven Hosts for Nothing*): `make -s all` starts 27 hosts, 14 for `ern build`, 12
@@ -160,6 +146,18 @@ nothing else.
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
+- **86. A listener refused a port its program's own connect left closing**, found 2026-11-16
+  by item 81's probe (the log's *A Port Another Socket Holds*). E.18 says that a listener
+  takes a port whose earlier connections are still closing, the host's `SO_REUSEADDR`. That
+  held for the connections a listener of Ernest's had accepted, in 80 of 80 runs. It did
+  not for a connection `Tcp.connect` made from the port and closed first: the connect sets
+  no such option, and a listener at the port in the same family was refused in 20 of 20.
+
+  Decided with the user: whether E.18's sentence is narrowed to the connections a listener
+  at the port accepted, or `Tcp.connect` sets the option. Recommended: the sentence is
+  narrowed. The option would cover Ernest's own connects and no other program's, and a
+  connect's port meets a listener's only where the listener names a port the host gives
+  to connects.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
@@ -251,6 +249,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
 | 79 | Two tests wait for their subscriber's subscription before they end | 2026-11-16 | §6.2, §8.6, E.23; *Two Tests Wait for Their Subscriber* |
 | 80 | The hunt marks a record that follows a cancel in its host | 2026-11-16 | *A Record After a Cancel* |
+| 81 | `listen_of_one_family_test` tells another socket's port from the regression it holds | 2026-11-16 | E.18; *A Port Another Socket Holds* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 

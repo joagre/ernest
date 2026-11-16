@@ -573,29 +573,80 @@ connect_ipv6_test() ->
 %% its connection's family. A regression test: "::" took IPv4 connections
 %% too, as ::ffff:127.0.0.1, and "0.0.0.0" beside it was answered
 %% `Other("address already in use")`. It does not cover an interface other
-%% than the loopback's, nor a machine without IPv6, where it says so
+%% than the loopback's, nor a machine without IPv6, where it says so.
+%%
+%% Another socket of the machine, a connection's in TIME-WAIT among them,
+%% can hold in the other family the port the host gives the first listener
+%% of a pair, and the second is then refused as the regression refused it.
+%% So a refusal is read again: under the regression a listener on "::"
+%% takes an IPv4 connection, and the refusal fails the test; where none
+%% takes one, the port was another socket's, and the test takes a new pair
+%% of ports.
+%%
+%% The retries end at the first pair that stands or at a refusal the
+%% regression made; where every port the host gives is held, the test's
+%% time limit ends them. A refusal of another cause, which no listener's
+%% taking the other family explains, is read as another socket's: one that
+%% meets every pair cancels the test at its time limit in place of failing
+%% it with the refusal, and one that meets some pairs alone is not covered
 listen_of_one_family_test() ->
     with_ipv6_loopback(
       fun() ->
           Self = self(),
           ok = ern_rt:run_main(
                  fun() ->
-                     {'Right', Six} = listen(<<"::">>, 0),
-                     {'Right', Port} = port(Six),
-                     {'Right', Four} = listen(<<"0.0.0.0">>, Port),
+                     {'Right', {Six, Four, Port}} = beside(<<"::">>, <<"0.0.0.0">>),
                      {'Right', _} = connect(<<"127.0.0.1">>, Port, 2000),
                      {'Right', FromFour} = accept(Four, 2000),
                      {'Right', _} = connect(<<"::1">>, Port, 2000),
                      {'Right', FromSix} = accept(Six, 2000),
-                     {'Right', FourFirst} = listen(<<"0.0.0.0">>, 0),
-                     {'Right', Other} = port(FourFirst),
                      Self ! {remotes, {remote(FromFour), remote(FromSix)}},
-                     Self ! {six_second, side(listen(<<"::">>, Other))}
+                     Self ! {six_second, side(beside(<<"0.0.0.0">>, <<"::">>))}
                  end, <<"main">>, quiet()),
           ?assertMatch({{'Right', {'Endpoint', <<"127.0.0.1">>, _}},
                         {'Right', {'Endpoint', <<"::1">>, _}}}, wait(remotes)),
           ?assertEqual('Right', wait(six_second))
       end).
+
+%% Appendix E.18: a listener on First at the port the host gives it and
+%% one on Second at that port, with the port; or the refusal of the second
+%% where a listener on "::" takes an IPv4 connection. A port in use where
+%% none takes one was held by another socket of the machine, and a new pair
+%% is taken in place of this one, which is closed.
+beside(First, Second) ->
+    {'Right', Listener} = listen(First, 0),
+    {'Right', Port} = port(Listener),
+    case listen(Second, Port) of
+        {'Right', Beside} ->
+            {'Right', {Listener, Beside, Port}};
+        {'Left', {'Other', <<"address already in use">>}} = Refused ->
+            ern_rt:send(Listener, 'CloseListener'),
+            case takes_ipv4() of
+                true -> Refused;
+                false -> beside(First, Second)
+            end;
+        Refused ->
+            Refused
+    end.
+
+%% Appendix E.18: whether a new listener on "::" takes an IPv4 connection,
+%% which one of IPv6's family alone never does: the connect to its port is
+%% refused, or reaches another socket that holds the port in IPv4's family,
+%% and the listener's accept answers `Timeout` in the time the test gives
+%% each accept, where a listener that takes it answers at once.
+takes_ipv4() ->
+    {'Right', Six} = listen(<<"::">>, 0),
+    {'Right', Port} = port(Six),
+    Taken = case connect(<<"127.0.0.1">>, Port, 2000) of
+                {'Right', Socket} ->
+                    Accepted = side(accept(Six, 2000)),
+                    ern_rt:send(Socket, 'Close'),
+                    Accepted =:= 'Right';
+                {'Left', _} ->
+                    false
+            end,
+    ern_rt:send(Six, 'CloseListener'),
+    Taken.
 
 %% Appendix E.18: an IPv4 address written as IPv6's, ::ffff:127.0.0.1, is
 %% one a listener of IPv6's family alone takes no connection at, which the
