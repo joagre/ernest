@@ -48,11 +48,13 @@ time; what the builds found, items 35, 36, 69, 72 and 70; and what needs the use
 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand below in
 that order.
 
-A flake is hunted for two hours at most, under the load its item names, decided with the user
-on 2026-11-16 (the log's *Two Hours for a Hunt*). One that does not show within them is closed
-as not reproducible, its log entry naming the test and what it wrote, and is opened again
-where it shows again. A hunt after a fix runs no longer than it took to meet the flake before.
-Of each flake below the cause is not found. An agent finds it under the load the item names,
+A flake is hunted for two hours at most, under the load its item names, and the hunt ends at
+its first sighting, decided with the user on 2026-11-16 (the log's *Two Hours for a Hunt*). One
+that does not show is closed as not reproducible, its log entry naming the test and what it
+wrote, and is opened again where it shows again. Where a probe makes the failure at will, it
+shows the cause and the fix, and no hunt follows. Where none can, the hunt runs to its third
+sighting, and the hunt after the fix runs three times the rounds one sighting took. Of each
+flake below the cause is not found. An agent finds it under the load the item names,
 and fixes at the cause the test or what the item names beside it.
 
 - **57. Three tests of `ern_supervisor_tests`**, under `make flakes`, where the agent finds
