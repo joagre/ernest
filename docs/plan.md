@@ -21,8 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next items are MVP 4.16's items 72 and 82**, as the milestone's *What is left* gives
-them.
+**The next item is MVP 4.16's item 72**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -44,31 +43,21 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 72, 82, 36, 69, 70, 73, 74, 84, 87 and 88; and what
-needs the user, items 60 and 68. On 2026-11-16 items 72 and 82 came first of the builds'
-findings (the log's *Twenty-Seven Hosts for Nothing*). The items stand below in that order.
+left*): what the builds found, items 72, 36, 69, 70, 73, 74, 84, 87 and 88; and what
+needs the user, items 60 and 68. On 2026-11-16 item 72 came first of the builds' findings
+(the log's *Twenty-Seven Hosts for Nothing*). The items stand below in that order.
 
-- **72. A build with nothing to do takes 1.6 s and 19 s of processor time**, found 2026-11-16
-  by item 51's diagnosis. The session measured it on a quiet machine (the log's
-  *Twenty-Seven Hosts for Nothing*): `make -s all` starts 27 hosts, 14 for `ern build`, 12
-  for `ern doc --man` and one for the manual's program. A bare host that halts at once
-  costs 0.12 s and 0.64 s of processor time, so the hosts are the whole cost and each
-  root's check is in the noise. An agent measures it again first, a job at a time. The
-  build with nothing to do then starts no host: make starts no job for a root whose
-  sources have not changed (the log's *Slow Tools Are Defects*). Whether one job can build
-  the roots that have changed, where 14 start now, is read then.
-- **82. A host's start on a busy machine**, found 2026-11-16 by item 71's diagnosis (the log's
-  *The First Start's Schedulers*). A bare host starts in 0.13 s alone, in 0.6 s beside the
-  hunt's load and in 2.2 s beside a busy loop for each processor, since its schedulers spin
-  as they wake, and every job of `ern` starts in a host. With the host's busy wait off, a
-  first start beside those loops took 1.6 s where it had taken 9.1. Alone, a start costs
-  0.64 s of processor time, 0.19 s with the busy wait off and 0.15 s with one scheduler,
-  each in 0.12 to 0.13 s (the log's *Twenty-Seven Hosts for Nothing*).
+- **72. A build with nothing to do starts 26 hosts**, found 2026-11-16 by item 51's
+  diagnosis and measured again the same day (the log's *Twenty-Six Hosts Are the Cost*):
+  14 for `ern build` and 12 for `ern doc --man`. Side by side on 24 threads they take
+  1.4 s, and on a normal laptop they queue. Decided with the user on 2026-11-17: one host
+  does their work. It starts once and runs each root's check in turn, by §11.1's rule, and
+  make keeps no stamp. The check reads each file once in it, where a build now reads each
+  source and each `.erc` twice and the standard library's interfaces at every root.
 
-  An agent measures first: an `ern run` of a program that does nothing, alone and under
-  both loads, with the busy wait and without, and `make bench` both ways. Whether the
-  launcher starts the host with the busy wait off is then decided with the user, on those
-  numbers.
+  To decide with the user first: how that one job is said. §11.1 builds one root, and
+  §11.9's build of several roots fits none of the toolchain's own. An agent builds it
+  then, and times a make with nothing to do once before and once after.
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
   the directory as `ern build` does, where a module that does not compile does not stop the
@@ -230,6 +219,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 79 | Two tests wait for their subscriber's subscription before they end | 2026-11-16 | §6.2, §8.6, E.23; *Two Tests Wait for Their Subscriber* |
 | 80 | The hunt marks a record that follows a cancel in its host | 2026-11-16 | *A Record After a Cancel* |
 | 81 | `listen_of_one_family_test` tells another socket's port from the regression it holds | 2026-11-16 | E.18; *A Port Another Socket Holds* |
+| 82 | A host's start on a busy machine, measured: the busy wait stays, with the user | 2026-11-17 | *The Busy Wait Stays* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
