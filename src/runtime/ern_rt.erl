@@ -72,7 +72,7 @@
          set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
          note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
 
--export_type([address/0]).
+-export_type([address/0, outcome/0]).
 
 -include_lib("runtime/include/ern_rt.hrl").
 

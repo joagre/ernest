@@ -3,7 +3,7 @@
 %% runs them (ern_emitter_tests:run/3).
 -module(ern_reaper_tests).
 
--export([reaper_words/0, answered_later/0, called_back/1, called_back_in_tail/1, looks/1,
+-export([answered_later/0, called_back/1, called_back_in_tail/1, reaper_words/0, looks/1,
          looking/0, sent_later/2, answering_later/0, ending_later/0]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -147,6 +147,7 @@ monitors_let_go_test() ->
 %% reaper, which traps exits and is told of each delivery's end by a
 %% message after it, has taken every message; then its garbage is
 %% collected.
+-spec reaper_words() -> non_neg_integer().
 reaper_words() ->
     [begin
          MonitorRef = erlang:monitor(process, Delivery),

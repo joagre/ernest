@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
 
--export([pki/0, at_the_file_limit/0]).
+-export([at_the_file_limit/0, pki/0]).
 
 %% Report Appendix E.18: the window in which a socket that has ended may
 %% send what the far end has not taken with nothing taken, and the time

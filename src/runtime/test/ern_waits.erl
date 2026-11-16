@@ -8,9 +8,9 @@
 %% return.
 -module(ern_waits).
 
--export([until/2, waiting/1, running/1, calling/1, watching/2, unwatched/2, called/3,
-         returned/3, looked/1, delivered/1, ended/1, forever/0, with_room/1, freed/2,
-         references/2]).
+-export([with_room/1, until/2, freed/2, references/2, waiting/1, running/1, calling/1,
+         watching/2, unwatched/2, called/3, returned/3, looked/1, delivered/1, ended/1,
+         forever/0]).
 
 %% What Work answers, every process it starts given a heap with room. The
 %% host collects a process when its heap fills, which a new process's small

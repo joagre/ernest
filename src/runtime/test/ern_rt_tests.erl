@@ -3,9 +3,9 @@
 %% boundary's proxies, and the end of a program.
 -module(ern_rt_tests).
 
--export([queued_input/2, evaluated/0, kept_table/0, closed_table/0, kept_proxy/0, ended_proxy/0,
-         ran_program/0, closed_listener/0, kept_listener/0, exited_program/0,
-         closed_connection/1]).
+-export([evaluated/0, kept_table/0, closed_table/0, kept_proxy/0, ended_proxy/0, ran_program/0,
+         closed_listener/0, kept_listener/0, exited_program/0, closed_connection/1,
+         queued_input/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("runtime/include/ern_rt.hrl").

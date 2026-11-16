@@ -44,7 +44,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81, 82, 84 and
+left*): what the builds found, items 36, 69, 72, 70, 73, 74, 76, 79, 80, 81, 82, 84 and
 85; and what needs the user, items 60, 68 and 39. The items stand below in that order.
 
 Six of them are built first, as one batch, decided with the user on 2026-11-16 (the log's
@@ -107,14 +107,6 @@ runs nothing else.
   `Restarted` of one process. An agent first shows it with a `wrap` that is held. The shape of
   the fix: a process's end ends its deliveries of `Restarted` not yet placed, as a loss does
   (§8.7). What §6.9 says of it is decided with the user once it is shown.
-- **75. The style test reads no export list of a unit test's module**, found 2026-11-16 by
-  item 58's read-back (the log's *A Delivery Counted Before Its End*). `exports_test` of
-  `ern_style_tests` reads the modules a release ships and those under `test/` and `tools/`,
-  and none of the 43 under `src/**/test/`, which `docs/code_style.md`'s rule does not except.
-  Its own check, run over them, finds five out of order, `ern_rt_tests`, `ern_tcp_tests`,
-  `ern_waits`, `ern_emitter_tests` and `ern_reaper_tests`, and 29 exported functions
-  without a `-spec` in the last two. An agent has the test read them, puts the five in order
-  and writes the specs.
 - **76. `Os.resize`'s example reads an echo E.23 does not promise**, found 2026-11-16 by
   item 64's read-back (the log's *A Terminal's Echo Beside Its End*). Its program in
   `src/stdlib/os.ern` reads a line and exits without writing to its terminal, and the example
@@ -275,6 +267,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 66 | The flake of `ern_tcp_tests`' `write_holds_up_no_read` | 2026-11-16 | §8.6; *A Reaper That Outlives Its Runner* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
+| 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |

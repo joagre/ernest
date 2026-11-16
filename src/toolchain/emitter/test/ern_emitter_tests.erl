@@ -3,10 +3,10 @@
 %% other tests of programs share.
 -module(ern_emitter_tests).
 
--export([run/1, run/2, run/3, run_at_terminal/1, scratch/0, write_golden/0, pair/0, funs/0, taken/0,
-         opt/1, improper/1, remember/1, junk/1, good/1, tell/1, junk_server/0, hello_junk/0,
-         hello_good/0, relay_junk/1, relay_good/1, same/1, call_nested_bad/1, call_nested_good/1,
-         ask_junk/1, ask_good/1, calls_held/0, stack_here/0, frame_of/1, poke/1]).
+-export([run/1, run/2, run_at_terminal/1, run/3, scratch/0, write_golden/0, frame_of/1, poke/1,
+         stack_here/0, calls_held/0, pair/0, funs/0, opt/1, improper/1, remember/1, junk/1,
+         good/1, tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1,
+         same/1, call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1, taken/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -24,17 +24,21 @@
 %% Type-check, compile, load, initialize, and run a program's main as the
 %% runner does, with an empty standard input, collecting what reaches
 %% stdout.
+-spec run(unicode:chardata()) -> {ern_rt:outcome(), Output :: binary()}.
 run(Text) ->
     run(['M'], Text).
 
+-spec run([atom()], unicode:chardata()) -> {ern_rt:outcome(), Output :: binary()}.
 run(Namespace, Text) ->
     run(Namespace, Text, #{}).
 
 %% The same with keys that can come, as at a terminal, of which none does.
+-spec run_at_terminal(unicode:chardata()) -> {ern_rt:outcome(), Output :: binary()}.
 run_at_terminal(Text) ->
     run(['M'], Text, #{keys => fun() -> receive after infinity -> eof end end}).
 
 %% `standard => true` compiles the module as the standard library's own.
+-spec run([atom()], unicode:chardata(), map()) -> {ern_rt:outcome(), Output :: binary()}.
 run(Namespace, Text, Options) ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
     Build = #{source_hash => <<>>, deps => [], standard => maps:get(standard, Options, false)},
@@ -108,6 +112,7 @@ collect(Acc) ->
 %% removes it once it has what it needs, and the run's own directory, which
 %% `make` removes when the run ends (RUN_UNIT_TESTS), holds it, so that none is
 %% left where a test does not.
+-spec scratch() -> file:filename().
 scratch() ->
     Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
                         "ern_os_" ++ os:getpid() ++ "_"
@@ -542,6 +547,7 @@ golden_test_() ->
             end} || Name <- golden_names()].
 
 %% make golden: rewrite the golden files from the current emitter.
+-spec write_golden() -> ok.
 write_golden() ->
     lists:foreach(fun(Name) ->
                       File = ?GOLDEN ++ Name ++ ".erl",
@@ -1086,6 +1092,7 @@ trace_through_a_wait_test() ->
     ?assertEqual(<<"M.main:6\n">>, Poked("receive { Msg -> Unit | after 5000 -> Unit }")).
 
 %% The trace of the process behind Address, once it waits.
+-spec frame_of(ern_rt:address()) -> binary().
 frame_of(Address) ->
     Pid = ern_rt:process_of(Address),
     ok = ern_waits:waiting(Pid),
@@ -1094,6 +1101,7 @@ frame_of(Address) ->
 
 %% A fault left in the mailbox of the process behind Address, as a foreign
 %% message that did not match leaves one (report §8.4).
+-spec poke(ern_rt:address()) -> 'Unit'.
 poke(Address) ->
     ern_rt:process_of(Address) ! {'$ern_fault', {ern, fault, <<"poked">>}},
     'Unit'.
@@ -1136,6 +1144,7 @@ frames(Trace) ->
 
 %% A foreign function of trace_keeps_the_runtime_of_a_failure_test's, which
 %% hands the test its caller's stack, its own frame taken off.
+-spec stack_here() -> 0.
 stack_here() ->
     {current_stacktrace, [_ | Stack]} = erlang:process_info(self(), current_stacktrace),
     ern_stack_here ! {stack_here, Stack},
@@ -3329,15 +3338,21 @@ nested_call_is_settled_test() ->
     ?assertEqual(<<"asking\nadapted\n#(Some(7), 7, 0)\n">>, Output).
 
 %% The foreign side of the tests above.
+-spec calls_held() -> non_neg_integer().
 calls_held() ->
     ets:info(ern_callees, size) + case get('$ern_call') of undefined -> 0; _ -> 1 end.
+-spec pair() -> {integer(), integer()}.
 pair() -> {1, 2}.
+-spec funs() -> [fun((term()) -> term())].
 funs() -> [fun(X) -> X + 1 end, fun(_) -> not_an_int end].
+-spec opt(integer()) -> {'Some', integer() | binary()}.
 opt(0) -> {'Some', 3};
 opt(_) -> {'Some', <<"x">>}.
+-spec improper(Element) -> nonempty_improper_list(Element, Element).
 improper(Element) -> [Element | Element].
 %% report §8.4: remembers the first address it is given and says whether
 %% the next is the same one
+-spec remember(pid()) -> boolean().
 remember(Pid) ->
     case persistent_term:get({?MODULE, proxy_seen}, undefined) of
         undefined -> persistent_term:put({?MODULE, proxy_seen}, Pid), false;
@@ -3345,30 +3360,43 @@ remember(Pid) ->
         _ -> false
     end.
 
+-spec junk(pid()) -> 'Unit'.
 junk(Pid) -> Pid ! {'Go', <<"x">>}, 'Unit'.
+-spec good(pid()) -> 'Unit'.
 good(Pid) -> Pid ! {'Go', 1}, 'Unit'.
+-spec tell([pid()]) -> 'Unit'.
 tell(Pids) -> [P ! {'Go', 2} || P <- Pids], 'Unit'.
+-spec junk_server() -> pid().
 junk_server() ->
     spawn(fun() -> receive {'Ask', {Alias, _}} -> Alias ! {Alias, <<"x">>} end end).
 %% report §8.4: a foreign process that answers a Hello with a message to the
 %% address it holds, of another type or of the declared one
+-spec hello_junk() -> pid().
 hello_junk() ->
     spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', <<"x">>} end end).
+-spec hello_good() -> pid().
 hello_good() ->
     spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', 1} end end).
 %% report §12.2: foreign code given a Reply answers it as the ABI says
+-spec relay_junk({reference(), pid()}) -> 'Unit'.
 relay_junk({Alias, _}) -> Alias ! {Alias, <<"x">>}, 'Unit'.
+-spec relay_good({reference(), pid()}) -> 'Unit'.
 relay_good({Alias, _}) -> Alias ! {Alias, 5}, 'Unit'.
 %% report §8.4: a Reply handed back as it was given, its type declared anew
+-spec same(Reply) -> Reply.
 same(Reply) -> Reply.
 %% report §8.4: foreign code that calls the function inside its argument
 %% with a value of another type, or of the declared one
+-spec call_nested_bad({integer(), fun((term()) -> integer())}) -> integer().
 call_nested_bad({_, Function}) -> Function(<<"bad">>).
+-spec call_nested_good({integer(), fun((term()) -> integer())}) -> integer().
 call_nested_good({Number, Function}) -> Function(Number).
 %% report §8.4: foreign code that asks an Ernest server with a Reply of its
 %% own, its alias and its process, and sends the address it is answered a
 %% message of another type or of the declared one
+-spec ask_junk(pid()) -> 'Unit'.
 ask_junk(Server) -> ask(Server, <<"x">>).
+-spec ask_good(pid()) -> 'Unit'.
 ask_good(Server) -> ask(Server, 1).
 ask(Server, Value) ->
     spawn(fun() ->
