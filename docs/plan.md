@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 61**, the first of the flakes left.
+**The next item is MVP 4.16's item 64**, the first of the flakes left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,7 +43,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, the most often seen first, items 61, 64 and 63, one at a
+left*): the flakes, the most often seen first, items 64 and 63, one at a
 time; what the builds found, items 35, 36, 69, 72, 70, 73, 74 and 75; and what needs the user, items
 60, 68 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand
 below in that order.
@@ -57,11 +57,6 @@ sighting, and the hunt after the fix runs three times the rounds one sighting to
 flake below the cause is not found. An agent finds it under the load the item names,
 and fixes at the cause the test or what the item names beside it.
 
-- **61. `load_beside_a_module_hiding_a_library`**, under the shell area's load; the test or
-  the shell. Seen 2026-11-15 once under `make test-shell`, item 11's run, beside item 40's:
-  the shell's output did not hold `"mine" : String` and the line that names the hiding module
-  after it. It passed in three runs after. Seen again 2026-11-15 in 2 of 12 runs of
-  `make test-shell` before item 40's change, and in none of 13 after it.
 - **64. `ern_os_tests:terminal_test`**, under `make flakes`; the test or `Os`. Seen 2026-11-15
   in rounds 64 and 138 of a host's 197, in item 24's hunt with no loops: the output did not
   hold `exit 3\r\n`.
@@ -241,6 +236,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 57 | The flakes of three tests of `ern_supervisor_tests` | 2026-11-16 | §6.4, §6.9, E.21, E.22; *Three Orders the Supervisor Tests Read* |
 | 58 | The flake of `adapted_is_not_a_process_test` | 2026-11-16 | §6.5, §6.9; *A Delivery Counted Before Its End* |
 | 59 | The flake of `write_given_no_time_test` | 2026-11-16 | E.18; *A Listener Closed Before Its Accept* |
+| 61 | The flake of `load_beside_a_module_hiding_a_library` | 2026-11-16 | §6.4, §11.2; *A Program's Line Beside the Prompt* |
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 

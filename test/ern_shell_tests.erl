@@ -734,7 +734,9 @@ reload_reads_no_file() ->
                                    ++ filename:join(Build, "main.erc")) ++ " < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"Shape, compiled again\n"
                                                 "Main, compiled again\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> 4\n">>)).
+    %% The entry point's line, `10`, has no order with what the session says
+    %% (§6.4), so it may stand between the prompt and the 4
+    ?assertMatch({match, _}, re:run(Output, <<"(> |\n)4\n">>)).
 
 %% report §11.2 *Commands*, *Documentation*, §11.1: `:doc` documents a
 %% module as the node loaded it, whatever its file holds since: the shell
@@ -4622,10 +4624,16 @@ shell_finding_a_module_hiding_a_library() ->
 
 %% report §11.2: `:load` of a library's module, Http, compiled against the
 %% library's Time, in a session that holds a program's Time, which the
-%% program given to `ern shell` uses, refuses it, naming the form the
-%% session holds as §11.1 names a module that hides the library's, where it
-%% said Http was compiled against another Time. A regression test, written
-%% after the code and run against the code before it
+%% file given to `ern shell` uses, refuses it, naming the form the session
+%% holds as §11.1 names a module that hides the library's, where it said
+%% Http was compiled against another Time. A regression test, written
+%% after the code and run against the code before it.
+%%
+%% The file has no entry point, so that nothing is spawned beside the
+%% session (§11.2 *The shell*): what a program writes has no order with
+%% what the session says (§6.4), and the line of an entry point written
+%% after the first prompt failed the test. Changed after the code, the test
+%% does not cover a load beside a running program.
 load_beside_a_module_hiding_a_library_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_beside_a_module_hiding_a_library/0).
 
@@ -4633,7 +4641,7 @@ load_beside_a_module_hiding_a_library() ->
     Dir = scratch("ern_load_beside_hiding_"),
     ok = file:write_file(filename:join(Dir, "time.ern"), "export fn mine() : String = \"mine\"\n"),
     ok = file:write_file(filename:join(Dir, "main.ern"),
-                         "export fn main() : Unit = Io.println(Time.mine())\n"),
+                         "export fn mine() : String = Time.mine()\n"),
     forms(Dir, ["time.ern", "main.ern"]),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, "Time.mine()\n:load Http\n"),
