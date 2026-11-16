@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 51**, the first of the flakes left.
+**The next item is MVP 4.16's item 57**, the first of the flakes left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,27 +43,28 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, the most often seen first, items 51, 57, 59, 58, 61, 64 and 63, one at a
-time; what the builds found, items 35, 36 and 69; and what needs the user, items 60, 68 and 39.
-Items 65 and 66, each seen once in item 32's hunt, follow item 63, and item 67 is hunted again
+left*): the flakes, the most often seen first, items 57, 59, 58, 61, 64 and 63, one at a
+time; what the builds found, items 35, 36, 69 and 72; and what needs the user, items 60, 68, 70
+and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63, and item 67 is hunted again
 only where it shows again. The items stand below in that order.
 
-A flake seen once or twice is hunted to a bound its brief states, and one that does not show
-within it is reported as not found, its line kept. Of each flake below the cause is not found.
-An agent finds it under the load the item names, and fixes at the cause the test or what the
-item names beside it.
+A flake is hunted for two hours at most, under the load its item names, decided with the user
+on 2026-11-16 (the log's *Two Hours for a Hunt*). One that does not show within them is closed
+as not reproducible, its log entry naming the test and what it wrote, and is opened again
+where it shows again. A hunt after a fix runs no longer than it took to meet the flake before.
+Of each flake below the cause is not found. An agent finds it under the load the item names,
+and fixes at the cause the test or what the item names beside it.
 
-- **51. `delivery_foreign_code_arranges_test`**, under the light run's load, `make flakes`
-  first; the test or the reaper. Seen 2026-11-14 once under `make test`, over MVP 4.17's item
-  47: `ern_reaper_tests` said `the sender ended first`. It passed alone and in the next run.
-  Seen 2026-11-15 in four of item 24's five hunts, in 1 to 5 rounds.
-- **57. Two tests of `ern_supervisor_tests`**, under `make flakes`, where the agent finds
-  whether either needs a host that has run the tests before; the test or the supervisor. Seen
+- **57. Three tests of `ern_supervisor_tests`**, under `make flakes`, where the agent finds
+  whether any needs a host that has run the tests before; the test or the supervisor. Seen
   2026-11-15 in item 11's hunts beside 15 loops, each once.
   `limit_reports_only_real_faults_test` wrote `division by zero` where it expects that twice
   and `supervisor restart limit reached`, in a host's second round.
   `count_survives_restart_in_place_test` wrote `2` where it expects `0`, in a third round.
-  Both were seen again in item 24's hunts, the second in four of the five.
+  Both were seen again in item 24's hunts, the second in four of the five, and in item 51's
+  two, the first in 4 rounds and the second in 5. `supervisor_counts_before_the_restart` was
+  seen 2026-11-16 once in item 51's first hunt: it wrote `kept` where it expects
+  `supervisor restart limit reached`.
 - **59. `write_given_no_time_test` past its limit**, under `make flakes`, where the agent finds
   whether the test waits on what the loops starve or on what never comes; the test or `Tcp`.
   Seen 2026-11-15 once in item 11's hunt beside 15 loops, in a host's third round: EUnit ended
@@ -72,7 +73,8 @@ item names beside it.
   whether a test before it leaves a process; that test or this one. Seen 2026-11-15 once under
   `make test`, item 11's run: 63 processes alive where it expects 62. It shares its part with
   `ern_flakes_tests`' tests of the hunt's program, which run before it, and it passed in six
-  runs after.
+  runs after. Seen 2026-11-16 under `make flakes`, in rounds 15, 59 and 208 of a host in item
+  51's first hunt: 104 processes where it expects 103.
 - **61. `load_beside_a_module_hiding_a_library`**, under the shell area's load; the test or
   the shell. Seen 2026-11-15 once under `make test-shell`, item 11's run, beside item 40's:
   the shell's output did not hold `"mine" : String` and the line that names the hiding module
@@ -91,6 +93,11 @@ item names beside it.
 - **66. `write_holds_up_no_read`**, under `make flakes`; the test or `Tcp`. Seen 2026-11-15
   once in item 32's hunt beside 15 loops, in a host's round 115: `ern_tcp_tests`' `run_main`
   answered the fault `deadlock` where the test expects `ok`.
+- **71. `ern_cli_tests:node_limit_flags_test` canceled at its limit**, under `make flakes`; the
+  test or the node's start. Seen 2026-11-16 in rounds 1 and 203 of a host in item 51's first
+  hunt beside 15 loops: EUnit canceled it in `os:cmd/1`, and the hunt left a crash dump of
+  that host, `Runtime terminating during boot`, in a write of a line that holds
+  `ern-node-flags`.
 - **67. `shell_reload_terminal_gone` ended with the status 0**, not found. Seen 2026-11-14
   once over item 6's runs, where 129 was expected, its output whole. Item 40's hunt did not
   meet it in 2,304 runs, 96 at once, and none of that item's three causes reaches it, since
@@ -117,6 +124,10 @@ item names beside it.
   [`otp_bugs.md`](otp_bugs.md). The three tests that name a cat once it has echoed,
   `signal_jobs_take_any_mode_test`, `signaled_test` and `pid_lock`, then cite the report in
   their comments. Filing is the user's.
+- **72. A build with nothing to do takes 1.6 s and 16 s of processor time**, found 2026-11-16
+  by item 51's diagnosis and measured again by the session: `make -s all` reads each library's
+  `.erc` again. An agent measures where the time goes first, and the build with nothing to do
+  then reads no library (the log's *Slow Tools Are Defects*).
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -134,6 +145,19 @@ item names beside it.
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
+- **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
+  diagnosis (the log's *A Sender That Outlives Its Run*). A message foreign code sends to an
+  exposed address reaches the checker in front of its process first (§8.4). While it waits
+  there the look reads no message in flight, and a program that waits for it alone ends with
+  the fault `deadlock`, where §8.6 calls a program deadlocked only when no message is in
+  flight. A probe that held the checker for two looks showed it in 10 of 10 runs. Nothing has
+  shown it without the hold, since the checker would have to go unscheduled for the look's
+  quiet time.
+
+  Decided with the user: whether the look reads the checkers' queues, as it reads a system
+  process's, or §8.6 promises less. Recommended: the look reads them, since a fault that ends
+  a program which could go on is the surprise principle 1 refuses. The recommendation rests on
+  the agent's probe alone.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
@@ -204,6 +228,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 44 | A reading of `CLAUDE.md` for rules that contradict or repeat each other, with the user | 2026-11-15 | *The Rules Read Against Each Other* |
 | 45 | The milestone split in two | 2026-11-14 | *The Milestone Split* |
 | 46 | What item 42's round left to decide | 2026-11-14 | *No Module's Source*, *An Index That Is No File* |
+| 51 | The flake of `delivery_foreign_code_arranges_test` | 2026-11-16 | §6.9, §8.4, §8.6; *A Sender That Outlives Its Run* |
 | 55 | A reading of `CLAUDE.md` for clarity, with the user | 2026-11-15 | *The Rules Read for Clarity* |
 | 56 | A test canceled at its limit ends its host's later tests | 2026-11-15 | *A Limit Ends Its Own Test* |
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |

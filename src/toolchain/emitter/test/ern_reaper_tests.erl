@@ -298,7 +298,8 @@ stuck_part_is_found_with_the_whole_test() ->
 %% is not counted, so a program that waits for it alone is read as
 %% deadlocked; a monitor of the host process makes it one that may deliver,
 %% and the program waits for its message. A regression test, written after
-%% the code
+%% the code. Not covered: a sender that ends while the program waits for its
+%% message, whose Down has no order with it (§6.9)
 delivery_foreign_code_arranges_test() ->
     Sender = "type MainMsg = Done | Ended(Down)\n"
              "foreign fn later(to : Foreign.Term, message : Foreign.Term) : Process =\n"
@@ -378,9 +379,21 @@ looking() ->
 %% The host's side of the tests of a delivery foreign code arranges: a
 %% process of the host's that sends Message to To once the reaper has looked
 %% twice, or once the reaper has ended, and its pid.
+%%
+%% It ends with the reaper, after the run. A monitor's Down has no order
+%% with the messages the process sent (report §6.9), and Message reaches the
+%% program through the checker in front of To (§8.4), which can pass it on
+%% after the Down is delivered. A sender that ended at its send would so
+%% leave the program's receive two messages in an order nothing promises.
 -spec sent_later(pid(), atom()) -> pid().
 sent_later(To, Message) ->
-    spawn(fun() -> _ = ern_waits:looked(2), To ! Message end).
+    Reaper = ern_rt:launch_reaper(),
+    spawn(fun() ->
+              MonitorRef = erlang:monitor(process, Reaper),
+              _ = ern_waits:looked(2),
+              To ! Message,
+              receive {'DOWN', MonitorRef, process, Reaper, _} -> ok end
+          end).
 
 %% The host's side of the test of a foreign callee: a process of the
 %% host's that takes an Ask and, once the reaper has looked twice, answers
