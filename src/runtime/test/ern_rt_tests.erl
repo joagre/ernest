@@ -1281,7 +1281,8 @@ idle_check_is_cheap_test() ->
 %% processes behind, so the next run failed to make its table
 failed_start_test() ->
     %% the standard library is what its directory holds, here one module
-    Dir = filename:join([filename:basedir(user_cache, "ern_rt_tests"), "failed_start", "stdlib"]),
+    Dir = filename:join([os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                         "ern_rt_failed_start_" ++ os:getpid(), "stdlib"]),
     ok = filelib:ensure_path(Dir),
     ErlangModule = 'ern@zz_failed_start',
     Forms = [{attribute, 1, module, ErlangModule}, {attribute, 1, export, [{'$init', 0}]},
@@ -1302,6 +1303,39 @@ failed_start_test() ->
         file:delete(File)
     end,
     ?assertEqual(ok, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet)).
+
+%% report §8.6: a runner killed inside run_main, as a test's harness kills
+%% one at its time limit, leaves neither its launch's reaper nor the killer
+%% the reaper holds. A regression test: the reaper lived on and looked
+%% every second for the host's life, and its look read a later launch's
+%% tables and ended that launch's main with a deadlock that was none. It
+%% does not cover the launch's other processes, its system processes and
+%% its entry, which live on, nor a look already under way as the runner
+%% dies.
+%%
+%% The killer links to the reaper as it starts, and has started once it has
+%% carried out the entry's kill, so that the reaper's one link names it
+%% then. The entry, which the end no longer reaches, is killed last.
+killed_runner_ends_its_reaper_test() ->
+    Self = self(),
+    Runner = spawn(fun() ->
+                       ern_rt:run_main(
+                         fun() ->
+                             Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
+                                                   <<"Main.main:3">>),
+                             erlang:monitor(process, Victim),
+                             ern_rt:kill(Victim),
+                             receive {'DOWN', _, process, Victim, _} -> ok end,
+                             Reaper = ern_rt:launch_reaper(),
+                             {links, [Killer]} = erlang:process_info(Reaper, links),
+                             Self ! {held, {erlang:self(), Reaper, Killer}},
+                             receive never -> ok end
+                         end, <<"main">>, #{stdout => fun(_) -> ok end})
+                   end),
+    {Entry, Reaper, Killer} = wait(held),
+    exit(Runner, kill),
+    ?assertEqual(ok, ern_waits:ended([Reaper, Killer])),
+    exit(Entry, kill).
 
 %% report §8.5, §11.2: a fault after the bindings a running program
 %% initializes have their values is reported under the process's own site,
@@ -1556,7 +1590,8 @@ asked(Late) ->
 %% before the fix. It covers a load made by a call, the only
 %% way an Ernest process loads, and not code:ensure_loaded called directly
 loading_is_not_deadlock_test() ->
-    Dir = filename:join(filename:basedir(user_cache, "ern_rt_tests"), "loading"),
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        "ern_rt_loading_" ++ os:getpid()),
     ok = filelib:ensure_path(Dir),
     ErlangModule = ern_zz_loading,
     Forms = [{attribute, 1, module, ErlangModule}, {attribute, 1, export, [{f, 0}]},
@@ -1566,6 +1601,9 @@ loading_is_not_deadlock_test() ->
     ok = file:write_file(BeamFile, Binary),
     true = code:add_patha(Dir),
     CodeServer = whereis(code_server),
+    %% loaded before the server is held, which the holder's wait would
+    %% otherwise ask to load it
+    {module, ern_waits} = code:ensure_loaded(ern_waits),
     Holder = spawn(fun() ->
                        receive {hold, From} -> ok end,
                        erlang:suspend_process(CodeServer),
@@ -2220,17 +2258,18 @@ host_exit_reason_test() ->
     ?assertEqual({ern, killed}, wait(r3)),
     ?assertMatch({ern, fault, <<"error:boom">>, Trace} when is_binary(Trace), wait(r4)),
     %% a process still alive when main returns ends with the program
-    spawn(fun() ->
-              ern_rt:run_main(
-                fun() ->
-                    Waiter = ern_rt:spawn(fun() -> receive never -> ok end end,
-                                          <<"Main.main:9">>),
-                    Self ! {waiter, {Waiter, erlang:self()}},
-                    %% the program ends once the test monitors the process
-                    ern_rt:timed(),
-                    receive monitored -> ern_rt:untimed() end
-                end, <<"main">>, #{stdout => fun(_) -> ok end})
-          end),
+    {_, RunRef} = spawn_monitor(
+                    fun() ->
+                        ern_rt:run_main(
+                          fun() ->
+                              Waiter = ern_rt:spawn(fun() -> receive never -> ok end end,
+                                                    <<"Main.main:9">>),
+                              Self ! {waiter, {Waiter, erlang:self()}},
+                              %% the program ends once the test monitors the process
+                              ern_rt:timed(),
+                              receive monitored -> ern_rt:untimed() end
+                          end, <<"main">>, #{stdout => fun(_) -> ok end})
+                    end),
     {Waiter, EntryProcess} = wait(waiter),
     MonitorRef = erlang:monitor(process, Waiter),
     EntryProcess ! monitored,
@@ -2238,7 +2277,10 @@ host_exit_reason_test() ->
         {'DOWN', MonitorRef, process, Waiter, ExitReason} ->
             ?assertEqual({ern, program_end}, ExitReason)
     after 2000 -> error(no_program_end)
-    end.
+    end,
+    %% the runner's end: it deletes the run's tables after the waiter has
+    %% ended, and the next test makes them again
+    receive {'DOWN', RunRef, process, _, _} -> ok end.
 
 %% Appendix E.21: a trace ends with the outermost frame of the program's
 %% code, the frames beneath it left out, so a stack that holds no frame of

@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 66**, the first of the flakes left.
+**The next item is MVP 4.16's item 71**, the flake left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,22 +43,19 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, items 66 and 71, each seen in one hunt, one at a
-time; what the builds found, items 35, 36, 69, 72, 70, 73, 74, 75, 76 and 79; and what needs the
-user, items 60, 68 and 39. The items stand below in that order.
+left*): the flake, item 71, seen in one hunt; what the builds found, items 35, 36, 69, 72, 70,
+73, 74, 75, 76, 79, 80 and 81; and what needs the user, items 60, 68 and 39. The items stand
+below in that order.
 
 A flake is hunted for two hours at most, under the load its item names, and the hunt ends at
 its first sighting, decided with the user on 2026-11-16 (the log's *Two Hours for a Hunt*). One
 that does not show is closed as not reproducible, its log entry naming the test and what it
 wrote, and is opened again where it shows again. Where a probe makes the failure at will, it
 shows the cause and the fix, and no hunt follows. Where none can, the hunt runs to its third
-sighting, and the hunt after the fix runs three times the rounds one sighting took. Of each
+sighting, and the hunt after the fix runs three times the rounds one sighting took. Of the
 flake below the cause is not found. An agent finds it under the load the item names,
 and fixes at the cause the test or what the item names beside it.
 
-- **66. `write_holds_up_no_read`**, under `make flakes`; the test or `Tcp`. Seen 2026-11-15
-  once in item 32's hunt beside 15 loops, in a host's round 115: `ern_tcp_tests`' `run_main`
-  answered the fault `deadlock` where the test expects `ok`.
 - **71. `ern_cli_tests:node_limit_flags_test` canceled at its limit**, under `make flakes`; the
   test or the node's start. Seen 2026-11-16 in rounds 1 and 203 of a host in item 51's first
   hunt beside 15 loops: EUnit canceled it in `os:cmd/1`, and the hunt left a crash dump of
@@ -150,6 +147,22 @@ and fixes at the cause the test or what the item names beside it.
   subscriber sends its spawner a message once it has subscribed, and the test's case or the
   shell's input waits for it before it ends, as item 63's test does. An agent shows each
   failure first by holding the subscriber before its subscription, and builds both.
+- **80. The hunt marks a record that follows a cancel**, found 2026-11-16 by item 66's
+  diagnosis (the log's *A Reaper That Outlives Its Runner*). A test canceled inside `run_main`
+  leaves its launch's system processes and its program's processes in the host, and a hunt's
+  host runs on, round after round. A failure that host records later may not be its test's
+  own. An agent builds it: `ern_flakes` writes, in each record that follows a cancel in its
+  host, the canceled test and its round, and the summary marks those tests.
+  [`development.md`](development.md)'s lines on `make flakes` say so.
+- **81. `listen_of_one_family_test` refused its port**, found 2026-11-16 by item 66's
+  diagnosis, once in 226 rounds of nine copies of one part side by side, a load no target
+  runs. The test listens on `"0.0.0.0"` at the port the host gave its listener on `"::"`, and
+  then the other way round. Another socket of the machine can hold that port in the other
+  family, so `make test` can meet it, at a rate not known. The shape of the fix: where the
+  second listener is refused, the test tells a foreign holder from the regression it holds,
+  under which the listener on `"::"` takes an IPv4 connection, and takes a new pair of ports
+  for a foreign holder. An agent shows the failure first, with another process's socket on
+  the port.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -248,6 +261,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 63 | The flake of `subscribed_while_the_end_waits_test` | 2026-11-16 | §6.9, §8.6, E.23; *A Subscriber That Ends Beside Main* |
 | 64 | The flake of `ern_os_tests`' `terminal_test` | 2026-11-16 | E.23; *A Terminal's Echo Beside Its End* |
 | 65 | The flake of `ern_os_tests`' `resize_test` | 2026-11-16 | E.23; *A Signal Before the Pause* |
+| 66 | The flake of `ern_tcp_tests`' `write_holds_up_no_read` | 2026-11-16 | §8.6; *A Reaper That Outlives Its Runner* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |

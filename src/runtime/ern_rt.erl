@@ -480,7 +480,7 @@ kept({adapted, _, _, _, Launch} = Address) ->
 %% held by the reaper as its deliveries are: linked to it, which lives as
 %% long as the run, so that the process ends with the program as the
 %% reaper is stopped (end_program/4), and which traps its exit, so that its
-%% end, however it comes, ends nothing else (reaper/0). It runs nothing
+%% end, however it comes, ends nothing else (reaper/1). It runs nothing
 %% where the reaper has gone. Its error handler is this module, as every
 %% process's the runtime starts is (run/1).
 reaper_held(Reaper, Work) ->
@@ -1338,8 +1338,14 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% (end_program/4); it traps their exits, so that one that ends otherwise
 %% than it returns, killed from foreign code among the ways, ends nothing
 %% but itself (held_ended/3).
-reaper() ->
+%%
+%% Report §8.6: it monitors the launch's Runner and ends with it, the
+%% processes it holds with it, so that a launch whose runner was killed
+%% before its end, as a test's harness kills one at its time limit, looks
+%% at no later launch's tables.
+reaper(Runner) ->
     erlang:process_flag(trap_exit, true),
+    _ = erlang:monitor(process, Runner, [{tag, 'RUNNER_DOWN'}]),
     reaper_loop(#reaper{}).
 
 reaper_loop(Reaper) ->
@@ -1416,6 +1422,10 @@ reaper_loop(Reaper, Wait) ->
         %% it as any other process's do
         {watch, Pid} ->
             reaper_loop(watched(Pid, Reaper));
+        %% report §8.6: the runner ended before the program's end, and the
+        %% reaper ends with it (reaper/1)
+        {'RUNNER_DOWN', _MonitorRef, process, _Runner, _ExitReason} ->
+            exit({ern, runner_ended});
         {'ASKER_DOWN', _MonitorRef, process, Asker, ExitReason} ->
             reaper_loop(asker_ended(Asker, ExitReason, Reaper));
         {'WATCHED_DOWN', _MonitorRef, process, Pid, ExitReason} ->
@@ -1973,7 +1983,8 @@ next_spawn_order() ->
 %% Report §8.6: the program's end ends every process the runtime started.
 %% The reaper spawns each, so it ends them: every one it has spawned, and
 %% none after, since a spawn it is asked for then was asked by a process
-%% that is itself ending. It answers nothing more until it is stopped.
+%% that is itself ending. It answers nothing more until it is stopped, or
+%% its runner ends (reaper/1).
 ended_program(From, Ref) ->
     Ended = [Pid || #process_row{pid = Pid} <- live_rows()],
     lists:foreach(fun(Pid) -> exit(Pid, {ern, program_end}) end, Ended),
@@ -2003,7 +2014,10 @@ wait_for_ends(Waiting) ->
     end.
 
 ended_program() ->
-    receive _ -> ended_program() end.
+    receive
+        {'RUNNER_DOWN', _MonitorRef, process, _Runner, _ExitReason} -> exit({ern, runner_ended});
+        _ -> ended_program()
+    end.
 
 %% Sets, a map to sets, each a map to true, with Value put in Key's set:
 %% a process a caller monitors, among the processes it monitors; the
@@ -2065,7 +2079,7 @@ wrapped(Caller, Wrap, {'Down', Of, _, _} = Down) ->
 %% Address, counted as a source from before it starts until its work is done,
 %% and linked, so that one that never finishes ends with the process that
 %% started it, the reaper, the clock or the end's teller, each of which
-%% traps its exit (reaper/0, clock/1, tell/4), and the first two of which
+%% traps its exit (reaper/1, clock/1, tell/4), and the first two of which
 %% live the run long. Report §6.9: it acts for its recipient (acting_for/1),
 %% so that what the function it applies opens, spawns or asks of the
 %% runtime is the recipient's, and Process.current there is the recipient.
@@ -3967,7 +3981,7 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
 %% Report §6.5, E.15: the clock holds each alarm's delivery, a process of
 %% its own linked to it (fired/2), and traps their exits, as the reaper
-%% does its own (reaper/0).
+%% does its own (reaper/1).
 clock(ReadTime) ->
     erlang:process_flag(trap_exit, true),
     %% Report §10: its mailbox kept off its heap, so that no collection of the
@@ -4198,7 +4212,8 @@ run_main(EntryPoint, Site, Options) ->
     %% the innermost twelve (trace/1)
     _ = erlang:system_flag(backtrace_depth, 64),
     Launch = launched(Options),
-    Reaper = erlang:spawn(fun reaper/0),
+    Runner = erlang:self(),
+    Reaper = erlang:spawn(fun() -> reaper(Runner) end),
     %% report §8.6, §12.5: what the end uses is there from the run's start,
     %% so that a full table of the host's cannot stop it: the reaper, the
     %% killer of every kill, the sayer of the lines said later

@@ -8,7 +8,7 @@ What the runtime adds to an operation of the host costs a fraction of it, and on
 
 ## The process model
 
-A program's processes are the host's, spawned by the runtime, which keeps a row for each (§6.9, §8.5). The reaper, one process, monitors every process the program spawns and every resource a system module opens, delivers each `Down` through a process of its own, and makes the deadlock look (§8.6).
+A program's processes are the host's, spawned by the runtime, which keeps a row for each (§6.9, §8.5). The reaper, one process, monitors every process the program spawns and every resource a system module opens, delivers each `Down` through a process of its own, and makes the deadlock look (§8.6). It watches its launch's runner and ends with it, its killer with it (the log's *A Reaper That Outlives Its Runner*).
 
 The system processes, stdout, stderr, stdin, the clock, the file system, the terminal, TCP and the host (§8.2), are foreign processes the runtime starts at a launch and stops at its end, the standard streams in order, after what was sent them, so that a line of the toolchain's own a stream did not take its sayer writes; each counts what it holds that can still deliver. The entry process runs the initializers in dependency order and then `main` (§8.5). A launch is one run of the runner, tagged by a reference the adapted addresses carry (§6.5, §11.2); the log's *The Numbers Across Machines* and *The Rows That Grew* measure what a spawn, a monitor and a restart cost.
 
