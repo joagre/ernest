@@ -4756,6 +4756,59 @@ load_forms_sources_to_any_depth() ->
     ?assertMatch({_, _}, binary:match(CycleOutput, <<"> module cycle: Main, Util\n"
                                                      "> input 2:1:1: unknown name Main.greet\n">>)).
 
+%% report §11.2, §11.1: a module a reload loads for the first time through
+%% a compiled form is loaded as `:load` loads it, its source first: A's
+%% changed source uses B's form, which uses C's source, and the reload
+%% compiles C and A. A regression test, written after the code and run
+%% against the code before it, where it failed: C was looked for on the
+%% load path alone. The answer there was A's own diagnostic, that B's form
+%% is stale (§11.1), which a load that places B does not give; with B's
+%% form under a load path root it was `no module C on the load path`. It
+%% does not cover a reload whose new module's form is refused
+reload_a_forms_source_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_a_forms_source/0).
+
+reload_a_forms_source() ->
+    Dir = scratch("ern_reload_forms_source_"),
+    forms_and_sources(Dir, [{"c.ern", "export fn c() : String = \"c\"\n"},
+                            {"b.ern", "export fn b() : String = C.c()\n"}],
+                      ["c.ern"]),
+    ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : String = \"a\"\n"),
+    {0, Output} = source_root_session(Dir, [":load A\nA.a()\n",
+                                            write_source(Dir, "a.ern",
+                                                         "export fn a() : String = B.b()\n"),
+                                            ":reload\nA.a()\n"]),
+    ?assertMatch({_, _}, binary:match(Output, <<"> C, compiled from ",
+                                                (shown(Dir, "c.ern"))/binary,
+                                                "\nA, compiled again\n> \"c\" : String\n">>)).
+
+%% report §11.1, §11.2: a source under the source root at the namespace of
+%% a library's module another library depends on is refused where
+%% `:reload` reaches it through a compiled form: Main's changed source uses
+%% Markdown, whose form uses Ansi, beside a program's `ansi.ern`. The
+%% refusal is the reload's only answer, nothing is reloaded, and Main
+%% answers as before. A regression test, written after the code and run
+%% against the code before it, where it failed: Main was compiled again
+%% against the library's Ansi. It does not cover a compiled form that hides
+%% a library's module
+reload_hiding_through_a_form_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_hiding_through_a_form/0).
+
+reload_hiding_through_a_form() ->
+    Dir = scratch("ern_reload_hiding_form_"),
+    ok = file:write_file(filename:join(Dir, "ansi.ern"), "export fn mine() : String = \"mine\"\n"),
+    ok = file:write_file(filename:join(Dir, "main.ern"),
+                         "export fn count(text : String) : Int = 0\n"),
+    {0, Output} = source_root_session(Dir, [":load Main\nMain.count(\"x\")\n",
+                                            write_source(Dir, "main.ern",
+                                                         "export fn count(text : String) : Int =\n"
+                                                         "    List.size(Markdown.parse(text))\n"),
+                                            ":reload\nMain.count(\"x\")\n"]),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "ansi.ern"))/binary,
+                                                ": Ansi hides the library Ansi, which the library"
+                                                " Markdown uses\nnothing was reloaded\n"
+                                                "> 0 : Int\n">>)).
+
 %% report §11.1, §11.2: a module that uses, through the load path, a module
 %% that uses it is a cycle, which `:load` refuses as `ern build` refuses
 %% one, naming the two, and loads nothing: the module from its source, and

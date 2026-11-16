@@ -5990,6 +5990,48 @@ attached_local_files(Base) ->
     ?assertEqual({ok, <<"the operator's own\n">>}, file:read_file(Outside)),
     stop(Node, WaitNode).
 
+%% report §11.2 *The attached shell*, *Loading and reloading*, §11.1: an
+%% attached `:load` of a compiled form on the node's load path, which the
+%% node has not loaded, loads each module the form uses that the session
+%% has not loaded, its source at the operator's source root first: Greeter's
+%% form uses Helper, which has a source there alone, and the load answers a
+%% line for the source and one for the form. The form comes to the load
+%% path after the node's start, since a node reads every module of its load
+%% path at its start (§8.7).
+%%
+%% A regression test, written after the code and run against the code
+%% before it, where it failed: Helper was looked for on the node's load path
+%% alone. It does not cover a reload through a form in an attached session.
+%% Nor does it cover a source that hides a library's module, reached
+%% through a form: the node holds every library from its start, so the walk
+%% reaches none of their modules.
+attached_load_a_forms_source_test_() ->
+    nodes_test({waits, 7}, fun attached_load_a_forms_source/1).
+
+attached_load_a_forms_source(Base) ->
+    [Built, Lib, Source] = [filename:join(Base, Leaf) || Leaf <- ["built", "lib", "src"]],
+    [ok = filelib:ensure_path(Dir) || Dir <- [Built, Lib, Source]],
+    Helper = "export fn name() : String = \"the operator's helper\"\n",
+    ok = file:write_file(filename:join(Built, "helper.ern"), Helper),
+    ok = file:write_file(filename:join(Built, "greeter.ern"),
+                         "export fn greet() : String = Helper.name()\n"),
+    0 = built([Built]),
+    ok = file:write_file(filename:join(Source, "helper.ern"), Helper),
+    Node = made(Base, "node", 0),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    WaitNode = bare_started(Node, [Lib]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    {ok, _} = file:copy(filename:join(Built, "greeter.erc"), filename:join(Lib, "greeter.erc")),
+    {Shell, _} = Attached = attached(Ops, "node", Source),
+    prints(Ops, ":help for help.\n"),
+    entered(Shell, Ops, [":load Greeter", "Greeter.greet()"], "\"the operator's helper\""),
+    {Out, _} = detached(Attached, Ops),
+    has(Out, "> Helper, compiled from " ++ ern_build:shown(filename:join(Source, "helper.ern"))
+             ++ "\nGreeter, from " ++ ern_build:shown(filename:join(Lib, "greeter.erc"))
+             ++ "\n> \"the operator's helper\" : String\n"),
+    stop(Node, WaitNode).
+
 %% report §11.2 *The attached shell*, *Inputs*, §11.8: a session that ends
 %% by a fault detaches as one that leaves does. At the prompt of a
 %% program's node a session binds `x`, types `x + 1`, which holds `it`, and

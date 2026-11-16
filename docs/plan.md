@@ -43,8 +43,8 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81 and 82; and
-what needs the user, items 60, 68, 83 and 39. The items stand below in that order.
+left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81, 82 and 84;
+and what needs the user, items 60, 68, 83 and 39. The items stand below in that order.
 
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
@@ -150,6 +150,15 @@ what needs the user, items 60, 68, 83 and 39. The items stand below in that orde
   an `ern run` of a program that does nothing, alone and under both loads, with the busy
   wait and without, and `make bench` both ways. Whether the launcher starts the host with
   the busy wait off is then decided with the user, on those numbers.
+- **84. `make test-nodes` a minute slower right after another target**, found 2026-11-16 by
+  the agent that wrote item 35's later tests (the log's *Hard Work and Stupid Work*). The
+  target took about 137 s started after a pause, and 205 to 210 s started right after
+  `make test-shell` or another run of its own, in runs of the agent's and one of the
+  session's. The agent read each test's own time as the same on both sides. No process of
+  the earlier target is left: five seconds after `make test-shell` ended the session found
+  no host and one runnable process, where the load average still read 112. The cause is
+  not found. An agent measures first: the target after a pause and right after `make
+  test-shell`, three times each in turn, and where a run spends its time outside its tests.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -168,26 +177,33 @@ what needs the user, items 60, 68, 83 and 39. The items stand below in that orde
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
 - **83. What item 35 left to decide**, found 2026-11-16 by its build and its read-back (the
-  log's *A Compiled Form's Sources*): three things `:load` says, each brought to the user
-  with a recommendation.
+  log's *A Compiled Form's Sources*, *Hard Work and Stupid Work*): three things `:load` and
+  `:reload` say, each brought to the user with a recommendation.
 
   What a load answers. §11.2 states `Greet, from greet.erc`, and neither the line `Greet,
-  compiled from greet.ern` nor which modules the answer names. Recommended: §11.2 states
-  what the shell does, a line for the module named and for each module the load took whose
-  source the source root holds, a module after those it uses.
+  compiled from greet.ern` nor which modules the answer names, a reload's among them.
+  Recommended: §11.2 states what the shell does, a line for the module named and for each
+  module the load took whose source the source root holds, a module after those it uses,
+  and none for a compiled form that one of them uses.
 
   A line for a module that uses one that failed. A source that fails its check is followed
   by `B is not loaded, since C does not compile` for each source that uses it, and by no
   line for a compiled form that uses it, nor for a source that uses that form. Recommended:
-  it stays, since the source's diagnostic names the cause and nothing is loaded, and the
-  log says it was dropped.
+  one rule, each module the load could not load for it named in a line of its own, as `ern
+  build` names each it left uncompiled (§11.1), in a text that is true of a compiled form
+  too, which is decided with the user.
 
-  A compiled form that hides a library's module. A source that hides one is refused before
-  any module is compiled, its refusal the load's only answer (§11.1). Such a form that a
-  source uses is refused at the placing, where the source's own diagnostic stands in its
-  place. That is read from the code, and the item first runs a program that shows it.
-  Recommended: where it shows, the form is tested with the sources, before any module is
-  compiled.
+  A source's own diagnostic in the cause's place. Where a module that a source uses cannot
+  be placed, the source is compiled alone, and its own diagnostic answers where it has one.
+  The session ran it: `a.ern` uses `b.erc`, whose source is gone and which uses a `C` found
+  nowhere. `:load A` answers `no module B: b.erc was compiled from b.ern, which no longer
+  exists`, the build's refusal of a stale form (§11.1), which no load that places `B`
+  gives, and `:load B` answers `no module C on the load path`.
+
+  A compiled form that hides a library's module is refused behind such a diagnostic the
+  same way, which is read from the code and not run. Recommended, before the log is read
+  for the decision behind that clause: the cause's text answers, and a hiding form is
+  tested with the sources, before any module is compiled.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
