@@ -44,8 +44,8 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 72, 82, 36, 69, 70, 73, 74 and 84; and what needs the
-user, items 60, 68 and 86. On 2026-11-16 items 72 and 82 came first of the builds'
+left*): what the builds found, items 72, 82, 36, 69, 70, 73, 74, 84, 87 and 88; and what
+needs the user, items 60, 68 and 86. On 2026-11-16 items 72 and 82 came first of the builds'
 findings (the log's *Twenty-Seven Hosts for Nothing*), and item 39 first of all (the log's
 *The README's Top Comes First*). The items stand below in that order.
 
@@ -150,6 +150,18 @@ findings (the log's *Twenty-Seven Hosts for Nothing*), and item 39 first of all 
   no host and one runnable process, where the load average still read 112. The cause is
   not found. An agent measures first: the target after a pause and right after `make
   test-shell`, three times each in turn, and where a run spends its time outside its tests.
+- **87. Nothing holds that a shell test names a home**, found 2026-11-16 by the fix of the
+  27 sites that ran under the inherited `HOME` (the log's *The Shell's Tests in a Home of
+  Their Own*). A new test that starts `ern shell` by hand runs the startup file of whoever
+  runs the tests, and nothing fails. The shape of the fix: `make test-shell` runs under a
+  scratch home whose startup file prints a line, as the fix's probe did, so that a session
+  under the inherited home shows the line. An agent shows first which tests fail on the
+  line where one is moved back.
+- **88. No test runs the hunt's rounds**, found 2026-11-16 by item 80's build (the log's *A
+  Record After a Cancel*). `ern_flakes:hunt/1` carries the host's first cancel from one
+  round to the next, and only a run by hand showed it. An agent writes the test: `hunt/1`
+  given its environment and a moment that lets two rounds begin, over a module whose test
+  its limit cancels, and round 2's record read for round 1's cancel.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
