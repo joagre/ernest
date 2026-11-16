@@ -44,20 +44,25 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 72, 36, 69, 70, 73, 74, 84, 87 and 88; and what
-needs the user, items 60 and 68. On 2026-11-16 item 72 came first of the builds' findings
+needs the user, items 60, 68 and 89. On 2026-11-16 item 72 came first of the builds' findings
 (the log's *Twenty-Seven Hosts for Nothing*). The items stand below in that order.
 
 - **72. A build with nothing to do starts 26 hosts**, found 2026-11-16 by item 51's
   diagnosis and measured again the same day (the log's *Twenty-Six Hosts Are the Cost*):
-  14 for `ern build` and 12 for `ern doc --man`. Side by side on 24 threads they take
-  1.4 s, and on a normal laptop they queue. Decided with the user on 2026-11-17: one host
-  does their work. It starts once and runs each root's check in turn, by §11.1's rule, and
-  make keeps no stamp. The check reads each file once in it, where a build now reads each
-  source and each `.erc` twice and the standard library's interfaces at every root.
+  14 for `ern build` and 12 for `ern doc --man`. They take 1.4 s on 24 threads, 5.6 s on
+  xena's four cores and 16.4 s on bee's two, where the session's probe of one host took
+  0.5 s, 1.6 s and 3.4 s.
 
-  To decide with the user first: how that one job is said. §11.1 builds one root, and
-  §11.9's build of several roots fits none of the toolchain's own. An agent builds it
-  then, and times a make with nothing to do once before and once after.
+  Decided with the user on 2026-11-17: one host does their work, and make keeps no stamp.
+  The Makefile starts the host and gives it the jobs' command lines, which it runs in turn
+  through the command's own code, by §11.1's rule. `ern` gains no word and the report no
+  sentence. An agent builds it, and times a make with nothing to do and a build from clean
+  once before and once after.
+
+  A second build makes the check leaner: each file is read once, where a build now reads
+  each source and each `.erc` twice. Whether a source that has not changed can be found
+  current without its parse is read against §11.1's cases first, and a change to §11.1
+  comes to the user.
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
   the directory as `ern build` does, where a module that does not compile does not stop the
@@ -147,6 +152,13 @@ needs the user, items 60 and 68. On 2026-11-16 item 72 came first of the builds'
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
+- **89. Where the compile server's proposal stands**, found 2026-11-17 by item 72's numbers
+  (the log's *Twenty-Six Hosts Are the Cost*). A build's work runs in one process, and
+  every call pays its host's start and its code's loading. A host that compiles side by
+  side and one that stays between calls go to a proposal under `docs/proposals/`.
+
+  To decide with the user: the milestone the proposal is written in. Recommended: MVP
+  4.5, after the launch, since nothing the launch shows waits on it.
 
 ### What is done
 
