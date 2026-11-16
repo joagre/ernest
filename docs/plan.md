@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 35**, the first of what the builds found.
+**The next item is MVP 4.16's item 36**, the next of what the builds found.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,15 +43,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 35, 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81 and 82; and
-what needs the user, items 60, 68 and 39. The items stand below in that order.
+left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81 and 82; and
+what needs the user, items 60, 68, 83 and 39. The items stand below in that order.
 
-- **35. A compiled module's dependency that has only a source**, found 2026-11-13 by item 26's
-  build: `:load Main`, taken from `main.erc`, answers `no module Util on the load path`
-  where the source root holds `util.ern` and no `util.erc`, and a `:load Util` takes that
-  source (§11.2). An agent builds it: the load places each module a compiled form uses as
-  `:load` takes a module, its source first. `:load Http` beside a program's `time.ern` is
-  then refused as §11.1 says, and a test holds it (the log's *A Hiding Module Refused*).
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
   the directory as `ern build` does, where a module that does not compile does not stop the
@@ -173,6 +167,27 @@ what needs the user, items 60, 68 and 39. The items stand below in that order.
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
+- **83. What item 35 left to decide**, found 2026-11-16 by its build and its read-back (the
+  log's *A Compiled Form's Sources*): three things `:load` says, each brought to the user
+  with a recommendation.
+
+  What a load answers. §11.2 states `Greet, from greet.erc`, and neither the line `Greet,
+  compiled from greet.ern` nor which modules the answer names. Recommended: §11.2 states
+  what the shell does, a line for the module named and for each module the load took whose
+  source the source root holds, a module after those it uses.
+
+  A line for a module that uses one that failed. A source that fails its check is followed
+  by `B is not loaded, since C does not compile` for each source that uses it, and by no
+  line for a compiled form that uses it, nor for a source that uses that form. Recommended:
+  it stays, since the source's diagnostic names the cause and nothing is loaded, and the
+  log says it was dropped.
+
+  A compiled form that hides a library's module. A source that hides one is refused before
+  any module is compiled, its refusal the load's only answer (§11.1). Such a form that a
+  source uses is refused at the placing, where the source's own diagnostic stands in its
+  place. That is read from the code, and the item first runs a program that shows it.
+  Recommended: where it shows, the form is tested with the sources, before any module is
+  compiled.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
@@ -235,6 +250,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 32 | The flake of `deadlock_line_on_a_test_test` | 2026-11-15 | §11.2, §8.6; *The Client's Line* |
 | 33 | What one `Tcp.read` answers, and what an unread socket holds, with the user | 2026-11-13 | E.18; *What One Read Answers* |
 | 34 | Regression tests of the sentences item 29 stated | 2026-11-14 | [`development.md`](development.md)'s *Building*; *The Sentences Held by Tests* |
+| 35 | A compiled module's dependency that has only a source | 2026-11-16 | §11.1, §11.2; *A Compiled Form's Sources* |
 | 37 | The library's functions written in a program; the applications lose no function to the library | 2026-11-15 | E.14; *A Library's Function in a Program*, *The Sweep's Reading* |
 | 38 | ern(1) written again after `make doc` | 2026-11-15 | §11.4; *What the Toolchain's Page Is Made From* |
 | 40 | The flake of `log_terminal_gone_test_` and three tests beside it | 2026-11-15 | §11.8, §8.6, E.23; *The Shell's Last Line* |

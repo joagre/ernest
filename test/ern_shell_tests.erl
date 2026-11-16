@@ -4650,6 +4650,147 @@ load_beside_a_module_hiding_a_library() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> \"mine\" : String\n> ",
                                                 (hides_time(Dir, "time.erc"))/binary, "\n">>)).
 
+%% Under Dir, the compiled forms of the sources Sources, each a file and its
+%% text, compiled together (forms/2); the sources of Kept are then written
+%% again beside them, and their compiled forms removed, so that a module of
+%% Kept has its source alone.
+forms_and_sources(Dir, Sources, Kept) ->
+    [ok = file:write_file(filename:join(Dir, File), Text) || {File, Text} <- Sources],
+    forms(Dir, [File || {File, _} <- Sources]),
+    [ok = file:write_file(filename:join(Dir, File), Text)
+     || {File, Text} <- Sources, lists:member(File, Kept)],
+    [ok = file:delete(filename:join(Dir, filename:rootname(File) ++ ".erc")) || File <- Kept],
+    ok.
+
+%% The shell started with the source root Dir, given the inputs Inputs: its
+%% status and what it wrote.
+source_root_session(Dir, Inputs) ->
+    InputFile = scratch_file("ern_source_root_session_"),
+    ok = file:write_file(InputFile, Inputs),
+    ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile).
+
+%% report §11.2, §11.1: `:load` of a module with no source, Main, loads each
+%% module its compiled form uses that the session has not loaded as it
+%% loads the module it names, its source first: Util's source is compiled,
+%% and Main's form placed after it. Where the source gives another
+%% interface than the form was compiled against, the form is refused as one
+%% compiled against another, and nothing is loaded. Written before the code
+%% and run against the code before it, where it failed: Util was looked for
+%% on the load path alone
+load_a_forms_source_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun load_a_forms_source/0).
+
+load_a_forms_source() ->
+    Dir = scratch("ern_load_forms_source_"),
+    Util = "export fn name() : String = \"util\"\n",
+    forms_and_sources(Dir, [{"util.ern", Util},
+                            {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["util.ern"]),
+    {0, Output} = source_root_session(Dir, ":load Main\nMain.greet()\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Util, compiled from ",
+                                                (shown(Dir, "util.ern"))/binary,
+                                                "\nMain, from ", (shown(Dir, "main.erc"))/binary,
+                                                "\n> \"util\" : String\n">>)),
+    ok = file:write_file(filename:join(Dir, "util.ern"),
+                         [Util, "\nexport fn other() : Int = 1\n"]),
+    {0, Other} = source_root_session(Dir, ":load Main\nUtil.other()\n"),
+    ?assertMatch({_, _}, binary:match(Other, <<"> Main was compiled against another Util; build"
+                                               " Main again\n> ">>)),
+    ?assertMatch({_, _}, binary:match(Other, <<"unknown name Util.other">>)).
+
+%% report §11.1, §11.2: a source under the source root at the namespace of
+%% a library's module another library depends on is refused where `:load`
+%% reaches it through a compiled form, as where the module loaded uses it:
+%% Time, which the library Http uses, for `:load Http`, and Ansi, which the
+%% library Markdown uses, for a module that uses Markdown and not Ansi. The
+%% refusal is the load's only answer, and nothing is loaded. Written before
+%% the code and run against the code before it, where it failed: the
+%% library's module was loaded
+load_hiding_through_a_form_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun load_hiding_through_a_form/0).
+
+load_hiding_through_a_form() ->
+    Mine = "export fn mine() : String = \"mine\"\n",
+    Http = scratch("ern_load_hiding_http_"),
+    ok = file:write_file(filename:join(Http, "time.ern"), Mine),
+    {0, HttpOutput} = source_root_session(Http, ":load Http\nHttp.date(0)\n"),
+    ?assertMatch({_, _}, binary:match(HttpOutput, <<"> ", (hides_time(Http, "time.ern"))/binary,
+                                                    "\n> input 2:1:1: unknown name Http.date\n">>)),
+    Markdown = scratch("ern_load_hiding_markdown_"),
+    ok = file:write_file(filename:join(Markdown, "ansi.ern"), Mine),
+    ok = file:write_file(filename:join(Markdown, "main.ern"),
+                         "export fn count(text : String) : Int =\n"
+                         "    List.size(Markdown.parse(text))\n"),
+    {0, MarkdownOutput} = source_root_session(Markdown, ":load Main\nMain.count(\"x\")\n"),
+    ?assertMatch({_, _}, binary:match(MarkdownOutput,
+                                      <<"> ", (shown(Markdown, "ansi.ern"))/binary,
+                                        ": Ansi hides the library Ansi, which the library Markdown"
+                                        " uses\n> input 2:1:1: unknown name Main.count\n">>)).
+
+%% report §11.2, §11.5: a source that `:load` finds through a compiled form
+%% and that does not compile fails the load with the texts it fails its
+%% own `:load` with, a module that does not check and one that does not
+%% parse, and nothing is loaded. Written before the code and run against
+%% the code before it, where it failed: Util was looked for on the load path
+%% alone
+load_a_forms_source_that_fails_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_a_forms_source_that_fails/0).
+
+load_a_forms_source_that_fails() ->
+    Dir = scratch("ern_load_forms_failing_"),
+    forms_and_sources(Dir, [{"util.ern", "export fn name() : String = \"util\"\n"},
+                            {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["util.ern"]),
+    ok = file:write_file(filename:join(Dir, "util.ern"), "export fn name() : String = 1\n"),
+    {0, Output} = source_root_session(Dir, [":load Main\n:load Util\n",
+                                            write_source(Dir, "util.ern",
+                                                         "export fn name( : String = 1\n"),
+                                            ":load Main\n:load Util\nMain.greet()\n"]),
+    [_Banner, Unchecked, UncheckedAlone, _Written, Unparsed, UnparsedAlone, Unknown | _] =
+        binary:split(Output, <<"\n> ">>, [global]),
+    ?assertMatch({_, _}, binary:match(Unchecked, shown(Dir, "util.ern"))),
+    ?assertEqual(UncheckedAlone, Unchecked),
+    ?assertMatch({_, _}, binary:match(Unparsed, shown(Dir, "util.ern"))),
+    ?assertNotEqual(Unchecked, Unparsed),
+    ?assertEqual(UnparsedAlone, Unparsed),
+    ?assertMatch({_, _}, binary:match(Unknown, <<"unknown name Main.greet">>)).
+
+%% report §11.2, §11.1: a source that `:load` finds through a compiled form
+%% is loaded by the same rule as the module it names, what it uses found
+%% so to any depth: Main's form uses Util's source, which uses Deep's form,
+%% which uses Deeper's source. A cycle through a form and a source, Main's
+%% form using Util's source, which uses Main, is refused as `ern build`
+%% refuses one, and nothing is loaded. Written before the code and run
+%% against the code before it, where it failed: Util was looked for on the
+%% load path alone
+load_forms_sources_to_any_depth_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun load_forms_sources_to_any_depth/0).
+
+load_forms_sources_to_any_depth() ->
+    Dir = scratch("ern_load_forms_depth_"),
+    forms_and_sources(Dir, [{"deeper.ern", "export fn word() : String = \"deeper\"\n"},
+                            {"deep.ern", "export fn word() : String = Deeper.word()\n"},
+                            {"util.ern", "export fn name() : String = Deep.word()\n"},
+                            {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["deeper.ern", "util.ern"]),
+    {0, Output} = source_root_session(Dir, ":load Main\nMain.greet()\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Deeper, compiled from ",
+                                                (shown(Dir, "deeper.ern"))/binary,
+                                                "\nUtil, compiled from ",
+                                                (shown(Dir, "util.ern"))/binary,
+                                                "\nMain, from ", (shown(Dir, "main.erc"))/binary,
+                                                "\n> \"deeper\" : String\n">>)),
+    Cycle = scratch("ern_load_forms_cycle_"),
+    Util = "export fn name() : String = \"util\"\n",
+    forms_and_sources(Cycle, [{"util.ern", Util},
+                              {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["util.ern"]),
+    ok = file:write_file(filename:join(Cycle, "util.ern"),
+                         [Util, "\nexport fn again() : String = Main.greet()\n"]),
+    {0, CycleOutput} = source_root_session(Cycle, ":load Main\nMain.greet()\n"),
+    ?assertMatch({_, _}, binary:match(CycleOutput, <<"> module cycle: Main, Util\n"
+                                                     "> input 2:1:1: unknown name Main.greet\n">>)).
+
 %% report §11.1, §11.2: a module that uses, through the load path, a module
 %% that uses it is a cycle, which `:load` refuses as `ern build` refuses
 %% one, naming the two, and loads nothing: the module from its source, and
