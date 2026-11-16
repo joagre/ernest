@@ -32,7 +32,7 @@ A design note states its component's design as it stands. It cites the report, n
 
 Until a proposal is decided all of it is tentative. Nothing in it is ever authoritative, built or not.
 
-A program with a repository of its own is written only by its own sessions. A session here reads it, and writes there only a change across the repositories. [`docs/clean_room.md`](docs/clean_room.md) says how, and where the program's proposal lives.
+A program with a repository of its own is written only by its own sessions. A session here reads it, and writes there only a change across the repositories. [`docs/clean_room.md`](docs/clean_room.md) says how, and where the program's proposal lives. A session reads that file before it writes in another repository.
 
 A proposal refused or not taken up stays, its README's status line saying which. A built one stays as the record of its design until its milestone's release, its status line saying so. Meanwhile it changes only in its form, every decision, fact and number kept.
 
