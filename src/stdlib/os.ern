@@ -458,21 +458,23 @@ export fn startTerminal(command : Command,
 ///
 /// ### Examples
 ///
-/// A program that reads a line, then its terminal's size, which the resize
-/// before the line has set; the terminal echoes the line feed as it reads it:
+/// A program that traps `SIGWINCH`, writes `ready`, and waits on a child; the
+/// trap reads the terminal's size and exits with its rows:
 ///
 /// ```ernest
 /// {
+///     let script =
+///         "trap 'set -- $(stty size); exit $1' WINCH; printf ready;"
+///             <> " sleep 1000 > /dev/null 2>&1 & wait";
 ///     let sh <-
-///         Os.startTerminal(Os.command("sh", ["-c", "read line; set -- $(stty size); exit $1"]),
+///         Os.startTerminal(Os.command("sh", ["-c", script]),
 ///                          Terminal.Size(rows = 24, columns = 80));
+///     let ready <- Os.read(sh, 5000);
 ///     let _ <- Os.resize(sh, Terminal.Size(rows = 30, columns = 100));
-///     let _ <- Os.write(sh, <<10>>, 5000);
-///     let echoed <- Os.read(sh, 5000);
 ///     let last <- Os.read(sh, 5000);
-///     Right(#(echoed, last))
+///     Right(#(ready, last))
 /// }
-/// // => Right(#(Os.Stdout(<<13, 10>>), Os.Exited(30)))
+/// // => Right(#(Os.Stdout(<<114, 101, 97, 100, 121>>), Os.Exited(30)))
 /// ```
 ///
 /// A program `start` started has no terminal:
