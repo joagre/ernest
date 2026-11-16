@@ -315,10 +315,16 @@ faults(Acc) ->
 %% waits is told at once, said as it is told, and the end waits for it too:
 %% the first subscriber, told, starts a second and answers once the second
 %% has subscribed. One whose process ended before the end is gone with it
-%% and holds nothing up
+%% and holds nothing up.
+%%
+%% Main returns once the first has subscribed and the Down of the one that
+%% ends has come, since nothing orders a spawned process's acts before its
+%% spawner's end, nor two deaths (§6.9): an end begun as that one ends can
+%% find its subscription standing. So the test no longer covers an end that
+%% races a subscription or a subscriber's end
 subscribed_while_the_end_waits_test() ->
     {Result, Output} = ern_emitter_tests:run(
-        "type Msg = Ready | Terminating(Reply(Unit))\n"
+        "type Msg = Ready | Ended(Down) | Terminating(Reply(Unit))\n"
         "fn second(first : Address(Msg)) : Unit receiving Msg = {\n"
         "    Os.termination(Terminating);\n"
         "    send(first, Ready);\n"
@@ -327,8 +333,9 @@ subscribed_while_the_end_waits_test() ->
         "      | Ready -> Unit\n"
         "    }\n"
         "}\n"
-        "fn first() : Unit receiving Msg = {\n"
+        "fn first(main : Address(Msg)) : Unit receiving Msg = {\n"
         "    Os.termination(Terminating);\n"
+        "    send(main, Ready);\n"
         "    receive {\n"
         "        Terminating(reply) -> {\n"
         "            let me = self();\n"
@@ -341,18 +348,21 @@ subscribed_while_the_end_waits_test() ->
         "      | Ready -> Unit\n"
         "    }\n"
         "}\n"
-        "export fn main() : Unit = {\n"
-        "    let _ = spawn(fn() : Unit receiving Msg = Os.termination(Terminating));\n"
-        "    let _ = spawn(first);\n"
-        "    Unit\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    let _ = spawnMonitored(fn() : Unit receiving Msg = Os.termination(Terminating),"
+        " Ended);\n"
+        "    let _ = spawn(fn() : Unit receiving Msg = first(me));\n"
+        "    receive { Ended(_) -> Unit };\n"
+        "    receive { Ready -> Unit }\n"
         "}\n"),
     ?assertEqual(ok, Result),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: M.main:26\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for M.first:15 too\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for 1 subscriber: M.main:28\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the end waits for M.first:16 too\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"second told\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.first:15 answered\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:26 answered\n">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"M.main:25">>)).
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.first:16 answered\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the subscriber M.main:28 answered\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"M.main:27">>)).
 
 %% report §8.6: a program with no subscriber ends as before, and says
 %% nothing of a wait
