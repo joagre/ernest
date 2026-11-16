@@ -4146,14 +4146,13 @@ reload_names_no_library() ->
     User = fun(Body) -> ["export fn two() : Int = ", Body, "\n"] end,
     ok = file:write_file(filename:join(Source, "user.ern"), User("Lib.one() + 1")),
     ok = file:write_file(filename:join(Source, "other.ern"), "export fn three() : Int = 3\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load User\n:load Other\n",
-                                     write_source(Source, "user.ern", User("Lib.one() * 2")),
-                                     ":reload\nUser.two()\n",
-                                     "Fs.remove(Path(\"", filename:join(Source, "other.ern"),
-                                     "\"), 2000)\n:reload\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source ++ " --load-path "
-                                   ++ Library) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Source, [Library],
+                            [":load User\n:load Other\n",
+                             write_source(Source, "user.ern", User("Lib.one() * 2")),
+                             ":reload\nUser.two()\n",
+                             "Fs.remove(Path(\"", filename:join(Source, "other.ern"),
+                             "\"), 2000)\n:reload\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"User, compiled again\n> 2 : Int\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"holds no source of Lib">>)),
     ?assertMatch({match, _}, re:run(Output, "no source has changed\nthe source root [^\n]* holds"
@@ -4175,14 +4174,12 @@ reload_takes_a_source_that_appears() ->
     ok = file:write_file(Greet, "export let greeting : String = \"the load path's\"\n"),
     {0, _} = ern_pty:sh("../bin/ern build " ++ Library),
     ok = file:delete(Greet),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Greet\nGreet.greeting\n",
-                          write_source(Source, "greet.ern",
-                                       "export let greeting : String = \"the source root's\"\n"),
-                          ":reload\nGreet.greeting\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
-                                   ++ " --load-path " ++ Library) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Source, [Library],
+                            [":load Greet\nGreet.greeting\n",
+                             write_source(Source, "greet.ern",
+                                          "export let greeting : String = \"the source root's\"\n"),
+                             ":reload\nGreet.greeting\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Greet, from ",
                                                 (shown(Library, "greet.erc"))/binary,
                                                 "\n> \"the load path's\" : String\n">>)),
@@ -4207,14 +4204,12 @@ reload_refused_for_a_sourceless_user() ->
     ok = file:write_file(User, "export fn twice() : Int = Dep.answer() * 2\n"),
     {0, _} = ern_pty:sh("../bin/ern build --load-path " ++ Source ++ " " ++ Library),
     ok = file:delete(User),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Dep\n:load User\nUser.twice()\n",
-                          write_source(Source, "dep.ern",
-                                       "export fn answer() : String = \"five\"\n"),
-                          ":reload\nUser.twice()\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
-                                   ++ " --load-path " ++ Library) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Source, [Library],
+                            [":load Dep\n:load User\nUser.twice()\n",
+                             write_source(Source, "dep.ern",
+                                          "export fn answer() : String = \"five\"\n"),
+                             ":reload\nUser.twice()\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"User, from ", (shown(Library, "user.erc"))/binary,
                                                 "\n> 10 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"User uses what the reload changes, and the source"
@@ -4838,10 +4833,8 @@ load_path_cycle() ->
                          [Twice, "\nexport fn eight() : Int = A.four() * 2\n"]),
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " --load-path " ++ Earlier
                         ++ " " ++ Library),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load A\nA.four()\n:load B\nB.eight()\n1 + 1\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source ++ " --load-path "
-                                   ++ Library ++ " --load-path " ++ Build) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Source, [Library, Build],
+                                      ":load A\nA.four()\n:load B\nB.eight()\n1 + 1\n"),
     ?assertEqual(2, length(binary:matches(Output, <<"> module cycle: A, B\n">>))),
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"unknown name A.four">>, <<"unknown name B.eight">>, <<"> 2 : Int">>]].
@@ -5679,14 +5672,13 @@ refused_load_links_a_replaced_library() ->
     ok = filelib:ensure_dir(filename:join(Source, "app.ern")),
     ok = file:write_file(filename:join(Source, "app.ern"),
                          "export let checked : Int = 10 / Lib.Value.divisor()\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load App\n",
-                          "Fs.copy(Path(\"", filename:join(Second, "lib/value.erc"), "\"), Path(\"",
-                          filename:join(LoadPath, "lib/value.erc"), "\"), 2000)\n",
-                          ":load App\nApp.checked\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source ++ " --load-path "
-                                   ++ LoadPath) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Source, [LoadPath],
+                            [":load App\n",
+                             "Fs.copy(Path(\"", filename:join(Second, "lib/value.erc"),
+                             "\"), Path(\"", filename:join(LoadPath, "lib/value.erc"),
+                             "\"), 2000)\n",
+                             ":load App\nApp.checked\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> App.checked:1 faulted: division by zero;"
                                                 " nothing was loaded\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> App, compiled from ",
@@ -5705,20 +5697,18 @@ reload_bindings_test_() ->
 reload_bindings() ->
     Dir = scratch("ern_reload_bindings_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Demo\n",
-                                     "let g = Demo.answer\n",
-                                     "let captures = { let f = Demo.answer; fn() = f() }\n",
-                                     "let calls = fn() = g()\n",
-                                     write_demo(Dir, 2),
-                                     ":reload\n",
-                                     "let h = Demo.answer\n",
-                                     write_demo(Dir, 3),
-                                     ":reload\n",
-                                     "g()\ncaptures()\ncalls()\nh()\nDemo.answer()\n"]),
-    {0, Output} = ern_pty:sh(
-        alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path " ++ Dir)
-        ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [Dir],
+                            [":load Demo\n",
+                             "let g = Demo.answer\n",
+                             "let captures = { let f = Demo.answer; fn() = f() }\n",
+                             "let calls = fn() = g()\n",
+                             write_demo(Dir, 2),
+                             ":reload\n",
+                             "let h = Demo.answer\n",
+                             write_demo(Dir, 3),
+                             ":reload\n",
+                             "g()\ncaptures()\ncalls()\nh()\nDemo.answer()\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n> 1 : Int\n> 1 : Int\n> 2 : Int\n"
                                                 "> 3 : Int\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"badfun">>)),
@@ -6083,10 +6073,8 @@ compiled_beside_the_shells_own() ->
                          "export fn hello() : String = \"hello\"\n"),
     {0, _} = ern_pty:sh("../bin/ern build --source-root " ++ Library ++ " " ++ Library),
     ok = file:delete(filename:join(Library, "markdown.ern")),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":doc List.map\n:load Markdown\nMarkdown.hello()\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path "
-                                   ++ Library) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [Library],
+                                      ":doc List.map\n:load Markdown\nMarkdown.hello()\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"Markdown, from ",
                                                 (shown(Library, "markdown.erc"))/binary, "\n"
                                                 "> \"hello\" : String">>)).
@@ -6158,10 +6146,8 @@ load_takes_no_form_of_another_source() ->
     Past = os:system_time(second) - 60,
     [ok = file:write_file_info(File, #file_info{mtime = Past}, [{time, posix}])
      || File <- [Fix, Other]],
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Greet\nGreet.greeting\n:load Other\nOther.other\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
-                                   ++ " --load-path " ++ Build) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Source, [Build],
+                                      [":load Greet\nGreet.greeting\n:load Other\nOther.other\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from ",
                                                 (shown(Source, "greet.ern"))/binary, "\n"
                                                 "> \"the fix\" : String\n">>)),
@@ -6186,10 +6172,7 @@ load_takes_the_source_roots_form_first() ->
          {0, _} = ern_pty:sh("../bin/ern build " ++ Root),
          ok = file:delete(Greet)
      end || {Root, Whose} <- [{Source, "the source root's"}, {Library, "the load path's"}]],
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Greet\nGreet.greeting\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Source
-                                   ++ " --load-path " ++ Library) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Source, [Library], ":load Greet\nGreet.greeting\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"Greet, from ", (shown(Source, "greet.erc"))/binary,
                                                 "\n> \"the source root's\" : String\n">>)).
 
@@ -6487,14 +6470,11 @@ reload_in_dependency_order() ->
     ok = file:write_file(filename:join(Dir, "a.ern"), ModuleA(100)),
     ok = file:write_file(filename:join(Dir, "b.ern"), ModuleB(1)),
     {0, _} = ern_pty:sh("../bin/ern build " ++ Dir),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load A\n", "A.y\n",
-                                     write_source(Dir, "a.ern", ModuleA(200)),
-                                     write_source(Dir, "b.ern", ModuleB(2)),
-                                     ":reload\n", "A.y\n"]),
-    {0, Output} = ern_pty:sh(
-        alone("../bin/ern shell --source-root " ++ Dir ++ " --load-path " ++ Dir)
-        ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [Dir],
+                                      [":load A\n", "A.y\n",
+                                       write_source(Dir, "a.ern", ModuleA(200)),
+                                       write_source(Dir, "b.ern", ModuleB(2)),
+                                       ":reload\n", "A.y\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"101 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"202 : Int">>)).
 
@@ -6517,11 +6497,7 @@ load_compiled() ->
     ok = file:write_file(filename:join(Sources, "n.ern"), "export let y : Int = 2\n"),
     {0, _} = ern_pty:sh("../bin/ern build --build-root " ++ Build ++ " " ++ Sources),
     ok = file:change_mode(filename:join(Build, "n.erc"), 8#000),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load M\nM.x\n:load N\n2\n"),
-    {0, Output} = ern_pty:sh(
-        alone("../bin/ern shell --source-root " ++ Empty ++ " --load-path " ++ Build)
-        ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Empty, [Build], ":load M\nM.x\n:load N\n2\n"),
     ok = file:change_mode(filename:join(Build, "n.erc"), 8#600),
     ?assertMatch({_, _}, binary:match(Output, unicode:characters_to_binary(
                                                 ["> M, from ", shown(Build, "m.erc"),
@@ -6584,12 +6560,8 @@ load_path_dependency() ->
     {0, _} = ern_pty:sh(
         "../bin/ern build --source-root " ++ Library ++ " --build-root " ++ Second ++ " "
         ++ filename:join(Library, "dep.ern")),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load User\n", "User.twice()\n"]),
-    {0, Output} = ern_pty:sh(
-        alone("../bin/ern shell --source-root " ++ SourceRoot
-              ++ " --load-path " ++ First ++ " --load-path " ++ Second)
-        ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(SourceRoot, [First, Second],
+                                      [":load User\n", "User.twice()\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"User, compiled from ",
                                                 (shown(SourceRoot, "user.ern"))/binary>>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 10 : Int">>)).
@@ -6620,11 +6592,7 @@ load_refuses_stale_compiled() ->
     ok = file:write_file(filename:join(Library, "dep.ern"),
                          "export fn answer() : String = \"five\"\n"),
     BuildPath(filename:join(Library, "dep.ern")),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load User\n", "User.twice()\n"]),
-    {0, Output} = ern_pty:sh(
-        alone("../bin/ern shell --source-root " ++ Empty ++ " --load-path " ++ Build)
-        ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Empty, [Build], [":load User\n", "User.twice()\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"User was compiled against another Dep; build User"
                                                 " again">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name User.twice">>)).
@@ -6851,12 +6819,17 @@ alone(Command) ->
 fresh_home() ->
     scratch("ern_home_").
 
-%% The shell started with the source root Dir, given the inputs Inputs: its
-%% status and what it wrote.
+%% The shell started with the source root Dir and a `--load-path` for each
+%% root of LoadPath, in its order, given the inputs Inputs: its status and
+%% what it wrote. The two-argument form gives no load path.
 source_root_session(Dir, Inputs) ->
+    source_root_session(Dir, [], Inputs).
+
+source_root_session(Dir, LoadPath, Inputs) ->
     InputFile = scratch_file("ern_source_root_session_"),
     ok = file:write_file(InputFile, Inputs),
-    ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile).
+    Options = lists:append([" --load-path " ++ Root || Root <- LoadPath]),
+    ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir ++ Options) ++ " < " ++ InputFile).
 
 %% A startup file the shell runs (report §11.2), its directory made where
 %% it is not there.
