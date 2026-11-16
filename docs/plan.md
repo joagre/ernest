@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 72**, and item 82 follows it, as the milestone's *What
-is left* gives them.
+**The next item is MVP 4.16's item 39**, the README's top, and items 72 and 82 follow it,
+as the milestone's *What is left* gives them.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -45,9 +45,31 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 72, 82, 36, 69, 70, 73, 74 and 84; and what needs the
-user, items 60, 68, 86 and 39. Items 72 and 82 came first on 2026-11-16 (the log's
-*Twenty-Seven Hosts for Nothing*). The items stand below in that order.
+user, items 60, 68 and 86. On 2026-11-16 items 72 and 82 came first of the builds'
+findings (the log's *Twenty-Seven Hosts for Nothing*), and item 39 first of all (the log's
+*The README's Top Comes First*). The items stand below in that order.
 
+- **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
+  item 4, so that the full review reads the page the launch's source link lands on. It
+  opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
+  started on another node brings its code along, and a module keeps every version it has
+  had, where Erlang keeps two. The mailbox's type follows, then the counter and the
+  session, in the repository's voice (the log's *The Front Page From Its Motive*). The
+  launch's announcement, the user's `~/announcement.txt` outside the repository, is its
+  model, and is read before the page is written.
+
+  After the session it says that the session runs in a browser, in the site's shell. The
+  sentences on the four `ern config` commands, the two waits and `let far <-` go, since the
+  tour says them. The refused build stays, and everything from *What Ernest adds* down
+  stays as it is.
+
+  It sharpens the page of 2026-11-06 and keeps its lead, code that travels (the log's *The
+  README Recut*). What that entry tied to the page follows it: the release's README, which
+  begins with the page's first sentence, and GitHub's About, which reads the page's words.
+  The tests that hold the page stay green, the tour's run of its console,
+  `readme_refused_test_`, `readme_counter_is_the_tours_test` and `claims_test` among them.
+  The homepage takes nothing from the page and does not change. The session writes it, and
+  it closes on `make test`.
 - **72. A build with nothing to do takes 1.6 s and 19 s of processor time**, found 2026-11-16
   by item 51's diagnosis. The session measured it on a quiet machine (the log's
   *Twenty-Seven Hosts for Nothing*): `make -s all` starts 27 hosts, 14 for `ern build`, 12
@@ -158,27 +180,6 @@ user, items 60, 68, 86 and 39. Items 72 and 82 came first on 2026-11-16 (the log
   narrowed. The option would cover Ernest's own connects and no other program's, and a
   connect's port meets a listener's only where the listener names a port the host gives
   to connects.
-- **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
-  item 4, so that the full review reads the page the launch's source link lands on. It
-  opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
-  started on another node brings its code along, and a module keeps every version it has
-  had, where Erlang keeps two. The mailbox's type follows, then the counter and the
-  session, in the repository's voice (the log's *The Front Page From Its Motive*). The
-  launch's announcement, the user's `~/announcement.txt` outside the repository, is its
-  model, and is read before the page is written.
-
-  After the session it says that the session runs in a browser, in the site's shell. The
-  sentences on the four `ern config` commands, the two waits and `let far <-` go, since the
-  tour says them. The refused build stays, and everything from *What Ernest adds* down
-  stays as it is.
-
-  It sharpens the page of 2026-11-06 and keeps its lead, code that travels (the log's *The
-  README Recut*). What that entry tied to the page follows it: the release's README, which
-  begins with the page's first sentence, and GitHub's About, which reads the page's words.
-  The tests that hold the page stay green, the tour's run of its console,
-  `readme_refused_test_`, `readme_counter_is_the_tours_test` and `claims_test` among them.
-  The homepage takes nothing from the page and does not change. The session writes it, and
-  it closes on `make test`.
 
 ### What is done
 
