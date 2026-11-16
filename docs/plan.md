@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 65**, the first of the flakes left.
+**The next item is MVP 4.16's item 66**, the first of the flakes left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,7 +43,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, items 65, 66 and 71, each seen in one hunt, one at a
+left*): the flakes, items 66 and 71, each seen in one hunt, one at a
 time; what the builds found, items 35, 36, 69, 72, 70, 73, 74, 75, 76 and 79; and what needs the
 user, items 60, 68 and 39. The items stand below in that order.
 
@@ -56,10 +56,6 @@ sighting, and the hunt after the fix runs three times the rounds one sighting to
 flake below the cause is not found. An agent finds it under the load the item names,
 and fixes at the cause the test or what the item names beside it.
 
-- **65. `ern_os_tests:resize_test` past its limit**, under `make flakes`, where the agent finds
-  whether the program's end waits on what the loops starve or on what never comes; the test or
-  the runtime. Seen 2026-11-15 once in item 32's hunt beside 15 loops, in a host's round 67:
-  EUnit ended it at five seconds, in `ern_rt:entry_end` under its `run_main`.
 - **66. `write_holds_up_no_read`**, under `make flakes`; the test or `Tcp`. Seen 2026-11-15
   once in item 32's hunt beside 15 loops, in a host's round 115: `ern_tcp_tests`' `run_main`
   answered the fault `deadlock` where the test expects `ok`.
@@ -142,8 +138,9 @@ and fixes at the cause the test or what the item names beside it.
   holds the line feed's echo as its first piece. It was read and not run under load. The
   shape of the fix: the program is told the resize by the host's signal and not by a line, a
   `trap` that reads the size and exits, after one line of its own that says the trap is set.
-  An agent shows that `sh` takes it so, and builds it; the example's sentence on the echo
-  goes.
+  An agent shows that `sh` takes it so, and that a signal which comes before the shell's
+  wait is kept for the trap (the log's *A Signal Before the Pause*), and builds it; the
+  example's sentence on the echo goes.
 - **79. Two tests end beside their subscriber's subscription**, found 2026-11-16 by item 63's
   diagnosis (the log's *A Subscriber That Ends Beside Main*). `test_told_of_the_end_test` in
   `ern_cli_tests` spawns its subscriber and returns `Test.Passed`, and `shell_told_of_the_end`
@@ -250,6 +247,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
 | 63 | The flake of `subscribed_while_the_end_waits_test` | 2026-11-16 | §6.9, §8.6, E.23; *A Subscriber That Ends Beside Main* |
 | 64 | The flake of `ern_os_tests`' `terminal_test` | 2026-11-16 | E.23; *A Terminal's Echo Beside Its End* |
+| 65 | The flake of `ern_os_tests`' `resize_test` | 2026-11-16 | E.23; *A Signal Before the Pause* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |

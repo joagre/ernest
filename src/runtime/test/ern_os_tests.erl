@@ -476,17 +476,25 @@ terminal_merges_streams_test() ->
 
 %% report Appendix E.23: a resize sets the terminal's size and tells the
 %% program's foreground, which reads the new size when told. The program
-%% says it is ready once it listens, so that the resize comes after
+%% blocks the signal before it says it is ready, and takes it with
+%% sigwait, so that a resize that comes before its wait is kept for it.
+%%
+%% A regression test, changed after the code: the program took the signal
+%% in a handler and waited in signal.pause(), and a signal that came after
+%% Python's last look for one and before pause(2) left the handler to the
+%% next signal, which never came. In 24 hosts at once beside 15 busy loops
+%% it hung so in about one run of 500 (the log's *A Signal Before the
+%% Pause*). A program that takes the signal through a handler is not
+%% covered
 resize_test() ->
     Self = self(),
     Told = <<"import fcntl, os, signal, struct, termios\n"
-             "def told(number, frame):\n"
-             "    size = fcntl.ioctl(1, termios.TIOCGWINSZ, bytes(8))\n"
-             "    os.write(1, b'%d %d\\n' % struct.unpack('HHHH', size)[:2])\n"
-             "signal.signal(signal.SIGWINCH, told)\n"
+             "signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGWINCH})\n"
              "os.write(1, b'ready\\n')\n"
              "while True:\n"
-             "    signal.pause()\n">>,
+             "    signal.sigwait({signal.SIGWINCH})\n"
+             "    size = fcntl.ioctl(1, termios.TIOCGWINSZ, bytes(8))\n"
+             "    os.write(1, b'%d %d\\n' % struct.unpack('HHHH', size)[:2])\n">>,
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Python} = start_terminal(<<"python3">>, [<<"-c">>, Told], ?SIZE),
