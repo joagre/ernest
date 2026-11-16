@@ -121,9 +121,10 @@ told_boundary(Base) ->
 %% said where it listens, that `a` connected and, once the shell has quit,
 %% that it ended, and nothing else.
 %%
-%% A regression test, written after the README; the four `ern config`
-%% commands the README names are its four jobs. It does not cover the shell
-%% at a terminal. Its limit is the sum of its fifteen waits, each bounded by the
+%% A regression test, written after the README; its four `ern config`
+%% jobs make the two configuration directories the README names. It does
+%% not cover the shell at a terminal. Its limit is the sum of its fifteen
+%% waits, each bounded by the
 %% harness's time for one wait: four `ern config` jobs, `foo`'s listening,
 %% the shell's start, four inputs, the shell's end and what it said, the
 %% stop, `foo`'s end and what it said.
