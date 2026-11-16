@@ -442,26 +442,25 @@ given(Start) ->
     ?assertEqual(true, wait(alive)),
     ?assertEqual({ern, killed}, wait(ended)).
 
-%% report Appendix E.23: a program under a terminal of the size given: what
-%% is written to it is echoed, its size is the one given, a line feed it
-%% writes arrives after a carriage return, and its exit status comes last.
-%% `sh` reads its terminal as a shell does, its prompts among what it writes
+%% report Appendix E.23: a program under a terminal of the size given: a
+%% line written to it is echoed and given to the program, its size is the
+%% one given, a line feed it writes arrives after a carriage return, the
+%% echo comes before what the program writes after taking the line, and
+%% its exit status comes last. The program writes after the line it reads,
+%% since the echo of a line a program exits on may not arrive; neither
+%% that echo nor the echo of a line written while the program writes is
+%% tested
 terminal_test() ->
     Self = self(),
+    Script = <<"stty size; read line; echo \"took $line\"; exit 3">>,
     ok = ern_rt:run_main(
            fun() ->
-               {'Right', Sh} = start_terminal(<<"sh">>, [], ?SIZE),
-               {'Right', 'Unit'} = write(Sh, <<"stty size\n">>, 5000),
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, Script], ?SIZE),
                Sized = read_until(Sh, <<"24 80\r\n">>, <<>>),
-               {'Right', 'Unit'} = write(Sh, <<"exit 3\n">>, 5000),
+               {'Right', 'Unit'} = write(Sh, <<"typed\n">>, 5000),
                Self ! {ran, {Sized, read_to_end(Sh, <<>>)}}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    {Sized, {Rest, Status}} = wait(ran),
-    {Echoed, _} = binary:match(Sized, <<"stty size\r\n">>),
-    {Answered, _} = binary:match(Sized, <<"24 80\r\n">>),
-    ?assert(Echoed < Answered),
-    ?assertMatch({_, _}, binary:match(Rest, <<"exit 3\r\n">>)),
-    ?assertEqual(3, Status).
+    ?assertEqual({<<"24 80\r\n">>, {<<"typed\r\ntook typed\r\n">>, 3}}, wait(ran)).
 
 %% report Appendix E.23: a program's standard output and standard error
 %% come merged through its terminal, each piece read as `Stdout`

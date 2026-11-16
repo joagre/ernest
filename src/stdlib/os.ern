@@ -405,6 +405,11 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) = {
 /// as a carriage return and a line feed. `resize` changes the terminal's size,
 /// and `closeInput` hangs it up.
 ///
+/// An echo comes among what the program writes, so the echo of a line written
+/// while the program writes may come in parts around it. The echo of a line
+/// the program exits on, writing nothing after it has taken the line, may not
+/// arrive.
+///
 /// - `Left(Invalid)`: rows or columns below 0 or above 65535, or a name or an
 ///   argument no program could be given.
 /// - `Left(Other(text))`: the host could not open a terminal, or another

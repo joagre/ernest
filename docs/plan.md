@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 64**, the first of the flakes left.
+**The next item is MVP 4.16's item 63**, the first of the flakes left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,8 +43,8 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, the most often seen first, items 64 and 63, one at a
-time; what the builds found, items 35, 36, 69, 72, 70, 73, 74 and 75; and what needs the user, items
+left*): the flakes, the most often seen first, item 63, one at a
+time; what the builds found, items 35, 36, 69, 72, 70, 73, 74, 75 and 76; and what needs the user, items
 60, 68 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand
 below in that order.
 
@@ -57,9 +57,6 @@ sighting, and the hunt after the fix runs three times the rounds one sighting to
 flake below the cause is not found. An agent finds it under the load the item names,
 and fixes at the cause the test or what the item names beside it.
 
-- **64. `ern_os_tests:terminal_test`**, under `make flakes`; the test or `Os`. Seen 2026-11-15
-  in rounds 64 and 138 of a host's 197, in item 24's hunt with no loops: the output did not
-  hold `exit 3\r\n`.
 - **63. `subscribed_while_the_end_waits_test`**, under `make flakes`; the test or the runtime.
   Seen 2026-11-15 once in item 24's hunt with no loops, in a host's round 157:
   `ern_terminating_tests`' output did not hold `the end waits for 1 subscriber: M.main:26`.
@@ -143,6 +140,14 @@ and fixes at the cause the test or what the item names beside it.
   `ern_waits`, `ern_emitter_tests` and `ern_reaper_tests`, and 29 exported functions
   without a `-spec` in the last two. An agent has the test read them, puts the five in order
   and writes the specs.
+- **76. `Os.resize`'s example reads an echo E.23 does not promise**, found 2026-11-16 by
+  item 64's read-back (the log's *A Terminal's Echo Beside Its End*). Its program in
+  `src/stdlib/os.ern` reads a line and exits without writing to its terminal, and the example
+  holds the line feed's echo as its first piece. It was read and not run under load. The
+  shape of the fix: the program is told the resize by the host's signal and not by a line, a
+  `trap` that reads the size and exits, after one line of its own that says the trap is set.
+  An agent shows that `sh` takes it so, and builds it; the example's sentence on the echo
+  goes.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -238,6 +243,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 59 | The flake of `write_given_no_time_test` | 2026-11-16 | E.18; *A Listener Closed Before Its Accept* |
 | 61 | The flake of `load_beside_a_module_hiding_a_library` | 2026-11-16 | §6.4, §11.2; *A Program's Line Beside the Prompt* |
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
+| 64 | The flake of `ern_os_tests`' `terminal_test` | 2026-11-16 | E.23; *A Terminal's Echo Beside Its End* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
