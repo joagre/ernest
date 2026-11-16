@@ -45,7 +45,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 72, 82, 36, 69, 70, 73, 74, 84, 87 and 88; and what
-needs the user, items 60, 68 and 86. On 2026-11-16 items 72 and 82 came first of the builds'
+needs the user, items 60 and 68. On 2026-11-16 items 72 and 82 came first of the builds'
 findings (the log's *Twenty-Seven Hosts for Nothing*), and item 39 first of all (the log's
 *The README's Top Comes First*). The items stand below in that order.
 
@@ -180,18 +180,6 @@ findings (the log's *Twenty-Seven Hosts for Nothing*), and item 39 first of all 
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
-- **86. A listener refused a port its program's own connect left closing**, found 2026-11-16
-  by item 81's probe (the log's *A Port Another Socket Holds*). E.18 says that a listener
-  takes a port whose earlier connections are still closing, the host's `SO_REUSEADDR`. That
-  held for the connections a listener of Ernest's had accepted, in 80 of 80 runs. It did
-  not for a connection `Tcp.connect` made from the port and closed first: the connect sets
-  no such option, and a listener at the port in the same family was refused in 20 of 20.
-
-  Decided with the user: whether E.18's sentence is narrowed to the connections a listener
-  at the port accepted, or `Tcp.connect` sets the option. Recommended: the sentence is
-  narrowed. The option would cover Ernest's own connects and no other program's, and a
-  connect's port meets a listener's only where the listener names a port the host gives
-  to connects.
 
 ### What is done
 
@@ -265,6 +253,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 81 | `listen_of_one_family_test` tells another socket's port from the regression it holds | 2026-11-16 | E.18; *A Port Another Socket Holds* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
+| 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
