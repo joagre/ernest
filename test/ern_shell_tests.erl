@@ -2492,13 +2492,11 @@ load_unreadable_test_() ->
 load_unreadable() ->
     Dir = scratch("ern_bad_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn f() : Int = 1 \\ 2\n"),
-    InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(filename:join(Dir, "garbled.ern"), <<"export let x : Int = ", 16#FF>>),
     Closed = filename:join(Dir, "closed.ern"),
     ok = file:write_file(Closed, "export let y : Int = 1\n"),
     ok = file:change_mode(Closed, 8#000),
-    ok = file:write_file(InputFile, ":load Bad\n:load Garbled\n:load Closed\n1\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ":load Bad\n:load Garbled\n:load Closed\n1\n"),
     ok = file:change_mode(Closed, 8#600),
     ?assertMatch({_, _}, binary:match(Output, <<"bad.ern:1:25: illegal character">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"garbled.ern:1:22: input is not valid UTF-8">>)),
@@ -2694,9 +2692,7 @@ load_unreadable_dependency() ->
     Dir = scratch("ern_dep_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Dir, "dep.erc"), "not a module\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Top\n1\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ":load Top\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"compile Dep first, which Top uses: ">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"dep.erc: not a compiled module">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
@@ -2713,9 +2709,7 @@ load_empty_atoms_dependency() ->
     Dir = scratch("ern_dep_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Empty.f()\n"),
     ok = file:write_file(filename:join(Dir, "empty.erc"), <<"FOR1", 12:32, "BEAM", "AtU8", 0:32>>),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, "Empty.f()\n:load Top\n1\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, "Empty.f()\n:load Top\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Empty.f">>)),
     ?assertEqual(nomatch, binary:match(Output, <<":load Empty">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"compile Empty first, which Top uses: ">>)),
@@ -2747,9 +2741,7 @@ load_code_not_loadable() ->
                                                                    Id =/= "Code"]),
                       ok = file:write_file(Erc, Gone)
                   end, ["top.erc", "gone.erc"]),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Top\nTop.f()\nGone.g()\n:load Gone\n1\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ":load Top\nTop.f()\nGone.g()\n:load Gone\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"41 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Gone.g">>)),
     ?assertEqual(nomatch, binary:match(Output, <<":load Gone puts">>)),
@@ -2768,9 +2760,7 @@ load_failed_dependency() ->
     Dir = scratch("ern_dep_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Dir, "dep.ern"), "export fn f() : Int = \"x\"\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Top\n1\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ":load Top\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"expected Int, found String">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Top is not loaded, since Dep does not compile">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"first">>)),
@@ -2801,11 +2791,10 @@ private_mailbox_type() ->
                          ["type Msg = Add(Int)\n",
                           "export fn count(total : Int) : Unit receiving Msg =\n",
                           "    receive { Add(amount) -> count(total + amount) }\n"]),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Plain\n", "let p = spawn(fn() = Plain.count(0))\n",
-                                     "p\n", "Plain.Add(1)\n",
-                                     "let q : Address(Plain.Msg) = p\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load Plain\n", "let p = spawn(fn() = Plain.count(0))\n",
+                                  "p\n", "Plain.Add(1)\n",
+                                  "let q : Address(Plain.Msg) = p\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> p : Address(Plain.Msg)\n">>)),
     ?assertMatch({match, _}, re:run(Output, "^> <address [0-9]+> : Address\\(Plain\\.Msg\\)$",
                                     [multiline])),
@@ -3756,15 +3745,14 @@ reload_keeps_previous_versions() ->
                    "    spawn(fn() : Unit receiving Msg = serve(", integer_to_list(Start), "))\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
-    InputFile = filename:join(Dir, "session.in"),
     Get = fun(Address) -> ["Address.callForever(", Address, ", fn(r) = Counter.Get(reply = r))\n"]
           end,
-    ok = file:write_file(InputFile, [":load Counter\n", "let first = Counter.service\n",
-                                     write_source(Dir, "counter.ern", Counter(2)), ":reload\n",
-                                     write_source(Dir, "counter.ern", Counter(3)), ":reload\n",
-                                     Get("first"), Get("Counter.service"), ":processes\n",
-                                     ":faults\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load Counter\n", "let first = Counter.service\n",
+                                  write_source(Dir, "counter.ern", Counter(2)), ":reload\n",
+                                  write_source(Dir, "counter.ern", Counter(3)), ":reload\n",
+                                  Get("first"), Get("Counter.service"), ":processes\n",
+                                  ":faults\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n> 3 : Int\n">>)),
     listed(Output, <<"Counter$2.service:5 receiving\n"
                      "Counter$3.service:5 receiving\n"
@@ -3795,17 +3783,16 @@ reload_running_by_name() ->
                    "    }\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter("", "1", "")),
-    InputFile = filename:join(Dir, "session.in"),
     Running = "List.size(Code.running(Counter.count))\n",
-    ok = file:write_file(InputFile,
-                         [":load Counter\n", "let first = spawn(fn() = Counter.count(0))\n",
-                          "Address.call(first, Counter.Get, 1000)\n",
-                          write_source(Dir, "counter.ern", Counter("", "2", "")), ":reload\n",
-                          Running,
-                          write_source(Dir, "counter.ern",
-                                       Counter(" | Reset", "2", "      | Reset -> count(0)\n")),
-                          ":reload\n", Running]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir,
+                            [":load Counter\n", "let first = spawn(fn() = Counter.count(0))\n",
+                             "Address.call(first, Counter.Get, 1000)\n",
+                             write_source(Dir, "counter.ern", Counter("", "2", "")), ":reload\n",
+                             Running,
+                             write_source(Dir, "counter.ern",
+                                          Counter(" | Reset", "2", "      | Reset -> count(0)\n")),
+                             ":reload\n", Running]),
     ?assertMatch({_, _}, binary:match(Output, <<"> Some(0) : Optional(Int)\n">>)),
     ?assertEqual([1, 0], answers(Output, 1)).
 
@@ -3830,25 +3817,24 @@ reload_reaches_session_declarations() ->
                  ["export fn gone() : Int = 0\n" || Gone]]
             end,
     ok = file:write_file(filename:join([Dir, "net", "shape.ern"]), Shape(1, true)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Net.Shape\n",
-                          "fn viaFn() : Int = Net.Shape.answer()\n",
-                          "fn shadowed() : Int = Net.Shape.answer()\n",
-                          "fn shadowed() : Int = 7\n",
-                          "fn broken() : Int = Net.Shape.gone()\n",
-                          "type Msg = Ask(reply : Reply(Int))\n",
-                          "fn loop() : Unit receiving Msg =\n",
-                          "    receive { Ask(reply = r) -> { answer(r, viaFn()); loop() } }\n",
-                          "let p : Address(Msg) = spawn(loop)\n",
-                          "viaFn()\n",
-                          write_source(Dir, "net/shape.ern", Shape(2, false)),
-                          ":reload\n",
-                          "viaFn()\n",
-                          "Address.callForever(p, fn(r) = Ask(reply = r))\n",
-                          "shadowed()\n",
-                          "broken()\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir,
+                            [":load Net.Shape\n",
+                             "fn viaFn() : Int = Net.Shape.answer()\n",
+                             "fn shadowed() : Int = Net.Shape.answer()\n",
+                             "fn shadowed() : Int = 7\n",
+                             "fn broken() : Int = Net.Shape.gone()\n",
+                             "type Msg = Ask(reply : Reply(Int))\n",
+                             "fn loop() : Unit receiving Msg =\n",
+                             "    receive { Ask(reply = r) -> { answer(r, viaFn()); loop() } }\n",
+                             "let p : Address(Msg) = spawn(loop)\n",
+                             "viaFn()\n",
+                             write_source(Dir, "net/shape.ern", Shape(2, false)),
+                             ":reload\n",
+                             "viaFn()\n",
+                             "Address.callForever(p, fn(r) = Ask(reply = r))\n",
+                             "shadowed()\n",
+                             "broken()\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Net.Shape, compiled again\n"
                                                 "input 2, compiled again\n">>)),
@@ -3885,12 +3871,10 @@ reload_version_sites() ->
                    integer_to_list(Start), ") })\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
-    InputFile = filename:join(Dir, "session.in"),
     Asked = "Address.call(Counter.service, fn(reply) = Counter.Get(=reply), 1000)\n",
-    ok = file:write_file(InputFile, [":load Counter\n", Asked,
-                                     write_source(Dir, "counter.ern", Counter(2)),
-                                     ":reload\n:processes\n", Asked, ":quit\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Counter\n", Asked,
+                                            write_source(Dir, "counter.ern", Counter(2)),
+                                            ":reload\n:processes\n", Asked, ":quit\n"]),
     listed(Output, <<"> Counter$2.service:5 receiving\n"
                      "Counter.service:5 receiving\n">>),
     [printed(Output, Line)
@@ -3969,29 +3953,27 @@ reload_keeps_the_type_checked_under() ->
                    "    spawn(fn() : Unit receiving Msg = serve(", integer_to_list(Start), "))\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(false, 1)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Counter\n",
-                                     "let c = Counter.service\n",
-                                     "let inc = Counter.Inc\n",
-                                     "let get = fn(r) = Counter.Get(reply = r)\n",
-                                     "type Box = Box(Address(Counter.Msg))\n",
-                                     "let b = Box(c)\n",
-                                     "let n = 1\n",
-                                     write_source(Dir, "counter.ern", Counter(true, 1)),
-                                     ":reload\n",
-                                     ":bindings\n",
-                                     "send(c, Counter.Reset)\n",
-                                     "send(c, inc(5))\n",
-                                     "Address.callForever(c, get)\n",
-                                     "Box(Counter.service)\n",
-                                     "let z : Address(Counter.Msg) = c\n",
-                                     "n\n",
-                                     "let c = Counter.service\n",
-                                     "{ send(c, Counter.Reset); 2 + 2 }\n",
-                                     write_source(Dir, "counter.ern", Counter(true, 2)),
-                                     ":reload\n",
-                                     "{ send(c, Counter.Reset); 2 + 2 }\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Counter\n",
+                                            "let c = Counter.service\n",
+                                            "let inc = Counter.Inc\n",
+                                            "let get = fn(r) = Counter.Get(reply = r)\n",
+                                            "type Box = Box(Address(Counter.Msg))\n",
+                                            "let b = Box(c)\n",
+                                            "let n = 1\n",
+                                            write_source(Dir, "counter.ern", Counter(true, 1)),
+                                            ":reload\n",
+                                            ":bindings\n",
+                                            "send(c, Counter.Reset)\n",
+                                            "send(c, inc(5))\n",
+                                            "Address.callForever(c, get)\n",
+                                            "Box(Counter.service)\n",
+                                            "let z : Address(Counter.Msg) = c\n",
+                                            "n\n",
+                                            "let c = Counter.service\n",
+                                            "{ send(c, Counter.Reset); 2 + 2 }\n",
+                                            write_source(Dir, "counter.ern", Counter(true, 2)),
+                                            ":reload\n",
+                                            "{ send(c, Counter.Reset); 2 + 2 }\n"]),
     Found = fun(Text) -> binary:match(Output, Text) =/= nomatch end,
     ?assert(Found(<<"Counter, compiled again\ninput 5, compiled again\n"
                     "Box changed: the binding b is of its previous version, $Input5$1.Box\n"
@@ -4026,11 +4008,9 @@ previous_type_named_whole() ->
                      "\n"]
             end,
     ok = file:write_file(filename:join(Dir, "c.ern"), Types("", "")),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load C\nlet x = C.Msg(1)\nlet y = C.M(1)\n",
-                                     write_source(Dir, "c.ern", Types(" | N", " | Nm")),
-                                     ":reload\nlet z : C.Msg = x\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load C\nlet x = C.Msg(1)\nlet y = C.M(1)\n",
+                                            write_source(Dir, "c.ern", Types(" | N", " | Nm")),
+                                            ":reload\nlet z : C.Msg = x\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"expected C.Msg, found C$1.Msg">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"C$1.Msg is of a previous version of C, which a"
                                                 " reload replaced">>)),
@@ -4047,13 +4027,12 @@ previous_type_went() ->
     Dir = scratch("ern_previous_went_"),
     ok = file:write_file(filename:join(Dir, "shape.ern"),
                          "export type Vec = Vec(x : Int)\n\nexport type Gone = Gone(Int)\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Shape\nlet v = Shape.Vec(x = 1)\n"
-                                     "let g = Shape.Gone(7)\n",
-                                     write_source(Dir, "shape.ern",
-                                                  "export type Vec = Vec(x : Int, y : Int)\n"),
-                                     ":reload\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load Shape\nlet v = Shape.Vec(x = 1)\n"
+                                  "let g = Shape.Gone(7)\n",
+                                  write_source(Dir, "shape.ern",
+                                               "export type Vec = Vec(x : Int, y : Int)\n"),
+                                  ":reload\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Shape.Gone went: the binding g is of its previous"
                                                 " version, Shape$1.Gone\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Shape.Vec changed: the binding v is of its"
@@ -4089,20 +4068,19 @@ reload_brings_a_type_back() ->
                    "    spawn(fn() : Unit receiving Msg = serve(1))\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(false)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Counter\n",
-                                     "let c = Counter.service\n",
-                                     write_source(Dir, "counter.ern", Counter(true)),
-                                     ":reload\n",
-                                     "send(c, Counter.Inc(5))\n",
-                                     "let d = Counter.service\n",
-                                     write_source(Dir, "counter.ern", Counter(false)),
-                                     ":reload\n",
-                                     ":type c\n",
-                                     "send(c, Counter.Inc(5))\n",
-                                     "Address.callForever(c, fn(r) = Counter.Get(reply = r))\n",
-                                     ":type d\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load Counter\n",
+                                  "let c = Counter.service\n",
+                                  write_source(Dir, "counter.ern", Counter(true)),
+                                  ":reload\n",
+                                  "send(c, Counter.Inc(5))\n",
+                                  "let d = Counter.service\n",
+                                  write_source(Dir, "counter.ern", Counter(false)),
+                                  ":reload\n",
+                                  ":type c\n",
+                                  "send(c, Counter.Inc(5))\n",
+                                  "Address.callForever(c, fn(r) = Counter.Get(reply = r))\n",
+                                  ":type d\n"]),
     Again = <<"Counter, compiled again\n">>,
     [_, Second, Third] = binary:split(Output, Again, [global]),
     Help = <<"Counter$1.Msg is of a previous version of Counter, which a reload replaced">>,
@@ -4254,14 +4232,11 @@ reload_passes_over_a_taken_namespace() ->
     Dir = scratch("ern_reload_taken_"),
     ok = file:write_file(filename:join(Dir, "greet.ern"),
                          "export fn count() : Int = List.size([1, 2, 3])\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Greet\nGreet.count()\n",
-                          write_source(Dir, "list.ern",
-                                       "export fn size(list : List(Int)) : Int = 0\n"),
-                          ":reload\nGreet.count()\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < "
-                             ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load Greet\nGreet.count()\n",
+                                  write_source(Dir, "list.ern",
+                                               "export fn size(list : List(Int)) : Int = 0\n"),
+                                  ":reload\nGreet.count()\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> no source has changed\n> 3 : Int\n">>)),
     ?assertEqual(2, length(binary:matches(Output, <<"> 3 : Int\n">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"list.ern">>)).
@@ -4472,10 +4447,9 @@ load_hiding_a_library() ->
     ok = filelib:ensure_path(filename:join(Dir, "time")),
     ok = file:write_file(filename:join(Dir, "time/zone.ern"),
                          "export fn name() : String = \"UTC\"\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, "Time.mine()\n:load Time\n:load Json\nJson.parse(\"seven\")\n"
-                                    ":load Time.Zone\nTime.Zone.name()\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, "Time.mine()\n:load Time\n:load Json\nJson.parse(\"seven\")\n"
+                                 ":load Time.Zone\nTime.Zone.name()\n"),
     Refusal = hides_time(Dir, "time.ern"),
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Time.mine\n1 | Time.mine()\n"
                                                 "  | ^^^^^^^^^\n  | = help: ", Refusal/binary,
@@ -4500,9 +4474,7 @@ load_form_hiding_a_library_test_() ->
 load_form_hiding_a_library() ->
     Dir = scratch("ern_load_form_hiding_"),
     time_form(Dir),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, "Time.mine()\n:load Time\n1\n:load Http\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, "Time.mine()\n:load Time\n1\n:load Http\n"),
     Refusal = hides_time(Dir, "time.erc"),
     ?assertMatch({_, _}, binary:match(Output, <<"  | = help: ", Refusal/binary, "\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> ", Refusal/binary, "\n> 1 : Int\n> ",
@@ -4519,12 +4491,12 @@ reload_hiding_a_library_test_() ->
 
 reload_hiding_a_library() ->
     Dir = scratch("ern_reload_hiding_"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Time\nTime.toCivil(0).year\n",
-                          write_source(Dir, "time.ern", "export fn mine() : String = \"mine\"\n"),
-                          ":reload\nTime.toCivil(0).year\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir,
+                            [":load Time\nTime.toCivil(0).year\n",
+                             write_source(Dir, "time.ern",
+                                          "export fn mine() : String = \"mine\"\n"),
+                             ":reload\nTime.toCivil(0).year\n"]),
     Library = ern_tree:build("libs/time"),
     ?assertMatch({_, _}, binary:match(Output, <<"Time, from ", (shown(Library, "time.erc"))/binary,
                                                 "\n> 1970 : Int\n">>)),
@@ -4661,13 +4633,6 @@ forms_and_sources(Dir, Sources, Kept) ->
      || {File, Text} <- Sources, lists:member(File, Kept)],
     [ok = file:delete(filename:join(Dir, filename:rootname(File) ++ ".erc")) || File <- Kept],
     ok.
-
-%% The shell started with the source root Dir, given the inputs Inputs: its
-%% status and what it wrote.
-source_root_session(Dir, Inputs) ->
-    InputFile = scratch_file("ern_source_root_session_"),
-    ok = file:write_file(InputFile, Inputs),
-    ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile).
 
 %% report §11.2, §11.1: `:load` of a module with no source, Main, loads each
 %% module its compiled form uses that the session has not loaded as it
@@ -4902,19 +4867,17 @@ fault_subscriber() ->
     Dir = scratch("ern_fault_subscriber_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ["{ send(adapted(self(), fn(x) = x / List.size([])), 1);"
-                                     " receive { n -> n } }\n",
-                                     "1 + 1\n",
-                                     "let r = restarting(RestartLimit(restarts = 1,"
-                                     " within = 60000),"
-                                     " fn() = Io.println(Int.toString("
-                                     "1 / List.size([]))))\n",
-                                     "{ let _ = spawnMonitored(r, fn(d) = d);"
-                                     " receive { d -> d } }\n",
-                                     ":faults\n",
-                                     ":load Bad\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ["{ send(adapted(self(), fn(x) = x / List.size([])), 1);"
+                                            " receive { n -> n } }\n",
+                                            "1 + 1\n",
+                                            "let r = restarting(RestartLimit(restarts = 1,"
+                                            " within = 60000),"
+                                            " fn() = Io.println(Int.toString("
+                                            "1 / List.size([]))))\n",
+                                            "{ let _ = spawnMonitored(r, fn(d) = d);"
+                                            " receive { d -> d } }\n",
+                                            ":faults\n",
+                                            ":load Bad\n"]),
     %% the input's fault, its trace beneath it, a frame a line
     ?assertMatch({match, _}, re:run(Output, "> fault: division by zero\n(    [^\n]*\n)*> 2 : Int")),
     %% the process is spawned by the fourth input; each fault is reported
@@ -5060,9 +5023,7 @@ member_doc() ->
                           "/// Orders two points by x.\n",
                           "export fn Point.compare(left : Point, right : Point) : Ordering =\n",
                           "    compare(left.x, right.x)\n"]),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Shape\n:doc Shape.Point.compare\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ":load Shape\n:doc Shape.Point.compare\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"> Shape.Point.compare\n\n"
                                                 "    compare(left, right) : Ordering\n\n"
                                                 "Orders two points by x.">>)).
@@ -5095,12 +5056,10 @@ refused_load_help() ->
     Dir = scratch("ern_refused_load_help_"),
     ok = file:write_file(filename:join(Dir, "settings.ern"),
                          "export let limit : Int = 1 / List.size([])\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Settings\nSettings.limit\n",
-                                     write_source(Dir, "settings.ern",
-                                                  "export let limit : Int = 3\n"),
-                                     ":load Settings\nSettings.limit\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Settings\nSettings.limit\n",
+                                            write_source(Dir, "settings.ern",
+                                                         "export let limit : Int = 3\n"),
+                                            ":load Settings\nSettings.limit\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"help: :load Settings was refused:"
                                                 " Settings.limit:1 faulted: division by zero;"
                                                 " nothing was loaded\n">>)),
@@ -5187,15 +5146,14 @@ doc_every_name() ->
     ok = filelib:ensure_path(filename:join(SourceRoot, "net")),
     ok = file:write_file(filename:join([SourceRoot, "net", "http.ern"]),
                          "export fn get() : Int = 1\n"),
-    InputFile = filename:join(SourceRoot, "session.in"),
-    ok = file:write_file(InputFile, ["let zeta = 1\n", "fn sz(count : Int) : Int = count\n",
-                                     "type Tree = Leaf | Node(left : Tree, right : Tree)\n",
-                                     ":doc zeta\n", ":doc sz\n", ":doc Leaf\n",
-                                     ":doc Tcp.ListenerMsg\n",
-                                     ":doc Some\n", ":doc Fs\n", ":load M\n", ":doc M.Red\n",
-                                     ":doc M\n", ":load Net.Http\n", ":doc Net\n", ":doc List\n"]),
-    {0, Output} = ern_pty:sh(
-        alone("../bin/ern shell --source-root " ++ SourceRoot) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(SourceRoot,
+                            ["let zeta = 1\n", "fn sz(count : Int) : Int = count\n",
+                             "type Tree = Leaf | Node(left : Tree, right : Tree)\n",
+                             ":doc zeta\n", ":doc sz\n", ":doc Leaf\n",
+                             ":doc Tcp.ListenerMsg\n",
+                             ":doc Some\n", ":doc Fs\n", ":load M\n", ":doc M.Red\n",
+                             ":doc M\n", ":load Net.Http\n", ":doc Net\n", ":doc List\n"]),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> zeta\n\n    zeta : Int\n">>)),
@@ -5315,10 +5273,9 @@ load_help_test_() ->
 load_help() ->
     Dir = scratch("ern_load_help_"),
     ok = file:write_file(filename:join(Dir, "greet.ern"), "export fn hello() : String = \"hi\"\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, "Greet.hello()\n:browse Greet\n:doc Greet.hello\n"
-                                    "let x : Greet.T = 1\nZz.f()\n:load Greet\nGreet.nope()\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, "Greet.hello()\n:browse Greet\n:doc Greet.hello\n"
+                                 "let x : Greet.T = 1\nZz.f()\n:load Greet\nGreet.nope()\n"),
     Help = <<":load Greet puts it in scope">>,
     ?assertMatch({_, _}, binary:match(Output, <<"unknown name Greet.hello\n1 | Greet.hello()\n"
                                                 "  | ^^^^^^^^^^^\n  | = help: ", Help/binary>>)),
@@ -5540,13 +5497,11 @@ reload_new_dependency() ->
     Dir = scratch("ern_reload_dependency_"),
     ok = file:write_file(filename:join(Dir, "a.ern"), "export let y : Int = 1\n"),
     ok = file:write_file(filename:join(Dir, "helper.ern"), "export let x : Int = 40\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load A\n",
-                                     write_source(Dir, "a.ern",
-                                                  "export let y : Int = Helper.x + 2\n"),
-                                     ":reload\n",
-                                     "A.y\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load A\n",
+                                            write_source(Dir, "a.ern",
+                                                         "export let y : Int = Helper.x + 2\n"),
+                                            ":reload\n",
+                                            "A.y\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Helper, compiled from ",
                                                 (shown(Dir, "helper.ern"))/binary, "\n"
                                                 "A, compiled again\n> 42 : Int">>)).
@@ -5570,20 +5525,20 @@ stored_values_go() ->
                          "export let a : Int = 1\nexport let b : Int = 1 / List.size([])\n"),
     ok = file:write_file(filename:join(Dir, "demo.ern"),
                          "export let kept : Int = 1\nexport let dropped : Int = 2\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         ["foreign fn info() : Foreign.Term = \"persistent_term:info/0\"\n",
-                          "foreign fn get(key : Foreign.Term, map : Foreign.Term) : Int ="
-                          " \"maps:get/2\"\n",
-                          "fn terms() : Int = get(Foreign.term(Foreign.atom(\"count\")), info())\n",
-                          "1 / List.size([])\n",
-                          "let before = terms()\n:load Bad\nterms() - before\n",
-                          ":load Demo\nlet loaded = terms()\n",
-                          write_source(Dir, "demo.ern", "export let kept : Int = 1\n"),
-                          ":reload\nterms() - loaded\n",
-                          write_source(Dir, "demo.ern", "export let kept : Int = 3\n"),
-                          ":reload\nterms() - loaded\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir,
+                            ["foreign fn info() : Foreign.Term = \"persistent_term:info/0\"\n",
+                             "foreign fn get(key : Foreign.Term, map : Foreign.Term) : Int ="
+                             " \"maps:get/2\"\n",
+                             "fn terms() : Int ="
+                             " get(Foreign.term(Foreign.atom(\"count\")), info())\n",
+                             "1 / List.size([])\n",
+                             "let before = terms()\n:load Bad\nterms() - before\n",
+                             ":load Demo\nlet loaded = terms()\n",
+                             write_source(Dir, "demo.ern", "export let kept : Int = 1\n"),
+                             ":reload\nterms() - loaded\n",
+                             write_source(Dir, "demo.ern", "export let kept : Int = 3\n"),
+                             ":reload\nterms() - loaded\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"nothing was loaded\n> 1 : Int">>)),
     %% the binding `loaded` and each new version's one value
     ?assertMatch({_, _}, binary:match(Output, <<"Demo, compiled again\n> 2 : Int\n">>)),
@@ -5621,19 +5576,19 @@ refused_load_keeps_its_unit() ->
                  "let broken : Int = 1 / List.size([])\n"]
             end,
     ok = file:write_file(filename:join(Dir, "giver.ern"), Giver(42)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Hold\n:load Giver\nAddress.callForever(Hold.holder, Hold.Run)\n",
-                          "foreign fn loaded(name : Foreign.Term) : Bool ="
-                          " \"erlang:module_loaded/1\"\n",
-                          "fn unit(name : String) : Bool ="
-                          " loaded(Foreign.term(Foreign.atom(name)))\n",
-                          ":load Giver\nunit(\"ern@giver$2\")\n",
-                          write_source(Dir, "giver.ern", Giver(43)),
-                          ":load Giver\n:load Giver\n",
-                          "unit(\"ern@giver\")\nunit(\"ern@giver$2\")\nunit(\"ern@giver$3\")\n",
-                          "Address.callForever(Hold.holder, Hold.Run)\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir,
+                            [":load Hold\n:load Giver\n",
+                             "Address.callForever(Hold.holder, Hold.Run)\n",
+                             "foreign fn loaded(name : Foreign.Term) : Bool ="
+                             " \"erlang:module_loaded/1\"\n",
+                             "fn unit(name : String) : Bool ="
+                             " loaded(Foreign.term(Foreign.atom(name)))\n",
+                             ":load Giver\nunit(\"ern@giver$2\")\n",
+                             write_source(Dir, "giver.ern", Giver(43)),
+                             ":load Giver\n:load Giver\n",
+                             "unit(\"ern@giver\")\nunit(\"ern@giver$2\")\nunit(\"ern@giver$3\")\n",
+                             "Address.callForever(Hold.holder, Hold.Run)\n"]),
     Refused = <<"> Giver.broken:5 faulted: division by zero; nothing was loaded\n">>,
     ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, "> 42 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<Refused/binary, "> false : Bool\n">>)),
@@ -5745,12 +5700,11 @@ reload_keeps_unchanged_values() ->
     ok = file:write_file(filename:join(Dir, "counter.ern"), Values("n + k", "10")),
     ok = file:write_file(filename:join(Dir, "user.ern"),
                          "export fn twice(n : Int) : Int = Counter.step(n, n)\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load User\nCounter.base\n",
-                                     write_source(Dir, "counter.ern",
-                                                  Values("k + n", "10 / List.size([])")),
-                                     ":reload\nCounter.base\nCounter.other\nUser.twice(3)\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load User\nCounter.base\n",
+                                  write_source(Dir, "counter.ern",
+                                               Values("k + n", "10 / List.size([])")),
+                                  ":reload\nCounter.base\nCounter.other\nUser.twice(3)\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Counter, compiled again\nUser, compiled again\n"
                                                 "Counter$2.base:3 faulted: division by zero; it and"
                                                 " the bindings after it whose hash changed, or"
@@ -5781,15 +5735,13 @@ reload_keeps_ground_values() ->
                    "export fn twice() : Int = limit + limit\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter("10", "5", "")),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Counter\nCounter.limit\nCounter.twice()\n",
-                          write_source(Dir, "counter.ern",
-                                       Counter("10 / List.size([])", "6",
-                                               "export let fresh = \"new\"\n\n")),
-                          ":reload\nCounter.limit\nCounter.fresh\nCounter.twice()\n"
-                          "Counter.later\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load Counter\nCounter.limit\nCounter.twice()\n",
+                                  write_source(Dir, "counter.ern",
+                                               Counter("10 / List.size([])", "6",
+                                                       "export let fresh = \"new\"\n\n")),
+                                  ":reload\nCounter.limit\nCounter.fresh\nCounter.twice()\n"
+                                  "Counter.later\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> 5 : Int\n> 10 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Counter$2.base:1 faulted: division by zero; it"
                                                 " and the bindings after it whose hash changed,"
@@ -5814,9 +5766,7 @@ killed_binding() ->
                          "export let w : Address(Int) = spawn(fn() : Unit receiving Int =\n"
                          "    receive { _ -> Unit })\n"
                          "export let x : Unit = kill(Process.fromAddress(self()))\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load K\n:processes\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ":load K\n:processes\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"K.x:3 was killed; nothing was loaded, and the"
                                                 " process spawned at K.w:1 was killed\n"
                                                 "> no process of the session's is running\n">>)).
@@ -5853,18 +5803,17 @@ load_keeps_what_bindings_open() ->
                           "  | Left(_) -> Unit\n",
                           "}\n\n",
                           "let acceptor : Address(Never) = spawn(serve)\n"]),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Greeter\n",
-                          "1 + 1\n",
-                          "{\n",
-                          "    let client <- Tcp.connect(\"127.0.0.1\", Greeter.port, 1000);\n",
-                          "    let greeting = Tcp.read(client, 1000);\n",
-                          "    Tcp.close(client);\n",
-                          "    Either.map(greeting, String.fromUtf8)\n",
-                          "}\n",
-                          ":processes\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir,
+                            [":load Greeter\n",
+                             "1 + 1\n",
+                             "{\n",
+                             "    let client <- Tcp.connect(\"127.0.0.1\", Greeter.port, 1000);\n",
+                             "    let greeting = Tcp.read(client, 1000);\n",
+                             "    Tcp.close(client);\n",
+                             "    Either.map(greeting, String.fromUtf8)\n",
+                             "}\n",
+                             ":processes\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Right(Some(\"hello\"))">>)),
     listed(Output, <<"Greeter.acceptor:21 calling Tcp.listen\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"Ernest.Shell.load">>)).
@@ -5887,11 +5836,9 @@ refused_load_kills() ->
                   "\nexport let broken : Int = ", Broken, "\n"]
              end,
     ok = file:write_file(filename:join(Dir, "server.ern"), Server("1 / List.size([])")),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Server\n:processes\n",
-                                     write_source(Dir, "server.ern", Server("2")),
-                                     ":load Server\nServer.broken\n:faults\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Server\n:processes\n",
+                                            write_source(Dir, "server.ern", Server("2")),
+                                            ":load Server\nServer.broken\n:faults\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Server.broken:5 faulted: division by zero; nothing"
                                                 " was loaded, and the process spawned at"
                                                 " Server.worker:2 was killed\n"
@@ -5945,10 +5892,8 @@ refused_load_kills_holder() ->
                          ["fn next(count : Int) : Int = count + 1\n\n",
                           "export let started : Unit = Runner.start(next)\n\n",
                           "export let broken : Int = 1 / List.size([])\n"]),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Runner\n:load Bad\n:processes\n",
-                                     "Runner.tick()\n:processes\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Runner\n:load Bad\n:processes\n",
+                                            "Runner.tick()\n:processes\n"]),
     listed(Output, <<"Bad.broken:5 faulted: division by zero; nothing"
                      " was loaded, and the process spawned at"
                      " Runner.start:19 was killed\n"
@@ -5982,17 +5927,15 @@ held_function_keeps_its_version() ->
                           "    }\n"]),
     Step = fun(Body) -> ["export fn step(n : Int, k : Int) : Int = ", Body, "\n"] end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Step("n + k")),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile,
-                         [":load Runner\n:load Counter\n",
-                          "let r = Runner.start(Counter.step)\nsend(r, Runner.Step(2))\n",
-                          write_source(Dir, "counter.ern", Step("n * k")), ":reload\n",
-                          write_source(Dir, "counter.ern", Step("n - k")), ":reload\n",
-                          write_source(Dir, "counter.ern", Step("0")), ":reload\n",
-                          "send(r, Runner.Step(10))\n",
-                          "Address.callForever(r, fn(x) = Runner.Total(reply = x))\n",
-                          "Counter.step(5, 5)\n:faults\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, [":load Runner\n:load Counter\n",
+                                  "let r = Runner.start(Counter.step)\nsend(r, Runner.Step(2))\n",
+                                  write_source(Dir, "counter.ern", Step("n * k")), ":reload\n",
+                                  write_source(Dir, "counter.ern", Step("n - k")), ":reload\n",
+                                  write_source(Dir, "counter.ern", Step("0")), ":reload\n",
+                                  "send(r, Runner.Step(10))\n",
+                                  "Address.callForever(r, fn(x) = Runner.Total(reply = x))\n",
+                                  "Counter.step(5, 5)\n:faults\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> > 12 : Int\n> 0 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no process has faulted">>)).
 
@@ -6008,12 +5951,10 @@ reload_refused_by_a_new_module() ->
     ok = file:write_file(filename:join(Dir, "a.ern"), "export let y : Int = 1\n"),
     ok = file:write_file(filename:join(Dir, "helper.ern"),
                          "export let x : Int = 40 / List.size([])\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load A\n",
-                                     write_source(Dir, "a.ern",
-                                                  "export let y : Int = Helper.x + 2\n"),
-                                     ":reload\nA.y\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load A\n",
+                                            write_source(Dir, "a.ern",
+                                                         "export let y : Int = Helper.x + 2\n"),
+                                            ":reload\nA.y\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"Helper.x:1 faulted: division by zero; nothing was"
                                                 " reloaded\n> 1 : Int">>)).
 
@@ -6215,16 +6156,13 @@ load_takes_no_form_calling_a_reloaded_module() ->
     ok = file:write_file(filename:join(Dir, "d.ern"), ["// D's stamp.\n", Stamp]),
     ok = file:write_file(filename:join(Dir, "m.ern"), "export fn stamp() : Int = D.stamp\n"),
     {0, _} = ern_pty:sh("../bin/ern build " ++ Dir),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load D\n",
-                                     write_source(Dir, "d.ern",
-                                                  ["// D's stamp, of a second version.\n",
-                                                   Stamp]),
-                                     ":reload\n",
-                                     ":load M\n",
-                                     "M.stamp() == D.stamp\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < "
-                             ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load D\n",
+                                            write_source(Dir, "d.ern",
+                                                         ["// D's stamp, of a second version.\n",
+                                                          Stamp]),
+                                            ":reload\n",
+                                            ":load M\n",
+                                            "M.stamp() == D.stamp\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"D, from ", (shown(Dir, "d.erc"))/binary,
                                                 "\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"D, compiled again\n">>)),
@@ -6252,9 +6190,8 @@ load_judges_by_digest() ->
     ok = file:write_file_info(Same, #file_info{mtime = Now + 60}, [{time, posix}]),
     ok = file:write_file(Changed, "export let changed : Int = 2\n"),
     ok = file:write_file_info(Changed, #file_info{mtime = Now - 60}, [{time, posix}]),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Same\nSame.same\n:load Changed\nChanged.changed\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, ":load Same\nSame.same\n:load Changed\nChanged.changed\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"Same, from ", (shown(Dir, "same.erc"))/binary,
                                                 "\n> 1 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Changed, compiled from ",
@@ -6292,9 +6229,8 @@ load_takes_no_form_of_another_build() ->
               end || {Id, Chunk} <- Chunks],
     {ok, Beam} = beam_lib:build_module(Forged),
     ok = file:write_file(Erc, Beam),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Greet\nGreet.greeting\n:load Other\nOther.other\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} =
+        source_root_session(Dir, ":load Greet\nGreet.greeting\n:load Other\nOther.other\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"Greet, compiled from ",
                                                 (shown(Dir, "greet.ern"))/binary, "\n"
                                                 "> \"hi\" : String\n">>)),
@@ -6357,18 +6293,16 @@ reload_all_or_nothing() ->
     Dir = scratch("ern_reload_all_"),
     ok = file:write_file(filename:join(Dir, "alpha.ern"), answer(1)),
     ok = file:write_file(filename:join(Dir, "beta.ern"), answer(1)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Alpha\n", ":load Beta\n",
-                                     write_source(Dir, "alpha.ern", answer(2)),
-                                     write_source(Dir, "beta.ern",
-                                                  "export fn answer() : Int = \"no\"\n"),
-                                     ":reload\n",
-                                     "Alpha.answer() + 10\n",
-                                     write_source(Dir, "beta.ern", answer(3)),
-                                     ":reload\n",
-                                     "Alpha.answer() + 20\n",
-                                     "Beta.answer() + 30\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Alpha\n", ":load Beta\n",
+                                            write_source(Dir, "alpha.ern", answer(2)),
+                                            write_source(Dir, "beta.ern",
+                                                         "export fn answer() : Int = \"no\"\n"),
+                                            ":reload\n",
+                                            "Alpha.answer() + 10\n",
+                                            write_source(Dir, "beta.ern", answer(3)),
+                                            ":reload\n",
+                                            "Alpha.answer() + 20\n",
+                                            "Beta.answer() + 30\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"beta.ern:1:">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"nothing was reloaded">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 11 : Int">>)),
@@ -6406,23 +6340,21 @@ load_evaluates_bindings() ->
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Counter\n",
-                                     "Counter.base\n",
-                                     Ask,
-                                     ":load Bad\n",
-                                     "Bad.zero\n",
-                                     write_source(Dir, "counter.ern", Counter(2)),
-                                     ":reload\n",
-                                     "Counter.base\n",
-                                     Ask,
-                                     write_source(Dir, "counter.ern",
-                                                  [Counter(3),
-                                                   "export let late = 1 / List.size([])\n"]),
-                                     ":reload\n",
-                                     "Counter.base\n",
-                                     "Counter.late\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Counter\n",
+                                            "Counter.base\n",
+                                            Ask,
+                                            ":load Bad\n",
+                                            "Bad.zero\n",
+                                            write_source(Dir, "counter.ern", Counter(2)),
+                                            ":reload\n",
+                                            "Counter.base\n",
+                                            Ask,
+                                            write_source(Dir, "counter.ern",
+                                                         [Counter(3),
+                                                          "export let late = 1 / List.size([])\n"]),
+                                            ":reload\n",
+                                            "Counter.base\n",
+                                            "Counter.late\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> 10 : Int\n> 1 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"Bad.boom:2 faulted: division by zero;"
                                                 " nothing was loaded">>)),
@@ -6483,10 +6415,8 @@ load_loaded_test_() ->
 load_loaded() ->
     Dir = scratch("ern_load_twice_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, [":load Demo\n", "spawn(fn() = Demo.tick())\n",
-                                     ":load Demo\n", ":load Demo\n", ":processes\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, [":load Demo\n", "spawn(fn() = Demo.tick())\n",
+                                            ":load Demo\n", ":load Demo\n", ":processes\n"]),
     ?assertEqual(2, ern_pty:count(Output, <<"Demo is loaded already; :reload compiles it again">>)),
     listed(Output, <<"$Session1.input 2:1 receiving\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"no process of the session's is running">>)).
@@ -6557,9 +6487,7 @@ failed_load_leaves_nothing() ->
                          ["let worker : Address(Unit) = spawn(fn() = loop())\n",
                           "fn loop() : Unit receiving Unit = receive { _ -> loop() }\n",
                           "export let late : Int = 1 / List.size([])\n"]),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ":load Bad\n:processes\n"),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ":load Bad\n:processes\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"nothing was loaded">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"no process of the session's is running">>)).
 
@@ -6576,11 +6504,9 @@ input_namespace() ->
     Dir = scratch("ern_inputs_"),
     ok = file:write_file(filename:join(Dir, "input1.ern"), answer(7)),
     ok = file:write_file(filename:join(Dir, "bindings2.ern"), answer(8)),
-    InputFile = filename:join(Dir, "session.in"),
-    ok = file:write_file(InputFile, ["fn f() : Int = 1\n", "let x = 2\n", ":load Input1\n",
-                                     ":load Bindings2\n", "f() + x\n", "Input1.answer()\n",
-                                     "Bindings2.answer()\n"]),
-    {0, Output} = ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile),
+    {0, Output} = source_root_session(Dir, ["fn f() : Int = 1\n", "let x = 2\n", ":load Input1\n",
+                                            ":load Bindings2\n", "f() + x\n", "Input1.answer()\n",
+                                            "Bindings2.answer()\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> 3 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 7 : Int">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> 8 : Int">>)).
@@ -6871,6 +6797,13 @@ alone(Command) ->
 %% A home of its own, which holds no history but the session's.
 fresh_home() ->
     scratch("ern_home_").
+
+%% The shell started with the source root Dir, given the inputs Inputs: its
+%% status and what it wrote.
+source_root_session(Dir, Inputs) ->
+    InputFile = scratch_file("ern_source_root_session_"),
+    ok = file:write_file(InputFile, Inputs),
+    ern_pty:sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ InputFile).
 
 %% A startup file the shell runs (report §11.2), its directory made where
 %% it is not there.
