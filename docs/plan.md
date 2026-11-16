@@ -481,7 +481,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
 ---
 
-## MVP 4.5 (`:trace f`), about a week, after the launch
+## MVP 4.5 (`:trace f`, and a request to OTP), about a week, after the launch
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
@@ -493,6 +493,14 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
    Erlang's `recon_trace` has one; the runtime has no tracing hook today, so the design decides
    how a function of a unit is traced by its position and what the bound is. Built on the node.
+2. **A request to OTP for what a purge needs**, added with the user on 2026-11-16 (the log's *A
+   Purge Needs Sight*): a way to learn that no function value of a module's code is alive on the
+   node, so that a node may let go code no one uses (§11.2 *What a node holds*). The emulator
+   keeps no count of them, as its source read that day shows. The item chooses between two
+   requests, a count the emulator keeps and a scan when asked, and drafts the one chosen for the
+   user to file; nothing is built. Two decisions for the user stand in it: whether the contradiction
+   in the documentation of `erlang:check_process_code/3` is filed as a report of
+   `docs/otp_bugs.md`, and, where OTP refuses, whether a token of the runtime's own is weighed.
 
 ---
 
@@ -552,4 +560,4 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
 | MVP 4.6 | the server owning both ends of its socket | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
-| MVP 4.5 | the shell's second round | | | above |
+| MVP 4.5 | the shell's second round, and a request to OTP for what a purge needs | | | above |
