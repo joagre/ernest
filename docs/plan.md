@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 57**, the first of the flakes left.
+**The next item is MVP 4.16's item 59**, the first of the flakes left.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,9 +43,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): the flakes, the most often seen first, items 57, 59, 58, 61, 64 and 63, one at a
-time; what the builds found, items 35, 36, 69, 72 and 70; and what needs the user, items 60, 68
-and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand below in
+left*): the flakes, the most often seen first, items 59, 58, 61, 64 and 63, one at a
+time; what the builds found, items 35, 36, 69, 72 and 70; and what needs the user, items 60,
+68, 73 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand below in
 that order.
 
 A flake is hunted for two hours at most, under the load its item names, and the hunt ends at
@@ -57,16 +57,6 @@ sighting, and the hunt after the fix runs three times the rounds one sighting to
 flake below the cause is not found. An agent finds it under the load the item names,
 and fixes at the cause the test or what the item names beside it.
 
-- **57. Three tests of `ern_supervisor_tests`**, under `make flakes`, where the agent finds
-  whether any needs a host that has run the tests before; the test or the supervisor. Seen
-  2026-11-15 in item 11's hunts beside 15 loops, each once.
-  `limit_reports_only_real_faults_test` wrote `division by zero` where it expects that twice
-  and `supervisor restart limit reached`, in a host's second round.
-  `count_survives_restart_in_place_test` wrote `2` where it expects `0`, in a third round.
-  Both were seen again in item 24's hunts, the second in four of the five, and in item 51's
-  two, the first in 4 rounds and the second in 5. `supervisor_counts_before_the_restart` was
-  seen 2026-11-16 once in item 51's first hunt: it wrote `kept` where it expects
-  `supervisor restart limit reached`.
 - **59. `write_given_no_time_test` past its limit**, under `make flakes`, where the agent finds
   whether the test waits on what the loops starve or on what never comes; the test or `Tcp`.
   Seen 2026-11-15 once in item 11's hunt beside 15 loops, in a host's third round: EUnit ended
@@ -156,6 +146,23 @@ and fixes at the cause the test or what the item names beside it.
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
+- **73. Two orders the report does not state**, found 2026-11-16 by item 57's diagnosis (the
+  log's *Three Orders the Supervisor Tests Read*). A program meets each, and a test read each.
+
+  E.22 has the child whose fault restarts its siblings run again once each has restarted or
+  ended, for a strategy's restart. Of a group that gives up and is restarted in place it says
+  nothing. The child at whose fault the group gave up can answer a call before a sibling has
+  taken its restart, and the sibling's old run answers the next call.
+  `nested_group_restarts_in_place_test` read the same order on 2026-10-26 (the log's *The
+  Nested Group's Third Restart*). Decided with the user: whether that child runs again once
+  each sibling has restarted or ended, or E.22 says a restart in place gives no order.
+  Recommended: the first, as *A Group Restarts Whole* decided a strategy's restart (principle
+  1), built in `Supervisor`.
+
+  §6.9 gives a `Down` no order with the ended process's messages, and says nothing of two
+  `Down`s to one process. The runtime delivers each through a process of its own, so either
+  comes first. Decided with the user: whether §6.9 says so. Recommended: it does, in one
+  sentence, and the runtime stands.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
@@ -229,6 +236,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 51 | The flake of `delivery_foreign_code_arranges_test` | 2026-11-16 | §6.9, §8.4, §8.6; *A Sender That Outlives Its Run* |
 | 55 | A reading of `CLAUDE.md` for clarity, with the user | 2026-11-15 | *The Rules Read for Clarity* |
 | 56 | A test canceled at its limit ends its host's later tests | 2026-11-15 | *A Limit Ends Its Own Test* |
+| 57 | The flakes of three tests of `ern_supervisor_tests` | 2026-11-16 | §6.4, §6.9, E.21, E.22; *Three Orders the Supervisor Tests Read* |
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 
