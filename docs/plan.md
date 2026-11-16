@@ -44,8 +44,8 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 72, 70, 73, 74, 76, 79, 80, 81, 82, 84 and
-85; and what needs the user, items 60, 68 and 39. The items stand below in that order.
+left*): what the builds found, items 36, 69, 72, 70, 73, 74, 76, 79, 80, 81, 82 and 84; and
+what needs the user, items 60, 68 and 39. The items stand below in that order.
 
 Six of them are built first, as one batch, decided with the user on 2026-11-16 (the log's
 *A Batch of Six*): items 75, 85, 76 and 80 side by side, then items 79 and 81 side by side,
@@ -158,13 +158,6 @@ runs nothing else.
   no host and one runnable process, where the load average still read 112. The cause is
   not found. An agent measures first: the target after a pause and right after `make
   test-shell`, three times each in turn, and where a run spends its time outside its tests.
-- **85. The sessions the shell's tests start by hand**, found 2026-11-16 by the agent that
-  moved the sessions over a source root to `source_root_session/3` (the log's *Hard Work and
-  Stupid Work*). 36 sites of `test/ern_shell_tests.erl` start `ern shell` with no option
-  over an input file by hand, 15 of them writing the file just before. An agent reads the
-  file's other ways of starting a session, gives each form that sites repeat exactly one
-  helper among the file's session helpers, and moves each site that says the same. No
-  assertion and no input changes, and it closes on `make test-shell` and `make test`.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -271,6 +264,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
+| 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
