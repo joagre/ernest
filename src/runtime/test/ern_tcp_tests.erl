@@ -59,7 +59,8 @@ read_given_no_time_test() ->
 %% run out as it begins, answers `Left(Timeout)` and gives the host nothing:
 %% the far end reads the one write that had time, and nothing before it. A
 %% regression test: before the rule, the bytes went to the host and the
-%% write answered whichever came first, its time or the host's taking them
+%% write answered whichever came first, its time or the host's taking them.
+%% It does not cover a socket over TLS
 write_given_no_time_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -75,10 +76,14 @@ write_given_no_time_test() ->
                Self ! {writes, [write(Socket, <<"x">>, 0), write(Socket, <<"y">>, -1),
                                 write(Socket, <<"z">>, 5000)]}
            end, <<"main">>, quiet()),
+    Writes = wait(writes),
+    Read = wait(far_end),
+    %% the listener closes once the far end has answered: a close before the
+    %% far end's accept had ended refused the accept, and no answer came
     gen_tcp:close(Listen),
     Timeout = {'Left', 'Timeout'},
-    ?assertEqual([Timeout, Timeout, {'Right', 'Unit'}], wait(writes)),
-    ?assertEqual({ok, <<"z">>}, wait(far_end)).
+    ?assertEqual([Timeout, Timeout, {'Right', 'Unit'}], Writes),
+    ?assertEqual({ok, <<"z">>}, Read).
 
 %% Appendix E.18, E.0 shape rule 8: an accept given no time has run out as
 %% it begins, answers `Left(Timeout)` and takes nothing, a connection the
