@@ -824,7 +824,7 @@ A service monitor on a process of another node is told of its restarts too, by t
 
 `demonitor(p)`, §9.5, ends every monitor the caller holds on `p`, service monitors among them; a `Down` already in the caller's mailbox stays, and none comes after. A `demonitor` on a process the caller does not monitor does nothing.
 
-A `Down` comes from the runtime and has no order with the messages the ended process sent (§6.4). The answer to a call (§6.6) is not overtaken by the callee's `Down`.
+A `Down` comes from the runtime and has no order with the messages the ended process sent (§6.4). The answer to a call (§6.6) is not overtaken by the callee's `Down`. Where two processes die, their `Down`s have no order with each other, whichever died first.
 
 A `wrap` has no sender to run in: the runtime applies it as it delivers the message. A fault in it is the fault of the process it delivers to, which meets it at its next wait (§6.5). What a `wrap` opens, spawns or asks of the runtime is that process's too, as if it had done it itself (Appendix E.18, E.21): `Process.current()` in it is that process, `self()` in it is that process's address, and a `monitor` in it is that process's monitor. A `wrap` that does not finish holds up no other delivery, but a service monitor's holds up the restart it is told of (above). A delivery to a process that has ended ends with it.
 

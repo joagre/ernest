@@ -44,9 +44,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): the flakes, the most often seen first, items 59, 58, 61, 64 and 63, one at a
-time; what the builds found, items 35, 36, 69, 72 and 70; and what needs the user, items 60,
-68, 73 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand below in
-that order.
+time; what the builds found, items 35, 36, 69, 72, 70, 73 and 74; and what needs the user, items
+60, 68 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand
+below in that order.
 
 A flake is hunted for two hours at most, under the load its item names, and the hunt ends at
 its first sighting, decided with the user on 2026-11-16 (the log's *Two Hours for a Hunt*). One
@@ -129,6 +129,27 @@ and fixes at the cause the test or what the item names beside it.
   system process's, and §8.6 stands as it is. An agent builds it. The verdict rested on the
   agent's probe alone, so the build first shows the fault again, and its test holds a checker
   while the message waits.
+- **73. A group restarted in place comes back whole**, found 2026-11-16 by item 57's
+  diagnosis and decided with the user the same day (the log's *Two Orders Stated*). E.22 has
+  the child whose fault restarts its siblings run again once each has restarted or ended, for
+  a strategy's restart. A group that gave up and is restarted in place lets the child at whose
+  fault it gave up go on once each child is asked, so that child can answer a call while a
+  sibling's old run still stands.
+
+  Decided: that child runs again once each of the others has restarted or ended. An agent
+  builds it, E.22's sentence first: `Supervisor` releases the child on the messages it already
+  has, and a test holds the group between its asks. The same build changes
+  `kill_stops_in_reverse_order_test`, which reads the kill's order from the order of three
+  `Down`s, where §6.9 gives the `Down`s of two processes none: it reads that each child
+  spawned after one has ended at that one's `Down`.
+- **74. A kill while a restart waits**, found 2026-11-16 by the cold reading of §6.9's new
+  sentence (the log's *Two Orders Stated*), read from the code and not shown. A restarting
+  process waits until each service monitor's `wrap` has placed its `Restarted` (§6.9). Where a
+  `kill` ends it during that wait, the monitor gets its `Down` and ends, and `ern_rt`'s `down/3`
+  ends the deliveries of `Restarted` only at a loss. So a watcher may get `Killed` and then
+  `Restarted` of one process. An agent first shows it with a `wrap` that is held. The shape of
+  the fix: a process's end ends its deliveries of `Restarted` not yet placed, as a loss does
+  (§8.7). What §6.9 says of it is decided with the user once it is shown.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -146,23 +167,6 @@ and fixes at the cause the test or what the item names beside it.
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
-- **73. Two orders the report does not state**, found 2026-11-16 by item 57's diagnosis (the
-  log's *Three Orders the Supervisor Tests Read*). A program meets each, and a test read each.
-
-  E.22 has the child whose fault restarts its siblings run again once each has restarted or
-  ended, for a strategy's restart. Of a group that gives up and is restarted in place it says
-  nothing. The child at whose fault the group gave up can answer a call before a sibling has
-  taken its restart, and the sibling's old run answers the next call.
-  `nested_group_restarts_in_place_test` read the same order on 2026-10-26 (the log's *The
-  Nested Group's Third Restart*). Decided with the user: whether that child runs again once
-  each sibling has restarted or ended, or E.22 says a restart in place gives no order.
-  Recommended: the first, as *A Group Restarts Whole* decided a strategy's restart (principle
-  1), built in `Supervisor`.
-
-  §6.9 gives a `Down` no order with the ended process's messages, and says nothing of two
-  `Down`s to one process. The runtime delivers each through a process of its own, so either
-  comes first. Decided with the user: whether §6.9 says so. Recommended: it does, in one
-  sentence, and the runtime stands.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process

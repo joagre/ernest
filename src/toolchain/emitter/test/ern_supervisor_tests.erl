@@ -682,9 +682,9 @@ restart_reaches_the_outer_function_test() ->
 %% after, running about two hundred times under a limit of two, and a time
 %% of 0, which set no limit then, still gave up.
 %%
-%% Where the group gives up, its watcher kills the child, and no rule
-%% orders the two `Down`s (report §6.9), so main takes the child's only
-%% where the child returned, as it does under `Unlimited`. A child that
+%% Where the group gives up, its watcher kills the child, and the `Down`s
+%% of two processes have no order (report §6.9), so main takes the child's
+%% only where the child returned, as it does under `Unlimited`. A child that
 %% ends otherwise leaves main waiting, and the run ends in a deadlock
 %% (report §8.6) rather than with `kept`.
 supervisor_counts_before_the_restart_test_() ->
