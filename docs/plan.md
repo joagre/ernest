@@ -44,9 +44,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): the flakes, the most often seen first, items 57, 59, 58, 61, 64 and 63, one at a
-time; what the builds found, items 35, 36, 69 and 72; and what needs the user, items 60, 68, 70
-and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63, and item 67 is hunted again
-only where it shows again. The items stand below in that order.
+time; what the builds found, items 35, 36, 69, 72 and 70; and what needs the user, items 60, 68
+and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand below in
+that order.
 
 A flake is hunted for two hours at most, under the load its item names, decided with the user
 on 2026-11-16 (the log's *Two Hours for a Hunt*). One that does not show within them is closed
@@ -98,10 +98,6 @@ and fixes at the cause the test or what the item names beside it.
   hunt beside 15 loops: EUnit canceled it in `os:cmd/1`, and the hunt left a crash dump of
   that host, `Runtime terminating during boot`, in a write of a line that holds
   `ern-node-flags`.
-- **67. `shell_reload_terminal_gone` ended with the status 0**, not found. Seen 2026-11-14
-  once over item 6's runs, where 129 was expected, its output whole. Item 40's hunt did not
-  meet it in 2,304 runs, 96 at once, and none of that item's three causes reaches it, since
-  no step follows its hangup (the log's *The Shell's Last Line*).
 - **35. A compiled module's dependency that has only a source**, found 2026-11-13 by item 26's
   build: `:load Main`, taken from `main.erc`, answers `no module Util on the load path`
   where the source root holds `util.ern` and no `util.erc`, and a `:load Util` takes that
@@ -128,6 +124,19 @@ and fixes at the cause the test or what the item names beside it.
   by item 51's diagnosis and measured again by the session: `make -s all` reads each library's
   `.erc` again. An agent measures where the time goes first, and the build with nothing to do
   then reads no library (the log's *Slow Tools Are Defects*).
+- **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
+  diagnosis (the log's *A Sender That Outlives Its Run*). A message foreign code sends to an
+  exposed address reaches the checker in front of its process first (§8.4). While it waits
+  there the look reads no message in flight, and a program that waits for it alone ends with
+  the fault `deadlock`, where §8.6 calls a program deadlocked only when no message is in
+  flight. A probe that held the checker for two looks showed it in 10 of 10 runs. Nothing has
+  shown it without the hold, since the checker would have to go unscheduled for the look's
+  quiet time.
+
+  Decided with the user on 2026-11-16: the look reads the checkers' queues, as it reads a
+  system process's, and §8.6 stands as it is. An agent builds it. The verdict rested on the
+  agent's probe alone, so the build first shows the fault again, and its test holds a checker
+  while the message waits.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -145,19 +154,6 @@ and fixes at the cause the test or what the item names beside it.
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
-- **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
-  diagnosis (the log's *A Sender That Outlives Its Run*). A message foreign code sends to an
-  exposed address reaches the checker in front of its process first (§8.4). While it waits
-  there the look reads no message in flight, and a program that waits for it alone ends with
-  the fault `deadlock`, where §8.6 calls a program deadlocked only when no message is in
-  flight. A probe that held the checker for two looks showed it in 10 of 10 runs. Nothing has
-  shown it without the hold, since the checker would have to go unscheduled for the look's
-  quiet time.
-
-  Decided with the user: whether the look reads the checkers' queues, as it reads a system
-  process's, or §8.6 promises less. Recommended: the look reads them, since a fault that ends
-  a program which could go on is the surprise principle 1 refuses. The recommendation rests on
-  the agent's probe alone.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
@@ -232,6 +228,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 55 | A reading of `CLAUDE.md` for clarity, with the user | 2026-11-15 | *The Rules Read for Clarity* |
 | 56 | A test canceled at its limit ends its host's later tests | 2026-11-15 | *A Limit Ends Its Own Test* |
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
+| 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
