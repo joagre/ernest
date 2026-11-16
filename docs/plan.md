@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next items are MVP 4.16's items 79 and 81**, the rest of its batch of six, as the
-milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 81**, the last of its batch of six, and items 72 and 82
+follow it, as the milestone's *What is left* gives them.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -44,14 +44,45 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 72, 70, 73, 74, 81, 82 and 84; and
-what needs the user, items 60, 68 and 39. The items stand below in that order.
+left*): what the builds found, items 72, 82, 36, 69, 70, 73, 74 and 84; and what needs the
+user, items 60, 68 and 39. Items 72 and 82 came first on 2026-11-16 (the log's
+*Twenty-Seven Hosts for Nothing*). The items stand below in that order, after item 81.
 
-Items 79 and 81 are built first, side by side. They are what is left of the batch of six
-decided with the user on 2026-11-16 (the log's *A Batch of Six*), whose items 75, 85, 76 and
-80 are done. Each has its own commit and log entry. The session reads each diff and runs
-`make test-full` once over the batch, on a machine that runs nothing else.
+Item 81 is built first. It is what is left of the batch of six decided with the user on
+2026-11-16 (the log's *A Batch of Six*), whose other five items are done. The session
+reads its diff and runs `make test-full` once over the batch, on a machine that runs
+nothing else.
 
+- **81. `listen_of_one_family_test` refused its port**, found 2026-11-16 by item 66's
+  diagnosis, once in 226 rounds of nine copies of one part side by side, a load no target
+  runs. The test listens on `"0.0.0.0"` at the port the host gave its listener on `"::"`, and
+  then the other way round. Another socket of the machine can hold that port in the other
+  family, so `make test` can meet it, at a rate not known. The shape of the fix: where the
+  second listener is refused, the test tells a foreign holder from the regression it holds,
+  under which the listener on `"::"` takes an IPv4 connection, and takes a new pair of ports
+  for a foreign holder. An agent shows the failure first, with another process's socket on
+  the port.
+- **72. A build with nothing to do takes 1.6 s and 19 s of processor time**, found 2026-11-16
+  by item 51's diagnosis. The session measured it on a quiet machine (the log's
+  *Twenty-Seven Hosts for Nothing*): `make -s all` starts 27 hosts, 14 for `ern build`, 12
+  for `ern doc --man` and one for the manual's program. A bare host that halts at once
+  costs 0.12 s and 0.64 s of processor time, so the hosts are the whole cost and each
+  root's check is in the noise. An agent measures it again first, a job at a time. The
+  build with nothing to do then starts no host: make starts no job for a root whose
+  sources have not changed (the log's *Slow Tools Are Defects*). Whether one job can build
+  the roots that have changed, where 14 start now, is read then.
+- **82. A host's start on a busy machine**, found 2026-11-16 by item 71's diagnosis (the log's
+  *The First Start's Schedulers*). A bare host starts in 0.13 s alone, in 0.6 s beside the
+  hunt's load and in 2.2 s beside a busy loop for each processor, since its schedulers spin
+  as they wake, and every job of `ern` starts in a host. With the host's busy wait off, a
+  first start beside those loops took 1.6 s where it had taken 9.1. Alone, a start costs
+  0.64 s of processor time, 0.19 s with the busy wait off and 0.15 s with one scheduler,
+  each in 0.12 to 0.13 s (the log's *Twenty-Seven Hosts for Nothing*).
+
+  An agent measures first: an `ern run` of a program that does nothing, alone and under
+  both loads, with the busy wait and without, and `make bench` both ways. Whether the
+  launcher starts the host with the busy wait off is then decided with the user, on those
+  numbers.
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
   the directory as `ern build` does, where a module that does not compile does not stop the
@@ -68,10 +99,6 @@ decided with the user on 2026-11-16 (the log's *A Batch of Six*), whose items 75
   [`otp_bugs.md`](otp_bugs.md). The three tests that name a cat once it has echoed,
   `signal_jobs_take_any_mode_test`, `signaled_test` and `pid_lock`, then cite the report in
   their comments. Filing is the user's.
-- **72. A build with nothing to do takes 1.6 s and 16 s of processor time**, found 2026-11-16
-  by item 51's diagnosis and measured again by the session: `make -s all` reads each library's
-  `.erc` again. An agent measures where the time goes first, and the build with nothing to do
-  then reads no library (the log's *Slow Tools Are Defects*).
 - **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
   diagnosis (the log's *A Sender That Outlives Its Run*). A message foreign code sends to an
   exposed address reaches the checker in front of its process first (§8.4). While it waits
@@ -106,23 +133,6 @@ decided with the user on 2026-11-16 (the log's *A Batch of Six*), whose items 75
   `Restarted` of one process. An agent first shows it with a `wrap` that is held. The shape of
   the fix: a process's end ends its deliveries of `Restarted` not yet placed, as a loss does
   (§8.7). What §6.9 says of it is decided with the user once it is shown.
-- **81. `listen_of_one_family_test` refused its port**, found 2026-11-16 by item 66's
-  diagnosis, once in 226 rounds of nine copies of one part side by side, a load no target
-  runs. The test listens on `"0.0.0.0"` at the port the host gave its listener on `"::"`, and
-  then the other way round. Another socket of the machine can hold that port in the other
-  family, so `make test` can meet it, at a rate not known. The shape of the fix: where the
-  second listener is refused, the test tells a foreign holder from the regression it holds,
-  under which the listener on `"::"` takes an IPv4 connection, and takes a new pair of ports
-  for a foreign holder. An agent shows the failure first, with another process's socket on
-  the port.
-- **82. A host's start on a busy machine**, found 2026-11-16 by item 71's diagnosis (the log's
-  *The First Start's Schedulers*). A bare host starts in 0.13 s alone, in 0.6 s beside the
-  hunt's load and in 2.2 s beside a busy loop for each processor, since its schedulers spin
-  as they wake, and every job of `ern` starts in a host. With the host's busy wait off, a
-  first start beside those loops took 1.6 s where it had taken 9.1. An agent measures first:
-  an `ern run` of a program that does nothing, alone and under both loads, with the busy
-  wait and without, and `make bench` both ways. Whether the launcher starts the host with
-  the busy wait off is then decided with the user, on those numbers.
 - **84. `make test-nodes` a minute slower right after another target**, found 2026-11-16 by
   the agent that wrote item 35's later tests (the log's *Hard Work and Stupid Work*). The
   target took about 137 s started after a pause, and 205 to 210 s started right after
