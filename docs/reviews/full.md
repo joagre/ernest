@@ -12,7 +12,7 @@ It does not run while the findings of the last one are open.
 
 - [`release.md`](release.md)'s first step runs before a reader starts, and the readers read and run that clone.
 - Each reader is an agent of its own. It is given its brief and the files it reads, and nothing that argues for them, such as the log or another reader's list.
-- A reader is handed `CLAUDE.md` as every agent is. Its brief stands in place of it, and the one rule of it a reader keeps is to leave untracked files alone. A cold reader, K or N, has read nothing but what its brief names: neither the log, the plan, a proposal, the code nor another reader's list.
+- A reader is handed `CLAUDE.md` as every agent is. Its brief stands in place of it and says so in one line, and the one rule of it a reader keeps is to leave untracked files alone. A cold reader, K or N, has read nothing but what its brief names: neither the log, the plan, a proposal, the code nor another reader's list.
 - What a brief needs of the log, the last counts and the earlier newcomers' programs, the session writes into it.
 - A reader edits nothing in the repository. It tries a program in a scratch directory of its own, with the clone's `bin/ern`.
 - The readers read one commit, which the findings name, and run side by side.
