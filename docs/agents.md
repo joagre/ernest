@@ -8,7 +8,7 @@ Code goes to an agent one build at a time, given its goal, the report's sections
 
 A diagnosis that needs experiments goes to one agent with the failing case and what is ruled out, never the session's guess, and that agent owns the loop to a passing test.
 
-An agent follows `CLAUDE.md`. Its brief tells it in one line to leave untracked files alone, and says which style document it reads first, as `CLAUDE.md`'s *Style* has it.
+An agent follows `CLAUDE.md`, but a review's reader, whose brief stands in its place as [`reviews/full.md`](reviews/full.md)'s *How it runs* says. Its brief tells it in one line to leave untracked files alone, and says which style document it reads first, as `CLAUDE.md`'s *Style* has it.
 
 ## An agent's report
 
@@ -28,6 +28,6 @@ An agent is given its model and its effort when it is started.
 
 The coding model runs at the stronger effort for a build in the checker, the emitter, the runtime or the nodes, for a diagnosis, and for a review's reader of the code or of what the toolchain does. It runs at the lesser effort for any other build from a settled brief, re-run once at the stronger from a brief naming the failure and then returned to the session.
 
-The stronger model reads the report, the guide or a document in a review, and report sentences cold. The smallest model runs a search or a digest of long output that asks no judgment. A test run or a probe needs no model: the session runs it.
+The stronger model, at the session's own effort, reads the report, the guide or a document in a review, and report sentences cold. The smallest model runs a search or a digest of long output that asks no judgment. A test run or a probe needs no model: the session runs it.
 
 The models' names and their efforts are the session's memory's, not this repository's.

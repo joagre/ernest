@@ -45,7 +45,7 @@ What is left is small, and each item stands alone. Its order, decided with the u
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): the flakes, the most often seen first, item 63, one at a
 time; what the builds found, items 35, 36, 69, 72, 70, 73, 74, 75 and 76; and what needs the user, items
-60, 68 and 39. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand
+60, 68, 39 and 77. Items 65, 66 and 71, each seen in one hunt, follow item 63. The items stand
 below in that order.
 
 A flake is hunted for two hours at most, under the load its item names, and the hunt ends at
@@ -186,6 +186,31 @@ and fixes at the cause the test or what the item names beside it.
   `readme_refused_test_`, `readme_counter_is_the_tours_test` and `claims_test` among them.
   The homepage takes nothing from the page and does not change. The session writes it, and
   it closes on `make test`.
+- **77. The template and its copies take the review documents' lines**, found 2026-11-16 by
+  the reading of the review documents (the log's *The Review Documents Read Against the
+  Rules*). The template's own session makes them, from a message of Ernest's session, and
+  tags the template.
+
+  In `docs/agents.md`: a review's reader, whose brief stands in place of `CLAUDE.md`, and
+  the stronger model at the session's own effort.
+
+  In `docs/full_review.md`: a reader is an agent; what a reader is handed, and what a cold
+  reader has not read; the list of what a reader finds of Ernest's, as the template's
+  `CLAUDE.md` has it; the clone step and the sorting, stated there and no longer taken from
+  `release.md`; who makes a fix, said once; and an agent that runs a finding's program
+  before it makes the fix.
+
+  In `docs/release.md`: its readers are `full_review.md`'s, run as it runs them; the round's
+  cold reader reads the diff of what it reads; the findings stand until each is done,
+  dropped or planned; the note stands before the tag; the proposal's step goes, since
+  CLAUDE.md's *Proposals* holds it; who carries the feedback is CLAUDE.md's; and the push
+  and the release on GitHub wait for the user's word.
+
+  Then ernest-httpd and ernest-epx take `agents.md` and `full_review.md` whole from the
+  tag, and `release.md`'s lines by hand, ernest-epx keeping the step of its own. Ernest's
+  session makes the copies' refresh, a change across the repositories
+  ([`clean_room.md`](clean_room.md)). The item closes when both copies name the tag in
+  their logs.
 
 ### What is done
 

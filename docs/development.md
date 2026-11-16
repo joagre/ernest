@@ -157,7 +157,7 @@ A list that lives in two places is held equal by a test where one is cheap, whos
 - the documents, in `docs/README.md` and this document's layout;
 - this document's layout of `test/` and of `tools/`, against their files;
 - the launcher's flags, in `docs/design/install.md` and `bin/ern`;
-- the release review's machines, in `docs/reviews/release.md` and the Makefile's targets.
+- the release review's checks, in `docs/reviews/release.md` and the Makefile's targets.
 
 ## Building
 
