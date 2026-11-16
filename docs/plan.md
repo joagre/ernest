@@ -21,7 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 36**, the next of what the builds found.
+**The next item is MVP 4.16's item 83**, what a load says of what it could not load, decided
+and built first.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,9 +44,41 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81, 82 and 84;
-and what needs the user, items 60, 68, 83 and 39. The items stand below in that order.
+left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81, 82, 84 and
+85; and what needs the user, items 60, 68 and 39. Item 83, decided on 2026-11-16, is built
+before them. The items stand below in that order.
 
+- **83. What a load says of what it could not load**, decided with the user 2026-11-16 from
+  what item 35 found (the log's *What a Load Could Not Load*). An agent builds it, and the
+  item states each rule in §11.2 first. It closes on `make test-shell`, `make test-nodes`
+  and `make test`, and its report names each test whose expected text changed, with both
+  texts.
+
+  What a load answers. A line for the module named and for each module the load took whose
+  source the source root holds, a module after those it uses: `Greet, compiled from
+  greet.ern` for a source it compiled and `Greet, from greet.erc` for a form it took. A
+  compiled form that one of them uses has no line. A reload's answer names its modules the
+  same way. The shell does this today, and §11.2 states only the second line.
+
+  A module that uses one that failed. Each module a load or a reload could not load for a
+  module that failed, a source or a compiled form, directly or through another, is named in
+  a line of its own, in the build's words (§11.1): `A is not loaded, since it uses B, which
+  failed`. It holds however the module failed, its parse among the ways. Today the line is
+  `B is not loaded, since C does not compile`, given to a source that uses a source that
+  failed its check and to no other module.
+
+  The cause's text. Where a module that a source uses is found and cannot be loaded, for a
+  module of its own found nowhere or for its refusal, the cause's text answers. Today the
+  source is compiled alone and its own diagnostic stands in the cause's place: `:load A`
+  over `b.erc`, whose source is gone and whose `C` is found nowhere, says that `b.erc` is
+  stale, where `:load B` says `no module C on the load path`. Where the source itself names
+  a module found nowhere, its own diagnostic answers as it does today, `a.ern:1:26: unknown
+  name Zed.z`.
+
+  A compiled form that hides a library's module is tested with the sources, before any
+  module is compiled, and its refusal is the load's only answer, as a source's is (§11.1).
+  That such a form is refused behind a source's diagnostic today is read from the code, and
+  the agent first runs a program that shows it.
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
   the directory as `ern build` does, where a module that does not compile does not stop the
@@ -159,6 +192,13 @@ and what needs the user, items 60, 68, 83 and 39. The items stand below in that 
   no host and one runnable process, where the load average still read 112. The cause is
   not found. An agent measures first: the target after a pause and right after `make
   test-shell`, three times each in turn, and where a run spends its time outside its tests.
+- **85. The sessions the shell's tests start by hand**, found 2026-11-16 by the agent that
+  moved the sessions over a source root to `source_root_session/3` (the log's *Hard Work and
+  Stupid Work*). 36 sites of `test/ern_shell_tests.erl` start `ern shell` with no option
+  over an input file by hand, 15 of them writing the file just before. An agent reads the
+  file's other ways of starting a session, gives each form that sites repeat exactly one
+  helper among the file's session helpers, and moves each site that says the same. No
+  assertion and no input changes, and it closes on `make test-shell` and `make test`.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -176,34 +216,6 @@ and what needs the user, items 60, 68, 83 and 39. The items stand below in that 
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
-- **83. What item 35 left to decide**, found 2026-11-16 by its build and its read-back (the
-  log's *A Compiled Form's Sources*, *Hard Work and Stupid Work*): three things `:load` and
-  `:reload` say, each brought to the user with a recommendation.
-
-  What a load answers. §11.2 states `Greet, from greet.erc`, and neither the line `Greet,
-  compiled from greet.ern` nor which modules the answer names, a reload's among them.
-  Recommended: §11.2 states what the shell does, a line for the module named and for each
-  module the load took whose source the source root holds, a module after those it uses,
-  and none for a compiled form that one of them uses.
-
-  A line for a module that uses one that failed. A source that fails its check is followed
-  by `B is not loaded, since C does not compile` for each source that uses it, and by no
-  line for a compiled form that uses it, nor for a source that uses that form. Recommended:
-  one rule, each module the load could not load for it named in a line of its own, as `ern
-  build` names each it left uncompiled (§11.1), in a text that is true of a compiled form
-  too, which is decided with the user.
-
-  A source's own diagnostic in the cause's place. Where a module that a source uses cannot
-  be placed, the source is compiled alone, and its own diagnostic answers where it has one.
-  The session ran it: `a.ern` uses `b.erc`, whose source is gone and which uses a `C` found
-  nowhere. `:load A` answers `no module B: b.erc was compiled from b.ern, which no longer
-  exists`, the build's refusal of a stale form (§11.1), which no load that places `B`
-  gives, and `:load B` answers `no module C on the load path`.
-
-  A compiled form that hides a library's module is refused behind such a diagnostic the
-  same way, which is read from the code and not run. Recommended, before the log is read
-  for the decision behind that clause: the cause's text answers, and a hiding form is
-  tested with the sources, before any module is compiled.
 - **39. The README's top written again**, decided with the user 2026-11-14, before MVP 4.4's
   item 4, so that the full review reads the page the launch's source link lands on. It
   opens with why Ernest exists, stated against Erlang for a reader from the BEAM: a process
