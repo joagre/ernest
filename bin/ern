@@ -121,17 +121,23 @@ case ${1-} in
 esac
 # Report §12: the host makes a scheduler, and a dirty CPU scheduler, for
 # each processor the machine could have, and brings online those it has;
-# a host is given one of each for every processor it may run on, nproc's
-# count, or getconf's where there is no nproc, so that a machine with more
-# possible processors than online ones costs no threads that never run.
+# the host that runs the job is given one of each for every processor it
+# may run on, nproc's count, or getconf's where there is no nproc, so that
+# a machine with more possible processors than online ones costs no
+# threads that never run.
 processors=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null) || processors=
 case $processors in
     ''|*[!0-9]*|0) schedulers= ;;
     *) schedulers="+S $processors:$processors +SDcpu $processors:$processors" ;;
 esac
+# Report §12.5: the first start runs no program, and its work is one
+# process's, so its host is given one scheduler of each kind, a normal, a
+# dirty CPU and a dirty IO one: a host with one of each for every
+# processor spends its start waking them, which a busy machine makes many
+# times slower.
 flags=
 if [ -n "$node" ]; then
-    flags=$(erl +B $schedulers -boot no_dot_erlang -noshell -noinput \
+    flags=$(erl +B +S 1:1 +SDcpu 1:1 +SDio 1 -boot no_dot_erlang -noshell -noinput \
         -pa "$tree"/build/toolchain/*/ebin -pa "$tree"/build/shared/ebin \
         -pa "$tree"/build/nodes/ebin -pa "$tree"/build/runtime/ebin \
         -pa "$tree"/build/shell/ebin \

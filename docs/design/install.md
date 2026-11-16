@@ -2,7 +2,7 @@
 
 Status: the installation's design note, which changes when the installation does. It is not a proposal, and not authoritative.
 
-How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed*, *The Release Has a README of Its Own* and *The Layout Completed* argue it. `installation_test_` in `test/ern_install_tests.erl` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
+How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed*, *The Release Has a README of Its Own*, *The Layout Completed* and *The First Start's Schedulers* argue it. `installation_test_` in `test/ern_install_tests.erl` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
 
 ## The layout
 
@@ -46,7 +46,7 @@ Each `.md` of those paths is staged with each link into the checkout, to a file 
 `bin/ern` is a POSIX sh script, the same in the repository and in an installation. It follows its own links to the tree it stands in, however many lead to it. Before the host starts, it refuses a `PATH` without `iconv` and a working directory whose name `iconv` does not read as UTF-8 (report §11), but for `ern --help` and `ern --version`, which start the host in the root directory, and a `PATH` without `erl`, and it exits with status 141 where standard output or standard error is closed, since the host would open `/dev/null` in its place (report §11.8). It then starts `erl` with the tree's own Erlang, `build/toolchain/*/ebin` and the `ebin` of `build/shared`, `build/nodes`, `build/runtime` and `build/shell`, on its code path, which holds no compiled Ernest module, since `ern` loads each from its `.erc` at its first call, and:
 
 - `+B`: the interrupt ends it, and opens no break menu (report §8.6);
-- `+S n:n` and `+SDcpu n:n`, `n` the processors it may run on, `nproc`'s count or `getconf`'s where there is no `nproc`: a scheduler and a dirty CPU scheduler for each, where the host would make one of each for every processor the machine could have (report §12); none where neither answers a number;
+- `+S n:n` and `+SDcpu n:n`, `n` the processors it may run on, `nproc`'s count or `getconf`'s where there is no `nproc`: a scheduler and a dirty CPU scheduler for each, where the host would make one of each for every processor the machine could have (report §12); none where neither answers a number. The first start of a job that makes a node, which runs no program (report §12.5), is given `+S 1:1 +SDcpu 1:1 +SDio 1` in their place, one scheduler of each kind;
 - `-boot no_dot_erlang`: `~/.erlang` is not read;
 - `-noshell -noinput`, in that order, since the host takes the last of the two: the host reads no input, and standard input is the runtime's alone (report §12.1);
 - `-run ern_signals install`, first: the host's termination and hangup are `ern`'s before the entry's module is loaded, since until then the host's own handler ends a program with status 0 (report §12.4);

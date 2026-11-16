@@ -4684,14 +4684,41 @@ launcher_run_options_test() ->
     ?assertEqual(lists:sort([Name || [Name] <- Usage, Name =/= "config-dir"]),
                  lists:sort([Name || "--" ++ Name <- string:split(Line, " | ", all)])).
 
-%% bin/ern, report §12.5, §11.2: the launcher's first start, run as the
-%% launcher runs it, answers the flags a node's host boots with for each
-%% job that makes a node, `ern run`, `ern test` and `ern shell` given
-%% `--config-dir`, and the limits `ernest.conf` names are among them, `+P`
-%% the processes and `+Q` the ports, each the least power of two at or
-%% above the number given. A regression test, written after the code; what
-%% the host then holds is ern_nodes_tests' limits/1
+%% bin/ern, report §12.5, §11.2: the launcher's first start answers the
+%% flags a node's host boots with for each job that makes a node, `ern
+%% run`, `ern test` and `ern shell` given `--config-dir`, and the launcher
+%% gives them to the second start; the limits `ernest.conf` names are among
+%% them, `+P` the processes and `+Q` the ports, each the least power of two
+%% at or above the number given. A regression test, written after the code;
+%% what the host then holds is ern_nodes_tests' limits/1. The launcher runs
+%% both starts (launched/1), so the test does not cover the first start's
+%% line as it writes it, only what the launcher reads of it.
 node_limit_flags_test() ->
+    {Node, Erc} = limited_node(),
+    [begin
+         {_, Second} = launched(Words),
+         ?assertEqual({Words, []},
+                      {Words, [Flags || Flags <- ["\n-proto_dist\nern_tls\n", "\n+P\n65536\n",
+                                                  "\n+Q\n8192\n"],
+                                        string:find(Second, Flags) =:= nomatch]})
+     end || Words <- ["run --config-dir " ++ Node ++ " " ++ Erc,
+                      "test --config-dir " ++ Node ++ " " ++ Erc,
+                      "shell --config-dir " ++ Node]].
+
+%% bin/ern, report §12.5, §12: the launcher's first start, which runs no
+%% program, boots its host with one scheduler of each kind, a normal, a
+%% dirty CPU and a dirty IO one, as the host counts them. A regression
+%% test, written after the code: the first start's host had one of each
+%% for every processor, whose waking made each start several times slower
+%% on a busy machine, and node_limit_flags_test, which waits on three,
+%% passed EUnit's limit. It does not cover the time a start takes.
+first_start_runs_one_scheduler_test() ->
+    {Node, Erc} = limited_node(),
+    ?assertMatch({"[1,1,1]", _}, launched("run --config-dir " ++ Node ++ " " ++ Erc)).
+
+%% A node's configuration directory whose `ernest.conf` names limits, and a
+%% program that does nothing, built.
+limited_node() ->
     Dir = tmp(),
     Node = filename:join(Dir, "node"),
     ?assertEqual(0, ern_err(["config", "--config-dir", Node])),
@@ -4701,21 +4728,33 @@ node_limit_flags_test() ->
                                                                    <<"ports">> => 4097}})),
     write(Dir, "src/waits.ern", "export fn main() : Unit = Unit\n"),
     ?assertEqual(0, ern_err(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    Erc = Dir ++ "/build/waits.erc",
-    First = fun(Words) ->
-                os:cmd("erl +B -boot no_dot_erlang -noshell -noinput"
-                       " -pa build/toolchain/*/ebin -pa build/shared/ebin -pa build/nodes/ebin"
-                       " -pa build/runtime/ebin -pa build/shell/ebin"
-                       " -run ern_cli node_flags -extra " ++ Words ++ " < /dev/null")
-            end,
-    [begin
-         Flags = First(Words),
-         ?assertMatch({Words, "ern-node-flags '-proto_dist'" ++ _}, {Words, Flags}),
-         ?assertNotEqual({Words, nomatch}, {Words, string:find(Flags, "'+P' '65536'")}),
-         ?assertNotEqual({Words, nomatch}, {Words, string:find(Flags, "'+Q' '8192'")})
-     end || Words <- ["run --config-dir " ++ Node ++ " " ++ Erc,
-                      "test --config-dir " ++ Node ++ " " ++ Erc,
-                      "shell --config-dir " ++ Node]].
+    {Node, Dir ++ "/build/waits.erc"}.
+
+%% bin/ern given Words, with a stand-in for erl first on its path. For the
+%% first start the stand-in runs the host, which writes its schedulers of
+%% each kind as it boots; for the second it writes the words it was given,
+%% one a line, and runs nothing. Answers the schedulers, `[1,1,1]` for one
+%% of each, and the second start's words, each line ended.
+launched(Words) ->
+    Dir = tmp(),
+    Counts = filename:join(Dir, "schedulers"),
+    Second = filename:join(Dir, "second"),
+    Counted = "file:write_file(\"" ++ Counts ++ "\", io_lib:format(\"~w\","
+              " [[erlang:system_info(Kind) || Kind <- [schedulers, dirty_cpu_schedulers,"
+              " dirty_io_schedulers]]]))",
+    StandIn = write(Dir, "erl", ["#!/bin/sh\n"
+                                 "case \" $* \" in\n"
+                                 "    *\" -run ern_cli node_flags \"*)\n"
+                                 "        exec ", os:find_executable("erl"), " -eval '",
+                                 Counted, "' \"$@\" ;;\n"
+                                 "esac\n"
+                                 "printf '%s\\n' \"$@\" > ", Second, "\n"]),
+    ok = file:change_mode(StandIn, 8#755),
+    ?assertEqual({Words, ""}, {Words, os:cmd("PATH=" ++ Dir ++ ":$PATH bin/ern " ++ Words
+                                             ++ " < /dev/null")}),
+    {ok, Schedulers} = file:read_file(Counts),
+    {ok, Given} = file:read_file(Second),
+    {binary_to_list(Schedulers), "\n" ++ binary_to_list(Given)}.
 
 %% bin/ern, report §12.5, §11: the launcher's first start writes the flags
 %% alone on standard output, whatever the host logs as it works: a process
@@ -4735,7 +4774,8 @@ first_start_writes_the_flags_alone_test() ->
     Warns = "spawn(fun() -> Begun = fun B() -> case persistent_term:get({ern_cli, flags}, false)"
             " of true -> ok; false -> erlang:yield(), B() end end, ok = Begun(),"
             " logger:warning(\"a warning\") end)",
-    Flags = os:cmd("erl +B -boot no_dot_erlang -noshell -noinput"
+    Flags = os:cmd("ERL_CRASH_DUMP_SECONDS=0 erl +B +S 1:1 +SDcpu 1:1 +SDio 1"
+                   " -boot no_dot_erlang -noshell -noinput"
                    " -pa build/toolchain/*/ebin -pa build/shared/ebin -pa build/nodes/ebin"
                    " -pa build/runtime/ebin -pa build/shell/ebin"
                    " -eval '" ++ Warns ++ "' -run ern_cli node_flags -extra run --config-dir "
