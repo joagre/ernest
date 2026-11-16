@@ -6324,18 +6324,26 @@ load_takes_no_form_of_another_build() ->
 %% end as one `ern run` runs is: a subscriber an input spawned is told when
 %% the session ends, and what it prints and the end's lines are shown
 %% before `ern` ends. Written after the code (the log's *Termination Told,
-%% Built*)
+%% Built*).
+%%
+%% The input that spawns the subscriber ends once the subscriber has said
+%% it has subscribed, and only then is the shell told to quit, since
+%% nothing orders a spawned process's acts before its spawner's next
+%% (§6.2): an end begun as the input ends can find no subscription. So the
+%% test no longer covers an end that races a subscription
 shell_told_of_the_end_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun shell_told_of_the_end/0).
 
 shell_told_of_the_end() ->
     {0, Output} =
-        line_session(["type Msg = Terminating(Reply(Unit))\n",
-                      "fn keeper() : Unit receiving Msg = { Os.termination(Terminating);"
-                      " receive {",
+        line_session(["type Msg = Ready | Terminating(Reply(Unit))\n",
+                      "fn keeper(spawner : Address(Msg)) : Unit receiving Msg = {"
+                      " Os.termination(Terminating); send(spawner, Ready); receive {",
                       " Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }",
                       " } }\n",
-                      "spawn(keeper)\n:quit\n"]),
+                      "{ let me = self(); let _ = spawn(fn() = keeper(me));"
+                      " receive { Ready -> Unit } }\n",
+                      ":quit\n"]),
     %% what the subscriber prints and what the runtime says come by two
     %% streams, which nothing orders one against the other (§11.2)
     ?assertMatch({_, _}, binary:match(Output, <<"told\n">>)),

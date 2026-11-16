@@ -2845,20 +2845,27 @@ test_runner_unicode_test() ->
 %% report §8.6, §11.2, Appendix E.23: under `ern test` a program is told of
 %% its end as one `ern run` runs is: a subscriber a test spawned is told
 %% once the tests have run, and the run ends once it has answered. Written
-%% after the code
+%% after the code.
+%%
+%% The case passes once the subscriber has said it has subscribed, since
+%% nothing orders a spawned process's acts before its spawner's next
+%% (§6.2): an end begun as the case passes can find no subscription. So
+%% the test no longer covers an end that races a subscription
 test_told_of_the_end_test() ->
     Dir = tmp(),
     File = write(Dir, "told.ern",
-                 "type Msg = Terminating(Reply(Unit))\n"
-                 "fn keeper() : Unit receiving Msg = {\n"
+                 "type Msg = Ready | Terminating(Reply(Unit))\n"
+                 "fn keeper(spawner : Address(Msg)) : Unit receiving Msg = {\n"
                  "    Os.termination(Terminating);\n"
+                 "    send(spawner, Ready);\n"
                  "    receive {\n"
                  "        Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }\n"
                  "    }\n"
                  "}\n"
                  "let started = Test.Case(name = \"started\", run = fn() = {\n"
-                 "    let _ = spawn(keeper);\n"
-                 "    Test.Passed\n"
+                 "    let me = self();\n"
+                 "    let _ = spawn(fn() = keeper(me));\n"
+                 "    receive { Ready -> Test.Passed }\n"
                  "})\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     %% standard error is the test's too, where the end's lines go
@@ -2866,8 +2873,8 @@ test_told_of_the_end_test() ->
     Output = iolist_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Output, Line))
      || Line <- [<<"started: passed\n">>, <<"told\n">>,
-                 <<"the end waits for 1 subscriber: Told.started:9\n">>,
-                 <<"the subscriber Told.started:9 answered\n">>]].
+                 <<"the end waits for 1 subscriber: Told.started:11\n">>,
+                 <<"the subscriber Told.started:11 answered\n">>]].
 
 %% report Appendix E.24, §11.2: a test runs in a process whose mailbox type
 %% is its own, so one may receive what a process it spawned sends it.

@@ -44,7 +44,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 72, 70, 73, 74, 79, 81, 82 and 84; and
+left*): what the builds found, items 36, 69, 72, 70, 73, 74, 81, 82 and 84; and
 what needs the user, items 60, 68 and 39. The items stand below in that order.
 
 Items 79 and 81 are built first, side by side. They are what is left of the batch of six
@@ -106,15 +106,6 @@ decided with the user on 2026-11-16 (the log's *A Batch of Six*), whose items 75
   `Restarted` of one process. An agent first shows it with a `wrap` that is held. The shape of
   the fix: a process's end ends its deliveries of `Restarted` not yet placed, as a loss does
   (§8.7). What §6.9 says of it is decided with the user once it is shown.
-- **79. Two tests end beside their subscriber's subscription**, found 2026-11-16 by item 63's
-  diagnosis (the log's *A Subscriber That Ends Beside Main*). `test_told_of_the_end_test` in
-  `ern_cli_tests` spawns its subscriber and returns `Test.Passed`, and `shell_told_of_the_end`
-  in `ern_shell_tests` gives the shell `spawn(keeper)` and then `:quit`. Nothing orders the
-  subscription before the end in either (§6.2), so the end may find no subscriber. Neither
-  was seen to fail, and they were read and not run under load. The shape of the fix: the
-  subscriber sends its spawner a message once it has subscribed, and the test's case or the
-  shell's input waits for it before it ends, as item 63's test does. An agent shows each
-  failure first by holding the subscriber before its subscription, and builds both.
 - **81. `listen_of_one_family_test` refused its port**, found 2026-11-16 by item 66's
   diagnosis, once in 226 rounds of nine copies of one part side by side, a load no target
   runs. The test listens on `"0.0.0.0"` at the port the host gave its listener on `"::"`, and
@@ -146,7 +137,8 @@ decided with the user on 2026-11-16 (the log's *A Batch of Six*), whose items 75
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
   user with a recommendation (the log's *The Flake Hunt*). Feedback 258, `Os.closeInput`
   saying nothing of when the hangup is made, found by item 40's read-back, is decided with
-  them (the log's *The Shell's Last Line*).
+  them (the log's *The Shell's Last Line*). So is feedback 259, the ready message a spawner
+  waits for, found by item 79's read-back (the log's *Two Tests Wait for Their Subscriber*).
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
@@ -247,6 +239,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 76 | `Os.resize`'s example, told of the resize by the signal | 2026-11-16 | E.23; *The Resize Told by Its Signal* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
+| 79 | Two tests wait for their subscriber's subscription before they end | 2026-11-16 | §6.2, §8.6, E.23; *Two Tests Wait for Their Subscriber* |
 | 80 | The hunt marks a record that follows a cancel in its host | 2026-11-16 | *A Record After a Cancel* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
