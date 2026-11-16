@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 72**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 36**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,26 +43,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 72, 36, 69, 70, 73, 74, 84, 87 and 88; and what
-needs the user, items 60, 68 and 89. On 2026-11-16 item 72 came first of the builds' findings
-(the log's *Twenty-Seven Hosts for Nothing*). The items stand below in that order.
+left*): what the builds found, items 36, 69, 70, 73, 74, 84, 87 and 88; and what
+needs the user, items 60 and 68. The items stand below in that order.
 
-- **72. A build with nothing to do starts 26 hosts**, found 2026-11-16 by item 51's
-  diagnosis and measured again the same day (the log's *Twenty-Six Hosts Are the Cost*):
-  14 for `ern build` and 12 for `ern doc --man`. They take 1.4 s on 24 threads, 5.6 s on
-  xena's four cores and 16.4 s on bee's two, where the session's probe of one host took
-  0.5 s, 1.6 s and 3.4 s.
-
-  Decided with the user on 2026-11-17: one host does their work, and make keeps no stamp.
-  The Makefile starts the host and gives it the jobs' command lines, which it runs in turn
-  through the command's own code, by §11.1's rule. `ern` gains no word and the report no
-  sentence. An agent builds it, and times a make with nothing to do and a build from clean
-  once before and once after.
-
-  A second build makes the check leaner: each file is read once, where a build now reads
-  each source and each `.erc` twice. Whether a source that has not changed can be found
-  current without its parse is read against §11.1's cases first, and a change to §11.1
-  comes to the user.
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
   the directory as `ern build` does, where a module that does not compile does not stop the
@@ -152,13 +135,6 @@ needs the user, items 60, 68 and 89. On 2026-11-16 item 72 came first of the bui
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
-- **89. Where the compile server's proposal stands**, found 2026-11-17 by item 72's numbers
-  (the log's *Twenty-Six Hosts Are the Cost*). A build's work runs in one process, and
-  every call pays its host's start and its code's loading. A host that compiles side by
-  side and one that stays between calls go to a proposal under `docs/proposals/`.
-
-  To decide with the user: the milestone the proposal is written in. Recommended: MVP
-  4.5, after the launch, since nothing the launch shows waits on it.
 
 ### What is done
 
@@ -224,6 +200,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 66 | The flake of `ern_tcp_tests`' `write_holds_up_no_read` | 2026-11-16 | §8.6; *A Reaper That Outlives Its Runner* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
+| 72 | A build with nothing to do, measured: `ern build` is not slow, and nothing is built, with the user | 2026-11-17 | *Twenty-Six Hosts Are the Cost* |
 | 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |
 | 76 | `Os.resize`'s example, told of the resize by the signal | 2026-11-16 | E.23; *The Resize Told by Its Signal* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
