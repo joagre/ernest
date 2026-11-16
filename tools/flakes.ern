@@ -306,7 +306,10 @@ fn partSummary(part : Part, records : Path, outcome : Outcome) : Either(String, 
 }
 
 // A record's first line, `== part, round n: what did not pass`, as what
-// did not pass in the part, `part: what`.
+// did not pass in the part, `part: what`. Where the record follows a
+// cancel in its host, what did not pass ends with the cancel, `, after
+// test was canceled in round n`, so that the summary counts the record
+// apart from its test's others and names the cancel.
 fn notPassed(part : Part, text : String) : Optional(String) = {
     let rest <- String.stripPrefix(text, "== " <> part.name <> ", round ");
     let #(round, what) <- String.splitOnce(rest, ": ");

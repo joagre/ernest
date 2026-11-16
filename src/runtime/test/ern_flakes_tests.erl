@@ -12,10 +12,15 @@
 %% limit with its name and its reason, and nothing of a test that passes.
 %% The limit ends its own test alone: the test after it runs, is counted, as
 %% its failure's record shows, and begins in the run's directory, though
-%% the canceled one was ended in another. A regression test, written after
-%% the code; it does not cover the rounds of hunt/1, which the program's
-%% test does not run either, nor a generator that answers several tests,
-%% whose tests after a canceled one still do not run.
+%% the canceled one was ended in another.
+%%
+%% The record before the cancel carries no mark, and the one after it
+%% names the canceled test and its round, which the round answers.
+%%
+%% A regression test, written after the code but for the marks; it does
+%% not cover the rounds of hunt/1, which the program's test does not run
+%% either, nor a generator that answers several tests, whose tests after a
+%% canceled one still do not run.
 round_writes_what_did_not_pass_test() ->
     Dir = os:getenv("ERN_TEST_DIR"),
     File = filename:join(Dir, "flakes-round.txt"),
@@ -30,7 +35,8 @@ round_writes_what_did_not_pass_test() ->
                       " error({began_in_the_runs_directory, file:get_cwd() =:= {ok, ~p}}).",
                       [Cwd])]),
     try
-        ?assertEqual(error, ern_flakes:round(ern_eunit:alone([Module]), 7, "emitter-1", File))
+        ?assertMatch({error, {"ern_flakes_round:" ++ _, 7}},
+                     ern_flakes:round(ern_eunit:alone([Module]), 7, "emitter-1", File, none))
     after
         ok = file:set_cwd(Cwd),
         unloaded(Module)
@@ -47,10 +53,149 @@ round_writes_what_did_not_pass_test() ->
                                     " \"passes its limit\" canceled\n")),
     ?assertMatch({_, _}, binary:match(Canceled, <<"timeout">>)),
     ?assertMatch({match, _}, re:run(After, "^emitter-1, round 7: ern_flakes_round:"
-                                    "runs_after_the_limit_test/0 failed\n")),
+                                    "runs_after_the_limit_test/0 failed, after ern_flakes_round:"
+                                    "\\S+ \"passes its limit\" was canceled in round 7\n")),
     ?assertMatch({_, _}, binary:match(After, <<"{began_in_the_runs_directory,true}">>)),
     ?assertEqual(nomatch, binary:match(Text, <<"passes_test">>)),
     ?assertEqual(nomatch, binary:match(Text, <<"said by the passing one">>)).
+
+%% docs/development.md "Building", `make flakes`: each record that follows
+%% a cancel that ended a test's process names the host's first such cancel
+%% and its round, a later cancel's record among them, in the same round and
+%% in a later one, which is given the first round's answer. A cancel for an
+%% abort, a setup that raised, is recorded and ended no process, so the
+%% record after it carries no mark. Each record's first line is written on
+%% standard output too, in the record's words, its mark among them.
+round_marks_what_follows_a_cancel_test() ->
+    Dir = os:getenv("ERN_TEST_DIR"),
+    File = filename:join(Dir, "flakes-marks.txt"),
+    First = loaded(ern_flakes_first, [
+        "setup_raises_test_() -> {setup, fun() -> error(no_setup) end, [fun() -> ok end]}.",
+        "after_the_abort_test() -> error(after_the_abort).",
+        "first_limit_test_() -> {timeout, 0.1, {\"first\", fun waits/0}}.",
+        "second_limit_test_() -> {timeout, 0.1, {\"second\", fun waits/0}}.",
+        "after_the_limits_test() -> error(after_the_limits).",
+        %% waits for a message no one sends, which a limit ends
+        "waits() -> receive never -> ok end."]),
+    Later = loaded(ern_flakes_later, ["in_a_later_round_test() -> error(later)."]),
+    Terminal = try
+                   captured(fun() ->
+                       {error, Canceled} =
+                           ern_flakes:round(ern_eunit:alone([First]), 7, "cli-0", File, none),
+                       ?assertMatch({"ern_flakes_first:" ++ _, 7}, Canceled),
+                       ?assertMatch({error, Canceled},
+                                    ern_flakes:round(ern_eunit:alone([Later]), 8, "cli-0", File,
+                                                     Canceled))
+                   end)
+               after
+                   unloaded(First),
+                   unloaded(Later)
+               end,
+    Headers = headers(File, "cli-0"),
+    ?assertEqual([<<"make flakes: ", Header/binary>> || <<"== ", Header/binary>> <- Headers],
+                 binary:split(Terminal, <<"\n">>, [global, trim])),
+    Mark = "after ern_flakes_first:\\S+ \"first\" was canceled in round 7$",
+    ?assertMatch([_, _, _, _, _, _], Headers),
+    [Abort, AfterAbort, FirstLimit, SecondLimit, AfterLimits, InLater] = Headers,
+    ?assertMatch({match, _}, re:run(Abort, " canceled$")),
+    ?assertMatch({match, _}, re:run(AfterAbort, "after_the_abort_test/0 failed$")),
+    ?assertMatch({match, _}, re:run(FirstLimit, "\"first\" canceled$")),
+    ?assertMatch({match, _}, re:run(SecondLimit, "\"second\" canceled, " ++ Mark)),
+    ?assertMatch({match, _}, re:run(AfterLimits, "round 7: \\S+after_the_limits_test/0 failed, "
+                                    ++ Mark)),
+    ?assertMatch({match, _}, re:run(InLater, "round 8: \\S+in_a_later_round_test/0 failed, "
+                                    ++ Mark)).
+
+%% docs/development.md "Building", `make flakes`: a cancel EUnit gives for
+%% a test's process that an exit signal it does not trap ended, and one for
+%% a group whose own time limit came, each ended a test's process, so the
+%% record after it names it and its round. Each round begins with no
+%% cancel before it.
+round_marks_after_a_signal_and_a_groups_limit_test() ->
+    Signal = loaded(ern_flakes_signal, [
+        "ended_by_a_signal_test() -> Test = self(), spawn(fun() -> exit(Test, gone) end),"
+        " receive never -> ok end.",
+        "after_the_signal_test() -> error(after_the_signal)."]),
+    Group = loaded(ern_flakes_group, [
+        %% its first test passes, and its second waits until the group's limit
+        "group_limit_test_() -> {timeout, 0.1, [fun() -> ok end,"
+        " fun() -> receive never -> ok end end]}.",
+        "after_the_group_test() -> error(after_the_group)."]),
+    try
+        %% EUnit tells of the test the signal ended as canceled with no
+        %% reason, and of the group whose process it was with the signal's;
+        %% a group's limit is told of so too
+        {Ended, [Test, ByTheSignal, AfterTheSignal]} = round_records(Signal),
+        begins("ern_flakes_signal:ended_by_a_signal_test/0 canceled\nundefined\n", Test),
+        begins(Ended ++ " canceled\n{exit,gone}\n", ByTheSignal),
+        begins("ern_flakes_signal:after_the_signal_test/0 failed, after " ++ Ended
+               ++ " was canceled in round 3\n", AfterTheSignal),
+        {Limited, [Waiting, ByTheLimit, AfterTheLimit]} = round_records(Group),
+        ?assertMatch({_, _}, binary:match(Waiting, <<" canceled\nundefined\n">>)),
+        begins(Limited ++ " canceled\n{timeout,", ByTheLimit),
+        begins("ern_flakes_group:after_the_group_test/0 failed, after " ++ Limited
+               ++ " was canceled in round 3\n", AfterTheLimit)
+    after
+        unloaded(Signal),
+        unloaded(Group)
+    end.
+
+%% Round 3 of Module's tests, with no cancel before it: the first cancel
+%% it answers, by its name, and its records, each after its `== part,
+%% round 3: `.
+round_records(Module) ->
+    File = filename:join(os:getenv("ERN_TEST_DIR"), "flakes-" ++ atom_to_list(Module) ++ ".txt"),
+    {error, {Name, 3}} = ern_flakes:round(ern_eunit:alone([Module]), 3, "cli-1", File, none),
+    {ok, Text} = file:read_file(File),
+    {Name, [Record || <<"== cli-1, round 3: ", Record/binary>>
+                          <- binary:split(Text, <<"\n\n">>, [global, trim])]}.
+
+%% Record begins with Prefix, a string.
+begins(Prefix, Record) ->
+    Bytes = unicode:characters_to_binary(Prefix),
+    ?assertEqual(Bytes, binary:part(Record, 0, min(byte_size(Record), byte_size(Bytes)))).
+
+%% The first line of each record File holds for Part.
+headers(File, Part) ->
+    {ok, Text} = file:read_file(File),
+    Prefix = list_to_binary("== " ++ Part ++ ", round "),
+    [Line || Line <- binary:split(Text, <<"\n">>, [global]),
+             binary:match(Line, Prefix) =/= nomatch].
+
+%% What the processes Run starts write on standard output while it runs,
+%% the listener's among them, through a group leader that keeps it, the
+%% test's own restored after.
+captured(Run) ->
+    Leader = group_leader(),
+    Keeper = spawn_link(fun() -> kept(<<>>) end),
+    group_leader(Keeper, self()),
+    try
+        Run()
+    after
+        group_leader(Leader, self())
+    end,
+    Keeper ! {written, self()},
+    receive
+        {written, Keeper, Bytes} -> Bytes
+    end.
+
+%% A group leader's answers to the requests io:format/2 and io:put_chars/1
+%% send, the bytes kept until the test asks for them.
+kept(Bytes) ->
+    receive
+        {io_request, From, ReplyAs, {put_chars, unicode, Chars}} ->
+            From ! {io_reply, ReplyAs, ok},
+            kept(<<Bytes/binary, (unicode:characters_to_binary(Chars))/binary>>);
+        {io_request, From, ReplyAs, {put_chars, unicode, Module, Function, Arguments}} ->
+            From ! {io_reply, ReplyAs, ok},
+            Chars = apply(Module, Function, Arguments),
+            kept(<<Bytes/binary, (unicode:characters_to_binary(Chars))/binary>>);
+        {io_request, From, ReplyAs, _} ->
+            From ! {io_reply, ReplyAs, {error, request}},
+            kept(Bytes);
+        {written, Test} ->
+            Test ! {written, self(), Bytes}
+    end.
 
 %% docs/development.md "Building": the tests make test gives a host are
 %% each test function of its modules, in the order each module exports
@@ -108,15 +253,18 @@ program_refusals() ->
 %% beside two busy loops. Each line a host writes on standard output is
 %% relayed whole, one host's half line kept while the other's whole line
 %% passes; what a host writes on standard error goes to the part's .err;
-%% the summary gives each part's rounds, the tests its file records, and a
-%% host that ended with a status but 0; the status is 1; and every process
-%% the program started, and the rounds' directory, are gone once it has
-%% ended. Of what stood in the records' directory, a part's own file is
-%% removed first and any other file kept.
+%% the summary gives each part's rounds, the tests its file records, a
+%% record that follows a cancel apart from its test's others and with the
+%% cancel it names, and a host that ended with a status but 0; the status
+%% is 1; and every process the program started, and the rounds' directory,
+%% are gone once it has ended. Of what stood in the records' directory, a
+%% part's own file is removed first and any other file kept.
 %%
-%% A regression test, written after the program; it does not cover the
-%% hunt's real hosts, its time, nor the host's interrupt, which ends the
-%% program at once and leaves the rounds' directory.
+%% A regression test, written after the program; the program reads the
+%% mark in a record's first line as part of what did not pass, so the
+%% record after the cancel holds what the program already did. It does not
+%% cover the hunt's real hosts, its time, nor the host's interrupt, which
+%% ends the program at once and leaves the rounds' directory.
 program_relays_and_sums_up_test_() ->
     {timeout, 60, fun program_relays_and_sums_up/0}.
 
@@ -142,7 +290,9 @@ program_relays_and_sums_up() ->
                   <<"  one: 2 rounds, the longest 7 s">>,
                   <<"  two: 0 rounds, then ended before its time, with status 3">>,
                   <<"Each that did not pass, after the number of rounds it did not pass in:">>,
+                  <<"  1 one: m:c/0 canceled">>,
                   <<"  1 one: m:t/0 failed">>,
+                  <<"  1 one: m:t/0 failed, after m:c/0 was canceled in round 1">>,
                   <<"Each part's records are in ", Shown/binary, "/<part>.txt, and what its host"
                     " wrote on standard error in ", Shown/binary, "/<part>.err.">>],
                  lists:nthtail(2, Lines)),
@@ -192,13 +342,16 @@ program_terminated() ->
     ?assertEqual([], [Line || {Process, Line} <- Started, not gone(Process)]),
     ?assertEqual({ok, []}, file:list_dir(filename:join(Dir, "tmp"))).
 
-%% The hosts that stand in for two parts': one writes a record, two rounds,
+%% The hosts that stand in for two parts': one writes a cancel's record, a
+%% record before it and one after it, as ern_flakes writes them, two rounds,
 %% a line on standard error, and half a line, then the rest of it once the
 %% test writes the named pipe release; the other writes a line once the
 %% first has written its half, which it says through the named pipe half,
 %% and ends with the status 3.
 stand_ins(Dir) ->
     One = "printf '%s\\n' '== one, round 1: m:t/0 failed' 'what it wrote'"
+          " '== one, round 1: m:c/0 canceled' 'timeout'"
+          " '== one, round 2: m:t/0 failed, after m:c/0 was canceled in round 1' 'what it wrote'"
           " >> \"$ERN_FLAKES_RECORDS/one.txt\"; "
           "printf '4\\n7\\n' >> \"$ERN_FLAKES_RECORDS/one.rounds\"; "
           "echo one-error >&2; printf one-first-half; echo > " ++ fifo(Dir, "half") ++ "; "

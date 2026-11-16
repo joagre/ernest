@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's batch of six**, items 75, 85, 76 and 80 side by side and then
-items 79 and 81, as the milestone's *What is left* gives it.
+**The next items are MVP 4.16's items 79 and 81**, the rest of its batch of six, as the
+milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -44,14 +44,13 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 72, 70, 73, 74, 79, 80, 81, 82 and 84; and
+left*): what the builds found, items 36, 69, 72, 70, 73, 74, 79, 81, 82 and 84; and
 what needs the user, items 60, 68 and 39. The items stand below in that order.
 
-Six of them are built first, as one batch, decided with the user on 2026-11-16 (the log's
-*A Batch of Six*): items 75, 85, 76 and 80 side by side, then items 79 and 81 side by side,
-so that no two agents edit one file. Each has its own commit and log entry. The
-session reads each diff and runs `make test-full` once over the batch, on a machine that
-runs nothing else.
+Items 79 and 81 are built first, side by side. They are what is left of the batch of six
+decided with the user on 2026-11-16 (the log's *A Batch of Six*), whose items 75, 85, 76 and
+80 are done. Each has its own commit and log entry. The session reads each diff and runs
+`make test-full` once over the batch, on a machine that runs nothing else.
 
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
@@ -116,13 +115,6 @@ runs nothing else.
   subscriber sends its spawner a message once it has subscribed, and the test's case or the
   shell's input waits for it before it ends, as item 63's test does. An agent shows each
   failure first by holding the subscriber before its subscription, and builds both.
-- **80. The hunt marks a record that follows a cancel**, found 2026-11-16 by item 66's
-  diagnosis (the log's *A Reaper That Outlives Its Runner*). A test canceled inside `run_main`
-  leaves its launch's system processes and its program's processes in the host, and a hunt's
-  host runs on, round after round. A failure that host records later may not be its test's
-  own. An agent builds it: `ern_flakes` writes, in each record that follows a cancel in its
-  host, the canceled test and its round, and the summary marks those tests.
-  [`development.md`](development.md)'s lines on `make flakes` say so.
 - **81. `listen_of_one_family_test` refused its port**, found 2026-11-16 by item 66's
   diagnosis, once in 226 rounds of nine copies of one part side by side, a load no target
   runs. The test listens on `"0.0.0.0"` at the port the host gave its listener on `"::"`, and
@@ -255,6 +247,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 76 | `Os.resize`'s example, told of the resize by the signal | 2026-11-16 | E.23; *The Resize Told by Its Signal* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
+| 80 | The hunt marks a record that follows a cancel in its host | 2026-11-16 | *A Record After a Cancel* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 

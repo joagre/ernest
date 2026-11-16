@@ -405,10 +405,12 @@ $(APP_PARTS): test-app-%: \
 # hunt's start to its end, round after round of the tests make test gives
 # it (ern_flakes), beside LOOPS busy loops, until MINUTES have passed. Each
 # test that does not pass goes to build/flakes/<part>.txt with what it
-# wrote, and what its host writes on standard error, its logger's reports
-# among it, to build/flakes/<part>.err; the program removes the parts' own
-# files there first, and nothing else. Each host's command is given to the
-# program word by word, after a -- and the part's name.
+# wrote, and with the host's first cancel that ended a test's process
+# where one came before it. What its host writes on standard error, its
+# logger's reports among it, goes to build/flakes/<part>.err; the program
+# removes the parts' own files there first, and nothing else. Each host's
+# command is given to the program word by word, after a -- and the part's
+# name.
 FLAKES = build/flakes
 FLAKE_PARTS = $(APP_PARTS:test-app-%=%)
 # The busy loops stand in for the other jobs make test-full's first phase

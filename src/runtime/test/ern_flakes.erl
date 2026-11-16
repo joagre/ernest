@@ -4,7 +4,16 @@
 %% hunt's end, each round in a directory of its own, ERN_TEST_DIR, removed
 %% when the round ends. An EUnit listener writes each test that fails, is
 %% skipped or is canceled to the part's file as it is told of it, with its
-%% reason and what it wrote, and names it in one line on standard output.
+%% reason and what it wrote, and names it in one line on standard output,
+%% the record's first line.
+%%
+%% A cancel that ended a test's process leaves what that test started in
+%% the host, which the hunt runs on. So each record that follows such a
+%% cancel in the host names the host's first, the test and its round, on
+%% its first line, and a failure there may not be its test's own. The
+%% first cancel is the one value the host carries from round to round:
+%% round/5 gives it to the round's listener and answers what the listener
+%% ends with.
 %%
 %% EUnit keeps no output for a canceled test: the process that holds it is
 %% ended with the test, so a canceled test's record has its reason alone,
@@ -13,8 +22,12 @@
 
 -behaviour(eunit_listener).
 
--export([hunt/1, round/4, start/1, init/1, handle_begin/3, handle_end/3, handle_cancel/3,
+-export([hunt/1, round/5, start/1, init/1, handle_begin/3, handle_end/3, handle_cancel/3,
          terminate/2]).
+
+%% The host's first cancel that ended a test's process, by the test's name
+%% and its round, or none before one.
+-type canceled() :: none | {string(), pos_integer()}.
 
 %% Tests in rounds until the hunt's time is up: a round that has begun is
 %% finished, and none begins once the time is up. What the hunt gives each
@@ -32,9 +45,10 @@ hunt(Tests) ->
     Until = list_to_integer(os:getenv("ERN_FLAKES_UNTIL")),
     hunt(Tests, Until, #{part => os:getenv("ERN_FLAKES_PART"),
                          records => os:getenv("ERN_FLAKES_RECORDS"),
-                         rounds => os:getenv("ERN_FLAKES_ROUNDS")}, 1).
+                         rounds => os:getenv("ERN_FLAKES_ROUNDS")}, 1, none).
 
-hunt(Tests, Until, #{part := Part, records := Records, rounds := Rounds} = Hunt, Round) ->
+hunt(Tests, Until, #{part := Part, records := Records, rounds := Rounds} = Hunt, Round,
+     Canceled) ->
     case os:system_time(millisecond) >= Until of
         true ->
             0;
@@ -44,25 +58,41 @@ hunt(Tests, Until, #{part := Part, records := Records, rounds := Rounds} = Hunt,
             Dir = filename:join(Rounds, Part ++ "." ++ integer_to_list(Round)),
             ok = file:make_dir(Dir),
             true = os:putenv("ERN_TEST_DIR", Dir),
-            _ = round(Tests, Round, Part, File),
+            {_, Answered} = round(Tests, Round, Part, File, Canceled),
             case file:del_dir_r(Dir) of
                 ok -> ok;
-                Error -> written(File, Part, Round, "its directory not removed",
+                Error -> written(#{part => Part, round => Round, file => File},
+                                 marked(Answered, "its directory not removed"),
                                  io_lib:format("~tp~n", [Error]), "")
             end,
             Seconds = erlang:monotonic_time(second) - Start,
             ok = file:write_file(filename:join(Records, Part ++ ".rounds"),
                                  [integer_to_list(Seconds), "\n"], [append]),
-            hunt(Tests, Until, Hunt, Round + 1)
+            hunt(Tests, Until, Hunt, Round + 1, Answered)
     end.
 
 %% One round of Tests, each that does not pass written to File as its
-%% listener is told of it; EUnit's answer, `error` where any did not pass.
--spec round([term()], pos_integer(), string(), file:filename()) -> ok | error.
-round(Tests, Round, Part, File) ->
-    eunit:test(Tests, [no_tty, {report, {?MODULE, [{round, Round}, {part, Part}, {file, File}]}}]).
+%% listener is told of it, after the host's first cancel, Canceled, where
+%% there was one; EUnit's answer, `error` where any did not pass, and the
+%% host's first cancel once the round has ended.
+%%
+%% The listener sends that cancel as it ends, which eunit:test/2 waits for,
+%% so it is here once the round has ended. There is none only where EUnit
+%% could not start the round, which then ran no test.
+-spec round([term()], pos_integer(), string(), file:filename(), canceled()) ->
+          {ok | error, canceled()}.
+round(Tests, Round, Part, File, Canceled) ->
+    Ref = make_ref(),
+    Options = [{round, Round}, {part, Part}, {file, File}, {canceled, Canceled},
+               {answer, {self(), Ref}}],
+    Result = eunit:test(Tests, [no_tty, {report, {?MODULE, Options}}]),
+    receive
+        {Ref, Answered} -> {Result, Answered}
+    after 0 ->
+        {Result, Canceled}
+    end.
 
-%% The listener, which EUnit starts with the options round/4 gives it, a
+%% The listener, which EUnit starts with the options round/5 gives it, a
 %% list as EUnit's listeners take them.
 -spec start(proplists:proplist()) -> pid().
 start(Options) ->
@@ -99,29 +129,58 @@ handle_cancel(group, Data, Options) ->
     case proplists:get_value(reason, Data) of
         undefined -> Options;
         {blame, _} -> Options;
-        Reason -> told(Options, Data, "canceled", io_lib:format("~tp", [Reason]))
+        Reason -> canceled(Options, Data, Reason)
     end;
 handle_cancel(test, Data, Options) ->
-    told(Options, Data, "canceled", io_lib:format("~tp", [proplists:get_value(reason, Data)])).
+    canceled(Options, Data, proplists:get_value(reason, Data)).
 
+%% The round's end: the host's first cancel, sent to round/5.
 -spec terminate(term(), map()) -> ok.
-terminate(_, _) ->
+terminate(_, #{answer := {Hunter, Ref}, canceled := Canceled}) ->
+    Hunter ! {Ref, Canceled},
     ok.
 
-told(#{round := Round, part := Part, file := File} = Options, Data, What, Reason) ->
-    Name = name(Data),
-    io:format("make flakes: ~ts, round ~B: ~ts ~ts~n", [Part, Round, Name, What]),
+%% A cancel's record, and the host's first cancel where none came before
+%% and this one ended its test's process.
+canceled(Options, Data, Reason) ->
+    #{canceled := Canceled, round := Round} = Told =
+        told(Options, Data, "canceled", io_lib:format("~tp", [Reason])),
+    case Canceled =:= none andalso ended(Reason) of
+        true -> Told#{canceled := {lists:flatten(name(Data)), Round}};
+        false -> Told
+    end.
+
+%% Whether a cancel's reason says it ended its test's process: EUnit killed
+%% it at its time limit, a test's or a group's, `{timeout, _}`, or an exit
+%% signal it did not trap ended it, `exit`. An abort, a setup or a
+%% generator that raised, ended none, since the raise ran the process's own
+%% cleanup.
+ended({timeout, _}) -> true;
+ended({exit, _}) -> true;
+ended(_) -> false.
+
+%% A record, and its first line on standard output in the record's words.
+told(#{round := Round, part := Part, canceled := Canceled} = Options, Data, What, Reason) ->
+    Header = marked(Canceled, [name(Data), " ", What]),
+    io:format("make flakes: ~ts, round ~B: ~ts~n", [Part, Round, Header]),
     Output = case proplists:get_value(output, Data) of
                  undefined -> "nothing EUnit keeps: it keeps no output of what it cancels\n";
                  Written -> Written
              end,
-    written(File, Part, Round, [Name, " ", What], [Reason, "\n-- what it wrote:\n"], Output),
+    written(Options, Header, [Reason, "\n-- what it wrote:\n"], Output),
     Options.
 
+%% What did not pass, and the host's first cancel where the record follows
+%% one.
+marked(none, What) ->
+    What;
+marked({Name, Round}, What) ->
+    [What, io_lib:format(", after ~ts was canceled in round ~B", [Name, Round])].
+
 %% A record of the part's file: a line that names the part, the round and
-%% what did not pass, which the hunt's summary counts, then its text, what
-%% the test wrote as its bytes, and a blank line.
-written(File, Part, Round, Header, Text, Output) ->
+%% what did not pass, marked, which the hunt's summary counts; then its
+%% text, what the test wrote as its bytes, and a blank line.
+written(#{part := Part, round := Round, file := File}, Header, Text, Output) ->
     Line = io_lib:format("== ~ts, round ~B: ~ts~n~ts", [Part, Round, Header, Text]),
     ok = file:write_file(File, [unicode:characters_to_binary(Line), Output, "\n"], [append]).
 

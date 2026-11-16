@@ -254,9 +254,14 @@ make flakes MINUTES=n
                 # build/flakes/<part>.txt, and what its host writes on standard error
                 # goes to build/flakes/<part>.err; build/flakes/ is made where it is
                 # missing, and of what stands there only the parts' own files are
-                # removed first; the summary gives each part's rounds and each such
-                # test with the rounds it did not pass in, and the status is 1 where
-                # one did not pass or a host ended early. A termination leaves
+                # removed first. A record that follows a cancel that ended a test's
+                # process in its host, at its time limit or by a signal, names the
+                # host's first such cancel and its round, as its line on the terminal
+                # does, since what that test started stays in the host. The summary
+                # gives each part's rounds and each test that did not pass with the
+                # rounds it did not pass in, a record after a cancel counted apart
+                # with the cancel it names, and the status is 1 where one did not
+                # pass or a host ended early. A termination leaves
                 # nothing running and no rounds' directory; an interrupt leaves nothing
                 # running, and the rounds' directories under TMPDIR. Run by hand, and
                 # part of neither make test-full nor a review
