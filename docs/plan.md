@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 83**, what a load says of what it could not load, decided
-and built first.
+**The next item is MVP 4.16's batch of six**, items 75, 85, 76 and 80 side by side and then
+items 79 and 81, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -45,46 +45,14 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81, 82, 84 and
-85; and what needs the user, items 60, 68 and 39. Item 83, decided on 2026-11-16, is built
-before them. The items stand below in that order.
+85; and what needs the user, items 60, 68 and 39. The items stand below in that order.
 
-Six of them are built as one batch after item 83, decided with the user on 2026-11-16 (the
-log's *A Batch of Six*): items 75, 85, 76 and 80 side by side, then items 79 and 81 side by
-side, so that no two agents edit one file. Each has its own commit and log entry. The
+Six of them are built first, as one batch, decided with the user on 2026-11-16 (the log's
+*A Batch of Six*): items 75, 85, 76 and 80 side by side, then items 79 and 81 side by side,
+so that no two agents edit one file. Each has its own commit and log entry. The
 session reads each diff and runs `make test-full` once over the batch, on a machine that
 runs nothing else.
 
-- **83. What a load says of what it could not load**, decided with the user 2026-11-16 from
-  what item 35 found (the log's *What a Load Could Not Load*). An agent builds it, and the
-  item states each rule in §11.2 first. It closes on `make test-shell`, `make test-nodes`
-  and `make test`, and its report names each test whose expected text changed, with both
-  texts.
-
-  What a load answers. A line for the module named and for each module the load took whose
-  source the source root holds, a module after those it uses: `Greet, compiled from
-  greet.ern` for a source it compiled and `Greet, from greet.erc` for a form it took. A
-  compiled form that one of them uses has no line. A reload's answer names its modules the
-  same way. The shell does this today, and §11.2 states only the second line.
-
-  A module that uses one that failed. Each module a load or a reload could not load for a
-  module that failed, a source or a compiled form, directly or through another, is named in
-  a line of its own, in the build's words (§11.1): `A is not loaded, since it uses B, which
-  failed`. It holds however the module failed, its parse among the ways. Today the line is
-  `B is not loaded, since C does not compile`, given to a source that uses a source that
-  failed its check and to no other module.
-
-  The cause's text. Where a module that a source uses is found and cannot be loaded, for a
-  module of its own found nowhere or for its refusal, the cause's text answers. Today the
-  source is compiled alone and its own diagnostic stands in the cause's place: `:load A`
-  over `b.erc`, whose source is gone and whose `C` is found nowhere, says that `b.erc` is
-  stale, where `:load B` says `no module C on the load path`. Where the source itself names
-  a module found nowhere, its own diagnostic answers as it does today, `a.ern:1:26: unknown
-  name Zed.z`.
-
-  A compiled form that hides a library's module is tested with the sources, before any
-  module is compiled, and its refusal is the load's only answer, as a source's is (§11.1).
-  That such a form is refused behind a source's diagnostic today is read from the code, and
-  the agent first runs a program that shows it.
 - **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
   the job writes no document where one module of the directory fails, and §11.4 compiles
   the directory as `ern build` does, where a module that does not compile does not stop the
@@ -309,6 +277,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
 | 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
+| 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

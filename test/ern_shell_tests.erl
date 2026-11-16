@@ -2750,9 +2750,10 @@ load_code_not_loadable() ->
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
 %% report §11.2: `:load` of a module whose dependency does not compile
-%% gives the dependency's diagnostic and says the module is not loaded. A
-%% regression test: it gave the build's advice, "compile Dep first", with
-%% an absolute path, which does not apply in the shell
+%% gives the dependency's diagnostic and says the module is not loaded, in
+%% the build's words (§11.1). A regression test: it gave the build's advice,
+%% "compile Dep first", with an absolute path, which does not apply in the
+%% shell
 load_failed_dependency_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_failed_dependency/0).
 
@@ -2762,7 +2763,8 @@ load_failed_dependency() ->
     ok = file:write_file(filename:join(Dir, "dep.ern"), "export fn f() : Int = \"x\"\n"),
     {0, Output} = source_root_session(Dir, ":load Top\n1\n"),
     ?assertMatch({_, _}, binary:match(Output, <<"expected Int, found String">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Top is not loaded, since Dep does not compile">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"Top is not loaded, since it uses Dep, which"
+                                                " failed">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"first">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
@@ -4690,9 +4692,10 @@ load_hiding_through_a_form() ->
 %% report §11.2, §11.5: a source that `:load` finds through a compiled form
 %% and that does not compile fails the load with the texts it fails its
 %% own `:load` with, a module that does not check and one that does not
-%% parse, and nothing is loaded. Written before the code and run against
-%% the code before it, where it failed: Util was looked for on the load path
-%% alone
+%% parse, followed by the line of the form that uses it, and nothing is
+%% loaded. Written before the code and run against the code before it,
+%% where it failed: Util was looked for on the load path alone. The form's
+%% line was added to the test before the code that writes it
 load_a_forms_source_that_fails_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun load_a_forms_source_that_fails/0).
 
@@ -4708,11 +4711,12 @@ load_a_forms_source_that_fails() ->
                                             ":load Main\n:load Util\nMain.greet()\n"]),
     [_Banner, Unchecked, UncheckedAlone, _Written, Unparsed, UnparsedAlone, Unknown | _] =
         binary:split(Output, <<"\n> ">>, [global]),
+    Line = <<"\nMain is not loaded, since it uses Util, which failed">>,
     ?assertMatch({_, _}, binary:match(Unchecked, shown(Dir, "util.ern"))),
-    ?assertEqual(UncheckedAlone, Unchecked),
+    ?assertEqual(<<UncheckedAlone/binary, Line/binary>>, Unchecked),
     ?assertMatch({_, _}, binary:match(Unparsed, shown(Dir, "util.ern"))),
     ?assertNotEqual(Unchecked, Unparsed),
-    ?assertEqual(UnparsedAlone, Unparsed),
+    ?assertEqual(<<UnparsedAlone/binary, Line/binary>>, Unparsed),
     ?assertMatch({_, _}, binary:match(Unknown, <<"unknown name Main.greet">>)).
 
 %% report §11.2, §11.1: a source that `:load` finds through a compiled form
@@ -4803,6 +4807,276 @@ reload_hiding_through_a_form() ->
                                                 ": Ansi hides the library Ansi, which the library"
                                                 " Markdown uses\nnothing was reloaded\n"
                                                 "> 0 : Int\n">>)).
+
+%% report §11.2, §11.1: a module that fails does not stop the others, and
+%% each module the load could not load for a module that failed is named
+%% in a line of its own, as `ern build` names one, with the module it uses
+%% directly: A uses B, D and E, B and D use C, C fails its check and E its
+%% parse. Every failure is reported once, the parse's first, and nothing is
+%% loaded. Written before the code and run against the code before it,
+%% where it failed: the parse's failure was the load's only answer
+load_names_each_user_of_a_failed_module_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_names_each_user_of_a_failed_module/0).
+
+load_names_each_user_of_a_failed_module() ->
+    Dir = scratch("ern_load_users_failed_"),
+    [ok = file:write_file(filename:join(Dir, File), Text)
+     || {File, Text} <- [{"a.ern", "export fn a() : Int = B.b() + D.d() + E.e()\n"},
+                         {"b.ern", "export fn b() : Int = C.c()\n"},
+                         {"c.ern", "export fn c() : Int = \"c\"\n"},
+                         {"d.ern", "export fn d() : Int = C.c() + 1\n"},
+                         {"e.ern", "export fn e( : Int = 1\n"}]],
+    {0, Output} = source_root_session(Dir, ":load A\nA.a()\n"),
+    [_Banner, Answer, Unknown | _] = binary:split(Output, <<"\n> ">>, [global]),
+    [Parse, Check] = [binary:match(Answer, <<(shown(Dir, File))/binary, ":1:">>)
+                      || File <- ["e.ern", "c.ern"]],
+    ?assertMatch({0, _}, Parse),
+    ?assert(Parse < Check),
+    ?assertEqual(1, length(binary:matches(Answer, <<(shown(Dir, "c.ern"))/binary, ":1:">>))),
+    ?assertMatch({_, _}, binary:match(Answer, <<"\nB is not loaded, since it uses C, which failed"
+                                                "\nD is not loaded, since it uses C, which failed"
+                                                "\nA is not loaded, since it uses B, which"
+                                                " failed">>)),
+    ?assertEqual(nomatch, binary:match(Answer, <<"compiled from">>)),
+    ?assertMatch({_, _}, binary:match(Unknown, <<"unknown name A.a">>)).
+
+%% report §11.2: a compiled form that uses a source that failed is not
+%% loaded, and a source that uses that form is not either, each named in a
+%% line of its own: Top uses Main, whose form uses Util, whose source fails
+%% its check. Written before the code and run against the code before it,
+%% where it failed: neither was named
+load_names_users_through_a_form_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_names_users_through_a_form/0).
+
+load_names_users_through_a_form() ->
+    Dir = scratch("ern_load_users_form_"),
+    forms_and_sources(Dir, [{"util.ern", "export fn name() : String = \"util\"\n"},
+                            {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["util.ern"]),
+    ok = file:write_file(filename:join(Dir, "util.ern"), "export fn name() : String = 1\n"),
+    ok = file:write_file(filename:join(Dir, "top.ern"),
+                         "export fn top() : String = Main.greet()\n"),
+    {0, Output} = source_root_session(Dir, ":load Top\nTop.top()\n"),
+    [_Banner, Answer, Unknown | _] = binary:split(Output, <<"\n> ">>, [global]),
+    ?assertMatch({0, _}, binary:match(Answer, <<(shown(Dir, "util.ern"))/binary, ":1:">>)),
+    ?assertMatch({_, _}, binary:match(Answer, <<"\nMain is not loaded, since it uses Util, which"
+                                                " failed\nTop is not loaded, since it uses Main,"
+                                                " which failed">>)),
+    ?assertMatch({_, _}, binary:match(Unknown, <<"unknown name Top.top">>)).
+
+%% report §11.2: where a module that a source uses is found and cannot be
+%% loaded, the cause's text answers, and the source has its line: A uses
+%% B, whose form stands beside no source and uses C, which is found
+%% nowhere. `:load B` answers as much. Written before the code and run
+%% against the code before it, where it failed: A was compiled alone, and
+%% its own diagnostic, that B's form is stale (§11.1), answered
+load_answers_the_cause_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_answers_the_cause/0).
+
+load_answers_the_cause() ->
+    Dir = scratch("ern_load_cause_"),
+    ok = file:write_file(filename:join(Dir, "c.ern"), "export fn c() : String = \"c\"\n"),
+    ok = file:write_file(filename:join(Dir, "b.ern"), "export fn b() : String = C.c()\n"),
+    forms(Dir, ["c.ern", "b.ern"]),
+    ok = file:delete(filename:join(Dir, "c.erc")),
+    ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : String = B.b()\n"),
+    {0, Output} = source_root_session(Dir, ":load A\n:load B\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> no module C on the load path\n"
+                                                "A is not loaded, since it uses B, which failed\n"
+                                                "> no module C on the load path\n> ">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"no longer exists">>)).
+
+%% report §11.2, §11.5: where a source itself names a module found
+%% nowhere, its own diagnostic answers. A regression test, written after
+%% the code; it does not cover a source that also uses a module that failed
+load_a_source_naming_a_module_found_nowhere_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_a_source_naming_a_module_found_nowhere/0).
+
+load_a_source_naming_a_module_found_nowhere() ->
+    Dir = scratch("ern_load_nowhere_"),
+    ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : String = Zed.z()\n"),
+    {0, Output} = source_root_session(Dir, ":load A\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (shown(Dir, "a.ern"))/binary,
+                                                ":1:26: unknown name Zed.z\n">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"on the load path">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"is not loaded">>)).
+
+%% report §11.2, §11.1: a compiled form at the namespace of a library's
+%% module another library depends on is refused with the sources, before
+%% any module is compiled, and its refusal is the load's only answer: a
+%% program's Time on the load path, used by a source that has a diagnostic
+%% of its own, and the same form beside the source, its own source gone.
+%% Each such refusal is reported, a source's and a form's: Main uses
+%% Markdown, whose form uses Ansi, beside a program's `ansi.ern`. Written
+%% before the code and run against the code before it, where it failed:
+%% the source's diagnostic came first, and beside the source the form was
+%% said to be stale
+load_refuses_a_hiding_form_first_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun load_refuses_a_hiding_form_first/0).
+
+load_refuses_a_hiding_form_first() ->
+    Uses = "export fn mine() : String = Time.mine()\nexport fn bad() : Int = \"x\"\n",
+    Dir = scratch("ern_load_hiding_form_"),
+    [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
+    [ok = filelib:ensure_path(Path) || Path <- [Source, Library]],
+    time_form(Library),
+    ok = file:write_file(filename:join(Source, "main.ern"), Uses),
+    {0, Output} = source_root_session(Source, [Library], ":load Main\n1\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> ", (hides_time(Library, "time.erc"))/binary,
+                                                "\n> 1 : Int\n">>)),
+    Beside = scratch("ern_load_hiding_form_beside_"),
+    time_form(Beside),
+    ok = file:write_file(filename:join(Beside, "main.ern"), Uses),
+    {0, BesideOutput} = source_root_session(Beside, ":load Main\n1\n"),
+    ?assertMatch({_, _}, binary:match(BesideOutput, <<"> ", (hides_time(Beside, "time.erc"))/binary,
+                                                      "\n> 1 : Int\n">>)),
+    Both = filename:join(Dir, "both"),
+    ok = filelib:ensure_path(Both),
+    ok = file:write_file(filename:join(Both, "ansi.ern"), "export fn mine() : String = \"mine\"\n"),
+    ok = file:write_file(filename:join(Both, "main.ern"),
+                         [Uses, "export fn count(text : String) : Int =\n"
+                                "    List.size(Markdown.parse(text))\n"]),
+    {0, BothOutput} = source_root_session(Both, [Library], ":load Main\n1\n"),
+    ?assertMatch({_, _}, binary:match(BothOutput,
+                                      <<"> ", (shown(Both, "ansi.ern"))/binary,
+                                        ": Ansi hides the library Ansi, which the library Markdown"
+                                        " uses\n", (hides_time(Library, "time.erc"))/binary,
+                                        "\n> 1 : Int\n">>)).
+
+%% report §11.2: a compiled form refused as one compiled against another
+%% interface fails, and a source that uses it is named in a line of its
+%% own: Top uses Main, whose form was compiled against another Util than
+%% Util's source gives. Written before the code and run against the code
+%% before it, where it failed: Top was compiled, and the refusal was the
+%% load's only answer
+load_names_users_of_a_refused_form_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_names_users_of_a_refused_form/0).
+
+load_names_users_of_a_refused_form() ->
+    Dir = scratch("ern_load_users_refused_"),
+    Util = "export fn name() : String = \"util\"\n",
+    forms_and_sources(Dir, [{"util.ern", Util},
+                            {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["util.ern"]),
+    ok = file:write_file(filename:join(Dir, "util.ern"),
+                         [Util, "\nexport fn other() : Int = 1\n"]),
+    ok = file:write_file(filename:join(Dir, "top.ern"),
+                         "export fn top() : String = Main.greet()\n"),
+    {0, Output} = source_root_session(Dir, ":load Top\nTop.top()\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Main was compiled against another Util; build"
+                                                " Main again\nTop is not loaded, since it uses"
+                                                " Main, which failed\n> ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"unknown name Top.top">>)).
+
+%% report §11.2: a module a reload loads for the first time from its
+%% compiled form is refused as `:load` refuses it, compiled against
+%% another interface of a module it uses than the session holds, and the
+%% module that uses it is named in a line of its own: A's changed source
+%% uses Main, whose form was compiled against another Util than Util's
+%% source gives. Nothing is reloaded, and A answers as before. A
+%% regression test, written after the code and run against the code
+%% before it, where it failed: the reload installed Main's form. It does
+%% not cover a form refused for another standard library
+reload_names_users_of_a_refused_form_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_names_users_of_a_refused_form/0).
+
+reload_names_users_of_a_refused_form() ->
+    Dir = scratch("ern_reload_users_refused_"),
+    Util = "export fn name() : String = \"util\"\n",
+    forms_and_sources(Dir, [{"util.ern", Util},
+                            {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["util.ern"]),
+    ok = file:write_file(filename:join(Dir, "util.ern"),
+                         [Util, "\nexport fn other() : Int = 1\n"]),
+    ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : String = \"a\"\n"),
+    {0, Output} = source_root_session(Dir, [":load A\n",
+                                            write_source(Dir, "a.ern",
+                                                         "export fn a() : String ="
+                                                         " Main.greet()\n"),
+                                            ":reload\nA.a()\n"]),
+    ?assertMatch({_, _}, binary:match(Output, <<"> Main was compiled against another Util; build"
+                                                " Main again\nA is not loaded, since it uses"
+                                                " Main, which failed\nnothing was reloaded\n"
+                                                "> \"a\" : String\n">>)).
+
+%% report §11.2, §11.1: a cycle is the failure of the modules in it,
+%% reported once, and a module that uses one of them is named in a line of
+%% its own: Top uses Util, whose source uses Main, whose form uses Util.
+%% Written before the code and run against the code before it, where it
+%% failed: Top's line said that Util does not compile
+load_names_users_of_a_cycle_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_names_users_of_a_cycle/0).
+
+load_names_users_of_a_cycle() ->
+    Dir = scratch("ern_load_users_cycle_"),
+    Util = "export fn name() : String = \"util\"\n",
+    forms_and_sources(Dir, [{"util.ern", Util},
+                            {"main.ern", "export fn greet() : String = Util.name()\n"}],
+                      ["util.ern"]),
+    ok = file:write_file(filename:join(Dir, "util.ern"),
+                         [Util, "\nexport fn again() : String = Main.greet()\n"]),
+    ok = file:write_file(filename:join(Dir, "top.ern"), "export fn top() : String = Util.name()\n"),
+    {0, Output} = source_root_session(Dir, ":load Top\nTop.top()\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> module cycle: Main, Util\n"
+                                                "Top is not loaded, since it uses Util, which"
+                                                " failed\n> input 2:1:1: unknown name"
+                                                " Top.top\n">>)).
+
+%% report §11.2: a reload reports a module that fails, and one that uses a
+%% module that failed, as `:load` reports it: A's changed source uses B, a
+%% module new to the session, which uses C, whose source fails its check.
+%% Nothing is reloaded. Written before the code and run against the code
+%% before it, where it failed: the lines said that C and B do not compile
+reload_names_users_of_a_failed_module_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun reload_names_users_of_a_failed_module/0).
+
+reload_names_users_of_a_failed_module() ->
+    Dir = scratch("ern_reload_users_failed_"),
+    ok = file:write_file(filename:join(Dir, "a.ern"), "export fn a() : Int = 1\n"),
+    ok = file:write_file(filename:join(Dir, "b.ern"), "export fn b() : Int = C.c()\n"),
+    ok = file:write_file(filename:join(Dir, "c.ern"), "export fn c() : Int = \"c\"\n"),
+    {0, Output} = source_root_session(Dir, [":load A\n",
+                                            write_source(Dir, "a.ern",
+                                                         "export fn a() : Int = B.b()\n"),
+                                            ":reload\nA.a()\n"]),
+    ?assertMatch({_, _}, binary:match(Output, <<"\nB is not loaded, since it uses C, which failed\n"
+                                                "A is not loaded, since it uses B, which failed\n"
+                                                "nothing was reloaded\n> 1 : Int\n">>)),
+    ?assertEqual(1, length(binary:matches(Output, <<(shown(Dir, "c.ern"))/binary, ":1:">>))).
+
+%% report §11.2: `:load` answers a line for the module it names and for
+%% each module it took whose source the source root holds, and none for a
+%% compiled form one of them uses whose source it does not hold: C uses
+%% Lib's form on the load path. `:reload` answers a line for each module it
+%% compiled again, the line `:load` gives a module it loads for the first
+%% time, B, and none for one it takes from a compiled form, Other. A
+%% regression test, written after the code; it does not cover a reload
+%% whose new module's form is beside its source
+load_and_reload_answer_lines_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun load_and_reload_answer_lines/0).
+
+load_and_reload_answer_lines() ->
+    Dir = scratch("ern_answer_lines_"),
+    [Source, Library] = [filename:join(Dir, Leaf) || Leaf <- ["src", "lib"]],
+    [ok = filelib:ensure_path(Path) || Path <- [Source, Library]],
+    ok = file:write_file(filename:join(Library, "lib.ern"), "export fn lib() : Int = 1\n"),
+    ok = file:write_file(filename:join(Library, "other.ern"), "export fn other() : Int = 2\n"),
+    forms(Library, ["lib.ern", "other.ern"]),
+    ok = file:write_file(filename:join(Source, "c.ern"), "export fn c() : Int = Lib.lib()\n"),
+    ok = file:write_file(filename:join(Source, "a.ern"), "export fn a() : Int = 3\n"),
+    ok = file:write_file(filename:join(Source, "b.ern"), "export fn b() : Int = 4\n"),
+    {0, Output} = source_root_session(Source, [Library],
+                                      [":load C\n:load A\n",
+                                       write_source(Source, "a.ern",
+                                                    "export fn a() : Int ="
+                                                    " B.b() + Other.other()\n"),
+                                       ":reload\nA.a()\n"]),
+    ?assertMatch({_, _}, binary:match(Output, <<"> C, compiled from ",
+                                                (shown(Source, "c.ern"))/binary,
+                                                "\n> A, compiled from ">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> B, compiled from ",
+                                                (shown(Source, "b.ern"))/binary,
+                                                "\nA, compiled again\n> 6 : Int\n">>)).
 
 %% report §11.1, §11.2: a module that uses, through the load path, a module
 %% that uses it is a cycle, which `:load` refuses as `ern build` refuses

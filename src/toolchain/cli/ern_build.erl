@@ -15,7 +15,7 @@
          library_name/1, compiled_in_order/3,
          report_errors/3, shown/1, path_text/1, sources/1, found_path/1, compiled_under/1,
          bytes_text/1, control_free/1, module_of/2, module_of/3, shape/2, compile_order/2,
-         compile_order/3,
+         compile_order/3, parse_all/3, order/1,
          module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
          source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
          stdlib_hash/0, dependency_interfaces/5, load_path/1, load_path_of/1, with_root/2,
@@ -897,10 +897,8 @@ shape(File, Component, Advice) ->
 
 %% Parse every module, find its dependencies, and order them; a cycle among
 %% them is an error naming the modules in it (§11.1). What a module of the
-%% load path records that it uses is not read here: the shell, which
-%% orders what a load compiles so, refuses a cycle through the load path as
-%% it places the modules (ern_shell), and `ern doc` of one file makes a
-%% page and no build.
+%% load path records that it uses is not read here: `ern doc` of one file
+%% makes a page and no build.
 -spec compile_order([#build_module{}], file:filename()) -> [#build_module{}].
 compile_order(Modules, SourceRoot) ->
     compile_order(Modules, SourceRoot, load_path_of([])).
@@ -913,7 +911,11 @@ compile_order(Modules, SourceRoot, DependencyRoots) ->
 %% build reports them (report §11.5). Every source is parsed before any
 %% module is checked against its parent, so that the check reads the
 %% members a module of the build exports from its parse, and parses a
-%% parent's source no more for each of its children (report §4.2).
+%% parent's source no more for each of its children (report §4.2). The
+%% shell's load parses its sources so (report §11.2).
+-spec parse_all([#build_module{}], file:filename(), load_path()) ->
+          {[#build_module{}], [{[atom()], file:filename() | {refused, string()},
+                                [ern_diagnostic:diagnostic()]}]}.
 parse_all(Modules, SourceRoot, DependencyRoots) ->
     Sources = [{Module, source_parsed(Module)} || Module <- Modules],
     Declared = maps:from_list([{File, Declarations}
@@ -934,7 +936,11 @@ parse_all(Modules, SourceRoot, DependencyRoots) ->
 
 %% The parsed modules in an order where each follows those it uses, and
 %% otherwise keeps its place among them, the order of their paths; a cycle
-%% is an error naming the modules in it (§11.1).
+%% is an error naming the modules in it (§11.1). What a module of the load
+%% path records that it uses is not read here: the shell, which orders
+%% what a load compiles so, refuses a cycle through the load path as it
+%% places the modules (ern_shell).
+-spec order([#build_module{}]) -> [#build_module{}].
 order(Parsed) ->
     order(Parsed, fun(_) -> [] end).
 

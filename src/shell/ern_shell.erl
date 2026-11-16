@@ -171,12 +171,13 @@
 %% as found/3 found it.
 %%
 %% What it has placed: what came of each module of the source set, compiled
-%% or why not, the last first; the modules that did not compile; the unit
-%% of each module the load has placed, by namespace; the modules it takes
-%% from their compiled forms on the load path, in the order placed; and the
-%% modules whose placing waits on what they use, the latest first, each
-%% using the one before it, so that a module that uses one of them in turn
-%% is a cycle (report §11.1).
+%% or why not, and why each other module it could not load was not, the
+%% last first; the modules it could not load, which failed or use one that
+%% did (report §11.2); the unit of each module the load has placed, by
+%% namespace; the modules it takes from their compiled forms on the load
+%% path, in the order placed; and the modules whose placing waits on what
+%% they use, the latest first, each using the one before it, so that a
+%% module that uses one of them in turn is a cycle (report §11.1).
 -record(placing, {interfaces, units, sources = #{}, forms = #{}, compiled = [], failed = [],
                   placed = #{}, needed = [], waiting = []}).
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
@@ -3117,7 +3118,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                     %% report §11.2: what it uses that the session has not
                     %% loaded is placed before it, and it last
                     found_loaded(Session, found(Session, [], #{Namespace => Taken}), [Namespace]);
-                {error, Refusal} ->
+                {Refused, Refusal} when Refused =:= error; Refused =:= hiding ->
                     {'Left', <<Refusal/binary, "\n">>};
                 none ->
                     {'Left', <<"no module ", Name/binary, " under the source root or on the"
@@ -3136,7 +3137,7 @@ found_loaded(Session, {Sources, _} = Found, Roots) ->
             Lines = [loaded_line(Session, Compiled)
                      || Loaded <- [Loaded || {Loaded, _} <- lists:reverse(Sources)] ++ Roots,
                         Compiled <- [lists:keyfind(Loaded, #compiled.namespace, All)]],
-            loaded_with(Session, All, unicode:characters_to_binary(lists:join("\n", Lines)));
+            installed(Session, All, unicode:characters_to_binary(lists:join("\n", Lines)));
         {error, Failed} ->
             {'Left', iolist_to_binary(Failed)}
     end.
@@ -3202,30 +3203,23 @@ dependency_source(#session{source_root = SourceRoot} = Session, Dependency) ->
         _ -> source_of(Session, Dependency)
     end.
 
-%% The modules of a `:load` loaded, what they use that the session had not
-%% loaded among them, and `:load`'s answer.
-loaded_with(Session, All, Answer) ->
-    case refused_compiled(Session, All) of
-        none -> installed(Session, All, Answer);
-        Refusal -> {'Left', <<(unicode:characters_to_binary(Refusal))/binary, "\n">>}
+%% Report §11.2: a compiled form, Compiled, refused as `ern run` refuses
+%% one: compiled against another interface of a module it uses, or of the
+%% standard library, than the session holds or the load placed before it;
+%% none, or the refusal. A file that holds another module than its path
+%% names is refused as it is found (compiled_of/2).
+refused_form(Session, Compiled, #placing{interfaces = Interfaces, placed = Placed} = Placing) ->
+    Held = [Interface || Namespace := Interface <- Interfaces, is_map_key(Namespace, Placed)]
+        ++ Session#session.interfaces ++ ern_prelude:stdlib_interfaces(),
+    case compiled_refusals(Session, Compiled, placed_modules(Placing), Held,
+                           ern_build:stdlib_hash()) of
+        [] -> none;
+        [First | _] -> unicode:characters_to_binary([First, "\n"])
     end.
 
-%% Report §11.2: a compiled module is refused as `ern run` refuses one: a
-%% module compiled against another interface of a module it uses, or of the
-%% standard library, than the session holds; none, or the refusal. A file
-%% that holds another module than its path names is refused as it is found
-%% (compiled_of/2).
-refused_compiled(Session, All) ->
-    StdlibHash = ern_build:stdlib_hash(),
-    Interfaces = [Interface || #compiled{beam = Beam} <- All,
-                               {ok, #{interface := Interface}} <- [ern_interface:read(Beam)]]
-        ++ Session#session.interfaces ++ ern_prelude:stdlib_interfaces(),
-    Refusals = lists:append([compiled_refusals(Session, Compiled, All, Interfaces, StdlibHash)
-                             || Compiled <- All]),
-    case Refusals of
-        [] -> none;
-        [First | _] -> First
-    end.
+%% The modules a load has placed, its compiled forms and its sources.
+placed_modules(#placing{compiled = Compiled, needed = Needed}) ->
+    Needed ++ [Module || {_, {ok, Module}} <- Compiled].
 
 compiled_refusals(Session, #compiled{namespace = Namespace, beam = Beam, erc = File}, All,
                   Interfaces, StdlibHash) ->
@@ -3259,7 +3253,7 @@ another_interface(Session, Name, File, Dependency, Held) ->
     end.
 
 %% The compiled form the session holds of the module of Namespace, or the
-%% load placed before the one it refuses, by its file; none where the
+%% load placed before the one it tests, All, by its file; none where the
 %% module was compiled from its source. A unit the shell installed is
 %% loaded under its own name, and one the runner loaded, of the program
 %% or of the node's load path, under its file's (ern_code:load/3).
@@ -3394,69 +3388,114 @@ binding_end(Site, killed) ->
 %% has not placed it yet, as for a module of the load path that uses one;
 %% and any other is placed from the compiled form the load found of it on
 %% the load path, as the runner finds one (found/3), after the modules it
-%% uses. The placing, or why one cannot be loaded, a cycle among them
-%% (report §11.1).
-needed_placed(_Session, [], Placing) ->
-    {ok, Placing};
-needed_placed(Session, [Dependency | Rest], Placing) ->
-    case dependency_placed(Session, Dependency, Placing) of
-        {ok, Placing1} -> needed_placed(Session, Rest, Placing1);
-        Error -> Error
-    end.
+%% uses. The placing, with each module that could not be placed and why
+%% (failed/3).
+needed_placed(Session, Dependencies, Placing) ->
+    lists:foldl(fun(Dependency, Acc) -> dependency_placed(Session, Dependency, Acc) end,
+                Placing, Dependencies).
 
-%% One module a module uses placed: one whose placing waits on it is a
-%% cycle, refused as `ern build` refuses one (report §11.1, §11.2); one of
-%% the source set compiled now, where the set's order has not reached it;
-%% one the session has loaded, or the load has placed or could not
-%% compile, as it is; and any other from its compiled form (needed_one/3).
+%% One module a module uses placed: one the load could not load, as it is,
+%% so that its failure is reported once; one whose placing waits on it is
+%% a cycle, refused as `ern build` refuses one (report §11.1, §11.2), the
+%% failure of every module in it; one of the source set compiled now, where
+%% the set's order has not reached it; one the session has loaded, or the
+%% load has placed, as it is; and any other from its compiled form
+%% (needed_one/3).
 dependency_placed(#session{source_hashes = Loaded} = Session, Dependency,
-                  #placing{sources = Sources, placed = Placed, waiting = Waiting} = Placing) ->
-    case lists:member(Dependency, Waiting) of
-        true ->
+                  #placing{sources = Sources, placed = Placed, failed = Failed,
+                           waiting = Waiting} = Placing) ->
+    case {lists:member(Dependency, Failed), lists:member(Dependency, Waiting), Sources} of
+        {true, _, _} ->
+            Placing;
+        {false, true, _} ->
             {Cycle, _} = lists:splitwith(fun(Namespace) -> Namespace =/= Dependency end, Waiting),
-            {cycle, unicode:characters_to_binary([ern_build:module_cycle([Dependency | Cycle]),
-                                                  "\n"])};
-        false ->
-            case Sources of
-                #{Dependency := Module} -> {ok, compiled_in_order(Session, Module, Placing)};
-                _ when is_map_key(Dependency, Loaded); is_map_key(Dependency, Placed) ->
-                    {ok, Placing};
-                _ -> needed_one(Session, Dependency, Placing)
-            end
+            Text = unicode:characters_to_binary([ern_build:module_cycle([Dependency | Cycle]),
+                                                 "\n"]),
+            #placing{failed = Failed1} = Placing1 = failed(Dependency, Text, Placing),
+            Placing1#placing{failed = Cycle ++ Failed1};
+        {false, false, #{Dependency := Module}} ->
+            compiled_in_order(Session, Module, Placing);
+        _ when is_map_key(Dependency, Loaded); is_map_key(Dependency, Placed) ->
+            Placing;
+        _ ->
+            needed_one(Session, Dependency, Placing)
     end.
 
 %% A module the load found no source of placed from its compiled form, as
 %% found/3 took it, which found every module a placing reaches that the
-%% session has not loaded and the source set does not hold; or why it
-%% cannot be.
+%% session has not loaded and the source set does not hold; or failed,
+%% where its form was refused. A module found nowhere is the failure of
+%% the module that uses it (used_placed/3).
 needed_one(Session, Namespace, #placing{forms = Forms} = Placing) ->
     case maps:get(Namespace, Forms) of
-        {ok, File, Beam, Hash} ->
-            compiled_placed(Session, Namespace, File, Beam, Hash, Placing);
-        {error, Refusal} ->
-            {error, <<Refusal/binary, "\n">>};
-        none ->
-            Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
-            {error, <<"no module ", Name/binary, " on the load path\n">>}
+        {ok, File, Beam, Hash} -> compiled_placed(Session, Namespace, File, Beam, Hash, Placing);
+        {error, Refusal} -> failed(Namespace, <<Refusal/binary, "\n">>, Placing);
+        none -> Placing
     end.
 
 %% A module the load takes from its compiled form Beam, at File, placed,
-%% after what it uses, among the load's modules from the load path.
+%% after what it uses, among the load's modules from the load path; or
+%% failed, where it is refused, where a module it uses is found nowhere,
+%% and where the host cannot place it (report §11.2).
 compiled_placed(Session, Namespace, File, Beam, Hash, #placing{waiting = Waiting} = Placing) ->
-    case needed_placed(Session, form_uses(Beam),
-                       Placing#placing{waiting = [Namespace | Waiting]}) of
-        {ok, Used} ->
-            Placing1 = Used#placing{waiting = Waiting},
-            case compiled_unit(Session, Namespace, Beam, Hash, Placing1) of
-                {ok, Unfiled} ->
-                    Compiled = Unfiled#compiled{erc = File},
-                    #placing{needed = Needed} = Placing2 = placed(Compiled, Placing1),
-                    {ok, Placing2#placing{needed = Needed ++ [Compiled]}};
-                Error ->
-                    Error
+    Dependencies = form_uses(Beam),
+    Used = needed_placed(Session, Dependencies, Placing#placing{waiting = [Namespace | Waiting]}),
+    case used_placed(Namespace, Dependencies, Used#placing{waiting = Waiting}) of
+        {placeable, Placeable} ->
+            Unfiled = #compiled{namespace = Namespace, beam = Beam, erc = File},
+            case refused_form(Session, Unfiled, Placeable) of
+                none -> compiled_form_placed(Session, Unfiled, Hash, Placeable);
+                Refusal -> failed(Namespace, Refusal, Placeable)
             end;
-        Error ->
-            Error
+        {nowhere, Dependency, Placeable} ->
+            failed(Namespace, found_nowhere(Dependency), Placeable);
+        {failed, Unplaced} ->
+            Unplaced
+    end.
+
+%% Report §11.2, §11.1: what comes of a module the load takes, Namespace,
+%% once the modules it uses, Dependencies, are placed: nothing more where
+%% it failed with them, in a cycle; not loaded where one of them failed,
+%% said in a line of its own as `ern build` says one, with the first of
+%% them that failed; and else placeable, with the first of them found
+%% nowhere, where one is.
+used_placed(Namespace, Dependencies, #placing{failed = Failed, forms = Forms} = Placing) ->
+    IsFailed = fun(Dependency) -> lists:member(Dependency, Failed) end,
+    case {IsFailed(Namespace), lists:search(IsFailed, Dependencies)} of
+        {true, _} ->
+            {failed, Placing};
+        {false, {value, Dependency}} ->
+            {failed, failed(Namespace,
+                            unicode:characters_to_binary([ern_namespace:text(Namespace),
+                                                          " is not loaded, since it uses ",
+                                                          ern_namespace:text(Dependency),
+                                                          ", which failed\n"]),
+                            Placing)};
+        {false, false} ->
+            case lists:search(fun(Dependency) -> maps:find(Dependency, Forms) =:= {ok, none} end,
+                              Dependencies) of
+                {value, Dependency} -> {nowhere, Dependency, Placing};
+                false -> {placeable, Placing}
+            end
+    end.
+
+%% Report §11.2: why a module that uses one found nowhere, Dependency, is
+%% not loaded.
+found_nowhere(Dependency) ->
+    unicode:characters_to_binary(["no module ", ern_namespace:text(Dependency),
+                                  " on the load path\n"]).
+
+%% A compiled form the load takes, made its unit, or failed where the host
+%% cannot place it (compiled_unit/5).
+compiled_form_placed(Session, #compiled{namespace = Namespace, beam = Beam, erc = File}, Hash,
+                     Placing) ->
+    case compiled_unit(Session, Namespace, Beam, Hash, Placing) of
+        {ok, Unfiled} ->
+            Compiled = Unfiled#compiled{erc = File},
+            #placing{needed = Needed} = Placing1 = placed(Compiled, Placing),
+            Placing1#placing{needed = Needed ++ [Compiled]};
+        {error, Text} ->
+            failed(Namespace, Text, Placing)
     end.
 
 %% A load's placing as it begins: the session's interfaces and units.
@@ -3799,44 +3838,61 @@ compile_all(Session, ChangedSources) ->
 %% uses placed before it (needed_placed/3), and the compiled forms Roots
 %% placed last, each after what it uses. What the modules use from the
 %% load path, Roots among it, and the modules, in the order placed, or why
-%% they cannot all be compiled.
-compile_in_order(Session, {Sources, _} = Set, Roots) ->
+%% they cannot all be loaded.
+compile_in_order(Session, {Sources, Forms} = Set, Roots) ->
     %% report §11.1: a module that hides a library's module another library
     %% depends on is refused before any is parsed, its refusal its only error,
-    %% and report §11.9: so is a module outside the named packages at a named
-    %% package's namespace
+    %% a compiled form with the sources, and report §11.9: so is a source
+    %% outside the named packages at a named package's namespace
     case [<<Refusal/binary, "\n">> || {Namespace, File} <- Sources,
                                       Refusal <- [source_refusal(Session, Namespace, File)],
-                                      Refusal =/= none] of
+                                      Refusal =/= none]
+         ++ [<<Refusal/binary, "\n">> || _ := {hiding, Refusal} <- maps:iterator(Forms, ordered)] of
         [] -> compiled_set(Session, Set, Roots);
         Refusals -> {error, Refusals}
     end.
 
+%% Report §11.2, §11.1: a module that fails does not stop the others, its
+%% parse among the ways it fails, as in `ern build`: each source that does
+%% not parse fails first, and every other is placed in the order of the
+%% sources they use.
 compiled_set(#session{source_root = SourceRoot} = Session, {Sources, Forms}, Roots) ->
-    try ern_build:compile_order([ern_build:module_of(ern_build:absolute(File), SourceRoot)
-                                 || {_, File} <- Sources], SourceRoot, load_path(Session)) of
-        Ordered ->
+    LoadPath = load_path(Session),
+    try
+        {Parsed, Unparsed} =
+            ern_build:parse_all([ern_build:module_of(ern_build:absolute(File), SourceRoot)
+                                 || {_, File} <- Sources], SourceRoot, LoadPath),
+        {ern_build:order(Parsed), Unparsed}
+    of
+        {Ordered, Unparsed} ->
             Modules = #{Namespace => Module
                         || #build_module{namespace = Namespace} = Module <- Ordered},
+            Begun = lists:foldl(fun({Namespace, Failure, Diagnostics}, Placing) ->
+                                        failed(Namespace,
+                                               unparsed_text(Session, Failure, Diagnostics),
+                                               Placing)
+                                end, (placing(Session))#placing{sources = Modules,
+                                                                forms = Forms}, Unparsed),
             Compiled = lists:foldl(fun(#build_module{namespace = Namespace}, Placing) ->
                                            source_placed(Session, Namespace, Placing)
-                                   end, (placing(Session))#placing{sources = Modules,
-                                                                   forms = Forms}, Ordered),
-            case needed_placed(Session, Roots, Compiled) of
-                {ok, Placed} -> set_compiled(Placed, []);
-                {_, Text} -> set_compiled(Compiled, [Text])
-            end
+                                   end, Begun, Ordered),
+            set_compiled(needed_placed(Session, Roots, Compiled))
     catch
         throw:{cli_error, Message} ->
-            {error, [unicode:characters_to_binary([Message, "\n"])]};
-        throw:{errors, FailedFile, Diagnostics} ->
-            {error, [diagnosed(Session, FailedFile, Diagnostics)]}
+            {error, [unicode:characters_to_binary([Message, "\n"])]}
     end.
 
+%% Report §11.5, §11.1: why a source did not parse, its diagnostics, or the
+%% refusal of what its parse needed, as the build says each.
+unparsed_text(_Session, {refused, Refusal}, []) ->
+    unicode:characters_to_binary([Refusal, "\n"]);
+unparsed_text(Session, File, Diagnostics) ->
+    diagnosed(Session, File, Diagnostics).
+
 %% What came of a set's modules, its sources compiled and its roots placed,
-%% and RootTexts, why a root could not be placed.
-set_compiled(#placing{compiled = Compiled, needed = Needed}, RootTexts) ->
-    case [Text || {_, {error, Text}} <- lists:reverse(Compiled)] ++ RootTexts of
+%% or every reason one could not be loaded, in the order the load met it.
+set_compiled(#placing{compiled = Compiled, needed = Needed}) ->
+    case [Text || {_, {error, Text}} <- lists:reverse(Compiled)] of
         [] -> {ok, Needed, [Module || {_, {ok, Module}} <- lists:reverse(Compiled)]};
         Texts -> {error, Texts}
     end.
@@ -3848,53 +3904,39 @@ source_placed(Session, Namespace, #placing{sources = Sources} = Placing) ->
         _ -> Placing
     end.
 
-%% Report §11.2: one module of a `:load`, its current compiled form taken
-%% or the module compiled, where every module it uses did, and said not to
-%% be loaded where one did not; the build's advice to compile that one
-%% first does not apply in the shell.
+%% Report §11.2: one source of a load, its current compiled form taken or
+%% the module compiled, once what it uses is placed (used_placed/3). Where
+%% it names a module found nowhere, its own diagnostic answers, as the
+%% build's does (§11.5); the build's advice to compile that module first
+%% does not apply in the shell.
 compiled_in_order(Session, #build_module{namespace = Namespace,
                                          dependencies = Dependencies} = Module,
                   #placing{sources = Sources, placed = Placed, waiting = Waiting} = Placing) ->
     %% placed, its unit unknown until it is compiled, and waiting on what
     %% it uses, so that a module it uses that uses it in turn is a cycle
-    Placing1 = Placing#placing{sources = maps:remove(Namespace, Sources),
-                               placed = Placed#{Namespace => unknown},
-                               waiting = [Namespace | Waiting]},
-    case needed_placed(Session, Dependencies, Placing1) of
-        {ok, #placing{failed = Failed} = Used} ->
-            Placing2 = Used#placing{waiting = Waiting},
-            case [Dependency || Dependency <- Dependencies, lists:member(Dependency, Failed)] of
-                [Dependency | _] ->
-                    failed(Namespace,
-                           unicode:characters_to_binary([ern_namespace:text(Namespace),
-                                                         " is not loaded, since ",
-                                                         ern_namespace:text(Dependency),
-                                                         " does not compile\n"]),
-                           Placing2);
-                [] ->
-                    case taken_or_compiled(Session, Module, Placing2) of
-                        {ok, Compiled} = Ok ->
-                            #placing{compiled = Done} = Placing3 = placed(Compiled, Placing2),
-                            Placing3#placing{compiled = [{Namespace, Ok} | Done]};
-                        {error, Text} ->
-                            failed(Namespace, Text, Placing2)
-                    end
+    Used = needed_placed(Session, Dependencies,
+                         Placing#placing{sources = maps:remove(Namespace, Sources),
+                                         placed = Placed#{Namespace => unknown},
+                                         waiting = [Namespace | Waiting]}),
+    case used_placed(Namespace, Dependencies, Used#placing{waiting = Waiting}) of
+        {placeable, Placeable} ->
+            case taken_or_compiled(Session, Module, Placeable) of
+                {ok, Compiled} = Ok ->
+                    #placing{compiled = Done} = Placing1 = placed(Compiled, Placeable),
+                    Placing1#placing{compiled = [{Namespace, Ok} | Done]};
+                {error, Text} ->
+                    failed(Namespace, Text, Placeable)
             end;
-        {cycle, Text} ->
-            failed(Namespace, Text, Placing1#placing{waiting = Waiting});
-        {error, Text} ->
-            %% report §11.2, §11.5: its own diagnostic or refusal first,
-            %% where its compile gives one, a module it uses that the load
-            %% path lacks among the causes
-            Unplaced = Placing1#placing{waiting = Waiting},
-            case taken_or_compiled(Session, Module, Unplaced) of
-                {error, Diagnostic} -> failed(Namespace, Diagnostic, Unplaced);
-                {ok, _} -> failed(Namespace, Text, Unplaced)
-            end
+        {nowhere, Dependency, Placeable} ->
+            case taken_or_compiled(Session, Module, Placeable) of
+                {error, Diagnostic} -> failed(Namespace, Diagnostic, Placeable);
+                {ok, _} -> failed(Namespace, found_nowhere(Dependency), Placeable)
+            end;
+        {failed, Unplaced} ->
+            Unplaced
     end.
 
-%% The placing with a module of the source set that was not compiled, and
-%% why.
+%% The placing with a module the load could not load, and why, said once.
 failed(Namespace, Text, #placing{compiled = Done, failed = Failed} = Placing) ->
     Placing#placing{compiled = [{Namespace, {error, Text}} | Done], failed = [Namespace | Failed]}.
 
@@ -4698,13 +4740,15 @@ compiled_of(Session, Namespace) ->
 
 %% Report §11.2, §11.1: the compiled form `:load` takes of a module, as
 %% compiled_of/2 finds it, refused where it hides a library's module
-%% another library depends on.
+%% another library depends on, `{hiding, Refusal}`, which a load reports
+%% with the sources' refusals, before any module is compiled
+%% (compile_in_order/3).
 taken_form(Session, Namespace) ->
     case compiled_of(Session, Namespace) of
         {ok, File, Beam, _} = Taken ->
             case form_refusal(Session, File, Beam) of
                 none -> Taken;
-                Refusal -> {error, Refusal}
+                Refusal -> {hiding, Refusal}
             end;
         Other ->
             Other

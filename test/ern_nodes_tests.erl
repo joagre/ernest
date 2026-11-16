@@ -6032,6 +6032,33 @@ attached_load_a_forms_source(Base) ->
              ++ "\n> \"the operator's helper\" : String\n"),
     stop(Node, WaitNode).
 
+%% report §11.2 *The attached shell*, *Loading and reloading*: an attached
+%% `:load` of a module that uses one that fails names it in a line of its
+%% own, as a plain shell's does: Top uses Dep, whose source at the
+%% operator's source root fails its check. Written before the code and run
+%% against the code before it, where it failed: the line said that Dep does
+%% not compile. It does not cover a reload in an attached session
+attached_load_names_a_user_of_a_failed_module_test_() ->
+    nodes_test({waits, 6}, fun attached_load_names_a_user_of_a_failed_module/1).
+
+attached_load_names_a_user_of_a_failed_module(Base) ->
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "top.ern"), "export fn g() : Int = Dep.f()\n"),
+    ok = file:write_file(filename:join(Source, "dep.ern"), "export fn f() : Int = \"x\"\n"),
+    Node = made(Base, "node", 0),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    WaitNode = bare_started(Node, []),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    {Shell, _} = Attached = attached(Ops, "node", Source),
+    prints(Ops, ":help for help.\n"),
+    entered(Shell, Ops, [":load Top", "1"], "1 : Int"),
+    {Out, _} = detached(Attached, Ops),
+    has(Out, "expected Int, found String"),
+    has(Out, "\nTop is not loaded, since it uses Dep, which failed\n> 1 : Int\n"),
+    stop(Node, WaitNode).
+
 %% report §11.2 *The attached shell*, *Inputs*, §11.8: a session that ends
 %% by a fault detaches as one that leaves does. At the prompt of a
 %% program's node a session binds `x`, types `x + 1`, which holds `it`, and
