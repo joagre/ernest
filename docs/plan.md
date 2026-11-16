@@ -246,6 +246,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 64 | The flake of `ern_os_tests`' `terminal_test` | 2026-11-16 | E.23; *A Terminal's Echo Beside Its End* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
+| 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
@@ -465,6 +466,16 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
      Decided first, with the user: whether the checker warns of a private function no code
      calls (§11).
+   - **What is kept, stated once**, found 2026-11-16 by the reading of three process
+     documents (the log's *Three Process Documents Read Against the Rules*).
+     `docs/memory_checks.md`'s *What is kept, and what lets it go* says when each row, unit
+     and process goes, and the design notes say it too, in the two places sampled.
+
+     Decided with the user: the design notes own what a component keeps and when it lets
+     go. `memory_checks.md` keeps the loads, the reading, what the host keeps and the
+     tracing, and points at the notes. A reader reads each line against its note. A line a
+     note lacks moves there, and one a note states goes. The session writes it, and it
+     closes on `make test-docs`.
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the

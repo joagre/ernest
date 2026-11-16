@@ -9,7 +9,7 @@ The report's rules and the guide judged on §0, and §0 on what it decided. It r
 
 ## How it runs
 
-As the full review's readers run ([`full.md`](full.md), *How it runs*): each reader an agent of its own, given its brief and its files and nothing that argues for them, editing nothing, all on one revision of the report, each handing in a numbered list, most serious first. A reader in doubt of what a rule means reads the code that implements it, `src/`, as what is built and never as what is right.
+As the full review's readers run ([`full.md`](full.md), *How it runs*), with three differences. The readers read a clone of one revision of the report, and no check runs before them, since they run nothing. L is given the log's entries its brief names. A reader in doubt of what a rule means reads the code that implements it, `src/`, as what is built and never as what is right.
 
 ## The readers
 
@@ -33,7 +33,7 @@ Every reader runs as [`full.md`](full.md)'s *The models* says, none of them a re
 ## The findings
 
 - They go to `findings.md` under a heading of their own, by family, each line naming its reader's letter and number, the readers' lists below, as the full review's.
-- A line's decision: `sentence`, a rule added to §0 or E.0; `report`, a rule changed or removed; `kept`, with the principle that keeps it; `guide`, the guide changed where its rule stays; `fix`, a defect or a disagreement between two sections the readers met on the way, fixed in the milestone's edits; `log`, an entry of the log marked superseded or its reason restated; a milestone's number, an item planned there; or `dropped`, with the reason.
+- A line's decision: `sentence`, a rule added to §0 or E.0; `report`, a rule changed or removed, or a disagreement between two sections that needs a choice; `kept`, with the principle that keeps it; `guide`, the guide changed where its rule stays; `fix`, a defect or a disagreement between two sections the readers met on the way that nobody would argue about, made at once as [`full.md`](full.md)'s *The findings* says; `log`, an entry of the log marked superseded or its reason restated; a milestone's number, an item planned there; or `dropped`, with the reason.
 - The decisions are taken with the user one at a time, in prose, in two rounds. First the sentences, since they are the measure: P's and L's proposals are compared, one both make being the strongest, and each is accepted into §0 or E.0 or refused. Then each family, under the principles as they then read. A rule goes only where the smallest program that shows it reads better without it, never for being a rule (principle 1), and never where a program under `examples/` or one a newcomer wrote gets harder.
 - A family decided is closed: the log records the principle that decided it, and it is not reopened before 1.0 but by a program that shows a case the decision did not.
 

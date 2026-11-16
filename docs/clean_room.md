@@ -8,12 +8,13 @@ The application's session reads its installation's `share/doc/ernest/` and `man`
 
 An application's development is its own session's whole. Ernest's session reads its repository, and writes there only for a change made across the repositories, such as a working rule's or the layout's, which it may make without asking. Such a change reaches its shape alone:
 - what the template gives it: `CLAUDE.md` but for its title and the sentence under it, `agents.md` under `docs/`, its tool `docs.ern`, and its full review, `full_review.md` under `docs/`, but for what the application added;
+- the lines of `release.md` under `docs/` that a change of the template's carries, and the entry of its log that names the template's tag;
 - the `Makefile`, `.gitignore`, `README.md`, `docs/README.md` and `SECURITY.md`;
 - the move or rename of any file, with the paths that name it.
 
-It writes only while the application's session is not running, in a commit by paths, and pushes on the user's word. It runs `make` there to check what it wrote, against the installed release the application names, never against its own checkout.
+It writes only while the application's session is not at work and its tree is clean, in a commit by paths, and pushes on the user's word. It tells that session by a message after, which is news (*The messages*). It runs `make` there to check what it wrote, against the installed release the application names, never against its own checkout.
 
-What the program says is the application's own session's: its sources, tests and examples beyond a moved file's paths, its design, its plan, its log, its findings and its feedback file.
+What the program says is the application's own session's: its sources, tests and examples beyond a moved file's paths, its design, its plan, its log beyond that entry, its findings and its feedback file.
 
 The program holds its proposal in its own repository, and what it asks of Ernest stays in Ernest's `docs/proposals/` under the program's name, the two citing each other by address. A proposal begun in Ernest's repository before the application's exists is written whole, and split along that line in the commit that makes the repository.
 
@@ -37,7 +38,7 @@ What the application meets of Ernest's that feels against a principle, a workaro
 
 ## The reading here
 
-Each line is read in Ernest's session: its program is run here, the log is searched for the decision the line may sharpen, and the verdict is weighed on the principles, as CLAUDE.md's *Before code* says. A verdict is built the same day, a sentence of the report, a library function, or a rule after its cold reading, with its regression test. The line takes Ernest's feedback number as it is decided, the header of `docs/language_feedback.md` moving its next number on; a decided line stands in the log, never in that file. The log entry argues the verdict, with the argument against it where the line is not taken, and the plan's item for the application records what was met.
+Each line is read in Ernest's session: its program is run here, the log is searched for the decision the line may sharpen, and the verdict is weighed on the principles, as CLAUDE.md's *Before code* says. A verdict is a report change, a milestone's item or a line of the log saying that the line was dropped (CLAUDE.md, *Defects and gaps*). One made now is built as *Before code* says, a rule after its cold reading, with its regression test. The line takes Ernest's feedback number as it is decided, the header of `docs/language_feedback.md` moving its next number on; a decided line stands in the log, never in that file. The log entry argues the verdict, with the argument against it where the line is not taken, and the plan's item for the application records what was met.
 
 ## The answer
 
