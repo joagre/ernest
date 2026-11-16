@@ -412,7 +412,7 @@ on a path the rehearsal has walked.
 
 ---
 
-## MVP 4.4 (the cost, the full review and the launch's release), about three weeks
+## MVP 4.4 (the cost, the full review and the launch's release), about four weeks
 
 Decided with the user on 2026-10-31 (the log's *MVP 4.4, the Road's End*): the road's last
 milestone before a program, so that the review reads a language that ernest-httpd,
@@ -482,6 +482,20 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      tracing, and points at the notes. A reader reads each line against its note. A line a
      note lacks moves there, and one a note states goes. The session writes it, and it
      closes on `make test-docs`.
+   - **The documents' listings**, built, decided with the user 2026-11-16, so that the readers
+     of the report, the guide and the tour start from what a tool lists (the log's *The
+     Documents Before the Launch*). `docs/reviews/full.md` names each in the commit that
+     builds it.
+
+     Five listings, which the full review runs. The words of each section of the guide and
+     the tour, as `make coverage` counts the report's. Each section of the report with the
+     places of the guide that cite it, and a section none cites named. Each term of Appendix
+     F with its count in the report, the guide and the tour. Each fenced block no test
+     compiles or runs, by its mark and its file. Each section of the three by the commits
+     that touched it, most first.
+
+     One refusal, added with the site cleaned to zero: the browser test's check that a page
+     does not scroll sideways on a phone reads every page the site writes.
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the
@@ -504,6 +518,27 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
    log's *The Layout Built*); the feedback file and the findings file empty.
+
+   Before the tag, the last read, decided with the user 2026-11-16 (the log's *The Documents
+   Before the Launch*). The user reads the tour, the guide and the report on the site built
+   from the release's commit, once the release review's findings are made and before reader
+   K's round, which then reads its sentences with the rest. So what ships has been read
+   whole, as a visitor meets it.
+
+   The order is a visitor's: the front page and the tour, aloud and then doing what it says;
+   `guide/why.md`; `guide/language.md` in three sittings; `guide/faq.md`;
+   `guide/deployment.md`; and `report/language.md` whole. The library's and the toolchain's
+   files are read as reference, by ten lookups and the twenty sections the listing of commits
+   names first. The session calls each sitting, with its page, its start and its end, and
+   sorts its marks before it calls the next.
+
+   A mark is a place and three words: skimmed, tripped, wrong or not what was meant, or good
+   and to be kept. The read changes sentences alone. Anything larger is an item after the
+   launch, since a round of fixes would leave the text unread again.
+
+   One reader from outside, an Erlang programmer, reads the tour and the guide's first
+   chapters and says where they stopped. The user asks them as item 4 closes, since the wait
+   is about a week.
 
    The same week, in this order, each by its own session on the user's word: ernest-template's
    release, since the others copy from it; ernest-epx's, not waiting for its milestone 9; and

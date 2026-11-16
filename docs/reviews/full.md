@@ -1,6 +1,6 @@
 # The full review
 
-Fifteen readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the site's JavaScript, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`release.md`](release.md)'s.
+Sixteen readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the site's JavaScript, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`release.md`](release.md)'s.
 
 ## When it runs
 
@@ -59,6 +59,11 @@ A reader's letter names its findings: C12 is the code reader's twelfth. The list
 - **M, the Gleam programmer.** Reads what L reads, in L's order, and uses `bin/ern`.
 
   "You write Gleam: typed processes through `Subject`, no type classes, no distribution and no reload, and you chose that. Read each document as that person. Report, chapter by chapter, what it shows you that Gleam lacks and where it only asserts it; whether the mailbox in the function's type buys anything over a `Subject` that you can see on the page; whether a requirement is convincing as not a type class; where it is too long for what it shows; and, in the guide, every sentence you tripped on or did not believe. Check each line of Gleam the documents show against Gleam's own documentation as it stands, and report one that is not Gleam's. End with what convinced you, if anything, and whether you would try Ernest." The same two closing rules as L's.
+- **R, the editor.** Reads the guide and the tour in three parts, `guide/language.md`; `guide/why.md`, `guide/faq.md` and `guide/deployment.md`; and `tour/README.md`, with CLAUDE.md's *Writing*.
+
+  "Read the part from start to end as its editor, and report no defect. For each chapter, say whether its order is the one a reader needs or the one its parts were written in, which part is long or short for what it carries, where two parts say one thing, and where the voice changes. Mark every paragraph you would skim, with what you were looking for. Hand in an outline of each chapter you would recut: its parts in the order you would give them, and what moves, joins or goes, with no sentence's content changed."
+
+  An outline that moves a numbered section of the guide says so, since the guide's numbers are cited. Each recut is `decide`, a chapter at a time.
 - **D, the documents.** Reads every tracked Markdown file but the report's three files, the guide, the log and the fixtures under `test/`: `README.md`, `CLAUDE.md`, `CHANGES.md`, `CONTRIBUTING.md`, `SECURITY.md`, `ACKNOWLEDGMENTS.md`, `report/README.md`, `tour/README.md`, `examples/README.md`, `src/shell/README.md`, `editors/emacs/README.md`, `release/README.md`, `assets/README.md`, the Markdown under `site/` and `docs/`. "Read each document against the report and the code it describes. Report every statement that is false or stale, and every fact restated outside its owner or owned by no document (CLAUDE.md's *Who owns each fact*). List every list that lives in two places, with the test that holds it equal, or none."
 - **C, the toolchain's code.** Reads the Erlang under `src/`, the Erlang and the scripts of `test/`, the pseudo-terminal's harness `test/fixtures/pty/pty.ern` among them, the Erlang and the scripts under `tools/`, the site's client, its stylesheet and its templates under `site/`, but the files `THIRD_PARTY_LICENSES` lists, the Makefiles, `bin/ern` and `editors/emacs/`, in six parts of about the same size: the front end (the lexer, the parser, the formatter and the utilities) with the Emacs mode, whose indentation follows the formatter's; the checker; the emitter; the runtime with its helper in C; the shell's Erlang, `ern_shell` with its tests and the terminal's; and the rest of the command line with `test/`, `tools/`, `site/`, the Makefiles and `bin/ern`.
 
@@ -98,4 +103,4 @@ Who works a finding is *The findings*'s. An agent that makes a fix runs at the e
 
 ## Its cost
 
-Twenty-two agents, counting the parts of C and E, for most of a day; then the milestone the plan gives the findings.
+Twenty-five agents, counting the parts of C, E and R, for most of a day; then the milestone the plan gives the findings.
