@@ -48,6 +48,12 @@ left*): what the builds found, items 36, 69, 72, 70, 73, 74, 75, 76, 79, 80, 81,
 85; and what needs the user, items 60, 68 and 39. Item 83, decided on 2026-11-16, is built
 before them. The items stand below in that order.
 
+Six of them are built as one batch after item 83, decided with the user on 2026-11-16 (the
+log's *A Batch of Six*): items 75, 85, 76 and 80 side by side, then items 79 and 81 side by
+side, so that no two agents edit one file. Each has its own commit and log entry. The
+session reads each diff and runs `make test-full` once over the batch, on a machine that
+runs nothing else.
+
 - **83. What a load says of what it could not load**, decided with the user 2026-11-16 from
   what item 35 found (the log's *What a Load Could Not Load*). An agent builds it, and the
   item states each rule in §11.2 first. It closes on `make test-shell`, `make test-nodes`
