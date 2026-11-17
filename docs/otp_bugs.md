@@ -1125,7 +1125,7 @@ The tracker's other reports of a lost `exit_status`, #11278 (fixed by #11285 and
 
 ## 24. A TLS distribution connection given up by the tick goes down 10 s later while its socket is full
 
-Found on 2026-11-17 by the diagnosis of MVP 4.16's item 98; the log's *A Connection That Cannot Drain*. Ernest's nodes meet it: §12.6 says that the loss is run once the host has closed the connection, and `docs/design/nodes.md`'s *A loss* says when the host does.
+Filed 2026-11-17 as [erlang/otp#12235](https://github.com/erlang/otp/issues/12235). Found on 2026-11-17 by the diagnosis of MVP 4.16's item 98; the log's *A Connection That Cannot Drain*. Ernest's nodes meet it: §12.6 says that the loss is run once the host has closed the connection, and `docs/design/nodes.md`'s *A loss* says when the host does.
 
 **Title:** nodedown comes 10 s after net_tick_timeout on a TLS distribution connection whose socket is full
 

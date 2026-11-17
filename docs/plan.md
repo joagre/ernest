@@ -47,7 +47,7 @@ left*): what the builds found, items 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
 them. Item 95 is what a reading of five reviews from outside decided the same day (the
 log's *The Outside Reviews Read*), and stands after item 93. Item 96, the same reading's
-feedback 260, needs the user as item 68 does and stands last. Item 99, what ernest-httpd's
+feedback 260, needs the user as item 68 does and stands last of those. Item 99, what ernest-httpd's
 session handed back the same day, stands after item 91.
 
 Item 100, ernest-httpd's session's two lines on a close, feedback 262 and 263, needs the
@@ -55,6 +55,9 @@ user too. It stands before item 96, since three of that session's tests wait on 
 
 Item 101, what a reading of the log's findings at the limits left to decide, needs the user
 too. It stands before item 68, since its rule is the measure for items 68 and 100.
+
+Item 103, two behaviors of OTP's that item 98's build met, stands last of all, since
+nothing waits on it.
 
 Item 97 is what item 94's cold reading and its build found, decided with the user on
 2026-11-17 (the log's *What Waits for a Peer*), and stands first. Item 102, what item 98's
@@ -241,6 +244,18 @@ build found the same day, stands after item 91. The items stand below in that or
   the file synced and, after the rename, its directory. Recommended: one function over a
   path, a file's or a directory's, with `Fs.write` left as it is, since a write that always
   synced would make every write pay for a need few have. E.17 changes first.
+- **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
+  build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
+  its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
+  `{error, noconnection}` where it is called at once on the node's `nodeup`, since the host
+  sends that message before the connection counts as up: 40 of 1,000 connections with OTP
+  alone. `net_kernel:setopts(new, ...)` answers `{error, enotsup}` under TLS distribution,
+  since `inet_tls_dist` exports no `setopts/2`, which has no script with OTP alone yet.
+
+  Nothing of Ernest's meets either, since the carrier sets its sockets' options by boot
+  flags. An agent writes both as reports in [`otp_bugs.md`](otp_bugs.md)'s form, each
+  reproduced with OTP alone, and the session runs each script as placed. Filing is the
+  user's.
 
 ### What is done
 
