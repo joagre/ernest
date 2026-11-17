@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 73**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 74**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,23 +43,10 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 73, 74, 84, 87, 88 and 91; and what
+left*): what the builds found, items 74, 84, 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
 them. The items stand below in that order.
 
-- **73. A group restarted in place comes back whole**, found 2026-11-16 by item 57's
-  diagnosis and decided with the user the same day (the log's *Two Orders Stated*). E.22 has
-  the child whose fault restarts its siblings run again once each has restarted or ended, for
-  a strategy's restart. A group that gave up and is restarted in place lets the child at whose
-  fault it gave up go on once each child is asked, so that child can answer a call while a
-  sibling's old run still stands.
-
-  Decided: that child runs again once each of the others has restarted or ended. An agent
-  builds it, E.22's sentence first: `Supervisor` releases the child on the messages it already
-  has, and a test holds the group between its asks. The same build changes
-  `kill_stops_in_reverse_order_test`, which reads the kill's order from the order of three
-  `Down`s, where §6.9 gives the `Down`s of two processes none: it reads that each child
-  spawned after one has ended at that one's `Down`.
 - **74. A kill while a restart waits**, found 2026-11-16 by the cold reading of §6.9's new
   sentence (the log's *Two Orders Stated*), read from the code and not shown. A restarting
   process waits until each service monitor's `wrap` has placed its `Restarted` (§6.9). Where a
@@ -214,6 +201,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 70 | The look reads each checker as it reads a system process, so a message that waits at one is in flight | 2026-11-17 | §8.4, §8.6; *A Sender That Outlives Its Run*, *A Message at a Checker* |
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
 | 72 | A build with nothing to do, measured: `ern build` is not slow, and nothing is built, with the user | 2026-11-17 | *Twenty-Six Hosts Are the Cost* |
+| 73 | A child that waits to run again runs once the group is whole, after a restart in place, a sibling's fault and a parent's ask alike: the watcher holds who waits, with the user | 2026-11-17 | E.22; *Two Orders Stated*, *The Watcher Holds Who Waits* |
 | 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |
 | 76 | `Os.resize`'s example, told of the resize by the signal | 2026-11-16 | E.23; *The Resize Told by Its Signal* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |

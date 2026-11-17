@@ -127,10 +127,11 @@ rest_for_one_reads_the_order_of_spawns_test() ->
          "}\n"]),
     ?assertEqual(<<"0 0 0\n">>, Output).
 
-%% report §6.9: a restart asked for is no fault, and no fault is reported
-%% for it; only the child that faulted is. The reports are counted once the
-%% siblings have restarted and every report the runtime has made by then
-%% has reached main; a report the runtime had not yet made then is not seen
+%% report §6.9, Appendix E.22: a restart asked for is no fault, and no
+%% fault is reported for it; only the child that faulted is. The reports
+%% are counted once the siblings have restarted and every report the
+%% runtime has made by then has reached main; a report the runtime had not
+%% yet made then is not seen
 restart_asked_for_is_no_fault_test() ->
     {ok, Output} = supervised("OneForAll", ?LIMIT, ["a", "b", "c"],
         "export fn main() : Unit receiving Process.FaultReport = {\n"
@@ -145,10 +146,10 @@ restart_asked_for_is_no_fault_test() ->
         " receive { _ -> reports(n + 1) | after 0 -> n }\n"),
     ?assertEqual(<<"1\n">>, Output).
 
-%% report §6.6, §6.9: a call waiting on a child when its supervisor
-%% restarts it ends, and callForever faults with the cause that says so;
-%% the child restarts at the wait inside its handling of the request,
-%% where it tells the trigger to make its sibling fault
+%% report §6.6, §6.9, Appendix E.22: a call waiting on a child when its
+%% supervisor restarts it ends, and callForever faults with the cause that
+%% says so; the child restarts at the wait inside its handling of the
+%% request, where it tells the trigger to make its sibling fault
 call_ends_at_asked_restart_test() ->
     {Result, _} = ern_emitter_tests:run(
              "type Msg = Slow(reply : Reply(Int), trigger : Address(Unit)) | Boom\n"
@@ -191,8 +192,11 @@ limit_ends_the_group_test() ->
         "}\n"),
     ?assertEqual(<<"killed\n">>, Output).
 
-%% Appendix E.22: kill(Process.fromAddress(sup)) stops the group, the children killed in the
-%% reverse of the order they joined, each once the one before has ended
+%% Appendix E.22: kill(Process.fromAddress(sup)) stops the group, the
+%% children killed in the reverse of the order they were spawned, each once
+%% the one before has ended. So at a child's Down each child spawned after
+%% it has ended, which the test reads at each of the three; the Downs
+%% themselves come in no order (report §6.9)
 kill_stops_in_reverse_order_test() ->
     {ok, Output} = supervised("OneForOne", ?LIMIT, ["a", "b", "c"],
         "type Seen = Died(String)\n"
@@ -202,19 +206,27 @@ kill_stops_in_reverse_order_test() ->
         "    monitor(Process.fromAddress(b), fn(_) = Died(\"b\"));\n"
         "    monitor(Process.fromAddress(c), fn(_) = Died(\"c\"));\n"
         "    kill(Process.fromAddress(sup));\n"
-        "    Io.println(String.join([next(), next(), next()], \" \"))\n"
+        "    Io.println(String.join(List.sort([next(), next(), next()]), \" \"))\n"
         "}\n"
-        "fn next() : String receiving Seen = receive { Died(n) -> n }\n"),
-    ?assertEqual(<<"c b a\n">>, Output).
+        "fn next() : String receiving Seen =\n"
+        "    receive {\n"
+        "        Died(name) -> name <> \":\" <> Io.show(List.all(spawnedAfter(name), ended))\n"
+        "    }\n"
+        "fn spawnedAfter(name : String) : List(Address(Msg)) =\n"
+        "    if name == \"a\" then [b, c] else if name == \"b\" then [c] else []\n"
+        "fn ended(child : Address(Msg)) : Bool =\n"
+        "    Optional.isNone(Process.status(Process.fromAddress(child)))\n"),
+    ?assertEqual(<<"a:true b:true c:true\n">>, Output).
 
 %% Appendix E.22, §6.9: a supervisor that is a child restarts in place past
-%% its limit, its children restarted with it, their addresses kept. A
-%% service monitor is told of each restart before anything the new run
-%% takes, and `a` restarts twice, after its fault and as the nested group
-%% asks, `b` once, as it asks; no rule orders `a`'s second restart against
-%% `b`'s. So each child is peeked once the three are told, and the call
-%% reaches its new run. Peeked once two were told, both could be `a`'s,
-%% and `b` answered from its old run, or its restart ended the call
+%% its limit, its children restarted with it, their addresses kept. `a`,
+%% at whose fault the group gave up, restarts once, after its fault, and is
+%% not asked again; `b` restarts once, as the nested group asks. A service
+%% monitor is told of each restart before anything the new run takes, so
+%% `a`'s Restarted is heard before `a` is called, and the call reaches its
+%% new run. `a` runs again only once `b` has restarted, so once both have
+%% answered every Restarted there is to hear is in main's mailbox, and a
+%% third, of `a` asked again, would be read there
 nested_group_restarts_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
@@ -235,14 +247,18 @@ nested_group_restarts_in_place_test() ->
         "    monitorService(Process.fromAddress(a), fn(d) = d);\n"
         "    monitorService(Process.fromAddress(b), fn(d) = d);\n"
         "    send(a, Boom);\n"
-        "    // a's restart after its fault, and each child's as the group asks\n"
-        "    let restarts = [heard(), heard(), heard()];\n"
-        "    Io.println(Io.show(restarts) <> \" \" <> Int.toString(peek(a)) <> \" \""
-        " <> Int.toString(peek(b)))\n"
+        "    // a's restart after its fault\n"
+        "    let first = heard();\n"
+        "    let counts = Int.toString(peek(a)) <> \" \" <> Int.toString(peek(b));\n"
+        "    Io.println(Io.show(first :: heardSince([])) <> \" \" <> counts)\n"
         "}\n"
         "fn heard() : Reason receiving Down = receive { Down(=reason) -> reason }\n"
+        "fn heardSince(seen : List(Reason)) : List(Reason) receiving Down = receive {\n"
+        "    Down(=reason) -> heardSince(seen <> [reason])\n"
+        "  | after 0 -> seen\n"
+        "}\n"
         "fn peek(c : Address(Msg)) : Int = Address.callForever(c, fn(r) = Peek(reply = r))\n"),
-    ?assertEqual(<<"[Restarted, Restarted, Restarted] 0 0\n">>, Output).
+    ?assertEqual(<<"[Restarted, Restarted] 0 0\n">>, Output).
 
 %% Appendix E.22: a supervisor restarted in place counts its limit afresh,
 %% and a fault it counted before the restart does not expire from the new
@@ -267,11 +283,10 @@ nested_group_restarts_in_place_test() ->
 %% Each report is read by the process that made it, so that the child's
 %% cannot be taken for the group's.
 %%
-%% The test reads the group's report, and no sibling's count. A sibling
-%% asked to restart takes the restart at its next wait (report §6.9), and
-%% no rule orders that against a call made to it after the group's fault,
-%% so its count shows nothing of the restart. That a restart in place
-%% restarts every child is nested_group_restarts_in_place_test's.
+%% The test has one child and reads the group's report. That the group
+%% restarted in place restarts its other children before the child runs
+%% again is nested_group_restarts_in_place_test's and
+%% held_child_waits_for_its_siblings_test's.
 count_survives_restart_in_place_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
@@ -447,10 +462,13 @@ group_runs_once_after_its_end_test() ->
 
 %% A group whose children count, fault on Boom, and on Crunch compute for a
 %% while without waiting, so that a restart asked of one then waits; on
-%% Crash they compute so and then fault. `running` waits until a child
-%% computes, `reportOf` for a child's fault's report, and `askUntil` asks
-%% again where a restart ended the call, as `peekUntil` reads a count.
-%% `delivered` waits as supervised/4's does.
+%% Crash they compute a fifth as long and then fault. `running` waits until
+%% a child computes, `calling` until it waits for a call's answer,
+%% `reportOf` for a child's fault's report, and `askUntil` asks again where
+%% a restart ended the call, as `peekUntil` reads a count. `delivered`
+%% waits as supervised/4's does. `restartSeen` reads, without waiting, the
+%% Restarted of a child main watches with a service monitor, which is
+%% placed before the child's new run begins (report §6.9).
 crunching(Main) ->
     ern_emitter_tests:run(
         ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom | Crunch | Crash\n",
@@ -460,7 +478,7 @@ crunching(Main) ->
          "  | Peek(reply = r) -> { answer(r, n); count(n) }\n"
          "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
          "  | Crunch -> { let _ = spin(50000000); count(n) }\n"
-         "  | Crash -> { let z = spin(50000000); let _ = 1 / z; Unit }\n"
+         "  | Crash -> { let z = spin(10000000); let _ = 1 / z; Unit }\n"
          "}\n"
          "fn spin(k : Int) : Int = if k == 0 then 0 else spin(k - 1)\n"
          "fn ask(c : Address(Msg)) : Int = Address.callForever(c, fn(r) = Ask(reply = r))\n"
@@ -479,14 +497,20 @@ crunching(Main) ->
          "    receive { Process.FaultReport(process = p, site = _, cause = _, restarted = _,\n"
          "                                  trace = _, spawnedBy = _) when p == child -> Unit }\n"
          "}\n"
+         "fn restartSeen() : String receiving Down =\n"
+         "    receive { Down(=reason) -> Io.show(reason) | after 0 -> \"not restarted\" }\n"
          "foreign fn running(process : Process) : Foreign.Term = \"ern_waits:running/1\"\n"
+         "foreign fn calling(process : Process) : Foreign.Term = \"ern_waits:calling/1\"\n"
          "foreign fn delivered() : Foreign.Term = \"ern_rt:wait_for_deliveries/0\"\n"]).
 
 %% Appendix E.22: a sibling asked to restart that faults of its own before
 %% it takes the restart has restarted by its fault, and the child that
-%% waited for it runs again. RestForOne, so that the sibling's fault asks
-%% nothing of the child. A regression test: the sibling's fault emptied
-%% the ask with its mailbox, and the child waited for ever
+%% waited for it runs again. RestForOne, so that the sibling's fault
+%% restarts no other child; it would not ask the child under another
+%% strategy either, since the child waits to run again
+%% (child_waits_through_a_siblings_fault_test). A regression test: the
+%% sibling's fault emptied the ask with its mailbox, and the child waited
+%% for ever
 sibling_faulting_first_counts_as_restarted_test() ->
     {ok, Output} = crunching(
         "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.RestForOne,"
@@ -504,9 +528,9 @@ sibling_faulting_first_counts_as_restarted_test() ->
         "}\n"),
     ?assertEqual(<<"0\n">>, Output).
 
-%% Appendix E.22: a child that waits for its fault to be counted when its
-%% supervisor restarts in place is restarted as asked, and reports no fault
-%% of its own. A regression test: its call to the supervisor ended as the
+%% Appendix E.22: a child that waits to run again when its supervisor
+%% restarts in place waits on through the restart, and reports no fault of
+%% its own. A regression test: its call to the supervisor ended as the
 %% supervisor restarted, and it faulted with `callee was restarted`. The
 %% reports are read once every child has answered and every report the
 %% runtime has made by then has reached main; a report the runtime had not
@@ -540,12 +564,99 @@ child_waits_through_its_supervisors_restart_test() ->
         "}\n"),
     ?assertEqual(<<"division by zero; division by zero\n">>, Output).
 
+%% Appendix E.22: a child at whose fault a nested group gave up runs again,
+%% once the group is restarted in place, only once each other child has
+%% restarted or ended. Its sibling computes as the group gives up, and takes
+%% its restart at its next wait (report §6.9). Main watches the sibling with
+%% a service monitor, whose Restarted is placed before the sibling's new run
+%% begins, so it is in main's mailbox by the time the child answers. Written
+%% before the code: the group restarted in place let the child go as it
+%% asked the others, and the child answered while its sibling's old run
+%% computed
+held_child_waits_for_its_siblings_test() ->
+    {ok, Output} = crunching(
+        "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let sub : Address(Supervisor.GroupMsg) = spawn(Supervisor.child(top,"
+        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
+        "export fn main() : Unit receiving Down = {\n"
+        "    let _ = ask(a); let _ = ask(b);\n"
+        "    monitorService(Process.fromAddress(b), fn(d) = d);\n"
+        "    send(b, Crunch);\n"
+        "    let _ = running(Process.fromAddress(b));\n"
+        "    send(a, Boom);\n"
+        "    Io.println(Int.toString(peekUntil(a)) <> \" \" <> restartSeen())\n"
+        "}\n"),
+    ?assertEqual(<<"0 Restarted\n">>, Output).
+
+%% Appendix E.22: a child that waits for a computing sibling waits on
+%% through the fault of another sibling, which faults before it takes the
+%% restart its fault asked of it. That sibling's fault does not ask the
+%% child, which waits, and the child runs again only once the computing
+%% sibling has restarted, which main reads as the test before does. Written
+%% before the code: the second fault asked the waiting child, which took
+%% the restart at its wait and ran again at once.
+%%
+%% Not covered: a child asked to restart before its supervisor has counted
+%% its own fault, which takes the restart and waits on for its fault's
+%% siblings. The two messages reach the supervisor from two processes, and
+%% no program can hold the supervisor between them without a hold inside
+%% the module
+child_waits_through_a_siblings_fault_test() ->
+    {ok, Output} = crunching(
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "let c : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "export fn main() : Unit receiving Down = {\n"
+        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
+        "    monitorService(Process.fromAddress(c), fn(d) = d);\n"
+        "    send(c, Crunch);\n"
+        "    let _ = running(Process.fromAddress(c));\n"
+        "    send(b, Crash);\n"
+        "    let _ = running(Process.fromAddress(b));\n"
+        "    send(a, Boom);\n"
+        "    Io.println(Int.toString(peekUntil(a)) <> \" \" <> restartSeen())\n"
+        "}\n"),
+    ?assertEqual(<<"0 Restarted\n">>, Output).
+
+%% Appendix E.22: a child that waits for a computing sibling waits on
+%% through its supervisor's restart in place at its parent's ask, and runs
+%% again only once the sibling has restarted, which main reads as the tests
+%% before do. The parent asks as another of its children faults, once the
+%% child waits for its supervisor's word. Written before the code: the
+%% supervisor's new run asked the waiting child, which took the restart at
+%% its wait and ran again at once
+child_waits_through_its_supervisors_restart_at_its_parents_ask_test() ->
+    {ok, Output} = crunching(
+        "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
+        "let sub : Address(Supervisor.GroupMsg) = spawn(Supervisor.child(top,"
+        " Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within = 5000))))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
+        "export fn main() : Unit receiving Down = {\n"
+        "    let _ = ask(a); let _ = ask(b); let _ = ask(x);\n"
+        "    monitorService(Process.fromAddress(b), fn(d) = d);\n"
+        "    send(b, Crunch);\n"
+        "    let _ = running(Process.fromAddress(b));\n"
+        "    send(a, Boom);\n"
+        "    let _ = calling(Process.fromAddress(a));\n"
+        "    send(x, Boom);\n"
+        "    Io.println(Int.toString(peekUntil(a)) <> \" \" <> restartSeen())\n"
+        "}\n"),
+    ?assertEqual(<<"0 Restarted\n">>, Output).
+
 %% Appendix E.22: a child at whose fault a nested group gave up runs its
-%% function once when the group, restarted in place, restarts it. A
-%% regression test: the watcher let it go on before the supervisor asked
-%% it to restart, and it ran its function twice. The starts are counted
-%% once the child answers; one sent to the log and not yet taken then is
-%% not seen
+%% function once more when the group restarts in place, which lets it go
+%% and does not ask it to restart. A regression test: the watcher let it go
+%% on before the supervisor asked it to restart, and it ran its function
+%% twice. The starts are counted once the child answers; one sent to the
+%% log and not yet taken then is not seen
 held_child_runs_once_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
@@ -631,13 +742,13 @@ parent_restarts_subtree_test() ->
         "}\n"),
     ?assertEqual(<<"0\n">>, Output).
 
-%% report §6.9: a restart asked for runs the child's own function again,
-%% even where that function runs a restarting function of its own. A
-%% regression test for the inner function taking the restart. The fault
-%% is sent once the log has told main of the child's first start, since a
-%% child that has not begun when its sibling faults is not asked, and
-%% starts fresh; a child whose outer function never runs again leaves main
-%% in a deadlock
+%% report §6.9, Appendix E.22: a restart asked for runs the child's own
+%% function again, even where that function runs a restarting function of
+%% its own. A regression test for the inner function taking the restart.
+%% The fault is sent once the log has told main of the child's first start,
+%% since a child that has not begun when its sibling faults is not asked,
+%% and starts fresh; a child whose outer function never runs again leaves
+%% main in a deadlock
 restart_reaches_the_outer_function_test() ->
     {ok, Output} = ern_emitter_tests:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"

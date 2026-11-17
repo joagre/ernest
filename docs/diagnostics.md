@@ -1818,17 +1818,17 @@ example.ern:2:13: unknown constructor Colors.Red
 
 ```ernest-rejected
 fn f() : Int = {
-    let c = Supervisor.Release;
+    let c = Supervisor.SupervisorDied;
     1
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:13: Supervisor.Release is a constructor of Supervisor.WatcherMsg, a type Supervisor keeps private
+example.ern:2:13: Supervisor.SupervisorDied is a constructor of Supervisor.WatcherMsg, a type Supervisor keeps private
 1 | fn f() : Int = {
-2 |     let c = Supervisor.Release;
-  |             ^^^^^^^^^^^^^^^^^^
+2 |     let c = Supervisor.SupervisorDied;
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### Another module's abstract constructor (§4.4)
