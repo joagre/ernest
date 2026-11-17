@@ -869,7 +869,7 @@ A frame a node cannot read is faulty, and the node ends the connection. A frame 
 
 A message between nodes costs what the host's send costs (§10).
 
-Any traffic is a sign of life, and a tick is sent where nothing else was for 15 seconds; a peer from which nothing came in four such intervals is lost; a silence is found between 45 and 75 seconds after the last traffic, as the host states it; a peer that closes is found at once.
+Any traffic is a sign of life, and a tick is sent where nothing else was for 15 seconds; a peer from which nothing came in four such intervals is lost; a silence is found between 45 and 75 seconds after the last traffic, as the host states it; a peer that closes is found at once. The loss is run once the host has closed the connection (§8.7). Where more was sent to a silent peer than its connection took, the host closes it later than it finds the silence, by a time the host decides.
 
 **A node's end.** A node that ends (§8.7) tells each connected peer that it ends, a frame of its own, which the peer says as an end and not a loss, after every `Down` already on its way, and waits until each such peer has answered, which proves that the frame and every `Down` before it crossed; a peer lost while another is waited for has ended with its loss, and is not asked.
 

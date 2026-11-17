@@ -106,7 +106,11 @@ cookie_test() ->
 %% key on each side, the rule as the verification, no port-mapper daemon,
 %% no mesh, the detector's times, the buffer, and the floor's digest as the
 %% cookie; the listener's interface is the kernel's to bind where it is
-%% one, and an IPv6 listener's family alone (Appendix E.18)
+%% one, and an IPv6 listener's family alone (Appendix E.18). Report §8.7,
+%% §12.6: each dialed socket and the listener a linger of no time, and a
+%% node without a listener no listener's options. The linger's part is a
+%% regression test, written after the code; it does not show that the host
+%% gives the sockets the linger, which the nodes' tests show
 boot_flags_test() ->
     Configuration = configured(),
     Dir = filename:absname(Configuration#configuration.config_dir),
@@ -128,15 +132,20 @@ boot_flags_test() ->
                    ["-setcookie", Cookie],
                    ["-kernel", "inet_dist_use_interface", "{127,0,0,1}"]]),
     ?assertNot(contains(Flags, ["client_fail_if_no_peer_cert", "true"])),
+    Linger = ["-kernel", "inet_dist_connect_options", "[{linger,{true,0}}]"],
+    ?assert(contains(Flags, Linger)),
+    ?assert(contains(Flags, ["-kernel", "inet_dist_listen_options", "[{linger,{true,0}}]"])),
     All = ern_carrier:boot_flags(Configuration#configuration{listen = {{0, 0, 0, 0, 0, 0, 0, 0},
                                                                          8654}}),
     ?assertMatch(["-proto_dist", "ern_tls" | _], All),
     ?assertNot(lists:member("inet_dist_use_interface", All)),
-    ?assert(contains(All, ["-kernel", "inet_dist_listen_options", "[{ipv6_v6only,true}]"])),
-    ?assertNot(lists:member("inet_dist_listen_options", Flags)),
+    ?assert(contains(All, Linger)),
+    ?assert(contains(All, ["-kernel", "inet_dist_listen_options",
+                           "[{linger,{true,0}},{ipv6_v6only,true}]"])),
     Dialing = ern_carrier:boot_flags(Configuration#configuration{listen = none}),
     ?assertMatch(["-proto_dist", "ern_tls" | _], Dialing),
     ?assertNot(lists:member("inet_dist_use_interface", Dialing)),
+    ?assert(contains(Dialing, Linger)),
     ?assertNot(lists:member("inet_dist_listen_options", Dialing)).
 
 %% report §12.5: a node's host boots with the limits `limits` names, `+P`

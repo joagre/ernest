@@ -60,8 +60,8 @@ dial_ms() ->
 %% answering from the configuration in its place; no mesh;
 %% the detector's times and the buffer; the floor's digest as the cookie;
 %% and the limits `limits` names (limit_flags/1). The listener's
-%% interface, where it is one, is the kernel's to bind, and so is its
-%% family alone (family_alone/1).
+%% interface, where it is one, is the kernel's to bind, and so are its
+%% family alone (family_alone/1) and each socket's linger (socket_options/1).
 -spec boot_flags(#configuration{}) -> [string()].
 boot_flags(#configuration{config_dir = ConfigDir, listen = Listen, limits = Limits}) ->
     Certificate = ern_node:file(filename:absname(ConfigDir), certificate),
@@ -74,7 +74,7 @@ boot_flags(#configuration{config_dir = ConfigDir, listen = Listen, limits = Limi
             "-kernel", "net_ticktime", ?TICK_TIME, "-kernel", "net_setuptime",
             integer_to_list(dial_ms() div 1000),
             "+zdbbl", ?BUFFER, "-setcookie", cookie()]
-        ++ interface(Listen) ++ listen_options(Listen) ++ limit_flags(Limits).
+        ++ interface(Listen) ++ socket_options(Listen) ++ limit_flags(Limits).
 
 %% Report §12.5: the host's limits of processes, `+P`, and of ports, `+Q`,
 %% each the least power of two at or above the number `limits` gives, and
@@ -104,16 +104,26 @@ interface({Address, _}) ->
     ["-kernel", "inet_dist_use_interface", lists:flatten(io_lib:format("~w", [Address]))];
 interface(none) -> [].
 
-%% Report §12.5: the kernel's options for the carrier's listener,
-%% `inet_dist_listen_options`, which the host takes as it boots: its family
-%% alone where the listener is IPv6's (family_alone/1), and none, the host's
-%% defaults, for an IPv4 listener or a node without one.
-listen_options(Listen) ->
-    case family_alone(Listen) of
-        [] -> [];
-        Options ->
-            ["-kernel", "inet_dist_listen_options", lists:flatten(io_lib:format("~w", [Options]))]
-    end.
+%% Report §8.7, §12.5, §12.6: the kernel's options for the carrier's
+%% sockets, which the host takes as it boots and reads at each dial and
+%% listen: each socket a linger of no time, the listener's taken by each
+%% connection it accepts, so that a close drops what the socket still
+%% holds, as a loss drops what waited, and the node's end, whose `halt`
+%% waits for every socket to let go, waits for no peer that takes nothing;
+%% at a node's end each peer has answered before the close (§12.6, *A
+%% node's end*). The listener's family alone where it is IPv6's
+%% (family_alone/1); a node without one takes no listener's options.
+socket_options(Listen) ->
+    Linger = [{linger, {true, 0}}],
+    ["-kernel", "inet_dist_connect_options", options_text(Linger)]
+        ++ case Listen of
+               none -> [];
+               _ -> ["-kernel", "inet_dist_listen_options",
+                     options_text(Linger ++ family_alone(Listen))]
+           end.
+
+options_text(Options) ->
+    lists:flatten(io_lib:format("~w", [Options])).
 
 %% Report §12.5: a listener takes connections of its address's family
 %% alone, IPv6's the host's IPV6_V6ONLY, as a program's does (Appendix

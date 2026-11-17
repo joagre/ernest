@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 98**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 97**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -53,33 +53,10 @@ session handed back the same day, stands after item 91.
 Item 100, ernest-httpd's session's two lines on a close, feedback 262 and 263, needs the
 user too. It stands before item 96, since three of that session's tests wait on it.
 
-Items 98 and 97 are what item 94's build and its cold reading found, decided with the user
-on 2026-11-17 (the log's *What Waits for a Peer*). They stand first, item 98 before item
-97, since a node that does not end is the graver and item 97's probes rest on a loss that
-comes. The items stand below in that order.
+Item 97 is what item 94's cold reading and its build found, decided with the user on
+2026-11-17 (the log's *What Waits for a Peer*), and stands first. Item 102, what item 98's
+build found the same day, stands after item 91. The items stand below in that order.
 
-- **98. A connection that cannot drain: a loss that comes late, and a node that does not
-  end**, found 2026-11-17 by item 94's build (the log's *What Waits for a Peer*, its
-  paragraph *A connection that cannot drain*).
-
-  With a peer stopped and more than the buffer waiting for it, the loss came about 85
-  seconds after the stop in every run, past §12.6's 45 to 75. The host's detector decided
-  at 75, and the node was told about ten seconds later. With nothing buffered the loss came
-  at 74.9.
-
-  A node whose program had ended then did not end until the peer ran again. It ends by the
-  host's `halt`, which flushes every port with no limit, and the lost connection's port
-  still held 1.5 MB (§8.6). Neither cause is proven.
-
-  The shape: one agent diagnoses both, from `wait_ended_by_a_loss_test_` with its two
-  assertions put back, the loss within the detector's time and the desk's end while the
-  store stands still. It shows first whether a termination ends the hung node. The leaning
-  is that a loss lets go of what the connection held, as §8.7 has a loss drop what waited
-  to be sent, so that neither the loss nor the end waits on a peer that takes nothing. A
-  limit on the flush is a time chosen, and is weighed last.
-
-  The deployment guide's 90 seconds and ernest-httpd's 120 are read against the fix, and
-  that session is told. The item closes on `make test-full`.
 - **97. What else waits in a send**, found 2026-11-17 by item 94's cold reading and its
   build, and decided with the user the same day (the log's *What Waits for a Peer*, its
   paragraph *A frame's send waits too*).
@@ -134,6 +111,24 @@ comes. The items stand below in that order.
   their marks, and no longer among the system processes. An agent builds it, and first
   shows whether a call made in a checker writes its marks. Item 70's test stays, and a new
   one holds a checker in a call with a time.
+- **102. A node in its halt holds no lock, and `ern stop` says that no node runs**, found
+  2026-11-17 by item 98's build (the log's *A Connection That Cannot Drain*, its paragraph
+  *`ern stop` and a node in its halt*). The node removes `ernest.pid` before the host's
+  `halt`, and the halt closes every port, the lock helper's among them, so the lock is let
+  go while the node's process still runs. `ern stop` then answers at once, status 1, `no
+  such file: no node runs from the directory`. §11.2 has it wait on the lock until the node
+  has ended, and §12.5 has the node hold the file locked for its life.
+
+  The test harness's `killed/1` and `test/Makefile`'s `NODES_RUN` find a node by
+  `ernest.pid`, and miss one in its halt for the same reason.
+
+  Item 98 removed the one case seen that held a node there without end. The window stays
+  for any halt that takes time. An agent first shows it with a program: a node whose halt
+  a stopped reader of its output holds, which is a reading and not yet shown.
+
+  The shape of the fix: the helper holds the lock until the node's process has ended, by a
+  pidfd on Linux and kqueue's `NOTE_EXIT` on BSD and macOS, and removes `ernest.pid` itself
+  before it lets go.
 - **99. No test holds a request's head that arrives in pieces**, found 2026-11-17 by
   ernest-httpd's reading of its own tests against the reviews from outside (the log's *The
   Server's Answers*, its paragraph *A head in pieces*). Appendix G.11 says that
@@ -313,6 +308,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
+| 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

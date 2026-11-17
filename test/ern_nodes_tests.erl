@@ -8746,15 +8746,18 @@ above_the_buffer(Base) ->
 %% so reports, the sender serves it only after its send. The wait lasts
 %% until the store is lost, no sooner than the detector's 45 seconds after
 %% the stop, and the loss ends it: the sender goes on, and the desk says
-%% the store was lost.
+%% the store was lost. The desk's program then ends, and the desk ends with
+%% it while the store still stands still, the connection having let go at
+%% its close of what the store never took.
 %%
 %% A regression test, written after the code; the one wait here that is a
 %% time is the detector's own, which the test reads and does not choose. It
 %% does not cover how late the loss may come where the buffer cannot drain,
-%% nor the desk's end while the store stands still, which is why the store
-%% runs again before the desk's end is waited for; nor a wait the peer ends
-%% by running again, a call, a find or a spawn that waits so, nor a system
-%% process of the desk's that sends to the store meanwhile
+%% a time the host decides; nor the end, while its peer stands still, of
+%% the node that was dialed, the store here, nor an end by termination
+%% meanwhile; nor a wait the peer ends by running again, a call, a find or
+%% a spawn that waits so, nor a system process of the desk's that sends to
+%% the store meanwhile
 wait_ended_by_a_loss_test_() ->
     nodes_test({waits, 8, ?DETECTOR_MS}, fun wait_ended_by_a_loss/1).
 
@@ -8785,11 +8788,13 @@ wait_ended_by_a_loss(Base) ->
         {match, [Seconds]} = re:run(Out, "given up after: ([0-9]+)",
                                     [{capture, all_but_first, list}]),
         %% no fewer than 44, as given_up_within_the_detectors_time/1 counts
-        ?assert(list_to_integer(Seconds) >= 44)
+        ?assert(list_to_integer(Seconds) >= 44),
+        %% the desk's program has ended, and the desk ends with it while the
+        %% store still stands still
+        ?assertEqual(0, WaitDesk())
     after
         os:cmd("kill -CONT " ++ StoreNumber)
     end,
-    ?assertEqual(0, WaitDesk()),
     stop(Store, WaitStore).
 
 %% A store that listens and a desk that dials it, the desk finding the

@@ -85,7 +85,7 @@ The node says `ernest.conf was read again` and a line for each peer added, remov
 
 `listen` and `public-key` cannot change while the node runs: a file that changes either, or breaks a rule of section 1.2, is refused with `the reload was refused, and the configuration stays as it was: ...`, and the old configuration stays. `ern reload` first reads the directory as the node would, and refuses a configuration the node would refuse with status 1, before it signals, but for a changed `listen` or key, which it signals with status 0 and the node alone refuses, saying so on its standard error. `kill -HUP` by the number in `ernest.pid` signals without reading, and the node then refuses such a file itself; the service manager's reload, section 1.5, runs `ern reload`.
 
-`ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that asked to be told of the end, its *subscribers*, are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` while it waits, so that what a program keeps is written; then the node tells each connected peer that it ends and waits for each peer's answer, so that the peer says `ended` and not `lost`, and exits; a peer that has fallen silent holds the end until it is lost, 45 to 75 seconds (report §8.7, §12.6).
+`ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that asked to be told of the end, its *subscribers*, are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` while it waits, so that what a program keeps is written; then the node tells each connected peer that it ends and waits for each peer's answer, so that the peer says `ended` and not `lost`, and exits; a peer that has fallen silent holds the end until it is lost, 45 to 75 seconds, and about ten seconds more where the node had sent the peer more than its connection took (report §8.7, §12.6).
 
 A second `ern stop` while the first waits is a second termination, which ends the node at once. `kill -TERM` by the number in `ernest.pid` signals without waiting.
 
@@ -130,7 +130,7 @@ WantedBy=multi-user.target
 
 `ern` runs the `erl` it finds on the path, and systemd's path holds `/usr/local/bin` and `/usr/bin` and no directory of a version manager's. For an OTP installed elsewhere, as kerl installs it, `[Service]` names its `bin` first on the path: `Environment=PATH=dir/bin:/usr/local/bin:/usr/bin:/bin`, `dir` the directory OTP was installed in.
 
-systemd keeps both streams in its journal, which stamps every line, and `journalctl -u counter-b` reads them. `systemctl reload counter-b` runs the reload, and `systemctl stop counter-b` sends the termination signal and waits `TimeoutStopSec` for the orderly end, after which it kills what still runs; set it to the 75 seconds for which a silent peer can hold the end (section 1.3), and the slowest subscriber's answer above them. `Restart=on-failure` starts the node again after a crash and after an `Os.exit` with a status other than 0, and not after `ern stop`.
+systemd keeps both streams in its journal, which stamps every line, and `journalctl -u counter-b` reads them. `systemctl reload counter-b` runs the reload, and `systemctl stop counter-b` sends the termination signal and waits `TimeoutStopSec` for the orderly end, after which it kills what still runs; set it to the 85 seconds for which a silent peer can hold the end (section 1.3), and the slowest subscriber's answer above them. `Restart=on-failure` starts the node again after a crash and after an `Os.exit` with a status other than 0, and not after `ern stop`.
 
 Without a service manager, `nohup ern run --config-dir b ... >> b.log 2>&1 &` keeps a node running once its terminal has closed, with the two streams in one file, stamped.
 
@@ -174,6 +174,8 @@ The node says `the peer b connected` as the connection opens, `the peer b ended`
 ### 2.3 A lost peer
 
 A connection is lost when the network breaks it, when the node's own detector finds the peer silent, or when a faulty *frame*, one unit of what two nodes send each other, arrives (report §8.7, *A loss*). Any traffic is a sign of life; where nothing else was sent for 15 seconds a tick goes, and a peer from which nothing came in four such intervals is lost, so a silence is found between 45 and 75 seconds after the last traffic, as the host states it, while a peer that closes is found at once.
+
+The node says the loss once the host has closed the connection. That follows at once, but where the node had sent the silent peer more than its connection took, the host takes about ten seconds more, a time of its own: the loss then came 85 seconds after the last traffic.
 
 The node says `the peer b was lost: it fell silent` or `the peer b was lost: it closed`.
 

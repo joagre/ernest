@@ -88,7 +88,7 @@ Blocking `SIGTERM` in the parent before it starts `erl` does not help: the emula
 
 ## 3. The compiler's validator refuses what its type pass made, through `rem`
 
-Filed 2026-11-15 as [erlang/otp#12205](https://github.com/erlang/otp/issues/12205). Found on 2026-10-05; the log's *OTP's Compiler, Worked Around*.
+Filed 2026-11-15 as [erlang/otp#12205](https://github.com/erlang/otp/issues/12205). Closed on 2026-11-16 as fixed in OTP's `master`, for OTP 30, and not in OTP 29: "The fix is too complex to backport to OTP 29." The report stays until Ernest requires a release that holds the fix. The answer was acknowledged with a thumbs-up on 2026-11-17. Found on 2026-10-05; the log's *OTP's Compiler, Worked Around*.
 
 **Title:** Internal consistency check failed: bad_arg_type after `rem` in a recursive call
 
@@ -271,7 +271,7 @@ Found by measuring a compiler that emits Erlang, whose test module of 7,000 unex
 
 ## 7. The type pass types a function again after each local function it calls
 
-Filed 2026-11-15 as [erlang/otp#12209](https://github.com/erlang/otp/issues/12209). Found on 2026-10-26, measured on 2026-10-30; the log's *The Build's Cost per Function* and *One Function per Initializer*.
+Filed 2026-11-15 as [erlang/otp#12209](https://github.com/erlang/otp/issues/12209). Closed on 2026-11-16 as one OTP will not fix: "This is well-known, and is how success typing works." The report stays. The answer was acknowledged with a thumbs-up on 2026-11-17. Found on 2026-10-26, measured on 2026-10-30; the log's *The Build's Cost per Function* and *One Function per Initializer*.
 
 **Title:** beam_ssa_type: signatures/2 is quadratic in the number of distinct local functions one function calls in sequence
 
@@ -367,7 +367,7 @@ Found by measuring a shell that compiles each input to a module of its own and p
 
 ## 9. `ssl:format_error` does not describe the file errors `ssl:listen` returns
 
-Filed 2026-11-15 as [erlang/otp#12211](https://github.com/erlang/otp/issues/12211). Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `src/runtime/ern_tcp.erl`'s `file_error/2` reads the file and the reason from the term instead (the log's *Two Lines on TLS*).
+Filed 2026-11-15 as [erlang/otp#12211](https://github.com/erlang/otp/issues/12211). Answered on 2026-11-16: the function is little used at OTP, a pull request is welcome, and OTP will not give it time now. The answer was acknowledged with a thumbs-up on 2026-11-17. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*); `src/runtime/ern_tcp.erl`'s `file_error/2` reads the file and the reason from the term instead (the log's *Two Lines on TLS*).
 
 **Title:** ssl:format_error/1 gives "Invalid TLS option" for a certfile or keyfile ssl:listen cannot read
 
@@ -417,7 +417,7 @@ OTP 29, erts 17.1, ssl 11.7.6, on Linux x86_64.
 
 ## 10. `ssl:close/2` ignores the time it is given
 
-Filed 2026-11-15 as [erlang/otp#12212](https://github.com/erlang/otp/issues/12212). Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/3` hands a socket over TLS to its closer, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
+Filed 2026-11-15 as [erlang/otp#12212](https://github.com/erlang/otp/issues/12212). Answered on 2026-11-16: the two waits come of "a very old work around", and OTP will look at whether it can be removed. The answer was acknowledged with a thumbs-up on 2026-11-17. Found on 2026-11-01, building TLS in `Tcp` (the log's *TLS in `Tcp` and a Terminal in `Os`*, *The TLS linger bound*), and measured on 2026-11-02; `src/runtime/ern_tcp.erl`'s `close_socket/3` hands a socket over TLS to its closer, and Appendix E.18 states the host's bound, up to 10 seconds past the one it states for a plain socket.
 
 **Title:** ssl:close/2 closes a TLS connection in its own two 5-second waits whatever Timeout it is given
 
@@ -1011,7 +1011,7 @@ OTP 29, erts 17.1.1, on Linux x86_64.
 
 ## 22. A termination signal sent to a port's program before it runs is lost
 
-Found on 2026-11-15 by the flake hunt of MVP 4.16's item 62; the log's *A Program Named Before It Runs*. `src/toolchain/cli/test/ern_cli_tests.erl`'s `signal_jobs_take_any_mode_test` says how Ernest's tests meet it.
+Filed 2026-11-17 as [erlang/otp#12234](https://github.com/erlang/otp/issues/12234). Found on 2026-11-15 by the flake hunt of MVP 4.16's item 62; the log's *A Program Named Before It Runs*. `src/toolchain/cli/test/ern_cli_tests.erl`'s `signal_jobs_take_any_mode_test` says how Ernest's tests meet it.
 
 **Title:** SIGTERM sent to a port program's os_pid right after open_port/2 returns is silently discarded
 
@@ -1067,7 +1067,7 @@ Under load the window can outlast a `kill` that forks a shell. With `os:cmd("kil
 
 ## 23. A write to a port whose program has ended loses the program's exit status
 
-Found on 2026-11-17 by the probe of MVP 4.16's item 69, beside 22; the log's *A Termination Lost With OTP Alone*. Nothing of Ernest's meets it, since the runtime's helper keeps its input open until the runtime closes it (the log's *The Hangup's Order*).
+Filed 2026-11-17 as [erlang/otp#12233](https://github.com/erlang/otp/issues/12233). Found on 2026-11-17 by the probe of MVP 4.16's item 69, beside 22; the log's *A Termination Lost With OTP Alone*. Nothing of Ernest's meets it, since the runtime's helper keeps its input open until the runtime closes it (the log's *The Hangup's Order*).
 
 **Title:** A port opened with exit_status closes with epipe and never sends {exit_status, N} when a write finds its program gone
 
@@ -1122,3 +1122,131 @@ The status is reported in one place, `port_inp_failure`, at the end of the progr
 A program ended by a signal meets the same. A `cat` named once it has echoed, so that 22 does not apply, and written to once a `kill -TERM` of it has returned, lost its status in 1,406 of the 6,375 writes that found its port open, over 10 runs of 1,000 rounds.
 
 The tracker's other reports of a lost `exit_status`, #11278 (fixed by #11285 and #11298) and #10411, involve no write.
+
+## 24. A TLS distribution connection given up by the tick goes down 10 s later while its socket is full
+
+Found on 2026-11-17 by the diagnosis of MVP 4.16's item 98; the log's *A Connection That Cannot Drain*. Ernest's nodes meet it: §12.6 says that the loss is run once the host has closed the connection, and `docs/design/nodes.md`'s *A loss* says when the host does.
+
+**Title:** nodedown comes 10 s after net_tick_timeout on a TLS distribution connection whose socket is full
+
+**Describe the bug**
+
+With `-proto_dist inet_tls`, a connection whose peer has fallen silent is given up on time: its owner, the ticker, exits with `net_tick_timeout`. The node is told only when the connection's controller, its `tls_sender`, ends. Where the socket's queue is full, that is 10 s later, and `net_kernel:monitor_nodes/2`'s `nodedown` comes then.
+
+The sender is linked to the ticker and traps exits, so the ticker's end reaches it as an `'EXIT'` message. With the socket's queue full, the sender is in `gen_tcp:send/2`, in `prim_inet:send/4`'s receive for the port's reply, and reads no other message.
+
+The ssl receiver monitors the ticker and stops at its end. Its `terminate/3` first asks the sender for a close alert by `tls_sender:send_and_ack_alert/2`, which the sender cannot answer, and which gives up after 5 s. It then shuts the socket's write side and waits 5 s in `gen_tcp:recv/3` for the peer's close, which a silent peer never sends. Only the receiver's end closes the socket's port. The sender's send then returns, the sender reads the `'EXIT'` and stops, and `nodedown` follows.
+
+The 10 s are the same at a `net_ticktime` of 8 and of 60. Over plain TCP with the socket as full, and over TLS with nothing queued, `nodedown` comes within 1 ms of the ticker's end. The two waits are those of #12212, reached here from the ticker's end instead of from `ssl:close/2`.
+
+**To Reproduce**
+
+```sh
+#!/bin/sh
+# Usage: sh repro.sh tls|tcp full|idle [net_ticktime]
+PROTO=$1 FILL=$2 TICK=$3
+D=$(mktemp -d)
+cd "$D" || exit 1
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=repro \
+    -keyout key.pem -out cert.pem 2>/dev/null
+cat > dist.conf <<EOF
+[{server, [{certfile, "$D/cert.pem"}, {keyfile, "$D/key.pem"}]},
+ {client, [{verify, verify_none}]}].
+EOF
+cat > a.erl <<'EOF'
+-module(a).
+-export([main/1]).
+
+main([Fill]) ->
+    [_, Host] = string:split(atom_to_list(node()), "@"),
+    B = list_to_atom("repro_b@" ++ Host),
+    connect(B),
+    ok = global:sync(),
+    BPid = erpc:call(B, os, getpid, []),
+    ok = net_kernel:monitor_nodes(true, [nodedown_reason]),
+    {ok, Info} = net_kernel:node_info(B),
+    monitor(process, proplists:get_value(owner, Info)),
+    Ctrl = proplists:get_value(B, erlang:system_info(dist_ctrl)),
+    os:cmd("kill -STOP " ++ BPid),
+    T0 = erlang:monotonic_time(millisecond),
+    S = fun() -> (erlang:monotonic_time(millisecond) - T0) / 1000 end,
+    Fill =:= "full" andalso
+        spawn(fun() -> fill({nobody, B}, binary:copy(<<0>>, 1 bsl 20)) end),
+    receive {'DOWN', _, process, _, R1} ->
+        io:format("~6.3f s  the connection's owner ended: ~p~n", [S(), R1]),
+        io:format("          its controller: ~p~n", [info(Ctrl)])
+    end,
+    receive {nodedown, B, R2} ->
+        io:format("~6.3f s  nodedown: ~p~n", [S(), R2])
+    end,
+    os:cmd("kill -KILL " ++ BPid),
+    halt().
+
+connect(B) ->
+    case net_kernel:connect_node(B) of
+        true -> ok;
+        false -> receive after 100 -> connect(B) end
+    end.
+
+fill(To, Bin) ->
+    case erlang:send(To, Bin, [noconnect]) of
+        noconnect -> ok;
+        _ -> fill(To, Bin)
+    end.
+
+info(Pid) when is_pid(Pid) ->
+    erlang:process_info(Pid, [status, current_function]);
+info(Port) ->
+    erlang:port_info(Port, queue_size).
+EOF
+erlc a.erl || exit 1
+[ "$PROTO" = tls ] && DIST="-proto_dist inet_tls -ssl_dist_optfile $D/dist.conf"
+FLAGS="$DIST -setcookie repro ${TICK:+-kernel net_ticktime $TICK} -noshell"
+erl -sname repro_b $FLAGS &
+B=$!
+erl -sname repro_a $FLAGS -run a main "$FILL"
+kill -KILL $B 2>/dev/null
+wait
+```
+
+The script makes a certificate and starts two nodes on one machine. Node a connects to b and lets `global` finish with it. It then stops b with `SIGSTOP`, and with `full` sends it 1 MB messages until the connection is lost. It prints when the connection's owner ends and when `nodedown` comes, in seconds after the stop, with the controller's state at the owner's end. a kills b before it halts, since a halt flushes the socket's queue, which a stopped b never takes.
+
+On a machine of 24 hardware threads, `sh repro.sh tls full 8` printed this, the node's own "not responding" report left out:
+
+```
+ 9.601 s  the connection's owner ended: net_tick_timeout
+          its controller: [{status,waiting},
+                           {current_function,{prim_inet,send,4}}]
+19.604 s  nodedown: [{nodedown_reason,net_tick_timeout}]
+```
+
+- Three runs printed `nodedown` 10.003, 10.002 and 10.002 s after the owner's end, with the controller in `prim_inet:send/4` in each.
+- With `net_ticktime` left at its default of 60, a run printed 74.621 s and 84.623 s.
+- `sh repro.sh tls idle 8` printed 9.621 s for both.
+- `sh repro.sh tcp full 8` printed 9.748 s and 9.749 s, the controller port holding 66,541 bytes.
+
+A call trace in one run, of a fuller version of the script, showed the waits:
+
+- The receiver called `tls_sender:send_and_ack_alert/2` at the owner's end, 9.565 s.
+- It called `tls_gen_connection:close/4` at 14.566 s, then `gen_tcp:shutdown/2` and `gen_tcp:recv/3`.
+- `recv` returned `{error,timeout}` at 19.567 s, and `nodedown` came at 19.568 s.
+
+**Expected behavior**
+
+`nodedown` comes at the ticker's end, as it does over plain TCP. Where the owner ended with `net_tick_timeout`, the peer has answered nothing for the tick's whole time, so neither the alert nor the peer's close can be expected. The receiver could close the socket at once. The sender's send would then return at once, and the sender would stop on the owner's reason.
+
+**Affected versions**
+
+OTP 29.1.2, erts 17.1.1, ssl 11.7.8, on Linux x86_64.
+
+**Additional context**
+
+The lines are the same at OTP-29.1.2 and at master (1d0578e). Master's line numbers are given in parentheses where they differ.
+
+- In `inet_tls_dist.erl`, `hs_data_ssl/2` links the ticker to the sender, the connection's controller (line 120).
+- In `tls_sender.erl`, an `'EXIT'` from a linked process stops the sender with `{shutdown, Reason}` (lines 522 to 535; 526 to 539). Its distribution data goes through `tls_socket:send/4` to `gen_tcp:send/2` (`tls_socket.erl`, lines 84 and 85), and so to `prim_inet:send/4`'s selective receive (`prim_inet.erl`, lines 587 to 619).
+- In `ssl_gen_statem.erl`, the receiver stops at its user's `'DOWN'` under `erl_dist` (lines 900 to 903; 904 to 907). `terminate/3`'s clause for the `connection` state sends the close alert, then calls `close({close, ?DEFAULT_TIMEOUT}, ...)` (lines 1240 to 1251; 1244 to 1255).
+- In `tls_gen_connection.erl`, `send_sync_alert/2` calls `tls_sender:send_and_ack_alert/2` (lines 522 to 529; 526 to 533). That is a `gen_statem:call` with `?DEFAULT_TIMEOUT`, 5000 (`tls_sender.erl`, lines 156 and 157; `ssl_internal.hrl`, line 58). `close/4` shuts the write side and calls `recv(Socket, 0, Timeout)` (lines 532 to 544; 536 to 548).
+- Over plain TCP the socket's port is the controller. `erts_deliver_port_exit` takes the connection down at the owner's exit signal, before it flushes the port (`io.c`, line 3915; 3921).
+
+#11730 also stopped a TLS distribution peer mid-send, on the 27 branch. It reported a crash of `tls_sender`, fixed in 27.3.4.19, and nothing of a delay.

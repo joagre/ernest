@@ -50,11 +50,15 @@ A connection is lost when the network breaks it, when the host's detector finds 
 
 Each node is told by its own host, as `nodedown`, the gateway watching nodes of every kind since a node without a listener is hidden to the host, which the gateway hands the peer's worker as `{lost, Order}`, `Order` the place among the node's moments at which the gateway learned of it, and the worker runs the loss after the frames that came before it.
 
+The host says `nodedown` once it has closed the connection: at once after the detector's decision where the socket holds nothing the peer has not taken, and about ten seconds after it, a time of the host's own TLS, where the socket is full (§12.6; the log's *A Connection That Cannot Drain*).
+
 The loss is a `Down` with `Unreachable` for each monitor on the peer's processes, which the reaper gives as the host ends its monitor of each with `noconnection`, ending first each delivery of `Restarted` for that process not yet placed, so that no `Down` follows the loss's (*A restart*), the end of each call waiting on one of them and of each wait on the peer that began before the loss, a spawn's, which the gateway's ordered table of spawns tells apart by the moment each was written (`ern_spawns`), and a find's, a compute's, a utilization's and a restart's wait for the peer's answer, each by its waiter's watch of the peer's gateway, and the drop of what waited to be sent, the peer's notes and its utilization (§8.7; the log's *The Nodes' Reasons, Kept*, *The Runtime's Own Processes*).
 
 A node whose peer dials it anew while it believes the old connection alive runs the loss of the old one first. No connection is opened again in the background: the next operation towards the peer dials, a refused dial failing at once and one that nothing answers given up after seven seconds, and until then what the other node sends vanishes and its monitors say `Unreachable`.
 
 What waits to be sent to a peer waits in the host's buffer for that peer, whose busy limit `ern` sets to 1 MB (`+zdbbl 1024`). The runtime sends with the host's plain send, which places a message whole and then suspends its sender while the buffer holds more than the limit, so the wait of §8.7 is the host's and nothing of the runtime's (§8.7, *Messages*; the log's *The Outside Reviews Read*).
+
+Every socket of the carrier has a linger of no time from its start: each dialed one by the boot flag `inet_dist_connect_options`, which the host reads at each dial, and the listener by `inet_dist_listen_options`, whose linger each accepted connection takes. So a close, at a loss, at a refusal or at the node's end, drops what the socket still holds, as a loss drops what waited, and the host's `halt` at the node's end waits for no peer that takes nothing (§8.7, *A loss*; §12.6, *A node's end*; `ern_carrier:boot_flags/1`; the log's *A Connection That Cannot Drain*).
 
 ## Addresses
 
