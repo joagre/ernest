@@ -765,12 +765,19 @@ in_runtime(Compute, ErrorDevice) ->
 %% Where every page is current, nothing is compiled. A file whose path is
 %% no module's fails as a module that does not compile does (§11.1), whose
 %% page is never current.
+%%
+%% A module that fails does not stop the others, as in `ern build`: the
+%% compiled modules are those that neither failed nor use one that failed,
+%% each failure reported as the build reports it, and a page is written of
+%% a compiled module alone, the prelude's being no module's. A page of a
+%% module that failed is left as it is, and the index lists it.
 doc_dir(Options, Path, ErrorDevice) ->
     SourceRoot = ern_build:source_root(Options, Path, Path),
     BuildRoot = ern_build:build_root(Options, SourceRoot),
     %% the modules by their files and namespaces, which is all that tells
     %% whether a page is current, so no source is parsed to tell it
-    {Unsorted, Misnamed} = ern_build:modules_of(ern_build:sources(Path), SourceRoot, tree,
+    Sources = ern_build:sources(Path),
+    {Unsorted, Misnamed} = ern_build:modules_of(Sources, SourceRoot, tree,
                                                 ern_build:load_path(Options)),
     Modules = lists:sort(Unsorted),
     IsStdlib = ern_build:is_stdlib_root(SourceRoot),
@@ -782,47 +789,61 @@ doc_dir(Options, Path, ErrorDevice) ->
     %% document or page written or removed
     Say = ern_build:verbose(Options, ErrorDevice),
     Outdated = outdated(pages(Kind, Modules, IsStdlib, BuildRoot), code_modified(Kind)),
-    Outcome = case {Outdated, Misnamed} of
-                  {[], []} -> {0, #{}};
-                  _ -> ern_build:compile_in_memory("ern doc", Options, Path, ErrorDevice,
-                                                   read_compiled(Modules, BuildRoot, Say))
-              end,
-    case Outcome of
-        {0, Compiled} ->
-            write_outdated(Kind, Outdated, Compiled, ErrorDevice, Say),
-            %% report §11.4: the documents and pages of a module whose
-            %% source is gone go, whichever a run writes, as the build's
-            %% sweep takes its .erc, and the index lists none of them
-            Kept = [Namespace || #build_module{namespace = Namespace} <- Modules]
-                ++ [['Prelude'] || IsStdlib],
-            ern_build:sweep_pages(Path, SourceRoot, BuildRoot, Kept, Say),
-            write_index(Kind, Modules, IsStdlib, BuildRoot),
-            0;
-        {Status, _} ->
-            Status
+    {Status, Compiled} = case {Outdated, Misnamed} of
+                             {[], []} -> {0, #{}};
+                             _ -> ern_build:compile_in_memory("ern doc", Options, Path,
+                                                              ErrorDevice,
+                                                              read_compiled(Modules, BuildRoot,
+                                                                            Say))
+                         end,
+    write_outdated(Kind, [{Output, Make} || {Output, Make, Of} <- Outdated,
+                                            Of =:= prelude orelse is_map_key(Of, Compiled)],
+                   Compiled, ErrorDevice, Say),
+    %% report §11.4: the documents and pages of a module whose source is
+    %% gone go, whichever a run writes, as the build's sweep takes its
+    %% .erc, after a run in which every module compiled
+    Status =:= 0
+        andalso ern_build:sweep_pages(Path, SourceRoot, BuildRoot,
+                                      [Namespace || #build_module{namespace = Namespace} <- Modules]
+                                          ++ [['Prelude'] || IsStdlib], Say),
+    write_index(Kind, directory_namespaces(Sources, SourceRoot), IsStdlib, BuildRoot),
+    Status.
+
+%% Report §11.4, §11.1: the namespaces of the directory's modules, Sources,
+%% in order, each source whose path is a module's, one that failed among
+%% them; a path that breaks the shape is no module's.
+directory_namespaces(Sources, SourceRoot) ->
+    lists:usort([Namespace || Source <- Sources, Namespace <- namespace_of(Source, SourceRoot)]).
+
+namespace_of(Source, SourceRoot) ->
+    try ern_build:module_of(ern_build:absolute(ern_build:found_path(Source)), SourceRoot, tree) of
+        #build_module{namespace = Namespace} -> [Namespace]
+    catch
+        throw:{cli_error, _} -> []
     end.
 
 %% Report §11.4: each module's page, with what makes it from the compiled
-%% modules and the times of what it is made from of its own: in CommonMark
-%% where `ern build` writes its .erc with `.md` for `.erc`, or a manual
-%% page in that directory in a file named as `man` finds it,
-%% `Ernest.Net.Http.3ern`. The standard library's own source root also has
-%% the prelude's page, at the top of its build root, first in the index.
+%% modules, the times of what it is made from of its own, and whose it is,
+%% the module's namespace or `prelude`: in CommonMark where `ern build`
+%% writes its .erc with `.md` for `.erc`, or a manual page in that
+%% directory in a file named as `man` finds it, `Ernest.Net.Http.3ern`.
+%% The standard library's own source root also has the prelude's page, at
+%% the top of its build root, first in the index.
 pages(markdown, Modules, IsStdlib, BuildRoot) ->
-    [{filename:join(BuildRoot, "prelude.md"), fun(_) -> ern_page:prelude_page() end, []}
+    [{filename:join(BuildRoot, "prelude.md"), fun(_) -> ern_page:prelude_page() end, [], prelude}
      || IsStdlib]
         ++ [{filename:join(BuildRoot, ern_namespace:module_path(Namespace) ++ ".md"),
              fun(Compiled) -> ern_page:page(maps:get(Namespace, Compiled), ern_build:shown(File))
              end,
-             module_modified(Module, BuildRoot)}
+             module_modified(Module, BuildRoot), Namespace}
             || #build_module{namespace = Namespace, file = File} = Module <- Modules];
 pages(man, Modules, IsStdlib, BuildRoot) ->
     [{man_page(BuildRoot, Namespace),
       fun(Compiled) -> ern_page:manual(maps:get(Namespace, Compiled), ern_build:shown(File)) end,
-      module_modified(Module, BuildRoot)}
+      module_modified(Module, BuildRoot), Namespace}
      || #build_module{namespace = Namespace, file = File} = Module <- Modules]
         ++ [{filename:join(BuildRoot, "Ernest.Prelude.3ern"),
-             fun(_) -> ern_page:prelude_manual() end, []}
+             fun(_) -> ern_page:prelude_manual() end, [], prelude}
             || IsStdlib].
 
 %% Report §11.4: the times of the code that makes every page: the
@@ -869,22 +890,24 @@ write_outdated(man, Outdated, Compiled, ErrorDevice, Say) ->
     LaidOut = fun() -> [{Output, Make(Compiled)} || {Output, Make} <- Outdated] end,
     write_pages(in_runtime(LaidOut, ErrorDevice), Say).
 
-%% Report §11.4: index.md, listing the modules, the prelude first in the
-%% standard library's own build root, written where its text would differ
-%% from the one there and left as it is otherwise. A run of `--man`, which
-%% writes no document, writes it only where it is there, listing the
-%% modules whose document is there, so that it lists none the sweep
-%% removed. What stands at its place and is no regular file itself, a
-%% link among them, is no index and is not opened: a run of `--man` leaves
-%% it, and any other run replaces it (§11).
-write_index(Kind, Modules, IsStdlib, BuildRoot) ->
+%% Report §11.4: index.md, listing each of the modules of Namespaces whose
+%% document stands, the prelude first in the standard library's own build
+%% root, written where its text would differ from the one there and left
+%% as it is otherwise: a module that failed is listed where its document
+%% stands from an earlier run, and a run of `--man`, which writes no
+%% document, lists none the sweep removed. A run of `--man` writes it only
+%% where it is there. What stands at its place or a document's and is no
+%% regular file itself, a link among them, is none (§11.4): at the index's
+%% place it is not opened, and a run of `--man` leaves it, and any other
+%% run replaces it.
+write_index(Kind, Namespaces, IsStdlib, BuildRoot) ->
     Index = filename:join(BuildRoot, "index.md"),
     Listed = [{Name, Document}
               || {Name, Document} <- [{"Prelude", "prelude.md"} || IsStdlib]
                      ++ [{ern_namespace:text(Namespace),
                           ern_namespace:module_path(Namespace) ++ ".md"}
-                         || #build_module{namespace = Namespace} <- Modules],
-                 Kind =:= markdown orelse filelib:is_regular(filename:join(BuildRoot, Document))],
+                         || Namespace <- Namespaces],
+                 is_regular_file(filename:join(BuildRoot, Document))],
     Text = unicode:characters_to_binary(["# Modules\n\n",
                                          [["- [", Name, "](", Document, ")\n"]
                                           || {Name, Document} <- Listed]]),
@@ -912,14 +935,15 @@ write_pages(Pages, Say) ->
                   end, Pages).
 
 %% Report §11.4: each page of Pages that is not current, with what makes
-%% it. A page is current where its file is there and is as new as all it
-%% is made from: its module's own files, whose times Pages gives, and the
-%% code that makes every page, whose times Code gives. A link or
-%% anything else at the file's place is no page, and is replaced, as
-%% ern_build:write_output/2 replaces it. The times are compared as make
+%% it and whose it is. A page is current where its file is there and is as
+%% new as all it is made from: its module's own files, whose times Pages
+%% gives, and the code that makes every page, whose times Code gives. A
+%% link or anything else at the file's place is no page, and is replaced,
+%% as ern_build:write_output/2 replaces it. The times are compared as make
 %% compares them, to the second the host gives.
 outdated(Pages, Code) ->
-    [{Output, Make} || {Output, Make, Times} <- Pages, not is_current(Output, Code ++ Times)].
+    [{Output, Make, Of} || {Output, Make, Times, Of} <- Pages,
+                           not is_current(Output, Code ++ Times)].
 
 is_current(Page, Times) ->
     case file:read_link_info(Page, [{time, posix}]) of
@@ -927,6 +951,14 @@ is_current(Page, Times) ->
             lists:all(fun(Time) -> Time =< Written end, Times);
         _ ->
             false
+    end.
+
+%% Report §11.4: whether a regular file stands at File itself, a link
+%% followed by none.
+is_regular_file(File) ->
+    case file:read_link_info(File) of
+        {ok, #file_info{type = regular}} -> true;
+        _ -> false
     end.
 
 %% Report §11.4: the times of what a module's page is made from of its

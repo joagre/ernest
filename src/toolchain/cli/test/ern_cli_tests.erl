@@ -1413,9 +1413,14 @@ tree_hiding_a_library_refused_test() ->
 
 %% report §11.1: `ern doc` refuses such a module as `ern build` does, of
 %% its source given alone and in a directory, and given its `.erc` tests
-%% none and writes its page. Written before the code. Whether the
-%% directory's other module gets its page is not tested: `ern doc` of a
-%% directory writes none where a module fails
+%% none and writes its page. Written before the code.
+%%
+%% Report §11.4: in the directory the refused module fails that file alone,
+%% so the other module's document is written and index.md lists it; a
+%% document of the refused module that stands from before is left as it
+%% is, and listed, and a link at its place is none and is not listed.
+%% Written with the code, before which `ern doc` of a directory wrote
+%% nothing where a module failed
 doc_of_a_module_hiding_a_library_test() ->
     Dir = tmp(),
     write(Dir, "other.ern", "export fn main() : Unit = Io.println(\"other\")\n"),
@@ -1428,7 +1433,21 @@ doc_of_a_module_hiding_a_library_test() ->
                       end),
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch(<<Refused:(byte_size(Refused))/binary, Refused:(byte_size(Refused))/binary,
-                   "# Ernest module Time\n", _/binary>>, Output).
+                   "# Ernest module Time\n", _/binary>>, Output),
+    Index = filename:join(Dir, "index.md"),
+    ?assert(filelib:is_regular(filename:join(Dir, "other.md"))),
+    ?assertNot(filelib:is_regular(filename:join(Dir, "time.md"))),
+    ?assertEqual({ok, <<"# Modules\n\n- [Other](other.md)\n">>}, file:read_file(Index)),
+    Earlier = write(Dir, "time.md", "# Ernest module Time\n"),
+    ?assertEqual(1, in_directory(Dir, fun() -> ern_err(["doc", "."]) end)),
+    ?assertEqual({ok, <<"# Ernest module Time\n">>}, file:read_file(Earlier)),
+    ?assertEqual({ok, <<"# Modules\n\n- [Other](other.md)\n- [Time](time.md)\n">>},
+                 file:read_file(Index)),
+    Elsewhere = filename:join(Dir, "elsewhere.md"),
+    ok = file:rename(Earlier, Elsewhere),
+    ok = file:make_symlink(Elsewhere, Earlier),
+    ?assertEqual(1, in_directory(Dir, fun() -> ern_err(["doc", "."]) end)),
+    ?assertEqual({ok, <<"# Modules\n\n- [Other](other.md)\n">>}, file:read_file(Index)).
 
 %% report §11.2: `ern run` and `ern test`, given a program that uses Http,
 %% whose root holds a compiled form of a program's Time, refuse it before
@@ -6054,6 +6073,132 @@ doc_compiles_nothing_where_current_test() ->
     set_modified(Source, os:system_time(second) + 3600),
     ?assertEqual(1, Document([])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"main.ern:1:">>)).
+
+%% Three modules under Dir's src, Good, Bad, whose source is BadText, and
+%% User, which uses Bad, and their sources' paths.
+beside_bad(Dir, BadText) ->
+    {write(Dir, "src/good.ern", "export fn one() : Int =\n    1\n"),
+     write(Dir, "src/bad.ern", BadText),
+     write(Dir, "src/user.ern", "export fn three() : Int =\n    Bad.two() + 1\n")}.
+
+bad_module() ->
+    "export fn two() : Int =\n    2\n".
+
+%% A Bad that does not type-check.
+broken_bad_module() ->
+    "export fn two(n : Int) : Int =\n    n + \"x\"\n".
+
+%% report §11.4, §11.1: `ern doc src-dir`, with --man or without, beside a
+%% module that does not compile writes the other module's document or
+%% page, and none of the module that failed or of the one that uses it;
+%% every failure is reported as the build reports it, the module that uses
+%% the one that failed named in a line of its own, and the status is 1. On
+%% a first run the module that failed has no document and no line in
+%% index.md, which lists each module whose document stands. Written with
+%% the code, before which the job wrote nothing where a module failed
+doc_beside_a_failed_module_test() ->
+    Dir = tmp(),
+    beside_bad(Dir, broken_bad_module()),
+    BuildRoot = filename:join(Dir, "build"),
+    Document = fun(Args) ->
+                   in_directory(Dir, fun() ->
+                                         standard_error_of(["doc" | Args]
+                                                           ++ ["--build-root", "build", "src"])
+                                     end)
+               end,
+    Skipped = <<"ern doc: User is not compiled, since it uses Bad, which failed\n">>,
+    Index = filename:join(BuildRoot, "index.md"),
+    Listed = <<"# Modules\n\n- [Good](good.md)\n">>,
+    Standing = fun(Names) -> [Name || Name <- Names,
+                                      filelib:is_regular(filename:join(BuildRoot, Name))] end,
+    [begin
+         {Said, Status} = Document(Args),
+         ?assertEqual(1, Status),
+         Lines = unicode:characters_to_binary(Said),
+         ?assertMatch({_, _}, binary:match(Lines, <<"src/bad.ern:2:">>)),
+         ?assertMatch({_, _}, binary:match(Lines, Skipped)),
+         ?assert(filelib:is_regular(filename:join(BuildRoot, Written))),
+         ?assertEqual([], Standing(Left)),
+         ?assertEqual({ok, Listed}, file:read_file(Index))
+     end || {Args, Written, Left} <- [{[], "good.md", ["bad.md", "user.md"]},
+                                      {["--man"], "Ernest.Good.3ern",
+                                       ["Ernest.Bad.3ern", "Ernest.User.3ern"]}]].
+
+%% report §11.4: a run beside a module that does not compile writes the
+%% other module's outdated document or page again, and leaves as it is the
+%% one an earlier run wrote of the module that failed and of the one that
+%% uses it, outdated as each is; index.md keeps their lines. The pages are
+%% given a time behind their sources, so that one left alone keeps it.
+%% Written with the code, before which the job wrote nothing where a module
+%% failed
+doc_leaves_a_failed_modules_page_test() ->
+    Dir = tmp(),
+    {Good, Bad, User} = beside_bad(Dir, bad_module()),
+    BuildRoot = filename:join(Dir, "build"),
+    Document = fun(Args) ->
+                   ern_err(["doc" | Args] ++ ["--build-root", BuildRoot, filename:join(Dir, "src")])
+               end,
+    ?assertEqual(0, Document([])),
+    ?assertEqual(0, Document(["--man"])),
+    Index = filename:join(BuildRoot, "index.md"),
+    Listed = <<"# Modules\n\n- [Bad](bad.md)\n- [Good](good.md)\n- [User](user.md)\n">>,
+    ?assertEqual({ok, Listed}, file:read_file(Index)),
+    Pages = fun(Name, Module) -> [filename:join(BuildRoot, Name ++ ".md"),
+                                  filename:join(BuildRoot, "Ernest." ++ Module ++ ".3ern")] end,
+    ok = file:write_file(Good, ["/// Good things, as the source says now.\n\n",
+                                "export fn one() : Int =\n    1\n"]),
+    ok = file:write_file(Bad, broken_bad_module()),
+    Past = os:system_time(second) - 3600,
+    [set_modified(File, Past) || File <- Pages("good", "Good") ++ Pages("bad", "Bad")
+                                     ++ Pages("user", "User")],
+    [set_modified(File, Past + 1) || File <- [Good, Bad, User]],
+    ?assertEqual(1, Document([])),
+    ?assertEqual(1, Document(["--man"])),
+    ?assertEqual([Past, Past, Past, Past],
+                 [modified(File) || File <- Pages("bad", "Bad") ++ Pages("user", "User")]),
+    [begin
+         {ok, Text} = file:read_file(File),
+         ?assertMatch({_, _}, binary:match(Text, <<"as the source says now">>))
+     end || File <- Pages("good", "Good")],
+    ?assertEqual({ok, Listed}, file:read_file(Index)).
+
+%% report §11.4: a run in which a module failed removes no document or
+%% page of a module whose source is gone, and writes index.md without it;
+%% once the module that failed is mended, a run of each kind removes them.
+%% The pages are given a time behind their sources, so that the broken
+%% module's are outdated. Written after the code, which held the condition
+%% already, so a regression test; it covers a module that failed to
+%% type-check, and not one refused before it is compiled
+doc_sweeps_after_no_failure_test() ->
+    Dir = tmp(),
+    {_Good, Bad, User} = beside_bad(Dir, bad_module()),
+    Gone = write(Dir, "src/gone.ern", "export fn four() : Int =\n    4\n"),
+    BuildRoot = filename:join(Dir, "build"),
+    Document = fun(Args) ->
+                   ern_err(["doc" | Args] ++ ["--build-root", BuildRoot, filename:join(Dir, "src")])
+               end,
+    ?assertEqual(0, Document([])),
+    ?assertEqual(0, Document(["--man"])),
+    GonePages = [filename:join(BuildRoot, "gone.md"), filename:join(BuildRoot, "Ernest.Gone.3ern")],
+    Index = filename:join(BuildRoot, "index.md"),
+    ok = file:delete(Gone),
+    ok = file:write_file(Bad, broken_bad_module()),
+    Past = os:system_time(second) - 3600,
+    [set_modified(File, Past)
+     || Name <- ["bad.md", "Ernest.Bad.3ern", "user.md", "Ernest.User.3ern"],
+        File <- [filename:join(BuildRoot, Name)]],
+    [set_modified(File, Past + 1) || File <- [Bad, User]],
+    ?assertEqual(1, Document([])),
+    ?assertEqual(1, Document(["--man"])),
+    ?assertEqual([true, true], [filelib:is_regular(File) || File <- GonePages]),
+    {ok, Listed} = file:read_file(Index),
+    ?assertEqual(nomatch, binary:match(Listed, <<"Gone">>)),
+    ok = file:write_file(Bad, bad_module()),
+    ?assertEqual(0, Document([])),
+    ?assertEqual(0, Document(["--man"])),
+    ?assertEqual([false, false], [filelib:is_regular(File) || File <- GonePages]),
+    ?assertEqual({ok, <<"# Modules\n\n- [Bad](bad.md)\n- [Good](good.md)\n- [User](user.md)\n">>},
+                 file:read_file(Index)).
 
 %% report §11.4, §11.1: a .erc at a module's place that is not the module's,
 %% compiled from another source or holding another module, is not read for

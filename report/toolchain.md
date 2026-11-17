@@ -447,9 +447,11 @@ The page's body is the page above after its title, under DESCRIPTION: a heading 
 
 **What is written.** `ern doc src-dir`, with `--man` or without, writes a module's document or page only where none is there, or where the one there is older than what it is made from: the module's source, the module's `.erc` in `build-root` where `ern build` has written one, the compiled `libs/markdown` that lays a manual page out, or any file of the toolchain's own code. A file as new as all of them is left as it is. A module whose `.erc` in `build-root` is as new as its source is read from the `.erc` and not compiled again, and where every document or page is as new as what it is made from, nothing is compiled. `index.md` is written where its text would differ from the one there, and left as it is otherwise.
 
+A module that does not compile does not stop the others, as in `ern build` (§11.1), and every failure is reported as the build reports it. No document or page is written of a module that failed or of one that uses a module that failed. One written before is left as it is. `index.md` lists each module of the directory whose document stands.
+
 A document, a page and `index.md` are regular files: where anything else stands at the place of one, a link among them, none is there.
 
-A run of `ern doc src-dir`, with `--man` or without, removes every document and every page `ern doc` wrote of a module under the directory whose source is gone, as the build removes its `.erc`, and writes `index.md` again where it lists such a module. A document or a page names its module in its title and stands at the module's place, and a file that does not is kept.
+A run of `ern doc src-dir`, with `--man` or without, in which no module failed removes every document and every page `ern doc` wrote of a module under the directory whose source is gone, as the build removes its `.erc` (§11.1). Every run writes `index.md` again where it lists such a module. A document or a page names its module in its title and stands at the module's place, and a file that does not is kept.
 
 `--verbose` writes on standard error, a line each as it decides them, what the job decides without saying, as `ern build`'s does (§11.1): the manifest it read, each named package it put on the load path, each module it compiled or read, and each document or page it wrote or removed, `removed build/net/web.md`. A path is written as §11.5 writes one.
 

@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 36**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 69**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,16 +43,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 36, 69, 70, 73, 74, 84, 87 and 88; and what
+left*): what the builds found, items 69, 70, 73, 74, 84, 87 and 88; and what
 needs the user, items 60 and 68. The items stand below in that order.
 
-- **36. `ern doc src-dir` beside a module that fails**, found 2026-11-13 by item 26's build:
-  the job writes no document where one module of the directory fails, and §11.4 compiles
-  the directory as `ern build` does, where a module that does not compile does not stop the
-  others (§11.1). An agent builds it: every document is written but that of a module that
-  failed or uses one that failed. The item says in §11.4 first what `index.md` lists then.
-  Item 26's test of `ern doc` takes the other module's document (the log's *A Hiding Module
-  Refused*).
 - **69. OTP's 22nd report: a port's number given before its program takes the termination**,
   found 2026-11-15 by item 62's diagnosis (the log's *A Program Named Before It Runs*).
   `erl_child_setup` ignores the termination, and the process it forks sets it back as its
@@ -177,6 +170,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 33 | What one `Tcp.read` answers, and what an unread socket holds, with the user | 2026-11-13 | E.18; *What One Read Answers* |
 | 34 | Regression tests of the sentences item 29 stated | 2026-11-14 | [`development.md`](development.md)'s *Building*; *The Sentences Held by Tests* |
 | 35 | A compiled module's dependency that has only a source | 2026-11-16 | §11.1, §11.2; *A Compiled Form's Sources* |
+| 36 | `ern doc src-dir` beside a module that fails | 2026-11-17 | §11.4; *A Document Beside a Module That Fails* |
 | 37 | The library's functions written in a program; the applications lose no function to the library | 2026-11-15 | E.14; *A Library's Function in a Program*, *The Sweep's Reading* |
 | 38 | ern(1) written again after `make doc` | 2026-11-15 | §11.4; *What the Toolchain's Page Is Made From* |
 | 39 | The README's top written again, with the user | 2026-11-16 | *The Front Page From Its Motive*, *The README's Top Comes First*, *The Front Page in the Announcement's Manner* |
