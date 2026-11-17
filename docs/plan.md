@@ -43,7 +43,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 70, 73, 74, 84, 87, 88 and 90; and what
+left*): what the builds found, items 70, 73, 74, 84, 87 and 88; and what
 needs the user, items 60 and 68. The items stand below in that order.
 
 - **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
@@ -101,15 +101,6 @@ needs the user, items 60 and 68. The items stand below in that order.
   round to the next, and only a run by hand showed it. An agent writes the test: `hunt/1`
   given its environment and a moment that lets two rounds begin, over a module whose test
   its limit cancels, and round 2's record read for round 1's cancel.
-- **90. A port's status lost to a write that finds its program gone**, found 2026-11-17 by
-  item 69's probe and decided with the user the same day (the log's *A Termination Lost
-  With OTP Alone*). A port opened with `exit_status`, whose program a signal has ended, was
-  written to before its status arrived. It closed with `{'EXIT', Port, epipe}` and never
-  sent `{exit_status, 143}`, in 760 of 942 such rounds of one run. It is not diagnosed, and
-  nothing of Ernest's meets it. An agent reads OTP's documentation, the spawn driver and
-  the tracker for whether the loss is stated. Where it is not, the agent reproduces it with
-  OTP alone and writes report 23 in [`otp_bugs.md`](otp_bugs.md). Where it is, the item
-  ends with a line in the log. Filing is the user's.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -207,6 +198,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
+| 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

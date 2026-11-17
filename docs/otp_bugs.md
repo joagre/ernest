@@ -1043,7 +1043,7 @@ erl -noshell -eval '
     halt().'
 ```
 
-A shell reads each `cat`'s number, sends it `kill -TERM` and answers once `kill` has returned. The `cat` is then written to, and one that echoes ran past the signal. A `cat` the signal ended reports status 143, or ends its port with `epipe` where the write finds it gone before its status arrives.
+A shell reads each `cat`'s number, sends it `kill -TERM` and answers once `kill` has returned. The `cat` is then written to, and one that echoes ran past the signal. A `cat` the signal ended reports status 143, or ends its port with `epipe` where the write finds it gone before its status arrives (23).
 
 On an idle machine of 24 hardware threads, 20 runs printed between 199 and 932. Pinned to one processor with `taskset -c 5`, 3 runs printed 11, 24 and 60. Beside 24 busy loops, 5 runs printed between 102 and 397. With the number taken once the `cat` has echoed, by a `port_command(Cat, "running")` and its `{data, _}` before `port_info/2`, none of 5,000 lived on idle, and none of 2,000 beside the loops.
 
@@ -1064,3 +1064,61 @@ The lines are the same at OTP-29.1.2 and at master (c25c17d). In `erl_child_setu
 POSIX leaves it to the system whether a signal that is blocked and ignored stays pending. Linux 6.12 keeps it: a copy of the forker's pattern in C lost between 9,970 and 9,999 of each 10,000 signals without the block, and none of 30,000 with it.
 
 Under load the window can outlast a `kill` that forks a shell. With `os:cmd("kill -TERM " ++ integer_to_list(N))` in place of the shell that reads the numbers, 2 runs beside 24 busy loops printed 3 and 13, and 3 runs on an idle machine printed 0.
+
+## 23. A write to a port whose program has ended loses the program's exit status
+
+Found on 2026-11-17 by the probe of MVP 4.16's item 69, beside 22; the log's *A Termination Lost With OTP Alone*. Nothing of Ernest's meets it, since the runtime's helper keeps its input open until the runtime closes it (the log's *The Hangup's Order*).
+
+**Title:** A port opened with exit_status closes with epipe and never sends {exit_status, N} when a write finds its program gone
+
+**Describe the bug**
+
+`open_port/2`'s `exit_status` option sends `{Port, {exit_status, Status}}` when the external program exits. Where the program has exited and the port is written to before the status has arrived, the write fails with `EPIPE`, the port closes with `{'EXIT', Port, epipe}`, and the status is never sent. The documentation of `open_port/2` says that errors arising when sending to such a port are reported as `{'EXIT', Port, PosixCode}`, and nothing says that the error takes the status with it. A program that asks for the status and writes to its program cannot tell one that exited 0 from one that failed, and one that waits for the status waits for ever.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    process_flag(trap_exit, true),
+    Round = fun() ->
+        P = open_port({spawn_executable, "/bin/sh"},
+                      [exit_status, {args, ["-c", "echo; exit 3"]}]),
+        receive {P, {data, _}} -> ok end,
+        try port_command(P, "x") of
+            true -> receive
+                        {P, {exit_status, 3}} -> status;
+                        {'\''EXIT'\'', P, epipe} -> {epipe, P}
+                    end
+        catch error:badarg -> closed
+        end
+    end,
+    Rounds = [Round() || _ <- lists:seq(1, 1000)],
+    True = open_port({spawn_executable, "/bin/true"}, [exit_status]),
+    receive {True, {exit_status, 0}} -> ok end,
+    Lost = [P || {epipe, P} <- Rounds,
+                 receive {P, {exit_status, _}} -> false after 0 -> true end],
+    io:format("~b of 1000 never sent exit_status~n", [length(Lost)]),
+    halt().'
+```
+
+Each round's `sh` writes a line and exits with status 3, and the port is written to once the line has come. A write that comes before the program has exited is taken, and the status follows. One that comes after fails with `epipe`. Once the rounds are done, a `/bin/true` port's status is awaited: it takes the same path through `erl_child_setup` behind every status of the rounds, so a status still on its way has come by then.
+
+On a machine of 24 hardware threads, at a load average near 1.3, 10 runs printed between 190 and 511. Pinned to one processor with `taskset -c 5`, 3 runs printed 686, 753 and 741. In no run did a status come after an `epipe`. The same rounds without the write sent every status, in 4 runs of 1,000. Each program whose status was lost had been reaped by the end of its run, none left in `/proc`.
+
+**Expected behavior**
+
+`{Port, {exit_status, 3}}` is sent in every round. A port opened with `exit_status` whose write fails could wait for the status before it closes, as it already waits at the end of the program's output, and then close with `epipe`. Failing that, the documentation of `exit_status` says that a write's error closes the port without the status.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, on Linux x86_64.
+
+**Additional context**
+
+The lines are the same at OTP-29.1.2 and at master (c25c17d). In `sys_drivers.c`, `output` writes to the program at once, and on an error other than `EINTR` and `EAGAIN` calls `driver_failure_posix` (lines 1177 to 1185), which closes the port. `ready_output` does the same for a write it had queued (lines 1482 to 1490).
+
+The status is reported in one place, `port_inp_failure`, at the end of the program's output (lines 1242 to 1252). There the port waits where the status has not come (line 1233), until `spawn_control` has it from `erl_child_setup` (lines 743 to 753). A write's error does not wait. `erl_child_setup` reaps the program and sends its status (lines 612 to 634), and `forker_sigchld` hands it to the port as a control (lines 1713 to 1726), which `erts_port_task_schedule` aborts once the port is gone (`erl_port_task.c`, lines 1472 and 1624 to 1639). This reading of the code was not traced.
+
+A program ended by a signal meets the same. A `cat` named once it has echoed, so that 22 does not apply, and written to once a `kill -TERM` of it has returned, lost its status in 1,406 of the 6,375 writes that found its port open, over 10 runs of 1,000 rounds.
+
+The tracker's other reports of a lost `exit_status`, #11278 (fixed by #11285 and #11298) and #10411, involve no write.
