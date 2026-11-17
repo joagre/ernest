@@ -144,7 +144,9 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
                                       true -> utilization(Measured);
                                       false -> {'Unreachable', Measured}
                                   end,
-            Alias ! {Alias, Answer},
+            %% report Appendix E.27: an answer that would wait as a send
+            %% waits is not sent, so that the gateway waits on no peer
+            _ = erlang:send(Alias, {Alias, Answer}, [nosuspend]),
             gateway(Workers, Ends, Measured1, Deadline, Departed);
         %% report §8.7, Appendix E.27: a peer's telling of how busy it is
         %% and of its interval, held as it comes; a node that ends tells
@@ -296,14 +298,17 @@ is_peer(Node) ->
 %% an ask answers (utilization/1), with the interval of its tellings, by
 %% which the peer ages it, over its connection and without opening one; and
 %% what the measure keeps for the next reading; nothing read where there is
-%% no one to tell.
+%% no one to tell. A telling that would wait as a send waits is not sent,
+%% so that the gateway waits on no peer.
 told([], Measured) ->
     Measured;
 told(Nodes, Measured) ->
     {Utilization, Measured1} = utilization(Measured),
     #configuration{utilization_interval = Interval} = ern_carrier:configuration(),
     Telling = {ern_frame, self(), {telling, Utilization, Interval}},
-    lists:foreach(fun(Node) -> _ = erlang:send({?NAME, Node}, Telling, [noconnect]) end, Nodes),
+    lists:foreach(fun(Node) ->
+                      _ = erlang:send({?NAME, Node}, Telling, [noconnect, nosuspend])
+                  end, Nodes),
     Measured1.
 
 %% Report Appendix E.27: how busy the node is, as it tells and answers its

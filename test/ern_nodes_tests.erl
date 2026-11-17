@@ -8797,6 +8797,136 @@ wait_ended_by_a_loss(Base) ->
     end,
     stop(Store, WaitStore).
 
+%% report Appendix E.27, §8.7: where more waits to be sent to the peer than
+%% §8.7 states, a spawn waits as a send waits, before its wait for the peer
+%% begins and after that wait has ended, and answers only once it waits so
+%% no longer. The store stopped and a sender of the desk's waiting in a
+%% send to it, as wait_ended_by_a_loss/1 has it, a second process of the
+%% desk's spawns on the store, given a second. Its monitor of the store's
+%% gateway, its frame, or its demonitor once its time has run out, waits in
+%% the host's send until the loss, so that its answer, `Timeout` or
+%% `Unreachable` by which one waited, comes later than its time and the
+%% runtime's step, and no sooner than the detector's 45 seconds after the
+%% stop.
+%%
+%% A regression test, written after the code; the one wait here that is a
+%% time is the detector's own, which the test reads and does not choose. It
+%% does not cover a find, a compute or a utilization, which send the same
+%% way, nor a spawn whose wait the peer ends by running again.
+spawn_waits_in_its_send_test_() ->
+    nodes_test({waits, 7, ?DETECTOR_MS}, fun(Base) -> waited_in_its_send(Base, "spawn") end).
+
+%% report §6.6, §8.7: where more waits to be sent to the callee's node than
+%% §8.7 states, a call waits as a send waits there, before its wait for the
+%% answer begins and after that wait has ended, and returns only once it
+%% waits so no longer. The store stopped and a sender of the desk's waiting
+%% in a send to it, as wait_ended_by_a_loss/1 has it, a second process of
+%% the desk's calls the store's sink, given a second. Its monitor of the
+%% sink, its first note, or its second note once its time has run out,
+%% waits in the host's send until the loss, so that it returns `None` later
+%% than its time, and no sooner than the detector's 45 seconds after the
+%% stop.
+%%
+%% A regression test, written after the code; the one wait here that is a
+%% time is the detector's own, which the test reads and does not choose. It
+%% does not cover `Address.callForever`, whose wait has no time of its own
+%% and so ends at the loss whether or not a send of its waited, nor a call
+%% whose wait the callee's node ends by running again.
+call_waits_in_its_send_test_() ->
+    nodes_test({waits, 7, ?DETECTOR_MS}, fun(Base) -> waited_in_its_send(Base, "call") end).
+
+%% The store stopped and the desk's sender waiting, the desk's ask of the
+%% store, Ask a spawn or a call given a second, which says what it answered
+%% and when, once the loss has ended its wait.
+waited_in_its_send(Base, Ask) ->
+    Program = buffer_build(Base),
+    {Store, Desk} = buffer_nodes(Base),
+    WaitStore = start(Store, Program, ["sink"]),
+    prints(Store, "offered"),
+    {DeskInput, WaitDesk} = started(Desk, Program, [Ask]),
+    prints(Desk, "found"),
+    StoreNumber = pid(Store),
+    _ = os:cmd("kill -STOP " ++ StoreNumber),
+    try
+        true = port_command(DeskInput, "go\n"),
+        %% the desk's word comes once the loss has ended the ask's wait
+        prints(Desk, "the " ++ Ask ++ " took: ", ?WAIT_MS + ?DETECTOR_MS),
+        says(Desk, "the peer store was lost: it fell silent"),
+        Out = written(Desk, out),
+        %% a spawn's `Timeout` or `Unreachable`, by which signal waited, and
+        %% a call's `None`
+        has(Out, "the " ++ Ask ++ " answered: " ++ answered_in_the_wait(Ask)),
+        [Began, Took] = [list_to_integer(Ms)
+                         || Part <- [" began after", " took"],
+                            {match, [Ms]} <- [re:run(Out, "the " ++ Ask ++ Part ++ ": ([0-9]+) ms",
+                                                     [{capture, all_but_first, list}])]],
+        %% later than its time and the runtime's step, which ends at the
+        %% latest with a dial's 7 seconds: it waited as a send waits
+        ?assert(Took > 1000 + ?DIAL_MS),
+        %% only once it waits so no longer, at the loss: no sooner than 44
+        %% seconds after the stop, as given_up_within_the_detectors_time/1
+        %% counts
+        ?assert(Began + Took >= 44000),
+        ?assertEqual(0, WaitDesk())
+    after
+        os:cmd("kill -CONT " ++ StoreNumber)
+    end,
+    stop(Store, WaitStore).
+
+answered_in_the_wait("spawn") -> "Left(Io.";
+answered_in_the_wait("call") -> "None".
+
+%% report Appendix E.27, §8.7: a telling and a utilization's answer never
+%% wait as a send waits; where more already waits for the peer than §8.7
+%% states, neither is sent. The store stopped and a sender of the desk's
+%% waiting in a send to it, as wait_ended_by_a_loss/1 has it, the desk's
+%% gateway passes its next telling, which the third node reads in its
+%% utilizations, and goes on serving the third node: its find and its
+%% utilization of the desk answer, and so does the desk's spawn on it,
+%% whose answer comes through the desk's gateway.
+%%
+%% A regression test, written after the code. It does not cover a
+%% utilization's answer that is not sent, whose asker waits to its time,
+%% nor a telling or an answer behind a dial, nor the runtime's other
+%% processes that serve more than one peer.
+gateway_waits_on_no_peer_test_() ->
+    nodes_test({waits, 10}, fun gateway_waits_on_no_peer/1).
+
+gateway_waits_on_no_peer(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk, Third} = buffer_nodes_and_third(Base),
+    %% how often the desk tells its peers how busy it is, which the third
+    %% node waits one of between its reads of its utilizations: the
+    %% scenario's, and no bound
+    Interval = 200,
+    edit(Desk, fun(Conf) -> Conf#{<<"utilization-interval">> => Interval} end),
+    WaitStore = start(Store, Program, ["sink"]),
+    prints(Store, "offered"),
+    {ThirdInput, WaitThird} = started(Third, Program, ["third", integer_to_list(Interval)]),
+    prints(Third, "ready"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["gateway"]),
+    prints(Desk, "found"),
+    StoreNumber = pid(Store),
+    _ = os:cmd("kill -STOP " ++ StoreNumber),
+    try
+        true = port_command(DeskInput, "go\n"),
+        prints(Desk, "the host says the sender waits in a send"),
+        true = port_command(ThirdInput, "go\n"),
+        prints(Third, "utilization: "),
+        true = port_command(DeskInput, "go\n"),
+        prints(Desk, "spawned on the third: "),
+        ThirdOut = written(Third, out),
+        [has(ThirdOut, Line)
+         || Line <- ["the desk told after its sender waited", "found: Right(",
+                     "utilization: Right("]],
+        has(written(Desk, out), "spawned on the third: Right(")
+    after
+        os:cmd("kill -CONT " ++ StoreNumber)
+    end,
+    stop(Desk, WaitDesk),
+    stop(Third, WaitThird),
+    stop(Store, WaitStore).
+
 %% A store that listens and a desk that dials it, the desk finding the
 %% store's sink there.
 buffer_nodes(Base) ->
@@ -8808,6 +8938,19 @@ buffer_nodes(Base) ->
     edit(Desk, fun(Conf) -> Conf#{<<"services">> => #{<<"sink">> => [<<"store">>]}} end),
     {Store, Desk}.
 
+%% The same, and a third node that listens, which the desk dials too, and
+%% which finds the desk's own sink at the desk.
+buffer_nodes_and_third(Base) ->
+    {PortStore, PortThird} = {free_port(), free_port()},
+    Store = made(Base, "store", PortStore),
+    Desk = made(Base, "desk", none),
+    Third = made(Base, "third", PortThird),
+    [lists(Dir, [{"desk", Desk, none}]) || Dir <- [Store, Third]],
+    lists(Desk, [{"store", Store, PortStore}, {"third", Third, PortThird}]),
+    edit(Desk, fun(Conf) -> Conf#{<<"services">> => #{<<"sink">> => [<<"store">>]}} end),
+    edit(Third, fun(Conf) -> Conf#{<<"services">> => #{<<"desk-sink">> => [<<"desk">>]}} end),
+    {Store, Desk, Third}.
+
 %% The buffer's tests' program, built in Base beside the host module it
 %% asks of the host (buffer_host/0); answers its `.erc`.
 buffer_build(Base) ->
@@ -8817,7 +8960,9 @@ buffer_build(Base) ->
 // Report §8.7: what waits for a peer in the host's buffer. The store's sink
 // takes what the desk sends it. The desk sends it a message above the buffer
 // and one after it; or, the store stopped, a sender sends until a send waits,
-// and the desk says what ended the wait.
+// and the desk says what ended the wait, or what a spawn on the store or a
+// call of its sink answered meanwhile, or what a third node's asks of the
+// desk and the desk's spawn on it answered.
 
 // The host's report of each time the process is suspended in a send to
 // another node, its count sent to the address.
@@ -8828,9 +8973,12 @@ foreign fn watch(process : Process, to : Address(Int)) : Unit =
 foreign fn isConnected(process : Process) : Bool =
     \"ern_nodes_buffer:is_connected/1\"
 
-type SinkMsg = Whole(Bytes) | Next | Chunk(Bytes)
+type SinkMsg = Whole(Bytes) | Next | Chunk(Bytes) | Ping(Reply(Int))
 
-type DeskMsg = Suspended(Int) | Returned(Waited)
+type DeskMsg =
+    Suspended(Int)
+  | Returned(Waited)
+  | Answered(answer : String, began : Int, ended : Int)
 
 type SenderMsg = Go | Asked(Int)
 
@@ -8839,6 +8987,8 @@ type SenderMsg = Go | Asked(Int)
 type Waited = Waited(index : Int, began : Int, ended : Int, asked : List(Int))
 
 let sink : Peer.Service(SinkMsg) = Peer.service(\"sink\")
+
+let deskSink : Peer.Service(SinkMsg) = Peer.service(\"desk-sink\")
 
 export fn main() : Unit receiving DeskMsg =
     match Os.arguments {
@@ -8851,6 +9001,18 @@ export fn main() : Unit receiving DeskMsg =
             above(found())
       | [\"wait\"] ->
             waits(found())
+      | [\"spawn\"] ->
+            askedInTheWait(found(),
+                           \"spawn\",
+                           fn(_) = Io.show(Peer.spawn(\"store\", fn() = Unit, 1000)))
+      | [\"call\"] ->
+            askedInTheWait(found(),
+                           \"call\",
+                           fn(address) = Io.show(Address.call(address, Ping, 1000)))
+      | [\"gateway\"] ->
+            serves(found())
+      | [\"third\", interval] ->
+            asks(Optional.withDefault(String.toInt(interval), 0))
       | _ ->
             Unit
     }
@@ -8887,6 +9049,10 @@ fn sinking() : Unit receiving SinkMsg =
         }
       | Chunk(_) ->
             sinking()
+      | Ping(reply) -> {
+            answer(reply, 1);
+            sinking()
+        }
     }
 
 // Report §8.7: a message above the buffer, placed whole, its send waiting
@@ -8942,6 +9108,100 @@ fn summed(waited : Waited, stopped : Int) : Unit = {
     Io.println(\"asked during the wait, served after it: \" <> Int.toString(List.size(during)));
     Io.println(\"given up after: \" <> Int.toString((waited.ended - stopped) / 1000))
 }
+
+// Report Appendix E.27, §6.6, §8.7: the store stopped and the sender
+// waiting in a send to it, an ask of the store given a second, a spawn on
+// it or a call of its sink: what the ask sends the store waits as the
+// sender's send does, and it answers once the loss ends that wait. The ask
+// is named in what the desk says of it.
+fn askedInTheWait(address : Address(SinkMsg),
+                  name : String,
+                  ask : (Address(SinkMsg)) -> String) : Unit receiving DeskMsg = {
+    let me = self();
+    let sender = spawn(fn() : Unit receiving SenderMsg = starting(me, address));
+    watch(Process.fromAddress(sender), adapted(me, Suspended));
+    Io.println(\"found\");
+    // until the test, which has stopped the store, says so
+    let _ = Io.readLine();
+    let stopped = Clock.monotonic();
+    send(sender, Go);
+    receive {
+        Suspended(_) -> Unit
+    };
+    let _ = spawn(fn() = asking(me, address, ask));
+    receive {
+        Answered(=answer, =began, =ended) -> {
+            Io.println(\"the \" <> name <> \" answered: \" <> answer);
+            Io.println(\"the \"
+                           <> name
+                           <> \" began after: \"
+                           <> Int.toString(began - stopped)
+                           <> \" ms\");
+            Io.println(\"the \" <> name <> \" took: \" <> Int.toString(ended - began) <> \" ms\")
+        }
+    }
+}
+
+// The ask, its answer and its moments.
+fn asking(desk : Address(DeskMsg),
+          address : Address(SinkMsg),
+          ask : (Address(SinkMsg)) -> String) : Unit = {
+    let began = Clock.monotonic();
+    let answer = ask(address);
+    send(desk, Answered(=answer, =began, ended = Clock.monotonic()))
+}
+
+// Report Appendix E.27: the store stopped and the sender waiting in a send
+// to it, the desk's gateway goes on serving the third node, since it sends
+// no telling and no utilization's answer that would wait as a send waits:
+// the desk's spawn on the third node answers, through the gateway. The desk
+// offers its own sink, and dials the third node, which lists it without an
+// address, so that the third node can ask it.
+fn serves(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let me = self();
+    let _ = Peer.offer(deskSink, spawn(fn() = sinking()));
+    let _ = Peer.utilization(\"third\", waitMs());
+    let sender = spawn(fn() : Unit receiving SenderMsg = starting(me, address));
+    watch(Process.fromAddress(sender), adapted(me, Suspended));
+    Io.println(\"found\");
+    // until the test, which has stopped the store, says so
+    let _ = Io.readLine();
+    send(sender, Go);
+    receive {
+        Suspended(_) -> Io.println(\"the host says the sender waits in a send\")
+    };
+    // until the test, once the third node has asked, says so
+    let _ = Io.readLine();
+    Io.println(\"spawned on the third: \" <> Io.show(Peer.spawn(\"third\", fn() = Unit, waitMs())));
+    held()
+}
+
+// Report Appendix E.27: the third node, once the test says the desk's sender
+// waits in a send, waits for the desk's next telling, and then asks the
+// desk for its sink and how busy it is.
+fn asks(interval : Int) : Unit receiving DeskMsg = {
+    Io.println(\"ready\");
+    // until the test, once the desk's sender waits, says so
+    let _ = Io.readLine();
+    toldSince(Clock.monotonic(), interval);
+    Io.println(\"the desk told after its sender waited\");
+    Io.println(\"found: \" <> Io.show(Peer.find(deskSink, waitMs())));
+    Io.println(\"utilization: \" <> Io.show(Peer.utilization(\"desk\", waitMs())));
+    held()
+}
+
+// Report Appendix E.27: until the desk's last telling came after the
+// moment, the utilizations read again every interval, the time between the
+// desk's tellings, at which alone the table changes; a wait no message can
+// show, since a telling is the runtime's frame and no program's.
+fn toldSince(moment : Int, interval : Int) : Unit =
+    if List.any(Peer.utilizations(),
+                fn(#(peer, _, since)) = peer == \"desk\" && Clock.monotonic() - since > moment) then
+        Unit
+    else {
+        Clock.sleep(interval);
+        toldSince(moment, interval)
+    }
 
 fn starting(desk : Address(DeskMsg), address : Address(SinkMsg)) : Unit receiving SenderMsg =
     receive {

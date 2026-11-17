@@ -42,6 +42,8 @@ A worker applies the frames in the order they came, runs the loss once it has re
 
 A frame the gateway cannot read is faulty, and the node ends the connection; a message to the gateway that names no process of a peer names no connection, and is dropped and said. The gateway is the teller too: one timer of its own, armed from the interval, and a telling sent to every connected peer with no dial, so that a telling never opens a connection; it keeps the measure's one reading for asks and tellings alike, since the host keeps the schedulers' time for the one process that turned it on (the log's *Placing Work by Name*).
 
+The gateway waits on no peer: what it sends a peer itself goes by the host's `nosuspend`, and what the host would hold, the peer's buffer being past its limit, is not sent, so that a peer that takes nothing holds up no other peer's frame (Appendix E.27; §8.7, *Messages*; the log's *What a Full Buffer Holds*).
+
 The frames are seventeen, listed in the runtime's note and in §12.6's *What passes*, and a test holds both lists to the modules that read them (`test/ern_docs_tests.erl`, `runtime_frames_test`). Everything else that crosses is the host's: a message straight into the mailbox, a monitor and its `Down`, an answer through an alias, a sign of life, the handshake. A `kill` of a process of another node is a frame to that node, which carries it out as its own kill, suspending the victim, reading its call and ending it (§6.9; the runtime's note, *A call, a restart, a kill*).
 
 ## A loss
