@@ -8,6 +8,8 @@ Code goes to an agent one build at a time, given its goal, the report's sections
 
 A diagnosis that needs experiments goes to one agent with the failing case and what is ruled out, never the session's guess, and that agent owns the loop to a passing test.
 
+Agents whose work is bound by the processor, a race's probe, a run under a sanitizer or a load test, run one at a time, and each runs its programs one after another: side by side is for work that waits or reads. The brief says so. A session reads the machine's load before it starts such an agent: a load another session makes is said to the user, who says whether the agent waits.
+
 An agent follows `CLAUDE.md`, but a review's reader, whose brief stands in its place as [`reviews/full.md`](reviews/full.md)'s *How it runs* says. Its brief tells it in one line to leave untracked files alone, and says which style document it reads first, as `CLAUDE.md`'s *Style* has it.
 
 ## An agent's report
