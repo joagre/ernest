@@ -132,10 +132,11 @@ uncommented(Line) ->
 %% its output shown prints that output
 %%
 %% A unit that loads no code into this node runs in parallel with the others
-%% of its kind, as many at once as this host has schedulers: a shell session
-%% or a program given standard input, each a host of its own, and a program
-%% that is refused, built in this node. The rest compile and run in this
-%% node, one after another, since two of them may share a module's name.
+%% of its kind, as many at once as this host has schedulers, the next begun
+%% as soon as one has ended (ern_eunit:side_by_side/2): a shell session or a
+%% program given standard input, each a host of its own, and a program that
+%% is refused, built in this node. The rest compile and run in this node,
+%% one after another, since two of them may share a module's name.
 guide_examples_test_() ->
     examples(?GUIDE, "guide").
 
@@ -339,7 +340,8 @@ examples(Document, Kind) ->
     Named = [{label(Kind, Number, Unit), Unit}
              || {Number, Unit} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, Unit}) -> loads_nothing(Unit) end, Named),
-    [{inparallel, erlang:system_info(schedulers_online), [checked(Example) || Example <- Apart]}
+    [ern_eunit:side_by_side(erlang:system_info(schedulers_online),
+                            [checked(Example) || Example <- Apart])
      | [checked(Example) || Example <- Here]].
 
 %% The check of a unit, a test of the harness's steps

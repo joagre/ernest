@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 84**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 87**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,19 +43,10 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 84, 87, 88 and 91; and what
+left*): what the builds found, items 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
 them. The items stand below in that order.
 
-- **84. `make test-nodes` a minute slower right after another target**, found 2026-11-16 by
-  the agent that wrote item 35's later tests (the log's *Hard Work and Stupid Work*). The
-  target took about 137 s started after a pause, and 205 to 210 s started right after
-  `make test-shell` or another run of its own, in runs of the agent's and one of the
-  session's. The agent read each test's own time as the same on both sides. No process of
-  the earlier target is left: five seconds after `make test-shell` ended the session found
-  no host and one runnable process, where the load average still read 112. The cause is
-  not found. An agent measures first: the target after a pause and right after `make
-  test-shell`, three times each in turn, and where a run spends its time outside its tests.
 - **87. Nothing holds that a shell test names a home**, found 2026-11-16 by the fix of the
   27 sites that ran under the inherited `HOME` (the log's *The Shell's Tests in a Home of
   Their Own*). A new test that starts `ern shell` by hand runs the startup file of whoever
@@ -204,6 +195,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 81 | `listen_of_one_family_test` tells another socket's port from the regression it holds | 2026-11-16 | E.18; *A Port Another Socket Holds* |
 | 82 | A host's start on a busy machine, measured: the busy wait stays, with the user | 2026-11-17 | *The Busy Wait Stays* |
 | 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
+| 84 | The tests run side by side run in lanes, a test begun as soon as one ends: `make test-nodes` in 108 s for 209 s, with the user | 2026-11-17 | *Lanes in Place of Chunks* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |

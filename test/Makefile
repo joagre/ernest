@@ -55,8 +55,9 @@ BEAMS = $(patsubst %,$(EBIN)/%.beam,$(INTEGRATION) $(MEASURE) $(LAST_RUN_TESTS) 
 	  $(TYPED) \
 	  $(SHELL_TESTS) ern_pty ern_repository ern_measure) $(ALONE)
 
-# ern_eunit, by which EUNIT runs each test alone, a module of the runtime's
-# tests, compiled by the repository's one rule where its source is newer.
+# ern_eunit, by which EUNIT_ALONE runs each test alone and EUNIT_SIDE_BY_SIDE
+# its tests side by side, a module of the runtime's tests, compiled by the
+# repository's one rule where its source is newer.
 ALONE = ../build/runtime/test/ern_eunit.beam
 $(ALONE): ../src/runtime/test/ern_eunit.erl ../VERSION
 	@$(MAKE) -s -C .. build/runtime/test/ern_eunit.beam
@@ -67,23 +68,25 @@ HOST = erl -noinput $(CODE_PATH) -pa $(EBIN)
 
 # Run the EUnit modules $(1), with the toolchain on the code path, each
 # test alone (ern_eunit), so that one ended at its time limit ends no other
-# and the next begins in the run's directory.
-EUNIT = erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
+# and the next begins in the run's directory. Not EUNIT, EUnit's own
+# variable of the environment, which make would pass the host with this
+# value where the environment sets it.
+EUNIT_ALONE = erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
 	  'halt(case eunit:test(ern_eunit:alone([$(subst $(space),$(comma) ,$(strip $(1)))])) of \
 	  ok -> 0; _ -> 1 end).'
 comma := ,
 space := $(subst ,, )
 
-# The same, each module's tests side by side, as many at once as the host
-# has schedulers, for the areas whose tests each start a host of their own.
-# EUnit runs each of their tests in a process of its own, a generator's
-# among them, so that a limit ends its own test alone; they share the
-# host's directory, which none of them changes.
+# The same, the modules side by side and each module's tests side by side,
+# as many at once as the host has schedulers, for the areas whose tests each
+# start a host of their own: each test alone, a generator's each in a
+# process of its own, and the next in its module's order begun as soon as
+# one has ended (ern_eunit:side_by_side/2).
 EUNIT_SIDE_BY_SIDE = erl -noshell $(CODE_PATH) -pa $(EBIN) \
 	  -eval 'N = erlang:system_info(schedulers_online), \
 	  Ms = [$(subst $(space),$(comma) ,$(strip $(1)))], \
-	  halt(case eunit:test({inparallel, [{inparallel, N, M} || M <- Ms]}) of \
-	  ok -> 0; _ -> 1 end).'
+	  Tests = [ern_eunit:side_by_side(N, ern_eunit:alone([M])) || M <- Ms], \
+	  halt(case eunit:test({inparallel, Tests}) of ok -> 0; _ -> 1 end).'
 
 # The test modules and the build directory, which make test-full readies
 # before it runs the areas side by side.
@@ -113,7 +116,7 @@ NODES_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
 # of a run with the last and the release's.
 integration: $(BEAMS) prepare measured named
 	@$(call NODES_RUN,integration,$(INTEGRATION))
-	$(call EUNIT,$(MEASURE) $(LAST_RUN_TESTS))
+	$(call EUNIT_ALONE,$(MEASURE) $(LAST_RUN_TESTS))
 
 # Nodes on one machine, with the machines' tools ern_machine_tests tests.
 nodes: $(BEAMS) prepare machines pty
@@ -133,10 +136,10 @@ tour: $(BEAMS) prepare
 # install's `make manual`, so the two never run at once (the repository's
 # Makefile, test-install).
 manual: $(BEAMS) prepare
-	$(call EUNIT,$(MANUAL))
+	$(call EUNIT_ALONE,$(MANUAL))
 
 install: $(BEAMS) prepare
-	$(call EUNIT,$(INSTALL))
+	$(call EUNIT_ALONE,$(INSTALL))
 
 # The bench's parts, in the order `bench` runs them, and their harnesses:
 # core's ern_bench, library's ern_measure and each other part's
@@ -180,23 +183,23 @@ build/bench/twins/%.beam: fixtures/bench/%.erl
 	@erlc $(ERLC_FLAGS) -o $(@D) $<
 
 docs: $(BEAMS)
-	$(call EUNIT,$(DOCS))
+	$(call EUNIT_ALONE,$(DOCS))
 
 # The calls of the toolchain's own Erlang, the shims and the units, which
 # the repository's `make units` links under ../build/units before its
 # `make xref` runs these.
 xref: $(BEAMS)
-	$(call EUNIT,$(XREF))
+	$(call EUNIT_ALONE,$(XREF))
 
 guide: $(BEAMS) prepare
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_guide_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir $(call EUNIT,$(GUIDE)); \
+	  ERN_TEST_DIR=$$dir $(call EUNIT_ALONE,$(GUIDE)); \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 # The site's generator, built by `make` into ../build/tools, run over the
 # fixture's tree under build/site, which starts no node.
 site: $(BEAMS) prepare
-	$(call EUNIT,$(SITE))
+	$(call EUNIT_ALONE,$(SITE))
 
 # The blocks the site offers the shell, each pasted into a bare `ern
 # shell` through the pseudo-terminal harness, and site/unrunnable.md held
@@ -204,7 +207,7 @@ site: $(BEAMS) prepare
 # shells' homes.
 site-shell: $(BEAMS) prepare pty
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_site_shell_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir $(call EUNIT,$(SITE_SHELL)); \
+	  ERN_TEST_DIR=$$dir $(call EUNIT_ALONE,$(SITE_SHELL)); \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 # The site's client in a headless Chrome over its DevTools protocol, the
@@ -219,13 +222,13 @@ browser: $(BEAMS) prepare
 # Appendix A read as data, and the programs generated from it, whose seed
 # ERN_SEED gives again.
 grammar: $(BEAMS)
-	$(call EUNIT,$(GRAMMAR))
+	$(call EUNIT_ALONE,$(GRAMMAR))
 
 # Well-typed programs generated, checked, compiled and run in one host,
 # whose seed ERN_SEED gives again. Core dumps are on, so that a fault of
 # the host leaves its core in this directory.
 typed: $(BEAMS) named
-	ulimit -c unlimited; $(call EUNIT,$(TYPED))
+	ulimit -c unlimited; $(call EUNIT_ALONE,$(TYPED))
 
 # The shell's and the terminal's tests make their homes, sources and inputs
 # under one directory of the run's own, which is removed when the run ends,
@@ -286,7 +289,7 @@ load: $(EBIN)/ern_load.beam measured named
 # not part of `make test-full`, which a host without a service manager runs
 # too, and run before every release (docs/reviews/release.md).
 service: measured $(ALONE)
-	$(call EUNIT,ern_service_tests)
+	$(call EUNIT_ALONE,ern_service_tests)
 
 # The benchmark, in parts, each run alone by a target of its own,
 # bench-<part>, in this order by `bench`.
