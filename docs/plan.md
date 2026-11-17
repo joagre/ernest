@@ -47,7 +47,8 @@ left*): what the builds found, items 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
 them. Item 95 is what a reading of five reviews from outside decided the same day (the
 log's *The Outside Reviews Read*), and stands after item 93. Item 96, the same reading's
-feedback 260, needs the user as item 68 does and stands last.
+feedback 260, needs the user as item 68 does and stands last. Item 99, what ernest-httpd's
+session handed back the same day, stands after item 91.
 
 Items 98 and 97 are what item 94's build and its cold reading found, decided with the user
 on 2026-11-17 (the log's *What Waits for a Peer*). They stand first, item 98 before item
@@ -130,6 +131,13 @@ comes. The items stand below in that order.
   their marks, and no longer among the system processes. An agent builds it, and first
   shows whether a call made in a checker writes its marks. Item 70's test stays, and a new
   one holds a checker in a call with a time.
+- **99. No test holds a request's head that arrives in pieces**, found 2026-11-17 by
+  ernest-httpd's reading of its own tests against the reviews from outside (the log's *The
+  Server's Answers*, its paragraph *A head in pieces*). Appendix G.11 says that
+  `readRequest`'s time bounds the whole head and not each read. `Http.readRequest` is called
+  only by `examples/web_server.ern`, whose test sends each request whole, and by a
+  benchmark. An agent writes two tests: a head written in pieces, which is served, and a
+  head that trickles past its time, which answers the timeout.
 - **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
   log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
   `Tcp.readForever` and `Os.readForever` wait without a limit, as `Address.callForever`
@@ -620,15 +628,15 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    container, two nodes capped at 128 processes, 128 MiB and one core, was built 2026-11-04
    (the log's *A Node's Schedulers*).
 
-   Decided with the user: whether the site's server takes a new build while it serves,
-   before the launch or first after it. No large program yet moves to new code under
-   traffic, and a deploy of the server today ends every visitor's shell. The server's
-   session is asked what it would take, and the timing is decided with its answer in hand
-   (the log's *The Outside Reviews Read*, its paragraph *New code under traffic*).
+   Decided with the user on 2026-11-17: the site's server takes a new build while it
+   serves after the launch, if at all. A deploy ends at most six demo shells, the deploys
+   around the launch come with a new floor, a restart either way, and nothing hands a
+   listener over today (the log's *The Server's Answers*, its paragraph *New code under
+   traffic*). What Ernest lacks for it is feedback 261, MVP 4.5's item 4.
 
 ---
 
-## MVP 4.5 (`:trace f`, and two requests to OTP), about a week, after the launch
+## MVP 4.5 (`:trace f`, two requests to OTP, and a decision on a listener), about a week, after the launch
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
@@ -654,6 +662,13 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    OTP's source and its tracker for whether it was asked before, and drafts the request for
    the user to file; nothing is built. Were it granted, a first interrupt would be a
    termination and a second would end the program at once, decided then.
+4. **Whether `Tcp` hands a listener over**, feedback 261, added with the user on 2026-11-17
+   (the log's *The Server's Answers*, its paragraph *A listener handed over*): a listener
+   given to another process, or a listen beside a live one, so that a program takes new code
+   with no connection refused between. A decision, and nothing is built: it is read against
+   E.0's admission rules first, and then against ernest-httpd's proposal for new code while
+   it serves, where that session writes one. Where neither comes, the item closes on a log
+   line that drops the entry and says why.
 
 ---
 
@@ -713,4 +728,4 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
 | MVP 4.6 | the server owning both ends of its socket | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
-| MVP 4.5 | the shell's second round, and two requests to OTP, for what a purge needs and for the interrupt | | | above |
+| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, and a decision on a listener handed over | | | above |
