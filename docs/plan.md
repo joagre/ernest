@@ -47,7 +47,8 @@ left*): what the builds found, items 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
 them. Items 94 and 95 are what a reading of five reviews from outside decided the same day
 (the log's *The Outside Reviews Read*). Item 94 stands first, since it changes sentences of
-§6.5 and §8.7, and item 95 stands after item 93. The items stand below in that order.
+§6.5 and §8.7, and item 95 stands after item 93. Item 96, the same reading's feedback 260,
+needs the user as item 68 does and stands last. The items stand below in that order.
 
 - **94. Two sentences on what crosses nodes, and their tests**, decided with the user on
   2026-11-17 (the log's *The Outside Reviews Read*, its paragraphs *The buffer is a mark* and
@@ -150,6 +151,16 @@ them. Items 94 and 95 are what a reading of five reviews from outside decided th
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
+- **96. A write that reaches the disk**, feedback 260, found 2026-11-17 (the log's *The
+  Outside Reviews Read*, its paragraph *A write that survives a crash*). `Fs` has no sync,
+  so a program that keeps data across a power loss cannot be written in Ernest. E.0 rule 1
+  admits the operation, since the host has `file:sync/1` and `file:datasync/1`.
+
+  Decided with the user, in a design discussion of its own: its shape. `Fs` has paths and
+  no open file, where the host's sync takes an open file, and a write that survives needs
+  the file synced and, after the rename, its directory. Recommended: one function over a
+  path, a file's or a directory's, with `Fs.write` left as it is, since a write that always
+  synced would make every write pay for a need few have. E.17 changes first.
 
 ### What is done
 
