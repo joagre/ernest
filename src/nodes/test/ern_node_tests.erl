@@ -643,6 +643,7 @@ signaled_test() ->
     Waiting = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary]),
     %% named once it has echoed: until it first runs, the process the host
     %% forks ignores the termination, and one sent it then would not show
+    %% (docs/otp_bugs.md, 22)
     true = port_command(Waiting, <<"running">>),
     ?assertEqual(<<"running">>, receive {Waiting, {data, Ran}} -> Ran end),
     {os_pid, Living} = erlang:port_info(Waiting, os_pid),

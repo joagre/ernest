@@ -1008,3 +1008,59 @@ It prints `nomatch [[127466,127466],127480]`, where the prefix is the first clus
 **Affected versions**
 
 OTP 29, erts 17.1.1, on Linux x86_64.
+
+## 22. A termination signal sent to a port's program before it runs is lost
+
+Found on 2026-11-15 by the flake hunt of MVP 4.16's item 62; the log's *A Program Named Before It Runs*. `src/toolchain/cli/test/ern_cli_tests.erl`'s `signal_jobs_take_any_mode_test` says how Ernest's tests meet it.
+
+**Title:** SIGTERM sent to a port program's os_pid right after open_port/2 returns is silently discarded
+
+**Describe the bug**
+
+`erl_child_setup` ignores `SIGTERM`, and the process it forks for a port's program ignores it too until its first act sets it back to the default. The forker writes the child's number to the emulator as soon as `fork()` returns, and `open_port/2` returns once the emulator has read it. So `erlang:port_info(Port, os_pid)` can answer before the child has run. A `SIGTERM` sent to that number in between is discarded, as an ignored signal is, and the program runs on with nothing pending. A supervisor or a test that stops a program it has just started waits for an end that never comes.
+
+**To Reproduce**
+
+```sh
+erl -noshell -eval '
+    process_flag(trap_exit, true),
+    Kill = open_port({spawn_executable, "/bin/sh"},
+                     [{args, ["-c", "while read n; do kill -TERM $n; echo; done"]}]),
+    Round = fun() ->
+        Cat = open_port({spawn_executable, "/bin/cat"}, [exit_status]),
+        {os_pid, N} = erlang:port_info(Cat, os_pid),
+        port_command(Kill, integer_to_list(N) ++ "\n"),
+        receive {Kill, {data, _}} -> ok end,
+        try port_command(Cat, "alive") catch error:badarg -> ok end,
+        receive
+            {Cat, {data, _}} -> port_close(Cat), lived;
+            {Cat, {exit_status, 143}} -> ended;
+            {'\''EXIT'\'', Cat, epipe} -> ended
+        end
+    end,
+    Lived = length([x || _ <- lists:seq(1, 1000), Round() =:= lived]),
+    io:format("~b of 1000 lived on after SIGTERM~n", [Lived]),
+    halt().'
+```
+
+A shell reads each `cat`'s number, sends it `kill -TERM` and answers once `kill` has returned. The `cat` is then written to, and one that echoes ran past the signal. A `cat` the signal ended reports status 143, or ends its port with `epipe` where the write finds it gone before its status arrives.
+
+On an idle machine of 24 hardware threads, 20 runs printed between 199 and 932. Pinned to one processor with `taskset -c 5`, 3 runs printed 11, 24 and 60. Beside 24 busy loops, 5 runs printed between 102 and 397. With the number taken once the `cat` has echoed, by a `port_command(Cat, "running")` and its `{data, _}` before `port_info/2`, none of 5,000 lived on idle, and none of 2,000 beside the loops.
+
+Each `cat` that lived on held no pending signal, by `SigPnd` and `ShdPnd` in `/proc/N/status`, no longer ignored `SIGTERM`, and ended with status 143 at a second `SIGTERM`.
+
+**Expected behavior**
+
+A `SIGTERM` sent to the number `port_info/2` gives ends the program, however soon it is sent. The forker could keep `SIGTERM` blocked across `fork()`, as it already keeps `SIGCHLD`, and the child unblock it once it has set the default: one sent in between then stays pending, and ends the child.
+
+**Affected versions**
+
+OTP 29, erts 17.1.1, on Linux x86_64.
+
+**Additional context**
+
+The lines are the same at OTP-29.1.2 and at master (c25c17d). In `erl_child_setup.c`, `main` ignores `SIGTERM` (lines 520 to 527), forks (line 588) and writes the child's number to the port's pipe at once (line 599). The child's `start_new_child` sets the default as its first act (lines 200 to 208). In `sys_drivers.c`, `ready_input` reads the number, sets `os_pid` and acknowledges the open (lines 1296 to 1332). The forker blocks `SIGCHLD` across the fork at line 584, and the child releases it at line 359. `erl_child_setup` has ignored `SIGTERM` since #1730, which fixed #3574.
+
+POSIX leaves it to the system whether a signal that is blocked and ignored stays pending. Linux 6.12 keeps it: a copy of the forker's pattern in C lost between 9,970 and 9,999 of each 10,000 signals without the block, and none of 30,000 with it.
+
+Under load the window can outlast a `kill` that forks a shell. With `os:cmd("kill -TERM " ++ integer_to_list(N))` in place of the shell that reads the numbers, 2 runs beside 24 busy loops printed 3 and 13, and 3 runs on an idle machine printed 0.

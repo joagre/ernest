@@ -3684,6 +3684,7 @@ pid_lock(Base) ->
     %% a living process that is no node, which reads its input and echoes it,
     %% named once it has echoed: until it first runs, the process the host
     %% forks ignores the termination, and one sent it then would not show
+    %% (docs/otp_bugs.md, 22)
     Living = open_port({spawn_executable, os:find_executable("cat")}, [binary]),
     true = port_command(Living, <<"running">>),
     ?assertEqual(<<"running">>, output(Living)),

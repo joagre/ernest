@@ -7157,6 +7157,7 @@ signal_jobs_take_any_mode_test() ->
     %% program's number as it forks it, and the forked process ignores the
     %% termination, as erl_child_setup does, until it first runs: a number
     %% named before the echo may be sent the termination to no effect
+    %% (docs/otp_bugs.md, 22)
     Held = fun() ->
                Living = open_port({spawn_executable, os:find_executable("cat")},
                                   [binary, exit_status]),

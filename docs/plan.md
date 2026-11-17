@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 69**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 70**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,18 +43,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 69, 70, 73, 74, 84, 87 and 88; and what
+left*): what the builds found, items 70, 73, 74, 84, 87 and 88; and what
 needs the user, items 60 and 68. The items stand below in that order.
 
-- **69. OTP's 22nd report: a port's number given before its program takes the termination**,
-  found 2026-11-15 by item 62's diagnosis (the log's *A Program Named Before It Runs*).
-  `erl_child_setup` ignores the termination, and the process it forks sets it back as its
-  first act, after the host has the fork's number. So a termination sent to
-  `erlang:port_info(Port, os_pid)` soon after `open_port` can be lost. An agent reproduces
-  it with OTP alone, which item 62 did not, and writes the report in
-  [`otp_bugs.md`](otp_bugs.md). The three tests that name a cat once it has echoed,
-  `signal_jobs_take_any_mode_test`, `signaled_test` and `pid_lock`, then cite the report in
-  their comments. Filing is the user's.
 - **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
   diagnosis (the log's *A Sender That Outlives Its Run*). A message foreign code sends to an
   exposed address reaches the checker in front of its process first (§8.4). While it waits
@@ -193,6 +184,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 65 | The flake of `ern_os_tests`' `resize_test` | 2026-11-16 | E.23; *A Signal Before the Pause* |
 | 66 | The flake of `ern_tcp_tests`' `write_holds_up_no_read` | 2026-11-16 | §8.6; *A Reaper That Outlives Its Runner* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
+| 69 | OTP's 22nd report: a termination sent to a port's program before it runs, reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 22; *A Termination Lost With OTP Alone* |
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
 | 72 | A build with nothing to do, measured: `ern build` is not slow, and nothing is built, with the user | 2026-11-17 | *Twenty-Six Hosts Are the Cost* |
 | 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |
