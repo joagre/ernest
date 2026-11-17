@@ -7799,6 +7799,193 @@ adapted_fault(Base) ->
     {_, SenderErr} = said(Sender),
     ?assertEqual(nomatch, string:find(SenderErr, "fault")).
 
+%% report §6.5: an adapted address held on another node keeps nothing alive
+%% on the node that made it. Two holders on the maker each make a cell the
+%% host holds, an `atomics` array behind a foreign type, and an address
+%% whose function reads it, answer the address to the sender and end. Where
+%% the function alone held the cell, a message sent through the address
+%% once its holder has ended faults the target with the host function's
+%% raise, as a fault in the function, and the sender goes on; where the
+%% target holds the cell too, the message arrives. A regression test,
+%% written after the code; it does not cover a captured process or
+%% resource that has ended, nor a cell the host lets go while the function
+%% is applied
+capture_gone_test_() ->
+    nodes_test({waits, 12}, fun capture_gone/1).
+
+capture_gone(Base) ->
+    {Program, Source} = capture_build(Base),
+    PortMaker = free_port(),
+    Maker = made(Base, "maker", PortMaker),
+    Sender = made(Base, "sender", none),
+    lists(Maker, [{"sender", Sender, none}]),
+    lists(Sender, [{"maker", Maker, PortMaker}]),
+    edit(Sender, fun(Conf) ->
+                     Conf#{<<"services">> => #{<<"alone">> => [<<"maker">>],
+                                               <<"shared">> => [<<"maker">>]}}
+                 end),
+    WaitMaker = start(Maker, Program, ["make"]),
+    prints(Maker, "offered"),
+    {SenderInput, WaitSender} = started(Sender, Program, []),
+    prints(Sender, "given"),
+    %% the cell the alone holder made is held by nothing of the maker's now
+    prints(Maker, "the alone holder ended"),
+    prints(Maker, "the shared holder ended"),
+    true = port_command(SenderInput, "alone\n"),
+    prints(Sender, "sent to the alone address"),
+    %% the target's site, where the holder spawned it, and the function's
+    %% frame in the trace
+    [Target, Function] = ["Capture.holdingAlone:" ++ integer_to_list(line_of(Source, Part))
+                          || Part <- ["spawn(fn() = seeing())", "answer(reply, adapted("]],
+    says(Maker, Target ++ " faulted: foreign function atomics:get/2 raised error:badarg"),
+    true = port_command(SenderInput, "shared\n"),
+    prints(Maker, "the shared target saw 47 beside 42"),
+    ?assertEqual(0, WaitSender()),
+    stop(Maker, WaitMaker),
+    {SenderOut, SenderErr} = said(Sender),
+    {MakerOut, MakerErr} = said(Maker),
+    ?assertEqual(["given", "sent to the alone address", "sent to the shared address", ""],
+                 string:split(SenderOut, "\n", all)),
+    ?assertEqual(nomatch, string:find(SenderErr, "fault")),
+    has(MakerErr, "\n    " ++ Function ++ "\n"),
+    ?assertEqual(nomatch, string:find(MakerOut, "the alone target saw")).
+
+%% The program of capture_gone/1, built in Base: the maker's two holders and
+%% their targets, and the sender; answers its `.erc` and its source.
+capture_build(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    Source = <<"
+// Report §6.5: adapted addresses made on the maker and sent through from
+// the sender, whose function captures a cell the host holds, an `atomics`
+// array behind a foreign type. One holder makes a target that holds nothing
+// and an address whose function alone holds the cell; the other a target
+// that holds the cell too. Each answers its address and ends.
+
+foreign type Cell
+
+foreign fn cell(size : Int, options : List(Foreign.Term)) : Cell =
+    \"atomics:new/2\"
+
+foreign fn put(cell : Cell, index : Int, value : Int) : Unit =
+    \"atomics:put/3\"
+
+foreign fn get(cell : Cell, index : Int) : Int =
+    \"atomics:get/2\"
+
+type TargetMsg = Seen(Int)
+
+type HolderMsg = Give(Reply(Address(Int)))
+
+type MakerMsg = Ended(String)
+
+let alone : Peer.Service(HolderMsg) = Peer.service(\"alone\")
+
+let shared : Peer.Service(HolderMsg) = Peer.service(\"shared\")
+
+export fn main() : Unit receiving MakerMsg =
+    match Os.arguments {
+        [\"make\"] -> {
+            offered(alone, \"alone\", spawn(fn() = holdingAlone()));
+            offered(shared, \"shared\", spawn(fn() = holdingShared()));
+            Io.println(\"offered\");
+            ended()
+        }
+      | _ ->
+            sending()
+    }
+
+fn offered(service : Peer.Service(HolderMsg),
+           name : String,
+           holder : Address(HolderMsg)) : Unit receiving MakerMsg = {
+    monitor(Process.fromAddress(holder), fn(_) = Ended(name));
+    let _ = Peer.offer(service, holder);
+    Unit
+}
+
+// Each holder's end, said, until the node is stopped.
+fn ended() : Unit receiving MakerMsg =
+    receive {
+        Ended(name) -> {
+            Io.println(\"the \" <> name <> \" holder ended\");
+            ended()
+        }
+    }
+
+fn counted() : Cell = {
+    let made = cell(1, []);
+    put(made, 1, 42);
+    made
+}
+
+// The cell held by the address's function alone once this process ends.
+fn holdingAlone() : Unit receiving HolderMsg =
+    receive {
+        Give(reply) -> {
+            let held = counted();
+            let target = spawn(fn() = seeing());
+            answer(reply, adapted(target, fn(n) = Seen(get(held, 1) + n)))
+        }
+    }
+
+// The cell held by the target too.
+fn holdingShared() : Unit receiving HolderMsg =
+    receive {
+        Give(reply) -> {
+            let held = counted();
+            let target = spawn(fn() = seeingBeside(held));
+            answer(reply, adapted(target, fn(n) = Seen(get(held, 1) + n)))
+        }
+    }
+
+fn seeing() : Unit receiving TargetMsg =
+    receive {
+        Seen(n) -> {
+            Io.println(\"the alone target saw \" <> Int.toString(n));
+            seeing()
+        }
+    }
+
+fn seeingBeside(held : Cell) : Unit receiving TargetMsg =
+    receive {
+        Seen(n) -> {
+            Io.println(\"the shared target saw \"
+                           <> Int.toString(n)
+                           <> \" beside \"
+                           <> Int.toString(get(held, 1)));
+            seeingBeside(held)
+        }
+    }
+
+// Report §6.5: each address sent to once the test has seen its holder end;
+// the sender goes on after each send.
+fn sending() : Unit receiving MakerMsg = {
+    let fromAlone = given(alone);
+    let fromShared = given(shared);
+    Io.println(\"given\");
+    let _ = Io.readLine();
+    send(fromAlone, 5);
+    Io.println(\"sent to the alone address\");
+    let _ = Io.readLine();
+    send(fromShared, 5);
+    Io.println(\"sent to the shared address\")
+}
+
+fn given(service : Peer.Service(HolderMsg)) : Address(Int) =
+    match Peer.find(service, waitMs()) {
+        Right(holder) ->
+            match Address.call(holder, Give, waitMs()) {
+                Some(address) -> address
+              | None -> fault(\"no address given\")
+            }
+      | Left(failure) ->
+            fault(Io.show(failure))
+    }
+"/utf8>>,
+    ok = file:write_file(filename:join(Root, "capture.ern"), [Source, wait_ms_declaration()]),
+    0 = built([Root]),
+    {filename:join(Root, "capture.erc"), unicode:characters_to_list(Source)}.
+
 %%
 %% The end told, and the proxy (report §8.6, Appendix E.23, G.7)
 %%
@@ -8523,6 +8710,293 @@ given_up_within_the_detectors_time(Out) ->
     {match, [Seconds]} = re:run(Out, "given up after: ([0-9]+)", [{capture, all_but_first, list}]),
     ?assert(list_to_integer(Seconds) >= 44),
     ?assert(list_to_integer(Seconds) =< 80).
+
+%% report §8.7, §6.2: a message above the host's buffer for a peer, sixteen
+%% megabytes, sent to a process of a running peer: its send waits, the host
+%% reporting the sender suspended, and returns; the message arrives whole,
+%% and the next its sender sends arrives after it. A regression test,
+%% written after the code; it does not show whether the host places the
+%% message in its buffer whole or a part at a time, which the sender's wait
+%% does not tell apart, nor a message larger than the peer's host can take
+above_the_buffer_test_() ->
+    nodes_test({waits, 8}, fun above_the_buffer/1).
+
+above_the_buffer(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk} = buffer_nodes(Base),
+    WaitStore = start(Store, Program, ["sink"]),
+    prints(Store, "offered"),
+    WaitDesk = start(Desk, Program, ["above"]),
+    prints(Desk, "the host says the send waited"),
+    prints(Store, "took the next"),
+    stop(Desk, WaitDesk),
+    stop(Store, WaitStore),
+    {DeskOut, _} = said(Desk),
+    {StoreOut, _} = said(Store),
+    ?assertEqual(["sent 16777216 bytes", "sent the next", "the host says the send waited", ""],
+                 string:split(DeskOut, "\n", all)),
+    ?assertEqual(["offered", "took 16777216 bytes, whole: true", "took the next", ""],
+                 string:split(StoreOut, "\n", all)).
+
+%% report §8.7, §12.6: what waits for a peer that stands still. The store
+%% stopped, a sender of the desk's sends it a quarter of a megabyte at a
+%% time: the sends that return carry more than the buffer's 1 MB, since what
+%% the connection took counts no longer, and the send after them waits, the
+%% host reporting the sender suspended. Asked something each time the host
+%% so reports, the sender serves it only after its send. The wait lasts
+%% until the store is lost, no sooner than the detector's 45 seconds after
+%% the stop, and the loss ends it: the sender goes on, and the desk says
+%% the store was lost.
+%%
+%% A regression test, written after the code; the one wait here that is a
+%% time is the detector's own, which the test reads and does not choose. It
+%% does not cover how late the loss may come where the buffer cannot drain,
+%% nor the desk's end while the store stands still, which is why the store
+%% runs again before the desk's end is waited for; nor a wait the peer ends
+%% by running again, a call, a find or a spawn that waits so, nor a system
+%% process of the desk's that sends to the store meanwhile
+wait_ended_by_a_loss_test_() ->
+    nodes_test({waits, 8, ?DETECTOR_MS}, fun wait_ended_by_a_loss/1).
+
+wait_ended_by_a_loss(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk} = buffer_nodes(Base),
+    WaitStore = start(Store, Program, ["sink"]),
+    prints(Store, "offered"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["wait"]),
+    prints(Desk, "found"),
+    StoreNumber = pid(Store),
+    _ = os:cmd("kill -STOP " ++ StoreNumber),
+    try
+        true = port_command(DeskInput, "go\n"),
+        prints(Desk, "the host says the sender waits in a send"),
+        %% the desk's word comes once the loss has ended the wait, its
+        %% numbers the summary's last line
+        prints(Desk, "given up after: ", ?WAIT_MS + ?DETECTOR_MS),
+        says(Desk, "the peer store was lost: it fell silent"),
+        Out = written(Desk, out),
+        [Returned, During] = [list_to_integer(Count)
+                              || Part <- ["returned before the wait", "served after it"],
+                                 {match, [Count]} <- [re:run(Out, Part ++ ": ([0-9]+)",
+                                                             [{capture, all_but_first, list}])]],
+        ?assert(Returned * 262144 > 1048576),
+        has(Out, "the sender went on after send " ++ integer_to_list(Returned + 1)),
+        ?assert(During >= 1),
+        {match, [Seconds]} = re:run(Out, "given up after: ([0-9]+)",
+                                    [{capture, all_but_first, list}]),
+        %% no fewer than 44, as given_up_within_the_detectors_time/1 counts
+        ?assert(list_to_integer(Seconds) >= 44)
+    after
+        os:cmd("kill -CONT " ++ StoreNumber)
+    end,
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore).
+
+%% A store that listens and a desk that dials it, the desk finding the
+%% store's sink there.
+buffer_nodes(Base) ->
+    Port = free_port(),
+    Store = made(Base, "store", Port),
+    Desk = made(Base, "desk", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Desk, [{"store", Store, Port}]),
+    edit(Desk, fun(Conf) -> Conf#{<<"services">> => #{<<"sink">> => [<<"store">>]}} end),
+    {Store, Desk}.
+
+%% The buffer's tests' program, built in Base beside the host module it
+%% asks of the host (buffer_host/0); answers its `.erc`.
+buffer_build(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "buffer.ern"), [<<"
+// Report §8.7: what waits for a peer in the host's buffer. The store's sink
+// takes what the desk sends it. The desk sends it a message above the buffer
+// and one after it; or, the store stopped, a sender sends until a send waits,
+// and the desk says what ended the wait.
+
+// The host's report of each time the process is suspended in a send to
+// another node, its count sent to the address.
+foreign fn watch(process : Process, to : Address(Int)) : Unit =
+    \"ern_nodes_buffer:watch/2\"
+
+// Whether the host holds a connection to the node the process is on.
+foreign fn isConnected(process : Process) : Bool =
+    \"ern_nodes_buffer:is_connected/1\"
+
+type SinkMsg = Whole(Bytes) | Next | Chunk(Bytes)
+
+type DeskMsg = Suspended(Int) | Returned(Waited)
+
+type SenderMsg = Go | Asked(Int)
+
+// The send that waited: its number, the moments it began and ended, and
+// the moments of what it was asked, which it served after it.
+type Waited = Waited(index : Int, began : Int, ended : Int, asked : List(Int))
+
+let sink : Peer.Service(SinkMsg) = Peer.service(\"sink\")
+
+export fn main() : Unit receiving DeskMsg =
+    match Os.arguments {
+        [\"sink\"] -> {
+            let _ = Peer.offer(sink, spawn(fn() = sinking()));
+            Io.println(\"offered\");
+            held()
+        }
+      | [\"above\"] ->
+            above(found())
+      | [\"wait\"] ->
+            waits(found())
+      | _ ->
+            Unit
+    }
+
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn held() : Unit receiving DeskMsg =
+    receive {
+        _ -> held()
+    }
+
+fn found() : Address(SinkMsg) =
+    match Peer.find(sink, waitMs()) {
+        Right(address) -> address
+      | Left(failure) -> fault(Io.show(failure))
+    }
+
+// The message above the buffer, sixteen times its megabyte, which the sink
+// makes again to compare.
+fn whole() : Bytes =
+    Bytes.repeat(<<1, 2, 3, 4, 5, 6, 7, 8>>, 2097152)
+
+fn sinking() : Unit receiving SinkMsg =
+    receive {
+        Whole(bytes) -> {
+            Io.println(\"took \"
+                           <> Int.toString(Bytes.size(bytes))
+                           <> \" bytes, whole: \"
+                           <> Io.show(bytes == whole()));
+            sinking()
+        }
+      | Next -> {
+            Io.println(\"took the next\");
+            sinking()
+        }
+      | Chunk(_) ->
+            sinking()
+    }
+
+// Report §8.7: a message above the buffer, placed whole, its send waiting
+// while more than 1 MB waits, and the next behind it.
+fn above(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let bytes = whole();
+    watch(Process.current(), adapted(self(), Suspended));
+    send(address, Whole(bytes));
+    Io.println(\"sent \" <> Int.toString(Bytes.size(bytes)) <> \" bytes\");
+    send(address, Next);
+    Io.println(\"sent the next\");
+    // the host's report of the wait, which comes after it
+    receive {
+        Suspended(_) -> Io.println(\"the host says the send waited\")
+    };
+    held()
+}
+
+// Report §8.7: the store stopped, a sender sends a quarter of a megabyte at
+// a time until a send waits, and only the loss ends the wait. Each time the
+// host says the sender is suspended, this process asks it something, which
+// it serves only between its sends.
+fn waits(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let me = self();
+    let sender = spawn(fn() : Unit receiving SenderMsg = starting(me, address));
+    watch(Process.fromAddress(sender), adapted(me, Suspended));
+    Io.println(\"found\");
+    // until the test, which has stopped the store, says so
+    let _ = Io.readLine();
+    let stopped = Clock.monotonic();
+    send(sender, Go);
+    told(sender, stopped)
+}
+
+fn told(sender : Address(SenderMsg), stopped : Int) : Unit receiving DeskMsg =
+    receive {
+        Suspended(count) -> {
+            Io.println(\"the host says the sender waits in a send: \" <> Int.toString(count));
+            send(sender, Asked(Clock.monotonic()));
+            told(sender, stopped)
+        }
+      | Returned(waited) ->
+            summed(waited, stopped)
+    }
+
+// What the wait was: the sends that returned before it, when it began and
+// when it ended after the stop, and what the sender was asked during it,
+// which it served after it.
+fn summed(waited : Waited, stopped : Int) : Unit = {
+    Io.println(\"returned before the wait: \" <> Int.toString(waited.index - 1));
+    Io.println(\"began after: \" <> Int.toString(waited.began - stopped) <> \" ms\");
+    let during = List.filter(waited.asked, fn(moment) = moment >= waited.began);
+    Io.println(\"asked during the wait, served after it: \" <> Int.toString(List.size(during)));
+    Io.println(\"given up after: \" <> Int.toString((waited.ended - stopped) / 1000))
+}
+
+fn starting(desk : Address(DeskMsg), address : Address(SinkMsg)) : Unit receiving SenderMsg =
+    receive {
+        Go -> sending(desk, address, Bytes.repeat(<<0>>, 262144), 1)
+    }
+
+// A send, then what was asked meanwhile served, until a send the loss ended.
+fn sending(desk : Address(DeskMsg),
+           address : Address(SinkMsg),
+           chunk : Bytes,
+           index : Int) : Unit receiving SenderMsg = {
+    let began = Clock.monotonic();
+    send(address, Chunk(chunk));
+    let ended = Clock.monotonic();
+    let asked = served([]);
+    if isConnected(Process.fromAddress(address)) then
+        sending(desk, address, chunk, index + 1)
+    else {
+        Io.println(\"the sender went on after send \" <> Int.toString(index));
+        send(desk, Returned(Waited(=index, =began, =ended, =asked)))
+    }
+}
+
+// The moments of what this process was asked, as it serves each in turn.
+fn served(acc : List(Int)) : List(Int) receiving SenderMsg =
+    receive {
+        Asked(moment) -> served(moment :: acc)
+      | after 0 -> acc
+    }
+"/utf8>>, wait_ms_declaration()]),
+    ok = file:write_file(filename:join(Root, "ern_nodes_buffer.erl"), buffer_host()),
+    {ok, _} = compile:file(filename:join(Root, "ern_nodes_buffer.erl"), [{outdir, Root}]),
+    0 = built([Root]),
+    filename:join(Root, "buffer.erc").
+
+%% A host module for the buffer's program: the host's report of each time a
+%% process is suspended in a send to another node, `erlang:system_monitor`'s
+%% `busy_dist_port`, taken by a process of its own made before the program
+%% sends, each report's count sent to an address; and whether the host holds
+%% a connection to a process's node.
+buffer_host() ->
+    <<"
+-module(ern_nodes_buffer).
+-export([watch/2, is_connected/1]).
+watch(Pid, To) ->
+    Caller = self(),
+    Watcher = spawn(fun() ->
+                        _ = erlang:system_monitor(self(), [busy_dist_port]),
+                        Caller ! {ern_nodes_watching, self()},
+                        watched(Pid, To, 0)
+                    end),
+    receive {ern_nodes_watching, Watcher} -> 'Unit' end.
+watched(Pid, To, Count) ->
+    receive
+        {monitor, Pid, busy_dist_port, _} -> To ! Count + 1, watched(Pid, To, Count + 1);
+        {monitor, _, busy_dist_port, _} -> watched(Pid, To, Count)
+    end.
+is_connected(Pid) ->
+    lists:member(node(Pid), nodes(connected)).
+">>.
 
 %% Report §6.10, §8.7, Appendix E.28: a counter's two builds, built in
 %% Base: the first, whose node runs counters on `count`, and the second,

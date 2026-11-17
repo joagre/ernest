@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 94**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 98**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -45,30 +45,61 @@ What is left is small, and each item stands alone. Its order, decided with the u
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
-them. Items 94 and 95 are what a reading of five reviews from outside decided the same day
-(the log's *The Outside Reviews Read*). Item 94 stands first, since it changes sentences of
-§6.5 and §8.7, and item 95 stands after item 93. Item 96, the same reading's feedback 260,
-needs the user as item 68 does and stands last. The items stand below in that order.
+them. Item 95 is what a reading of five reviews from outside decided the same day (the
+log's *The Outside Reviews Read*), and stands after item 93. Item 96, the same reading's
+feedback 260, needs the user as item 68 does and stands last.
 
-- **94. Two sentences on what crosses nodes, and their tests**, decided with the user on
-  2026-11-17 (the log's *The Outside Reviews Read*, its paragraphs *The buffer is a mark* and
-  *An adapted address keeps nothing alive*).
+Items 98 and 97 are what item 94's build and its cold reading found, decided with the user
+on 2026-11-17 (the log's *What Waits for a Peer*). They stand first, item 98 before item
+97, since a node that does not end is the graver and item 97's probes rest on a loss that
+comes. The items stand below in that order.
 
-  §8.7's *Messages* says that a message of any size is placed in the host's buffer whole,
-  and that its `send` then waits while more than 1 MB waits there for the peer, its own
-  message among it. `docs/design/nodes.md` loses "finds it full" in the same commit. The
-  guide's chapter on nodes gains one sentence on sending from a spawned process.
+- **98. A connection that cannot drain: a loss that comes late, and a node that does not
+  end**, found 2026-11-17 by item 94's build (the log's *What Waits for a Peer*, its
+  paragraph *A connection that cannot drain*).
 
-  §6.5 says that an adapted address held on another node keeps nothing alive on the node
-  that made it, that a value its function captured lives as its own type says, and that a
-  use of one that has gone faults as a fault in the function does.
+  With a peer stopped and more than the buffer waiting for it, the loss came about 85
+  seconds after the stop in every run, past §12.6's 45 to 75. The host's detector decided
+  at 75, and the node was told about ten seconds later. With nothing buffered the loss came
+  at 74.9.
 
-  The sentences are written first and read cold, against §6.2, §3.11 and the soundness
-  note's paragraph on an adapted address that crosses. An agent then builds three tests. One
-  sends a message above the buffer. One holds the wait at a full buffer, with a peer stopped
-  and then lost: it waits on the host's report of a suspended sender, takes about a minute
-  and runs in the full run. One holds an adapted address whose capture has gone. The item
-  closes on `make test-full`.
+  A node whose program had ended then did not end until the peer ran again. It ends by the
+  host's `halt`, which flushes every port with no limit, and the lost connection's port
+  still held 1.5 MB (§8.6). Neither cause is proven.
+
+  The shape: one agent diagnoses both, from `wait_ended_by_a_loss_test_` with its two
+  assertions put back, the loss within the detector's time and the desk's end while the
+  store stands still. It shows first whether a termination ends the hung node. The leaning
+  is that a loss lets go of what the connection held, as §8.7 has a loss drop what waited
+  to be sent, so that neither the loss nor the end waits on a peer that takes nothing. A
+  limit on the flush is a time chosen, and is weighed last.
+
+  The deployment guide's 90 seconds and ernest-httpd's 120 are read against the fix, and
+  that session is told. The item closes on `make test-full`.
+- **97. What else waits in a send**, found 2026-11-17 by item 94's cold reading and its
+  build, and decided with the user the same day (the log's *What Waits for a Peer*, its
+  paragraph *A frame's send waits too*).
+
+  Appendix E.27 says that the runtime's step of making the attempt ends at the latest where
+  a dial that nothing answers is given up, 7 seconds, for a spawn, a find, a compute and a
+  utilization. §8.7 says each sends as a `send` does, and the spawn's frame goes by the
+  host's plain send (`ern_peer`). So at a peer that stands still the step lasts until the
+  loss. No program has shown it: the finding is a reading.
+
+  A probe first shows a `Peer.spawn` held past its time and the dial's at a stopped peer,
+  over item 94's test of the wait. E.27's sentence then gains the clause that the step
+  waits where the frame's send waits (§8.7), as §6.6 has a call's time bound the wait for
+  the answer and nothing before it, and §6.7's sentence on the step is read against it. A
+  test holds it for a spawn. Where the probe shows no wait, that part closes on its log
+  line and no sentence.
+
+  Three more stand with it, each a reading or one probe of the build's. The node's gateway
+  was suspended in a send to the stopped peer until the loss, and may hold every other
+  peer's frames meanwhile. A `send` to a lost peer that still listened waited 7 seconds for
+  the dial, where §8.7 and the deployment guide say that the send returns and the message
+  waits. `Process.status` answers `Running` of a process that waits in a send, of which
+  Appendix E.21 says nothing. Each is probed first and then decided: a sentence, a fix, or
+  a log line.
 - **87. Nothing holds that a shell test names a home**, found 2026-11-16 by the fix of the
   27 sites that ran under the inherited `HOME` (the log's *The Shell's Tests in a Home of
   Their Own*). A new test that starts `ern shell` by hand runs the startup file of whoever
@@ -246,6 +277,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
+| 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

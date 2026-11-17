@@ -733,7 +733,7 @@ A function that calls a function argument runs it in the caller's process and is
 
 ### 6.2 Built-in functions
 
-`self`, `send`, `spawn` and `spawnMonitored` are the prelude's, and §9.4 lists their types. `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns at once; sending to a dead process has no effect. To a process of another node it hands `v` to the runtime and returns, and waits only while what waits to be sent to that node exceeds the host's buffer (§8.7). A `send` promises the sender nothing.
+`self`, `send`, `spawn` and `spawnMonitored` are the prelude's, and §9.4 lists their types. `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns at once; sending to a dead process has no effect. To a process of another node it hands `v` to the runtime and returns, and waits only while more waits to be sent to that node than §8.7 states. A `send` promises the sender nothing.
 
 The one silence in the language is an act on what has ended, or cannot be reached, that asks nothing back, which does nothing and says nothing: a message whose receiver has ended or restarts (§6.9), or whose request has timed out or been answered, is dropped; a message or a `kill` to a process whose node is out of reach or not listed vanishes, while the process may live on (§8.7); and a `kill` (§6.9), a close or a `give` of a resource that has ended (Appendix E.18, E.23) does nothing. A program's end keeps no promise (§8.6). Every other failure is a value, a message, or a fault (§7).
 
@@ -770,6 +770,8 @@ What `f` opens, spawns or asks of the runtime is the sender's where the send app
 A `send` that applies `f` returns once `f` has, and a sender's messages keep their order through it (§6.4), with one exception: a message to an adapted address made on another node than the sender's takes one step more, on the node that made it, and a message sent straight after it to another address can pass it (§8.7).
 
 An adapted address crosses to another node as a reference to `f` and the values `f` captured, which cross as payload and are touched on no other node (§3.11). A `send` to it from another node carries `v` to the node where it was made, where the process kept for it applies `f` and sends `f(v)` on to `addr`, on whichever node its process is.
+
+An adapted address held on another node keeps nothing alive on the node that made it. A process or a resource that a captured value names lives there as though no address named it, and what the host holds for a captured value of a foreign type lives as the host has it, where the host collects it only while a process of that node reaches it (§10); each may have gone when a message arrives. Every other captured value comes back with the message as it crossed. A use in `f` of a process or a resource that has ended is what it is in any function, a foreign function given a value the host holds nothing for does what the host's function does, and a fault of either is a fault in `f` (below).
 
 `adapted(self(), Wrap)`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`.
 
@@ -1029,7 +1031,7 @@ Each node is told by its own host and runs the loss for itself: it gives a `Down
 
 A connection is opened again when an operation needs it, never in the background, and with no delay between one attempt and the next. A dial that is refused fails at once; one that nothing answers is given up after 7 seconds, and what waited behind it is then dropped. A node that cannot be dialed is reached only while it holds a connection open: after a loss, what the other node sends vanishes and its monitors say `Unreachable` until the first node next acts towards it.
 
-**Addresses.** An address names its process for as long as the process lives, on whichever node, and a loss does not end it: when the two nodes connect again, the same address reaches the same process. An address of an earlier start of its node is dead: what is sent to it is dropped, a call through it ends at once, and a monitor on its process gives `Unknown`. An adapted address made by an earlier start of its node is dead too: what is sent to it is dropped, and its function is not applied. An address is a value like any other, and is as good on a third node it is sent to as on the node that sent it.
+**Addresses.** An address names its process for as long as the process lives, on whichever node, and a loss does not end it: when the two nodes connect again, the same address reaches the same process. An address of an earlier start of its node is dead: what is sent to it is dropped, a call through it ends at once, and a monitor on its process gives `Unknown`. An adapted address made by an earlier start of its node is dead too: what is sent to it is dropped, and its function is not applied. An address is a value like any other, and is as good on a third node it is sent to as on the node that sent it; what an adapted address keeps alive is §6.5's.
 
 A monitor does not outlive a loss: the loss gave its `Down`. A monitor made while the process's node is out of reach or not listed gives its `Down` with `Unreachable` once the dial has failed. A `send` or a `kill` to a process whose node is out of reach or not listed vanishes (§6.2).
 
@@ -1037,11 +1039,13 @@ A monitor does not outlive a loss: the loss gave its `Down`. A monitor made whil
 
 A loss ends the wait on both sides: the restarting process goes on, and the node that lost the connection ends its deliveries of `Restarted` for the peer's processes not yet placed, as it ends the monitors they deliver for, so no `Down` follows the loss's (**A loss**).
 
-**Messages.** `send` hands the message to the host and returns (§6.2). Where no connection is open the host opens one, and the message waits behind the dial: it is sent where the connection opens, and dropped where it does not. What waits to be sent to a peer waits in the host's buffer for that peer, 1 MB, and a `send` that finds the buffer full waits until it drains, at the latest until the detector gives the peer up; a process that waits so serves nothing from its mailbox meanwhile. A call, a find, a spawn, a compute, a utilization and an `answer` send the same way.
+**Messages.** `send` hands the message to the host and returns (§6.2). Where no connection is open the host opens one, and the message waits behind the dial: it is sent where the connection opens, and dropped where it does not.
+
+What the connection has not yet taken waits in the host's buffer for that peer. A message of any size is placed there whole, and its `send` then waits while more than 1 MB waits there, its own message among it. What the connection has taken counts no longer, though the peer has not received it, so a `send` to a peer that stands still waits only once the connection takes no more. A loss ends the wait, as it drops what waited (**A loss**). A process that waits so serves nothing from its mailbox meanwhile. A call, a find, a spawn, a compute, a utilization and an `answer` send the same way.
 
 What one process sends another arrives in the order it was sent, whichever addresses it was sent through, but for the one step more of §6.5. Between nodes a message is never dropped alone: where one is dropped, the connection is lost, with everything that waited to be sent. A message arrives once or not at all, and the runtime sends nothing a second time.
 
-**Calls.** A loss ends a call as §6.6 says, and where the host's buffer for the peer is full, the caller waits in the send first. A restart in place ends every call whose request came before it, but for a request through an adapted address made on a third node.
+**Calls.** A loss ends a call as §6.6 says, and where the request's `send` waits (**Messages**), the caller waits there before its wait for the answer begins. A restart in place ends every call whose request came before it, but for a request through an adapted address made on a third node.
 
 **A spawn.** `Peer.spawn(name, f, ms)` asks the peer named `name` to start a process and run `f()` in it, the values `f` captured (§3.11) crossing as they cross in a message, a reply among them answered by the spawned process as §6.6 says of `spawn`, and for `restarting(limit, g)` the limit and `g`; the peer records the spawn's site (§6.9) for the process as it records a local spawn's, and answers its address; what the spawn answers, and within what time, is Appendix E.27's.
 

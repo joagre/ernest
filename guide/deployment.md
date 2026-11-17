@@ -183,7 +183,7 @@ A restart here of a process that one of `b`'s processes monitors or calls waits 
 
 The connection is opened again by the next operation that needs it, never in the background: a node that is lost stays lost until an operation that needs it reaches for it, a send, a find, a spawn, a compute or an ask of its utilization (section 3.2), or until it dials in, and a dial that nothing answers is given up after 7 seconds. A peer that cannot be dialed, listed without an address, is reached again only when it dials in.
 
-A `send` to a process of a lost peer returns at once, unless what waits for that peer fills the host's buffer for it, 1 MB, when the sender waits until it drains (report §8.7). The message waits behind the dial, and is sent where the connection opens and dropped where it does not. The window in which a silence is found is the host's, and no entry of `ernest.conf` sets it.
+A `send` to a process of a lost peer returns at once, unless more than 1 MB then waits for that peer in the host's buffer, its own message counted, when the sender waits until it drains or the dial fails (report §8.7). A `send` to a peer that is silent and not yet lost waits the same way, until the loss. The message waits behind the dial, and is sent where the connection opens and dropped where it does not. The window in which a silence is found is the host's, and no entry of `ernest.conf` sets it.
 
 The move: look at `b`'s machine. If `b` stopped in order you would have read `ended`; `lost` means the network or the process. `b` restarting shows as `connected` again on `a`, or as `replaced` where `a` still believed the old connection alive.
 

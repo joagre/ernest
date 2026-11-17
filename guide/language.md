@@ -846,7 +846,7 @@ fn count(total : Int) : Unit receiving CounterMsg =
 
 `let counter = spawn(fn() = count(0))` starts a process that runs the lambda, and `counter` is its address. The lambda calls `count`, whose mailbox takes `CounterMsg`, so the address is an `Address(CounterMsg)`, and nothing but a `CounterMsg` can be sent to it. The process runs on this node, the runtime the program runs in; `Peer.spawn(name, f, ms)` starts one on another node (§8).
 
-`send(counter, Inc(5))` puts `Inc(5)` in the mailbox of the process at `counter` and returns at once, without waiting for it to be received. A send to a process of another node waits only where what waits to go to that node fills the host's buffer for it (report §6.2). `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(fn() = child(me))`.
+`send(counter, Inc(5))` puts `Inc(5)` in the mailbox of the process at `counter` and returns at once, without waiting for it to be received. A send to a process of another node waits only while more than 1 MB waits to go to that node, its own message counted (report §6.2, §8.7), which §8.2 comes back to. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(fn() = child(me))`.
 
 A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
@@ -1538,7 +1538,7 @@ fn oneProcess(me : Address(CountMsg)) : Bool =
 
 `oneProcess(self())` is `true`, and `adapted(me, Counted) == me` does not compile.
 
-**Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/file_sync.ern`](../examples/file_sync.ern). To another node, an adapted address of your own process goes too, and its function stays here (§8.2).
+**Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/file_sync.ern`](../examples/file_sync.ern). To another node, an adapted address of your own process goes too: its function is applied here, and the address keeps nothing alive here meanwhile (§8.2, report §6.5).
 
 `Clock.alarm` fires once. A periodic tick is scheduled again after each tick is handled, and only then: a loop that scheduled one on every message would add a timer per key pressed. Two functions keep the two apart:
 
@@ -2787,7 +2787,6 @@ A service has one holder on a node: the offer answers `Right(Unit)` where it too
 `Peer.find(service, ms)` asks the peers the desk's `ernest.conf` lists under `"counter"`, in that order, and answers the first address offered under the name at the service's message type; a peer out of reach, offering nothing, or offering the name at another type is passed over, and where none offers it the find answers the last failure met, or `Left(Io.Timeout)`. Where a service lives is the configuration's: `"services": {"counter": ["store"]}` on the desk, and no find names a node.
 
 The address found is used as any other: `send`, `Address.call`, `monitor` and `kill` reach the store's process as they reach one here, nothing checks a message on arrival, since the find compared the service's type, and the address is as good on a third node it is sent to (report §8.4, §8.7).
-
 `monitorService` reaches it too: a service monitor on a process of another node is told of each of its restarts, by the runtime's own frames, before anything the new run sends, and of its end and of a loss as `monitor` is (report §6.9, §8.7). [`examples/lease_broker.ern`](../examples/lease_broker.ern) runs its broker and its clients on two nodes so.
 
 **A loss.** A connection breaks or a peer falls silent; a node that ends in order is no loss, a monitor on its processes gives `ProgramEnd`, and a `callForever` on one of them faults with `callee ended with its program`. A peer that fell silent is given up in 45 to 75 seconds, and one whose connection closed is given up at once (report §8.7, report §12.6).
@@ -2799,6 +2798,8 @@ A restart of a process that a process of another node monitors or calls waits fo
 The address outlives the loss: once the nodes connect again, which the next operation that needs it does, the same address reaches the same process, for as long as it lives and its node has not been started again. A monitor does not outlive it: a program that goes on watching calls `monitor`, or `monitorService`, again, on the process the `Down` named, and while the peer stays out of reach the new monitor answers `Unreachable` once the dial has failed.
 
 `Unreachable` says the process may be alive, which a replacement would make two. Three rules keep that harmless: replace at `Unreachable` only work that may run twice; let a process spawned on a peer watch whoever it works for, and end when told `Unreachable`, which it is, since both nodes run the loss; and keep what must exist once on one named node, found there as a service, unavailable while that node is out of reach rather than started again elsewhere.
+
+**A send that waits.** A `send` to another node hands its message to the host whole, of whatever size, and then waits while more than 1 MB waits to go to that peer, its own message counted, until that drains or the peer is lost; its process takes nothing from its mailbox meanwhile (report §8.7). A process that must go on serving sends a large message, or one to a peer that may stand still, from a process it spawns for the send. That message is then another sender's: it has no order with what the process itself sends (§5.1), and nothing holds back how many such senders wait.
 
 **Order.** What one process sends another arrives in the order it was sent, through whichever addresses, with one exception: a message to an adapted address made on another node is wrapped on that node, a step more, so a message sent straight after it to the target's own address can arrive first (report §6.5, §8.7). A protocol that must keep the order sends both through the same address.
 

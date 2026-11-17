@@ -292,7 +292,11 @@ A compute's function is checked as a spawn's is, so no bound value crosses with 
 
 For an `f` that receives nothing, or that is process-only, which runs in a process of any mailbox type, the addresses are of `Address(Never)` (Appendix E.28): no `send` is typed to one, so nothing reaches the process through them, and I2 holds of them as of any address of `Never`.
 
-Every remote address a program holds is therefore of an unbound type, so every message sent to one is of an unbound type, and so is everything inside it. An adapted address crosses with its captured values as payload: its function receives nothing (6.3) and runs only on the node that made it, where those values are at home, and the message it makes is of its target's mailbox type (I2), sent on from there (§6.5).
+Every remote address a program holds is therefore of an unbound type, so every message sent to one is of an unbound type, and so is everything inside it.
+
+An adapted address crosses with its captured values as payload: its function receives nothing (6.3) and runs only on the node that made it, where those values are at home, and the message it makes is of its target's mailbox type (I2), sent on from there (§6.5).
+
+An adapted address held on another node keeps none of its captured values alive on the node that made it (§6.5). An address or a resource among them whose process has ended when the function runs is a value of its type, as it is on one node. A value of a foreign type is one whatever the host still holds for it, since no check looks into one (§8.4). What a foreign function does with it is foreign code's: its raise is a fault of §12.3, a defined step (section 1), and its return is checked (section 2, §8.4). A fault in the function is the target's, met at a wait (section 5), and puts no value in a mailbox.
 
 A reply crosses inside a message as any value, at the type the message's hash agreed, and is answered through the host's alias, which takes one answer (§6.6, §12.6); so I3 holds with the processes of every node as one configuration, what a callee's node holds of the call being part of the runtime's record of the call, which answers nothing (section 4).
 
