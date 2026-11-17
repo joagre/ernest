@@ -50,6 +50,9 @@ log's *The Outside Reviews Read*), and stands after item 93. Item 96, the same r
 feedback 260, needs the user as item 68 does and stands last. Item 99, what ernest-httpd's
 session handed back the same day, stands after item 91.
 
+Item 100, ernest-httpd's session's two lines on a close, feedback 262 and 263, needs the
+user too. It stands before item 96, since three of that session's tests wait on it.
+
 Items 98 and 97 are what item 94's build and its cold reading found, decided with the user
 on 2026-11-17 (the log's *What Waits for a Peer*). They stand first, item 98 before item
 97, since a node that does not end is the graver and item 97's probes rest on a loss that
@@ -190,6 +193,30 @@ comes. The items stand below in that order.
   Recommended: it does where a stream has gone, as the job's own end does since item 40,
   and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
   hold a termination.
+- **100. When a close reaches the far end, and what a read answers after one**, feedback
+  262 and 263, found 2026-11-17 by ernest-httpd's session on 0.10.0 (the log's *Two Lines on
+  a Close*). A socket that ended while its host held bytes closed, for the far end, a second
+  after its last byte. A write answered `Left(Closed)` lost the bytes that had arrived and
+  no read had taken. E.18 says neither when the close reaches the far end nor what a read
+  answers after it.
+
+  The item first runs both probes here. It shows where the second is spent and where the
+  bytes go: in Ernest's code, the host's socket or the kernel. It searches the log for what
+  was decided of each, *What One Read Answers* and *A Socket Lives Until It Is Closed* among
+  its entries.
+
+  Decided with the user, in a design discussion of its own, one question at a time: whether
+  the close follows the last byte at once, and whether a write that answers `Left(Closed)`
+  keeps what has arrived for the reads after it.
+
+  Recommended, on that session's probes alone: the close follows the last byte, since a
+  reader predicts so (principle 1), and a second that no entry decided is a defect. A read
+  after the close answers what arrived before it and then `Left(Closed)`, and E.18 says so.
+  The write's case waits for the probe, since Ernest cannot keep what the kernel drops at a
+  reset. E.18 changes first.
+
+  Three of ernest-httpd's regression tests wait on the verdicts, and that session is told
+  them.
 - **96. A write that reaches the disk**, feedback 260, found 2026-11-17 (the log's *The
   Outside Reviews Read*, its paragraph *A write that survives a crash*). `Fs` has no sync,
   so a program that keeps data across a power loss cannot be written in Ernest. E.0 rule 1
