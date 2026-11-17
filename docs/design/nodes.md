@@ -74,6 +74,8 @@ A restart of a process tells each other node with a process that monitors it whe
 
 The node's worker for the peer asks the node's reaper to deliver `Restarted` through the service monitors it holds of the process, and answers by a frame to the restarting node's gateway once every delivery has ended, which it waits for in its own state, watching each, so that a wrap that does not finish holds up that restart and no frame of the peer's, and the wait needs no process (§7.4, §12.5); the answer goes over the connection that stands and opens none, and the restarting node's worker hands it to the alias, which takes one answer.
 
+The process's end, as the host ends the reaper's monitor of it, a loss among the ends, ends each delivery of `Restarted` not yet placed before its `Down` is given, and the answer then reaches no alias (the runtime's note's *A call, a restart, a kill*; the log's *The Release Review Before 0.6.0*, its decision K3, and *No Restarted After a Death*).
+
 The alias is let go when the wait ends, so that a late answer is dropped. The restarting process watches the peer's gateway meanwhile, so that a loss, or the peer's end, which ends its gateway, ends its wait; a node that holds no service monitor of the process, its processes monitoring it otherwise or waiting for its answer, answers at once (the log's *A Restart Told Across Nodes*, *A Restart Told Across Nodes, Built*).
 
 ## A spawn

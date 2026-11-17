@@ -1842,6 +1842,92 @@ restart_wait_status_test() ->
     %% the new run waits in a receive, the mark gone with the wait
     ?assertMatch({'Some', {'Status', _, _, 'Receiving', _}}, Again).
 
+%% report §6.9: "Where `p` dies while its restart waits, each delivery of
+%% `Restarted` not yet placed ends with it, so no `Restarted` follows the
+%% `Down` of `p`'s death": a process killed while its restart waits for the
+%% wrap that tells its service monitor of the restart gives the watcher
+%% `Killed`, and the delivery of `Restarted` ends, though its wrap would
+%% finish later. The wrap of `Restarted` is held until the watcher has its
+%% `Killed`, and then let go; the end of its delivery, which the test
+%% monitors, shows that no `Restarted` comes of it, since a delivery places
+%% its message before it ends.
+%%
+%% Written before the fix: without it, the held delivery places
+%% `Restarted` after `Killed`. It does not cover a wrap that returns at
+%% once, whose delivery raced the death's, nor a kill by a supervisor's
+%% watcher or by a peer's frame, which end the process through the same
+%% kill (killed/2), nor a watcher on another node, which ern_peer_tests'
+%% restarted_ended_at_a_kill_test covers
+restarted_ended_at_a_kill_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Zero = zero(),
+               Run = fun() ->
+                         Main ! {ready, erlang:self()},
+                         receive go -> 1 div Zero end
+                     end,
+               Holder = ern_rt:spawn(ern_rt:restarting('Unlimited', Run), <<"Main.main:3">>),
+               receive {ready, Holder} -> ok end,
+               Wrap = fun({'Down', _, 'Restarted', _} = Down) ->
+                              Main ! {holding, erlang:self()},
+                              receive release -> {service, Down} end;
+                         (Down) ->
+                              {service, Down}
+                      end,
+               ern_rt:monitor_service(Holder, Wrap),
+               Holder ! go,
+               Delivery = receive {holding, Holding} -> Holding end,
+               DeliveryRef = erlang:monitor(process, Delivery),
+               ern_rt:kill(Holder),
+               Killed = receive {service, Down} -> Down end,
+               Delivery ! release,
+               receive {'DOWN', DeliveryRef, process, Delivery, _} -> ok end,
+               Left = [Later || {service, Later} <- flush()],
+               Self ! {killed, {Holder, Killed, Left}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_, _) -> ok end}),
+    {Holder, Killed, Left} = wait(killed),
+    ?assertEqual({'Down', Holder, 'Killed', <<"Main.main:3">>}, Killed),
+    ?assertEqual([], Left).
+
+%% report §6.9: "If `p` is already dead, the message is placed at once,
+%% with the reason `Unknown`", and "Each `monitor` call produces one
+%% message": a watcher whose service monitor's `Down` of a process's death
+%% is still in its wrap, and which then makes a new service monitor of the
+%% dead process, gets that `Down` once its wrap finishes, and the new
+%% monitor's `Unknown` beside it. The new monitor gives the reaper a second
+%% end of the process, which ends no delivery of the first's.
+%%
+%% A regression test, which passed on the code before the fix of
+%% restarted_ended_at_a_kill_test and guards that fix. It does not cover a
+%% process of another node, which ern_peer_tests' monitor_after_a_loss_test
+%% covers at a loss
+monitor_after_a_death_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Ended = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"Main.main:3">>),
+               First = fun(Down) ->
+                               Main ! {holding, erlang:self()},
+                               receive release -> {first, Down} end
+                       end,
+               ern_rt:monitor_service(Ended, First),
+               ern_rt:kill(Ended),
+               Delivery = receive {holding, Holding} -> Holding end,
+               DeliveryRef = erlang:monitor(process, Delivery),
+               ern_rt:monitor_service(Ended, fun(Down) -> {second, Down} end),
+               Second = receive {second, Down} -> Down end,
+               Delivery ! release,
+               receive {'DOWN', DeliveryRef, process, Delivery, _} -> ok end,
+               Firsts = [Placed || {first, Placed} <- flush()],
+               Self ! {monitored, {Ended, Firsts, Second}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Ended, Firsts, Second} = wait(monitored),
+    ?assertEqual({[{'Down', Ended, 'Killed', <<"Main.main:3">>}], {'Down', Ended, 'Unknown', <<>>}},
+                 {Firsts, Second}).
+
 %% report §6.9, §9.5: a restart cancels the restarting process's own
 %% monitors, its service monitors among them, so a watcher that has
 %% restarted is told nothing of the restart of the process it watched

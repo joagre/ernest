@@ -252,7 +252,7 @@ looked(Count) ->
 %% then; one that has taken its row may not yet have ended.
 -spec delivered(pid()) -> ok.
 delivered(Recipient) ->
-    ended([Pid || {{Target, _, Pid}, _} <- ets:tab2list(ern_deliveries), Target =:= Recipient]).
+    ended([Pid || {{Target, _, _, Pid}} <- ets:tab2list(ern_deliveries), Target =:= Recipient]).
 
 %% Until each of Pids has ended.
 -spec ended([pid()]) -> ok.

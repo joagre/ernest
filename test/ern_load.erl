@@ -116,7 +116,7 @@ mark(Round) ->
     [begin
          MonitorRef = erlang:monitor(process, Delivery),
          receive {'DOWN', MonitorRef, process, Delivery, _} -> ok end
-     end || {{_, _, Delivery}, _} <- ets:tab2list(ern_deliveries)],
+     end || {{_, _, _, Delivery}} <- ets:tab2list(ern_deliveries)],
     Caller = self(),
     Sampler = spawn(fun() -> Caller ! {self(), sample(Round)} end),
     receive

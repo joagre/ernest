@@ -3505,16 +3505,25 @@ calls(Base) ->
 %% store's gateway cannot read, the loss ending the store's wait, so that
 %% the new run answers the desk's call after the loss.
 %%
+%% Report §6.9: "Where `p` dies while its restart waits, each delivery of
+%% `Restarted` not yet placed ends with it, so no `Restarted` follows the
+%% `Down` of `p`'s death": a third restart, which a wrap on the desk holds
+%% up, and the herald killed from the desk while it waits, which its node
+%% carries out as its own kill. The wrap's monitor is told Killed, and
+%% once the wrap is let go and the process it ran in has ended, no
+%% Restarted has come.
+%%
 %% The test's limit is the sum of its six waits, each bounded by the
 %% harness's time for one wait: the build, the store's offer, the desk's
 %% run, the store's end, and what each printed. A regression test, written
 %% after the code, of the decision's program, on which 0.5.0 told the
 %% watcher nothing and its next message was taken by the new run (the log's
-%% *A Restart Told Across Nodes*). It does not cover a restart of a process
-%% that another node only monitors or calls, answered at once, which no
-%% program can tell from a restart that tells no node, nor a telling whose
-%% watch dials a connection lost since the host listed the monitor, which
-%% no test can place there
+%% *A Restart Told Across Nodes*). The kill's part is written with its fix:
+%% under the code before it, the wrap's delivery placed Restarted after
+%% Killed. It does not cover a restart of a process that another node only
+%% monitors or calls, answered at once, which no program can tell from a
+%% restart that tells no node, nor a telling whose watch dials a connection
+%% lost since the host listed the monitor, which no test can place there
 restart_told_test_() ->
     nodes_test({waits, 6}, fun restart_told/1).
 
@@ -3530,7 +3539,8 @@ restart_told(Base) ->
     [has(Out, Line)
      || Line <- ["the first run: a run began", "first after the crash: told Restarted \"\"",
                  "then: a run began", "the watcher: Returned", "the wrap holds the restart",
-                 "severed: Unreachable \"\"", "after the loss: Some(Unit)"]],
+                 "severed: Unreachable \"\"", "the holding wrap: Unreachable \"\"",
+                 "after the loss: Some(Unit)", "killed: Killed \"\"", "after the kill: nothing"]],
     has(StoreErr, "faulted, restarted: crashed").
 
 %% report §8.7: a loss ends each wait on the peer that began before the

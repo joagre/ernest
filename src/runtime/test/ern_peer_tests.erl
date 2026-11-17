@@ -1237,6 +1237,97 @@ restarted_ended_at_a_loss_test() ->
     {Lost, Left, Alive, Restarting} = receive {lost, Got} -> Got end,
     ?assertEqual({{'Down', Restarting, 'Unreachable', <<>>}, [], false}, {Lost, Left, Alive}).
 
+%% report §6.9: "Each `monitor` call produces one message"; report §8.7,
+%% *A restart*: a loss ends the deliveries of `Restarted` for the lost
+%% peer's processes, and no other. A watcher whose service monitor's
+%% `Unreachable` of a peer's process is still in its wrap, and which then
+%% makes a new service monitor of that process while its node is out of
+%% reach, gets that `Unreachable` once its wrap finishes, and the new
+%% monitor's beside it.
+%%
+%% Here, as in restarted_ended_at_a_loss_test, a process of this host's
+%% stands in for the peer's, and the test sends the reaper each end of its
+%% monitor with the reason noconnection: the loss's, and the one the host
+%% gives a monitor made of a process whose node is out of reach.
+%%
+%% Written before the fix: without it, the second end ends the delivery of
+%% the first `Unreachable`, and the watcher gets one message of two
+%% monitors. It does not cover real nodes
+monitor_after_a_loss_test() ->
+    Self = self(),
+    Main = fun() ->
+               Watcher = erlang:self(),
+               Lost = spawn(fun() -> receive stop -> ok end end),
+               First = fun(Down) ->
+                               Watcher ! {holding, erlang:self()},
+                               receive go -> {first, Down} end
+                       end,
+               ern_rt:monitor_service(Lost, First),
+               Reaper = ern_rt:launch_reaper(),
+               Reaper ! {'DOWN', make_ref(), process, Lost, noconnection},
+               Delivery = receive {holding, Holding} -> Holding end,
+               DeliveryRef = erlang:monitor(process, Delivery),
+               ern_rt:monitor_service(Lost, fun(Down) -> {second, Down} end),
+               Reaper ! {'DOWN', make_ref(), process, Lost, noconnection},
+               Second = receive {second, Down} -> Down end,
+               Delivery ! go,
+               receive {'DOWN', DeliveryRef, process, Delivery, _} -> ok end,
+               Firsts = [Placed || {first, Placed} <- flushed()],
+               Lost ! stop,
+               Self ! {lost, {Firsts, Second, Lost}}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    {Firsts, Second, Lost} = receive {lost, Got} -> Got end,
+    Unreachable = {'Down', Lost, 'Unreachable', <<>>},
+    ?assertEqual({[Unreachable], Unreachable}, {Firsts, Second}).
+
+%% report §6.9: "Where `p` dies while its restart waits, each delivery of
+%% `Restarted` not yet placed ends with it, so no `Restarted` follows the
+%% `Down` of `p`'s death"; report §8.7, *A restart*: a service monitor of a
+%% process of another node is told of its restarts by the runtime's frames,
+%% and of its death as a monitor is. A restart of a peer's process told to
+%% a service monitor whose wrap has not finished, and then that process
+%% killed, gives the watcher `Killed` and no `Restarted` after it, the
+%% delivery of `Restarted` ended though its wrap would finish later.
+%%
+%% Here, as in restarted_ended_at_a_loss_test, a process of this host's
+%% stands in for the peer's, and the watcher for the peer's gateway. The
+%% stand-in is ended by the runtime's kill, as the peer's node carries out
+%% a kill of its process (ern_peer:frame/2), and the reaper's own monitor
+%% of it gives its end with the reason the host gives a monitor of a
+%% process of another node killed so, `{ern, killed}`, which is no loss.
+%%
+%% Written before the fix: without it, the held delivery places
+%% `Restarted` after `Killed`. It does not cover real nodes, a restarting
+%% process that waits for this node's answer as it is killed
+restarted_ended_at_a_kill_test() ->
+    Self = self(),
+    Main = fun() ->
+               Watcher = erlang:self(),
+               true = register(ern_gateway, Watcher),
+               Restarting = spawn(fun() -> receive stop -> ok end end),
+               Wrap = fun({'Down', _, 'Restarted', _} = Down) ->
+                              Watcher ! {holding, erlang:self()},
+                              receive go -> {service, Down} end;
+                         (Down) ->
+                              {service, Down}
+                      end,
+               ern_rt:monitor_service(Restarting, Wrap),
+               {restart_waits, [Delivery], _} = ern_peer:frame(Restarting,
+                                                                 {restarted, make_ref()}),
+               receive {holding, Delivery} -> ok end,
+               DeliveryRef = erlang:monitor(process, Delivery),
+               ern_rt:kill(Restarting),
+               Killed = receive {service, Down} -> Down end,
+               Delivery ! go,
+               receive {'DOWN', DeliveryRef, process, Delivery, _} -> ok end,
+               Left = [Later || {service, Later} <- flushed()],
+               Self ! {killed, {Killed, Left, Restarting}}
+           end,
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    {Killed, Left, Restarting} = receive {killed, Got} -> Got end,
+    ?assertEqual({{'Down', Restarting, 'Killed', <<>>}, []}, {Killed, Left}).
+
 %% Whether Pid's mailbox holds the end of a watch, a monitor's DOWN.
 holds_down(Pid) ->
     {messages, Messages} = erlang:process_info(Pid, messages),

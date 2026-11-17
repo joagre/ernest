@@ -2,8 +2,9 @@
 // watcher a slot there holds that each of its runs has begun, faults when
 // it is told to, and answers a ping, so that a watcher on the desk that
 // service-monitors it sees its Restarted come before what the new run
-// sends, and the desk sees a restart that a wrap of its own holds up go on
-// once the connection is lost.
+// sends, the desk sees a restart that a wrap of its own holds up go on
+// once the connection is lost, and the desk kills it while another such
+// restart waits.
 
 export type Msg = Crash | Ping(Reply(Unit))
 

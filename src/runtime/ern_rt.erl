@@ -1656,7 +1656,7 @@ demonitored(Pid, Caller, From, Ref, #reaper{monitors = Monitors, monitoring = Mo
                       Reaper
               end,
     lists:foreach(fun delivery_ended/1,
-                  [Key || {_, _, Delivery} = Key <- deliveries({{Caller, '_', '_'}, Pid}),
+                  [Key || {_, _, _, Delivery} = Key <- deliveries({{Caller, {Pid, '_'}, '_', '_'}}),
                           Delivery =/= From]),
     From ! {Ref, demonitored},
     Reaper1.
@@ -1711,8 +1711,8 @@ delivered_restart(Pid, #reaper{monitors = Monitors}) ->
 %% state before it answers Pid's node, so that a wrap that does not finish
 %% holds up the restart on Pid's node and no frame here, and the wait
 %% needs no process; none where no run is in progress (asked_of_run/1).
-%% The deliveries end at the latest with the run, or at a loss of the peer
-%% (restarts_ended/2).
+%% The deliveries end at the latest with the run, or at Pid's end, a loss
+%% of the peer among the ends (restarts_ended/2).
 -spec peer_restarted(pid()) -> [pid()].
 peer_restarted(Pid) ->
     case asked_of_run({restarted, Pid}) of
@@ -1730,16 +1730,14 @@ monitors_canceled(Caller, #reaper{monitors = Monitors, monitoring = Monitoring,
     Reaper#reaper{monitors = Monitors1, monitoring = maps:remove(Caller, Monitoring),
                   monitor_refs = MonitorRefs1}.
 
-%% A process that ended: each monitor of it told, the monitors of it, and
-%% its own, gone, and the deliveries to it ended (abandoned/1). A process
-%% of a peer whose connection is lost, which the host's monitor gives as
-%% noconnection, has its deliveries of Restarted ended first
-%% (restarts_ended/2).
+%% A process that ended: its deliveries of Restarted ended first
+%% (restarts_ended/2), each monitor of it told, the monitors of it, and its
+%% own, gone, and the deliveries to it ended (abandoned/1).
 down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                               monitor_refs = MonitorRefs} = Reaper) ->
     unoffered(Pid),
     drop_callee_notes(Pid, ExitReason),
-    ExitReason =:= noconnection andalso restarts_ended(Pid, Monitors),
+    restarts_ended(Pid, Monitors),
     delivered_down(Pid, ExitReason, Reaper),
     abandoned(Pid),
     case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
@@ -1758,28 +1756,36 @@ down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                           monitor_refs = MonitorRefs1}
     end.
 
-%% Report §8.7, *A restart*: "A loss ends the wait on both sides: the
-%% restarting process goes on, and the node that lost the connection ends
-%% its deliveries of `Restarted` for the peer's processes not yet placed, as
-%% it ends the monitors they deliver for, so no `Down` follows the loss's":
-%% Pid, a process of the lost peer, has each delivery to a caller that
-%% holds a service monitor of it ended, before the loss's Down is given. A
-%% delivery that names Pid then is one of Restarted, which a peer's restart
-%% alone starts of a process of another node (peer_restarted/1), every other
-%% Down of it coming from the host's one end of the monitor, which this is.
+%% Report §6.9: "Where `p` dies while its restart waits, each delivery of
+%% `Restarted` not yet placed ends with it, so no `Restarted` follows the
+%% `Down` of `p`'s death"; report §8.7, *A restart*: "the node that lost
+%% the connection ends its deliveries of `Restarted` for the peer's
+%% processes not yet placed, as it ends the monitors they deliver for, so
+%% no `Down` follows the loss's". At each end of Pid, a death on this node,
+%% the end of a process of another node that the host's monitor gives and a
+%% loss alike, each delivery of Restarted of Pid to a caller that holds a
+%% service monitor of it is ended, waited for, before the end's Down is
+%% given. A delivery that has placed its message has placed it before the
+%% end's delivery begins.
 %%
-%% A delivery that has placed its message has placed it before the loss's
-%% delivery begins. The rows are read by each caller's prefix, as a
-%% demonitor reads them (demonitored/5), so that a restart pays nothing for
-%% it and a loss pays what the lost process's watchers hold. The worker
-%% that waits for these deliveries to answer the peer (peer_restarted/1)
-%% answers into nothing: its frame goes on no connection, and the alias it
-%% names on one opened again was let go with the restart's wait.
+%% No other delivery is ended: a monitor made after Pid's end gives the
+%% reaper a second end of it while the first end's Down may still be on
+%% its way, and each monitor call is one message (§6.9). A delivery's row
+%% says whether its Down tells of a restart or of an end (wrapped/3).
+%%
+%% The rows are read for each caller as one range, the caller's deliveries
+%% of Restarted of Pid (counted_link/3), so that a restart pays nothing for
+%% it, the end of a process that no service monitor stands of reads none,
+%% and any other end reads its own deliveries of Restarted and no other.
+%% The worker that waits for these deliveries to answer the peer
+%% (peer_restarted/1) answers into nothing: its frame goes on no
+%% connection, or reaches a node whose restarting process has ended, and
+%% the alias it names was let go with the restart's wait.
 restarts_ended(Pid, Monitors) ->
     Callers = lists:usort([Caller || {Caller, _} <- service_monitors_of(Pid, Monitors)]),
     lists:foreach(fun delivery_ended/1,
                   [Delivery || Caller <- Callers,
-                               Delivery <- deliveries({{Caller, '_', '_'}, Pid})]).
+                               Delivery <- deliveries({{Caller, {Pid, restarted}, '_', '_'}})]).
 
 %% Each monitor of a process that ended told how. A process that ended
 %% leaves no call: one that faulted or restarted while it waited ended its
@@ -2075,7 +2081,13 @@ unmonitored(Caller, [Pid | Rest], Monitors, MonitorRefs) ->
 %% process of its own, so that a wrap that does not finish holds up no
 %% other delivery. The message counts as a source until it is delivered
 %% (§8.6). Linked, so that one that never finishes ends with the program.
-wrapped(Caller, Wrap, {'Down', Of, _, _} = Down) ->
+%% Its row names the process the Down is of, and whether it tells of a
+%% restart or of an end (counted_link/3).
+wrapped(Caller, Wrap, {'Down', Pid, Reason, _} = Down) ->
+    Of = case Reason of
+             'Restarted' -> {Pid, restarted};
+             _ -> {Pid, ended}
+         end,
     counted_link(Caller, fun() -> deliver(adapted(Caller, Wrap), Down) end, Of).
 
 %% Report §8.6: a process that will deliver a message to the process behind
@@ -2092,9 +2104,14 @@ wrapped(Caller, Wrap, {'Down', Of, _, _} = Down) ->
 %% one whose recipient has ended already, an alarm's that fires after its
 %% process's end among them, ends before it starts with every delivery to
 %% that recipient, the row written first, so that an end the reaper learns
-%% of after the look finds it. A delivery of a Down names the process that
-%% ended or restarted, Of, which a demonitor reads (demonitored/5), and any
-%% other none.
+%% of after the look finds it.
+%%
+%% Its row's key is the recipient, Of, the starter and the delivery. A
+%% delivery of a Down has for Of the process that ended or restarted and
+%% which of the two, `{Pid, ended}` or `{Pid, restarted}`, and any other
+%% none, so that the ordered table reads as one range a recipient's
+%% deliveries (abandoned/1), its Downs of one process (demonitored/5) and
+%% its Restarted of one process (restarts_ended/2).
 %%
 %% Report §7.3, §7.4, §12.5: where the host's table of processes is full,
 %% the delivery cannot be made, and the fault is met on the message's way:
@@ -2110,10 +2127,10 @@ counted_link(Address, Work, Of) ->
     Starter = erlang:self(),
     try erlang:spawn_link(fun() ->
                               acting_for(Recipient),
-                              receive go -> Work(), delivered(Recipient, Starter) end
+                              receive go -> Work(), delivered(Recipient, Of, Starter) end
                           end) of
         Pid ->
-            try ets:insert(?DELIVERIES, {{Recipient, Starter, Pid}, Of}) catch _:_ -> true end,
+            try ets:insert(?DELIVERIES, {{Recipient, Of, Starter, Pid}}) catch _:_ -> true end,
             source_begin(Pid),
             case node(Recipient) =:= node() andalso not erlang:is_process_alive(Recipient) of
                 true -> abandoned(Recipient);
@@ -2126,8 +2143,8 @@ counted_link(Address, Work, Of) ->
             none
     end.
 
-delivered(Recipient, Starter) ->
-    try ets:delete(?DELIVERIES, {Recipient, Starter, erlang:self()}) catch _:_ -> true end,
+delivered(Recipient, Of, Starter) ->
+    try ets:delete(?DELIVERIES, {Recipient, Of, Starter, erlang:self()}) catch _:_ -> true end,
     source_end().
 
 %% Report §8.6: a process of the runtime's own that the calling process
@@ -2153,7 +2170,7 @@ undelivered(Pid, ExitReason) ->
         [] ->
             false;
         _ ->
-            ets:match_delete(?DELIVERIES, {{'_', erlang:self(), Pid}, '_'}),
+            ets:match_delete(?DELIVERIES, {{'_', '_', erlang:self(), Pid}}),
             true
     catch _:_ ->
         false
@@ -2189,10 +2206,11 @@ held_ended(Pid, ExitReason, Reaper) ->
 %% delivery's function was making ends with it, as a killed process's does
 %% (killed/2).
 abandoned(Recipient) ->
-    lists:foreach(fun delivery_ended/1, deliveries({{Recipient, '_', '_'}, '_'})).
+    lists:foreach(fun delivery_ended/1, deliveries({{Recipient, '_', '_', '_'}})).
 
 %% The keys of the deliveries whose rows match Pattern, which names their
-%% recipient, so that the ordered table reads them as one range.
+%% recipient, and Of where it names one, so that the ordered table reads
+%% them as one range (counted_link/3).
 deliveries(Pattern) ->
     try ets:select(?DELIVERIES, [{Pattern, [], [{element, 1, '$_'}]}])
     catch _:_ -> []
@@ -2201,7 +2219,7 @@ deliveries(Pattern) ->
 %% A delivery ended and waited for, its rows taken first, by the runtime's
 %% kill, which drops the call it was making (killed/2), so that the process
 %% that started it, told of the end, reads no call of it (undelivered/2).
-delivery_ended({_, Starter, Pid} = Delivery) ->
+delivery_ended({_, _, Starter, Pid} = Delivery) ->
     try
         ets:delete(?DELIVERIES, Delivery),
         ets:delete(?HELD, {source, Pid})
@@ -2233,7 +2251,7 @@ delivery_ended({_, Starter, Pid} = Delivery) ->
 wait_for_deliveries() ->
     entered_foreign(),
     try
-        waited_deliveries(deliveries({{erlang:self(), '_', '_'}, '_'})),
+        waited_deliveries(deliveries({{erlang:self(), '_', '_', '_'}})),
         waited_reports()
     after
         left_foreign()
@@ -2257,7 +2275,7 @@ waited_reports() ->
     end.
 
 waited_deliveries(Deliveries) ->
-    lists:foreach(fun({_, _, Pid}) ->
+    lists:foreach(fun({_, _, _, Pid}) ->
                       MonitorRef = erlang:monitor(process, Pid),
                       receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
                   end, Deliveries).

@@ -54,13 +54,13 @@ export fn main() : Unit receiving Unit = {
         Peer.offer(Calls.brittle,
                    spawn(restarting(RestartLimit(restarts = 10, within = 60000),
                                     fn() = Calls.serve())));
-    // the herald's restarts, more than the scenario's two faults, which
+    // the herald's restarts, more than the scenario's three faults, which
     // come within the window
     let heraldSlot = spawn(fn() = Slot.serve(None));
     let _ = Peer.offer(Herald.watcherSlot, heraldSlot);
     let _ =
         Peer.offer(Herald.service,
-                   spawn(restarting(RestartLimit(restarts = 3, within = 60000),
+                   spawn(restarting(RestartLimit(restarts = 4, within = 60000),
                                     fn() = Herald.run(heraldSlot))));
     let _ = Peer.offer(Calls.sleeper, spawn(fn() = Calls.serve()));
     let _ = Peer.offer(Calls.doomed, spawn(fn() = Calls.serve()));

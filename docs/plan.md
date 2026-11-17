@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 74**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 84**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,18 +43,10 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 74, 84, 87, 88 and 91; and what
+left*): what the builds found, items 84, 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
 them. The items stand below in that order.
 
-- **74. A kill while a restart waits**, found 2026-11-16 by the cold reading of §6.9's new
-  sentence (the log's *Two Orders Stated*), read from the code and not shown. A restarting
-  process waits until each service monitor's `wrap` has placed its `Restarted` (§6.9). Where a
-  `kill` ends it during that wait, the monitor gets its `Down` and ends, and `ern_rt`'s `down/3`
-  ends the deliveries of `Restarted` only at a loss. So a watcher may get `Killed` and then
-  `Restarted` of one process. An agent first shows it with a `wrap` that is held. The shape of
-  the fix: a process's end ends its deliveries of `Restarted` not yet placed, as a loss does
-  (§8.7). What §6.9 says of it is decided with the user once it is shown.
 - **84. `make test-nodes` a minute slower right after another target**, found 2026-11-16 by
   the agent that wrote item 35's later tests (the log's *Hard Work and Stupid Work*). The
   target took about 137 s started after a pause, and 205 to 210 s started right after
@@ -202,6 +194,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
 | 72 | A build with nothing to do, measured: `ern build` is not slow, and nothing is built, with the user | 2026-11-17 | *Twenty-Six Hosts Are the Cost* |
 | 73 | A child that waits to run again runs once the group is whole, after a restart in place, a sibling's fault and a parent's ask alike: the watcher holds who waits, with the user | 2026-11-17 | E.22; *Two Orders Stated*, *The Watcher Holds Who Waits* |
+| 74 | A process's end ends its deliveries of `Restarted` not yet placed, and no other delivery, with the user | 2026-11-17 | §6.9, §8.7; *No Restarted After a Death* |
 | 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |
 | 76 | `Os.resize`'s example, told of the resize by the signal | 2026-11-16 | E.23; *The Resize Told by Its Signal* |
 | 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |

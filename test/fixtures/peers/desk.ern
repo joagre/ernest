@@ -5,7 +5,10 @@
 // Each wait is given the test's time for one step (Harness.waitMs), but
 // where a line says otherwise.
 
-type Msg = Died(Down) | Told(Down) | Reported(Process.FaultReport) | Started(String)
+type Msg = Died(Down) | Told(Down) | Reported(Process.FaultReport) | Started(String) | Held(Process)
+
+// What a gate that holds a call until it is released is told.
+type GateMsg = Hold(Reply(Unit)) | Release
 
 let early : Either(Io.Error, Address(Counter.Msg)) = Peer.find(Counter.service, Harness.waitMs())
 
@@ -303,9 +306,11 @@ fn calls() : Unit receiving Msg = {
 
 // Report §6.9, §8.7: the herald's restart on the store, which a watcher
 // here service-monitors and faults once, told before anything its new run
-// sends; and its restart at a second fault, which a service monitor's wrap
+// sends; its restart at a second fault, which a service monitor's wrap
 // here holds up until the connection is lost, the loss ending the store's
-// wait, so that the new run answers the call that follows the loss.
+// wait, so that the new run answers the call that follows the loss; and
+// its restart at a third fault, held so, and the herald killed while it
+// waits.
 fn restartTold() : Unit receiving Msg = {
     let herald = Shared.found(Herald.service);
     let _ = spawnMonitored(fn() = watchesRestarts(herald), Died);
@@ -320,9 +325,41 @@ fn restartTold() : Unit receiving Msg = {
     };
     sever(Process.fromAddress(herald));
     ended("severed");
+    told("the holding wrap");
     let pinged = Address.call(herald, Herald.Ping, Harness.waitMs());
-    Io.println("after the loss: " <> Io.show(pinged))
+    Io.println("after the loss: " <> Io.show(pinged));
+    killedWhileHeld(herald)
 }
+
+// Report §6.9: "Where `p` dies while its restart waits, each delivery of
+// `Restarted` not yet placed ends with it": the herald's restart, which a
+// service monitor's wrap here holds up, and the herald killed while it
+// waits. The watcher is told Killed, and no Restarted follows once the
+// wrap is let go and the process it ran in has ended.
+fn killedWhileHeld(herald : Address(Herald.Msg)) : Unit receiving Msg = {
+    let me = self();
+    let gate = spawn(fn() = answersOnRelease());
+    monitorService(Process.fromAddress(herald), fn(down) = holdingUntilReleased(me, gate, down));
+    send(herald, Herald.Crash);
+    let delivery = receive {
+        Held(process) -> process
+    };
+    kill(Process.fromAddress(herald));
+    told("killed");
+    send(gate, Release);
+    monitor(delivery, Died);
+    receive {
+        Died(_) -> Unit
+    };
+    Io.println("after the kill: " <> followed())
+}
+
+// What a service monitor has told this process since, if anything.
+fn followed() : String receiving Msg =
+    receive {
+        Told(down) -> Io.show(down.reason)
+      | after 0 -> "nothing"
+    }
 
 // The herald watched by this process: its first run's word, a service
 // monitor of it, and its crash, after which this process takes the
@@ -361,6 +398,36 @@ fn holding(me : Address(Msg), gate : Address(Reply(Msg)), down : Down) : Msg =
 fn neverAnswers() : Unit receiving Reply(Msg) =
     receive {
         _ -> neverAnswers()
+    }
+
+// A service monitor's wrap that tells the desk the process it holds a
+// restart in, and then waits on a call the gate answers once released;
+// any other Down it passes on.
+fn holdingUntilReleased(me : Address(Msg), gate : Address(GateMsg), down : Down) : Msg =
+    match down.reason {
+        Restarted -> {
+            send(me, Held(hostSelf()));
+            Address.callForever(gate, Hold);
+            Told(down)
+        }
+      | _ ->
+            Told(down)
+    }
+
+// The host's process the calling code runs in, which the test alone asks
+// for: in a wrap, the process of the runtime's own that applies it, where
+// self() is the wrap's recipient (report §6.5).
+foreign fn hostSelf() : Process =
+    "erlang:self/0"
+
+// A process that holds the call it takes until it is released, and then
+// answers it.
+fn answersOnRelease() : Unit receiving GateMsg =
+    receive {
+        Hold(reply) ->
+            receive {
+                Release -> answer(reply, Unit)
+            }
     }
 
 // The notes the store keeps on the callee, once they are the count wanted:
