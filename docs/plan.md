@@ -301,6 +301,13 @@ changes the report first (the log's *A Package and Its Manifest*).
   that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
   log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
   started from another directory.
+
+  Decided with the user 2026-11-17 (the log's *Packages and No Manager*): the item also
+  writes `guide/faq.md`'s question on why Ernest has packages and no package manager, its
+  answer the entry's three claims and their cost, and reads the faq's sentence on `gleam
+  add` again. Both texts use the report's verbs, which get their line in the glossary.
+  Whether a test holds the phrase out of the user-facing texts is decided as the item
+  opens.
 - **10. The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
   manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
   host part as the proposal's question 5 says. ernest-httpd's four matches on a bare
@@ -322,6 +329,10 @@ changes the report first (the log's *A Package and Its Manifest*).
   where §11.9 has a package's Erlang under its own `ebin` with its `priv` beside it. The
   item moves it there, and holds the archive it makes to `ern unpack`'s rules on an
   archive's members.
+
+  Decided with the user 2026-11-17 (the log's *Packages and No Manager*): once ernest-epx's
+  release is an archive that `ern unpack` takes, `site/projects.md` says in one sentence
+  how a project is taken, an entry in `package.conf` and `ern unpack`.
 
 The proposal's sweep is last.
 
