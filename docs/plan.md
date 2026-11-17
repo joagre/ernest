@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 87**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 94**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -45,8 +45,29 @@ What is left is small, and each item stands alone. Its order, decided with the u
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 87, 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
-them. The items stand below in that order.
+them. Items 94 and 95 are what a reading of five reviews from outside decided the same day
+(the log's *The Outside Reviews Read*). Item 94 stands first, since it changes sentences of
+§6.5 and §8.7, and item 95 stands after item 93. The items stand below in that order.
 
+- **94. Two sentences on what crosses nodes, and their tests**, decided with the user on
+  2026-11-17 (the log's *The Outside Reviews Read*, its paragraphs *The buffer is a mark* and
+  *An adapted address keeps nothing alive*).
+
+  §8.7's *Messages* says that a message of any size is placed in the host's buffer whole,
+  and that its `send` then waits while more than 1 MB waits there for the peer, its own
+  message among it. `docs/design/nodes.md` loses "finds it full" in the same commit. The
+  guide's chapter on nodes gains one sentence on sending from a spawned process.
+
+  §6.5 says that an adapted address held on another node keeps nothing alive on the node
+  that made it, that a value its function captured lives as its own type says, and that a
+  use of one that has gone faults as a fault in the function does.
+
+  The sentences are written first and read cold, against §6.2, §3.11 and the soundness
+  note's paragraph on an adapted address that crosses. An agent then builds three tests. One
+  sends a message above the buffer. One holds the wait at a full buffer, with a peer stopped
+  and then lost: it waits on the host's report of a suspended sender, takes about a minute
+  and runs in the full run. One holds an adapted address whose capture has gone. The item
+  closes on `make test-full`.
 - **87. Nothing holds that a shell test names a home**, found 2026-11-16 by the fix of the
   27 sites that ran under the inherited `HOME` (the log's *The Shell's Tests in a Home of
   Their Own*). A new test that starts `ern shell` by hand runs the startup file of whoever
@@ -103,6 +124,21 @@ them. The items stand below in that order.
 
   E.18 and E.23 change first. An agent builds the two, each with a test that acts at once
   after the close, and the terminal harness's write of nothing goes.
+- **95. A shell session that shows more than the report promises**, decided with the user
+  on 2026-11-17 (the log's *The Outside Reviews Read*, its paragraph *Three shell
+  sessions*). The session writes it, and it closes on `make test`.
+
+  - A send and a call to another node, in two inputs. The tour's chapter 2 says that each
+    input is a sender of its own, that the report orders one sender's messages alone
+    (§6.4), that the page shows one order, and that a program which needs the order sends
+    both from one process. The guide's §1.4 gains the same as a clause. The transcripts
+    stay as typed, and the README stays as it is.
+  - A move shown as done. In the tour's chapter 8 the attached shell's two listings move
+    after the lines at `a`'s shell, where a `report` is answered. The deployment guide's
+    "Asked again, it finds none" says what it rests on, that the counter has taken its
+    `Upgrade` by then.
+  - The tour's restart limit. Chapter 4 starts its counter with `within = 3600000`, in
+    the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
@@ -455,6 +491,13 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
      One refusal, added with the site cleaned to zero: the browser test's check that a page
      does not scroll sideways on a phone reads every page the site writes.
+   - **The checker's cases tabled**, decided with the user 2026-11-17 (the log's *The
+     Outside Reviews Read*, its paragraph *The checker's cases*). An agent tables the
+     eight groups of cases the paragraph lists, where a fault of inference over mailbox
+     types would show: each case, and the test that holds it under
+     `src/toolchain/checker/test/` or in `test/ern_typed_programs_tests.erl`, or none. A
+     case with no test gets one. It comes earlier where a checker item comes before the
+     review.
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the
@@ -533,6 +576,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    release of item 5 made, it switches once, the machine serving its one page meanwhile. Its
    container, two nodes capped at 128 processes, 128 MiB and one core, was built 2026-11-04
    (the log's *A Node's Schedulers*).
+
+   Decided with the user: whether the site's server takes a new build while it serves,
+   before the launch or first after it. No large program yet moves to new code under
+   traffic, and a deploy of the server today ends every visitor's shell. The server's
+   session is asked what it would take, and the timing is decided with its answer in hand
+   (the log's *The Outside Reviews Read*, its paragraph *New code under traffic*).
 
 ---
 

@@ -1,10 +1,17 @@
 //
 // File sync
 //
-// Keeps two directories, a and b, identical. Each is watched by a process
-// of its own, which sends what changed to its peer; a file the peer sends
-// where this side's copy is newer is saved beside it as a conflict. It runs
-// until it is stopped.
+// Copies each new or changed file of two directories, a and b, to the
+// other. Each is watched by a process of its own, which sends what changed
+// to its peer; a file the peer sends where this side's copy is newer is
+// saved beside it as a conflict. It runs until it is stopped.
+//
+// What it does not do:
+//
+// - A removal is not carried: a file removed on one side stays on the other.
+// - A change is seen by a later modification time, which is read to the
+//   second (report Appendix E.17). A change in the same second as the one
+//   before is not seen.
 //
 // What to look at:
 //

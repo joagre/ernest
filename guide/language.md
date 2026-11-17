@@ -2030,7 +2030,7 @@ The source root is `--source-root dir`; without it, the directory `ern build` is
 
 **Declarations use local names.** In `shop/order.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Shop.Order.parse`, and the code inside by its plain name (report §4.2).
 
-**A qualified name resolves from the module's place.** Its first segment is looked up beside the module, then beside each namespace the module stands in, and last at the root; the segments after it descend from there. In `shop/cart.ern`, `Order.parse` is its sibling's `Shop.Order.parse`, and `Io.println` is the standard library's. Where two namespaces hold the first segment, the nearer wins. A name is written in its shortest form: `Shop.Order.parse` in `shop/cart.ern` is an error whose help writes `Order.parse`. A diagnostic, a trace and `ern doc` print a name whole (report §4.2).
+**A qualified name resolves from the module's place.** Its first segment is looked up beside the module, then beside each namespace the module stands in, and last at the root; the segments after it descend from there. In `shop/cart.ern`, `Order.parse` is its sibling's `Shop.Order.parse`, and `Io.println` is the standard library's. Where two namespaces hold the first segment, the nearer wins. The farther is reached only by a name whose first segment is found above it, and one at the root is out of reach from there. A name is written in its shortest form: `Shop.Order.parse` in `shop/cart.ern` is an error whose help writes `Order.parse`. A diagnostic, a trace and `ern doc` print a name whole (report §4.2).
 
 **`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructors are visible only in its own module (§7.2). An exported declaration's type, and the fields of an exported type that is not abstract, may name only exported types. A function's mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
 
@@ -2808,7 +2808,7 @@ Nodes of different builds connect, since the floor and not the build is what the
 
 **The end.** `ern stop` is termination, as a service manager's stop is ([*Running Ernest*, section 1.5](deployment.md#15-under-a-service-manager)), and the counter itself is told of it: `Os.termination(Terminating)` subscribes the calling process, and at the end the runtime puts `Terminating(reply)` in its mailbox, waits until the reply is answered, and only then ends the program. Every end tells the subscribers, a return of `main`, an `Os.exit` and a termination alike, but the caller of the `Os.exit` that began it, which is neither told nor waited for (report §8.6).
 
-Told, the counter writes its total to `count.new` beside the kept file, renames it over `count`, answers, and ends; a rename replaces a file whole, so `count` holds the old count or the new, whatever cuts the write short (report Appendix E.17).
+Told, the counter writes its total to `count.new` beside the kept file, renames it over `count`, answers, and ends; a rename replaces a file whole, so a reader of `count` sees the old count or the new, whole, and never a part (report Appendix E.17).
 
 It reads `count` when it begins to count: no file is the first start, and 0, and a file that holds no number was written by nothing of the store's, so the counter faults with its cause rather than begin at 0 unsaid.
 
