@@ -44,7 +44,8 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
 left*): what the builds found, items 73, 74, 84, 87, 88 and 91; and what
-needs the user, items 60 and 68. The items stand below in that order.
+needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
+them. The items stand below in that order.
 
 - **73. A group restarted in place comes back whole**, found 2026-11-16 by item 57's
   diagnosis and decided with the user the same day (the log's *Two Orders Stated*). E.22 has
@@ -101,14 +102,37 @@ needs the user, items 60 and 68. The items stand below in that order.
   read of the checkers the message can then pass from a checker read later to one read
   earlier. The look's first read also grows with the checkers now, 3.5 ms a look at 10,000.
 
-  The shape of the fix is decided with the user.
-- **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
-  line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
-  tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
-  user with a recommendation (the log's *The Flake Hunt*). Feedback 258, `Os.closeInput`
-  saying nothing of when the hangup is made, found by item 40's read-back, is decided with
-  them (the log's *The Shell's Last Line*). So is feedback 259, the ready message a spawner
-  waits for, found by item 79's read-back (the log's *Two Tests Wait for Their Subscriber*).
+  Decided with the user on 2026-11-17 (the log's *A Message at a Checker*): the look reads
+  the checkers among the processes of its two reads, their status, their reductions and
+  their marks, and no longer among the system processes. An agent builds it, and first
+  shows whether a call made in a checker writes its marks. Item 70's test stays, and a new
+  one holds a checker in a call with a time.
+- **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
+  log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
+  `Tcp.readForever` and `Os.readForever` wait without a limit, as `Address.callForever`
+  does. A write, a connect and a file's call get no twin, since each is a request that must
+  be answered.
+
+  The report changes first: E.0 shape rule 8 with its list of the waits without a limit,
+  E.18 and E.23. An agent builds the three. `examples/shout.ern`, `examples/web_server.ern`
+  and `tools/flakes.ern` take them and lose their clause for a `Timeout`. The same build
+  names the time for a file once in `tools/site/run.ern`, `tools/manual.ern` and
+  `tools/site.ern`, as `tools/flakes.ern` does.
+- **93. A close answers once it is made**, decided with the user on 2026-11-17 (the log's
+  *Seven Entries of the Feedback*, feedback 258). `Os.closeInput` and `Tcp.closeListener`
+  are sends, and a caller that acts at once after one may act before it. The terminal
+  harness did, and a listen on a port right after its listener's `closeListener` was
+  refused in 21 of 5,000 rounds of the session's probe.
+
+  Decided: `closeInput` answers `Unit` once the close is made, under a terminal once it is
+  hung up and under pipes once the end is placed behind the bytes already written. It takes
+  no time, as `signal` takes none, and on a program whose process has ended it faults as a
+  read does. `closeListener` answers `Unit` once the listener has ended, and at once on one
+  that has ended already. `Tcp.close` stays a send, and E.18 says that it answers before
+  the connection has closed.
+
+  E.18 and E.23 change first. An agent builds the two, each with a test that acts at once
+  after the close, and the terminal harness's write of nothing goes.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
@@ -178,6 +202,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 57 | The flakes of three tests of `ern_supervisor_tests` | 2026-11-16 | §6.4, §6.9, E.21, E.22; *Three Orders the Supervisor Tests Read* |
 | 58 | The flake of `adapted_is_not_a_process_test` | 2026-11-16 | §6.5, §6.9; *A Delivery Counted Before Its End* |
 | 59 | The flake of `write_given_no_time_test` | 2026-11-16 | E.18; *A Listener Closed Before Its Accept* |
+| 60 | What item 11 left: feedback 254 to 259, each decided with the user, and `Tcp`'s two closes probed | 2026-11-17 | E.0 rule 2; *Seven Entries of the Feedback* |
 | 61 | The flake of `load_beside_a_module_hiding_a_library` | 2026-11-16 | §6.4, §11.2; *A Program's Line Beside the Prompt* |
 | 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
 | 63 | The flake of `subscribed_while_the_end_waits_test` | 2026-11-16 | §6.9, §8.6, E.23; *A Subscriber That Ends Beside Main* |
@@ -248,7 +273,9 @@ log's *The Trust Said Once*). Items 52 and 54 are left of it.
     Recommended: the quoting writes every control character of §2.1 as JSON does.
   - The attached shell's end has no test of a cause that holds a control character.
     Recommended: none, since it would be a nodes' test for one call.
-  - Feedback 253, base 16 answering an `Optional` that is never `None`.
+  - Feedback 253, decided with the user on 2026-11-17 (the log's *Seven Entries of the
+    Feedback*): the library stays. The shell names its hexadecimal once, in a private
+    function that faults as `Http`'s `chunk` does, and `escapedChar` and `hexByte` call it.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
@@ -525,7 +552,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
 ---
 
-## MVP 4.5 (`:trace f`, and a request to OTP), about a week, after the launch
+## MVP 4.5 (`:trace f`, and two requests to OTP), about a week, after the launch
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
@@ -545,6 +572,12 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    user to file; nothing is built. Two decisions for the user stand in it: whether the contradiction
    in the documentation of `erlang:check_process_code/3` is filed as a report of
    `docs/otp_bugs.md`, and, where OTP refuses, whether a token of the runtime's own is weighed.
+3. **A request to OTP that `os:set_signal/2` take `sigint`**, added with the user on 2026-11-17
+   (the log's *Seven Entries of the Feedback*, feedback 256): the host hands the interrupt to
+   no Erlang code, so §8.6 ends a program at once and tells no subscriber. An agent reads
+   OTP's source and its tracker for whether it was asked before, and drafts the request for
+   the user to file; nothing is built. Were it granted, a first interrupt would be a
+   termination and a second would end the program at once, decided then.
 
 ---
 
@@ -604,4 +637,4 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
 | MVP 4.6 | the server owning both ends of its socket | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
-| MVP 4.5 | the shell's second round, and a request to OTP for what a purge needs | | | above |
+| MVP 4.5 | the shell's second round, and two requests to OTP, for what a purge needs and for the interrupt | | | above |

@@ -161,7 +161,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    `remove` takes the key `get` takes, and on a set its element; a sequence's removal by index is `removeAt`, which takes the index `get` takes, and a removal by value is the program's, over `filter` or a loop.
 
-   A predicate over a type of two constructors comes with the other constructor's, `isSome` with `isNone`; an operation on a stream of text comes with its line form and its bytes form, `print` with `println` and `write`, `readLine` with `read`. An operator that faults comes with its `Optional` form in its type's module, `Int.div` beside `/`.
+   A predicate over a type of two constructors comes with the other constructor's, `isSome` with `isNone`; an operation on a stream of text comes with its line form and its bytes form, `print` with `println` and `write`, `readLine` with `read`. A socket and a started program are read in pieces of bytes and have no line form. An operator that faults comes with its `Optional` form in its type's module, `Int.div` beside `/`.
 
    A conversion to text has its inverse where the text form is unambiguous and the type has no other way in; a `Char` has `String.toList` and needs none.
 
