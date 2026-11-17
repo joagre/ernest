@@ -188,7 +188,10 @@
 %% reads its own deliveries and no other process's
 -define(DELIVERIES, ern_deliveries).
 %% report §8.4: each checker, {{checker, Key}, Checker}, and what it
-%% stands in front of, {{behind, Checker}, Pid, Address, Key}
+%% stands in front of, {{behind, Checker}, Pid, Address, Key}, read where
+%% an address is taken back to its process (process_of/1, held/3) and,
+%% report §8.6, by the deadlock look, which reads each checker as it reads
+%% a system process
 -define(CHECKERS, ern_checkers).
 %% report §12.1, §8.6: the launch, #launch{}, the way the terminal is read,
 %% {reading, Kind}, the entry process, {entry_process, Pid}, the process a
@@ -2868,9 +2871,10 @@ expected(Function) ->
 %% count, equal, with every status waiting, prove that nothing ran between
 %% them; what can still deliver is read between them, so that it is what
 %% held while nothing ran, and not what held before a process ran on. A
-%% source held by a system process, a subscription to the program's end, a
-%% call waiting on a system process or on a foreign process, and a process
-%% that waits where Ernest does not are what can still deliver.
+%% source held by a system process, a message at a checker, a subscription
+%% to the program's end, a call waiting on a system process or on a foreign
+%% process, and a process that waits where Ernest does not are what can
+%% still deliver.
 %%
 %% The check runs when the reaper has been idle a while, and what can still
 %% deliver is read first, the cheapest first: an idle program that waits on
@@ -2890,6 +2894,13 @@ expected(Function) ->
 %% seen at its receiver. The reaper is the process making the check, so its
 %% own mailbox is what is read of it. §8.6 leaves a foreign process that
 %% can deliver to the runtime.
+%%
+%% Report §8.4: a checker in front of an exposed address, which its table's
+%% rows name, is read as a system process is. What foreign code sent waits
+%% in its mailbox, and between taking it out and passing it on the checker
+%% is running rather than waiting. It passes the message on by a local send,
+%% which makes its receiver no longer waiting, so a message passed on after
+%% the first read of the processes is seen at the second.
 %%
 %% Report §11.2: nothing is a deadlock while a shell holds the terminal;
 %% and report §8.6, nothing on a node, which can be reached from outside.
@@ -2999,14 +3010,20 @@ calling_the_foreign(#call{callee = Callee}) ->
 
 quiet_system() ->
     erlang:process_info(erlang:self(), message_queue_len) =:= {message_queue_len, 0}
-        andalso lists:all(fun quiet/1, system_pids() ++ opened()).
+        andalso lists:all(fun quiet/1, system_pids() ++ opened() ++ checkers()).
 
 %% Report §8.2: the run's system processes that have been started.
 system_pids() ->
     [Pid || Name <- [stdout, stderr, stdin, clock, fs, terminal, tcp, os],
             Pid <- [persistent_term:get({?MODULE, Name}, undefined)], Pid =/= undefined].
 
-%% A system process that has died can deliver nothing.
+%% Report §8.4, §8.6: the checkers in front of the addresses exposed to
+%% foreign code, each of which holds what foreign code sent until it has
+%% passed it on.
+checkers() ->
+    try [Pid || [Pid] <- ets:match(?CHECKERS, {{checker, '_'}, '$1'})] catch _:_ -> [] end.
+
+%% A system process or a checker that has died can deliver nothing.
 quiet(Pid) ->
     case erlang:process_info(Pid, [status, message_queue_len]) of
         [{status, waiting}, {message_queue_len, 0}] -> true;

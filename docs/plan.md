@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 70**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 73**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,22 +43,9 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 70, 73, 74, 84, 87 and 88; and what
+left*): what the builds found, items 73, 74, 84, 87, 88 and 91; and what
 needs the user, items 60 and 68. The items stand below in that order.
 
-- **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
-  diagnosis (the log's *A Sender That Outlives Its Run*). A message foreign code sends to an
-  exposed address reaches the checker in front of its process first (§8.4). While it waits
-  there the look reads no message in flight, and a program that waits for it alone ends with
-  the fault `deadlock`, where §8.6 calls a program deadlocked only when no message is in
-  flight. A probe that held the checker for two looks showed it in 10 of 10 runs. Nothing has
-  shown it without the hold, since the checker would have to go unscheduled for the look's
-  quiet time.
-
-  Decided with the user on 2026-11-16: the look reads the checkers' queues, as it reads a
-  system process's, and §8.6 stands as it is. An agent builds it. The verdict rested on the
-  agent's probe alone, so the build first shows the fault again, and its test holds a checker
-  while the message waits.
 - **73. A group restarted in place comes back whole**, found 2026-11-16 by item 57's
   diagnosis and decided with the user the same day (the log's *Two Orders Stated*). E.22 has
   the child whose fault restarts its siblings run again once each has restarted or ended, for
@@ -101,6 +88,20 @@ needs the user, items 60 and 68. The items stand below in that order.
   round to the next, and only a run by hand showed it. An agent writes the test: `hunt/1`
   given its environment and a moment that lets two rounds begin, over a module whose test
   its limit cancels, and round 2's record read for round 1's cancel.
+- **91. A checker that waits holds its message unseen**, found 2026-11-17 by item 70's build
+  (the log's *A Message at a Checker*). The look reads a checker as quiet where it waits with
+  an empty mailbox. A checker in front of an adapted address applies the address's function,
+  and a wait in it is the checker's own (§6.9). Where that function waits in `Address.call`
+  with a time, the checker waits with the message it holds, and a program that waits for
+  that message alone ends with `deadlock`: 5 of 5 runs of the session's probe, where the
+  function applied in the entry process printed `done` in 5 of 5.
+
+  Read from the code and not shown: one checker can pass to another, through an adapted
+  address over a checker's address that foreign code gave back at another type. Within one
+  read of the checkers the message can then pass from a checker read later to one read
+  earlier. The look's first read also grows with the checkers now, 3.5 ms a look at 10,000.
+
+  The shape of the fix is decided with the user.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
@@ -185,6 +186,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 66 | The flake of `ern_tcp_tests`' `write_holds_up_no_read` | 2026-11-16 | §8.6; *A Reaper That Outlives Its Runner* |
 | 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
 | 69 | OTP's 22nd report: a termination sent to a port's program before it runs, reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 22; *A Termination Lost With OTP Alone* |
+| 70 | The look reads each checker as it reads a system process, so a message that waits at one is in flight | 2026-11-17 | §8.4, §8.6; *A Sender That Outlives Its Run*, *A Message at a Checker* |
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
 | 72 | A build with nothing to do, measured: `ern build` is not slow, and nothing is built, with the user | 2026-11-17 | *Twenty-Six Hosts Are the Cost* |
 | 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |

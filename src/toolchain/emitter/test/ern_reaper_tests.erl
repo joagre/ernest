@@ -4,7 +4,7 @@
 -module(ern_reaper_tests).
 
 -export([answered_later/0, called_back/1, called_back_in_tail/1, reaper_words/0, looks/1,
-         looking/0, sent_later/2, answering_later/0, ending_later/0]).
+         looking/0, sent_later/2, send_held/2, answering_later/0, ending_later/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -331,6 +331,29 @@ delivery_foreign_code_arranges_test() ->
         "}\n"),
     ?assertMatch({fault, <<"deadlock">>, _}, Timed).
 
+%% report §8.6, §8.4: a message foreign code sends to an exposed address is
+%% in flight while it waits at the checker in front of the address, so a
+%% program whose one process waits for it alone is no deadlock. A process
+%% of the host's, which no monitor watches, holds the checker with the
+%% message in its queue until the reaper has begun its third look since, so
+%% that two looks have read the message waiting there, and then lets it go;
+%% the program prints what it receives.
+%%
+%% Not covered: a checker scheduled out between taking a message and
+%% passing it on, which reads as not waiting, as a held one does; a message
+%% one checker passes to another, through an adapted address over a
+%% checker's address; and a checker that waits in the function of an
+%% adapted address it applies, in a call with a time
+held_at_checker_is_no_deadlock_test() ->
+    ?assertEqual({ok, <<"done\n">>}, ern_emitter_tests:run(
+        "type MainMsg = Done\n"
+        "foreign fn sendHeld(to : Foreign.Term, message : Foreign.Term) : Unit =\n"
+        "    \"ern_reaper_tests:send_held/2\"\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    sendHeld(Foreign.term(self()), Foreign.atom(\"Done\"));\n"
+        "    receive { Done -> Io.println(\"done\") }\n"
+        "}\n")).
+
 %% report §8.6, §6.6: a foreign process the runtime did not start may
 %% deliver while a monitor of it stands, and a call that waits on it is
 %% such a monitor, so a program whose one process waits in a callForever on
@@ -395,6 +418,23 @@ sent_later(To, Message) ->
               To ! Message,
               receive {'DOWN', MonitorRef, process, Reaper, _} -> ok end
           end).
+
+%% The host's side of the test of a message held at a checker: a process of
+%% the host's that suspends the checker To, sends it Message, and lets it go
+%% once the reaper has begun its third look since. The caller returns once
+%% the message waits in the checker, so that no look finds the program
+%% waiting before the message is sent.
+-spec send_held(pid(), atom()) -> ok.
+send_held(To, Message) ->
+    Caller = self(),
+    Holder = spawn(fun() ->
+                       true = erlang:suspend_process(To),
+                       To ! Message,
+                       Caller ! {held, self()},
+                       _ = ern_waits:looked(3),
+                       true = erlang:resume_process(To)
+                   end),
+    receive {held, Holder} -> ok end.
 
 %% The host's side of the test of a foreign callee: a process of the
 %% host's that takes an Ask and, once the reaper has looked twice, answers
