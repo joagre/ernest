@@ -55,4 +55,6 @@ if __name__ == "__main__":
     try:
         main()
     except BrokenPipeError:
-        pass
+        # the reader has gone with a line unwritten, which python3 would
+        # write again as it ends, and say on standard error that it could not
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
