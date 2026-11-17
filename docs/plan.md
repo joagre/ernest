@@ -43,7 +43,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 70, 73, 74, 84, 87 and 88; and what
+left*): what the builds found, items 70, 73, 74, 84, 87, 88 and 90; and what
 needs the user, items 60 and 68. The items stand below in that order.
 
 - **70. The look counts no message that waits at a checker**, found 2026-11-16 by item 51's
@@ -101,6 +101,15 @@ needs the user, items 60 and 68. The items stand below in that order.
   round to the next, and only a run by hand showed it. An agent writes the test: `hunt/1`
   given its environment and a moment that lets two rounds begin, over a module whose test
   its limit cancels, and round 2's record read for round 1's cancel.
+- **90. A port's status lost to a write that finds its program gone**, found 2026-11-17 by
+  item 69's probe and decided with the user the same day (the log's *A Termination Lost
+  With OTP Alone*). A port opened with `exit_status`, whose program a signal has ended, was
+  written to before its status arrived. It closed with `{'EXIT', Port, epipe}` and never
+  sent `{exit_status, 143}`, in 760 of 942 such rounds of one run. It is not diagnosed, and
+  nothing of Ernest's meets it. An agent reads OTP's documentation, the spawn driver and
+  the tracker for whether the loss is stated. Where it is not, the agent reproduces it with
+  OTP alone and writes report 23 in [`otp_bugs.md`](otp_bugs.md). Where it is, the item
+  ends with a line in the log. Filing is the user's.
 - **60. What item 11 left to decide**, found 2026-11-15 by its builds: feedback 254 to 257, the
   line form of `Os.read`, a read's time that bounds nothing, the host's interrupt that
   tells no subscriber, and an `Io.Error`'s message with its path. Each is brought to the
