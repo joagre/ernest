@@ -53,6 +53,9 @@ session handed back the same day, stands after item 91.
 Item 100, ernest-httpd's session's two lines on a close, feedback 262 and 263, needs the
 user too. It stands before item 96, since three of that session's tests wait on it.
 
+Item 101, what a reading of the log's findings at the limits left to decide, needs the user
+too. It stands before item 68, since its rule is the measure for items 68 and 100.
+
 Item 97 is what item 94's cold reading and its build found, decided with the user on
 2026-11-17 (the log's *What Waits for a Peer*), and stands first. Item 102, what item 98's
 build found the same day, stands after item 91. The items stand below in that order.
@@ -177,6 +180,22 @@ build found the same day, stands after item 91. The items stand below in that or
     `Upgrade` by then.
   - The tour's restart limit. Chapter 4 starts its counter with `within = 3600000`, in
     the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
+- **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
+  found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
+  ([`limit_findings.md`](limit_findings.md), its section 3.2; the log's *The Limits Read*).
+  Seven times a test of Ernest's own expected an order the report does not give. Three got
+  no sentence, two a sentence in the report, and two a mechanism. Each entry gives a reason,
+  and none says what tells the three apart: two give the same reader's prediction for
+  opposite answers.
+
+  Decided with the user, in a design discussion of its own: the test that tells them apart,
+  as one rule of `CLAUDE.md`'s *Defects and gaps*, beside the rule for where the report is
+  silent. The item first reads the seven entries whole.
+
+  Recommended, on the reading alone: a mechanism where both acts are Ernest's own and
+  ordering them costs a fraction of them; a sentence where one act is the host's and a
+  program meets the order; nothing where no program can tell. The seven are then read
+  against the rule, and one that falls otherwise is brought to the user.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither

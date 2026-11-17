@@ -17,6 +17,7 @@ The project's own documents: what each file and directory here is, and the READM
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`diagnostics.md`](diagnostics.md)**: the catalog of the errors the lexer, the parser, the checker and the build give, each with a program that gives it and what `ern build` prints for it, which `make diagnostics` writes and a test holds to the compiler.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
+- **[`limit_findings.md`](limit_findings.md)**: the findings at the limits from Ernest 0.10.0 to 2026-11-17, as one reading of the log sorted them: whose each was, how it was answered and at what effort. A record of that reading, not kept current.
 - **[`clean_room.md`](clean_room.md)**: how an application with a repository of its own is built against Ernest's release archive by a session of its own, and how its findings and the verdicts cross.
 - **[`agents.md`](agents.md)**: how a session works with its agents: the brief, an agent's report, what is checked before and after, and the model each job gets.
 - **[`proposals/`](proposals/)**: what is designed, a directory for each proposal, whose `README.md` says what its files are and which is current.
