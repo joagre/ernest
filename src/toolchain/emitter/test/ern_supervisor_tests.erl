@@ -469,6 +469,11 @@ group_runs_once_after_its_end_test() ->
 %% waits as supervised/4's does. `restartSeen` reads, without waiting, the
 %% Restarted of a child main watches with a service monitor, which is
 %% placed before the child's new run begins (report §6.9).
+%%
+%% `suspend` and `resume` hold a process and let it go, by the host's
+%% suspension, which runs it no more until it is resumed and keeps what is
+%% sent to it in its mailbox; `queued` waits until a process's mailbox
+%% holds a count of messages, a suspended one's among them.
 crunching(Main) ->
     ern_emitter_tests:run(
         ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom | Crunch | Crash\n",
@@ -501,6 +506,10 @@ crunching(Main) ->
          "    receive { Down(=reason) -> Io.show(reason) | after 0 -> \"not restarted\" }\n"
          "foreign fn running(process : Process) : Foreign.Term = \"ern_waits:running/1\"\n"
          "foreign fn calling(process : Process) : Foreign.Term = \"ern_waits:calling/1\"\n"
+         "foreign fn queued(process : Process, count : Int) : Foreign.Term ="
+         " \"ern_waits:queued/2\"\n"
+         "foreign fn suspend(process : Process) : Foreign.Term = \"erlang:suspend_process/1\"\n"
+         "foreign fn resume(process : Process) : Foreign.Term = \"erlang:resume_process/1\"\n"
          "foreign fn delivered() : Foreign.Term = \"ern_rt:wait_for_deliveries/0\"\n"]).
 
 %% Appendix E.22: a sibling asked to restart that faults of its own before
@@ -597,13 +606,7 @@ held_child_waits_for_its_siblings_test() ->
 %% child, which waits, and the child runs again only once the computing
 %% sibling has restarted, which main reads as the test before does. Written
 %% before the code: the second fault asked the waiting child, which took
-%% the restart at its wait and ran again at once.
-%%
-%% Not covered: a child asked to restart before its supervisor has counted
-%% its own fault, which takes the restart and waits on for its fault's
-%% siblings. The two messages reach the supervisor from two processes, and
-%% no program can hold the supervisor between them without a hold inside
-%% the module
+%% the restart at its wait and ran again at once
 child_waits_through_a_siblings_fault_test() ->
     {ok, Output} = crunching(
         "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
@@ -619,6 +622,43 @@ child_waits_through_a_siblings_fault_test() ->
         "    send(b, Crash);\n"
         "    let _ = running(Process.fromAddress(b));\n"
         "    send(a, Boom);\n"
+        "    Io.println(Int.toString(peekUntil(a)) <> \" \" <> restartSeen())\n"
+        "}\n"),
+    ?assertEqual(<<"0 Restarted\n">>, Output).
+
+%% Appendix E.22: a child asked to restart before its supervisor has
+%% counted its own fault takes the restart, and waits as it would have.
+%% Main holds the supervisor by the host's suspension while b and then a
+%% fault, each waiting for its word, and lets it go once both questions
+%% are in its mailbox. The watcher passes on b's before a faults, so the
+%% supervisor takes b's fault first and asks a, whose fault it has not yet
+%% counted. a runs again only once c, which computes, has restarted, which
+%% main reads as the tests before do.
+%%
+%% A regression test, written after the code. Not covered: the second
+%% Restarted a's service monitor would get, a call to a that the asked
+%% restart ends, and the strategies but OneForAll
+child_asked_before_its_fault_is_counted_waits_test() ->
+    {ok, Output} = crunching(
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 5, within = 5000)))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "let c : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "export fn main() : Unit receiving Down = {\n"
+        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
+        "    monitorService(Process.fromAddress(c), fn(d) = d);\n"
+        "    send(c, Crunch);\n"
+        "    let _ = running(Process.fromAddress(c));\n"
+        "    let supervisor = Process.fromAddress(sup);\n"
+        "    let _ = suspend(supervisor);\n"
+        "    send(b, Boom);\n"
+        "    let _ = calling(Process.fromAddress(b));\n"
+        "    let _ = queued(supervisor, 1);\n"
+        "    send(a, Boom);\n"
+        "    let _ = calling(Process.fromAddress(a));\n"
+        "    let _ = queued(supervisor, 2);\n"
+        "    let _ = resume(supervisor);\n"
         "    Io.println(Int.toString(peekUntil(a)) <> \" \" <> restartSeen())\n"
         "}\n"),
     ?assertEqual(<<"0 Restarted\n">>, Output).

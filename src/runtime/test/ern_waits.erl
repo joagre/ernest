@@ -1,7 +1,8 @@
 %% The waits the tests share, each on what it means rather than on a time
 %% (CLAUDE.md, *No fixed sleep*): a process in a state, blocked in a receive
-%% or in a call, or watching another or no longer, among them, a process
-%% having called a function or returned from it, the runtime's reaper
+%% or in a call, or watching another or no longer, among them, a process's
+%% mailbox holding messages, a process having called a function or
+%% returned from it, the runtime's reaper
 %% having looked for a deadlock, the deliveries to a process having
 %% delivered, and processes having ended. All but the last two read what
 %% the host reports of a process by tracing it, and stop tracing when they
@@ -9,8 +10,8 @@
 -module(ern_waits).
 
 -export([with_room/1, until/2, freed/2, references/2, waiting/1, running/1, calling/1,
-         watching/2, unwatched/2, called/3, returned/3, looked/1, delivered/1, ended/1,
-         forever/0]).
+         watching/2, unwatched/2, queued/2, called/3, returned/3, looked/1, delivered/1,
+         ended/1, forever/0]).
 
 %% What Work answers, every process it starts given a heap with room. The
 %% host collects a process when its heap fills, which a new process's small
@@ -154,6 +155,40 @@ is_watching(Pid, Watched) ->
     case erlang:process_info(Pid, monitors) of
         {monitors, Monitors} -> lists:member({process, Watched}, Monitors);
         undefined -> false
+    end.
+
+%% Until Pid's mailbox holds Count messages or more, or Pid has ended. The
+%% count is read at first and again each time the host traces a message
+%% put in the mailbox, which it does for a process the host has suspended,
+%% one that runs nothing and is never scheduled out.
+-spec queued(pid(), pos_integer()) -> ok | ended.
+queued(Pid, Count) ->
+    MonitorRef = erlang:monitor(process, Pid),
+    try erlang:trace(Pid, true, ['receive']) of
+        _ ->
+            try
+                holding(Pid, Count, MonitorRef)
+            after
+                untraced(Pid, ['receive']),
+                flushed(Pid)
+            end
+    catch
+        error:badarg -> ended
+    after
+        erlang:demonitor(MonitorRef, [flush])
+    end.
+
+holding(Pid, Count, MonitorRef) ->
+    case erlang:process_info(Pid, message_queue_len) of
+        undefined ->
+            ended;
+        {message_queue_len, Queued} when Queued >= Count ->
+            ok;
+        {message_queue_len, _} ->
+            receive
+                {trace, Pid, 'receive', _} -> holding(Pid, Count, MonitorRef);
+                {'DOWN', MonitorRef, process, Pid, _} -> ended
+            end
     end.
 
 %% Until Pid has called Module:Function/Arity Count times from now, which
