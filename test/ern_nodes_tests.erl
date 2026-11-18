@@ -9442,6 +9442,231 @@ sender_held_in_its_send(Base) ->
     stop(Desk, WaitDesk),
     stop(Store, WaitStore).
 
+%% report §6.9, §6.6, §8.7, §12.2: the answer to a call is not overtaken by
+%% the callee's Down. A caller of the store's waits on the desk's callee.
+%% Once the callee holds the question, the desk's connection to the store is
+%% held back, so that nothing leaves the host's buffer for the store, and the
+%% callee answers behind a megabyte that already waits there, its small
+%% answer placed not at all. The desk kills the callee, its own monitor told
+%% Killed while the connection is held back, and then lets the connection
+%% go: the caller gets the answer, whole.
+%%
+%% The answer and the caller's Down cross one connection. Where a death's
+%% reason is no immediate term of the host's, as a kill's `{ern, killed}` is
+%% not, the host sends the Down for another node only once the dying
+%% process's send is placed whole. Where it is one, an atom among them, the
+%% host places the Down at once, before the answer's rest, and the caller
+%% gets None: this test fails the day a kill's reason is an immediate term.
+%%
+%% A regression test, written after the code. It does not cover a peer that
+%% is stopped, whose wait the kernel's buffers put off, nor callForever,
+%% which reads the same Down, nor a callee that faults or ends with its
+%% program while its answer waits.
+answer_behind_the_buffer_test_() ->
+    nodes_test({waits, 6},
+               fun(Base) -> answered_and_killed(Base, "small", "Some(8 bytes, whole: true)") end).
+
+%% report §6.9, §6.6, §8.7, §12.2: the same, the callee's answer above the
+%% buffer and placed in part when the callee is killed. A regression test,
+%% with what the first does not cover.
+answer_above_the_buffer_test_() ->
+    nodes_test({waits, 6},
+               fun(Base) ->
+                   answered_and_killed(Base, "large", "Some(16777216 bytes, whole: true)")
+               end).
+
+%% The desk's callee killed while its answer, Answer, waits, and what the
+%% store's caller got, Got.
+answered_and_killed(Base, Answer, Got) ->
+    Program = buffer_build(Base),
+    {Store, Desk, _} = watched_nodes(Base),
+    WaitStore = offering(Store, Program, "store"),
+    WaitDesk = start(Desk, Program, ["answered", Answer]),
+    prints(Desk, "the callee ended: "),
+    prints(Store, "the store's caller got: "),
+    DeskOut = written(Desk, out),
+    [has(DeskOut, Line)
+     || Line <- ["the host says the callee waits in a send", "the callee ended: Killed"]],
+    has(written(Store, out), "the store's caller got: " ++ Got ++ " after "),
+    stop(Desk, WaitDesk),
+    stop(Store, WaitStore).
+
+%% report §8.7, §6.9: a process that dies with Killed while what it sends
+%% waits to be placed has sent it, and the Downs its death gives watchers on
+%% other nodes are sent only once it is placed whole. The desk's connection
+%% to the store held back, so that nothing leaves the host's buffer for the
+%% store, a sender of the desk's waits in its send of a message above the
+%% buffer, part of it placed, and a second in its send of a small one, none
+%% of it placed. Each is killed, and then an idle process, the desk's own
+%% monitors told Killed while the connection is held back.
+%%
+%% The third node's watcher monitors the three, and is told the idle
+%% process's Down while it has none of the senders'. Once the connection
+%% goes, the store takes each message whole, and the third's watcher is told
+%% each sender's Down, Killed.
+%%
+%% The evidence for "only once": the idle process, killed after the senders
+%% and monitored from no node whose buffer is full, has its Down said at the
+%% third node while the senders' are not. Under the code their absence is no
+%% race, since nothing of theirs is sent while the connection is held back,
+%% so the test cannot fail on a time. Its power to see a Down sent at once
+%% rests on the third node's deliveries of the Downs, which run side by
+%% side: a sender's Down sent at once, before the idle process's, could
+%% still be said after it, and the test would not see it.
+%%
+%% A regression test, written after the code. It does not cover a peer that
+%% is stopped, nor a peer's kill, which comes as a frame, nor an end other
+%% than a kill, the program's among them (§8.6).
+killed_sender_has_sent_test_() ->
+    nodes_test({waits, 12}, fun killed_sender_has_sent/1).
+
+killed_sender_has_sent(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk, Third} = watched_nodes(Base),
+    WaitStore = offering(Store, Program, "store"),
+    WaitThird = offering(Third, Program, "watcher"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["sent"]),
+    prints(Desk, "the idle process ended: "),
+    prints(Third, "the third saw the idle process: "),
+    ThirdOut = written(Third, out),
+    [?assertEqual(nomatch, string:find(ThirdOut, "the third saw the " ++ Sender))
+     || Sender <- ["large sender", "small sender"]],
+    has(ThirdOut, "the third saw the idle process: Killed"),
+    DeskOut = written(Desk, out),
+    [has(DeskOut, Line)
+     || Line <- ["the host says the large sender waits in a send",
+                 "the host says the small sender waits in a send",
+                 "the large sender ended: Killed", "the small sender ended: Killed",
+                 "the idle process ended: Killed"]],
+    true = port_command(DeskInput, "go\n"),
+    prints(Store, "took 16777216 bytes, whole: true"),
+    prints(Store, "took the next"),
+    prints(Third, "the third saw the large sender: Killed"),
+    prints(Third, "the third saw the small sender: Killed"),
+    stop(Desk, WaitDesk),
+    stop(Third, WaitThird),
+    stop(Store, WaitStore).
+
+%% report §8.7, §6.9: a Down that a death gives a watcher on another node
+%% may wait in the buffer for that node, and those of the same death for
+%% other nodes behind it, until the connection has taken enough; a Down to a
+%% watcher on the dead process's own node waits on no peer.
+%%
+%% A process of the desk's in no send, monitored by the store's watcher,
+%% then the third node's, then the desk itself, faults while the desk's
+%% connection to the store is held back and a megabyte waits for the store.
+%% The desk's monitor is told the Fault and its cause while the connection
+%% is held back, and once it goes, the store's watcher and the third's are
+%% told too. The sentence says "may", so the test holds the bound and not
+%% the wait: the third's watcher is told at the latest once the store takes
+%% again.
+%%
+%% A regression test, written after the code. It does not show the third's
+%% Down waiting, which turns on the host's tree of the process's monitors
+%% (the log's *A Down Follows the Send*), nor a loss in place of the take.
+fault_down_behind_the_buffer_test_() ->
+    nodes_test({waits, 9}, fun fault_down_behind_the_buffer/1).
+
+fault_down_behind_the_buffer(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk, Third} = watched_nodes(Base),
+    WaitStore = offering(Store, Program, "store"),
+    WaitThird = offering(Third, Program, "watcher"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["faulted"]),
+    Faulted = "Fault(\"the faulting process faulted\")",
+    prints(Desk, "the faulting process ended: "),
+    has(written(Desk, out), "the faulting process ended: " ++ Faulted),
+    true = port_command(DeskInput, "go\n"),
+    prints(Third, "the third saw the faulting process: "),
+    prints(Store, "the store saw the faulting process: "),
+    has(written(Third, out), "the third saw the faulting process: " ++ Faulted),
+    has(written(Store, out), "the store saw the faulting process: " ++ Faulted),
+    stop(Desk, WaitDesk),
+    stop(Third, WaitThird),
+    stop(Store, WaitStore).
+
+%% report §8.7: the Downs that a death gives watchers on other nodes are
+%% sent once a loss has dropped what the dead process had not placed. The
+%% desk's connection to the store held back, a sender of the desk's waits in
+%% its send of a message above the buffer, part of it placed, and is killed.
+%% The desk then loses the connection, by ending the process of the host's
+%% that writes it, which the host's supervisor of the connection reports on
+%% the desk's standard error: both nodes say the loss, the third node's
+%% watcher is told the sender's Down, Killed, and the sink, asked over a
+%% connection the ask opens again, has taken nothing.
+%%
+%% The ask goes once the third's watcher has the Down, which the host sends
+%% only after the sender's exit has ended its send, so nothing of the
+%% message can follow the ask; and the sink takes in order what reached it
+%% before the loss and the ask after it.
+%%
+%% A regression test, written after the code. It does not cover a loss the
+%% detector finds, which ends the wait the same way, only later, nor a peer
+%% that is stopped.
+lost_sender_down_test_() ->
+    nodes_test({waits, 11}, fun lost_sender_down/1).
+
+lost_sender_down(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk, Third} = watched_nodes(Base),
+    WaitStore = offering(Store, Program, "store"),
+    WaitThird = offering(Third, Program, "watcher"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["lost"]),
+    prints(Desk, "the large sender ended: "),
+    says(Desk, "the peer store was lost: it closed"),
+    says(Store, "the peer desk was lost: it closed"),
+    prints(Third, "the third saw the large sender: "),
+    has(written(Third, out), "the third saw the large sender: Killed"),
+    has(written(Desk, out), "the large sender ended: Killed"),
+    true = port_command(DeskInput, "go\n"),
+    prints(Desk, "the sink has taken: "),
+    has(written(Desk, out), "the sink has taken: Some(0)"),
+    ?assertEqual(nomatch, string:find(written(Store, out), "took ")),
+    stop(Desk, WaitDesk),
+    stop(Third, WaitThird),
+    stop(Store, WaitStore).
+
+%% report §6.6, §8.7: where the callee is on another node, its death ends a
+%% call's wait when a Down to the caller would be sent, which may wait on a
+%% third node; where it is on the caller's own node, the wait ends at once.
+%% A caller of the third node's and one of the desk's wait on the desk's
+%% callee. The desk's connection to the store held back, the callee sends
+%% the store a message above the buffer, waits in its send, and is killed:
+%% the desk's caller gets None while the connection is held back, and once
+%% the connection goes, the third's caller gets None, at the latest then.
+%%
+%% A regression test, written after the code. It does not show the third's
+%% wait lasting while the connection is held back, an absence only a time
+%% would show, nor callForever, nor a loss.
+call_from_a_third_node_test_() ->
+    nodes_test({waits, 9}, fun call_from_a_third_node/1).
+
+call_from_a_third_node(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk, Third} = watched_nodes(Base),
+    WaitStore = offering(Store, Program, "store"),
+    WaitThird = offering(Third, Program, "watcher"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["called"]),
+    prints(Desk, "the callee ended: "),
+    prints(Desk, "the desk's caller got: "),
+    DeskOut = written(Desk, out),
+    [has(DeskOut, Line)
+     || Line <- ["the host says the callee waits in a send", "the callee ended: Killed",
+                 "the desk's caller got: None after "]],
+    true = port_command(DeskInput, "go\n"),
+    prints(Third, "the third's caller got: "),
+    has(written(Third, out), "the third's caller got: None after "),
+    stop(Desk, WaitDesk),
+    stop(Third, WaitThird),
+    stop(Store, WaitStore).
+
+%% A node of the buffer's program started in Mode, once it has offered its
+%% services; answers what waits for its end.
+offering(Dir, Program, Mode) ->
+    Wait = start(Dir, Program, [Mode]),
+    prints(Dir, "offered"),
+    Wait.
+
 %% A store that listens and a desk that dials it, the desk finding the
 %% store's sink there.
 buffer_nodes(Base) ->
@@ -9466,6 +9691,16 @@ buffer_nodes_and_third(Base) ->
     edit(Third, fun(Conf) -> Conf#{<<"services">> => #{<<"desk-sink">> => [<<"desk">>]}} end),
     {Store, Desk, Third}.
 
+%% The same, the desk finding the store's watcher at the store and the
+%% third node's at the third node.
+watched_nodes(Base) ->
+    {Store, Desk, Third} = buffer_nodes_and_third(Base),
+    edit(Desk, fun(#{<<"services">> := Services} = Conf) ->
+                   Conf#{<<"services">> := Services#{<<"store-watch">> => [<<"store">>],
+                                                    <<"third-watch">> => [<<"third">>]}}
+               end),
+    {Store, Desk, Third}.
+
 %% The buffer's tests' program, built in Base beside the host module it
 %% asks of the host (buffer_host/0); answers its `.erc`.
 buffer_build(Base) ->
@@ -9483,6 +9718,13 @@ buffer_build(Base) ->
 // its own processes that serve the whole node, its killer, its reaper and
 // its exchange, still serve it, and what `Process.status` says of a sender
 // held in its send.
+//
+// Or, the connection held back too, watchers on the store and on a third
+// node say when the Down of a process of the desk's reaches them: a sender
+// killed in its send, a callee killed while its answer waits, a process that
+// faults while the buffer for the store is full, and a sender killed before
+// the connection is lost; and callers on the store, the third node and the
+// desk say what their calls of a callee killed so answered, and when.
 
 // The host's report of each time the process is suspended in a send to
 // another node, its count sent to the address.
@@ -9520,6 +9762,11 @@ foreign fn whereis(name : Foreign.Term) : Foreign.Term = \"erlang:whereis/1\"
 foreign fn suspended(process : Foreign.Term) : Bool = \"erlang:suspend_process/1\"
 foreign fn resumed(process : Foreign.Term) : Bool = \"erlang:resume_process/1\"
 
+// The host's exit signal sent to the process, by which the desk ends the
+// process of the host's that writes a connection, and so the connection.
+foreign fn exited(process : Foreign.Term, reason : Foreign.Term) : Bool = \"erlang:exit/2\"
+
+// What the sink takes; a Ping answers how many of the others it has taken.
 type SinkMsg = Whole(Bytes) | Next | Chunk(Bytes) | Ping(Reply(Int)) | Hold(Reply(Int))
 
 type DeskMsg =
@@ -9529,6 +9776,9 @@ type DeskMsg =
   | Ended(name : String, down : Down)
   | Taken(Int)
   | Ready
+  | Held(String)
+  | Watching
+  | Questioned
 
 type SenderMsg = Go | Asked(Int)
 
@@ -9538,9 +9788,26 @@ type AskerMsg = Ask | SinkEnded(Down)
 // the moments of what it was asked, which it served after it.
 type Waited = Waited(index : Int, began : Int, ended : Int, asked : List(Int))
 
+// What a watcher of the store's or the third node's is asked: to monitor a
+// process of the desk's under a name, telling the desk once the monitor
+// stands, or to call the desk's callee; and each Down its monitors give it.
+type WatchMsg =
+    Watch(name : String, process : Process, to : Address(DeskMsg))
+  | Call(Address(CalleeMsg))
+  | Saw(name : String, down : Down)
+
+// What the desk's callee is asked: a question, which it holds; the answer
+// it gives every question it holds; or a message above the buffer to send
+// the sink, after which it answers none.
+type CalleeMsg = Question(Reply(Bytes)) | AnswerWith(Bytes) | SendTo(Address(SinkMsg))
+
 let sink : Peer.Service(SinkMsg) = Peer.service(\"sink\")
 
 let deskSink : Peer.Service(SinkMsg) = Peer.service(\"desk-sink\")
+
+let storeWatch : Peer.Service(WatchMsg) = Peer.service(\"store-watch\")
+
+let thirdWatch : Peer.Service(WatchMsg) = Peer.service(\"third-watch\")
 
 export fn main() : Unit receiving DeskMsg =
     match Os.arguments {
@@ -9549,32 +9816,59 @@ export fn main() : Unit receiving DeskMsg =
             Io.println(\"offered\");
             held()
         }
+      | [\"store\"] -> {
+            let _ = Peer.offer(sink, spawn(fn() = sinking()));
+            let _ = Peer.offer(storeWatch, spawn(fn() = watching(\"the store\")));
+            Io.println(\"offered\");
+            held()
+        }
+      | [\"watcher\"] -> {
+            let _ = Peer.offer(thirdWatch, spawn(fn() = watching(\"the third\")));
+            Io.println(\"offered\");
+            held()
+        }
       | [\"above\"] ->
-            above(found())
+            above(found(sink))
       | [\"wait\"] ->
-            waits(found())
+            waits(found(sink))
       | [\"spawn\"] ->
-            askedInTheWait(found(),
+            askedInTheWait(found(sink),
                            \"spawn\",
                            fn(_) = Io.show(Peer.spawn(\"store\", fn() = Unit, 1000)))
       | [\"call\"] ->
-            askedInTheWait(found(),
+            askedInTheWait(found(sink),
                            \"call\",
                            fn(address) = Io.show(Address.call(address, Ping, 1000)))
       | [\"gateway\"] ->
-            serves(found())
+            serves(found(sink))
       | [\"third\", interval] ->
             asks(Optional.withDefault(String.toInt(interval), 0))
       | [\"kill\"] ->
-            kills(found())
+            kills(found(sink))
       | [\"monitor\"] ->
-            reaps(found(), fn(_) = Unit, fn(sink) = monitor(sink, SinkEnded))
+            reaps(found(sink), fn(_) = Unit, fn(sink) = monitor(sink, SinkEnded))
       | [\"demonitor\"] ->
-            reaps(found(), fn(sink) = monitor(sink, SinkEnded), fn(sink) = demonitor(sink))
+            reaps(found(sink), fn(sink) = monitor(sink, SinkEnded), fn(sink) = demonitor(sink))
       | [\"exchange\"] ->
             exchanges()
       | [\"status\"] ->
-            reads(found())
+            reads(found(sink))
+      | [\"answered\", \"small\"] -> {
+            let address = found(sink);
+            answeredWhileHeld(pattern(1), fn() = flooded(address, flooder(address)))
+        }
+      | [\"answered\", \"large\"] -> {
+            let address = found(sink);
+            answeredWhileHeld(whole(), fn() = heldBack(address))
+        }
+      | [\"sent\"] ->
+            sentWhileHeld(found(sink))
+      | [\"faulted\"] ->
+            faultedWhileHeld(found(sink))
+      | [\"lost\"] ->
+            lostWhileHeld(found(sink))
+      | [\"called\"] ->
+            calledWhileHeld(found(sink))
       | _ ->
             Unit
     }
@@ -9585,8 +9879,8 @@ fn held() : Unit receiving DeskMsg =
         _ -> held()
     }
 
-fn found() : Address(SinkMsg) =
-    match Peer.find(sink, waitMs()) {
+fn found(service : Peer.Service(m)) : Address(m) =
+    match Peer.find(service, waitMs()) {
         Right(address) -> address
       | Left(failure) -> fault(Io.show(failure))
     }
@@ -9594,30 +9888,39 @@ fn found() : Address(SinkMsg) =
 // The message above the buffer, sixteen times its megabyte, which the sink
 // makes again to compare.
 fn whole() : Bytes =
-    Bytes.repeat(<<1, 2, 3, 4, 5, 6, 7, 8>>, 2097152)
+    pattern(2097152)
+
+// Eight bytes count times over, from which a taker tells a message whole.
+fn pattern(count : Int) : Bytes =
+    Bytes.repeat(<<1, 2, 3, 4, 5, 6, 7, 8>>, count)
 
 fn sinking() : Unit receiving SinkMsg =
+    taking(0)
+
+// The sink, count the messages it has taken, a Ping and a Hold not among
+// them.
+fn taking(count : Int) : Unit receiving SinkMsg =
     receive {
         Whole(bytes) -> {
             Io.println(\"took \"
                            <> Int.toString(Bytes.size(bytes))
                            <> \" bytes, whole: \"
                            <> Io.show(bytes == whole()));
-            sinking()
+            taking(count + 1)
         }
       | Next -> {
             Io.println(\"took the next\");
-            sinking()
+            taking(count + 1)
         }
       | Chunk(_) ->
-            sinking()
+            taking(count + 1)
       | Ping(reply) -> {
-            answer(reply, 1);
-            sinking()
+            answer(reply, count);
+            taking(count)
         }
       | Hold(_) -> {
             Io.println(\"holds a call\");
-            sinking()
+            taking(count)
         }
     }
 
@@ -9776,27 +10079,42 @@ fn toldSince(moment : Int, interval : Int) : Unit =
 // buffer, which the host places until more than 1 MB waits, and whose
 // send then waits until the connection is let go. Each time the host
 // suspends it in its send is said to the desk.
-fn flooder(address : Address(SinkMsg)) : Address(SenderMsg) receiving DeskMsg = {
-    let sender = spawn(fn() : Unit receiving SenderMsg = flooding(address));
-    watch(Process.fromAddress(sender), adapted(self(), Suspended));
-    sender
+fn flooder(address : Address(SinkMsg)) : Address(SenderMsg) receiving DeskMsg =
+    sender(address, Chunk(whole()), Suspended)
+
+// A process of the desk's that sends the sink the message once told to go;
+// each time the host suspends it in its send, the desk is sent what told
+// makes of the count so far.
+fn sender(address : Address(SinkMsg),
+          message : SinkMsg,
+          told : (Int) -> DeskMsg) : Address(SenderMsg) receiving DeskMsg = {
+    let spawned = spawn(fn() : Unit receiving SenderMsg = sendingOnGo(address, message));
+    watch(Process.fromAddress(spawned), adapted(self(), told));
+    spawned
 }
 
-fn flooding(address : Address(SinkMsg)) : Unit receiving SenderMsg =
+fn sendingOnGo(address : Address(SinkMsg), message : SinkMsg) : Unit receiving SenderMsg =
     receive {
-        Go -> send(address, Chunk(whole()))
+        Go -> send(address, message)
     }
 
 // The connection to the store held back, the flooder told to go, and its
 // first suspension said; the connection, to be let go.
 fn flooded(address : Address(SinkMsg),
            sender : Address(SenderMsg)) : Foreign.Term receiving DeskMsg = {
-    let connection = connectionTo(Process.fromAddress(address));
-    let _ = suspended(connection);
+    let connection = heldBack(address);
     send(sender, Go);
     receive {
         Suspended(_) -> Io.println(\"the host says the sender waits in a send\")
     };
+    connection
+}
+
+// The desk's connection to the store held back, so that nothing that waits
+// for the store leaves the host's buffer; the connection, to be let go.
+fn heldBack(address : Address(SinkMsg)) : Foreign.Term = {
+    let connection = connectionTo(Process.fromAddress(address));
+    let _ = suspended(connection);
     connection
 }
 
@@ -9891,6 +10209,218 @@ fn endedSaid() : Unit receiving DeskMsg =
         Ended(=name, =down) -> Io.println(name <> \" ended: \" <> Io.show(down.reason))
     }
 
+// Report §6.6, §6.9, §8.7: a caller of the store's waits on the desk's
+// callee. Once the callee holds the question, the desk's connection to the
+// store is held back as holding holds it, and the callee answers with the
+// bytes, its answer waiting to be placed: a small one behind the flooder's
+// megabyte, placed not at all, or one above the buffer, placed in part. The
+// desk kills the callee and then lets the connection go.
+fn answeredWhileHeld(bytes : Bytes,
+                     holding : () -> Foreign.Term receiving DeskMsg) : Unit receiving DeskMsg = {
+    let callee = calleeWatched();
+    send(found(storeWatch), Call(callee));
+    questioned();
+    let connection = holding();
+    send(callee, AnswerWith(bytes));
+    heldSaid(\"the callee\");
+    killedSaid(Process.fromAddress(callee));
+    let _ = resumed(connection);
+    held()
+}
+
+// Report §8.7: the desk's connection to the store held back, a sender of a
+// message above the buffer waits in its send with part of it placed, and a
+// sender of a small one with none of it placed. Each is killed, and then an
+// idle process, each monitored here and by the third node's watcher, which
+// monitors no other. Once the test says so, the desk lets the connection go.
+fn sentWhileHeld(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let third = found(thirdWatch);
+    let largeSender = sender(address, Whole(whole()), fn(_) = Held(\"the large sender\"));
+    let smallSender = sender(address, Next, fn(_) = Held(\"the small sender\"));
+    let idle = Process.fromAddress(spawn(fn() = held()));
+    watched([third], \"the large sender\", Process.fromAddress(largeSender));
+    watched([third], \"the small sender\", Process.fromAddress(smallSender));
+    watched([third], \"the idle process\", idle);
+    let connection = heldBack(address);
+    wentAndHeld(largeSender, \"the large sender\");
+    wentAndHeld(smallSender, \"the small sender\");
+    killedSaid(Process.fromAddress(largeSender));
+    killedSaid(Process.fromAddress(smallSender));
+    killedSaid(idle);
+    // the test has read the third node's lines first
+    letGoWhenTold(connection)
+}
+
+// Report §6.9, §8.7: a process of the desk's in no send, monitored by the
+// store's watcher, the third node's and here, faults while the flooder
+// waits in its send to the store, the connection held back. Once the test
+// says so, the desk lets the connection go.
+fn faultedWhileHeld(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let faulting = spawn(fn() : Unit receiving SenderMsg = faultingOnGo());
+    watched([found(storeWatch), found(thirdWatch)],
+            \"the faulting process\",
+            Process.fromAddress(faulting));
+    let connection = flooded(address, flooder(address));
+    send(faulting, Go);
+    endedSaid();
+    // the test has read the desk's line first
+    letGoWhenTold(connection)
+}
+
+fn faultingOnGo() : Unit receiving SenderMsg =
+    receive {
+        Go -> fault(\"the faulting process faulted\")
+    }
+
+// Report §8.7: the desk's connection to the store held back, a sender of a
+// message above the buffer, monitored here and by the third node's
+// watcher, is killed while its send waits. The desk then loses the
+// connection, by ending the process of the host's that writes it. Once the
+// test says both nodes have run the loss, the desk asks the sink how many
+// messages it has taken, over a connection that the call opens again.
+fn lostWhileHeld(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let largeSender = sender(address, Whole(whole()), fn(_) = Held(\"the large sender\"));
+    watched([found(thirdWatch)], \"the large sender\", Process.fromAddress(largeSender));
+    let connection = heldBack(address);
+    wentAndHeld(largeSender, \"the large sender\");
+    killedSaid(Process.fromAddress(largeSender));
+    let _ = exited(connection, Foreign.atom(\"kill\"));
+    // until the test, which has seen both nodes say the loss, says so
+    let _ = Io.readLine();
+    Io.println(\"the sink has taken: \" <> Io.show(Address.call(address, Ping, waitMs())));
+    held()
+}
+
+// Report §6.6, §6.9, §8.7: a caller of the third node's and one of the
+// desk's wait on the desk's callee. Once the callee holds both questions,
+// the desk's connection to the store held back, the callee sends the sink a
+// message above the buffer, waits in its send, and is killed. Once the test
+// says so, the desk lets the connection go.
+fn calledWhileHeld(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let callee = calleeWatched();
+    send(found(thirdWatch), Call(callee));
+    questioned();
+    let _ = spawn(fn() = calling(\"the desk\", callee));
+    questioned();
+    let connection = heldBack(address);
+    send(callee, SendTo(address));
+    heldSaid(\"the callee\");
+    killedSaid(Process.fromAddress(callee));
+    // the test has seen the desk's caller end first
+    letGoWhenTold(connection)
+}
+
+// The desk's callee, monitored here, each time the host suspends it in its
+// send told to the desk.
+fn calleeWatched() : Address(CalleeMsg) receiving DeskMsg = {
+    let me = self();
+    let callee = spawn(fn() : Unit receiving CalleeMsg = serving(me, []));
+    watch(Process.fromAddress(callee), adapted(me, fn(_) = Held(\"the callee\")));
+    watched([], \"the callee\", Process.fromAddress(callee));
+    callee
+}
+
+// Report §6.6: the desk's callee, which tells the desk of each question it
+// holds; it answers each it holds with the bytes it is given, or sends the
+// sink a message above the buffer and answers none.
+fn serving(desk : Address(DeskMsg), replies : List(Reply(Bytes))) : Unit receiving CalleeMsg =
+    receive {
+        Question(reply) -> {
+            send(desk, Questioned);
+            serving(desk, reply :: replies)
+        }
+      | AnswerWith(bytes) ->
+            List.forEach(replies, fn(reply) = answer(reply, bytes))
+      | SendTo(address) ->
+            send(address, Chunk(whole()))
+    }
+
+// Until the callee says it holds a question.
+fn questioned() : Unit receiving DeskMsg =
+    receive {
+        Questioned -> Unit
+    }
+
+// Report §6.9: a watcher of the store's or the third node's, at its place,
+// which monitors each process it is asked to, says each Down its monitors
+// give it, and calls the desk's callee where it is asked to.
+fn watching(place : String) : Unit receiving WatchMsg =
+    receive {
+        Watch(=name, =process, =to) -> {
+            monitor(process, fn(down) = Saw(=name, =down));
+            send(to, Watching);
+            watching(place)
+        }
+      | Call(callee) -> {
+            let _ = spawn(fn() = calling(place, callee));
+            watching(place)
+        }
+      | Saw(=name, =down) -> {
+            Io.println(place <> \" saw \" <> name <> \": \" <> Io.show(down.reason));
+            watching(place)
+        }
+    }
+
+// Report §6.6: a call of the desk's callee, what it answered said, an
+// answer by its size and whether it is the pattern whole, and how long the
+// call took.
+fn calling(place : String, callee : Address(CalleeMsg)) : Unit = {
+    let began = Clock.monotonic();
+    let answered = match Address.call(callee, Question, waitMs()) {
+        Some(bytes) ->
+            \"Some(\"
+                <> Int.toString(Bytes.size(bytes))
+                <> \" bytes, whole: \"
+                <> Io.show(bytes == pattern(Bytes.size(bytes) / 8))
+                <> \")\"
+      | None ->
+            \"None\"
+    };
+    let took = Int.toString(Clock.monotonic() - began);
+    Io.println(place <> \"'s caller got: \" <> answered <> \" after \" <> took <> \" ms\")
+}
+
+// The process monitored by each watcher in turn under the name, once each
+// says it is, and here.
+fn watched(watchers : List(Address(WatchMsg)),
+           name : String,
+           process : Process) : Unit receiving DeskMsg = {
+    List.forEach(watchers, fn(watcher) = {
+        send(watcher, Watch(=name, =process, to = self()));
+        receive {
+            Watching -> Unit
+        }
+    });
+    monitor(process, fn(down) = Ended(=name, =down))
+}
+
+// Until the host says the named process waits in a send, which is said.
+fn heldSaid(name : String) : Unit receiving DeskMsg =
+    receive {
+        Held(which) when which == name ->
+            Io.println(\"the host says \" <> name <> \" waits in a send\")
+    }
+
+// The process killed, and its Down said.
+fn killedSaid(process : Process) : Unit receiving DeskMsg = {
+    kill(process);
+    endedSaid()
+}
+
+// The sender told to go, until the host says it waits in its send.
+fn wentAndHeld(sender : Address(SenderMsg), name : String) : Unit receiving DeskMsg = {
+    send(sender, Go);
+    heldSaid(name)
+}
+
+// Once the test says so, the connection let go; then until the node is
+// stopped.
+fn letGoWhenTold(connection : Foreign.Term) : Unit receiving DeskMsg = {
+    let _ = Io.readLine();
+    let _ = resumed(connection);
+    held()
+}
+
 // Report §12.7, §8.7: the store and the third node bare, each spawn of the
 // desk's there carrying its code through the exchange. The desk holds its
 // exchange back while the store asks it for the reach of a function the
@@ -9959,33 +10489,54 @@ fn served(acc : List(Int)) : List(Int) receiving SenderMsg =
     0 = built([Root]),
     filename:join(Root, "buffer.erc").
 
-%% A host module for the buffer's program: the host's report of each time a
-%% process is suspended in a send to another node, `erlang:system_monitor`'s
-%% `busy_dist_port`, taken by a process of its own made before the program
-%% sends, each report's count sent to an address; whether the host holds a
-%% connection to a process's node, and the process of the host's that
-%% writes what waits for that node to the connection; and the moment a
-%% process takes a message, or sends another process one, that names among
-%% its elements a process or a reference of a peer's node, which the host
-%% traces to a process of its own made before the program asks. The host
-%% traces what a process takes only as the process runs, so a suspended
-%% process's mailbox is watched through what is sent to it.
+%% A host module for the buffer's program. It gives the host's report of
+%% each time a process is suspended in a send to another node,
+%% `erlang:system_monitor`'s `busy_dist_port`, each report's count sent to
+%% an address. One process of its own, made before the program sends, holds
+%% every watch of the node's, since the host has one system monitor; one
+%% process of the program's asks for a watch at a time.
+%%
+%% It answers whether the host holds a connection to a process's node, and
+%% the process of the host's that writes what waits for that node to the
+%% connection; and the moment a process takes a message, or sends another
+%% process one, that names among its elements a process or a reference of a
+%% peer's node, which the host traces to a process of its own made before
+%% the program asks. The host traces what a process takes only as the
+%% process runs, so a suspended process's mailbox is watched through what
+%% is sent to it.
 buffer_host() ->
     <<"
 -module(ern_nodes_buffer).
 -export([watch/2, is_connected/1, taken/3, handed_on/4, connection_to/1]).
 watch(Pid, To) ->
+    Watcher = case whereis(ern_nodes_watcher) of
+                  undefined -> started_watcher();
+                  Running -> Running
+              end,
+    Watcher ! {watch, Pid, To, self()},
+    receive {ern_nodes_watching, Pid} -> 'Unit' end.
+started_watcher() ->
     Caller = self(),
     Watcher = spawn(fun() ->
+                        true = register(ern_nodes_watcher, self()),
                         _ = erlang:system_monitor(self(), [busy_dist_port]),
-                        Caller ! {ern_nodes_watching, self()},
-                        watched(Pid, To, 0)
+                        Caller ! {ern_nodes_started, self()},
+                        watched(#{})
                     end),
-    receive {ern_nodes_watching, Watcher} -> 'Unit' end.
-watched(Pid, To, Count) ->
+    receive {ern_nodes_started, Watcher} -> Watcher end.
+watched(Watches) ->
     receive
-        {monitor, Pid, busy_dist_port, _} -> To ! Count + 1, watched(Pid, To, Count + 1);
-        {monitor, _, busy_dist_port, _} -> watched(Pid, To, Count)
+        {watch, Pid, To, From} ->
+            From ! {ern_nodes_watching, Pid},
+            watched(Watches#{Pid => {To, 0}});
+        {monitor, Pid, busy_dist_port, _} ->
+            case Watches of
+                #{Pid := {To, Count}} ->
+                    To ! Count + 1,
+                    watched(Watches#{Pid := {To, Count + 1}});
+                #{} ->
+                    watched(Watches)
+            end
     end.
 is_connected(Pid) ->
     lists:member(node(Pid), nodes(connected)).

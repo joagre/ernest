@@ -187,6 +187,8 @@ The connection is opened again by the next operation that needs it, never in the
 
 A `send` to a process of a lost peer returns at once, unless more than 1 MB then waits for that peer, its own message counted, when the sender waits until it drains or the dial fails (report §8.7). A `send` to a peer that is silent and not yet lost waits the same way, until the loss. While a send waits so, a call, a find, a spawn, a compute or a utilization towards that peer waits with it and answers only when that wait ends, even where its time ran out long before (report §6.6, Appendix E.27). The message waits behind the dial, and is sent where the connection opens and dropped where it does not. The window in which a silence is found is the host's, and no entry of `ernest.conf` sets it.
 
+A silent peer can delay a `Down` for another node too. A process killed while its send to the silent peer waits is reported to watchers on other nodes only once the peer takes again or is lost. The same may hold of any death that a process of the silent peer monitors while 1 MB waits for that peer. A call from another node on such a process ends as late. Watchers and callers on the dead process's own node wait on no peer (report §6.6, §8.7).
+
 The move: look at `b`'s machine. If `b` stopped in order you would have read `ended`; `lost` means the network or the process. `b` restarting shows as `connected` again on `a`, or as `replaced` where `a` still believed the old connection alive.
 
 ## 3. Services and placement, as the configuration sees them

@@ -796,7 +796,7 @@ A request carries a `Reply(a)`, a one-shot address for its answer. `Address.call
 
 Where more waits to be sent to the callee's node than §8.7 states, either call waits as a `send` waits there, before its wait for the answer begins and after that wait has ended, and returns or faults only once it waits so no longer.
 
-When the process `address` names has ended, or ends or restarts before it answers, the wait ends at once, and so it does when the process's node goes out of reach (§8.7). `Address.call` then returns `None`, which says that no answer came, and nothing of whether the request was received or ran.
+When the process `address` names has ended, or ends or restarts before it answers, the wait ends at once, and so it does when the process's node goes out of reach (§8.7). `Address.call` then returns `None`, which says that no answer came, and nothing of whether the request was received or ran. Where the callee is on another node, its death ends the wait when a `Down` to the caller would be sent, which may wait on a third node (§8.7).
 
 `Address.callForever` faults the caller: with the callee's cause where the callee faulted, restarted after its fault or not, the cause unchanged along a chain of calls, with `Fault("callee was killed")` where it was killed, with `Fault("callee returned without answering")` where its function returned, with `Fault("callee was closed")` where the program closes it, a socket or a listener (Appendix E.18), with `Fault("callee was restarted")` where it restarted because a restart was asked of it (§6.9), with `Fault("callee had ended")` where it had ended before the call, with `Fault("callee ended with its program")` where it is a process of another node that ended with that node's program (§8.7), and with `Fault("callee is unreachable")` where its node went out of reach (§8.7). The report of a caller's fault carried from its callee names the callee's site after the cause (§11.2).
 
@@ -830,7 +830,7 @@ A service monitor on a process of another node is told of its restarts too, by t
 
 `demonitor(p)`, §9.5, ends every monitor the caller holds on `p`, service monitors among them; a `Down` already in the caller's mailbox stays, and none comes after. A `demonitor` on a process the caller does not monitor does nothing.
 
-A `Down` comes from the runtime and has no order with the messages the ended process sent (§6.4). The answer to a call (§6.6) is not overtaken by the callee's `Down`. Where two processes die, their `Down`s have no order with each other, whichever died first.
+A `Down` comes from the runtime and has no order with the messages the ended process sent (§6.4). The answer to a call (§6.6) is not overtaken by the callee's `Down`. Where two processes die, their `Down`s have no order with each other, whichever died first. The `Down` of a process of another node may wait on a third node (§8.7).
 
 A `wrap` has no sender to run in: the runtime applies it as it delivers the message. A fault in it is the fault of the process it delivers to, which meets it at its next wait (§6.5). What a `wrap` opens, spawns or asks of the runtime is that process's too, as if it had done it itself (Appendix E.18, E.21): `Process.current()` in it is that process, `self()` in it is that process's address, and a `monitor` in it is that process's monitor. A `wrap` that does not finish holds up no other delivery, but a service monitor's holds up the restart it is told of (above). A delivery to a process that has ended ends with it.
 
@@ -1050,6 +1050,10 @@ A loss ends the wait on both sides: the restarting process goes on, and the node
 What the connection has not yet taken waits in the host's buffer for that peer, or waits to be placed there. A `send` places its message in the buffer while less than 1 MB waits there, a large message in parts, and once 1 MB waits there the `send` waits, with whatever of its message is not yet placed, until the connection has taken enough from the buffer. What the connection has taken counts no longer, though the peer has not received it, so a `send` to a peer that stands still waits only once the connection takes no more. A loss ends the wait, as it drops what waited (**A loss**). A process that waits so serves nothing from its mailbox meanwhile.
 
 A call, a find, a spawn, a compute, a utilization and an `answer` send as a `send` does. What a call, a find, a spawn, a compute and a utilization send the peer as their wait for it begins and as it ends is sent the same way too (§6.6, Appendix E.27).
+
+A process that dies with `Killed` while what it sends waits to be placed has sent it. Whatever is not yet placed is placed as the wait would have placed it. The `Down`s that the death gives watchers on other nodes are sent only once it is placed whole or a loss has dropped it.
+
+A `Down` that a death gives a watcher on another node is placed in the buffer for that node. Where 1 MB waits there it may wait to be placed, until the connection has taken enough or the node is lost, and the `Down`s that the same death gives watchers on other nodes may wait behind it. A `Down` to a watcher on the dead process's own node waits on no peer. A call that ends by its callee's death (§6.6) ends when a `Down` to its caller would be sent.
 
 What one process sends another arrives in the order it was sent, whichever addresses it was sent through, but for the one step more of §6.5. Between nodes a message is never dropped alone: where one is dropped, the connection is lost, with everything that waited to be sent. A message arrives once or not at all, and the runtime sends nothing a second time.
 

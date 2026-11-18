@@ -1250,3 +1250,175 @@ The lines are the same at OTP-29.1.2 and at master (1d0578e). Master's line numb
 - Over plain TCP the socket's port is the controller. `erts_deliver_port_exit` takes the connection down at the owner's exit signal, before it flushes the port (`io.c`, line 3915; 3921).
 
 #11730 also stopped a TLS distribution peer mid-send, on the 27 branch. It reported a crash of `tls_sender`, fixed in 27.3.4.19, and nothing of a delay.
+
+## 25. A `'DOWN'` overtakes the message its process was sending to another node, where the exit's reason is an immediate term
+
+Found on 2026-11-18 by the probe of MVP 4.16's item 121; the log's *A Down Follows the Send*. Nothing of Ernest's runtime meets it, since every end it gives a program's process has a tuple for its reason but a return's `normal`, and a process that returns waits in no send. Foreign code that ends an Ernest process with the host's own exit and an immediate reason meets it, and such an end is the host's (§6.9, §12.2).
+
+**Title:** A process killed while its send to another node waits at a busy buffer has its 'DOWN' arrive before the message, when the exit reason is an immediate term
+
+**Describe the bug**
+
+A process whose send to another node waits at a busy distribution buffer can be ended by an exit signal before the send is done. Where the exit's reason is an immediate term, such as `kill`, `shutdown`, any other atom, a small integer, `[]` or a local pid, a process on that node that monitors it receives the `'DOWN'` before the message. Where the reason is a tuple, a big integer or a binary, it receives the message first. The message arrives in both cases.
+
+The message and the `'DOWN'` are signals from the same process to the same process, and the message is sent first. The Reference Manual's *Processes* (`system/doc/reference_manual/ref_man_processes.md`, *Delivery of Signals*) says: "The only signal ordering guarantee given is the following: if an entity sends multiple signals to the same destination entity, the order is preserved; that is, if `A` sends a signal `S1` to `B`, and later sends signal `S2` to `B`, `S1` is guaranteed not to arrive after `S2`." The same page says that the `down` signal is "Sent by a monitored process or port that terminates".
+
+A `gen_server:call` from another node meets it where the reply waits so. A server ended by `exit(Pid, kill)`, or by a supervisor's `shutdown` while it does not trap exits, makes the call exit with `killed` or `shutdown` though the reply was sent, and the reply is dropped. A server that traps exits ends only once its send is done, so a supervisor's `shutdown` keeps the order until its time runs out and the supervisor kills the child.
+
+**To Reproduce**
+
+```sh
+#!/bin/sh
+# Usage: sh repro.sh large|small|call REASON, where REASON is tuple or an atom
+KIND=$1 WHY=$2
+D=$(mktemp -d)
+cd "$D" || exit 1
+cat > a.erl <<'EOF'
+-module(a).
+-export([main/1, sink/0, caller/2, init/1, handle_call/3, handle_cast/2]).
+
+main([Kind, Why]) ->
+    [_, Host] = string:split(atom_to_list(node()), "@"),
+    B = list_to_atom("repro_b@" ++ Host),
+    connect(B),
+    BPid = erpc:call(B, os, getpid, []),
+    erlang:system_monitor(self(), [busy_dist_port]),
+    Reason = case Why of "tuple" -> {shutdown, repro}; _ -> list_to_atom(Why) end,
+    Big = binary:copy(<<0>>, 64 bsl 20),
+    Sender = held(Kind, B, BPid, Big),
+    io:format("sender at its end: ~p~n",
+              [erlang:process_info(Sender, [status, current_function])]),
+    Ref = monitor(process, Sender),
+    exit(Sender, Reason),
+    receive {'DOWN', Ref, process, Sender, _} -> ok end,
+    os:cmd("kill -CONT " ++ BPid),
+    receive {seen, Seen} -> io:format("on b: ~p~n", [Seen]) end,
+    halt().
+
+%% The sender, held at the busy buffer in its send to b, which is stopped.
+held("large", B, BPid, Big) ->
+    Sender = sender(B),
+    os:cmd("kill -STOP " ++ BPid),
+    Sender ! {send, {message, Big}},
+    busy(Sender),
+    Sender;
+held("small", B, BPid, Big) ->
+    Sender = sender(B),
+    os:cmd("kill -STOP " ++ BPid),
+    Ctrl = proplists:get_value(B, erlang:system_info(dist_ctrl)),
+    {ok, [{high_watermark, High}]} = inet:getopts(Ctrl, [high_watermark]),
+    Filler = spawn(fun() -> {nobody, B} ! Big end),
+    full(Filler, Ctrl, High),
+    Second = spawn(fun() -> {nobody, B} ! Big end),
+    busy(Second),
+    Sender ! {send, {message, <<"small">>}},
+    receive
+        {monitor, Sender, busy_dist_port, _} -> Sender;
+        {sent, Sender} ->
+            os:cmd("kill -CONT " ++ BPid),
+            io:format("not held: the queue took it~n"),
+            halt()
+    end;
+held("call", B, BPid, Big) ->
+    {ok, Server} = gen_server:start(?MODULE, {self(), Big}, []),
+    spawn(B, ?MODULE, caller, [Server, self()]),
+    receive {called, Server} -> ok end,
+    os:cmd("kill -STOP " ++ BPid),
+    Server ! reply,
+    busy(Server),
+    Server.
+
+sender(B) ->
+    Sink = spawn(B, ?MODULE, sink, []),
+    Main = self(),
+    Sender = spawn(fun() -> receive {send, M} -> Sink ! M end,
+                            Main ! {sent, self()},
+                            receive after infinity -> ok end end),
+    Sink ! {watch, Sender, self()},
+    receive {watching, Sink} -> Sender end.
+
+busy(Pid) ->
+    receive {monitor, Pid, busy_dist_port, _} -> ok end.
+
+%% The connection's port holds what the socket refuses, and b, stopped,
+%% takes nothing, so a port past its high watermark stays busy.
+full(Filler, Ctrl, High) ->
+    busy(Filler),
+    case erlang:port_info(Ctrl, queue_size) of
+        {queue_size, N} when N >= High -> ok;
+        _ -> full(Filler, Ctrl, High)
+    end.
+
+%% b may not be up yet.
+connect(B) ->
+    case net_kernel:connect_node(B) of
+        true -> ok;
+        false -> receive after 100 -> connect(B) end
+    end.
+
+%% On b: what comes from the sender, in the order it comes.
+sink() ->
+    receive {watch, Pid, From} -> monitor(process, Pid), From ! {watching, self()} end,
+    From ! {seen, [receive {message, Bin} -> {message, byte_size(Bin)};
+                           {'DOWN', _, process, _, R} -> {'DOWN', R} end
+                   || _ <- [1, 2]]}.
+
+%% On b: a call to the server on a.
+caller(Server, Driver) ->
+    Driver ! {seen, try gen_server:call(Server, get, infinity) of
+                        Reply -> {reply, byte_size(Reply)}
+                    catch exit:{R, _} -> {exit, R}
+                    end}.
+
+init(State) -> {ok, State}.
+handle_call(get, _From, {Driver, Big} = State) ->
+    Driver ! {called, self()},
+    receive reply -> ok end,
+    {reply, Big, State}.
+handle_cast(_, State) -> {noreply, State}.
+EOF
+erlc a.erl || exit 1
+FLAGS="-setcookie repro -noshell -pa $D"
+erl -sname repro_b $FLAGS &
+B=$!
+erl -sname repro_a $FLAGS -run a main "$KIND" "$WHY"
+kill -KILL $B 2>/dev/null
+wait
+```
+
+The script starts two nodes on one machine. Node a connects to b, starts a sender and a process on b that monitors it, and stops b with `SIGSTOP`. It ends the sender with `exit(Sender, Reason)` once the system monitor has reported `busy_dist_port` for it, waits for its own monitor's `'DOWN'`, and runs b again with `SIGCONT`. It prints what b's process received, in the order it came.
+
+- With `large`, the sender sends b's process 64 MB.
+- With `small`, the sender sends 5 bytes, below a fragment's 64 KB. Two other processes first send 64 MB each to b. The first fills the socket until the connection's port holds its high watermark, and the second then fills the queue to its busy limit, so that the 5 bytes are not queued when the sender is held.
+- With `call`, a `gen_server` on a answers a call from a process on b with 64 MB, and is ended while the reply waits. The caller's result is printed.
+
+On a machine of 24 hardware threads, `sh repro.sh large kill` printed:
+
+```
+sender at its end: [{status,running},
+                    {current_function,{erts_internal,dsend_continue_trap,1}}]
+on b: [{'DOWN',killed},{message,67108864}]
+```
+
+- `large` and `small` each printed the `'DOWN'` first in 5 runs of 5 with `kill` and in 5 of 5 with `repro_stop`, an atom of the script's own. With `tuple` each printed the message first, `[{message,67108864},{'DOWN',{shutdown,repro}}]`, in 5 of 5.
+- `call shutdown` printed `on b: {exit,shutdown}` and `call kill` printed `on b: {exit,killed}`, each in 3 runs of 3. `call tuple` printed `on b: {reply,67108864}` in 3 of 3.
+- With `small`'s first filler alone, the 5 bytes were queued at once and arrived before the `'DOWN'` with `kill`, in 10 runs of 10. The sender was in `erlang:bif_return_trap/2` at its end.
+
+**Expected behavior**
+
+The `'DOWN'` arrives after the whole message, whatever the exit's reason, as it does with a tuple. The exit could tell the monitors on other nodes once it has finished the send it took over, for an immediate reason as it does for any other.
+
+**Affected versions**
+
+OTP 29.1.2, erts 17.1.1, on Linux x86_64.
+
+**Additional context**
+
+The lines are the same at OTP-29.1.2 and at master (6324707). Master's line numbers are given in parentheses.
+
+- In `erl_process.c`, `erts_proc_exit_handle_monitor` (line 13798; 13795) runs in the exit's phase `ERTS_CONTINUE_EXIT_MONITORS` (line 14560; 14557). Where `is_immed(reason)`, it sends the `'DOWN'` of a monitor from another node at once (line 13847; 13844), through `erts_dsig_prepare` with no process, which ignores the busy state (`dist.c`, line 3274; 3296). Otherwise it puts the monitor in `dist_monitors` (line 13881; 13878).
+- A process ended in a fragmented send has `F_FRAGMENTED_SEND`, and the exit takes over the send's state (lines 14522 to 14532; 14519 to 14529). The phase `ERTS_CONTINUE_EXIT_DIST_SEND` finishes the send (lines 14601 to 14637; 14598 to 14634), and only then does `ERTS_CONTINUE_EXIT_DIST_MONITORS` tell the monitors in `dist_monitors` (lines 14657 to 14671; 14654 to 14668).
+- In `dist.c`, `erts_dsig_send` queues a message's fragments only while the queue holds less than the busy limit, 1 MB by default (lines 3625 to 3644; 3647 to 3666). Where fragments remain it sets `F_FRAGMENTED_SEND` and yields with them held (lines 3743 to 3750; 3765 to 3772). A message of one fragment sent while the queue holds its limit is held whole so. One sent below the limit is queued before its sender is suspended (lines 3673 to 3693; 3695 to 3715), and keeps its order.
+- `erts_proc_exit_handle_link` takes the same branch on `is_immed(reason)` (line 14115; 14112), so an exit signal through a link to another node can overtake the message too. This was read and not shown.
+
+No earlier report of this was found on the tracker.
