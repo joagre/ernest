@@ -403,15 +403,42 @@ them. What an item decided is its log entry's, and the report's at the sections 
 
 ---
 
-## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
+## MVP 4.17 (the shell's editing, what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
 Split from MVP 4.16 with the user on 2026-11-14 (the log's *The Milestone Split*), so that MVP
 4.16 ends with its small items, and the discussion of §11.9 opens a milestone, where it can
 change what is built. Its items keep the numbers they had in MVP 4.16, since the log cites
 them by number. It follows MVP 4.16, and comes before MVP 4.6, as its items
-did. Item 43 added items 47 to 49 and cut what item 8 builds.
+did. Item 43 added items 47 to 49 and cut what item 8 builds. Item 119, the shell's editing,
+was placed first in it with the user on 2026-11-18 (the log's *The Homepage and the Shell's
+Editing Planned*).
 
 ### What is left
+
+The shell's editing is built first, since MVP 4.6's item 3 waits on it.
+
+- **119. An input of several lines is edited by its lines**, found 2026-11-17 on the
+  rehearsal, with the homepage's counter waiting in the shell. No key moves between the
+  lines of an input, and the up arrow puts the last input in their place. The reasons are
+  [`proposals/homepage/reasons.md`](proposals/homepage/reasons.md)'s *The shell's
+  editing*. Each line below was decided with the user on 2026-11-18. §11.2's *Editing*
+  changes first, after one cold reading of its sentences.
+
+  - In an input of several lines the up and down arrows move between its lines. From its
+    first line the up arrow walks the history back, and from its last line the down arrow
+    walks it forward. An input of one line behaves as it does today.
+  - `C-p` and `C-n` follow the arrows.
+  - `C-a` and `C-e` go to the start and the end of the cursor's line.
+  - The cursor keeps its column on the new line, and stands at the line's end where the
+    line is shorter.
+  - An input recalled by the up arrow shows with the cursor on its first line, and one
+    recalled by the down arrow with the cursor on its last, so that walking the history
+    takes one press an entry.
+  - `Home`, `End` and `Delete` are bound as `C-a`, `C-e` and `C-d`.
+
+  Then the shell's design note, the shell's Ernest, the documents that restate the keys
+  and the terminal harness's tests change. None of them was read for the item but §11.2.
+  The build closes on `make test-shell` and `make test`.
 
 What item 43's discussion decided is built first, each item changing the report first (the
 log's *The Trust Said Once*). Items 52 and 54 are left of it.
@@ -542,7 +569,7 @@ The discussion came first, item 43, and items 47 to 50 built what it decided.
 
 ---
 
-## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
+## MVP 4.6 (the server owns both ends of its socket, and the homepage), a few days, before the launch
 
 Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*), the
 proposal [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md), and moved before the
@@ -573,6 +600,22 @@ on a path the rehearsal has walked.
    design's *The client* for the interface, with the sweep the proposal lists. It goes live
    with the launch's switch, and closes on `make test`, the site's targets and
    `make test-browser`.
+3. **The homepage and the blocks' tools**, decided with the user on 2026-11-18 (the log's
+   *The Homepage and the Shell's Editing Planned*), the proposal
+   [`proposals/homepage/`](proposals/homepage/README.md). It follows item 2, so that the
+   site's design note is read once and Try it is pressed against the client that ships. It
+   follows MVP 4.17's item 119 too, which the opening's last clause waits on.
+
+   The proposal's *What changes, by owner* lists what it touches: `site/templates/home.html`,
+   `tools/site.ern`, the stylesheet, `site.js`, `guide/why.md` and `docs/design/site.md`.
+   `make test-browser` gains the first screen at three sizes of the page, and a block's
+   tools above a first line that reaches them. The item closes on `make test`, the site's
+   targets and `make test-browser`, with Try it pressed on a shell that runs.
+4. **The stylesheet's units**, after item 3 (the proposal's *The stylesheet's units*).
+   `:root`'s size follows the reader's, and the widths at which the layout changes and the
+   page's width leave the pixel, together or not at all. The first screen's three sizes
+   are measured again, and the page is looked at with the browser's font size at 20 and at
+   24 pixels.
 
 ---
 
@@ -844,6 +887,6 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, and the flake hunt | | | above |
 | MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
-| MVP 4.6 | the server owning both ends of its socket | | | above |
+| MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, and a decision on a listener handed over | | | above |
