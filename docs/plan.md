@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 88**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 91**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -52,11 +52,6 @@ were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). 
 109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
 is what ernest-httpd's session handed back on 2026-11-17.
 
-- **88. No test runs the hunt's rounds**, found 2026-11-16 by item 80's build (the log's *A
-  Record After a Cancel*). `ern_flakes:hunt/1` carries the host's first cancel from one
-  round to the next, and only a run by hand showed it. An agent writes the test: `hunt/1`
-  given its environment and a moment that lets two rounds begin, over a module whose test
-  its limit cancels, and round 2's record read for round 1's cancel.
 - **91. A checker that waits holds its message unseen**, found 2026-11-17 by item 70's build
   (the log's *A Message at a Checker*). The look reads a checker as quiet where it waits with
   an empty mailbox. A checker in front of an adapted address applies the address's function,
@@ -370,6 +365,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
 | 87 | `make test-shell` runs under a home of the run's own, whose startup file prints a line and ends the session, so that a shell test that names no home fails; three starts in the integration and the install tests name a home, with the user | 2026-11-18 | *A Home of the Run's Own* |
+| 88 | A test runs the hunt's rounds: the host's first cancel carried from one round to the next, and the record of a directory that cannot be removed | 2026-11-18 | *The Hunt's Rounds Tested* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 | 97 | What else waits where a `send` to a peer waits: a call, a find, a spawn, a compute and a utilization are held before and after their wait, which §6.6, §6.7, §8.7 and E.27 now say; the gateway waits on no peer, its telling and its utilization's answer not sent where they would wait; a send to a lost peer returns, as the report had it | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |

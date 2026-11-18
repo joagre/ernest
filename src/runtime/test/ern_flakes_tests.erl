@@ -18,8 +18,7 @@
 %% names the canceled test and its round, which the round answers.
 %%
 %% A regression test, written after the code but for the marks; it does
-%% not cover the rounds of hunt/1, which the program's test does not run
-%% either, nor a generator that answers several tests, whose tests after a
+%% not cover a generator that answers several tests, whose tests after a
 %% canceled one still do not run.
 round_writes_what_did_not_pass_test() ->
     Dir = os:getenv("ERN_TEST_DIR"),
@@ -105,6 +104,124 @@ round_marks_what_follows_a_cancel_test() ->
                                     ++ Mark)),
     ?assertMatch({match, _}, re:run(InLater, "round 8: \\S+in_a_later_round_test/0 failed, "
                                     ++ Mark)).
+
+%% docs/development.md "Building", `make flakes`: hunt/1's rounds carry the
+%% host's first cancel from one round to the next. Round 1's cancel carries
+%% no mark, and the directory its round leaves, which cannot be removed, is
+%% a record marked with that cancel. Every later round's cancel is marked
+%% with round 1's, and no later round leaves its directory. Each round is a
+%% whole number of seconds on a line of the part's .rounds, and a hunt whose
+%% moment has come begins no round.
+%%
+%% A regression test, written after the code. It does not tell a round
+%% finished past the moment from one that ended before it. Where this test
+%% is ended at its own limit amid a hunt, it puts nothing back: the
+%% environment, the scratch module and the held directory's mode.
+hunt_carries_the_first_cancel_test_() ->
+    {timeout, 60, fun hunt_carries_the_first_cancel/0}.
+
+hunt_carries_the_first_cancel() ->
+    Saved = [{Variable, os:getenv(Variable)}
+             || Variable <- ["ERN_TEST_DIR", "ERN_FLAKES_UNTIL", "ERN_FLAKES_PART",
+                             "ERN_FLAKES_RECORDS", "ERN_FLAKES_ROUNDS"]],
+    Dir = filename:join(os:getenv("ERN_TEST_DIR"), "flakes-hunt"),
+    ok = file:make_dir(Dir),
+    Part = "runtime-9",
+    Module = loaded(ern_flakes_hunted, [
+        %% waits for a message no one sends, which its limit ends
+        io_lib:format("waits_test_() -> {timeout, ~p, {\"waits\","
+                      " fun() -> receive never -> ok end end}}.", [limit()]),
+        %% leaves, in round 1 alone, a directory the host cannot remove
+        "holds_its_directory_test() -> Round = os:getenv(\"ERN_TEST_DIR\"),"
+        " case lists:suffix(\".1\", Round) of"
+        " true -> Held = filename:join(Round, \"held\"), ok = file:make_dir(Held),"
+        " ok = file:write_file(filename:join(Held, \"kept\"), <<>>),"
+        " ok = file:change_mode(Held, 8#500);"
+        " false -> ok end."]),
+    Tests = ern_eunit:alone([Module]),
+    try
+        Now = hunt_dir(Dir, "now"),
+        ?assertEqual(0, hunted(Tests, Part, Now, os:system_time(millisecond))),
+        ?assertEqual({ok, []}, file:list_dir(records(Now))),
+        ?assertEqual({ok, []}, file:list_dir(rounds(Now))),
+        Hunt = two_rounds(Tests, Part, Dir, 2 * round(limit() * 1000), 1),
+        Lines = round_lines(Hunt, Part),
+        ?assertEqual([], [Line || Line <- Lines, re:run(Line, "^[0-9]+$") =:= nomatch]),
+        Records = hunt_records(Hunt, Part),
+        %% a cancel in each round, and round 1's directory
+        ?assertEqual([1 | lists:seq(1, length(Lines))], [Round || {Round, _} <- Records]),
+        [{1, Canceled}, {1, Directory} | Later] = Records,
+        ?assertMatch({match, _}, re:run(Canceled, "^ern_flakes_hunted:\\S+ \"waits\" canceled\n")),
+        [Name | _] = binary:split(Canceled, <<" canceled\n">>),
+        Mark = <<", after ", Name/binary, " was canceled in round 1">>,
+        ?assertEqual(<<"its directory not removed", Mark/binary, "\n{error,eexist}">>, Directory),
+        [begins(<<Name/binary, " canceled", Mark/binary, "\n">>, Record) || {_, Record} <- Later],
+        ?assertEqual({ok, [Part ++ ".1"]}, file:list_dir(rounds(Hunt)))
+    after
+        [ok = file:change_mode(Held, 8#700)
+         || Held <- filelib:wildcard(filename:join([Dir, "*", "rounds", Part ++ ".1", "held"]))],
+        [case Value of
+             false -> true = os:unsetenv(Variable);
+             _ -> true = os:putenv(Variable, Value)
+         end || {Variable, Value} <- Saved],
+        unloaded(Module)
+    end.
+
+%% The time limit of the scratch module's test that waits, in seconds.
+limit() ->
+    0.1.
+
+%% The directory of a hunt under Dir, by its Name, with its records' and
+%% its rounds' directories.
+hunt_dir(Dir, Name) ->
+    Hunt = filename:join(Dir, Name),
+    ok = filelib:ensure_path(rounds(Hunt)),
+    ok = file:make_dir(records(Hunt)),
+    Hunt.
+
+rounds(Dir) ->
+    filename:join(Dir, "rounds").
+
+%% hunt/1's answer over Tests as the part Part, its records and its rounds
+%% in Hunt's directories, no round begun at or after Until.
+hunted(Tests, Part, Hunt, Until) ->
+    true = os:putenv("ERN_FLAKES_UNTIL", integer_to_list(Until)),
+    true = os:putenv("ERN_FLAKES_PART", Part),
+    true = os:putenv("ERN_FLAKES_RECORDS", records(Hunt)),
+    true = os:putenv("ERN_FLAKES_ROUNDS", rounds(Hunt)),
+    ern_flakes:hunt(Tests).
+
+%% The directory of the first hunt that began two rounds, the first one's
+%% moment Ms ahead and each next one's twice as far, each the Attempt'th in
+%% a directory of its own under Dir. No round begins at or after the
+%% moment, and round 1 takes at least the limit with nothing to bound it
+%% above, so no time chosen ahead makes sure that two rounds begin.
+two_rounds(Tests, Part, Dir, Ms, Attempt) ->
+    Hunt = hunt_dir(Dir, integer_to_list(Attempt)),
+    ?assertEqual(0, hunted(Tests, Part, Hunt, os:system_time(millisecond) + Ms)),
+    case length(round_lines(Hunt, Part)) >= 2 of
+        true -> Hunt;
+        false -> two_rounds(Tests, Part, Dir, 2 * Ms, Attempt + 1)
+    end.
+
+%% The lines of Part's .rounds in Hunt's records' directory, none where no
+%% round began.
+round_lines(Hunt, Part) ->
+    case file:read_file(filename:join(records(Hunt), Part ++ ".rounds")) of
+        {ok, Text} -> binary:split(Text, <<"\n">>, [global, trim]);
+        {error, enoent} -> []
+    end.
+
+%% The records of Part's file in Hunt's records' directory, in order, each
+%% its round and what follows its `== Part, round N: `.
+hunt_records(Hunt, Part) ->
+    {ok, Text} = file:read_file(filename:join(records(Hunt), Part ++ ".txt")),
+    Header = "^== " ++ Part ++ ", round ([0-9]+): (.*)$",
+    [begin
+         {match, [Round, Record]} = re:run(Whole, Header,
+                                            [dotall, {capture, all_but_first, binary}]),
+         {binary_to_integer(Round), Record}
+     end || Whole <- binary:split(Text, <<"\n\n">>, [global, trim])].
 
 %% docs/development.md "Building", `make flakes`: a cancel EUnit gives for
 %% a test's process that an exit signal it does not trap ended, and one for
