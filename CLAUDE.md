@@ -93,6 +93,7 @@ Before that release, an item of the milestone that built the proposal reads it f
 - **Ernest is beautiful, inside and out.** Keep no code only to make it go faster: a second way of writing what the code already says, or a special case for speed, goes, and the cost the plain form leaves is stated in the log, not hidden. Measure first. Where the plain form keeps the three rules above, it stays plain. Where it does not, the cost goes first by needing less, then by the host's own function, and anything cleverer is decided with the user.
 - **A measurement ends when its number stops deciding anything.** A number that confirms the plain form goes to the log once, and its item closes. Following it further is an item of its own, planned with the decision it would change.
 - **No fixed sleep, in the code or in a test.** A process waits on what it means: a message, a monitor, a port that answers, a line written, a process's end, or a deadline the report states. A wait that is a time stays only where nothing else can show what it waits for, an absence above all. Derive it from what it waits for, never choose a number, and write the reason beside it.
+- **Ernest asks a machine for a new OTP, and nothing else new.** A call of the operating system's that Ernest's own code rests on has been in its kernel for five years or more. Its floor stands in the README, and a machine below it is refused with its reason (*Defects and gaps*). Where only a newer call would do, the choice goes to the user.
 
 ## Ernest or Erlang
 
