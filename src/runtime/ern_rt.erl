@@ -89,7 +89,7 @@
                               spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2, captured/1]}).
 -receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
-                         killer/0, wait_for_ends/1, ended_program/0, counted_link/3,
+                         killer_loop/0, wait_for_ends/1, ended_program/0, counted_link/3,
                          delivery_ended/1, fault_courier/0, courier_ended/1,
                          write_loop/2, stream_loop/2, is_captured/3, collect/3,
                          written_back/3, dropping/0, stdin_loop/2, input_taken/1,
@@ -1274,12 +1274,18 @@ killed(Pid, How) ->
 %% Report §6.9, §8.6, §10: the launch's killer, a process of the runtime's
 %% own that no process can name, which carries out every kill, one after
 %% another (killed/2). It is started with the run and held by the reaper,
-%% so that it ends with the run (reaper_held/2).
+%% so that it ends with the run (reaper_held/2). Report §8.7: it waits on no
+%% peer, the host placing a call's second note however much waits for the
+%% callee's node.
 killer() ->
+    _ = erlang:process_flag(async_dist, true),
+    killer_loop().
+
+killer_loop() ->
     receive
         {kill, Pid, How, Kill} ->
             try killing(Pid, How) after source_end(Kill) end,
-            killer()
+            killer_loop()
     end.
 
 %% A kill carried out: Pid suspended, so that it cannot end its call and
@@ -1346,8 +1352,14 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% processes it holds with it, so that a launch whose runner was killed
 %% before its end, as a test's harness kills one at its time limit, looks
 %% at no later launch's tables.
+%%
+%% Report §8.7: it waits on no peer, the host placing what it sends one, a
+%% monitor, a demonitor, a call's second note (left_call/1) and how a
+%% compute's process ended (drop_callee_notes/2), however much waits for
+%% that peer.
 reaper(Runner) ->
     erlang:process_flag(trap_exit, true),
+    _ = erlang:process_flag(async_dist, true),
     _ = erlang:monitor(process, Runner, [{tag, 'RUNNER_DOWN'}]),
     reaper_loop(#reaper{}).
 

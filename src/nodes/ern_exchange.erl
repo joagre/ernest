@@ -107,11 +107,14 @@
 -record(state, {exchanges = #{}, asked = #{}, next = 1, env = none}).
 
 %% The exchange registered and running, from the node's start, as the
-%% gateway is (ern_gateway:start/0).
+%% gateway is (ern_gateway:start/0). Report §8.7, §12.7: it waits on no
+%% peer, the host placing each frame it sends a peer however much waits for
+%% that peer.
 -spec start() -> ok.
 start() ->
     Self = self(),
     Exchange = spawn(fun() ->
+                         _ = process_flag(async_dist, true),
                          true = register(?NAME, self()),
                          Self ! {self(), started},
                          loop(#state{})

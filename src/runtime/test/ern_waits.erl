@@ -159,8 +159,9 @@ is_watching(Pid, Watched) ->
 
 %% Until Pid's mailbox holds Count messages or more, or Pid has ended. The
 %% count is read at first and again each time the host traces a message
-%% put in the mailbox, which it does for a process the host has suspended,
-%% one that runs nothing and is never scheduled out.
+%% put in the mailbox. The host traces it only as the process next runs,
+%% so of a process the host has suspended the first read alone tells: a
+%% message that comes after it is not seen until the process runs again.
 -spec queued(pid(), pos_integer()) -> ok | ended.
 queued(Pid, Count) ->
     MonitorRef = erlang:monitor(process, Pid),

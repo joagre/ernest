@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 104**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 107**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -61,26 +61,10 @@ nothing waits on it.
 
 Item 102, what item 98's build found the same day, stands after item 91.
 
-Items 104 to 107 are what item 97's probes and its build found, placed with the user on
-2026-11-18 (the log's *What a Full Buffer Holds*). Item 104 stands first and item 107
-after it, and items 105 and 106 stand after item 102. The items stand below in that order.
+Items 105 to 107 are what item 97's probes and its build found, placed with the user on
+2026-11-18 (the log's *What a Full Buffer Holds*). Item 107 stands first, and items 105
+and 106 stand after item 102. The items stand below in that order.
 
-- **104. A process of the runtime's that one peer can hold**, found 2026-11-17 by item
-  97's build (the log's *What a Full Buffer Holds*, its paragraph *What else one peer can
-  hold*). One process carries out every kill of a node's run. Where the process killed
-  was in a call to a peer whose buffer is full, the killer sends the call's `call_over`
-  and waits there until the loss, about 80 seconds. The victim stays suspended and alive
-  meanwhile, and every later kill waits behind it: two runs of two.
-
-  A reading found the same shape in the exchange's process, the reaper and the clock, and
-  in the node's departure, which sends `node_ends` to each peer in turn. The reaper's
-  demonitor and the departure were seen held briefly.
-
-  Not decided: the fix's shape, which the item opens by discussing. The gateway's fix, a
-  frame not sent, does not fit a note that must arrive. The host's `async_dist` lets a
-  process's sends never wait, and what it leaves waiting then has no bound. A frame handed
-  to the peer's worker waits on its own peer alone. The exchange's code frames are large,
-  and a monitor or a demonitor is its owner's to make.
 - **107. `Process.status` says `Suspended` of a process the host holds**, decided with
   the user on 2026-11-18 (the log's *What a Full Buffer Holds*, its paragraph
   *`Process.status`*). `Activity` gains the constructor `Suspended`, with no field: a
@@ -135,6 +119,10 @@ after it, and items 105 and 106 stand after item 102. The items stand below in t
   for any halt that takes time. An agent first shows it with a program: a node whose halt
   a stopped reader of its output holds, which is a reading and not yet shown.
 
+  The shape of the fix: the helper holds the lock until the node's process has ended, by a
+  pidfd on Linux and kqueue's `NOTE_EXIT` on BSD and macOS, and removes `ernest.pid` itself
+  before it lets go.
+
   Three more stand with it, from ernest-httpd's probe of 0.10.0 on 2026-11-17 (line 33 of
   its `docs/language_feedback.md`), decided with the user the same day. Each is probed on
   the checkout first, which holds item 98's fix where the release does not.
@@ -157,16 +145,17 @@ after it, and items 105 and 106 stand after item 102. The items stand below in t
   under the limit, and then waits with the rest unplaced, which a loss drops. An agent
   first shows whether a program can tell the two apart. The two sentences then stay,
   change or go.
+
+  Item 104's build read `dist.c`, lines 3620 to 3640, the same way on 2026-11-18, and one
+  of its runs fits the reading: with one message of 28 MB waiting for a stopped store, the
+  killer's small note to the store was not held (the log's *The Runtime's Processes Wait
+  on No Peer*).
 - **106. A program's helper buffers its input without bound**, found 2026-11-17 by item
   97's build: a reading of `ern_exec.c`, lines 409 to 485. A program that does not read
   its input never makes its port busy, since the helper takes what is written into a
   buffer that grows. An agent first shows what a writer to a program that reads nothing
   makes the helper hold, and whether anything bounds it. Memory that nothing reclaims is
   a defect (`CLAUDE.md`, *Defects and gaps*), and the fix's shape follows the probe.
-
-  The shape of the fix: the helper holds the lock until the node's process has ended, by a
-  pidfd on Linux and kqueue's `NOTE_EXIT` on BSD and macOS, and removes `ernest.pid` itself
-  before it lets go.
 - **99. No test holds a request's head that arrives in pieces**, found 2026-11-17 by
   ernest-httpd's reading of its own tests against the reviews from outside (the log's *The
   Server's Answers*, its paragraph *A head in pieces*). Appendix G.11 says that
@@ -376,6 +365,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 | 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
 | 97 | What else waits where a `send` to a peer waits: a call, a find, a spawn, a compute and a utilization are held before and after their wait, which §6.6, §6.7, §8.7 and E.27 now say; the gateway waits on no peer, its telling and its utilization's answer not sent where they would wait; a send to a lost peer returns, as the report had it | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
+| 104 | The runtime's processes that serve the whole node wait on no peer: the killer, the reaper and the exchange's process set the host's `async_dist`, so that a kill ends its process and the node spawns while one peer takes nothing; the clock sends a peer nothing, and the departure's wait is §12.6's, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

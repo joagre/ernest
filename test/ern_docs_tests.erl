@@ -44,6 +44,14 @@
                  {reach_request, "the request for a reach"}, {reach, "the reach"},
                  {lacks, "the lacks"}, {code_frame, "a code frame"}]).
 
+%% Each process of the runtime's that serves the whole node and sends a peer
+%% a signal of its own (report §8.7), by the module and the function that
+%% start it, with the words docs/design/nodes.md names it by where it waits
+%% on no peer.
+-define(UNWAITING, [{{ern_rt, killer}, "the killer"}, {{ern_rt, reaper}, "the reaper"},
+                    {{ern_rt, clock}, "the clock"},
+                    {{ern_exchange, start}, "the exchange's process"}]).
+
 %% The code that reads a peer's frames: the gateway, which reads some
 %% itself and hands the rest on, the worker for the peer, whose reader is
 %% ern_peer:frame/2, and the exchange.
@@ -928,6 +936,46 @@ frames_sentence(File) ->
     [_, Rest] = binary:split(ern_repository:read(File), <<"frames are the runtime's own">>),
     [Sentence | _] = binary:split(Rest, <<". ">>),
     binary:replace(Sentence, <<"`">>, <<>>, [global]).
+
+%% docs/design/nodes.md, report §8.7, §6.9, §12.7: the processes of the
+%% runtime's that serve the whole node and wait on no peer are those the
+%% note lists, and they are the processes whose code gives itself the
+%% host's `async_dist`. A regression test, written after the code; a
+%% process that sends a peer a signal and sets no flag is found by no test
+%% here, but by reading its sends.
+unwaiting_processes_test() ->
+    [_, Rest] = binary:split(ern_repository:read("docs/design/nodes.md"),
+                             <<"wait on no peer either: ">>),
+    [List | _] = binary:split(Rest, <<" each set the host's">>),
+    Starters = lists:usort([Starter || File <- ern_repository:modules(),
+                                       Starter <- unwaiting(File)]),
+    ?assertEqual(lists:sort(named(List)),
+                 lists:sort([words(Starter) || Starter <- Starters])).
+
+%% The words the note names a process by, or the process where it has none.
+words(Starter) ->
+    case lists:keyfind(Starter, 1, ?UNWAITING) of
+        {_, Words} -> list_to_binary(Words);
+        false -> Starter
+    end.
+
+%% The names a list of a sentence holds, `a, b and c`.
+named(List) ->
+    [Last | Others] = lists:reverse(binary:split(List, <<", ">>, [global])),
+    lists:reverse(Others) ++ binary:split(Last, <<" and ">>).
+
+%% Each function of a module whose code names the host's `async_dist`, a
+%% process flag it sets or a spawn's option, as {Module, Function}.
+unwaiting(File) ->
+    {ok, Forms} = epp_dodger:quick_parse_file(filename:join(?ROOT, File)),
+    Module = list_to_atom(filename:basename(File, ".erl")),
+    lists:usort([{Module, Function} || {function, _, Function, _, Clauses} <- Forms,
+                                       names_async_dist(Clauses)]).
+
+names_async_dist({atom, _, async_dist}) -> true;
+names_async_dist(Form) when is_tuple(Form) -> names_async_dist(tuple_to_list(Form));
+names_async_dist(Forms) when is_list(Forms) -> lists:any(fun names_async_dist/1, Forms);
+names_async_dist(_) -> false.
 
 %% docs/log/README.md: its index names every section by its title, the
 %% standing ones and the dated entries, and links each by its file and the

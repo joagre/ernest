@@ -44,6 +44,10 @@ A frame the gateway cannot read is faulty, and the node ends the connection; a m
 
 The gateway waits on no peer: what it sends a peer itself goes by the host's `nosuspend`, and what the host would hold, the peer's buffer being past its limit, is not sent, so that a peer that takes nothing holds up no other peer's frame (Appendix E.27; §8.7, *Messages*; the log's *What a Full Buffer Holds*).
 
+The processes of the runtime's that serve the whole node and send a peer a signal of their own wait on no peer either: the killer, the reaper and the exchange's process each set the host's `async_dist`, so that what one sends a peer is placed in that peer's buffer whatever it holds, and is taken by the peer or dropped at the loss. The host counts nothing they place against the buffer's limit, so a program's `send` waits as §8.7 has it.
+
+Each of the three sends a peer one signal for one operation of a program's or one frame of the peer's, and never a stream of its own making: the killer a call's second note; the reaper a monitor, a demonitor, a call's second note and, to a compute's caller, how the compute's process ended; the exchange its frames, each answering a frame of the peer's. A test holds the list to the code (§6.9, §8.7, §12.7; the log's *The Runtime's Processes Wait on No Peer*).
+
 The frames are seventeen, listed in the runtime's note and in §12.6's *What passes*, and a test holds both lists to the modules that read them (`test/ern_docs_tests.erl`, `runtime_frames_test`). Everything else that crosses is the host's: a message straight into the mailbox, a monitor and its `Down`, an answer through an alias, a sign of life, the handshake. A `kill` of a process of another node is a frame to that node, which carries it out as its own kill, suspending the victim, reading its call and ending it (§6.9; the runtime's note, *A call, a restart, a kill*).
 
 ## A loss
