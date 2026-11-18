@@ -24,6 +24,8 @@ On a laptop: the heading, the opening, the four claims and the top of the counte
 
 Its second paragraph introduces the example, so that `foo` and the counter are met before the blocks. It says what Try it gives, in the announcement's words: a shell and a `foo` of the visitor's own.
 
+It says what `foo` is before it names it: "a bare node beside it, `foo`". With the name first, a reader met `foo` before its kind, and took the words after the comma for something else.
+
 "Nothing of the program", and not "nothing": the node needs Ernest itself installed.
 
 The three pointers, to Why, the example and the tour, stood in one paragraph for a while. Each now stands where its reader is: Why at the first paragraph's end, the example's at the second's, the tour's under the example.

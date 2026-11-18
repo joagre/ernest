@@ -26,7 +26,7 @@ The opening:
 
 > The node is sent the code it lacks, and nothing of the program needs to be installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. Why Ernest gives the whole argument.
 >
-> Below, a counter is typed into a shell and started on `foo`, a bare node beside it. Try it gives you that shell and a `foo` of your own, in your browser.
+> Below, a counter is typed into a shell and started on a bare node beside it, `foo`. Try it gives you that shell and a `foo` of your own, in your browser.
 
 "Why Ernest" links to `/why/`.
 
