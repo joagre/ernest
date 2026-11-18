@@ -65,6 +65,10 @@ Items 105 to 107 are what item 97's probes and its build found, placed with the 
 2026-11-18 (the log's *What a Full Buffer Holds*). Item 107 stands first, and items 105
 and 106 stand after item 102. The items stand below in that order.
 
+Item 108, a reading that item 104's build left unread, was planned with the user on
+2026-11-18 (the log's *The Runtime's Processes Wait on No Peer*), and stands after item
+106.
+
 - **107. `Process.status` says `Suspended` of a process the host holds**, decided with
   the user on 2026-11-18 (the log's *What a Full Buffer Holds*, its paragraph
   *`Process.status`*). `Activity` gains the constructor `Suspended`, with no field: a
@@ -156,6 +160,14 @@ and 106 stand after item 102. The items stand below in that order.
   buffer that grows. An agent first shows what a writer to a program that reads nothing
   makes the helper hold, and whether anything bounds it. Memory that nothing reclaims is
   a defect (`CLAUDE.md`, *Defects and gaps*), and the fix's shape follows the probe.
+- **108. Whether a peer's worker waits on another peer**, left unread 2026-11-18 by item
+  104's build (the log's *The Runtime's Processes Wait on No Peer*). A worker serves one
+  peer, so that one peer's wait holds no other's frames. The sends read in `ern_peer` and
+  `ern_gateway` go to the worker's own peer or stay on the node, and the worker's code
+  was not read whole. An agent lists each site where a worker, or the code it runs for a
+  frame, sends a signal to a node other than its own peer, a send, a monitor, a demonitor
+  or an exit, and shows a hold where it finds one. A hold found is brought to the user
+  with its fix's shape, and no flag is set meanwhile.
 - **99. No test holds a request's head that arrives in pieces**, found 2026-11-17 by
   ernest-httpd's reading of its own tests against the reviews from outside (the log's *The
   Server's Answers*, its paragraph *A head in pieces*). Appendix G.11 says that
