@@ -82,11 +82,19 @@ Wider claims gave nothing. The heading stands in the opening's column and took a
 
 **A claim's code on one line.** The fourth claim broke `ern test` across two lines, each word in a box of its own. Kept on one line it costs the claim no line, measured at 960, 1024, 1200 and 1536 pixels wide.
 
+**No line above a block, for now.** The example's blocks were felt to come unannounced, the session above all, which stands under the fourth claim. A line above each block costs about 31 pixels, which puts Try it 17 pixels below a page of 730. The button on the first screen weighed more. The proposal keeps the two other ways as a note.
+
 ## The example's columns
 
 The example's blocks stood in two equal columns with a gap of 20 pixels, under an opening and claims whose columns are `1fr` and `1.15fr` with a gap of 48. So the blocks' inner edges stood at 751 and 771 under the texts' at 699 and 747. On one grid the edges are the same, and the tour's sentence ends where the counter does.
 
-The counter's block is 498 pixels wide where it was 550. Its longest line fits from a window of 1200 pixels up.
+The counter's block is 498 pixels wide where it was 550.
+
+**One under the other in a narrower window.** The counter needs 481 pixels and the session 533, more than a window of 960 has for the two side by side, however it is split. Equal columns only move the scrolling from the counter to the session. What the shared columns cut at 960 is the end of the counter's signature, `receiving CounterMsg =`, which the second claim is about. A visitor scrolls down by habit and sideways rarely, and cut code reads as broken.
+
+**Try it under the counter there.** The button is to be on the first screen always, which is why the page first chosen did not stack. With the session between the counter and the button, Try it ended at 1130 on a page of 950. Under the counter it ends at 854, and the session follows it.
+
+**The tour's sentence under the counter.** It names "this counter", so it stands with the counter, in the counter's column, and needs no width of its own. In the narrower page Try it takes the place under the counter, and the sentence stands last, where a reader asks what comes next. Above the counter, it spoke of what comes next before the reader had seen the counter. Side by side it also moved the counter 61 pixels down, off a page of 730, with the session's top no longer level with the counter's.
 
 ## The header beside the panel
 

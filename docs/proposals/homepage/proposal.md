@@ -10,10 +10,10 @@ The layout is the rehearsal's: the opening with the claims beside it, the exampl
 
 1. The opening is two paragraphs, with new text.
 2. The example has no heading and no sentence of its own. It stands straight under the opening.
-3. The example's two blocks take the columns above them: the counter the opening's, and the session the claims'.
-4. Try it stands under the session, set to the right, its edge on the session's.
+3. The example's two blocks take the columns above them: the counter the opening's, and the session the claims'. Where the page is narrower than its full width, they stand one under the other.
+4. Try it stands under the session, set to the right, its edge on the session's. In the narrower page it stands under the counter, before the session, so that the button stays on the first screen.
 5. The counter's block shows Copy alone.
-6. A sentence on the tour stands under the example, before the doors. It ends at the counter's right edge.
+6. A sentence on the tour stands under the counter, in the counter's column. In the narrower page it stands last, after the session.
 7. The first claim's sentence and the mailbox's are reworded.
 8. Three spaces are tighter: above the heading, above the example, and around each claim.
 9. A claim's inline code stays on one line.
@@ -36,7 +36,7 @@ The claims, under "What Ernest adds", are Why's first four, each its name and it
 - **The mailbox in the function's type.** A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches.
 - The third and the fourth as Why has them.
 
-Under the example: "The tour takes this counter further, and ends by updating its code while it runs, with its state intact." "Tour" links to `/tour/`.
+Under the counter: "The tour takes this counter further, and ends by updating its code while it runs, with its state intact." "Tour" links to `/tour/`.
 
 ### Its markup
 
@@ -58,13 +58,15 @@ The page's `main`, without the code's coloring and the doors' icons:
 
     <section class="home-use" aria-label="A counter on another node">
         <div class="example">
-            <pre class="code"><code>… the counter …</code></pre>
+            <div class="counter-column">
+                <pre class="code"><code>… the counter …</code></pre>
+                <p class="next">The <a href="/tour/">tour</a> takes this counter further, …</p>
+            </div>
             <div class="session-column">
                 <pre class="transcript" data-shell="paste"><code>… the session …</code></pre>
                 <p class="run" data-shell="start"><a href="/shell/">Run it yourself in the shell</a></p>
             </div>
         </div>
-        <p class="next">The <a href="/tour/">tour</a> takes this counter further, …</p>
     </section>
 
     <nav class="doors" aria-label="Where to begin">… as it is …</nav>
@@ -72,13 +74,14 @@ The page's `main`, without the code's coloring and the doors' icons:
 ```
 
 - The counter's `pre` has no `data-shell="paste"`.
+- The counter and the tour's sentence share a `div class="counter-column"`, the example's first column.
 - The session and the button share a `div class="session-column"`, the example's second column.
 - The example's section has no heading and is labeled in its markup.
 - The button stays in the counter's `section`.
 
 ### Its rules
 
-Over the rehearsal's stylesheet. The mock gave the tour's sentence its width by a `calc` over the grid's fractions; the build states the two columns once, for the opening's row, the example's and that sentence.
+Over the rehearsal's stylesheet. The build states the two columns once, for the opening's row and the example's.
 
 ```css
 .home main { padding-top: 1rem; }
@@ -93,9 +96,24 @@ Over the rehearsal's stylesheet. The mock gave the tour's sentence its width by 
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
     gap: 3rem;
 }
-.home-use .next { margin: 1.25rem 0 0; }
+.home-use .next { margin: .75rem 0 0; }
 .session-column .run { margin-top: .75rem; justify-content: flex-end; }
+
+/* one under the other, where the page is narrower than its full width:
+   the counter, Try it, the session, the tour's sentence */
+@media (max-width: 1167px) {
+    .home-use .example { display: flex; flex-direction: column; gap: 0; }
+    .counter-column, .session-column { display: contents; }
+    .counter-column > .block { order: 1; }
+    .session-column .run { order: 2; margin: .75rem 0 1.25rem; }
+    .session-column > .block { order: 3; }
+    .counter-column .next { order: 4; margin: 1rem 0 0; }
+}
 ```
+
+The order in the narrower page is the mock's way of writing it, the two columns dissolved and their parts ordered. The build may write it another way, and keeps the order.
+
+The 1167 pixels are not chosen: the page's full width is 1120 pixels with a margin of 24 on each side, so a window of 1168 is the narrowest that shows it whole. The build derives the figure from those two, or states it beside them.
 
 `.home main` stands for the homepage's `main` alone. No other page's space above its heading changes.
 
@@ -159,8 +177,8 @@ From 1200 pixels wide and up the page is the same page, 1120 pixels wide and cen
 | The session | 836 | 662 |
 | Try it | 966 | 716 |
 | The counter | 905 | 732 |
-| The tour's sentence | | 801 |
-| The doors | | 985 |
+| The tour's sentence | | 793 |
+| The doors | | 977 |
 
 **The first screen, at three sizes of the page.** A size here is the page's own, after the browser's and the system's bars.
 
@@ -170,7 +188,11 @@ From 1200 pixels wide and up the page is the same page, 1120 pixels wide and cen
 | 1536×730 | the example and Try it as well |
 | 1920×950 | the tour's sentence as well |
 
-**Narrower than 1200.** The two columns hold down to 800 pixels, and the page grows taller as the heading and the claims wrap. At 1024 the counter's longest line runs 56 pixels past its block and the session's 45, and each block scrolls sideways. At 960, half of a screen of 1920, they run 86 and 79 pixels past. From 1200 up neither does.
+**Narrower than its full width.** The opening and the claims keep their two columns down to 800 pixels, and the page grows taller as the heading and the claims wrap. The example's parts stand one under the other, and neither block scrolls sideways, measured at 960, 1024, 1100 and 1140. At 960, half of a screen of 1920, the counter ends at 801, Try it at 854, the session at 1093, the tour's sentence at 1134 and the doors at 1318. On a page of 960×950 the first screen holds the counter and Try it.
+
+Side by side at those widths the two do not fit. The counter needs 481 pixels and the session 533. At 960 the counter's longest line ran 86 pixels past its block and the session's 79, and in equal columns 42 and 94.
+
+The mock stacked below 1200 pixels, and the rule above stacks below 1168. Between the two the blocks fit side by side, by 2 pixels at 1140.
 
 **Not measured again.** The phone's figures and the panel's were made on the page before the tighter spaces, the shared columns and the tools' one rule. At 390×844 the counter began 1.3 screens down where it began 1.5, the session 1.7 where it was 1.9, and Try it ended 2.0 screens down where it ended 2.3. With the panel beside the page in a window of 1440 pixels, a block of the example was 362 pixels wide, and the header's name stood at 24 pixels where it stood at 160.
 
@@ -180,7 +202,7 @@ Every render was made in a headless Chromium, which reports no mouse. The mouse'
 
 **`docs/design/site.md`, *The homepage*.** These sentences change:
 
-- "In order: an opening under its heading, Why's list beside it, and a small example with its output." The example has no heading and no sentence, it takes the columns above it, and a sentence on the tour follows it.
+- "In order: an opening under its heading, Why's list beside it, and a small example with its output." The example has no heading and no sentence, it takes the columns above it, and a sentence on the tour stands under the counter. In a narrower window the counter, Try it, the session and the tour's sentence stand one under the other.
 - "Then they say what kind of language it is and what it is for." The sentence on what Ernest is for leaves the homepage.
 - "Under the example stands its button, 'Try it', alone". It stands under the session.
 - "Why is the link ending the introduction's paragraph, 'the whole argument'." It ends the first paragraph, as "Why Ernest".
@@ -207,7 +229,7 @@ Every render was made in a headless Chromium, which reports no mouse. The mouse'
 
 **The stylesheet** takes the rules above.
 
-**The tests.** `ern_site_tests` holds the heading in `home.html`. `claims_test` in `ern_docs_tests` holds the claims' names between Why and the README. `ern_tour_tests` runs the homepage's example on two nodes. `make test-site`, `make test-site-shell` and `make test-browser` hold the generator, the blocks offered to the shell and the client. None was run against the chosen page. `make test-browser` gains two things: the first screen at the three sizes, and a block's tools above a first line that reaches them.
+**The tests.** `ern_site_tests` holds the heading in `home.html`. `claims_test` in `ern_docs_tests` holds the claims' names between Why and the README. `ern_tour_tests` runs the homepage's example on two nodes. `make test-site`, `make test-site-shell` and `make test-browser` hold the generator, the blocks offered to the shell and the client. None was run against the chosen page. `make test-browser` gains three things: the first screen at the three sizes, a block's tools above a first line that reaches them, and the example on a page of 960×950, where neither block scrolls sideways and Try it is on the first screen.
 
 ## Decided beside the page
 
@@ -227,6 +249,18 @@ Every render was made in a headless Chromium, which reports no mouse. The mouse'
 - **The dark scheme**, in Chromium with the scheme forced, on the page before the tighter spaces. The page holds, and a small button stands on the page's dark color with its icon in the accent's.
 - **A second browser**, Firefox 153, headless, on the same page. It draws the page as Chromium does.
 - **The guide's pages 9 to 13.** They hold no block, so the count of 225 blocks over Why, the tour, the guide and the deployment guide is whole.
+
+## A line above each block, set aside for now
+
+The blocks carry no line of their own: the opening's second paragraph introduces both. Two other ways were rendered on 2026-11-18 and may be taken up again once the page is built and seen.
+
+| | What it is | Try it side by side, on a page of 730 | Try it one under the other, on a page of 950 |
+|---|---|---|---|
+| 1, taken | no line above a block | 716, on the first screen | 854, on it |
+| 2 | a short line above each block, the opening unchanged: "The counter:" and "A shell starts it on `foo`:" | 747, off it by 17 | 886, on it |
+| 3 | the second paragraph's words moved to the blocks: "A counter, typed into a shell:", "Started on `foo`, a bare node beside it:", and "That shell and a `foo` of your own, in your browser:" beside the button | 747, off it by 17 | 880, on it |
+
+The third adds no word and puts each text where its reader is. The opening is then one paragraph, with an empty space of about 110 pixels under it, beside the claims. The second pays the same height and says "counter" and `foo` once more.
 
 ## Two sentences of *Code travels*
 
