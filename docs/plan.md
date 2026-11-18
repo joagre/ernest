@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 105**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 106**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -47,34 +47,40 @@ log's *A Status Read Before the Watch*, its paragraph *The order of what is left
 builds found, then what needs the user. An item planned since stands where its group's
 sentence says.
 
-**What was found**, each item begun by an agent that shows it or tests it. Items 105 and 106
-were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). Items 108,
-109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
-is what ernest-httpd's session handed back on 2026-11-17. Item 112 was found by the cold
+**What was found**, each item begun by an agent that shows it or tests it. Item 106 was
+placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). Items 108, 109
+and 110 were planned with the user the same day, each in the log entry it names. Item 99
+is what ernest-httpd's session handed back on 2026-11-17.
+
+The others were found by an item's build or its reading. Item 112 was found by the cold
 reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
 that item's build (the log's *A Checker Acts for the Target*). Item 118 was found by item
 116's reading and placed with the user the same day (the log's *The Job Halts Without the
 Host's Flush*). Item 120 was found by item 117's probes and placed with the user the same
-day (the log's *A Termination Ends a Stalled Flush*).
+day (the log's *A Termination Ends a Stalled Flush*). Item 121 was found by item 105's
+probes and placed with the user the same day (the log's *A Message Is Placed in Parts*).
 
-- **105. Whether a message is placed whole**, found 2026-11-17 by item 97's probes: a
-  reading of the host's code, and not shown. §8.7 says that a message of any size "is
-  placed there whole", and `docs/design/nodes.md` that the host's send "places a message
-  whole". By the host's code a send places a message's parts while what waits stays
-  under the limit, and then waits with the rest unplaced, which a loss drops. An agent
-  first shows whether a program can tell the two apart. The two sentences then stay,
-  change or go.
-
-  Item 104's build read `dist.c`, lines 3620 to 3640, the same way on 2026-11-18, and one
-  of its runs fits the reading: with one message of 28 MB waiting for a stopped store, the
-  killer's small note to the store was not held (the log's *The Runtime's Processes Wait
-  on No Peer*).
 - **106. A program's helper buffers its input without bound**, found 2026-11-17 by item
   97's build: a reading of `ern_exec.c`, lines 409 to 485. A program that does not read
   its input never makes its port busy, since the helper takes what is written into a
   buffer that grows. An agent first shows what a writer to a program that reads nothing
   makes the helper hold, and whether anything bounds it. Memory that nothing reclaims is
   a defect (`CLAUDE.md`, *Defects and gaps*), and the fix's shape follows the probe.
+- **121. A kill's `Down` waits on another peer**, found 2026-11-18 by item 105's probes
+  (the log's *A Message Is Placed in Parts*, its paragraph *A killed sender's `Down`*). A
+  process killed while its `send` to a peer waits has its `Down` reach a watcher on a
+  third node only once that peer takes again, or at its loss, 83 s later in the probe.
+  Its own node's watchers are told at once. By a reading of the host's code, the exit
+  places the rest of the sender's message before it tells another node's monitors,
+  unless the exit's reason is an atom, and the reason of Ernest's kill is a tuple.
+
+  The shape, decided with the user: the kill's reason becomes an atom, as Erlang's own
+  kill has one. An agent first shows that the `Down` then comes at once, and lists each
+  end the runtime gives a process that may wait in a send. A test holds it, since
+  nothing of the host's documents the rule.
+
+  The store took a killed sender's message whole once it ran again, and §8.7 does not
+  say so. The build brings to the user whether it gains that sentence.
 - **MVP 4.6's item 3, the homepage, is taken here**, ahead of its milestone, decided with
   the user on 2026-11-18 (the log's *The Homepage and the Shell's Editing Planned*, its
   paragraph *The site first*). That section holds the item.
@@ -407,6 +413,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 111 | A checker acts for its address's target: where foreign code sends to an adapted address, the checker applies the function as on arrival; the reaper makes and holds each checker and takes its rows at its end, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
 | 116 | The job halts without the host's flush, so that a program's end waits for no socket whose far end takes nothing; a stream that is stopped writes out what its port holds; what the host logs or a node says once the job's output is flushed is not written, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
 | 117 | A termination once the end's wait is over ends the end at once: it kills both standard streams and the sayer of the lines said later with what they hold, so that a stream nobody reads holds no end; the status is that of what began the end | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
+| 105 | A message for a peer is placed in the host's buffer in parts while less than 1 MB waits there, and its `send` then waits with the rest; the report and the nodes' note had it placed whole, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |
 
 ---
 

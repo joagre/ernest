@@ -9570,8 +9570,8 @@ fn sinking() : Unit receiving SinkMsg =
         }
     }
 
-// Report §8.7: a message above the buffer, placed whole, its send waiting
-// while more than 1 MB waits, and the next behind it.
+// Report §8.7: a message above the buffer, its send waiting with what it
+// has not placed, and the next behind it.
 fn above(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
     let bytes = whole();
     watch(Process.current(), adapted(self(), Suspended));

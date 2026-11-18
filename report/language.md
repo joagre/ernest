@@ -1047,7 +1047,7 @@ A loss ends the wait on both sides: the restarting process goes on, and the node
 
 **Messages.** `send` hands the message to the host and returns (§6.2). Where no connection is open the host opens one, and the message waits behind the dial: it is sent where the connection opens, and dropped where it does not.
 
-What the connection has not yet taken waits in the host's buffer for that peer. A message of any size is placed there whole, and its `send` then waits while more than 1 MB waits there, its own message among it. What the connection has taken counts no longer, though the peer has not received it, so a `send` to a peer that stands still waits only once the connection takes no more. A loss ends the wait, as it drops what waited (**A loss**). A process that waits so serves nothing from its mailbox meanwhile.
+What the connection has not yet taken waits in the host's buffer for that peer, or waits to be placed there. A `send` places its message in the buffer while less than 1 MB waits there, a large message in parts, and once 1 MB waits there the `send` waits, with whatever of its message is not yet placed, until the connection has taken enough from the buffer. What the connection has taken counts no longer, though the peer has not received it, so a `send` to a peer that stands still waits only once the connection takes no more. A loss ends the wait, as it drops what waited (**A loss**). A process that waits so serves nothing from its mailbox meanwhile.
 
 A call, a find, a spawn, a compute, a utilization and an `answer` send as a `send` does. What a call, a find, a spawn, a compute and a utilization send the peer as their wait for it begins and as it ends is sent the same way too (§6.6, Appendix E.27).
 
