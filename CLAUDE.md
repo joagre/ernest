@@ -56,7 +56,7 @@ Before that release, an item of the milestone that built the proposal reads it f
 - Every session runs on the stronger model, since the design, the weighing against §0 and the read-back have no test to catch their errors. Its agents run on the models `docs/agents.md` names.
 - The session keeps conclusions in its context and not working material. It takes an agent's report from its file and a test's exit status and failures, and reads no file just to follow along.
 - Where one pass must be right with nobody reading along, a soundness paragraph or a large read-back, the user is asked to raise the session's effort, in one line saying why and when to come back down.
-- Context is most of what a session costs, so sessions stay short and the thinking stays strong. One item, one session: `/clear` follows the item's report to the user, and the plan, the log, the commit and a scratch file hold what matters. Each suggestion of `/clear` gives, word for word, the message to send after it. A large session is finished or compacted before a long break, since the next message past the cache's life rebuilds it.
+- Context is most of what a session costs, so sessions stay short and the thinking stays strong. One item or one run of items, one session: `/clear` follows its report to the user, and the plan, the log, the commit and a scratch file hold what matters. Each suggestion of `/clear` gives, word for word, the message to send after it. A large session is finished or compacted before a long break, since the next message past the cache's life rebuilds it.
 - Where a check that costs cycles and one that costs tokens would find the same thing, the one that costs cycles runs: a full run, a probe or a make target before a reader or a rework.
 - A commit names its paths, `git commit -F message -- path...`, never a bare `git commit` after `git add`. The user stages their own work while a session runs: read `git status --short` first for entries that are not yours, and leave the index as the user left it, but for a new file of the session's own and a deletion (*Tests*, *Done*). The message says what changed in one or two sentences and points to the log or the plan for why, restating neither. It carries no attribution line, no co-author and no session link: this file says who works here.
 
@@ -156,7 +156,8 @@ In this file "the report" alone is the language's. The session's is "the report 
   Where the item was its milestone's last, the same commit sweeps the plan. The milestone's section goes, its row names its proposal and the log entries that argue it, and every sentence of a later milestone that cited the section's items cites the log instead.
 - **Commit only after the checks pass**, on make's own exit status read in a call of its own, never chained after them and never on a pipe's, which a `grep` of the output would give. A deletion of tracked files is staged with `git rm` before its check runs, and committed with the item. Push only when the user says so, a proposal's pause excepted (*Before code*).
 - **Every message that reports an item that touched the report, the plan or an error's text ends with a "Report conformance" section**: the sections applied; every place the report was silent and what was done, or "none"; every deliberate omission, with the MVP that lifts it and the error the code gives meanwhile. "Tests green" does not replace it. A message that reports any other item says in one line that the report was not touched.
-- **Stop after each plan item.** Finish it whole, report it, and wait: the user sees each item's design choices before the next builds on them. The next step the report to the user names is the plan's next item, in the order the plan gives.
+- **Stop after each plan item**, but within a run of items, the next rule's. Finish it whole, report it, and wait: the user sees each item's design choices before the next builds on them. The next step the report to the user names is the plan's next item, in the order the plan gives.
+- **A run of items.** Where the plan's next items stand alone, the session takes them one after another, an agent for each, and closes and commits each before the next starts. It stops at the first thing that needs the user, however small: a decision, a surprise, one the session decides itself among them, a departure from the brief, a check that fails. The session judges that from each diff and its check, never from an agent's report alone. Where nothing stops it, it stops after three items. The report to the user covers each item of the run.
 
 **Closing an item.** Each line names a rule of this file.
 
@@ -168,7 +169,7 @@ In this file "the report" alone is the language's. The session's is "the report 
 6. The result read back, with its two searches, and every surprise decided (*Done*, *Defects and gaps*).
 7. The check that fits the item green (*Tests*).
 8. One commit by its paths, sweeping what the item made redundant, and the plan where the item was its milestone's last (*The repository*, *Done*).
-9. The report to the user, ending with *Report conformance* where it is due, then a stop until the user's word; a push only on that word (*Done*).
+9. The report to the user, at the run's end where the item is one of a run, ending with *Report conformance* where it is due, then a stop until the user's word; a push only on that word (*Done*).
 
 ## Style
 
