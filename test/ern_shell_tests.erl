@@ -1146,8 +1146,11 @@ cycle_listed() ->
 %% memory as a number, the process that holds a binary after the one that
 %% holds none though its count begins with a lower digit, where the host
 %% gives both one activity
-listed_by_memory_test() ->
-    Holder = "fn holder() : Address(Bytes) = "
+listed_by_memory_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun listed_by_memory/0).
+
+listed_by_memory() ->
+    Holder ="fn holder() : Address(Bytes) = "
              "spawn(fn() = receive { bytes -> receive { _ -> Io.println(Io.show(bytes)) } })\n",
     {0, Output} = line_session([Holder, "let big = holder()\n", "let small = holder()\n",
                                 "send(big, String.toUtf8(String.repeat(\"x\", 1048576)))\n",
@@ -6862,6 +6865,25 @@ no_home() ->
                     {send, "04"}]),
     ?assertMatch({_, _}, binary:match(Relative, <<"the history is not kept, since HOME is no"
                                                   " absolute path">>)).
+
+%% report §11.2: a session started under the run's own home, as
+%% test/Makefile's shell target gives it, runs that home's startup file,
+%% fixtures/session/startup, which prints its line and ends the session
+%% before its first input. The run's home is the guard against a test that
+%% names no home, and this is the one test besides no_home that names
+%% none. Written with the guard, and red without it. It does not cover a
+%% session that ends before its startup files run, which the guard lets
+%% through
+inherited_home_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun inherited_home/0).
+
+inherited_home() ->
+    {ok, Startup} = file:read_file("fixtures/session/startup"),
+    {match, [Line]} = re:run(Startup, "^Io\\.println\\(\"(.*)\"\\)$",
+                             [multiline, {capture, all_but_first, binary}]),
+    {0, Output} = fed("../bin/ern shell", "1\n"),
+    ?assertMatch({_, _}, binary:match(Output, Line)),
+    ?assertEqual(nomatch, binary:match(Output, <<"1 : Int">>)).
 
 %% A terminal session with a home of its own, so that a test neither
 %% reads nor writes the person's startup files or history (report §11.2).

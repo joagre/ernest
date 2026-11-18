@@ -232,10 +232,15 @@ typed: $(BEAMS) named
 
 # The shell's and the terminal's tests make their homes, sources and inputs
 # under one directory of the run's own, which is removed when the run ends,
-# whatever its outcome (ern_pty:run_dir/0).
+# whatever its outcome (ern_pty:run_dir/0). The run's HOME is there too,
+# its startup file fixtures/session/startup, so that a session whose test
+# names no home of its own runs no startup file of the person's: it prints
+# that file's line and ends before its first input (report §11.2), so its
+# test fails. ern_shell_tests' inherited_home holds both.
 shell: $(BEAMS) prepare pty
 	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_shell_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS)); \
+	  mkdir -p "$$dir/home/.ernest" && cp fixtures/session/startup "$$dir/home/.ernest" && \
+	  HOME="$$dir/home" ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS)); \
 	  status=$$?; rm -rf "$$dir"; exit $$status
 
 # The programs compiled here stay between runs: ern build recompiles what a

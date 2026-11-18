@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 87**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 88**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -43,7 +43,7 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 What is left is small, and each item stands alone. Its order, decided with the user on
 2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 87, 88 and 91; and what
+left*): what the builds found, items 88 and 91; and what
 needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
 them. Item 95 is what a reading of five reviews from outside decided the same day (the
 log's *The Outside Reviews Read*), and stands after item 93. Item 96, the same reading's
@@ -72,13 +72,6 @@ Item 108, a reading that item 104's build left unread, was planned with the user
 Item 109, what item 107's build found, was planned with the user on 2026-11-18 (the log's
 *Suspended Is the Host's Word*), and stands after item 108.
 
-- **87. Nothing holds that a shell test names a home**, found 2026-11-16 by the fix of the
-  27 sites that ran under the inherited `HOME` (the log's *The Shell's Tests in a Home of
-  Their Own*). A new test that starts `ern shell` by hand runs the startup file of whoever
-  runs the tests, and nothing fails. The shape of the fix: `make test-shell` runs under a
-  scratch home whose startup file prints a line, as the fix's probe did, so that a session
-  under the inherited home shows the line. An agent shows first which tests fail on the
-  line where one is moved back.
 - **88. No test runs the hunt's rounds**, found 2026-11-16 by item 80's build (the log's *A
   Record After a Cancel*). `ern_flakes:hunt/1` carries the host's first cancel from one
   round to the next, and only a run by hand showed it. An agent writes the test: `hunt/1`
@@ -375,6 +368,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 84 | The tests run side by side run in lanes, a test begun as soon as one ends: `make test-nodes` in 108 s for 209 s, with the user | 2026-11-17 | *Lanes in Place of Chunks* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
+| 87 | `make test-shell` runs under a home of the run's own, whose startup file prints a line and ends the session, so that a shell test that names no home fails; three starts in the integration and the install tests name a home, with the user | 2026-11-18 | *A Home of the Run's Own* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 | 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |

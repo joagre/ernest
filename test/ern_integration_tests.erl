@@ -1495,13 +1495,15 @@ closed_pipe_test_() ->
 closed_pipe() ->
     Dir = filename:absname("build/closed_pipe"),
     ok = del(Dir),
-    ok = filelib:ensure_path(Dir),
+    Home = Dir ++ "/home",
+    ok = filelib:ensure_path(Home),
     Ern = filename:absname("../bin/ern"),
     Gone = fifo(Dir ++ "/gone"),
     Closed = "{ exec <&-; echo > " ++ Gone ++ "; }",
     StatusOf = fun(Job) ->
-                   {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( read gone < " ++ Gone ++ "; " ++ Ern
-                               ++ " " ++ Job ++ " 2>&1; echo $? > status ) | " ++ Closed ++ "'"),
+                   {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( read gone < " ++ Gone ++ "; HOME="
+                               ++ Home ++ " " ++ Ern ++ " " ++ Job
+                               ++ " 2>&1; echo $? > status ) | " ++ Closed ++ "'"),
                    {ok, Text} = file:read_file(Dir ++ "/status"),
                    string:trim(Text)
                end,
@@ -1509,8 +1511,8 @@ closed_pipe() ->
      || Job <- ["--version", "--help", "build missing.ern", "run missing.erc", "test --help",
                 "doc " ++ filename:absname("../src/stdlib/list.ern"), "shell < /dev/null"]],
     ?assertNot(filelib:is_file(Dir ++ "/erl_crash.dump")),
-    {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( read gone < " ++ Gone ++ "; echo 1 | " ++ Ern
-                ++ " shell 2> err; echo $? > status ) | " ++ Closed ++ "'"),
+    {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( read gone < " ++ Gone ++ "; echo 1 | HOME=" ++ Home
+                ++ " " ++ Ern ++ " shell 2> err; echo $? > status ) | " ++ Closed ++ "'"),
     ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")),
     ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
 
