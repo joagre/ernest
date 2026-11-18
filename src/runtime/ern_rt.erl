@@ -191,7 +191,7 @@
 %% stands in front of, {{behind, Checker}, Pid, Address, Key}, read where
 %% an address is taken back to its process (process_of/1, held/3) and,
 %% report §8.6, by the deadlock look, which reads each checker as it reads
-%% a system process
+%% a process of the program
 -define(CHECKERS, ern_checkers).
 %% report §12.1, §8.6: the launch, #launch{}, the way the terminal is read,
 %% {reading, Kind}, the entry process, {entry_process, Pid}, the process a
@@ -2905,24 +2905,25 @@ expected(Function) ->
         Function()
     end.
 
-%% Report §8.6. Two reads of every live process's status and reduction
-%% count, equal, with every status waiting, prove that nothing ran between
-%% them; what can still deliver is read between them, so that it is what
-%% held while nothing ran, and not what held before a process ran on. A
-%% source held by a system process, a message at a checker, a subscription
-%% to the program's end, a call waiting on a system process or on a foreign
-%% process, and a process that waits where Ernest does not are what can
-%% still deliver.
+%% Report §8.6. Two reads of the status and reduction count of every live
+%% process and every checker, equal, with every status waiting, prove that
+%% nothing ran between them; what can still deliver is read between them,
+%% so that it is what held while nothing ran, and not what held before a
+%% process ran on. A source held by a system process, a subscription to the
+%% program's end, a call waiting on a system process or on a foreign
+%% process, and a process or a checker that does not wait as Ernest waits
+%% are what can still deliver.
 %%
 %% The check runs when the reaper has been idle a while, and what can still
 %% deliver is read first, the cheapest first: an idle program that waits on
-%% something, a socket or an alarm, is answered from a few rows; then each
-%% process's status and reductions, which the host reads without asking the
-%% process; and only where every process waits is each process asked where
-%% it waits and what it keeps under the look's keys (still/1). The host
-%% counts that question as a reduction of the process once it has answered
-%% it, so it is the second read, and its reductions are compared with the
-%% first's.
+%% something, a socket or an alarm, is answered from a few rows; then the
+%% status and reductions of each process and each checker, which the host
+%% reads without asking them; and only where every one waits is each asked
+%% where it waits and what it keeps under the look's keys (still/1), the
+%% live processes first, so that one of them that can still deliver answers
+%% before a checker is asked. The host counts that question as a reduction
+%% of the process once it has answered it, so it is the second read, and
+%% its reductions are compared with the first's.
 %%
 %% A system process is not in the table, so its mailbox and status are read
 %% as well: between taking a message out and counting the source it holds,
@@ -2933,12 +2934,18 @@ expected(Function) ->
 %% own mailbox is what is read of it. §8.6 leaves a foreign process that
 %% can deliver to the runtime.
 %%
-%% Report §8.4: a checker in front of an exposed address, which its table's
-%% rows name, is read as a system process is. What foreign code sent waits
-%% in its mailbox, and between taking it out and passing it on the checker
-%% is running rather than waiting. It passes the message on by a local send,
-%% which makes its receiver no longer waiting, so a message passed on after
-%% the first read of the processes is seen at the second.
+%% Report §8.4, §6.9: a checker in front of an exposed address, which its
+%% table's rows name, is read as a process of the program is. What foreign
+%% code sent waits in its mailbox. While the checker passes a message on it
+%% runs, or waits where the function of an adapted address it applies
+%% waits, a wait of the checker's own, which keeps the look's keys in the
+%% checker. It passes the message on by a local send, which makes its
+%% receiver no longer waiting, so a message passed on after the first read
+%% is seen at the second, in its receiver and in the checker's reductions.
+%%
+%% A checker that has ended holds nothing, and one that ended before the
+%% process it stands in front of leaves its rows, so one the first read
+%% finds ended is left out.
 %%
 %% Report §11.2: nothing is a deadlock while a shell holds the terminal;
 %% and report §8.6, nothing on a node, which can be reached from outside.
@@ -2950,16 +2957,18 @@ expected(Function) ->
 %% What the look finds: `delivering`, where something can still deliver, a
 %% shell holds the terminal, or the program is a node, so that no deadlock
 %% can begin before that ends; `running`, where nothing can and a process
-%% is not waiting, or none is left; `deadlock`, where nothing can and every
-%% process waits as Ernest waits.
+%% or a checker is not waiting, or no process is left; `deadlock`, where
+%% nothing can and every process and every checker waits as Ernest waits.
 look() ->
     case terminal_holder() =:= undefined andalso not launch_field(#launch.node, false)
          andalso nothing_delivers() of
         false ->
             delivering;
         true ->
-            First = snapshot([Pid || #process_row{pid = Pid} <- live_rows()]),
-            Waits = First =/= []
+            Live = [Pid || #process_row{pid = Pid} <- live_rows()],
+            First = snapshot(Live)
+                ++ [Read || {_, Status, _} = Read <- snapshot(checkers()), Status =/= dead],
+            Waits = Live =/= []
                 andalso lists:all(fun({_, Status, _}) -> Status =:= waiting end, First)
                 andalso nothing_delivers(),
             case Waits of
@@ -2973,14 +2982,14 @@ nothing_delivers() ->
         andalso ets:info(?TERMINATING, size) =:= 0
         andalso quiet_system().
 
-%% Report §8.6, §6.3, §6.6, §8.4: each process asked, the second read,
-%% whether it still waits as the first read found it and waits as Ernest
-%% waits: in a function of Ernest's own code (is_ernest/1), with nothing
-%% under the look's keys that can still deliver, no deadline, no foreign
-%% code, no call to a system process, a listener, a socket or a running
-%% program (calling_the_system/2), whose processes are read once for the
-%% look, and no call to a foreign process, which the call's monitor makes
-%% one that may deliver (calling_the_foreign/1); a key read here held
+%% Report §8.6, §6.3, §6.6, §8.4: each process and each checker asked, the
+%% second read, whether it still waits as the first read found it and
+%% waits as Ernest waits: in a function of Ernest's own code (is_ernest/1),
+%% with nothing under the look's keys that can still deliver, no deadline,
+%% no foreign code, no call to a system process, a listener, a socket or a
+%% running program (calling_the_system/2), whose processes are read once
+%% for the look, and no call to a foreign process, which the call's monitor
+%% makes one that may deliver (calling_the_foreign/1); a key read here held
 %% between the two reads, since the process has not run since the first. A
 %% function of the host's on top is a receive inside foreign code. The
 %% first that cannot be a deadlock's answers for the look.
@@ -3048,7 +3057,7 @@ calling_the_foreign(#call{callee = Callee}) ->
 
 quiet_system() ->
     erlang:process_info(erlang:self(), message_queue_len) =:= {message_queue_len, 0}
-        andalso lists:all(fun quiet/1, system_pids() ++ opened() ++ checkers()).
+        andalso lists:all(fun quiet/1, system_pids() ++ opened()).
 
 %% Report §8.2: the run's system processes that have been started.
 system_pids() ->
@@ -3057,11 +3066,12 @@ system_pids() ->
 
 %% Report §8.4, §8.6: the checkers in front of the addresses exposed to
 %% foreign code, each of which holds what foreign code sent until it has
-%% passed it on.
+%% passed it on, and which the look reads among the processes (look/0).
 checkers() ->
     try [Pid || [Pid] <- ets:match(?CHECKERS, {{checker, '_'}, '$1'})] catch _:_ -> [] end.
 
-%% A system process or a checker that has died can deliver nothing.
+%% A system process, or one a system module opened, that has died can
+%% deliver nothing.
 quiet(Pid) ->
     case erlang:process_info(Pid, [status, message_queue_len]) of
         [{status, waiting}, {message_queue_len, 0}] -> true;

@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 91**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 102**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -52,24 +52,6 @@ were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). 
 109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
 is what ernest-httpd's session handed back on 2026-11-17.
 
-- **91. A checker that waits holds its message unseen**, found 2026-11-17 by item 70's build
-  (the log's *A Message at a Checker*). The look reads a checker as quiet where it waits with
-  an empty mailbox. A checker in front of an adapted address applies the address's function,
-  and a wait in it is the checker's own (§6.9). Where that function waits in `Address.call`
-  with a time, the checker waits with the message it holds, and a program that waits for
-  that message alone ends with `deadlock`: 5 of 5 runs of the session's probe, where the
-  function applied in the entry process printed `done` in 5 of 5.
-
-  Read from the code and not shown: one checker can pass to another, through an adapted
-  address over a checker's address that foreign code gave back at another type. Within one
-  read of the checkers the message can then pass from a checker read later to one read
-  earlier. The look's first read also grows with the checkers now, 3.5 ms a look at 10,000.
-
-  Decided with the user on 2026-11-17 (the log's *A Message at a Checker*): the look reads
-  the checkers among the processes of its two reads, their status, their reductions and
-  their marks, and no longer among the system processes. An agent builds it, and first
-  shows whether a call made in a checker writes its marks. Item 70's test stays, and a new
-  one holds a checker in a call with a time.
 - **102. A node in its halt holds no lock, and `ern stop` says that no node runs**, found
   2026-11-17 by item 98's build (the log's *A Connection That Cannot Drain*, its paragraph
   *`ern stop` and a node in its halt*). The node removes `ernest.pid` before the host's
@@ -202,7 +184,8 @@ decided the same day (the log's *The Outside Reviews Read*).
 **What needs the user**, each a decision or a design discussion of its own. Item 101 stands
 first, since its rule is the measure for items 68 and 100. Item 100, ernest-httpd's session's
 two lines on a close, stands before item 96, since three of that session's tests wait on it.
-Item 96, feedback 260 of the reading of the reviews from outside, stands last of them.
+Item 96, feedback 260 of the reading of the reviews from outside, stands after it. Item 111,
+what item 91's build found, stands last of them.
 
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
@@ -265,6 +248,20 @@ Item 96, feedback 260 of the reading of the reviews from outside, stands last of
   the file synced and, after the rename, its directory. Recommended: one function over a
   path, a file's or a directory's, with `Fs.write` left as it is, since a write that always
   synced would make every write pay for a need few have. E.17 changes first.
+
+- **111. Who a checker acts for**, found 2026-11-18 by item 91's build (the log's *A
+  Checker Among the Processes*). §6.5 says whose the work of an adapted address's function
+  is in three cases, the sender's, the target's and that of the process kept for the
+  address. It names no checker, which applies the function for a message foreign code
+  sends. The runtime answers the checker itself, a process of its own with no row, so
+  `Process.current()` there is the checker and a `kill` of it ends the checker. Its
+  `behind` row then stands, which the agent's probe read.
+
+  Read from the code and not shown: its `checker` row stands too, so a later exposure of
+  the same address at the same type is given the dead checker and its messages are lost.
+  A `monitor` in the function puts its `Down` in the checker's mailbox, where it is
+  checked as a message of foreign code's. To decide with the user: what §6.5 says of a
+  message foreign code sends, and what a checker's end leaves behind.
 
 **Last of all**, since nothing waits on it: two behaviors of OTP's that item 98's build met.
 
@@ -367,6 +364,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 87 | `make test-shell` runs under a home of the run's own, whose startup file prints a line and ends the session, so that a shell test that names no home fails; three starts in the integration and the install tests name a home, with the user | 2026-11-18 | *A Home of the Run's Own* |
 | 88 | A test runs the hunt's rounds: the host's first cancel carried from one round to the next, and the record of a directory that cannot be removed | 2026-11-18 | *The Hunt's Rounds Tested* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
+| 91 | The look reads each checker among the processes of its two reads, by its status, its reductions and its marks, so a checker that waits in a call with a time holds its message in sight; one that has ended is left out | 2026-11-18 | §8.4, §8.6; *A Message at a Checker*, *A Checker Among the Processes* |
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 | 97 | What else waits where a `send` to a peer waits: a call, a find, a spawn, a compute and a utilization are held before and after their wait, which §6.6, §6.7, §8.7 and E.27 now say; the gateway waits on no peer, its telling and its utilization's answer not sent where they would wait; a send to a lost peer returns, as the report had it | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
 | 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |

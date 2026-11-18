@@ -4,7 +4,7 @@
 -module(ern_reaper_tests).
 
 -export([answered_later/0, called_back/1, called_back_in_tail/1, reaper_words/0, looks/1,
-         looking/0, sent_later/2, send_held/2, answering_later/0, ending_later/0]).
+         looking/0, sent_later/2, send_held/2, go_later/0, answering_later/0, ending_later/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -72,22 +72,24 @@ map_callback_deadlock_test() ->
 %% not.
 -spec answered_later() -> integer().
 answered_later() ->
-    later(),
+    later(2, 42),
     receive N when is_integer(N) -> N end.
 
 -spec called_back(fun(() -> integer())) -> integer().
 called_back(Function) ->
-    later(),
+    later(2, 42),
     Function() + 0.
 
 -spec called_back_in_tail(fun(() -> integer())) -> integer().
 called_back_in_tail(Function) ->
-    later(),
+    later(2, 42),
     Function().
 
-later() ->
+%% A process of the host's, which no monitor watches, that sends Message to
+%% the caller once the reaper has begun its Count-th look since.
+later(Count, Message) ->
     Caller = self(),
-    _ = spawn(fun() -> ern_waits:looked(2), Caller ! 42 end),
+    _ = spawn(fun() -> _ = ern_waits:looked(Count), Caller ! Message end),
     ok.
 
 %% report §8.6: a process blocked in Address.callForever waits without a
@@ -340,10 +342,9 @@ delivery_foreign_code_arranges_test() ->
 %% the program prints what it receives.
 %%
 %% Not covered: a checker scheduled out between taking a message and
-%% passing it on, which reads as not waiting, as a held one does; a message
-%% one checker passes to another, through an adapted address over a
-%% checker's address; and a checker that waits in the function of an
-%% adapted address it applies, in a call with a time
+%% passing it on, which reads as not waiting, as a held one does; and a
+%% message one checker passes to another, through an adapted address over a
+%% checker's address
 held_at_checker_is_no_deadlock_test() ->
     ?assertEqual({ok, <<"done\n">>}, ern_emitter_tests:run(
         "type MainMsg = Done\n"
@@ -353,6 +354,64 @@ held_at_checker_is_no_deadlock_test() ->
         "    sendHeld(Foreign.term(self()), Foreign.atom(\"Done\"));\n"
         "    receive { Done -> Io.println(\"done\") }\n"
         "}\n")).
+
+%% report §8.6, §8.4, §6.9: a checker in front of an adapted address
+%% applies the address's function, and a wait in it is the checker's own,
+%% so a checker that waits there in a call with a time still holds the
+%% message it passes on, and a program whose every process waits for that
+%% message is no deadlock. Foreign code sends to the address, whose function
+%% calls a server. The server holds the call until a process of the host's,
+%% which no monitor watches, lets it go once the reaper has begun its third
+%% look since, so that two looks have read the checker in the call while
+%% every process of the program waits as Ernest waits. The program prints
+%% the answer that reaches it.
+%%
+%% Not covered: a checker that waits in `Clock.sleep` in the function,
+%% which marks its wait as a call with a time does; and a message one
+%% checker passes to another, through an adapted address over a checker's
+%% address
+call_at_checker_is_no_deadlock_test() ->
+    ?assertEqual({ok, <<"Some(42)\n">>}, ern_emitter_tests:run(
+        "type MainMsg = Done(Optional(Int))\n"
+        "type ServerMsg = Ask(Reply(Int)) | Go\n"
+        "foreign fn sent(to : Foreign.Term, message : Foreign.Term) : Foreign.Term =\n"
+        "    \"erlang:send/2\"\n"
+        "foreign fn goLater() : Unit = \"ern_reaper_tests:go_later/0\"\n"
+        "fn serve() : Unit receiving ServerMsg = receive {\n"
+        "    Ask(reply) -> {\n"
+        "        goLater();\n"
+        "        receive { Go -> answer(reply, 42) }\n"
+        "    }\n"
+        "}\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let server = spawn(serve);\n"
+        %% the call's time bounds the answer, which comes once the reaper has
+        %% begun its third look: it is the test's own limit, EUnit's five
+        %% seconds, which began before the call, so that the test ends
+        %% before the call can run out
+        "    let asking = adapted(self(), fn(_ : Int) : MainMsg =\n"
+        "        Done(Address.call(server, Ask, 5000)));\n"
+        "    let _ = sent(Foreign.term(asking), Foreign.term(1));\n"
+        "    receive { Done(answer) -> Io.println(Io.show(answer)) }\n"
+        "}\n")).
+
+%% report §8.6, §8.4: a checker that has ended holds nothing, so a program
+%% whose one process waits for a message nothing can send is a deadlock,
+%% though the checker's rows stand where foreign code ended it. A regression
+%% test, written after the code: read as a process of the program is, an
+%% ended checker would keep every look from finding the deadlock. Not
+%% covered: a checker ended by a kill of `Process.current()` in the function
+%% of an adapted address it applies
+ended_checker_is_no_delivery_test() ->
+    {Result, _} = ern_emitter_tests:run(
+        "type MainMsg = Done\n"
+        "foreign fn exited(to : Foreign.Term, reason : Foreign.Term) : Foreign.Term =\n"
+        "    \"erlang:exit/2\"\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let _ = exited(Foreign.term(self()), Foreign.atom(\"kill\"));\n"
+        "    receive { Done -> Io.println(\"done\") }\n"
+        "}\n"),
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% report §8.6, §6.6: a foreign process the runtime did not start may
 %% deliver while a monitor of it stands, and a call that waits on it is
@@ -435,6 +494,13 @@ send_held(To, Message) ->
                        true = erlang:resume_process(To)
                    end),
     receive {held, Holder} -> ok end.
+
+%% The host's side of the test of a call at a checker: `Go` sent to the
+%% caller, a process of the program's, by its host identity, once the reaper
+%% has begun its third look since.
+-spec go_later() -> ok.
+go_later() ->
+    later(3, 'Go').
 
 %% The host's side of the test of a foreign callee: a process of the
 %% host's that takes an Ask and, once the reaper has looked twice, answers
