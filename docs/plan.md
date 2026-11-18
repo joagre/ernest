@@ -41,39 +41,16 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 ### What is left
 
-What is left is small, and each item stands alone. Its order, decided with the user on
-2026-11-15 (the log's *A Status Read Before the Watch*, its paragraph *The order of what is
-left*): what the builds found, items 88 and 91; and what
-needs the user, item 68. Items 92 and 93, what item 60 decided on 2026-11-17, stand between
-them. Item 95 is what a reading of five reviews from outside decided the same day (the
-log's *The Outside Reviews Read*), and stands after item 93. Item 96, the same reading's
-feedback 260, needs the user as item 68 does and stands last of those. Item 99, what ernest-httpd's
-session handed back the same day, stands after item 91.
+What is left is small, and each item stands alone. The items stand below in the order they
+are taken, in four groups. The groups' order was decided with the user on 2026-11-15 (the
+log's *A Status Read Before the Watch*, its paragraph *The order of what is left*): what the
+builds found, then what needs the user. An item planned since stands where its group's
+sentence says.
 
-Item 100, ernest-httpd's session's two lines on a close, feedback 262 and 263, needs the
-user too. It stands before item 96, since three of that session's tests wait on it.
-
-Item 101, what a reading of the log's findings at the limits left to decide, needs the user
-too. It stands before item 68, since its rule is the measure for items 68 and 100.
-
-Item 103, two behaviors of OTP's that item 98's build met, stands last of all, since
-nothing waits on it.
-
-Item 102, what item 98's build found the same day, stands after item 91.
-
-Items 105 and 106 are what item 97's probes and its build found, placed with the user on
-2026-11-18 (the log's *What a Full Buffer Holds*), and stand after item 102. The items
-stand below in that order.
-
-Item 108, a reading that item 104's build left unread, was planned with the user on
-2026-11-18 (the log's *The Runtime's Processes Wait on No Peer*), and stands after item
-106.
-
-Item 109, what item 107's build found, was planned with the user on 2026-11-18 (the log's
-*Suspended Is the Host's Word*), and stands after item 108.
-
-Item 110, what item 87's build found, was planned with the user on 2026-11-18 (the log's
-*A Home of the Run's Own*), and stands after item 109.
+**What was found**, each item begun by an agent that shows it or tests it. Items 105 and 106
+were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). Items 108,
+109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
+is what ernest-httpd's session handed back on 2026-11-17.
 
 - **88. No test runs the hunt's rounds**, found 2026-11-16 by item 80's build (the log's *A
   Record After a Cancel*). `ern_flakes:hunt/1` carries the host's first cancel from one
@@ -180,6 +157,11 @@ Item 110, what item 87's build found, was planned with the user on 2026-11-18 (t
   only by `examples/web_server.ern`, whose test sends each request whole, and by a
   benchmark. An agent writes two tests: a head written in pieces, which is served, and a
   head that trickles past its time, which answers the timeout.
+
+**What is decided and waits for its build** stands between the two: items 92 and 93, what
+item 60 decided on 2026-11-17, and item 95, what a reading of five reviews from outside
+decided the same day (the log's *The Outside Reviews Read*).
+
 - **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
   log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
   `Tcp.readForever` and `Os.readForever` wait without a limit, as `Address.callForever`
@@ -221,6 +203,12 @@ Item 110, what item 87's build found, was planned with the user on 2026-11-18 (t
     `Upgrade` by then.
   - The tour's restart limit. Chapter 4 starts its counter with `within = 3600000`, in
     the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
+
+**What needs the user**, each a decision or a design discussion of its own. Item 101 stands
+first, since its rule is the measure for items 68 and 100. Item 100, ernest-httpd's session's
+two lines on a close, stands before item 96, since three of that session's tests wait on it.
+Item 96, feedback 260 of the reading of the reviews from outside, stands last of them.
+
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
   ([`limit_findings.md`](limit_findings.md), its section 3.2; the log's *The Limits Read*).
@@ -282,6 +270,9 @@ Item 110, what item 87's build found, was planned with the user on 2026-11-18 (t
   the file synced and, after the rename, its directory. Recommended: one function over a
   path, a file's or a directory's, with `Fs.write` left as it is, since a write that always
   synced would make every write pay for a need few have. E.17 changes first.
+
+**Last of all**, since nothing waits on it: two behaviors of OTP's that item 98's build met.
+
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
@@ -381,10 +372,12 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 87 | `make test-shell` runs under a home of the run's own, whose startup file prints a line and ends the session, so that a shell test that names no home fails; three starts in the integration and the install tests name a home, with the user | 2026-11-18 | *A Home of the Run's Own* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
-| 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
 | 97 | What else waits where a `send` to a peer waits: a call, a find, a spawn, a compute and a utilization are held before and after their wait, which §6.6, §6.7, §8.7 and E.27 now say; the gateway waits on no peer, its telling and its utilization's answer not sent where they would wait; a send to a lost peer returns, as the report had it | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
+| 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
 | 104 | The runtime's processes that serve the whole node wait on no peer: the killer, the reaper and the exchange's process set the host's `async_dist`, so that a kill ends its process and the node spawns while one peer takes nothing; the clock sends a peer nothing, and the departure's wait is §12.6's, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
 | 107 | `Process.status` says `Suspended` of a process the host holds, in a send to another node, in a kill the runtime carries out, or at a port of the node's own that takes no more; `:processes` writes `suspended`, last in a site's order, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
+
+---
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 
@@ -522,6 +515,8 @@ The discussion came first, item 43, and items 47 to 50 built what it decided.
 | 49 | A control character in a path a job writes: a refusal holds none, and §11 says so | 2026-11-15 | *A Refusal Holds No Control Character* |
 | 50 | The history file's owner | 2026-11-14 | *The Trust Said Once*, its paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third build* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
+
+---
 
 ## MVP 4.6 (the server owns both ends of its socket), a few days, before the launch
 
