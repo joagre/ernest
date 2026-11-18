@@ -64,7 +64,7 @@ A node whose peer dials it anew while it believes the old connection alive runs 
 
 What waits to be sent to a peer waits in the host's buffer for that peer, whose busy limit `ern` sets to 1 MB (`+zdbbl 1024`). The runtime sends with the host's plain send, which places a message whole and then suspends its sender while the buffer holds more than the limit, so the wait of §8.7 is the host's and nothing of the runtime's (§8.7, *Messages*; the log's *The Outside Reviews Read*).
 
-Every socket of the carrier has a linger of no time from its start: each dialed one by the boot flag `inet_dist_connect_options`, which the host reads at each dial, and the listener by `inet_dist_listen_options`, whose linger each accepted connection takes. So a close, at a loss, at a refusal or at the node's end, drops what the socket still holds, as a loss drops what waited, and the host's `halt` at the node's end waits for no peer that takes nothing (§8.7, *A loss*; §12.6, *A node's end*; `ern_carrier:boot_flags/1`; the log's *A Connection That Cannot Drain*).
+Every socket of the carrier has a linger of no time from its start: each dialed one by the boot flag `inet_dist_connect_options`, which the host reads at each dial, and the listener by `inet_dist_listen_options`, whose linger each accepted connection takes. So a close, at a loss, at a refusal or at the node's end, drops what the socket still holds, as a loss drops what waited (§8.7, *A loss*; §12.6, *A node's end*; `ern_carrier:boot_flags/1`; the log's *A Connection That Cannot Drain*). The job halts without the host's flush, so a node's end waits for no socket, a peer's or a program's (Appendix E.18; the log's *The Job Halts Without the Host's Flush*).
 
 ## Addresses
 

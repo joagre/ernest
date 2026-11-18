@@ -105,9 +105,9 @@
  * then an 'l' frame.
  *
  * It holds the lock until the process has ended, however it ends, and not
- * until fd 0 ends, which the host's halt closes while the node still runs.
- * It then removes the file, where the path still names the one it holds,
- * and exits, which lets the lock go. It ignores the signals a terminal or
+ * until fd 0 ends, which the node's end closes before then. It then
+ * removes the file, where the path still names the one it holds, and
+ * exits, which lets the lock go. It ignores the signals a terminal or
  * a service manager sends the node's process group, so that the lock goes
  * with the node and not before it. It keeps the node's standard error,
  * which the host gives every program it starts, until it exits, so that

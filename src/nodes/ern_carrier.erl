@@ -107,12 +107,12 @@ interface(none) -> [].
 %% Report §8.7, §12.5, §12.6: the kernel's options for the carrier's
 %% sockets, which the host takes as it boots and reads at each dial and
 %% listen: each socket a linger of no time, the listener's taken by each
-%% connection it accepts, so that a close drops what the socket still
-%% holds, as a loss drops what waited, and the node's end, whose `halt`
-%% waits for every socket to let go, waits for no peer that takes nothing;
-%% at a node's end each peer has answered before the close (§12.6, *A
-%% node's end*). The listener's family alone where it is IPv6's
-%% (family_alone/1); a node without one takes no listener's options.
+%% connection it accepts, so that a close, at a loss, at a refusal or at
+%% the node's end, drops what the socket still holds, as a loss drops what
+%% waited; at a node's end each peer has answered before the close (§12.6,
+%% *A node's end*), and the job's halt waits for no socket (ern_cli). The
+%% listener's family alone where it is IPv6's (family_alone/1); a node
+%% without one takes no listener's options.
 socket_options(Listen) ->
     Linger = [{linger, {true, 0}}],
     ["-kernel", "inet_dist_connect_options", options_text(Linger)]

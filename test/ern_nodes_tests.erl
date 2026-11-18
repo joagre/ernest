@@ -22,7 +22,8 @@
          address/1, edit/2, configuration/1, lists/2, peer/3, name/1, program/1, built/1,
          wait_ms_text/0, client/0, client/8, key_files/1, start/3, bare_started/2, bound_port/1,
          launched/2, says/2, says/3, prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0,
-         detector_ms/0, has/2, connected/2, accepted/1, received/2, collected/2, closed/1]).
+         detector_ms/0, has/2, connected/2, accepted/1, received/2, unread_writer/1,
+         read_to_its_end/1, collected/2, closed/1]).
 
 %% What waits for a node's end: its status, or `timeout` where it has not
 %% ended within the harness's time for one wait.
@@ -155,9 +156,9 @@ step(What, Steps) ->
     end.
 
 %% Report §8.6, a node detecting no deadlock: each node whose ernest.pid is
-%% still in a directory under Base killed, a stopped one among them, and one
-%% held in the host's halt. A test that passed has stopped its nodes, and
-%% the file of one a test killed is gone with it (report §12.5).
+%% still in a directory under Base killed, a stopped one among them. A test
+%% that passed has stopped its nodes, and the file of one a test killed is
+%% gone with it (report §12.5).
 killed(Base) ->
     lists:foreach(fun node_killed/1, filelib:wildcard(filename:join([Base, "*", "ernest.pid"]))).
 
@@ -3810,31 +3811,60 @@ killed_while_stopped(Base) ->
     ?assertNot(filelib:is_file(PidFile)),
     ?assertEqual(137, Wait()).
 
-%% report §12.5, §11.2: a node held in the host's halt, by a socket its
-%% program wrote more to than its client has taken, still runs, and holds
-%% its ernest.pid locked until its process has ended: in the hold the file
-%% is there and a node holds it; once the client reads, the node ends, a
-%% wait on the lock returns with the node's process ended, and the file is
-%% gone.
+%% report §12.5, §11.2, §8.6, Appendix E.18: a node whose program ends
+%% with more written to a socket than its client has taken ends with status
+%% 0 once the program has said its last line, while the client has read
+%% nothing; its process has ended and its ernest.pid is gone. The client
+%% then takes fewer bytes than were written, the socket's being sent only
+%% until the runtime stops, and meets the connection's end.
 %%
-%% A regression test, written after the code: the halt closed the lock's
-%% port, the lock went with it, and the node had removed the file before,
-%% so that `ern stop` said no node ran. The hold is seen from its start,
-%% the program's last line: it does not cover a lock that would go later in
-%% the hold, which nothing outside the node shows
-node_in_its_halt_test_() ->
-    nodes_test({waits, 8}, fun node_in_its_halt/1).
+%% A regression test, written after the code: the job's halt ran the
+%% host's flush, which waited without a limit for the socket's port to
+%% write what it held, so that the node was held until the client read. It
+%% does not cover a socket over TLS, a client that reads slowly, nor a node
+%% ended by a termination or by `ern stop`, and it does not count the bytes
+%% the kernel's buffers took, which no rule states. A plain run's end is
+%% ern_integration_tests's run_ends_over_an_unread_socket_test_.
+node_ends_over_an_unread_socket_test_() ->
+    nodes_test({waits, 8}, fun node_ends_over_an_unread_socket/1).
 
-node_in_its_halt(Base) ->
+node_ends_over_an_unread_socket(Base) ->
     A = made(Base, "a", none),
     PidFile = filename:join(A, "ernest.pid"),
-    Root = filename:join(Base, "build"),
+    Megabytes = 32,
+    {Input, Wait} = started(A, unread_writer(filename:join(Base, "build")),
+                            [integer_to_list(Megabytes)]),
+    prints(A, "listening on "),
+    {match, [Port]} = re:run(written(A, out), "listening on 127\\.0\\.0\\.1:([0-9]+)\n",
+                             [{capture, all_but_first, list}]),
+    Client = connected(list_to_integer(Port), []),
+    prints(A, "accepted"),
+    {ok, Text} = file:read_file(PidFile),
+    Number = list_to_integer(string:trim(binary_to_list(Text))),
+    true = port_command(Input, "go\n"),
+    prints(A, "served: Right(Unit)"),
+    ?assertEqual(0, Wait()),
+    _ = said(A),
+    ?assertEqual(none, ern_os:signal(0, Number)),
+    ?assertNot(filelib:is_file(PidFile)),
+    {Taken, End} = read_to_its_end(Client),
+    ?assert(Taken < Megabytes * 1048576),
+    ?assert(lists:member(End, [closed, econnreset])),
+    ok = gen_tcp:close(Client).
+
+%% Report Appendix E.18: a program that listens on the port of the loopback
+%% interface the system gives it, which it prints as `listening on
+%% 127.0.0.1:port`, takes one connection, waits for a line, writes the
+%% megabytes its argument gives to the socket, says what the write
+%% answered, and ends with the connection open, built in Root: one step.
+%% Answers its compiled form.
+-spec unread_writer(file:filename()) -> file:filename().
+unread_writer(Root) ->
     ok = filelib:ensure_path(Root),
-    ok = file:write_file(filename:join(Root, "halting.ern"), [<<"
-// Report §12.5: a node that listens, takes one connection, waits for a
-// line, writes the megabytes it is given to the socket, and ends with the
-// connection open, so that the host's halt waits on what its client has
-// not taken.
+    ok = file:write_file(filename:join(Root, "unread_writer.ern"), [<<"
+// Report Appendix E.18: a program that writes the megabytes it is given to
+// the one connection it takes, once a line comes, and ends with the
+// connection open.
 
 export fn main() : Unit =
     match Os.arguments {
@@ -3848,7 +3878,7 @@ export fn main() : Unit =
 fn served(megabytes : Int) : Either(Io.Error, Unit) = {
     let listener <- Tcp.listen(\"127.0.0.1\", 0);
     let port <- Tcp.port(listener);
-    Io.println(\"port \" <> Int.toString(port));
+    Io.println(\"listening on 127.0.0.1:\" <> Int.toString(port));
     let socket <- Tcp.accept(listener, waitMs());
     Io.println(\"accepted\");
     let _ = Io.readLine();
@@ -3857,26 +3887,21 @@ fn served(megabytes : Int) : Either(Io.Error, Unit) = {
 }
 "/utf8>>, wait_ms_declaration()]),
     0 = built([Root]),
-    Megabytes = 32,
-    {Input, Wait} = started(A, filename:join(Root, "halting.erc"), [integer_to_list(Megabytes)]),
-    prints(A, "port "),
-    {match, [Port]} = re:run(written(A, out), "port ([0-9]+)\n", [{capture, all_but_first, list}]),
-    Client = connected(list_to_integer(Port), []),
-    prints(A, "accepted"),
-    true = port_command(Input, "go\n"),
-    prints(A, "served: Right(Unit)"),
-    {ok, Text} = file:read_file(PidFile),
-    Number = list_to_integer(string:trim(binary_to_list(Text))),
-    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
-    Self = self(),
-    _ = spawn_link(fun() -> Self ! {unlocked, ern_os:node_signaled(PidFile, 0, true)} end),
-    ?assertMatch({ok, _}, received(Client, Megabytes * 1048576)),
-    ?assertEqual(0, Wait()),
-    step(unlocked),
-    ?assertEqual(sent, receive {unlocked, Answer} -> Answer after ?WAIT_MS -> timeout end),
-    ?assertEqual(none, ern_os:signal(0, Number)),
-    ?assertNot(filelib:is_file(PidFile)),
-    ok = gen_tcp:close(Client).
+    filename:join(Root, "unread_writer.erc").
+
+%% What a passive socket takes until its connection ends, read as it comes,
+%% each read given the harness's time for one wait: the count of its bytes
+%% and the reason the reads ended. One step.
+-spec read_to_its_end(gen_tcp:socket()) -> {non_neg_integer(), term()}.
+read_to_its_end(Socket) ->
+    step({read_to_its_end, Socket}),
+    read_to_its_end(Socket, 0).
+
+read_to_its_end(Socket, Taken) ->
+    case gen_tcp:recv(Socket, 0, ?WAIT_MS) of
+        {ok, Bytes} -> read_to_its_end(Socket, Taken + byte_size(Bytes));
+        {error, Reason} -> {Taken, Reason}
+    end.
 
 %% report §12.5: on a Linux without pidfd_open, one before 5.3, a node
 %% refuses to start, making no file, naming the system and its release as

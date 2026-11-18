@@ -76,8 +76,15 @@ start() ->
     %% it, is not lost to the signal it sends itself; the signal that ended
     %% the program stands over a stream found gone as the end waited (§8.6)
     Gone = ern_out:finish(ErrorDevice),
+    %% report §8.6, §11, Appendix E.18: the job halts without the host's
+    %% flush, which waits for every port to write what it holds, a
+    %% socket's among them, without a limit where the socket's far end
+    %% takes nothing; a socket's bytes are sent until the runtime stops,
+    %% and the stop is their bound. The job's own output is carried by its
+    %% own code instead: its streams written out above, and a stream that
+    %% is stopped writing out what its port holds (ern_rt)
     case {ern_signals:ended(), Gone} of
-        {none, []} -> halt(Status);
+        {none, []} -> halt(Status, [{flush, false}]);
         {none, [Stream | _]} -> ern_out:end_job(Stream);
         {Signal, _} -> ern_signals:die(Signal, Status)
     end.
@@ -127,7 +134,7 @@ node_flags() ->
                 _:_ -> []
             end,
     io:put_chars(Out, ["ern-node-flags " | lists:join(" ", [shell_quoted(Flag) || Flag <- Flags])]),
-    halt(0).
+    halt(0, [{flush, false}]).
 
 %% A word as the shell reads it back, in single quotes.
 shell_quoted(Word) ->

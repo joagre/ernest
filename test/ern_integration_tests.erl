@@ -1350,10 +1350,13 @@ stream_lost_at_end() ->
 %% of it as the program returns: all of it is read and the run's status is
 %% 0; and where the reader goes while the end waits, the stream that could
 %% not be written ends the program with status 141, on standard output and
-%% on standard error. A regression test, written after the code: the end
-%% polled the port's queue every millisecond (the log's *The Sitting on
-%% §8.6's Bookkeeping*); an end that did not wait gave status 0, since the
-%% host's halt writes what a port holds. It does not cover a device that
+%% on standard error.
+%%
+%% A regression test, written after the code: the end polled the port's
+%% queue every millisecond (the log's *The Sitting on §8.6's
+%% Bookkeeping*); an end that did not wait would give status 0, since a
+%% stream that is stopped writes out what its port holds once the outcome
+%% is decided (ern_rt's stream_loop/2). It does not cover a device that
 %% fails, which only some hosts have one of. Its steps: each program's
 %% build and two runs.
 drained_output_test_() ->
@@ -1407,6 +1410,126 @@ job_output_drained() ->
     %% unwritten
     {0, <<>>} = sh("sh -c '" ++ Run ++ "count=70000 of=/dev/null status=none'"),
     ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")).
+
+%% report §11, §8.6: what the host logged before a job's end is written
+%% before the job ends, on a standard error slow to take each write: a
+%% program has the host log twenty warnings and returns at once, so that
+%% standard error's process still writes them as the end stops it, and
+%% every one is written, with status 0. The device is slow by a library
+%% the job's command alone loads before the C library (slow_device/0).
+%%
+%% A regression test, written after the code: the stop did not drain its
+%% port, and the host's flush, which the job's halt no longer runs, wrote
+%% the last warning; without the drain it was lost in each of nine runs.
+%% It does not cover a reader that stops, a line said after the job's last
+%% wait, nor standard output. Its steps: the build and the run.
+slow_standard_error_test_() ->
+    ern_nodes_tests:counted_test({waits, 2}, fun slow_standard_error/0).
+
+slow_standard_error() ->
+    Dir = "build/slow_stderr",
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/warns.ern",
+                         ["foreign fn warn(text : String) : Unit =\n"
+                          "    \"logger:warning/1\"\n"
+                          "export fn main() : Unit =\n"
+                          "    List.forEach(List.range(1, 20),\n"
+                          "                 fn(n) = warn(\"warning \" <> Int.toString(n)))\n"]),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/warns.ern"),
+    Shim = filename:absname(Dir ++ "/slow_device.so"),
+    ok = file:write_file(Shim ++ ".c", slow_device()),
+    "" = os:cmd(lists:flatten(["cc -shared -fPIC -o ", Shim, " ", Shim, ".c -ldl"])),
+    {0, Said} = sh("env LD_PRELOAD=" ++ Shim ++ " ../bin/ern run " ++ Dir ++ "/warns.erc"),
+    Warnings = [Line || <<"warning ", _/binary>> = Line <- binary:split(Said, <<"\n">>, [global])],
+    ?assertEqual([iolist_to_binary(["warning ", integer_to_list(N)]) || N <- lists:seq(1, 20)],
+                 Warnings).
+
+%% A library for LD_PRELOAD, as C: each write to descriptor 2 is held 20 ms
+%% before the C library's makes it, as a slow terminal or a pipe whose
+%% reader is behind holds it, and every other write is the C library's. The
+%% 20 ms is the device's time for one write: longer than the job's end
+%% takes from the stop of standard error's process to its halt, so that a
+%% stop that leaves a write under way loses it.
+slow_device() ->
+    <<"#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <sys/uio.h>
+#include <time.h>
+#include <unistd.h>
+
+static void held(int fd)
+{
+    struct timespec pause = {0, 20000000L};
+    if (fd == 2)
+        nanosleep(&pause, NULL);
+}
+
+ssize_t writev(int fd, const struct iovec *iov, int count)
+{
+    static ssize_t (*host)(int, const struct iovec *, int);
+    if (host == NULL)
+        *(void **)&host = dlsym(RTLD_NEXT, \"writev\");
+    held(fd);
+    return host(fd, iov, count);
+}
+
+ssize_t write(int fd, const void *bytes, size_t count)
+{
+    static ssize_t (*host)(int, const void *, size_t);
+    if (host == NULL)
+        *(void **)&host = dlsym(RTLD_NEXT, \"write\");
+    held(fd);
+    return host(fd, bytes, count);
+}
+">>.
+
+%% report Appendix E.18, §8.6, §11.2: a run whose program ends with more
+%% written to a socket than its client has taken ends with status 0 once
+%% the program has said its last line, while the client has read nothing.
+%% The client then takes fewer bytes than were written, the socket's being
+%% sent only until the runtime stops, and meets the connection's end.
+%%
+%% A regression test, written after the code: the job's halt ran the
+%% host's flush, which waited without a limit for the socket's port to
+%% write what it held, so that the run was held until the client read. It
+%% does not cover a socket over TLS, a client that reads slowly, nor a run
+%% ended by a termination, and it does not count the bytes the kernel's
+%% buffers took, which no rule states. A node's end is ern_nodes_tests's
+%% node_ends_over_an_unread_socket_test_, whose program this is. Its steps:
+%% the build, the port's line, the connection, two lines, the run's end and
+%% the client's reads.
+run_ends_over_an_unread_socket_test_() ->
+    ern_nodes_tests:counted_test({waits, 7}, fun run_ends_over_an_unread_socket/0).
+
+run_ends_over_an_unread_socket() ->
+    Root = filename:absname("build/unread_socket"),
+    ok = del(Root),
+    Program = ern_nodes_tests:unread_writer(Root),
+    Megabytes = 32,
+    Server = open_port({spawn, "../bin/ern run " ++ Program ++ " " ++ integer_to_list(Megabytes)},
+                       [exit_status, stderr_to_stdout, binary]),
+    try
+        Client = ern_nodes_tests:connected(listening_port(Server), []),
+        ?assertEqual(ok, said_line(Server, <<"accepted">>)),
+        true = port_command(Server, "go\n"),
+        ?assertEqual(ok, said_line(Server, <<"served: Right(Unit)">>)),
+        ern_nodes_tests:step({ended, Server}),
+        ?assertEqual(0, receive {Server, {exit_status, Status}} -> Status
+                        after ern_nodes_tests:wait_ms() -> timeout
+                        end),
+        {Taken, End} = ern_nodes_tests:read_to_its_end(Client),
+        ?assert(Taken < Megabytes * 1048576),
+        ?assert(lists:member(End, [closed, econnreset])),
+        ok = gen_tcp:close(Client)
+    after
+        %% a run a failed step left, its port still open, is killed by its
+        %% process number
+        case erlang:port_info(Server, os_pid) of
+            {os_pid, OsPid} -> os:cmd("kill -KILL " ++ integer_to_list(OsPid));
+            undefined -> ok
+        end
+    end.
 
 %% report §12.1: a program writing faster than its reader reads is held to
 %% the reader's pace, so what it has written and the reader has not taken

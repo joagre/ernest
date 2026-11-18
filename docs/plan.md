@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 116**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 117**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -52,33 +52,24 @@ were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). 
 109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
 is what ernest-httpd's session handed back on 2026-11-17. Item 112 was found by the cold
 reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
-that item's build (the log's *A Checker Acts for the Target*). Items 116 and 117 were found by
-item 102's probes and decided with the user the same day (the log's *A Lock Held to the
-Process's End*).
+that item's build (the log's *A Checker Acts for the Target*). Item 117 was found by item
+102's probes and decided with the user the same day (the log's *A Lock Held to the Process's
+End*). Item 118 was found by item 116's reading and placed with the user the same day (the
+log's *The Job Halts Without the Host's Flush*).
 
-- **116. The job halts without the host's flush**, found 2026-11-18 by item 102's probes
-  (the log's *A Lock Held to the Process's End*, its paragraph *The halt waits for a
-  socket*). A program that ends with more written to a `Tcp` socket than its far end has
-  taken is held in the host's `halt` without a limit, on a node and under `ern run` alike:
-  the process ran on for 30 seconds in every run, until the client read. A termination
-  does nothing there, three runs of three, where §8.6 has it end the program at once; the
-  interrupt ends it. E.18 has a socket's bytes sent "until the runtime stops", so the stop
-  is the bound.
-
-  Decided with the user on 2026-11-18: the job halts without the host's flush, which
-  chooses no time. An agent first reads what else the flush carries, at each of the job's
-  halts, and shows that nothing of the job's own is lost. `make test-full` then shows what
-  leans on today's delivery. Line 33 of ernest-httpd's `docs/language_feedback.md` asked
-  for it, and is answered once it is built.
 - **117. A termination once the end has begun ends the flush of a stalled stream**, found
-  2026-11-18 by item 102's probes (the same entry, its paragraph *A termination in the
-  flush*). A node whose standard output a stopped reader holds waits in the end's flush,
-  and a termination sent then did not end it within 30 seconds, three runs of three. §8.6
-  has a termination once the end has begun end the program at once, and the deployment
-  guide has a second `ern stop` end at once, "losing what it was writing". No rule
-  changes. The cause is a reading and not shown: the runner waits for the stream and does
-  not take the signal. An agent diagnoses it first, standard error among it, and owns the
-  loop to a passing test.
+  2026-11-18 by item 102's probes (the log's *A Lock Held to the Process's End*, its
+  paragraph *A termination in the flush*). A node whose standard output a stopped reader
+  holds waits in the end's flush, and a termination sent then did not end it within 30
+  seconds, three runs of three. §8.6 has a termination once the end has begun end the
+  program at once, and the deployment guide has a second `ern stop` end at once, "losing
+  what it was writing". No rule changes. The cause is a reading and not shown: the runner
+  waits for the stream and does not take the signal. An agent diagnoses it first, standard
+  error among it, and owns the loop to a passing test.
+
+  Its test also asserts that the held node's `ernest.pid` is there and locked. A test held
+  that of a node in the host's halt until item 116 took the halt's hold away (the log's
+  *The Job Halts Without the Host's Flush*, its paragraph *The tests*).
 - **105. Whether a message is placed whole**, found 2026-11-17 by item 97's probes: a
   reading of the host's code, and not shown. §8.7 says that a message of any size "is
   placed there whole", and `docs/design/nodes.md` that the host's send "places a message
@@ -151,6 +142,13 @@ Process's End*).
   function that receives and one that receives nothing do not match. An agent shows both
   first: whether any program can write a `monitor` in `f`, and the help's two texts. What
   changes, §6.5's sentence or the type checker, is then decided with the user.
+- **118. What a listed peer's dial meets while a node ends**, found 2026-11-18 by item
+  116's reading (the log's *The Job Halts Without the Host's Flush*, its paragraph *Item
+  118*), and not read. A node's host takes dials from `ern_carrier:depart/0` until its
+  process exits, and that time is long while the end waits on a stalled stream. An agent
+  first shows, on two nodes, what a listed peer that dials then is told, what its sends and
+  its monitors meet, and which reason the node's exit gives it, against §8.7 and §12.6's
+  *A node's end*. What it shows is brought to the user.
 
 **What is decided and waits for its build** stands between the two: items 92 and 93, what
 item 60 decided on 2026-11-17, item 95, what a reading of five reviews from outside
@@ -401,6 +399,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 104 | The runtime's processes that serve the whole node wait on no peer: the killer, the reaper and the exchange's process set the host's `async_dist`, so that a kill ends its process and the node spawns while one peer takes nothing; the clock sends a peer nothing, and the departure's wait is §12.6's, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
 | 107 | `Process.status` says `Suspended` of a process the host holds, in a send to another node, in a kill the runtime carries out, or at a port of the node's own that takes no more; `:processes` writes `suspended`, last in a site's order, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
 | 111 | A checker acts for its address's target: where foreign code sends to an adapted address, the checker applies the function as on arrival; the reaper makes and holds each checker and takes its rows at its end, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
+| 116 | The job halts without the host's flush, so that a program's end waits for no socket whose far end takes nothing; a stream that is stopped writes out what its port holds; what the host logs or a node says once the job's output is flushed is not written, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
 
 ---
 

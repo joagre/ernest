@@ -76,9 +76,9 @@ die(Signal, Status) ->
     Number = case Signal of sigterm -> 15; sighup -> 1 end,
     try ern_os:signal(Number, list_to_integer(os:getpid())) of
         sent -> receive after infinity -> ok end;
-        _ -> erlang:halt(Status)
+        _ -> erlang:halt(Status, [{flush, false}])
     catch
-        error:_ -> erlang:halt(Status)
+        error:_ -> erlang:halt(Status, [{flush, false}])
     end.
 
 -spec init(term()) -> {ok, []}.

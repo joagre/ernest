@@ -3639,6 +3639,12 @@ system_process(Name) ->
 %% a write of nothing returns once the port has written all it was given
 %% (drained/1).
 %%
+%% Report §8.6, §11: a stream that is stopped writes out what its port holds
+%% before it ends, as a flush does, since the job's halt flushes no port: a
+%% line the stream took the moment before the stop, one said later or a
+%% checker's, is written before the job ends. A stream found gone there
+%% changes nothing, the end's outcome being decided.
+%%
 %% Report §12.1, §11.2: on a node a shell is attached to, a program's write
 %% by a process of a session's, or by a process of the runtime's own that
 %% acts for one, whom its reply names, goes through the sink of that
@@ -3673,6 +3679,7 @@ write_loop(Write, Name) ->
 stream_loop(Stream, Name) ->
     receive
         stop ->
+            _ = drained(Stream),
             ok;
         {flush, From, Ref} ->
             case drained(Stream) of

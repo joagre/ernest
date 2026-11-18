@@ -227,5 +227,5 @@ dropping(Stream) ->
 end_job(Stream) ->
     case is_terminal(Stream) of
         true -> ern_signals:die(sighup, ern_signals:status(sighup));
-        false -> erlang:halt(141)
+        false -> erlang:halt(141, [{flush, false}])
     end.

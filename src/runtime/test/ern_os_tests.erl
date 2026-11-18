@@ -1182,14 +1182,14 @@ node_file_test() ->
     released(Holder).
 
 %% report §12.5, §11.2: the helper holds a node's lock until the process
-%% it watches has ended, and not until its port closes, as the host's halt
-%% closes it while the node still runs: the holder of the port gone, the
-%% lock is still held and the process still signaled as the node; once the
-%% process has ended, the file is removed and then the lock let go, so that
-%% a wait on the lock returns with the file gone. A regression test,
+%% it watches has ended, and not until its port closes, which the node's
+%% end closes before the process has ended: the holder of the port gone,
+%% the lock is still held and the process still signaled as the node; once
+%% the process has ended, the file is removed and then the lock let go, so
+%% that a wait on the lock returns with the file gone. A regression test,
 %% written after the code: the lock went as the port closed. It does not
-%% cover the host's halt itself, which test/ern_nodes_tests.erl's
-%% node_in_its_halt_test_ holds a node in
+%% cover a node's own end, which test/ern_nodes_tests.erl's
+%% node_ends_over_an_unread_socket_test_ holds
 lock_outlives_its_port_test() ->
     PidFile = filename:join(node_dir("ern_os_outlives_"), "ernest.pid"),
     {Living, Number} = living(),
