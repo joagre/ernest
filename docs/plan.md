@@ -162,8 +162,9 @@ that item's build (the log's *A Checker Acts for the Target*).
   changes, §6.5's sentence or the type checker, is then decided with the user.
 
 **What is decided and waits for its build** stands between the two: items 92 and 93, what
-item 60 decided on 2026-11-17, and item 95, what a reading of five reviews from outside
-decided the same day (the log's *The Outside Reviews Read*).
+item 60 decided on 2026-11-17, item 95, what a reading of five reviews from outside
+decided the same day (the log's *The Outside Reviews Read*), and item 114, what item 111's
+build found, decided on 2026-11-18 (the log's *The Process Behind a Check*).
 
 - **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
   log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
@@ -207,11 +208,21 @@ decided the same day (the log's *The Outside Reviews Read*).
   - The tour's restart limit. Chapter 4 starts its counter with `within = 3600000`, in
     the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
 
+- **114. `Process.fromAddress` answers the process behind a check**, found 2026-11-18 by
+  item 111's build and decided with the user the same day (the log's *The Process Behind a
+  Check*). An address of the program's that foreign code gives back at another type than it
+  crossed at is foreign (§8.4), and `Process.fromAddress` of it answered the checker in
+  front of the process: the two were not `==`, and a `kill` of it ended the checker while
+  the target lived. E.21 has `fromAddress` answer the process behind the address, and
+  `monitor` already takes such a `Process` for the target. The build brings the code to
+  E.21, whose line gains the check beside the adapted address. Its tests: the two are `==`,
+  and a `kill` of it ends the target.
+
 **What needs the user**, each a decision or a design discussion of its own. Item 101 stands
 first, since its rule is the measure for items 68 and 100. Item 100, ernest-httpd's session's
 two lines on a close, stands before item 96, since three of that session's tests wait on it.
-Item 96, feedback 260 of the reading of the reviews from outside, stands after it. Items 113
-and 114, what item 111's cold reading and its build found on 2026-11-18, stand last of them.
+Item 96, feedback 260 of the reading of the reviews from outside, stands after it. Item 113,
+what item 111's cold reading found on 2026-11-18, stands last of them.
 
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
@@ -289,16 +300,6 @@ and 114, what item 111's cold reading and its build found on 2026-11-18, stand l
   A server that gives foreign code a fresh adapted address for each request keeps a process
   for each while it lives, which §10 states. To decide with the user: whether a check ends
   sooner, and at what.
-
-- **114. A program can name a checker**, found 2026-11-18 by item 111's build (the log's
-  *A Checker Acts for the Target*). An address of the program's that foreign code gives back
-  at another type than it crossed at is foreign (§8.4). `Process.fromAddress` of it answers
-  the checker in front of the process, and not the process: in the agent's program the two
-  are not `==`, and a `kill` of it ends the checker while the target lives. A `monitor` of
-  the same `Process` watches the target. Since item 111 a later exposure is checked again,
-  and what foreign code sends to the address it already holds is lost. To decide with the
-  user: what `Process.fromAddress` answers there. Recommended: the process the address
-  names, as `monitor` already takes it (principle 1).
 
 **Last of all**, since nothing waits on it: two behaviors of OTP's that item 98's build met.
 
