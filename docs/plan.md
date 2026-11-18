@@ -50,7 +50,9 @@ sentence says.
 **What was found**, each item begun by an agent that shows it or tests it. Items 105 and 106
 were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). Items 108,
 109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
-is what ernest-httpd's session handed back on 2026-11-17.
+is what ernest-httpd's session handed back on 2026-11-17. Item 112 was found by the cold
+reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
+that item's build (the log's *A Checker Acts for the Target*).
 
 - **102. A node in its halt holds no lock, and `ern stop` says that no node runs**, found
   2026-11-17 by item 98's build (the log's *A Connection That Cannot Drain*, its paragraph
@@ -135,6 +137,30 @@ is what ernest-httpd's session handed back on 2026-11-17.
   benchmark. An agent writes two tests: a head written in pieces, which is served, and a
   head that trickles past its time, which answers the timeout.
 
+- **112. A check across two nodes: a loss ends it, and its fault can pass a message**, found
+  2026-11-18 by the cold reading of item 111's sentences (the log's *A Checker Acts for the
+  Target*), read from the code and not shown. A check stands in front of an address until
+  the process the address names ends (§8.4), and an address reaches its process again after
+  a loss (§8.7). The checker ends at its monitor of that process, and a monitor of a process
+  on another node ends at a loss. What foreign code sends to the address after the loss
+  would then be lost, though an Ernest sender reaches the process again. An agent shows it
+  on two nodes first. The fix's shape: a checker stands through a loss and ends at its
+  process's end alone.
+
+  Read with it, from the code too: where an address crossed on another node than its
+  maker's, a failed check's fault goes straight to the target, and a checked message goes
+  by the maker's node (§6.5). So the fault can pass a good message sent before it, where
+  §8.4 has it take the message's place.
+
+- **115. A `monitor` in an adapted address's function, and a help that leads to a second
+  refusal**, found 2026-11-18 by item 111's build (the log's *A Checker Acts for the
+  Target*). §6.5 says whose a `monitor` in `f` is. `adapted` takes a function that receives
+  nothing, and the type checker refused a `monitor` in the agent's lambda. Its help says to
+  give the lambda its mailbox type, and the lambda so written is refused again, since a
+  function that receives and one that receives nothing do not match. An agent shows both
+  first: whether any program can write a `monitor` in `f`, and the help's two texts. What
+  changes, §6.5's sentence or the type checker, is then decided with the user.
+
 **What is decided and waits for its build** stands between the two: items 92 and 93, what
 item 60 decided on 2026-11-17, and item 95, what a reading of five reviews from outside
 decided the same day (the log's *The Outside Reviews Read*).
@@ -184,8 +210,8 @@ decided the same day (the log's *The Outside Reviews Read*).
 **What needs the user**, each a decision or a design discussion of its own. Item 101 stands
 first, since its rule is the measure for items 68 and 100. Item 100, ernest-httpd's session's
 two lines on a close, stands before item 96, since three of that session's tests wait on it.
-Item 96, feedback 260 of the reading of the reviews from outside, stands after it. Item 111,
-what item 91's build found, stands last of them.
+Item 96, feedback 260 of the reading of the reviews from outside, stands after it. Items 113
+and 114, what item 111's cold reading and its build found on 2026-11-18, stand last of them.
 
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
@@ -203,6 +229,13 @@ what item 91's build found, stands last of them.
   ordering them costs a fraction of them; a sentence where one act is the host's and a
   program meets the order; nothing where no program can tell. The seven are then read
   against the rule, and one that falls otherwise is brought to the user.
+
+  An eighth case is read with the seven, placed with the user on 2026-11-18 (the log's *A
+  Checker Acts for the Target*), though no test met it: the order of the messages foreign
+  code sends. Each address that crossed has a check of its own (§8.4), so what foreign code
+  sends through two addresses of one process, and what it sends against what its caller
+  sends after it, can change places. §6.4 and §8.7 give a process's messages an order, and
+  no sentence says whether a message foreign code sends is a process's.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
@@ -249,19 +282,23 @@ what item 91's build found, stands last of them.
   path, a file's or a directory's, with `Fs.write` left as it is, since a write that always
   synced would make every write pay for a need few have. E.17 changes first.
 
-- **111. Who a checker acts for**, found 2026-11-18 by item 91's build (the log's *A
-  Checker Among the Processes*). §6.5 says whose the work of an adapted address's function
-  is in three cases, the sender's, the target's and that of the process kept for the
-  address. It names no checker, which applies the function for a message foreign code
-  sends. The runtime answers the checker itself, a process of its own with no row, so
-  `Process.current()` there is the checker and a `kill` of it ends the checker. Its
-  `behind` row then stands, which the agent's probe read.
+- **113. A process for each address that crossed**, feedback 265, found 2026-11-18 by the
+  cold reading of item 111's sentences (the log's *A Checker Acts for the Target*). §8.4
+  keeps one check for each distinct address that has crossed, until the process the address
+  names ends, and an adapted address is distinct by its function and by what it captured.
+  A server that gives foreign code a fresh adapted address for each request keeps a process
+  for each while it lives, which §10 states. To decide with the user: whether a check ends
+  sooner, and at what.
 
-  Read from the code and not shown: its `checker` row stands too, so a later exposure of
-  the same address at the same type is given the dead checker and its messages are lost.
-  A `monitor` in the function puts its `Down` in the checker's mailbox, where it is
-  checked as a message of foreign code's. To decide with the user: what §6.5 says of a
-  message foreign code sends, and what a checker's end leaves behind.
+- **114. A program can name a checker**, found 2026-11-18 by item 111's build (the log's
+  *A Checker Acts for the Target*). An address of the program's that foreign code gives back
+  at another type than it crossed at is foreign (§8.4). `Process.fromAddress` of it answers
+  the checker in front of the process, and not the process: in the agent's program the two
+  are not `==`, and a `kill` of it ends the checker while the target lives. A `monitor` of
+  the same `Process` watches the target. Since item 111 a later exposure is checked again,
+  and what foreign code sends to the address it already holds is lost. To decide with the
+  user: what `Process.fromAddress` answers there. Recommended: the process the address
+  names, as `monitor` already takes it (principle 1).
 
 **Last of all**, since nothing waits on it: two behaviors of OTP's that item 98's build met.
 
@@ -370,6 +407,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
 | 104 | The runtime's processes that serve the whole node wait on no peer: the killer, the reaper and the exchange's process set the host's `async_dist`, so that a kill ends its process and the node spawns while one peer takes nothing; the clock sends a peer nothing, and the departure's wait is §12.6's, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
 | 107 | `Process.status` says `Suspended` of a process the host holds, in a send to another node, in a kill the runtime carries out, or at a port of the node's own that takes no more; `:processes` writes `suspended`, last in a site's order, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
+| 111 | A checker acts for its address's target: where foreign code sends to an adapted address, the checker applies the function as on arrival; the reaper makes and holds each checker and takes its rows at its end, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
 
 ---
 

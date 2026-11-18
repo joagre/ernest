@@ -6,7 +6,8 @@
 -export([run/1, run/2, run_at_terminal/1, run/3, scratch/0, write_golden/0, frame_of/1, poke/1,
          stack_here/0, calls_held/0, pair/0, funs/0, opt/1, improper/1, remember/1, junk/1,
          good/1, tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1,
-         same/1, call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1, taken/0]).
+         same/1, call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1, checker_ended/1,
+         taken/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -3405,6 +3406,15 @@ ask(Server, Value) ->
               receive {Reply, Address} -> Address ! {'Go', Value} end
           end),
     'Unit'.
+%% report §8.4: foreign code that ends the checker it was given, as the host
+%% ends a process, waited for until the reaper, which holds the checker, has
+%% taken its end
+-spec checker_ended(pid()) -> 'Unit'.
+checker_ended(Checker) ->
+    exit(Checker, kill),
+    ok = ern_waits:until(ern_rt:launch_reaper(),
+                         fun() -> ets:lookup(ern_checkers, {behind, Checker}) =:= [] end),
+    'Unit'.
 
 %% report §4.5: an Ernest function named like an auto-imported
 %% Erlang BIF, `size`, `max`, is called by its own name
@@ -4369,6 +4379,127 @@ foreign_fault_restarts_test() ->
                      "    Io.println(Int.toString(Address.callForever(h,"
                      " fn(r) = Hold(reply = r))))\n"
                      "}\n" ++ Main("ask(h)"))).
+
+%% report §8.4, §6.5, Appendix E.21: an adapted address that crossed into
+%% foreign code on the node that made it has its function applied as on
+%% arrival, in the checker, which acts for the target: `Process.current()`
+%% in the function is the target, and `self()` the target's address, the
+%% process `Process.fromAddress` gives for it
+checker_acts_for_the_target_test() ->
+    ?assertEqual({ok, <<"#(true, true)\n">>}, run(
+        "type MainMsg = Seen(current : Process, own : Process)\n" ++ foreign_sent() ++
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let seeing = adapted(self(), fn(_ : Int) : MainMsg =\n"
+        "        Seen(current = Process.current(), own = Process.fromAddress(self())));\n"
+        "    let _ = sent(Foreign.term(seeing), Foreign.term(1));\n"
+        "    receive {\n"
+        "        Seen(=current, =own) ->\n"
+        "            Io.println(Io.show(#(current == Process.current(),"
+        " own == Process.current())))\n"
+        "    }\n"
+        "}\n")).
+
+%% report §8.4, §6.5, §6.9: a kill of `Process.current()` in the function a
+%% checker applies ends the target, as the target's kill of itself does, and
+%% nothing of the function after the kill is done
+checker_kill_ends_the_target_test() ->
+    Killed = {ok, <<"Killed\n">>},
+    ?assertEqual(Killed, run(checked_target("Unit", "{ kill(Process.current()); Stop }",
+                                            "Foreign.term(1)"))),
+    ?assertEqual(Killed, run(checked_target("kill(Process.current())", "Stop",
+                                            "Foreign.term(1)"))).
+
+%% report §8.4, §6.9, §7.4: a restarting function called in the function a
+%% checker applies faults before anything of a restart begins, and the
+%% target meets the fault at its next wait
+checker_refuses_a_restart_test() ->
+    ?assertEqual({ok, <<"Fault(\"restart in a function the runtime applies\")\n">>},
+                 run(checked_target("Unit",
+                                    "{\n"
+                                    "        restarting(RestartLimit(restarts = 1,"
+                                    " within = 60000), fn() = Unit)();\n"
+                                    "        Stop\n"
+                                    "    }", "Foreign.term(1)"))).
+
+%% report §8.4: a check lasts until the process its address names ends, so
+%% where foreign code ends the checker first, the reaper, which holds it,
+%% takes its rows, and a later exposure of the same address at the same type
+%% is checked by another checker, through which the message arrives
+ended_checker_is_checked_again_test() ->
+    ?assertEqual({ok, <<"Ping\n">>}, run(
+        "type MainMsg = Ping\n"
+        "foreign fn ended(checker : Foreign.Term) : Unit =\n"
+        "    \"ern_emitter_tests:checker_ended/1\"\n" ++ foreign_sent() ++
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    ended(Foreign.term(self()));\n"
+        "    let _ = sent(Foreign.term(self()), Foreign.atom(\"Ping\"));\n"
+        "    receive { Ping -> Io.println(\"Ping\") }\n"
+        "}\n")).
+
+%% report §8.4, §6.5, §12.3: a message foreign code sends to an adapted
+%% address is checked against the type the address crossed at before its
+%% function is applied, so a bad one faults the target with the check's
+%% cause, which names that type, and the function, which would fault with a
+%% cause of its own, is not applied. A regression test, written after the
+%% code
+checked_before_applied_test() ->
+    ?assertEqual({ok, <<"Fault(\"message does not match Int\")\n">>},
+                 run(checked_target("Unit", "fault(\"applied\")", "Foreign.atom(\"junk\")"))).
+
+%% report §8.4, §6.5: a function that runs in the checker as its target
+%% ends runs on, as it does in a process kept for a peer's messages, and
+%% the checker ends once it returns. The target ends while the function
+%% waits in a call, which the gate answers only once main has the target's
+%% Down; the function then tells main. A regression test, written after the
+%% code; it does not cover what the checker does with a message that comes
+%% after the target's Down
+checker_runs_on_past_its_target_test() ->
+    ?assertEqual({ok, <<"Returned\napplied\n">>}, run(
+        "type MainMsg = Ended(Down) | Applied\n"
+        "type GateMsg = Pass(Reply(Unit)) | Open\n" ++ foreign_sent() ++
+        "fn gating() : Unit receiving GateMsg = receive {\n"
+        "    Pass(reply) -> receive { Open -> answer(reply, Unit) }\n"
+        "}\n"
+        "fn target(main : Address(MainMsg), gate : Address(GateMsg)) : Unit receiving Int = {\n"
+        "    let applying = adapted(self(), fn(n : Int) : Int = {\n"
+        "        Address.callForever(gate, Pass);\n"
+        "        send(main, Applied);\n"
+        "        n\n"
+        "    });\n"
+        "    let _ = sent(Foreign.term(applying), Foreign.term(1));\n"
+        "    Unit\n"
+        "}\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let gate = spawn(gating);\n"
+        "    let me = self();\n"
+        "    let _ = spawnMonitored(fn() = target(me, gate), Ended);\n"
+        "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) };\n"
+        "    send(gate, Open);\n"
+        "    receive { Applied -> Io.println(\"applied\") }\n"
+        "}\n")).
+
+%% A program whose target does Before and then gives foreign code an
+%% adapted address of Int, whose function is Function, which foreign code
+%% sends Message; main prints how the target ended.
+checked_target(Before, Function, Message) ->
+    "type TargetMsg = Stop\n"
+    "type MainMsg = Ended(Down)\n" ++ foreign_sent() ++
+    "fn target() : Unit receiving TargetMsg = {\n"
+    "    " ++ Before ++ ";\n"
+    "    let checked = adapted(self(), fn(_ : Int) : TargetMsg = " ++ Function ++ ");\n"
+    "    let _ = sent(Foreign.term(checked), " ++ Message ++ ");\n"
+    "    receive { Stop -> Io.println(\"Stop\") }\n"
+    "}\n"
+    "export fn main() : Unit receiving MainMsg = {\n"
+    "    let _ = spawnMonitored(target, Ended);\n"
+    "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) }\n"
+    "}\n".
+
+%% The declaration by which a program stands in for foreign code that sends
+%% an address a message, as the host sends it.
+foreign_sent() ->
+    "foreign fn sent(to : Foreign.Term, message : Foreign.Term) : Foreign.Term =\n"
+    "    \"erlang:send/2\"\n".
 
 %% report §8.4, Appendix E.12: `Foreign.term` gives its value as a foreign
 %% function's argument of the value's type crosses: an address goes behind

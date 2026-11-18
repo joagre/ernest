@@ -26,6 +26,7 @@ This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and
 - A call's wait and a sleep's (Appendix E.15) read the caller's mailbox, where a restart asked for is taken (§6.9), and their cost grows with the messages waiting.
 - A spawn and a monitor cost, beside the host's operation, a message to the runtime and its answer. A `kill` costs a message to a process of the runtime's own, there from the run's start, which reads the killed process's call (§6.6) before it ends it; a message the caller of `kill` sends after it may reach the process before it ends (§6.9).
 - A delivery through a wrap, a `Down`'s, an alarm's and the end's, costs a process of its own, which applies the wrap (§6.9); a subscription to the terminal or to faults costs one process, made with it, which applies its wrap to each delivery in turn (§12.1, Appendix E.21); and a message to an adapted address from another node than the one that made it costs, on that node, a message to the process kept for the address and the sender's node, which applies its function, one back from it, and that process's start where none waits (§6.5).
+- A check of what foreign code sends to an address (§8.4) costs a process, kept while the check lasts, whose start as the address crosses costs a message to the runtime and its answer, as a spawn does. Each message foreign code sends to the address costs a message on from that process, and an adapted address's function the check applies runs in that process.
 - A compute on a peer costs what a spawn there costs and a call's answer; a utilization costs its frame and its answer, the peer reading the host's own counters and scanning nothing; a node's telling costs one frame to each peer every `utilization-interval` and one as a peer connects, and a pick a read of what the node holds and a draw, no frame (Appendix E.27).
 - A restart costs, for each other node with a process that monitors the restarting one or whose call on it has not ended, a frame each way, which the restart waits for whether or not the node holds a service monitor on it, at the latest until a loss (§6.9, §8.7).
 - A node's end costs a frame to each connected peer and that peer's answer, which the end waits for, at the latest until a loss (§8.7).
@@ -789,7 +790,7 @@ A foreign function that raises faults the calling process with `Fault("foreign f
 
 A mismatch at a check of §8.4 faults the calling process: `Fault("the return of foreign function m:f/n does not match T")`, `Fault("reply does not match T")`, and an argument foreign code gives an Ernest function `f` `Fault("an argument of f from foreign code does not match T")` (§8.4).
 
-A message from a foreign process that does not match the mailbox type faults the receiver on delivery (§8.4): `Fault("message does not match M")`.
+A message from a foreign process that does not match the type its address crossed at, `M`, faults the receiver on delivery (§8.4): `Fault("message does not match M")`.
 
 Each names the declared type, a type variable in it written `a`, `b` and on in the order the variables stand in the type, whatever names the declaration writes (Appendix H). Each check reaches as far as §8.4 has it reach: its **What is checked** and **Type variables** say what crosses unchecked.
 

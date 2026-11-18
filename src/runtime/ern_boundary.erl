@@ -7,7 +7,9 @@
 %% foreign code gave, is exposed: every Ernest address in it is replaced by
 %% a checker that checks each message the foreign side sends against the
 %% address's mailbox type on delivery and forwards it, or ends the target
-%% with the fault.
+%% with the fault. The checker is a process of the runtime's own that acts
+%% for the target, as a process kept for an adapted address does
+%% (ern_rt:checker_for/3).
 %%
 %% An address that comes from foreign code and names no process of the
 %% program is held as foreign, {foreign, Pid, Descriptor, Bound},
@@ -37,7 +39,7 @@
 -include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({own_process, [checker_loop/6]}).
+-receives({own_process, [checker_loop/5]}).
 
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
                     | unit | foreign
@@ -420,25 +422,27 @@ expose({mu, Id, Descriptor}, Value, Bound) -> expose(Descriptor, Value, Bound#{I
 expose({ref, Id}, Value, Bound) -> expose(maps:get(Id, Bound), Value, Bound);
 expose(_, Value, _) -> Value.
 
-%% The checker lives as long as the address it stands before, and there is
-%% one of it per address and mailbox type however often the address is
-%% exposed; a message that does not match ends the process behind the
-%% address with the fault, as its own receive would have.
+%% Report §8.4: the checker lives as long as the process behind the address
+%% it stands before, and there is one of it per address and mailbox type
+%% however often the address is exposed (ern_rt:checker_for/3); a message
+%% that does not match ends the process behind the address with the fault,
+%% as its own receive would have. A message that matches is sent on as a
+%% send of this node's sends it: an adapted address made on this node has
+%% its function applied here, as on arrival (§6.5), the checker acting for
+%% the target, and one made on another node is carried to that node.
 checker(Behind, MessageDescriptor, Bound, Cause) ->
-    Key = {Behind, MessageDescriptor, Bound},
-    ern_rt:checker_for(Key, Behind,
-                     fun() -> start_checker(Key, Behind, MessageDescriptor, Bound, Cause) end).
+    ern_rt:checker_for({Behind, MessageDescriptor, Bound}, Behind,
+                       fun(Target) ->
+                           MonitorRef = erlang:monitor(process, Target),
+                           checker_loop(Behind, MonitorRef, MessageDescriptor, Bound, Cause)
+                       end).
 
-start_checker(Key, Behind, MessageDescriptor, Bound, Cause) ->
-    erlang:spawn(fun() ->
-                     MonitorRef = erlang:monitor(process, ern_rt:process_of(Behind)),
-                     checker_loop(Key, Behind, MonitorRef, MessageDescriptor, Bound, Cause)
-                 end).
-
-checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
+%% Report §6.5: a function that runs as the target ends runs on, and the
+%% checker takes its messages in turn until the target's Down, at which it
+%% ends, the reaper taking its rows.
+checker_loop(Behind, MonitorRef, Descriptor, Bound, Cause) ->
     receive
         {'DOWN', MonitorRef, process, _, _} ->
-            ern_rt:checker_forget(Key, erlang:self()),
             ok;
         Message ->
             case conformed(Descriptor, Message, Bound) of
@@ -451,5 +455,5 @@ checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
                 error ->
                     ern_rt:process_of(Behind) ! {'$ern_fault', {ern, fault, Cause}}
             end,
-            checker_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
+            checker_loop(Behind, MonitorRef, Descriptor, Bound, Cause)
     end.

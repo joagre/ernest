@@ -396,12 +396,13 @@ call_at_checker_is_no_deadlock_test() ->
         "}\n")).
 
 %% report §8.6, §8.4: a checker that has ended holds nothing, so a program
-%% whose one process waits for a message nothing can send is a deadlock,
-%% though the checker's rows stand where foreign code ended it. A regression
-%% test, written after the code: read as a process of the program is, an
-%% ended checker would keep every look from finding the deadlock. Not
-%% covered: a checker ended by a kill of `Process.current()` in the function
-%% of an adapted address it applies
+%% whose one process waits for a message nothing can send is a deadlock
+%% where foreign code ended the checker. A regression test, written after
+%% the code: read as a process of the program is, an ended checker would
+%% keep every look from finding the deadlock. The reaper takes the
+%% checker's rows as it takes its end, before its next look, so the test no
+%% longer reaches the look's leaving out of an ended checker, which only a
+%% checker that ends while a look reads meets, and which it does not place
 ended_checker_is_no_delivery_test() ->
     {Result, _} = ern_emitter_tests:run(
         "type MainMsg = Done\n"

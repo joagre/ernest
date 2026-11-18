@@ -50,7 +50,7 @@
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
          writes_through/1, faults/1, termination/1,
-         expected/1, checker_for/3, checker_forget/2, source_begin/0, source_begin/1, source_end/0,
+         expected/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, peer_wait/1, peer_waited/0,
          deadline/1, deadline/2, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
@@ -87,7 +87,7 @@
                          evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, faults/1, ask_monitor/2, demonitor/1,
                               spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
-                              evaluator_ended/2, captured/1]}).
+                              evaluator_ended/2, captured/1, checker_for/3]}).
 -receives({own_process, [said_later/0, wait_for_later/0, kept_loop/2, reaper_loop/2, settler/4,
                          killer_loop/0, wait_for_ends/1, ended_program/0, counted_link/3,
                          delivery_ended/1, fault_courier/0, courier_ended/1,
@@ -188,10 +188,11 @@
 %% reads its own deliveries and no other process's
 -define(DELIVERIES, ern_deliveries).
 %% report §8.4: each checker, {{checker, Key}, Checker}, and what it
-%% stands in front of, {{behind, Checker}, Pid, Address, Key}, read where
-%% an address is taken back to its process (process_of/1, held/3) and,
-%% report §8.6, by the deadlock look, which reads each checker as it reads
-%% a process of the program
+%% stands in front of, {{behind, Checker}, Pid, Address, Key}, written as
+%% the reaper makes the checker (started_checker/3) and taken by it as the
+%% checker ends (unchecked/1), read where an address is taken back to its
+%% process (process_of/1, held/3) and, report §8.6, by the deadlock look,
+%% which reads each checker as it reads a process of the program
 -define(CHECKERS, ern_checkers).
 %% report §12.1, §8.6: the launch, #launch{}, the way the terminal is read,
 %% {reading, Kind}, the entry process, {entry_process, Pid}, the process a
@@ -261,16 +262,16 @@
 -define(LOOK_SOON, 100).
 -define(LOOK_LATER, 1000).
 
-%% Report §6.9, §6.5, Appendix E.18, E.21, E.23: what stands for a row in
-%% a process of the runtime's own that runs a program's function for
-%% another process, a delivery, a courier and the process kept for an
-%% adapted address, held in its dictionary under ?ACTING
-%% (acting_for/1): the process it acts for, its recipient, which
-%% Process.current answers, whose address self answers, whose monitor a
-%% monitor there is, which its spawns are chained to, and which owns what
-%% the function opens; or none, where the recipient is on another node, and
-%% the process acts for itself. Under either, a restart is refused there
-%% (restarting/2).
+%% Report §6.9, §6.5, §8.4, Appendix E.18, E.21, E.23: what stands for a row
+%% in a process of the runtime's own that runs a program's function for
+%% another process, a delivery, a courier, the process kept for an adapted
+%% address and the checker in front of an address exposed to foreign code,
+%% held in its dictionary under ?ACTING (acting_for/1): the process it acts
+%% for, its recipient, which Process.current answers, whose address self
+%% answers, whose monitor a monitor there is, which its spawns are chained
+%% to, and which owns what the function opens; or none, where the recipient
+%% is on another node, and the process acts for itself. Under either, a
+%% restart is refused there (restarting/2).
 -define(ACTING, '$ern_acting').
 
 %% An adapted address holds the process that made it, whose node is the
@@ -507,15 +508,16 @@ kept_loop(Address, Worker) ->
             ok
     end.
 
-%% Report §6.9, §6.5: the calling process of the runtime's own, a delivery,
-%% a courier (ern_tty, fault_courier/0) or a process kept for an adapted
-%% address, made to act for Recipient, the process it delivers to, where
-%% Recipient is on this node: what the function it runs opens, spawns or
-%% asks of the runtime is Recipient's, as if Recipient had done it itself
-%% (?ACTING). Where Recipient is on another node, as an adapted address's
-%% target may be, it acts for none, as §6.5 says: a resource the function
-%% opens is the calling process's and ends with it, and a process it spawns
-%% heads a chain of its own.
+%% Report §6.9, §6.5, §8.4: the calling process of the runtime's own, a
+%% delivery, a courier (ern_tty, fault_courier/0), a process kept for an
+%% adapted address or a checker (started_checker/3), made to act for
+%% Recipient, the process it delivers to, where Recipient is on this node:
+%% what the function it runs opens, spawns or asks of the runtime is
+%% Recipient's, as if Recipient had done it itself (?ACTING). Where
+%% Recipient is on another node, as an adapted address's target may be, it
+%% acts for none, as §6.5 says: a resource the function opens is the
+%% calling process's and ends with it, and a process it spawns heads a chain
+%% of its own.
 -spec acting_for(pid()) -> ok.
 acting_for(Recipient) when node(Recipient) =:= node() ->
     _ = erlang:put(?ACTING, Recipient),
@@ -684,15 +686,16 @@ spawn_with_monitors(Function, Site, Monitors, Chain) ->
 
 %% Report §6.5, §6.9: the prelude's self, the address of the running
 %% process, or of the process a process of the runtime's own acts for, a
-%% delivery's recipient or an adapted address's target (acting_for/1), as
-%% Process.current reads it.
+%% delivery's recipient or an adapted address's target, which a process
+%% kept for the address or a checker applies its function for
+%% (acting_for/1), as Process.current reads it.
 -spec self() -> pid().
 self() ->
     current().
 
 %% Appendix E.21, report §6.9: Process.current, the running process, or the
-%% process a delivery or a process kept for an adapted address acts for
-%% (acting_for/1).
+%% process a delivery, a courier, a process kept for an adapted address or
+%% a checker acts for (acting_for/1).
 -spec current() -> pid().
 current() ->
     case erlang:get(?ACTING) of
@@ -1201,12 +1204,14 @@ demonitor(Process) ->
 %% ended by killed/2; one of another node by its own node, asked by a frame
 %% to that node's gateway, which is sent as a send is and vanishes where
 %% the node is out of reach, and which that node carries out as its own
-%% kill (ern_peer:frame/2). Report §6.9, §6.5: a process of the runtime's own that
-%% kills the process it acts for ends there, as that process would had it
-%% killed itself, so that nothing its function does after the kill is
-%% done, a delivery's message delivered among it; it ends as one that
-%% returned, so that what it is linked to goes on, and the recipient's end
-%% takes what it held (abandoned/1).
+%% kill (ern_peer:frame/2).
+%%
+%% Report §6.9, §6.5: a process of the runtime's own that kills the process
+%% it acts for ends there, as that process would had it killed itself, so
+%% that nothing its function does after the kill is done, a delivery's
+%% message delivered among it, a checker's message sent on among it (§8.4);
+%% it ends as one that returned, so that what it is linked to goes on, and
+%% the recipient's end takes what it held (abandoned/1).
 -spec kill(pid()) -> 'Unit'.
 kill(Pid) when node(Pid) =:= node() ->
     %% report §8.2: no program can name a system process, whose reference is
@@ -1340,10 +1345,11 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% process's row, and tells each process that monitors another how it
 %% ended. Report §6.9: of a process that has ended it keeps nothing, so a
 %% monitor made after the end answers Unknown, and the deliveries to it
-%% end with it (abandoned/1). Report §6.5, §6.9, §8.6, §12.6: it holds the
-%% runtime's own processes, each delivery it starts, each process kept for
-%% an adapted address (kept/1) and each of the end's tellers (tell_all/4),
-%% linked to it, so that each ends with the run as the reaper is stopped
+%% end with it (abandoned/1). Report §6.5, §6.9, §8.4, §8.6, §12.6: it holds
+%% the runtime's own processes, each delivery it starts, each process kept
+%% for an adapted address (kept/1), each checker, which it makes
+%% (started_checker/3), and each of the end's tellers (tell_all/4), linked
+%% to it, so that each ends with the run as the reaper is stopped
 %% (end_program/4); it traps their exits, so that one that ends otherwise
 %% than it returns, killed from foreign code among the ways, ends nothing
 %% but itself (held_ended/3).
@@ -1448,6 +1454,11 @@ reaper_loop(Reaper, Wait) ->
             drop_callee_notes(Pid, ExitReason),
             abandoned(Pid),
             reaper_loop(Reaper#reaper{watched = maps:remove(Pid, Reaper#reaper.watched)});
+        %% report §8.4: a checker asked for, made here so that it is held
+        %% from its start (started_checker/3)
+        {checker, From, Ref, Key, Behind, Check} ->
+            From ! {Ref, started_checker(Key, Behind, Check)},
+            reaper_loop(Reaper);
         {'EXIT', Pid, ExitReason} ->
             reaper_loop(held_ended(Pid, ExitReason, Reaper))
     after Wait ->
@@ -2189,14 +2200,16 @@ undelivered(Pid, ExitReason) ->
     end.
 
 %% Report §6.9, §8.6: a process of the runtime's own the reaper holds that
-%% ended (reaper_held/2): what it delivered nothing of is no source any
-%% more (undelivered/2), the deliveries to it end with it, and the monitors
-%% it made go, as a caller's go at its end, a teller's of its subscriber. A
-%% call it was making the runtime ended as it killed it (killed/2), or ends
-%% here where the host ended it (undelivered/2).
+%% ended (reaper_held/2, started_checker/3): what it delivered nothing of is no source any
+%% more (undelivered/2), the deliveries to it end with it, a checker's rows
+%% go (unchecked/1, §8.4), and the monitors it made go, as a caller's go at
+%% its end, a teller's of its subscriber. A call it was making the runtime
+%% ended as it killed it (killed/2), or ends here where the host ended it
+%% (undelivered/2).
 held_ended(Pid, ExitReason, Reaper) ->
     _ = undelivered(Pid, ExitReason),
     abandoned(Pid),
+    _ = unchecked(Pid),
     monitors_canceled(Pid, Reaper).
 
 %% Report §6.9: every delivery to Recipient, whichever process started it,
@@ -2943,8 +2956,9 @@ expected(Function) ->
 %% receiver no longer waiting, so a message passed on after the first read
 %% is seen at the second, in its receiver and in the checker's reductions.
 %%
-%% A checker that has ended holds nothing, and one that ended before the
-%% process it stands in front of leaves its rows, so one the first read
+%% A checker that has ended holds nothing. The reaper takes its rows as it
+%% takes its end (unchecked/1), which the look, made in the reaper, comes
+%% after; but a checker may end while a look reads, so one the first read
 %% finds ended is left out.
 %%
 %% Report §11.2: nothing is a deadlock while a shell holds the terminal;
@@ -3085,47 +3099,79 @@ snapshot(Pids) ->
          undefined -> {Pid, dead, 0}
      end || Pid <- Pids].
 
-%% Report §8.4: the checker in front of an address exposed to
-%% foreign code is one per address and mailbox type, not one per call: two
-%% checkers checking the same messages for the same process are two of the
-%% same thing. The loser of a race is killed and the winner used.
+%% Report §8.4: the checker in front of an address exposed to foreign
+%% code, one per address and mailbox type, not one per call: two checkers
+%% checking the same messages for the same process are two of the same
+%% thing. One that stands is used where the caller finds it; otherwise the
+%% reaper is asked for it, which makes it unless one was made since
+%% (started_checker/3), so that two callers make no two.
 %%
 %% Report §7.4, §12.5: where the host's table of processes is full, the
 %% checker cannot be made, and what crosses faults the process it crosses
 %% from with the host's class and reason, `Fault("error:system_limit")`, a
 %% failure of the runtime's and not the foreign function's, which never ran
 %% (ern_boundary:raised/6).
--spec checker_for(term(), address(), fun(() -> pid())) -> pid().
-checker_for(Key, Behind, Start) ->
+-spec checker_for(term(), address(), fun((pid()) -> term())) -> pid().
+checker_for(Key, Behind, Check) ->
     case ets:lookup(?CHECKERS, {checker, Key}) of
         [{_, Pid}] ->
             Pid;
         [] ->
-            Pid = try Start()
-                  catch error:system_limit:Stack -> throw({ern, met(error, system_limit, Stack)})
-                  end,
-            case ets:insert_new(?CHECKERS, {{checker, Key}, Pid}) of
-                true ->
-                    %% what the checker stands before, and the key, which
-                    %% holds the type it checks (ern_boundary:checker/4)
-                    ets:insert(?CHECKERS, {{behind, Pid}, process_of(Behind), Behind, Key}),
-                    Pid;
-                false ->
-                    exit(Pid, kill),
-                    [{_, Winner}] = ets:lookup(?CHECKERS, {checker, Key}),
-                    Winner
+            Ref = make_ref(),
+            launch_reaper() ! {checker, erlang:self(), Ref, Key, Behind, Check},
+            receive
+                {Ref, system_limit} ->
+                    {current_stacktrace, Stack} =
+                        erlang:process_info(erlang:self(), current_stacktrace),
+                    throw({ern, met(error, system_limit, Stack)});
+                {Ref, Pid} ->
+                    Pid
             end
     end.
 
--spec checker_forget(term(), pid()) -> ok.
-checker_forget(Key, Checker) ->
+%% Report §8.4, §6.5, §6.9: the checker for Key, made in the reaper, which
+%% holds it as it holds the deliveries it starts: linked to it from its
+%% start, so that the reaper takes its end however it comes, a kill of its
+%% target in a function it applies and foreign code's among the ways, and
+%% its rows with it (held_ended/3), which are written before the reaper
+%% takes its next message. It acts for the process behind the address,
+%% Target, as a process kept for an adapted address does (kept/1), so that a
+%% function it applies as on arrival does what the target would, and runs
+%% Check, given Target.
+started_checker(Key, Behind, Check) ->
+    case ets:lookup(?CHECKERS, {checker, Key}) of
+        [{_, Pid}] ->
+            Pid;
+        [] ->
+            Target = process_of(Behind),
+            try erlang:spawn_link(fun() ->
+                                      erlang:process_flag(error_handler, ?MODULE),
+                                      acting_for(Target),
+                                      Check(Target)
+                                  end) of
+                Pid ->
+                    %% what the checker stands before, and the key, which
+                    %% holds the type it checks (ern_boundary:checker/4)
+                    ets:insert(?CHECKERS, [{{checker, Key}, Pid},
+                                           {{behind, Pid}, Target, Behind, Key}]),
+                    Pid
+            catch
+                error:system_limit -> system_limit
+            end
+    end.
+
+%% Report §8.4: a process the reaper holds that has ended, its rows of
+%% checkers taken where it is a checker, so that the next exposure of its
+%% address makes another (checker_for/3). The reaper alone writes and takes
+%% them, so the checker's key names no other.
+unchecked(Pid) ->
     %% the table is gone once the program has ended (report §8.6)
-    try
-        ets:delete(?CHECKERS, {checker, Key}),
-        ets:delete(?CHECKERS, {behind, Checker})
-    catch _:_ -> true
-    end,
-    ok.
+    try ets:take(?CHECKERS, {behind, Pid}) of
+        [{_, _, _, Key}] -> ets:delete(?CHECKERS, {checker, Key});
+        [] -> true
+    catch error:badarg ->
+        true
+    end.
 
 %% Report §8.6: what a system process, a listener, or a socket holds that
 %% can still deliver, a timer, a subscription, or a request in progress.
@@ -5381,11 +5427,11 @@ is_initialized(Unit) ->
 %%
 %% Report §6.9, §7.4: called in a process of the runtime's own that applies
 %% a function for another (acting_for/1), a wrap's delivery, the terminal's
-%% courier or the process kept for an adapted address, it faults before
-%% anything of the restart begins, a fault the process the function
-%% delivers to meets at its next wait, as it meets any fault there (§6.5).
-%% An adapted address's function that a send applies runs in the sender,
-%% which it restarts.
+%% courier, the process kept for an adapted address or a checker (§8.4),
+%% it faults before anything of the restart begins, a fault the process the
+%% function delivers to meets at its next wait, as it meets any fault there
+%% (§6.5). An adapted address's function that a send applies runs in the
+%% sender, which it restarts.
 -spec restarting({'RestartLimit', integer(), integer()} | 'Unlimited', fun(() -> term())) ->
           fun(() -> term()).
 restarting(Limit, F) ->
