@@ -3903,6 +3903,151 @@ read_to_its_end(Socket, Taken) ->
         {error, Reason} -> {Taken, Reason}
     end.
 
+%% report §8.6, §12.5, §11.2: a termination once the end has begun ends
+%% the node at once, with the status of what began the end, where the end
+%% waits for a stream whose reader takes nothing to be written out. Here
+%% main's return began it, and the stream is standard output; the node
+%% ends with status 0. While the end waits, the node's ernest.pid is there
+%% and locked; once `ern stop` has returned, the node has ended and the
+%% file is gone. The program's end shows as the connection its process
+%% held closed, which the end closes with the program's processes.
+termination_ends_a_stalled_flush_test_() ->
+    nodes_test({waits, 5}, fun termination_ends_a_stalled_flush/1).
+
+termination_ends_a_stalled_flush(Base) ->
+    {A, Node, Socket, Holder} = stalled(Base, out, "return"),
+    try
+        ?assertEqual({error, closed}, received(Socket, 0)),
+        PidFile = filename:join(A, "ernest.pid"),
+        ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+        Stopped = begun(?ERN ++ " stop --config-dir " ++ A ++ " 2>&1"),
+        ?assertMatch({0, _}, Stopped()),
+        ?assertMatch({0, _}, collected(Node, 1)),
+        ?assertNot(filelib:is_file(PidFile))
+    after
+        closed(Holder)
+    end.
+
+%% report §8.6, §12.5, §11.2: the same where a first `ern stop` began the
+%% end, the stream standard error: the second `ern stop` is a second
+%% termination, which ends the node at once with the signal's status, 143,
+%% and each stop returns once the node has ended. The program says on the
+%% connection that its write was taken before the first stop is sent.
+second_stop_ends_a_stalled_flush_test_() ->
+    nodes_test({waits, 7}, fun second_stop_ends_a_stalled_flush/1).
+
+second_stop_ends_a_stalled_flush(Base) ->
+    {A, Node, Socket, Holder} = stalled(Base, err, "wait"),
+    try
+        ?assertEqual({ok, <<"written\n">>}, received(Socket, 8)),
+        Stop = ?ERN ++ " stop --config-dir " ++ A ++ " 2>&1",
+        First = begun(Stop),
+        ?assertEqual({error, closed}, received(Socket, 0)),
+        PidFile = filename:join(A, "ernest.pid"),
+        ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+        Second = begun(Stop),
+        ?assertMatch({0, _}, Second()),
+        ?assertMatch({0, _}, First()),
+        ?assertMatch({143, _}, collected(Node, 1)),
+        ?assertNot(filelib:is_file(PidFile))
+    after
+        closed(Holder)
+    end.
+
+%% A node of Base's directory a running held_writer/1, given Ending, its
+%% Stream, out or err, a pipe whose reading end is held open and never
+%% read, its other stream the port's: the directory, the port that started
+%% it, whose writes are its standard input, the program's connection,
+%% which the test has taken, and the holder of the reading end, which
+%% holds it until its input ends. The node is the port's own process, so
+%% that no shell between them writes of a signal's end to the pipe and
+%% waits there. The program is sent the line that has it write. Two steps.
+stalled(Base, Stream, Ending) ->
+    A = made(Base, "a", none),
+    Program = held_writer(filename:join(Base, "build")),
+    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Listener),
+    Pipe = A ++ ".pipe",
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Redirected = case Stream of
+                     out -> " 2>&1 > " ++ Pipe;
+                     err -> " 2> " ++ Pipe
+                 end,
+    Command = lists:flatten(["exec ", ?ERN, " run --config-dir ", A, " ", Program, " ",
+                             integer_to_list(Port), " ", atom_to_list(Stream), " ", Ending,
+                             Redirected]),
+    Node = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
+    Holder = open_port({spawn_executable, "/bin/sh"},
+                       [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line"]}, exit_status, binary]),
+    Socket = accepted(Listener),
+    ok = gen_tcp:close(Listener),
+    true = port_command(Node, "go\n"),
+    {A, Node, Socket, Holder}.
+
+%% Report §8.6: a program whose process of its own holds a connection to
+%% the port of the loopback interface its first argument names until the
+%% program's end, and that, once a line comes, writes a megabyte to the
+%% stream its second argument names, `out` or `err`; then, where its third
+%% is `return`, it returns, and where it is `wait`, the holder says
+%% `written` on the connection and the program waits for another line.
+%% Built in Root: one step. Answers its compiled form.
+-spec held_writer(file:filename()) -> file:filename().
+held_writer(Root) ->
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "held_writer.ern"), [<<"
+// Report §8.6: a program whose process of its own holds a connection
+// until the program's end, and that writes a megabyte to the stream it is
+// given once a line comes, then returns or waits for another line.
+
+type HoldMsg = Written
+
+export fn main() : Unit =
+    match Os.arguments {
+        [port, stream, ending] ->
+            match String.toInt(port) {
+                Some(number) -> writeMegabyte(number, stream, ending)
+              | None -> Io.printlnError(\"not a port: \" <> port)
+            }
+      | _ ->
+            Io.printlnError(\"usage: port out|err return|wait\")
+    }
+
+fn writeMegabyte(port : Int, stream : String, ending : String) : Unit = {
+    let holder = spawn(fn() = hold(port));
+    let _ = Io.readLine();
+    let megabyte = Bytes.repeat(<<120>>, 1048576);
+    match stream {
+        \"err\" -> Io.writeError(megabyte)
+      | _ -> Io.write(megabyte)
+    };
+    match ending {
+        \"wait\" -> {
+            send(holder, Written);
+            let _ = Io.readLine();
+            Unit
+        }
+      | _ ->
+            Unit
+    }
+}
+
+fn hold(port : Int) : Unit receiving HoldMsg =
+    match Tcp.connect(\"127.0.0.1\", port, waitMs()) {
+        Right(socket) -> holding(socket)
+      | Left(error) -> Io.printlnError(\"not connected: \" <> Io.show(error))
+    }
+
+fn holding(socket : Address(Tcp.SocketMsg)) : Unit receiving HoldMsg =
+    receive {
+        Written -> {
+            let _ = Tcp.write(socket, String.toUtf8(\"written\\n\"), waitMs());
+            holding(socket)
+        }
+    }
+"/utf8>>, wait_ms_declaration()]),
+    0 = built([Root]),
+    filename:join(Root, "held_writer.erc").
+
 %% report §12.5: on a Linux without pidfd_open, one before 5.3, a node
 %% refuses to start, making no file, naming the system and its release as
 %% uname gives them. The kernel's answer, ENOSYS, is given by a library

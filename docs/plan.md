@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 117**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 105**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -52,24 +52,11 @@ were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). 
 109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
 is what ernest-httpd's session handed back on 2026-11-17. Item 112 was found by the cold
 reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
-that item's build (the log's *A Checker Acts for the Target*). Item 117 was found by item
-102's probes and decided with the user the same day (the log's *A Lock Held to the Process's
-End*). Item 118 was found by item 116's reading and placed with the user the same day (the
-log's *The Job Halts Without the Host's Flush*).
+that item's build (the log's *A Checker Acts for the Target*). Item 118 was found by item
+116's reading and placed with the user the same day (the log's *The Job Halts Without the
+Host's Flush*). Item 120 was found by item 117's probes and placed with the user the same
+day (the log's *A Termination Ends a Stalled Flush*).
 
-- **117. A termination once the end has begun ends the flush of a stalled stream**, found
-  2026-11-18 by item 102's probes (the log's *A Lock Held to the Process's End*, its
-  paragraph *A termination in the flush*). A node whose standard output a stopped reader
-  holds waits in the end's flush, and a termination sent then did not end it within 30
-  seconds, three runs of three. §8.6 has a termination once the end has begun end the
-  program at once, and the deployment guide has a second `ern stop` end at once, "losing
-  what it was writing". No rule changes. The cause is a reading and not shown: the runner
-  waits for the stream and does not take the signal. An agent diagnoses it first, standard
-  error among it, and owns the loop to a passing test.
-
-  Its test also asserts that the held node's `ernest.pid` is there and locked. A test held
-  that of a node in the host's halt until item 116 took the halt's hold away (the log's
-  *The Job Halts Without the Host's Flush*, its paragraph *The tests*).
 - **105. Whether a message is placed whole**, found 2026-11-17 by item 97's probes: a
   reading of the host's code, and not shown. §8.7 says that a message of any size "is
   placed there whole", and `docs/design/nodes.md` that the host's send "places a message
@@ -152,6 +139,22 @@ log's *The Job Halts Without the Host's Flush*).
   first shows, on two nodes, what a listed peer that dials then is told, what its sends and
   its monitors meet, and which reason the node's exit gives it, against §8.7 and §12.6's
   *A node's end*. What it shows is brought to the user.
+- **120. A termination ends the subscribers' wait where a stream is stalled**, found
+  2026-11-18 by item 117's probes (the log's *A Termination Ends a Stalled Flush*, its
+  paragraph *The subscribers' wait*). A plain run with standard output stalled and a
+  subscriber that never answers was alive after three terminations, where §8.6 has a
+  termination once the end has begun end the program at once. The termination that cuts
+  the wait has the runner say `the end was cut short`, and that line waits on standard
+  error, which is held behind standard output.
+
+  The shape, decided with the user: the runner records that it took a termination, and
+  the next termination kills the writers, as item 117's does. The line is kept wherever
+  nothing stalls, and a run that is stalled needs one more termination. Whether §11.2
+  says so is brought to the user at the item's cold reading.
+
+  An agent shows first whether the line that says whom the end waits for holds the same
+  way. It also shows what item 117 left: the shell's end at once, `ern test` after a
+  launch ended so, and an `Os.exit` during the flush.
 
 **What is decided and waits for its build** stands between the two: items 92 and 93, what
 item 60 decided on 2026-11-17, item 95, what a reading of five reviews from outside
@@ -403,6 +406,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 107 | `Process.status` says `Suspended` of a process the host holds, in a send to another node, in a kill the runtime carries out, or at a port of the node's own that takes no more; `:processes` writes `suspended`, last in a site's order, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
 | 111 | A checker acts for its address's target: where foreign code sends to an adapted address, the checker applies the function as on arrival; the reaper makes and holds each checker and takes its rows at its end, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
 | 116 | The job halts without the host's flush, so that a program's end waits for no socket whose far end takes nothing; a stream that is stopped writes out what its port holds; what the host logs or a node says once the job's output is flushed is not written, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
+| 117 | A termination once the end's wait is over ends the end at once: it kills both standard streams and the sayer of the lines said later with what they hold, so that a stream nobody reads holds no end; the status is that of what began the end | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
 
 ---
 

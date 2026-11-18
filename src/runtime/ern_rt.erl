@@ -61,8 +61,8 @@
          input_opened/1, input_taken/1,
          run_main/3, say/2,
          say_later/2, later_sayer/0, wait_for_later/0, tables/0, arguments/0,
-         exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1, stream_gone/1,
-         initializing/1, site/0,
+         exit_program/1, refused/1, deadlock_victim/1, entry_process/0, signal/1, ended_at_once/0,
+         stream_gone/1, initializing/1, site/0,
          evaluate/2, evaluate_load/2, made_table/1, ends_with_caller/1, owned/1, owned_tables/1,
          withdraw_load/2,
          binding/1, binding_value/2, is_initialized/1,
@@ -4352,8 +4352,15 @@ run_main(EntryPoint, Site, Options) ->
     Ended = try
                 Told = told(entry_outcome(EntryPoint, Site, Options, Launch), Launch, Say),
                 %% report §8.6: from here a fault is the program's end's
-                %% (is_program_ending/1)
+                %% (is_program_ending/1), and a termination ends the end at
+                %% once (signal/1); one whose handler read the table before
+                %% the row was there is taken here
                 true = ets:insert(?LAUNCH, {wait_over}),
+                receive
+                    {signal, Launch, _} -> end_at_once()
+                after 0 ->
+                    ok
+                end,
                 passed_on(System, Options),
                 {ended, Told}
             catch
@@ -4681,8 +4688,9 @@ say(Line, Outside) ->
 %% logs it, a program's own among them (ern_out:log/2).
 %%
 %% The process is started by the job's start, a run's or the first such
-%% line, and lives the host's life; a launch's end, and the job's, wait for
-%% it to have said what it was given (wait_for_later/0).
+%% line, and lives the host's life, but where a termination ends a
+%% launch's end at once (end_at_once/0); a launch's end, and the job's,
+%% wait for it to have said what it was given (wait_for_later/0).
 -spec say_later(binary(), fun((binary()) -> term())) -> ok.
 say_later(Line, Outside) ->
     erlang:send(later_sayer(), {say, Line, Outside}),
@@ -4770,6 +4778,7 @@ table_options(_) -> [set].
 %% §8.6: a node can be reached from outside, and detects no deadlock.
 launched(Options) ->
     persistent_term:erase({?MODULE, holder}),
+    persistent_term:erase({?MODULE, at_once}),
     Launch = make_ref(),
     true = ets:insert(?LAUNCH, #launch{runner = erlang:self(), tag = Launch,
                                        reporter = maps:get(faults, Options, none),
@@ -4975,9 +4984,41 @@ entry_process() ->
 
 %% Report §8.6: the host's termination or hangup ends the run in progress
 %% as the end of its entry process does; none when no run is in progress.
+%% Once the end's wait is over, the runner, which writes out what the
+%% streams hold, takes no word, and the signal ends the end at once here
+%% (end_at_once/0). The word is sent before the table is read, and the
+%% runner reads its mailbox once it has written the row (run_main/3), so
+%% that a termination that comes as the wait ends is taken by one or both.
 -spec signal(sigterm | sighup) -> ok | none.
 signal(Signal) ->
-    told_runner(signal, Signal).
+    case told_runner(signal, Signal) of
+        ok ->
+            _ = is_wait_over() andalso end_at_once(),
+            ok;
+        none ->
+            none
+    end.
+
+%% Report §8.6: a termination once the end has begun ends the program at
+%% once, with the status of what began the end: the processes that write
+%% out what the program and the runtime said, standard output's, standard
+%% error's and the sayer of the lines said later, are killed with what
+%% they have not written, so that each wait of the end on them goes on at
+%% their end (sink_flushed/1, wait_for_later/0, stopped_in_order/1), and
+%% the job writes out nothing more (ended_at_once/0). Run by the signal's
+%% handler or by the runner, either or both, so it can be run twice.
+end_at_once() ->
+    persistent_term:put({?MODULE, at_once}, true),
+    Writers = [persistent_term:get({?MODULE, Name}, none) || Name <- [stdout, stderr]]
+        ++ [erlang:whereis(?SAY_LATER)],
+    lists:foreach(fun(Pid) -> is_pid(Pid) andalso exit(Pid, kill) end, Writers),
+    true.
+
+%% Report §8.6: whether a termination ended the last launch's end at once
+%% (end_at_once/0), after which the job writes out nothing more.
+-spec ended_at_once() -> boolean().
+ended_at_once() ->
+    persistent_term:get({?MODULE, at_once}, false).
 
 %% Report §12.1, §8.6: a stream of the job's own that can no longer be
 %% written, which ern_out finds, ends the run in progress as the run's own
