@@ -69,6 +69,9 @@ Item 108, a reading that item 104's build left unread, was planned with the user
 2026-11-18 (the log's *The Runtime's Processes Wait on No Peer*), and stands after item
 106.
 
+Item 109, what item 107's build found, was planned with the user on 2026-11-18 (the log's
+*Suspended Is the Host's Word*), and stands after item 108.
+
 - **87. Nothing holds that a shell test names a home**, found 2026-11-16 by the fix of the
   27 sites that ran under the inherited `HOME` (the log's *The Shell's Tests in a Home of
   Their Own*). A new test that starts `ern shell` by hand runs the startup file of whoever
@@ -159,6 +162,14 @@ Item 108, a reading that item 104's build left unread, was planned with the user
   frame, sends a signal to a node other than its own peer, a send, a monitor, a demonitor
   or an exit, and shows a hold where it finds one. A hold found is brought to the user
   with its fix's shape, and no flag is set meanwhile.
+- **109. No test holds Appendix E's `type` lines to the library**, found 2026-11-18 by
+  item 107's build (the log's *Suspended Is the Host's Word*).
+  `ern_doc_tests:listings_are_the_interfaces_test` reads a listing's function lines
+  alone, so a `type` line of the report's equals its module's declaration by a reading
+  only. The shape of the fix: the test holds each `type` line of a listing equal to the
+  type its module exports, as it holds each function's. An agent first shows which of
+  the lines differ today, and each difference is brought to the user before either side
+  changes.
 - **99. No test holds a request's head that arrives in pieces**, found 2026-11-17 by
   ernest-httpd's reading of its own tests against the reviews from outside (the log's *The
   Server's Answers*, its paragraph *A head in pieces*). Appendix G.11 says that
