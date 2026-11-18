@@ -145,8 +145,9 @@
 -define(TABLES, '$ern_tables').
 -define(ENDING, '$ern_ending').
 
-%% A socket's process keeps its writer, the process that does its writes,
-%% under this key, which Process.status reads (writes_through/1).
+%% A socket's process and a running program's keep their writer, the
+%% process that does their writes, under this key, which Process.status
+%% reads (writes_through/1).
 -define(WRITER, '$ern_writer').
 
 %% What Process.status asks the host of a process for its memory, in this order
@@ -2662,8 +2663,9 @@ held_bytes([{memory, Memory}, {garbage_collection_info, Collection}]) ->
     {_, Old} = lists:keyfind(bin_old_vheap_size, 1, Collection),
     Memory + (Young + Old) * erlang:system_info(wordsize).
 
-%% A socket's writer, which has ended where the socket has closed, and no
-%% other process has one.
+%% A socket's or a running program's writer, which has ended where the
+%% socket has closed or the program has ended, and no other process has
+%% one.
 writer_bytes(undefined) ->
     0;
 writer_bytes(Writer) ->
@@ -2672,10 +2674,11 @@ writer_bytes(Writer) ->
         Holds -> held_bytes(Holds)
     end.
 
-%% Appendix E.18, E.21: the calling socket's process names its writer, the
-%% process that does its writes, which holds the bytes it wrote until it
-%% runs again and has no row of its own, so that Process.status counts it
-%% as the socket's.
+%% Appendix E.18, E.21, E.23: the calling socket's process or running
+%% program's names its writer, the process that does its writes, which
+%% holds the bytes it wrote until it runs again, and a write that waits,
+%% and has no row of its own, so that Process.status counts it as the
+%% caller's.
 -spec writes_through(pid()) -> ok.
 writes_through(Writer) ->
     _ = erlang:put(?WRITER, Writer),

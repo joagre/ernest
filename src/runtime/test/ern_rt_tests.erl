@@ -193,10 +193,9 @@ process_status_test() ->
 %%
 %% The host holds each here by its own suspension, which says `suspended`
 %% as it does of a send to another node that takes no more (ern_nodes_tests'
-%% sender_held_in_its_send_test_) and of a write to a port of the node's own
-%% that takes no more (ern_os_tests' held_at_its_port_test). It does not
-%% cover a kill under way, which the killer holds for a moment no test can
-%% choose, nor a load's mark, which the same clause reads.
+%% sender_held_in_its_send_test_). It does not cover a kill under way, which
+%% the killer holds for a moment no test can choose, nor a load's mark,
+%% which the same clause reads.
 held_process_status_test() ->
     Self = self(),
     ok = ern_rt:run_main(

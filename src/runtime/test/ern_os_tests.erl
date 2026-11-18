@@ -21,9 +21,10 @@ helper_ends_under_a_write_and_a_read_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start_terminal(<<"sleep">>, [<<"3">>], ?SIZE),
-               {links, Links} = process_info(Program, links),
-               [Helper] = [Link || Link <- Links, is_port(Link)],
+               Helper = helper_of(Program),
                {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+               %% the program, which a helper killed so leaves running
+               Sleep = child_number(OsPid),
                erlang:suspend_process(Program),
                WriteReply = alias(),
                Program ! {'Write', <<"x">>, 5000, {WriteReply, self()}},
@@ -39,6 +40,7 @@ helper_ends_under_a_write_and_a_read_test() ->
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
                %% the port closes once the host has seen the helper end
                receive {'DOWN', PortRef, port, Helper, _} -> ok end,
+               _ = os:cmd("kill -KILL " ++ Sleep),
                erlang:resume_process(Program),
                Self ! {write, answer(WriteReply)},
                Self ! {read, answer(ReadReply)},
@@ -169,8 +171,7 @@ lost_program_holds_no_timer_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
-               {links, Links} = process_info(Program, links),
-               [Helper] = [Link || Link <- Links, is_port(Link)],
+               Helper = helper_of(Program),
                {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
                PortRef = erlang:monitor(port, Helper),
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
@@ -241,8 +242,7 @@ answered_exit_is_a_deadlock_test() ->
 %% exit, so the host is asked again at once each time, within a bound for a
 %% failure.
 unread_exited(Program) ->
-    {links, Links} = process_info(Program, links),
-    [Helper] = [Link || Link <- Links, is_port(Link)],
+    Helper = helper_of(Program),
     {os_pid, HelperPid} = erlang:port_info(Helper, os_pid),
     Children = lists:concat(["/proc/", HelperPid, "/task/", HelperPid, "/children"]),
     {ok, Listed} = file:read_file(Children),
@@ -364,6 +364,404 @@ write_times_out_test() ->
                ern_rt:kill(Program)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Left', 'Timeout'}, wait(written)).
+
+%% report Appendix E.23: once the program has taken the input it was behind
+%% on, its helper holds none of it. The program takes nothing until it is
+%% told, and the helper has read the whole write once the signal sent after
+%% it is answered; the helper's memory, as the host counts what it holds,
+%% is read before the write, then, and once the program has taken it all,
+%% which the answer of the write after it shows. The helper held the write,
+%% and gives back at least half of what it held. A program that exits
+%% instead of reading is exit_lets_input_go_test_'s
+drained_input_let_go_test_() ->
+    plain_helper(fun() ->
+                     Size = 32 bsl 20,
+                     {Before, Held, After} =
+                         held_and_given_back(<<"exec cat > /dev/null">>,
+                                             fun(Program) -> write(Program, <<"x">>, 60000) end,
+                                             {'Right', 'Unit'}, Size),
+                     ?assert(Held - Before >= Size div 1024),
+                     ?assert(After - Before < (Held - Before) div 2)
+                 end).
+
+%% report Appendix E.23: once the program has exited, its helper holds none
+%% of the input it was behind on, though no read has taken the exit and the
+%% helper lives on for one. A write after the exit answers `Left(Closed)`
+%% once the helper has dropped the input, and the helper's memory is read
+%% as drained_input_let_go_test_ reads it
+exit_lets_input_go_test_() ->
+    plain_helper(fun() ->
+                     Size = 32 bsl 20,
+                     {Before, Held, After} =
+                         held_and_given_back(<<"exit 3">>,
+                                             fun(Program) -> write(Program, <<"x">>, 60000) end,
+                                             {'Left', 'Closed'}, Size),
+                     ?assert(Held - Before >= Size div 1024),
+                     ?assert(After - Before < (Held - Before) div 2)
+                 end).
+
+%% A test of the memory the helper gives back, run where the helper is the
+%% plain build: under `make sanitize` the address sanitizer's allocator
+%% keeps what the helper frees, in its quarantine first, so that the host
+%% is given none of it back; `make test` and `make test-full` run it.
+plain_helper(Test) ->
+    case os:getenv("ASAN_OPTIONS") of
+        false -> Test;
+        _ -> []
+    end.
+
+%% The helper's resident memory, in kilobytes, before a write of Size bytes
+%% to a program behind it (behind/1), once the helper has read the write,
+%% and once the program, told to run Then, has given After's answer.
+held_and_given_back(Then, After, Answer, Size) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sh">>, [<<"-c">>, behind(Then)]),
+               Number = first_line(Program),
+               Helper = helper_number(Program),
+               Before = status_kb(Helper, "VmRSS"),
+               {'Left', 'Timeout'} = write(Program, binary:copy(<<"x">>, Size), 1),
+               {'Right', 'Unit'} = signal(Program, 'Interrupt'),
+               Held = status_kb(Helper, "VmRSS"),
+               signaled(Number, "USR1"),
+               Answer = After(Program),
+               Self ! {resident, {Before, Held, status_kb(Helper, "VmRSS")}},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    wait(resident).
+
+%% Appendix E.23: once every input is answered, the helper holds no record
+%% of one. A hundred thousand empty inputs wait behind one the program is
+%% behind on, each with its record, and are answered once the program takes
+%% that one; the helper's memory is read as drained_input_let_go_test_
+%% reads it
+answered_inputs_let_go_test_() ->
+    plain_helper(fun() ->
+                     {Before, Held, After} = inputs_held_and_given_back(100000),
+                     ?assert(Held > Before),
+                     ?assert(After - Before < (Held - Before) div 2)
+                 end).
+
+%% The helper's resident memory, in kilobytes, before Count empty inputs
+%% wait behind one, once it has read them, and once all are answered.
+inputs_held_and_given_back(Count) ->
+    Helper = helper(["sh", "-c", behind(<<"exec cat > /dev/null">>)]),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    true = port_command(Helper, <<"n">>),
+    Number = receive {Helper, {data, <<"o", Line/binary>>}} -> binary_to_integer(string:trim(Line))
+             end,
+    {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+    Before = status_kb(OsPid, "VmRSS"),
+    %% more than a pipe holds, so that every input after it waits
+    true = port_command(Helper, <<"i", (binary:copy(<<"x">>, 1 bsl 17))/binary>>),
+    lists:foreach(fun(_) -> true = port_command(Helper, <<"i">>) end, lists:seq(1, Count)),
+    true = port_command(Helper, <<"k", 2>>),
+    ?assertEqual(<<"g">>, receive {Helper, {data, Frame}} -> Frame end),
+    Held = status_kb(OsPid, "VmRSS"),
+    signaled(Number, "USR1"),
+    ok = taken(Helper, Count + 1),
+    After = status_kb(OsPid, "VmRSS"),
+    port_close(Helper),
+    {Before, Held, After}.
+
+%% Until the helper has said of Count inputs that the program took them.
+taken(_Helper, 0) ->
+    ok;
+taken(Helper, Count) ->
+    receive {Helper, {data, <<"a">>}} -> taken(Helper, Count - 1) end.
+
+%% report Appendix E.23: a write after `closeInput` answers `Left(Closed)` at
+%% once, its bytes dropped, under pipes as under a terminal. Under pipes the
+%% program is behind on what was written before, which is still its input:
+%% `cat`, told to begin once the input has been closed, takes it and writes
+%% it back whole before it exits. Without the mend the write waited behind
+%% that input its whole time and answered `Left(Timeout)`. Under a terminal
+%% the hangup drops what the program has not taken, and the write was
+%% answered so before; that half is a regression test
+write_after_close_input_closed_test() ->
+    Self = self(),
+    Input = << <<(N rem 251)>> || N <- lists:seq(1, 1 bsl 18) >>,
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"sh">>, [<<"-c">>, behind(<<"exec cat">>)]),
+               Number = first_line(Cat),
+               {'Left', 'Timeout'} = write(Cat, Input, 1),
+               Cat ! 'CloseInput',
+               Late = write(Cat, <<"late">>, 2000),
+               signaled(Number, "USR1"),
+               Self ! {piped, {Late, read_to_end(Cat, <<>>)}},
+               ern_rt:kill(Cat),
+               {'Right', Terminal} = start_terminal(<<"cat">>, [], ?SIZE),
+               Terminal ! 'CloseInput',
+               Self ! {hung_up, write(Terminal, <<"late">>, 2000)},
+               ern_rt:kill(Terminal)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{'Left', 'Closed'}, {Input, 0}}, wait(piped)),
+    ?assertEqual({'Left', 'Closed'}, wait(hung_up)).
+
+%% report Appendix E.23, and CLAUDE.md's *Design*: a write's time running
+%% out costs the program's process the same however many writes wait
+%% beside it, so that writes that run out together are each answered on
+%% time. The work is the host's count of the process's reductions, from the
+%% moment every write is in its mailbox to the last answer, for a number of
+%% writes and for four times as many. Work that grows with the writes that
+%% wait grows sixteen times, and work that does not four times and a
+%% little more; the bound is eight, between the two
+writes_time_out_without_a_scan_test_() ->
+    {timeout, 60, fun() ->
+                      One = timed_out_reductions(500),
+                      ?assert(timed_out_reductions(2000) < 8 * One)
+                  end}.
+
+%% The reductions of a program's process as Count writes of a millisecond
+%% each, all in its mailbox before it takes the first, wait behind one more
+%% than a pipe holds and are answered `Left(Timeout)`.
+timed_out_reductions(Count) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sleep} = start(<<"sleep">>, [<<"1000">>]),
+               {'Left', 'Timeout'} = write(Sleep, binary:copy(<<"x">>, 1 bsl 17), 1),
+               Main = self(),
+               erlang:suspend_process(Sleep),
+               Writers = [erlang:spawn(fun() -> Main ! {written, write(Sleep, <<"x">>, 1)} end)
+                          || _ <- lists:seq(1, Count)],
+               lists:foreach(fun(Writer) -> ok = ern_waits:calling(Writer) end, Writers),
+               {reductions, Before} = erlang:process_info(Sleep, reductions),
+               erlang:resume_process(Sleep),
+               lists:foreach(fun(_) -> receive {written, {'Left', 'Timeout'}} -> ok end end,
+                             Writers),
+               {reductions, After} = erlang:process_info(Sleep, reductions),
+               Self ! {reductions, After - Before},
+               ern_rt:kill(Sleep)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    wait(reductions).
+
+%% report Appendix E.23, and CLAUDE.md's *Design*: a read's time running
+%% out, and the end of a read's caller, cost the program's process the same
+%% however many reads wait beside it, each counted as the writes' are
+%% (writes_time_out_without_a_scan_test_). A regression test, written after
+%% the mend and seen to fail without it: the reads were a list rebuilt at
+%% each time that ran out and each caller that ended, and counted at each
+%% read that came, and a read let go of its caller's monitor by looking
+%% through the mailbox for its `DOWN`, which the `DOWN`s of the other
+%% callers fill. It does not cover a read whose caller is found ended as
+%% a piece comes (given/5), nor the answers that go to every read at once
+%% as the program exits or its helper fails
+reads_time_out_without_a_scan_test_() ->
+    {timeout, 60, fun() ->
+                      One = timed_out_read_reductions(500),
+                      ?assert(timed_out_read_reductions(2000) < 8 * One)
+                  end}.
+
+%% report Appendix E.23: the same, of the callers that end.
+reads_dropped_without_a_scan_test_() ->
+    {timeout, 60, fun() ->
+                      One = dropped_read_reductions(500),
+                      ?assert(dropped_read_reductions(2000) < 8 * One)
+                  end}.
+
+%% The reductions of a program's process as Count reads of a millisecond
+%% each, all in its mailbox before it takes the first, of a program that
+%% writes nothing, are answered `Left(Timeout)`.
+timed_out_read_reductions(Count) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sleep} = start(<<"sleep">>, [<<"1000">>]),
+               Main = self(),
+               erlang:suspend_process(Sleep),
+               Readers = [erlang:spawn(fun() -> Main ! {read, read(Sleep, 1)} end)
+                          || _ <- lists:seq(1, Count)],
+               lists:foreach(fun(Reader) -> ok = ern_waits:calling(Reader) end, Readers),
+               {reductions, Before} = erlang:process_info(Sleep, reductions),
+               erlang:resume_process(Sleep),
+               lists:foreach(fun(_) -> receive {read, {'Left', 'Timeout'}} -> ok end end,
+                             Readers),
+               {reductions, After} = erlang:process_info(Sleep, reductions),
+               Self ! {reductions, After - Before},
+               ern_rt:kill(Sleep)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    wait(reductions).
+
+%% The reductions of a program's process as the callers of Count reads of a
+%% program that writes nothing, all taken, end, from the moment the first is
+%% killed to the moment the process has taken every caller's `DOWN`, which
+%% the host shows by tracing what the process takes into its mailbox, and
+%% answered a read given no time after them.
+dropped_read_reductions(Count) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sleep} = start(<<"sleep">>, [<<"1000">>]),
+               Readers = [erlang:spawn(fun() -> read(Sleep, 600000) end)
+                          || _ <- lists:seq(1, Count)],
+               lists:foreach(fun(Reader) -> ok = ern_waits:calling(Reader) end, Readers),
+               ok = ern_waits:until(Sleep, fun() ->
+                                               erlang:process_info(Sleep, message_queue_len)
+                                                   =:= {message_queue_len, 0}
+                                           end),
+               1 = erlang:trace(Sleep, true, ['receive']),
+               {reductions, Before} = erlang:process_info(Sleep, reductions),
+               lists:foreach(fun(Reader) -> exit(Reader, kill) end, Readers),
+               lists:foreach(fun(_) ->
+                                 receive {trace, Sleep, 'receive', {_, _, process, _, _}} -> ok end
+                             end, Readers),
+               1 = erlang:trace(Sleep, false, ['receive']),
+               {'Left', 'Timeout'} = read(Sleep, 0),
+               {reductions, After} = erlang:process_info(Sleep, reductions),
+               Self ! {reductions, After - Before},
+               ern_rt:kill(Sleep)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    wait(reductions).
+
+%% report Appendix E.23, §7.4: a helper that ends while a frame is on its
+%% way to it has failed, every time, and the write that meets its end
+%% faults with E.23's cause, its program's process living on. The host
+%% learns of the end two ways: from the helper's exit status, which the
+%% host's forker, erl_child_setup, reports, and from a write to the
+%% helper's closed pipe, which ends the port with the host's `epipe`. The
+%% forker is held still here while the helper is killed, so that the write
+%% comes first; it is signaled through a shell opened before, since an open
+%% waits on it. Without the mend the program's process ended with the
+%% host's `epipe`, the write unanswered; a failure as the program starts is
+%% not covered
+helper_ended_under_a_write_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sleep">>, [<<"1000">>]),
+               Helper = helper_number(Program),
+               %% the program, which a helper killed so leaves running
+               Sleep = child_number(Helper),
+               Shell = open_port({spawn_executable, os:find_executable("sh")}, [binary]),
+               Forker = parent_number(Helper),
+               MonitorRef = erlang:monitor(process, Program),
+               Met = try
+                         said(Shell, ["kill -STOP ", Forker]),
+                         said(Shell, ["kill -KILL ", Helper]),
+                         ok = zombie(integer_to_list(Helper),
+                                     erlang:monotonic_time(millisecond) + 5000),
+                         WriteReply = alias(),
+                         Program ! {'Write', <<"x">>, 5000, {WriteReply, self()}},
+                         receive
+                             {WriteReply, fault, Cause} -> {fault, Cause};
+                             {'DOWN', MonitorRef, process, _, ExitReason} -> {ended, ExitReason}
+                         after 5000 -> timeout
+                         end
+                     after
+                         said(Shell, ["kill -CONT ", Forker]),
+                         said(Shell, ["kill -KILL ", Sleep]),
+                         port_close(Shell)
+                     end,
+               Self ! {met, {Met, erlang:is_process_alive(Program)}},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{fault, <<"the runtime's helper ern_exec failed">>}, true}, wait(met)).
+
+%% A command run by the shell Shell opened, once the shell has said so.
+said(Shell, Command) ->
+    true = port_command(Shell, [lists:concat(Command), "; echo done\n"]),
+    receive {Shell, {data, <<"done\n">>}} -> ok end.
+
+%% The number of the process of the operating system's that started the
+%% process of Number, from what the host shows of it: the fourth field of
+%% its stat, after the command's name, which ends at the last `)`.
+parent_number(Number) ->
+    {ok, Stat} = file:read_file("/proc/" ++ integer_to_list(Number) ++ "/stat"),
+    [_, After] = string:split(binary_to_list(Stat), ")", trailing),
+    [_State, Parent | _] = string:lexemes(After, " "),
+    Parent.
+
+%% The number of the one process the process of Number started.
+child_number(Number) ->
+    Task = integer_to_list(Number),
+    {ok, Listed} = file:read_file(lists:concat(["/proc/", Task, "/task/", Task, "/children"])),
+    [Child] = string:lexemes(binary_to_list(Listed), " \n"),
+    Child.
+
+%% report Appendix E.23: a write's bytes are copied once on the node, by the
+%% host's port, which queues what the helper has not read, and once in the
+%% helper, into the input the program is behind on, the program here not
+%% reading. The node's binaries are read as the host's allocator of them
+%% counts the most it held since its last reading, and the helper's memory
+%% as the host counts the most it held; each grows by less than half again
+%% of the write. The host's own copy of a command, which it gives its port
+%% and frees as the command returns, is not counted, since it is not a
+%% binary
+write_copied_once_test() ->
+    Size = 32 bsl 20,
+    {Node, InHelper} = held_for_a_write(Size),
+    ?assert(Node < 3 * Size div 2),
+    ?assert(InHelper < 3 * Size div 2).
+
+%% The most bytes the node's binaries and the helper grew by, the write's
+%% caller's own bytes not counted, for one write of Size bytes to a program
+%% that does not read.
+held_for_a_write(Size) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sh">>, [<<"-c">>, behind(<<"exec cat > /dev/null">>)]),
+               _ = first_line(Program),
+               Helper = helper_number(Program),
+               Bytes = binary:copy(<<"x">>, Size),
+               {Base, _} = binaries_held(),
+               HelperBase = status_kb(Helper, "VmHWM"),
+               {'Left', 'Timeout'} = write(Program, Bytes, 1),
+               {'Right', 'Unit'} = signal(Program, 'Interrupt'),
+               {_, Most} = binaries_held(),
+               Self ! {held, {Most - Base, 1024 * (status_kb(Helper, "VmHWM") - HelperBase)}},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    wait(held).
+
+%% The bytes the host's allocator of binaries holds, and the most it held
+%% since this was last asked, each summed over its instances.
+binaries_held() ->
+    Sizes = [Size || {instance, _, Info} <- erlang:system_info({allocator, binary_alloc}),
+                     {Kind, Carriers} <- Info, Kind =:= mbcs orelse Kind =:= sbcs,
+                     {blocks, Blocks} <- [lists:keyfind(blocks, 1, Carriers)],
+                     {_, Block} <- Blocks,
+                     {size, _, _, _} = Size <- [lists:keyfind(size, 1, Block)]],
+    {lists:sum([Now || {size, Now, _, _} <- Sizes]),
+     lists:sum([Most || {size, _, Most, _} <- Sizes])}.
+
+%% report Appendix E.23: a write is given the helper in frames of at most a
+%% number of bytes, the most a frame of the host's can say for a write and
+%% three here, and only the last frame's answer answers the write: the
+%% program takes the frames whole and in order, and the helper answers
+%% each. A regression test, written after the code, which the host's most
+%% for a frame needs; a write of 4 GiB or more, which is cut so, is not run.
+%% The test stands as the program's writer, given the frames, which it
+%% gives the helper in the order they came
+write_split_into_frames_test() ->
+    Helper = helper(["cat"]),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    Writes = ern_os:input(self(), <<"abcdefghij">>, 3, last, queue:new()),
+    [true = port_command(Helper, Frame) || Frame <- frames_given()],
+    true = port_command(Helper, <<"e">>),
+    true = port_command(Helper, <<"n">>),
+    ?assertEqual({[none, none, none, last], {<<"abcdefghij">>, 4}},
+                 {queue:to_list(Writes), taken_and_written(Helper, <<>>, 0)}),
+    port_close(Helper).
+
+%% The frames given this process as a program's writer, in order.
+frames_given() ->
+    receive {frame, Frame} -> [Frame | frames_given()] after 0 -> [] end.
+
+%% What the program wrote, read a piece at a time, and how many inputs the
+%% helper said it took, until the helper's exit status.
+taken_and_written(Helper, Output, Taken) ->
+    receive
+        {Helper, {data, <<"o", Bytes/binary>>}} ->
+            true = port_command(Helper, <<"n">>),
+            taken_and_written(Helper, <<Output/binary, Bytes/binary>>, Taken);
+        {Helper, {data, <<"a">>}} -> taken_and_written(Helper, Output, Taken + 1);
+        {Helper, {data, <<"x", _/binary>>}} -> {Output, Taken}
+    after 20000 -> timeout
+    end.
 
 %% report Appendix E.23: a request answered holds no timer: a write and a
 %% read answered before their milliseconds pass are sent nothing when they
@@ -932,8 +1330,7 @@ piece_ahead_of_the_down_kept_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Cat} = start(<<"cat">>, []),
-               {links, Links} = process_info(Cat, links),
-               [Helper] = [Link || Link <- Links, is_port(Link)],
+               Helper = helper_of(Cat),
                Reader = ern_rt:spawn_monitored(fun() -> read(Cat, 60000) end,
                                                fun(Down) -> {reader, Down} end, <<"reader">>),
                ok = ern_waits:watching(Cat, ern_rt:process_of(Reader)),
@@ -950,26 +1347,25 @@ piece_ahead_of_the_down_kept_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Right', {'Stdout', <<"x\n">>}}, wait(read)).
 
-%% report Appendix E.21, E.23: a running program's process that writes to
-%% its helper's port, which takes no more, is Suspended, the host holding
-%% it at the port; once the port takes again, the process waits as it did
-%% before.
+%% report Appendix E.21, E.23: a running program's process is not held at
+%% its helper's port when the port takes no more: while a write waits for
+%% the port, which the program's writer gives it, the process reads
+%% `Receiving`, and once the port takes again it waits as it did before. A
+%% regression test, written after the code: the process wrote to the port
+%% itself, and read `Suspended`, the host holding it there.
 %%
 %% The helper is stopped by its signal before anything is written, so that
 %% it reads nothing of its port: the first write, more than the port holds,
-%% fills it past its limit, and the process is held at the second.
-%% Continued, the helper gives the program both, which it takes to its end.
-%% It does not cover a port of the node's own other than a program's
-%% helper's.
+%% fills it past its limit, and the second waits. The process is read once
+%% it has taken both. Continued, the helper gives the program both, which
+%% it takes to its end. It does not cover a port of the node's own other
+%% than a program's helper's.
 held_at_its_port_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sh">>, [<<"-c">>, <<"exec cat >/dev/null">>]),
-               {links, Links} = process_info(Program, links),
-               [Helper] = [Link || Link <- Links, is_port(Link)],
-               {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
-               Number = integer_to_list(OsPid),
+               Number = integer_to_list(helper_number(Program)),
                Bytes = binary:copy(<<"x">>, 1 bsl 20),
                %% the program's process and the writers wait, which this
                %% one counts as timed so that it is no deadlock (§8.6)
@@ -978,15 +1374,7 @@ held_at_its_port_test() ->
                Before = activity_of(Program),
                _ = os:cmd("kill -STOP " ++ Number),
                Held = try
-                          [ern_rt:spawn_monitored(fun() -> write(Program, Bytes, 600000) end,
-                                                  fun(Down) -> {written, Down} end,
-                                                  <<"M.writer:1">>)
-                           || _ <- [first, second]],
-                          ok = ern_waits:until(Program,
-                                               fun() ->
-                                                   erlang:process_info(Program, status)
-                                                       =:= {status, suspended}
-                                               end),
+                          writes_taken(Program, Bytes, 600000, 2),
                           activity_of(Program)
                       after
                           os:cmd("kill -CONT " ++ Number)
@@ -998,7 +1386,255 @@ held_at_its_port_test() ->
                Self ! {activities, [Before, Held, After]},
                ern_rt:kill(Program)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual(['Receiving', 'Suspended', 'Receiving'], wait(activities)).
+    ?assertEqual(['Receiving', 'Receiving', 'Receiving'], wait(activities)).
+
+%% Count writes of Bytes to Program, each given Ms, from writers of their
+%% own, whose ends come to this process as `{written, Down}`; returned once
+%% the program's process has taken each, its mailbox empty and the process
+%% waiting, or held where the host holds it.
+writes_taken(Program, Bytes, Ms, Count) ->
+    Writers = [ern_rt:spawn_monitored(fun() -> write(Program, Bytes, Ms) end,
+                                      fun(Down) -> {written, Down} end, <<"M.writer:1">>)
+               || _ <- lists:seq(1, Count)],
+    lists:foreach(fun(Writer) -> ok = ern_waits:calling(ern_rt:process_of(Writer)) end, Writers),
+    ok = ern_waits:until(Program,
+                         fun() ->
+                             [{message_queue_len, Queued}, {status, Status}] =
+                                 erlang:process_info(Program, [message_queue_len, status]),
+                             Queued =:= 0 andalso lists:member(Status, [waiting, suspended])
+                         end).
+
+%% report §6.9, §8.6, Appendix E.23: a program's process ends at once while
+%% its helper takes nothing and a write waits for it, by a kill, by its
+%% owner's end and by the program's end, its `DOWN` coming while the helper
+%% is still stopped, as held_at_its_port_test holds it; continued, the
+%% helper and its program are gone. A regression test, written after the
+%% code. The process wrote to the port itself before, and the host held it
+%% there: its owner's end, which comes to it as a message, waited on the
+%% helper, while a kill and the program's end, signals it did not trap,
+%% ended it; a process that traps exits and writes to the port itself
+%% takes those as messages too. It does not cover the end of a process
+%% linked to the program's
+killed_held_at_its_port_test_() ->
+    [{atom_to_list(End), fun() -> ?assertEqual({ended, gone, gone}, held_and_ended(End)) end}
+     || End <- [kill, owner, program_end]].
+
+%% A program held as held_at_its_port_test holds it, ended the way End
+%% names; then whether its process ended while the helper was stopped, and
+%% whether the helper and its program are gone once it is continued.
+held_and_ended(End) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               {Program, Owner} = owned(End, Main, <<"sh">>,
+                                        [<<"-c">>, <<"exec cat >/dev/null">>]),
+               Helper = helper_number(Program),
+               Cat = child_number(Helper),
+               ern_rt:timed(),
+               ok = ern_waits:waiting(Program),
+               signaled(Helper, "STOP"),
+               writes_taken(Program, binary:copy(<<"x">>, 1 bsl 20), 600000, 2),
+               MonitorRef = erlang:monitor(process, Program),
+               case End of
+                   kill -> ern_rt:kill(Program);
+                   owner -> Owner ! go;
+                   program_end -> ok
+               end,
+               Self ! {held, {Program, Helper, Cat}},
+               case End of
+                   program_end -> ok;
+                   _ -> receive {'DOWN', MonitorRef, process, Program, _} -> ok end
+               end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Program, Helper, Cat} = wait(held),
+    MonitorRef = erlang:monitor(process, Program),
+    receive {'DOWN', MonitorRef, process, Program, _} -> ok end,
+    signaled(Helper, "CONT"),
+    Deadline = erlang:monotonic_time(millisecond) + 5000,
+    {ended, ended_number(integer_to_list(Helper), Deadline), ended_number(Cat, Deadline)}.
+
+%% A program of Name and Arguments started, with its owner: the process of
+%% Main, or for End `owner` a process of its own, which ends when sent `go`.
+owned(owner, Main, Name, Arguments) ->
+    Owner = erlang:spawn(fun() ->
+                             {'Right', Program} = start(Name, Arguments),
+                             Main ! {started, Program},
+                             receive go -> ok end
+                         end),
+    receive {started, Program} -> {Program, Owner} end;
+owned(_, Main, Name, Arguments) ->
+    {'Right', Program} = start(Name, Arguments),
+    {Program, Main}.
+
+%% Until the process of Number has ended, as the host shows it, `gone`: it
+%% has no entry, or is a zombie its parent has yet to reap. Nothing tells
+%% this process of another process's end, so the host is asked again at
+%% once each time, within a bound for a failure.
+ended_number(Number, Deadline) ->
+    case file:read_file("/proc/" ++ Number ++ "/stat") of
+        {error, _} ->
+            gone;
+        {ok, Stat} ->
+            [_, After] = string:split(binary_to_list(Stat), ")", trailing),
+            case string:trim(After, leading) of
+                [$Z | _] -> gone;
+                _ ->
+                    case erlang:monotonic_time(millisecond) < Deadline of
+                        true -> ended_number(Number, Deadline);
+                        false -> running
+                    end
+            end
+    end.
+
+%% report Appendix E.23: a read's and a write's milliseconds hold while the
+%% helper takes nothing and a write waits for it: a read given a time, and
+%% a write given one that waits behind the first, each answer
+%% `Left(Timeout)` once the time has passed. The bound is derived from the
+%% time given: an answer cannot come before it, and what comes after it is
+%% the host's timer reaching the program's process and the answer's
+%% message, which wait on nothing, so each comes before the time has passed
+%% again; an answer the write held back would wait for the helper, which is
+%% stopped until both have come. A regression test, written after the code:
+%% the process wrote to the port itself, the host held it there, and it
+%% took neither time. It does not cover a signal or a resize, which wait
+%% for the helper's answer however long
+times_held_while_a_write_waits_test() ->
+    Ms = 300,
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sh">>, [<<"-c">>, <<"exec cat >/dev/null">>]),
+               Helper = helper_number(Program),
+               Bytes = binary:copy(<<"x">>, 1 bsl 20),
+               ern_rt:timed(),
+               ok = ern_waits:waiting(Program),
+               signaled(Helper, "STOP"),
+               %% the first write fills the port, which takes no more
+               writes_taken(Program, Bytes, 600000, 1),
+               Main = self(),
+               Asked = [erlang:spawn(fun() ->
+                                         Began = erlang:monotonic_time(millisecond),
+                                         Answer = Ask(),
+                                         Main ! {timed, Answer,
+                                                 erlang:monotonic_time(millisecond) - Began}
+                                     end)
+                        || Ask <- [fun() -> write(Program, Bytes, Ms) end,
+                                   fun() -> read(Program, Ms) end]],
+               Answers = [receive {timed, Answer, Took} -> {Answer, Took} end || _ <- Asked],
+               signaled(Helper, "CONT"),
+               ern_rt:untimed(),
+               Self ! {answers, Answers},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Answers = wait(answers),
+    ?assertEqual([{'Left', 'Timeout'}, {'Left', 'Timeout'}], [Answer || {Answer, _} <- Answers]),
+    ?assertEqual([], [Took || {_, Took} <- Answers, Took < Ms orelse Took >= 2 * Ms]).
+
+%% report Appendix E.21, E.23: a running program's memory counts its
+%% writer's, which holds a write that waits for the helper, where the
+%% program's own process has let the bytes go. The helper is stopped by its
+%% signal before anything is written: the first write fills its port, and
+%% the second waits in the writer. The program's process is collected
+%% before it is read, so that it holds nothing it has dropped.
+program_memory_counts_its_writer_test() ->
+    Size = 1 bsl 20,
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sh">>, [<<"-c">>, <<"exec cat >/dev/null">>]),
+               Number = integer_to_list(helper_number(Program)),
+               %% the program's process and the writers wait, which this
+               %% one counts as timed so that it is no deadlock (§8.6)
+               ern_rt:timed(),
+               ok = ern_waits:waiting(Program),
+               _ = os:cmd("kill -STOP " ++ Number),
+               Counted = try
+                             writes_taken(Program, binary:copy(<<0>>, Size), 600000, 2),
+                             erlang:garbage_collect(Program),
+                             {binary, Own} = erlang:process_info(Program, binary),
+                             {'Some', {'Status', _, _, _, Memory}} = ern_rt:status(Program),
+                             {Own, Memory >= Size}
+                         after
+                             os:cmd("kill -CONT " ++ Number)
+                         end,
+               [receive {written, _} -> ok end || _ <- [first, second]],
+               ern_rt:untimed(),
+               Self ! {counted, Counted},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({[], true}, wait(counted)).
+
+%% report Appendix E.23: a running program's writer ends with the program's
+%% process, and as the program ends where the process lives on, so that no
+%% process of the program's is left past its end but the process that lives
+%% on: by its kill, its owner's end, its exit read, the end of its input
+%% under a terminal, after which its exit is read, and its helper's
+%% failure. The processes made since the program started are counted once
+%% the writer has ended. A regression test, written with the code: the
+%% code before had no writer, and the test fails there for want of one
+writer_ends_with_the_program_test_() ->
+    [{atom_to_list(End), fun() -> ?assertEqual([], left_after(End)) end}
+     || End <- [kill, owner, exit_read, close_input, helper_failed]].
+
+%% The processes made since the program started that are alive once the
+%% program has ended the way End names and its writer has ended, but the
+%% program's process.
+left_after(End) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               Before = erlang:processes(),
+               {Program, Owner} = case End of
+                                      exit_read -> owned(End, Main, <<"true">>, []);
+                                      close_input ->
+                                          {'Right', Cat} = start_terminal(<<"cat">>, [], ?SIZE),
+                                          {Cat, Main};
+                                      _ -> owned(End, Main, <<"sleep">>, [<<"1000">>])
+                                  end,
+               Writer = writer_of(Program),
+               WriterRef = erlang:monitor(process, Writer),
+               ended_so(End, Program, Owner),
+               receive {'DOWN', WriterRef, process, Writer, _} -> ok end,
+               Self ! {left, [Pid || Pid <- erlang:processes() -- Before, Pid =/= Program,
+                                     erlang:is_process_alive(Pid)]},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    wait(left).
+
+%% Program ended the way End names, its owner Owner: its process's end
+%% waited for where it ends, and where it lives on, the answer that comes
+%% after the end.
+ended_so(End, Program, Owner) when End =:= kill; End =:= owner ->
+    MonitorRef = erlang:monitor(process, Program),
+    case End of
+        kill -> ern_rt:kill(Program);
+        owner -> Owner ! go
+    end,
+    receive {'DOWN', MonitorRef, process, Program, _} -> ok end;
+ended_so(exit_read, Program, _) ->
+    {<<>>, 0} = read_to_end(Program, <<>>);
+ended_so(close_input, Program, _) ->
+    Program ! 'CloseInput',
+    {_, _} = read_to_end(Program, <<>>);
+ended_so(helper_failed, Program, _) ->
+    Helper = helper_number(Program),
+    %% the program, which a helper killed so leaves running
+    Sleep = child_number(Helper),
+    signaled(Helper, "KILL"),
+    _ = os:cmd("kill -KILL " ++ Sleep),
+    ReadReply = alias(),
+    Program ! {'Read', 5000, {ReadReply, self()}},
+    {fault, _} = answer(ReadReply).
+
+%% The writer of a running program, the one process linked to the
+%% program's process that is not Os's.
+writer_of(Program) ->
+    {links, Links} = erlang:process_info(Program, links),
+    Os = ern_rt:system_process(os),
+    [Writer] = [Pid || Pid <- Links, is_pid(Pid), Pid =/= Os],
+    Writer.
 
 %% What Process.status says Pid, a live process the runtime started, does.
 activity_of(Pid) ->
@@ -1141,6 +1777,45 @@ sleep(Ms) ->
 
 wait(Tag) ->
     receive {Tag, Value} -> Value after 5000 -> timeout end.
+
+%% A program that takes no input until it is sent the user's first signal,
+%% and then runs Then; its number is the first line it writes, and it
+%% ignores the interrupt, which a test sends as a barrier: its answer comes
+%% once the helper has read every frame before it. Its `sleep` waits in the
+%% background, where the signal ends the shell's wait.
+behind(Then) ->
+    <<"trap '", Then/binary, "' USR1; trap '' INT; echo $$; sleep 1000 > /dev/null 2>&1 & wait">>.
+
+%% The number of the program a program `behind/1` gives started, the first
+%% line it wrote.
+first_line(Program) ->
+    binary_to_integer(string:trim(read_until(Program, <<"\n">>, <<>>))).
+
+%% The port of the helper of a running program, the one whose output comes
+%% to the program's process.
+helper_of(Program) ->
+    [Helper] = [Port || Port <- erlang:ports(),
+                        erlang:port_info(Port, connected) =:= {connected, Program}],
+    Helper.
+
+%% The operating system's number for the helper of a running program.
+helper_number(Program) ->
+    {os_pid, Number} = erlang:port_info(helper_of(Program), os_pid),
+    Number.
+
+%% A field of what the host shows of the process of Number, in kilobytes:
+%% VmRSS, what it holds resident, or VmHWM, the most it has held.
+status_kb(Number, Field) ->
+    {ok, Status} = file:read_file("/proc/" ++ integer_to_list(Number) ++ "/status"),
+    [Line] = [Line || Line <- string:split(binary_to_list(Status), "\n", all),
+                      lists:prefix(Field ++ ":", Line)],
+    [_, Kilobytes | _] = string:lexemes(Line, " \t"),
+    list_to_integer(Kilobytes).
+
+%% The signal Name sent to the process of Number.
+signaled(Number, Name) ->
+    [] = os:cmd("kill -" ++ Name ++ " " ++ integer_to_list(Number)),
+    ok.
 
 %% report §12.5, §11.2: a node's ernest.pid is made writable by its owner
 %% alone, whatever the mask, and never through a link; and a signal to the

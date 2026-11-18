@@ -4,8 +4,11 @@
 %% (c_src/ern_exec.c), the helper that runs the program, under a
 %% pseudo-terminal for Os.startTerminal, and asks the helper for a piece of
 %% the program's output only for a read that waits, so that a program no
-%% one reads waits on its output. A read and a write each wait their own
-%% milliseconds (E.0 shape rule 8).
+%% one reads waits on its output. Every frame for the helper goes through
+%% the program's writer, a process of its own, which the host holds at a
+%% port that takes no more, so that the program's process takes its
+%% requests, its kill among them, while a write is given the helper. A read
+%% and a write each wait their own milliseconds (E.0 shape rule 8).
 %%
 %% The program runs until it exits, until its process is killed, since the
 %% port closing ends the helper, or until its owner dies (E.23). Its
@@ -14,8 +17,12 @@
 %% (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3, host/0,
-         umask/0, working_directory/0]).
+-export([loop/0, input/5, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3,
+         host/0, umask/0, working_directory/0]).
+
+%% The most bytes an `i` frame carries after its tag: the host writes a
+%% frame's length, its tag among it, in 4 bytes, and cuts a longer one.
+-define(INPUT_MOST, 16#FFFFFFFE).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 %% The host's facts are read from a port, a wait inside foreign code for
@@ -24,19 +31,24 @@
 %% host's work.
 -receives({foreign_wait, [host_read/1, variables/2]}).
 -receives({own_process, [serve/1, spawn_program/5, signal/2, locked/2, node_signaled/3,
-                         ended/1, starting/3, running/4, exited/2, over/2]}).
+                         ended/1, starting/3, running/4, exited/2, over/2, writing/1,
+                         stop_writer/1]}).
 
 %% Report Appendix E.23: a running program's own, beside the reads that
-%% wait and what the helper owes them (running/4): the helper's port, its
-%% owner and the owner's monitor, the writes the helper has yet to answer,
-%% the signals and the resizes it has been asked for and has yet to answer,
-%% and whether the program runs under a terminal, which a resize needs.
--record(program, {helper :: port(), owner :: pid(), monitor_ref :: reference(),
-                  writes :: queue:queue(), asked = queue:new() :: queue:queue(),
-                  terminal :: boolean()}).
+%% wait and what the helper owes them (running/4): the helper's port, the
+%% writer that gives it every frame (writing/1), its owner and the owner's
+%% monitor, the inputs the helper has yet to answer
+%% and the timers of the writes still waiting, the signals and the resizes
+%% it has been asked for and has yet to answer, whether the program runs
+%% under a terminal, which a resize needs, and whether `closeInput` has
+%% ended its input.
+-record(program, {helper :: port(), writer :: pid(), owner :: pid(), monitor_ref :: reference(),
+                  writes :: queue:queue(), timers = #{} :: #{term() => reference()},
+                  asked = queue:new() :: queue:queue(), terminal :: boolean(),
+                  input_closed = false :: boolean()}).
 
-%% A read waiting: its reply, the reference of its caller's monitor, which
-%% names the read to its timer too, and its timer.
+%% A read waiting: its reply, the reference of its caller's monitor and its
+%% timer, the read named to both by its place among the reads (read/6).
 -record(read, {reply, monitor_ref :: reference(), timer :: reference()}).
 
 %% Report §8.6: every program's process is linked to this one, which the
@@ -66,9 +78,18 @@ serve(Os) ->
 %% Report §7.4, §12.5: where the host's table of processes is full, it
 %% cannot be made, and the start answers `Left(Other("error:system_limit"))`,
 %% this process living on.
+%%
+%% Report §7.4, Appendix E.23: the process traps exits, so that its
+%% helper's port, which is linked to it, ending with a reason of the
+%% host's, a write to the helper's closed pipe among them, is the helper's
+%% failure and not the process's end; a kill, the program's end and the
+%% end of a process it is linked to end it with their reason, the program
+%% with it, as they would have. The host never holds it at the port, which
+%% its writer writes to (writing/1), so it takes each of them at once.
 spawn_program(Os, Command, Kind, Owner, Reply) ->
     try erlang:spawn(fun() ->
                          link(Os),
+                         process_flag(trap_exit, true),
                          receive go -> start(Command, Kind, Owner, Reply) end
                      end) of
         Pid ->
@@ -90,7 +111,10 @@ site({terminal, _}) -> <<"Os.startTerminal">>.
 %% §12, Appendix E.23: a host that holds as many ports as its limit, or as
 %% many files as the operating system's, refuses the helper's, and the
 %% start answers that refusal in the host's words, as Tcp answers its own;
-%% any other failure to open the helper is the helper's.
+%% any other failure to open the helper is the helper's. Report §7.4,
+%% §12.5: the program's writer is made with the helper's port, and where
+%% the host's table of processes is full, the start answers as one whose
+%% process cannot be made, the port closed.
 start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, Kind, Owner,
       Reply) ->
     case is_taken(Program, Arguments, Environment, Directory) andalso is_size_taken(Kind) of
@@ -99,16 +123,25 @@ start({'Command', Program, Arguments, Input, Environment, {'Path', Directory}}, 
         true ->
             try open(helper_arguments(Kind)) of
                 Helper ->
-                    %% the command comes as the first frames, not on the
-                    %% helper's command line, so that an argument too long
-                    %% for the host is the program's failure to start
-                    lists:foreach(fun({Name, Value}) ->
-                                      command(Helper, <<"v", Name/binary, "=", Value/binary>>)
-                                  end, Environment),
-                    command(Helper, <<"p", Directory/binary>>),
-                    Parts = << <<Part/binary, 0>> || Part <- [Program | Arguments] >>,
-                    command(Helper, <<"c", Parts/binary>>),
-                    wait_for_start(Helper, Input, Kind =/= pipes, Directory, Owner, Reply)
+                    case writer(Helper) of
+                        {ok, Writer} ->
+                            ern_rt:writes_through(Writer),
+                            %% the command comes as the first frames, not on
+                            %% the helper's command line, so that an argument
+                            %% too long for the host is the program's failure
+                            %% to start
+                            lists:foreach(fun({Name, Value}) ->
+                                              give(Writer, <<"v", Name/binary, "=", Value/binary>>)
+                                          end, Environment),
+                            give(Writer, <<"p", Directory/binary>>),
+                            Parts = << <<Part/binary, 0>> || Part <- [Program | Arguments] >>,
+                            give(Writer, <<"c", Parts/binary>>),
+                            wait_for_start(Helper, Writer, Input, Kind =/= pipes, Directory, Owner,
+                                           Reply);
+                        limited ->
+                            erlang:port_close(Helper),
+                            end_source(Reply, {'Left', ern_io:limited()})
+                    end
             catch
                 error:Limit when Limit =:= system_limit; Limit =:= emfile; Limit =:= enfile ->
                     end_source(Reply, {'Left', ern_io:host_error(Limit, fun file:format_error/1)});
@@ -149,16 +182,58 @@ open(Args) ->
     erlang:open_port({spawn_executable, helper()},
                      [{args, Args}, {packet, 4}, binary, exit_status]).
 
+%% Report Appendix E.23: a running program's writer, a process of its own
+%% that gives the helper each frame in the order the program's process
+%% gives them (give/2): the command's, each input, each signal and resize,
+%% the end of the input and each read's ask. The host holds the writer, and
+%% not the program's process, at a port that takes no more. It is linked to
+%% the program's process and does not trap exits, so that the process's
+%% end ends it, held at the port among the ways; a process that lives on
+%% ends it first (stop/1).
+writer(Helper) ->
+    try erlang:spawn_link(fun() -> writing(Helper) end) of
+        Writer -> {ok, Writer}
+    catch
+        error:system_limit -> limited
+    end.
+
+writing(Helper) ->
+    receive
+        {frame, Frame} ->
+            command(Helper, Frame),
+            writing(Helper)
+    end.
+
+%% A frame for the helper, given the program's writer.
+give(Writer, Frame) ->
+    Writer ! {frame, Frame},
+    ok.
+
 %% The program's input given, its owner watched, and the helper's word on
 %% its start waited for.
-wait_for_start(Helper, Input, Terminal, Directory, Owner, Reply) ->
-    command(Helper, <<"i", Input/binary>>),
-    MonitorRef = erlang:monitor(process, Owner),
+wait_for_start(Helper, Writer, Input, Terminal, Directory, Owner, Reply) ->
     %% the input given at the start is answered by the helper as a write is,
     %% with no one waiting for it
-    Writes = queue:in(none, queue:new()),
-    starting(#program{helper = Helper, owner = Owner, monitor_ref = MonitorRef, writes = Writes,
-                      terminal = Terminal}, Directory, Reply).
+    Writes = input(Writer, Input, ?INPUT_MOST, none, queue:new()),
+    MonitorRef = erlang:monitor(process, Owner),
+    starting(#program{helper = Helper, writer = Writer, owner = Owner, monitor_ref = MonitorRef,
+                      writes = Writes, terminal = Terminal}, Directory, Reply).
+
+%% Report Appendix E.23: a write's bytes given the helper as `i` frames in
+%% order, through Writer, the program's writer, each its tag and at most
+%% Most of the bytes, parts of them that the runtime does not copy; and an
+%% entry added to Writes for each frame, which the helper answers: `none`
+%% for each but the last, whose answer answers no one, and Last, the
+%% write's, for the last. The runtime gives Most as ?INPUT_MOST, the
+%% longest a frame of the host's can be.
+-spec input(pid(), binary(), pos_integer(), term(), queue:queue()) -> queue:queue().
+input(Writer, Bytes, Most, Last, Writes) when byte_size(Bytes) > Most ->
+    <<Part:Most/binary, Rest/binary>> = Bytes,
+    give(Writer, [$i, Part]),
+    input(Writer, Rest, Most, Last, queue:in(none, Writes));
+input(Writer, Bytes, _Most, Last, Writes) ->
+    give(Writer, [$i, Bytes]),
+    queue:in(Last, Writes).
 
 %% Report §7.4, Appendix E.23: the helper's failure is the runtime's own,
 %% which faults the caller that meets it.
@@ -268,7 +343,7 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
     receive
         {Helper, {data, <<"s">>}} ->
             ern_rt:answer(Reply, {'Right', erlang:self()}),
-            running(Running, queue:new(), 0, queue:new());
+            running(Running, gb_trees:empty(), 0, queue:new());
         {Helper, {data, <<"f", Name/binary>>}} ->
             stop(Running),
             %% report Appendix E.23: the host's reason, a path through
@@ -284,11 +359,20 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
         {Helper, {exit_status, _}} ->
             stop(Running),
             end_source(Reply, helper_failed());
+        {'EXIT', Helper, _} ->
+            stop(Running),
+            end_source(Reply, helper_failed());
+        {'EXIT', _, normal} ->
+            starting(Running, Directory, Reply);
+        {'EXIT', _, ExitReason} ->
+            ended_with(Running, ExitReason);
         {'DOWN', _, process, _, _} ->
             die_with_owner(Running)
     end.
 
-%% Waiting: the reads that wait, oldest first, each a #read{}. Owed: the
+%% Waiting: the reads that wait, each a #read{} by its place, oldest first,
+%% so that a read whose time passes or whose caller ends is found by its
+%% place, which its timer and its caller's `DOWN` carry. Owed: the
 %% pieces the helper owes, one asked for each read that came with nothing
 %% kept. Kept: the answers the helper gave while no read waited, which the
 %% next reads take, in order. The helper sends one piece of output for
@@ -307,11 +391,15 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
 %% nothing.
 %%
 %% A write is answered when the helper says the program has taken its
-%% bytes, `a`, or dropped them, `d`, one for each input in order, the
-%% replies kept in the program's `writes`, each {Reply, Timer}, or
-%% `Left(Timeout)` first, which does not undo it and leaves `none` in its
-%% place. A request answered lets go of its timer, and a read of its
-%% caller's monitor.
+%% bytes, `a`, or dropped them, `d`, one for each input in order, each
+%% input's entry kept in the program's `writes`: the write's reply for its
+%% last frame, and `none` for a frame whose answer answers no one (input/5).
+%% A write still waiting has its timer in the program's `timers` by its
+%% reply, so that its time passing finds it there; `Left(Timeout)` answers
+%% it first, which does not undo it, and takes it from `timers`, the
+%% helper's answer then answering no one. A write after `closeInput`
+%% answers `Left(Closed)` at once, and gives the helper nothing. A request
+%% answered lets go of its timer, and a read of its caller's monitor.
 %%
 %% A signal and a resize are answered when the helper says it sent the
 %% signal or set the size, `g`, or that the program had exited or, for a
@@ -319,8 +407,8 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
 %% kept in the program's `asked`: the program's process cannot know the
 %% exit before the helper reads it, which a signal that reached nothing and
 %% a size that told nothing must not hide (E.23).
-running(#program{helper = Helper, writes = Writes, asked = Asked} = Running, Waiting, Owed,
-        Kept) ->
+running(#program{helper = Helper, writer = Writer, writes = Writes, timers = Timers,
+                 asked = Asked, input_closed = InputClosed} = Running, Waiting, Owed, Kept) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
@@ -330,17 +418,20 @@ running(#program{helper = Helper, writes = Writes, asked = Asked} = Running, Wai
         {'Write', _, Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             running(Running, Waiting, Owed, Kept);
+        {'Write', _, _, Reply} when InputClosed ->
+            ern_rt:answer(Reply, {'Left', 'Closed'}),
+            running(Running, Waiting, Owed, Kept);
         {'Write', Bytes, Ms, Reply} ->
-            command(Helper, <<"i", Bytes/binary>>),
+            Writes1 = input(Writer, Bytes, ?INPUT_MOST, Reply, Writes),
             Timer = arm({write, Reply}, ern_rt:deadline(Ms)),
-            running(Running#program{writes = queue:in({Reply, Timer}, Writes)}, Waiting, Owed,
-                    Kept);
+            running(Running#program{writes = Writes1, timers = Timers#{Reply => Timer}}, Waiting,
+                    Owed, Kept);
         {Helper, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d ->
             {{value, Write}, Rest} = queue:out(Writes),
-            answered_write(Write, written(Tag)),
-            running(Running#program{writes = Rest}, Waiting, Owed, Kept);
+            running(answered_write(Write, written(Tag), Running#program{writes = Rest}), Waiting,
+                    Owed, Kept);
         {'SendSignal', Signal, Reply} ->
-            command(Helper, <<"k", (signal_number(Signal))>>),
+            give(Writer, <<"k", (signal_number(Signal))>>),
             running(Running#program{asked = queue:in(Reply, Asked)}, Waiting, Owed, Kept);
         {Helper, {data, <<Tag>>}} when Tag =:= $g; Tag =:= $z ->
             {{value, Reply}, Rest} = queue:out(Asked),
@@ -350,7 +441,7 @@ running(#program{helper = Helper, writes = Writes, asked = Asked} = Running, Wai
             case sizing(Size, Running) of
                 sized ->
                     {'Size', Rows, Columns} = Size,
-                    command(Helper, <<"w", Rows:16, Columns:16>>),
+                    give(Writer, <<"w", Rows:16, Columns:16>>),
                     running(Running#program{asked = queue:in(Reply, Asked)}, Waiting, Owed,
                             Kept);
                 Refused ->
@@ -360,8 +451,8 @@ running(#program{helper = Helper, writes = Writes, asked = Asked} = Running, Wai
         %% report Appendix E.23: under a terminal the end of the input is
         %% the terminal's hangup, which the helper makes at once
         'CloseInput' ->
-            command(Helper, <<"e">>),
-            running(Running, Waiting, Owed, Kept);
+            give(Writer, <<"e">>),
+            running(Running#program{input_closed = true}, Waiting, Owed, Kept);
         {'Give', Owner} ->
             running(given_to(Owner, Running), Waiting, Owed, Kept);
         {Helper, {data, <<"x", Status:32>>}} ->
@@ -374,33 +465,43 @@ running(#program{helper = Helper, writes = Writes, asked = Asked} = Running, Wai
             given(Running, {'Right', piece(Tag, Bytes)}, Waiting, Owed - 1, Kept);
         {Helper, {exit_status, _}} ->
             failed(Running, Waiting);
+        %% report Appendix E.23, §7.4: the helper's port ended by the host
+        %% before the helper's exit status came, a write to its closed pipe
+        %% among the ways: the helper failed
+        {'EXIT', Helper, _} ->
+            failed(Running, Waiting);
+        {'EXIT', _, normal} ->
+            running(Running, Waiting, Owed, Kept);
+        {'EXIT', _, ExitReason} ->
+            ended_with(Running, ExitReason);
         {'DOWN', MonitorRef, process, _, _} when MonitorRef =:= Running#program.monitor_ref ->
             die_with_owner(Running);
-        {'DOWN', MonitorRef, process, _, _} ->
-            running(Running, dropped(MonitorRef, Waiting), Owed, Kept);
+        {{read, Place}, _, process, _, _} ->
+            running(Running, dropped(Place, Waiting), Owed, Kept);
         {timeout, _, {deadline, {write, Reply}, Deadline}} ->
-            Rest = write_timed_out(Reply, Deadline, Writes),
-            running(Running#program{writes = Rest}, Waiting, Owed, Kept);
-        {timeout, _, {deadline, {read, Ref}, Deadline}} ->
-            running(Running, read_timed_out(Ref, Deadline, Waiting), Owed, Kept)
+            running(write_timed_out(Reply, Deadline, Running), Waiting, Owed, Kept);
+        {timeout, _, {deadline, {read, Place}, Deadline}} ->
+            running(Running, read_timed_out(Place, Deadline, Waiting), Owed, Kept)
     end.
 
 %% A read, answered a piece kept for it, or else waiting; the helper is
 %% asked for a piece but where one is owed to a read that has gone, which
 %% is this one's.
-read(Ms, Reply, #program{helper = Helper} = Running, Waiting, Owed, Kept) ->
+read(Ms, Reply, #program{writer = Writer} = Running, Waiting, Owed, Kept) ->
     case queue:out(Kept) of
         {{value, Answer}, Rest} ->
             ern_rt:answer(Reply, Answer),
             running(Running, Waiting, Owed, Rest);
         {empty, _} ->
-            MonitorRef = erlang:monitor(process, ern_rt:reply_process(Reply)),
-            Timer = arm({read, MonitorRef}, ern_rt:deadline(Ms)),
-            Waiting1 = queue:in(#read{reply = Reply, monitor_ref = MonitorRef, timer = Timer},
-                                Waiting),
-            case Owed > queue:len(Waiting) of
+            Place = erlang:unique_integer([monotonic]),
+            MonitorRef = erlang:monitor(process, ern_rt:reply_process(Reply),
+                                        [{tag, {read, Place}}]),
+            Timer = arm({read, Place}, ern_rt:deadline(Ms)),
+            Waiting1 = gb_trees:insert(Place, #read{reply = Reply, monitor_ref = MonitorRef,
+                                                    timer = Timer}, Waiting),
+            case Owed > gb_trees:size(Waiting) of
                 true -> running(Running, Waiting1, Owed, Kept);
-                false -> command(Helper, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
+                false -> give(Writer, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
             end
     end.
 
@@ -412,7 +513,7 @@ failed(#program{owner = Owner} = Running, Waiting) ->
     unanswered(Running, helper_failed()),
     ern_rt:source_end(),
     ern_rt:spent(Owner),
-    lists:foreach(fun(Read) -> answered_read(Read, helper_failed()) end, queue:to_list(Waiting)),
+    lists:foreach(fun(Read) -> answered_read(Read, helper_failed()) end, gb_trees:values(Waiting)),
     over(helper_failed(), Running).
 
 %% An answer of the helper's, to the oldest read that waits, or kept for the
@@ -430,40 +531,48 @@ failed(#program{owner = Owner} = Running, Waiting) ->
 %% is spent.
 given(#program{owner = Owner} = Running, {'Right', {'Exited', _}} = Answer, Waiting, _Owed,
       Kept) ->
-    lists:foreach(fun(Read) -> answered_read(Read, Answer) end, queue:to_list(Waiting)),
+    lists:foreach(fun(Read) -> answered_read(Read, Answer) end, gb_trees:values(Waiting)),
     ern_rt:source_end(),
     ern_rt:spent(Owner),
     exited(queue:in(Answer, Kept), Running);
 given(Running, Answer, Waiting, Owed, Kept) ->
-    case queue:out(Waiting) of
-        {{value, #read{reply = Reply, monitor_ref = MonitorRef} = Read}, Rest} ->
+    case gb_trees:is_empty(Waiting) of
+        false ->
+            {Place, #read{reply = Reply} = Read, Rest} = gb_trees:take_smallest(Waiting),
             case erlang:is_process_alive(ern_rt:reply_process(Reply)) of
                 true ->
                     answered_read(Read, Answer),
                     running(Running, Rest, Owed, Kept);
                 false ->
-                    given(Running, Answer, dropped(MonitorRef, Waiting), Owed, Kept)
+                    given(Running, Answer, dropped(Place, Waiting), Owed, Kept)
             end;
-        {empty, _} ->
+        true ->
             running(Running, Waiting, Owed, queue:in(Answer, Kept))
     end.
 
-%% A read answered: its timer let go and its caller no longer watched.
+%% A read answered: its timer let go and its caller no longer watched. A
+%% `DOWN` already on its way is not looked for among what waits in the
+%% mailbox, which would cost as much as waits there: it comes, as a time
+%% that has passed does, for a read that no longer waits, and does
+%% nothing (dropped/2, read_timed_out/3).
 answered_read(#read{reply = Reply, monitor_ref = MonitorRef, timer = Timer}, Answer) ->
     let_go(Timer),
-    erlang:demonitor(MonitorRef, [flush]),
+    erlang:demonitor(MonitorRef),
     respond(Reply, Answer).
 
 %% Report Appendix E.23: a read whose caller has ended before it was
-%% answered is dropped, its timer let go and its caller no longer watched,
-%% a `DOWN` on its way among it; a piece the helper was asked for it is the
-%% next read's (given/5, read/6).
-dropped(MonitorRef, Waiting) ->
-    {value, #read{timer = Timer}, Rest} =
-        lists:keytake(MonitorRef, #read.monitor_ref, queue:to_list(Waiting)),
-    let_go(Timer),
-    erlang:demonitor(MonitorRef, [flush]),
-    queue:from_list(Rest).
+%% answered is dropped, its timer let go and its caller no longer watched;
+%% a piece the helper was asked for it is the next read's (given/5,
+%% read/6). A caller's `DOWN` for a read no longer waiting does nothing.
+dropped(Place, Waiting) ->
+    case gb_trees:take_any(Place, Waiting) of
+        {#read{monitor_ref = MonitorRef, timer = Timer}, Rest} ->
+            let_go(Timer),
+            erlang:demonitor(MonitorRef),
+            Rest;
+        error ->
+            Waiting
+    end.
 
 %% Report Appendix E.23: the program has exited, and its process lives on,
 %% as a socket's does after its close, until it is killed or its owner
@@ -471,7 +580,8 @@ dropped(MonitorRef, Waiting) ->
 %% which stays for every read after it, a read given no time excepted; a
 %% write, a resize and a signal are answered as to a program that has
 %% exited, a write given no time excepted, and `closeInput` does nothing.
-exited(Kept, #program{monitor_ref = MonitorRef} = Running) ->
+%% The helper's port, closed as the exit came, ends as one that returned.
+exited(Kept, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
@@ -500,46 +610,42 @@ exited(Kept, #program{monitor_ref = MonitorRef} = Running) ->
         {'DOWN', MonitorRef, process, _, _} ->
             %% its owner died, which kills it
             exit({ern, killed});
+        {'EXIT', Helper, _} ->
+            exited(Kept, Running);
+        {'EXIT', _, normal} ->
+            exited(Kept, Running);
+        {'EXIT', _, ExitReason} ->
+            exit(ExitReason);
         _ ->
             exited(Kept, Running)
     end.
 
-%% A time passed: a write's answers `Left(Timeout)` at once, any answer of the
-%% helper's after it dropped as a second answer is; a read's, where it still
-%% waits, answers it too and takes it from the reads that wait. A wait
-%% longer than the host's longest timer is armed again until it has passed
-%% (report §6.3).
-write_timed_out(Reply, Deadline, Writes) ->
-    queue:from_list([case Write of
-                         {Reply, _} -> expired_write(Reply, Deadline);
-                         _ -> Write
-                     end || Write <- queue:to_list(Writes)]).
-
-expired_write(Reply, Deadline) ->
-    case ern_rt:remaining(Deadline) of
-        0 ->
+%% A time passed: a write's answers `Left(Timeout)` at once, where it still
+%% waits, and takes it from the writes that wait, the helper's answer then
+%% answering no one; a read's, where it still waits, answers it too and
+%% takes it from the reads that wait. A wait longer than the host's longest
+%% timer is armed again until it has passed (report §6.3).
+write_timed_out(Reply, Deadline, #program{timers = Timers} = Running) ->
+    case {Timers, ern_rt:remaining(Deadline)} of
+        {#{Reply := _}, 0} ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
-            none;
+            Running#program{timers = maps:remove(Reply, Timers)};
+        {#{Reply := _}, _} ->
+            Running#program{timers = Timers#{Reply := arm({write, Reply}, Deadline)}};
         _ ->
-            {Reply, arm({write, Reply}, Deadline)}
+            Running
     end.
 
-read_timed_out(MonitorRef, Deadline, Waiting) ->
-    queue:from_list(lists:append([case Read of
-                                      #read{monitor_ref = MonitorRef} ->
-                                          expired_read(Read, Deadline);
-                                      _ ->
-                                          [Read]
-                                  end || Read <- queue:to_list(Waiting)])).
-
-expired_read(#read{reply = Reply, monitor_ref = MonitorRef} = Read, Deadline) ->
-    case ern_rt:remaining(Deadline) of
-        0 ->
-            erlang:demonitor(MonitorRef, [flush]),
+read_timed_out(Place, Deadline, Waiting) ->
+    case {gb_trees:lookup(Place, Waiting), ern_rt:remaining(Deadline)} of
+        {{value, #read{reply = Reply, monitor_ref = MonitorRef}}, 0} ->
+            erlang:demonitor(MonitorRef),
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
-            [];
-        _ ->
-            [Read#read{timer = arm({read, MonitorRef}, Deadline)}]
+            gb_trees:delete(Place, Waiting);
+        {{value, Read}, _} ->
+            gb_trees:update(Place, Read#read{timer = arm({read, Place}, Deadline)}, Waiting);
+        {none, _} ->
+            Waiting
     end.
 
 %% A request's timer, which names the request and its deadline.
@@ -551,17 +657,24 @@ arm(Kind, Deadline) ->
 let_go(Timer) ->
     erlang:cancel_timer(Timer, [{async, true}, {info, false}]).
 
-%% A write the helper has answered for: its caller is answered and its timer
-%% let go. One whose time had passed was answered then, and the input given
-%% at the start has no caller.
-answered_write(none, _Answer) ->
-    ok;
-answered_write({Reply, Timer}, Answer) ->
-    let_go(Timer),
-    respond(Reply, Answer).
+%% An input the helper has answered for: a write's caller is answered and
+%% its timer let go. One whose time had passed was answered then, and an
+%% input that is not a write's last frame has no caller.
+answered_write(none, _Answer, Running) ->
+    Running;
+answered_write(Reply, Answer, #program{timers = Timers} = Running) ->
+    case maps:take(Reply, Timers) of
+        {Timer, Rest} ->
+            let_go(Timer),
+            respond(Reply, Answer),
+            Running#program{timers = Rest};
+        error ->
+            Running
+    end.
 
-%% A frame for the helper. A helper whose end has closed has sent its exit
-%% status first, which ends the program, so a frame after it is dropped.
+%% A frame the writer gives the helper. A helper whose end has closed has
+%% sent its exit status first, which ends the program, so a frame after it
+%% is dropped.
 command(Helper, Frame) ->
     try erlang:port_command(Helper, Frame) catch error:badarg -> closed end.
 
@@ -585,8 +698,8 @@ made($z) -> {'Left', 'Closed'}.
 %% has ended: the writes' bytes are dropped, the signals sent nowhere and
 %% the sizes set on nothing, and each is answered that the program is
 %% closed, or why the runtime lost it.
-unanswered(#program{writes = Writes, asked = Asked}, Answer) ->
-    lists:foreach(fun(Write) -> answered_write(Write, Answer) end, queue:to_list(Writes)),
+unanswered(#program{timers = Timers, asked = Asked}, Answer) ->
+    maps:foreach(fun(Reply, Timer) -> let_go(Timer), respond(Reply, Answer) end, Timers),
     lists:foreach(fun(Reply) -> respond(Reply, Answer) end, queue:to_list(Asked)).
 
 piece($o, Bytes) -> {'Stdout', Bytes};
@@ -619,7 +732,8 @@ resize(Size, Reply, Running, Answer) ->
 %% faults its caller, a read or a write given no time excepted, and each
 %% resize of its terminal whose size the host takes. Its owner may still
 %% die first, which ends this process as it would have ended the program.
-over(Answer, #program{monitor_ref = MonitorRef} = Running) ->
+%% The helper's port has ended, and whatever it ends with ends nothing more.
+over(Answer, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
@@ -635,6 +749,9 @@ over(Answer, #program{monitor_ref = MonitorRef} = Running) ->
             over(Answer, Running);
         {'Give', Owner} -> over(Answer, given_to(Owner, Running));
         {'DOWN', MonitorRef, process, _, _} -> exit({ern, killed});
+        {'EXIT', Helper, _} -> over(Answer, Running);
+        {'EXIT', _, normal} -> over(Answer, Running);
+        {'EXIT', _, ExitReason} -> exit(ExitReason);
         _ -> over(Answer, Running)
     end.
 
@@ -645,10 +762,19 @@ given_to(Owner, #program{monitor_ref = MonitorRef} = Running) ->
     erlang:demonitor(MonitorRef, [flush]),
     Running#program{owner = Owner, monitor_ref = erlang:monitor(process, Owner)}.
 
-%% The helper's port closed, which ends the helper and kills the program if
-%% it runs. The monitor of its owner stays.
-stop(#program{helper = Helper}) ->
+%% The program's writer ended and the helper's port closed, which ends the
+%% helper and kills the program if it runs: the writer first, so that it
+%% gives the helper nothing more, ended where the host holds it at the port
+%% too, since it does not trap exits. The monitor of its owner stays.
+stop(#program{helper = Helper, writer = Writer}) ->
+    stop_writer(Writer),
     try erlang:port_close(Helper) catch error:badarg -> closed end.
+
+stop_writer(Writer) ->
+    unlink(Writer),
+    MonitorRef = erlang:monitor(process, Writer),
+    exit(Writer, kill),
+    receive {'DOWN', MonitorRef, process, _, _} -> ok end.
 
 %% The program's end as a source, its last answer given before its count
 %% ends, so that no deadlock is found between the two (report §8.6).
@@ -667,6 +793,15 @@ die_with_owner(Running) ->
     stop(Running),
     ern_rt:source_end(),
     exit({ern, killed}).
+
+%% Report §6.9, §8.6: the process killed, ended with the program, or ended
+%% with a process it is linked to, which it takes as a message since it
+%% traps exits: the program is killed with it, and it ends with that
+%% reason, as it would have without the trap.
+-spec ended_with(#program{}, term()) -> no_return().
+ended_with(Running, ExitReason) ->
+    stop(Running),
+    exit(ExitReason).
 
 %% Report Appendix E.23: why the program's terminal could not be opened, by
 %% the error's name the helper sends, a reason of the host's for which the

@@ -435,83 +435,98 @@ static int open_terminal(unsigned rows, unsigned columns, int *master, int *inpu
     return -1;
 }
 
-/* The input not yet written to the program: pending_size bytes from
-   pending_start in a buffer that grows. A write takes bytes from the front
-   by moving the start; the unwritten bytes move to the buffer's front only
-   when an input does not fit after them, into a buffer at least twice
-   their size, so each byte moves a bounded number of times however little
-   the program takes at once. */
-static unsigned char *pending = NULL;
-static size_t pending_start = 0, pending_size = 0, pending_capacity = 0;
-
-/* The end of each 'i' not yet answered, as a count of the input's bytes
-   from its start, oldest first, and whether it was dropped, given after
-   the end of the input; taken is how many the program has taken, accepted
-   how many were given. */
-struct end {
-    uint64_t offset;
-    int dropped;
+/* Bytes waiting in a buffer that grows: size of them from start, in a
+   buffer of capacity. Bytes are taken from the front by moving the start;
+   those that wait move to the buffer's front only when more do not fit
+   after them, into a buffer at least twice their size, so each byte moves
+   a bounded number of times however little is taken at once. Report
+   Appendix E.23: a queue that holds nothing lets its buffer go, so that
+   the helper holds nothing of what waited once it is taken or dropped. */
+struct queue {
+    unsigned char *data;
+    size_t start, size, capacity;
 };
-static struct end *ends = NULL;
-static size_t ends_count = 0, ends_capacity = 0;
-static uint64_t accepted = 0, taken = 0;
 
-static void push_end(uint64_t offset, int dropped)
+/* Room for more bytes at the queue's end, which the caller fills and then
+   counts in its size. */
+static unsigned char *room(struct queue *queue, size_t more)
 {
-    if (ends_count == ends_capacity) {
-        size_t capacity = ends_capacity ? 2 * ends_capacity : 64;
-        struct end *grown = realloc(ends, capacity * sizeof *ends);
-        if (grown == NULL) {
-            kill_program();
-            _exit(1);
-        }
-        ends = grown;
-        ends_capacity = capacity;
-    }
-    ends[ends_count].offset = offset;
-    ends[ends_count].dropped = dropped;
-    ends_count++;
-}
-
-/* An 'a' for every 'i' whose bytes the program has taken, a 'd' for every
-   'i' given after the end of its input once the input before it is taken,
-   and, where its input is gone, a 'd' for every other 'i' still waiting. */
-static void acknowledge(int gone)
-{
-    size_t answered = 0;
-    while (answered < ends_count && (gone || ends[answered].offset <= taken)) {
-        frame(ends[answered].offset <= taken && !ends[answered].dropped ? 'a' : 'd', NULL, 0);
-        answered++;
-    }
-    if (answered > 0) {
-        memmove(ends, ends + answered, (ends_count - answered) * sizeof *ends);
-        ends_count -= answered;
-    }
-}
-
-static void add_pending(const unsigned char *data, size_t size)
-{
-    /* nothing to add, and before the first input no buffer to add it to */
-    if (size == 0)
-        return;
-    if (pending_start + pending_size + size > pending_capacity) {
-        size_t capacity = pending_capacity ? pending_capacity : CHUNK;
-        while (capacity < 2 * (pending_size + size))
+    if (queue->start + queue->size + more > queue->capacity) {
+        size_t capacity = queue->capacity ? queue->capacity : 1;
+        while (capacity < 2 * (queue->size + more))
             capacity *= 2;
-        if (capacity != pending_capacity) {
-            unsigned char *grown = realloc(pending, capacity);
+        if (capacity != queue->capacity) {
+            unsigned char *grown = realloc(queue->data, capacity);
             if (grown == NULL) {
                 kill_program();
                 _exit(1);
             }
-            pending = grown;
-            pending_capacity = capacity;
+            queue->data = grown;
+            queue->capacity = capacity;
         }
-        memmove(pending, pending + pending_start, pending_size);
-        pending_start = 0;
+        memmove(queue->data, queue->data + queue->start, queue->size);
+        queue->start = 0;
     }
-    memcpy(pending + pending_start + pending_size, data, size);
-    pending_size += size;
+    return queue->data + queue->start + queue->size;
+}
+
+/* Everything the queue holds dropped, and its buffer let go. */
+static void drop(struct queue *queue)
+{
+    free(queue->data);
+    queue->data = NULL;
+    queue->start = queue->size = queue->capacity = 0;
+}
+
+/* Size bytes taken from the queue's front. */
+static void take(struct queue *queue, size_t size)
+{
+    queue->start += size;
+    queue->size -= size;
+    if (queue->size == 0)
+        drop(queue);
+}
+
+/* The input not yet written to the program, each 'i' read into it as it
+   arrives. */
+static struct queue pending = {NULL, 0, 0, 0};
+
+/* The end of each 'i' not yet answered, a struct end each, oldest first:
+   its end as a count of the input's bytes from its start, and whether it
+   was dropped, given after the end of the input; taken is how many the
+   program has taken, accepted how many were given. */
+struct end {
+    uint64_t offset;
+    int dropped;
+};
+static struct queue ends = {NULL, 0, 0, 0};
+static uint64_t accepted = 0, taken = 0;
+
+static void push_end(uint64_t offset, int dropped)
+{
+    struct end end;
+    memset(&end, 0, sizeof end);
+    end.offset = offset;
+    end.dropped = dropped;
+    memcpy(room(&ends, sizeof end), &end, sizeof end);
+    ends.size += sizeof end;
+}
+
+/* An 'a' for every 'i' whose bytes the program has taken, a 'd' for every
+   'i' given after the end of its input once the input before it is taken,
+   and, where its input is gone, a 'd' for every other 'i' still waiting;
+   each taken from the record before it is answered, so that the last
+   answer comes once the helper holds no record. */
+static void acknowledge(int gone)
+{
+    struct end end;
+    while (ends.size > 0) {
+        memcpy(&end, ends.data + ends.start, sizeof end);
+        if (!gone && end.offset > taken)
+            break;
+        take(&ends, sizeof end);
+        frame(end.offset <= taken && !end.dropped ? 'a' : 'd', NULL, 0);
+    }
 }
 
 /* The program's input ended by the helper, its descriptor closed where it
@@ -522,8 +537,7 @@ static void drop_input(int *input)
     if (*input >= 0)
         close(*input);
     *input = -1;
-    pending_start = 0;
-    pending_size = 0;
+    drop(&pending);
     acknowledge(1);
 }
 
@@ -1152,12 +1166,17 @@ int main(int argc, char **argv)
     fcntl(program_in, F_SETFL, fcntl(program_in, F_GETFL) | O_NONBLOCK);
 
     {
-        /* The frame being read from the runtime: its 4-byte length, then
-           its body. */
-        unsigned char head[4];
-        size_t head_got = 0;
-        unsigned char *body = NULL;
-        size_t body_size = 0, body_got = 0;
+        /* The frame being read from the runtime: its head, the 4-byte
+           length and the tag, which a frame of length 0 does not have, and
+           then its data. Report Appendix E.23: an 'i' given while the
+           program takes input is read straight into the input it is behind
+           on, so that the helper holds its bytes once; any other frame's
+           first bytes are kept, as many as a frame of the runtime's holds,
+           and the rest dropped. */
+        unsigned char head[5];
+        size_t head_got = 0, data_size = 0, data_got = 0;
+        int into_input = 0;
+        unsigned char kept[4];
         int input_ended = 0;
         size_t wanted = 0;
         unsigned char buffer[CHUNK];
@@ -1172,7 +1191,6 @@ int main(int argc, char **argv)
             int outputs_ended = program_out < 0 && program_err < 0;
 
             if (outputs_ended && exit_seen(&program_in)) {
-                free(body);
                 report_exit();
                 return wait_for_let_go(0);
             }
@@ -1188,7 +1206,7 @@ int main(int argc, char **argv)
                 watch(program_err, &readable, &highest);
                 err_watched = 1;
             }
-            if (program_in >= 0 && pending_size > 0) {
+            if (program_in >= 0 && pending.size > 0) {
                 watch(program_in, &writable, &highest);
                 in_watched = 1;
             }
@@ -1198,7 +1216,6 @@ int main(int argc, char **argv)
             if (select(highest + 1, &readable, &writable, NULL, NULL) < 0) {
                 if (errno == EINTR)
                     continue;
-                free(body);
                 kill_program();
                 return 1;
             }
@@ -1212,73 +1229,86 @@ int main(int argc, char **argv)
             }
 
             if (FD_ISSET(0, &readable)) {
+                /* an input's bytes go into the input only while it is
+                   taken: the exit may have dropped it since the tag */
+                int taking = head_got == sizeof head && into_input && program_in >= 0;
+                size_t left = data_size - data_got;
+                unsigned char *into;
+                size_t want;
                 ssize_t got;
-                if (head_got < sizeof head)
-                    got = read(0, head + head_got, sizeof head - head_got);
-                else
-                    got = read(0, body + body_got, body_size - body_got);
+                if (head_got < sizeof head) {
+                    into = head + head_got;
+                    want = (head_got < 4 ? 4 : sizeof head) - head_got;
+                } else if (taking) {
+                    want = left < CHUNK ? left : CHUNK;
+                    into = room(&pending, want);
+                } else if (data_got < sizeof kept) {
+                    into = kept + data_got;
+                    want = (data_size < sizeof kept ? data_size : sizeof kept) - data_got;
+                } else {
+                    into = buffer;
+                    want = left < sizeof buffer ? left : sizeof buffer;
+                }
+                got = read(0, into, want);
                 if (got < 0 && errno == EINTR)
                     continue;
                 if (got <= 0) {
                     /* the runtime has let go of the run */
-                    free(body);
                     kill_program();
                     return 0;
                 }
                 if (head_got < sizeof head) {
                     head_got += (size_t)got;
-                    if (head_got == sizeof head) {
-                        body_size = ((size_t)head[0] << 24) | ((size_t)head[1] << 16)
+                    if (head_got == 4) {
+                        size_t length = ((size_t)head[0] << 24) | ((size_t)head[1] << 16)
                             | ((size_t)head[2] << 8) | (size_t)head[3];
-                        body = malloc(body_size ? body_size : 1);
-                        body_got = 0;
-                        if (body == NULL) {
-                            kill_program();
-                            return 1;
-                        }
+                        /* a frame of length 0 has no tag, and is dropped */
+                        if (length == 0)
+                            head_got = 0;
+                        else
+                            data_size = length - 1;
+                    } else if (head_got == sizeof head) {
+                        data_got = 0;
+                        into_input = head[4] == 'i' && program_in >= 0 && !input_ended;
                     }
                 } else {
-                    body_got += (size_t)got;
+                    if (taking) {
+                        pending.size += (size_t)got;
+                        accepted += (uint64_t)got;
+                    }
+                    data_got += (size_t)got;
                 }
-                if (head_got == sizeof head && body_got == body_size) {
+                if (head_got == sizeof head && data_got == data_size) {
                     /* input after its end, or after the program closed
                        it, is dropped; while the input before it still
                        drains, its 'a' waits behind theirs, so that every
                        'i' is answered in order */
-                    if (body_size > 0 && body[0] == 'i') {
-                        if (program_in >= 0 && !input_ended) {
-                            add_pending(body + 1, body_size - 1);
-                            accepted += body_size - 1;
+                    if (head[4] == 'i') {
+                        if (into_input && program_in >= 0)
                             push_end(accepted, 0);
-                        } else if (program_in >= 0) {
+                        else if (program_in >= 0)
                             push_end(accepted, 1);
-                        } else {
+                        else
                             frame('d', NULL, 0);
-                        }
                     }
-                    else if (body_size > 0 && body[0] == 'e')
+                    else if (head[4] == 'e')
                         input_ended = 1;
-                    else if (body_size > 0 && body[0] == 'n')
+                    else if (head[4] == 'n')
                         wanted++;
-                    else if (body_size == 5 && body[0] == 'w' && terminal)
-                        resize_terminal(program_out, (unsigned)body[1] << 8 | body[2],
-                                        (unsigned)body[3] << 8 | body[4], &program_in);
-                    else if (body_size == 2 && body[0] == 'k')
-                        signal_program(body[1], &program_in);
-                    free(body);
-                    body = NULL;
+                    else if (data_size == 4 && head[4] == 'w' && terminal)
+                        resize_terminal(program_out, (unsigned)kept[0] << 8 | kept[1],
+                                        (unsigned)kept[2] << 8 | kept[3], &program_in);
+                    else if (data_size == 1 && head[4] == 'k')
+                        signal_program(kept[0], &program_in);
                     head_got = 0;
                 }
             }
 
             /* the exit may have dropped the input since it was watched */
             if (in_watched && program_in >= 0 && FD_ISSET(program_in, &writable)) {
-                ssize_t wrote = write(program_in, pending + pending_start, pending_size);
+                ssize_t wrote = write(program_in, pending.data + pending.start, pending.size);
                 if (wrote > 0) {
-                    pending_start += (size_t)wrote;
-                    pending_size -= (size_t)wrote;
-                    if (pending_size == 0)
-                        pending_start = 0;
+                    take(&pending, (size_t)wrote);
                     taken += (uint64_t)wrote;
                 } else if (wrote < 0 && errno != EAGAIN && errno != EINTR) {
                     /* no process holds the program's input open */
@@ -1286,7 +1316,7 @@ int main(int argc, char **argv)
                 }
             }
             acknowledge(0);
-            if (program_in >= 0 && input_ended && pending_size == 0) {
+            if (program_in >= 0 && input_ended && pending.size == 0) {
                 close(program_in);
                 program_in = -1;
             }

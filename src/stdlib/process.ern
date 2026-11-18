@@ -42,7 +42,8 @@
 /// process that waits still counts what it dropped (report §10). A binary that
 /// code holds, a constant's or a shell's binding's, is not counted. A socket's
 /// counts the process that does its writes too (report Appendix E.18), and not
-/// the host's processes of a connection over TLS.
+/// the host's processes of a connection over TLS. A running program's counts
+/// the process that does its writes too (report Appendix E.23).
 ///
 /// ### Examples
 ///
@@ -75,9 +76,9 @@ export type Status = Status(site : String, queued : Int, activity : Activity, me
 ///
 /// A process is `Suspended` while the host holds it: in a `send` to another
 /// node, or in a call or a wait on a peer that waits as a `send` waits (report
-/// §6.6, §8.7, Appendix E.27); while the runtime carries out a `kill` of it
-/// (report §6.9); or while it writes to one of the node's own ports that takes
-/// no more. A process the host holds is `Suspended` whatever it waited for.
+/// §6.6, §8.7, Appendix E.27); or while the runtime carries out a `kill` of it
+/// (report §6.9). A process the host holds is `Suspended` whatever it waited
+/// for.
 ///
 /// ### Examples
 ///

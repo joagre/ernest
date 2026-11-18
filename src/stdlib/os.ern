@@ -533,7 +533,8 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 /// program is behind, at most `ms` milliseconds; `Left(Timeout)` does not undo
 /// the write.
 ///
-/// A program that stops reading its input holds its writer, and one whose output
+/// A program that stops reading its input holds its writer for the write's
+/// time, and what was written waits for it, however much. One whose output
 /// no one reads stops reading. So a program that both takes much input and
 /// writes much output is written to by one process and read by another. Bytes
 /// given after `closeInput`, once the program has exited, or once no process

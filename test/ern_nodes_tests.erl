@@ -2034,6 +2034,57 @@ fn requested(door : Address(Tcp.ListenerMsg), port : Int) : Unit = {
         exit(Server, kill)
     end.
 
+%% report §7.4, §12.5, Appendix E.23: a start at a table of processes with
+%% room for the program's process but not for its writer answers
+%% `Left(Other("error:system_limit"))`, as a start whose process cannot be
+%% made does (full_process_table_test_), and with room for both it starts.
+%% A regression test, written with the code: the code before made no
+%% writer, and a start with room for one process started
+start_at_a_full_table_test_() ->
+    nodes_test({waits, 3}, fun start_at_a_full_table/1).
+
+start_at_a_full_table(Base) ->
+    Source = filename:join(Base, "src"),
+    ok = filelib:ensure_path(Source),
+    ok = file:write_file(filename:join(Source, "full_start.ern"), <<"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+// The processes the table has room for.
+fn room() : Int =
+    systemInfo(Foreign.atom(\"process_limit\")) - systemInfo(Foreign.atom(\"process_count\"))
+
+// Count processes spawned, each waiting for ever.
+fn filled(count : Int) : Unit =
+    if count > 0 then {
+        let _ = spawn(fn() = waited());
+        filled(count - 1)
+    } else
+        Unit
+
+// A process that waits for nothing that comes.
+fn waited() : Unit receiving Int = receive { _ -> Unit }
+
+// The table filled but for the run's argument's count, then a start.
+export fn main() : Unit = {
+    filled(room() - Optional.withDefault(Optional.andThen(List.get(Os.arguments, 0),
+                                                          String.toInt), 0));
+    match Os.start(Os.command(\"true\", [])) {
+        Right(_) -> Io.println(\"started\")
+      | Left(error) -> Io.println(Io.show(error))
+    }
+}
+">>),
+    0 = built(["--build-root", filename:join(Base, "build"), Source]),
+    Program = filename:join([Base, "build", "full_start.erc"]),
+    Runs = [begin
+                Node = made(Base, "free" ++ integer_to_list(Free), none),
+                edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+                {Free, begun([?ERN, " run --config-dir ", Node, " ", Program, " ",
+                              integer_to_list(Free), " 2>&1"])}
+            end || Free <- [1, 2]],
+    ?assertEqual([{1, {0, ["Io.Other(\"error:system_limit\")"]}}, {2, {0, ["started"]}}],
+                 [{Free, lines_said(Run())} || {Free, Run} <- Runs]).
+
 %% report Appendix E.21, §10, §12.5: a subscriber to faults is given each
 %% report at a full table of processes, through its subscription's courier,
 %% made with the subscription: a process under `restarting` that fills the

@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 106**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 121**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -47,9 +47,8 @@ log's *A Status Read Before the Watch*, its paragraph *The order of what is left
 builds found, then what needs the user. An item planned since stands where its group's
 sentence says.
 
-**What was found**, each item begun by an agent that shows it or tests it. Item 106 was
-placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). Items 108, 109
-and 110 were planned with the user the same day, each in the log entry it names. Item 99
+**What was found**, each item begun by an agent that shows it or tests it. Items 108, 109
+and 110 were planned with the user on 2026-11-18, each in the log entry it names. Item 99
 is what ernest-httpd's session handed back on 2026-11-17.
 
 The others were found by an item's build or its reading. Item 112 was found by the cold
@@ -59,13 +58,9 @@ that item's build (the log's *A Checker Acts for the Target*). Item 118 was foun
 Host's Flush*). Item 120 was found by item 117's probes and placed with the user the same
 day (the log's *A Termination Ends a Stalled Flush*). Item 121 was found by item 105's
 probes and placed with the user the same day (the log's *A Message Is Placed in Parts*).
+Items 122 and 123 were found by item 106's probes and placed with the user the same day
+(the log's *What a Program's Helper Holds*).
 
-- **106. A program's helper buffers its input without bound**, found 2026-11-17 by item
-  97's build: a reading of `ern_exec.c`, lines 409 to 485. A program that does not read
-  its input never makes its port busy, since the helper takes what is written into a
-  buffer that grows. An agent first shows what a writer to a program that reads nothing
-  makes the helper hold, and whether anything bounds it. Memory that nothing reclaims is
-  a defect (`CLAUDE.md`, *Defects and gaps*), and the fix's shape follows the probe.
 - **121. A kill's `Down` waits on another peer**, found 2026-11-18 by item 105's probes
   (the log's *A Message Is Placed in Parts*, its paragraph *A killed sender's `Down`*). A
   process killed while its `send` to a peer waits has its `Down` reach a watcher on a
@@ -161,6 +156,20 @@ probes and placed with the user the same day (the log's *A Message Is Placed in 
   An agent shows first whether the line that says whom the end waits for holds the same
   way. It also shows what item 117 left: the shell's end at once, `ern test` after a
   launch ended so, and an `Os.exit` during the flush.
+- **122. Whether a socket's writes that time out are bounded**, found 2026-11-18 by item
+  106's reading (the log's *What a Program's Helper Holds*). E.18 says of `Tcp.write` what
+  E.23 says of `Os.write`: a `Left(Timeout)` does not undo the write. A socket's writer
+  takes its writes from its mailbox one after another, so by a reading the writes that
+  timed out wait there and nothing bounds them. An agent first shows what a writer to a
+  socket whose far end reads nothing makes the node hold, and what gives it back. The
+  shape then follows item 106's: E.18 says what the rule costs, and what is held past
+  its use is mended.
+- **123. What 20,000 faults at once hold**, found 2026-11-18 by item 106's probes (the
+  log's *What a Program's Helper Holds*, its paragraph *Found beside it*). A kill of a
+  program with 20,000 writers waiting faulted them all, and the node's memory peaked at
+  4.4 GB while their reports were written, about 220 KB a report. An agent first shows
+  what one fault's report holds and what many at once add, and the fix's shape follows
+  what it shows.
 
 **What is decided and waits for its build** stands between the two: items 92 and 93, what
 item 60 decided on 2026-11-17, item 95, what a reading of five reviews from outside
@@ -414,6 +423,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 116 | The job halts without the host's flush, so that a program's end waits for no socket whose far end takes nothing; a stream that is stopped writes out what its port holds; what the host logs or a node says once the job's output is flushed is not written, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
 | 117 | A termination once the end's wait is over ends the end at once: it kills both standard streams and the sayer of the lines said later with what they hold, so that a stream nobody reads holds no end; the status is that of what began the end | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
 | 105 | A message for a peer is placed in the host's buffer in parts while less than 1 MB waits there, and its `send` then waits with the rest; the report and the nodes' note had it placed whole, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |
+| 106 | Nothing bounds what waits for a program that does not read, and E.23 says so; the helper lets its input go once it is taken, a write after `closeInput` answers `Left(Closed)` at once, no timeout scans the writes or the reads that wait, the helper's failure is E.23's fault every time, and a write's bytes are copied once; a running program has a writer, so its process is never held at its port and E.21 names no such hold, with the user | 2026-11-18 | Appendix E.21, E.23; *What a Program's Helper Holds* |
 
 ---
 
