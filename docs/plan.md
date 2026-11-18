@@ -72,6 +72,9 @@ Item 108, a reading that item 104's build left unread, was planned with the user
 Item 109, what item 107's build found, was planned with the user on 2026-11-18 (the log's
 *Suspended Is the Host's Word*), and stands after item 108.
 
+Item 110, what item 87's build found, was planned with the user on 2026-11-18 (the log's
+*A Home of the Run's Own*), and stands after item 109.
+
 - **88. No test runs the hunt's rounds**, found 2026-11-16 by item 80's build (the log's *A
   Record After a Cancel*). `ern_flakes:hunt/1` carries the host's first cancel from one
   round to the next, and only a run by hand showed it. An agent writes the test: `hunt/1`
@@ -163,6 +166,13 @@ Item 109, what item 107's build found, was planned with the user on 2026-11-18 (
   type its module exports, as it holds each function's. An agent first shows which of
   the lines differ today, and each difference is brought to the user before either side
   changes.
+- **110. Nothing holds that a shell start outside `make test-shell` names a home**, found
+  2026-11-18 by item 87's build (the log's *A Home of the Run's Own*). Three starts in the
+  integration and the install tests ran under the inherited `HOME`, and a new one would
+  run the startup file of whoever runs the tests. A full run under a probe home showed
+  that none does today. The shape of the fix: `test/Makefile` states the run's home once
+  for the targets `make test-full` runs, as its `shell` target has it. An agent shows
+  first which of those targets need the person's own home.
 - **99. No test holds a request's head that arrives in pieces**, found 2026-11-17 by
   ernest-httpd's reading of its own tests against the reviews from outside (the log's *The
   Server's Answers*, its paragraph *A head in pieces*). Appendix G.11 says that
