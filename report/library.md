@@ -777,6 +777,8 @@ A process is `Calling` while it waits for a call's answer, for a load's evaluato
 
 A process that waits is `Running` while the host works in it. The host works in every process of a node for a moment when code is let go there (§11.2).
 
+A process is `Suspended` while the host holds it: in a `send` to another node, or in a call or a wait on a peer that waits as a `send` waits (§6.6, §8.7, E.27); while the runtime carries out a `kill` of it (§6.9); or while it writes to one of the node's own ports that takes no more. A process the host holds is `Suspended` whatever it waited for.
+
 Its `memory` is the bytes the process holds as the host counts them: its stack, its heap and its mailbox, and each binary it references, whole, however small the part it uses. A binary is counted for each reference and in each process that holds one, so the memories of a node's processes can add up to more than the node holds. A process that waits still counts what it dropped, until it runs again or the host collects it (§10). A binary that code holds, a constant's (§4.6) or a shell's binding's (§11.2), is not counted. A socket's counts the process that does its writes too (E.18), and not the host's processes of a connection over TLS.
 
 `live` answers the processes a program spawned, with the entry process and the process `run` keeps while it waits (below), and the listeners, sockets and running programs a system module opened (Appendix E.18, E.23), that have not ended; no process of the runtime's own, its evaluators among them (E.28), and no system process is among them; in a shell, and on a node a shell is attached to, each session's own processes are excepted too (§11.2).
@@ -805,11 +807,11 @@ A frame of Ernest code is written as a spawn site is (§6.9), the name of the to
 
 ```
 type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
-type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's answer, a load's evaluator, a peer's answer or a restart's watchers (§6.9, E.27, E.28)
+type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) | Suspended // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's answer, a load's evaluator, a peer's answer or a restart's watchers (§6.9, E.27, E.28), Suspended while the host holds it
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
-Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, or waits for an answer, on whom and since when, and the bytes it holds; None once it has ended, and for a process of another node
+Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, waits for an answer, on whom and since when, or is held by the host, and the bytes it holds; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
 Process.peer : (Process) -> Optional(String) // the name of the peer the process is on; None for a process of this node, and for one of a node the configuration does not list
 Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended

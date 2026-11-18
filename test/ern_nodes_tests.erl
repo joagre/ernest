@@ -9023,6 +9023,33 @@ exchange_waits_on_no_peer(Base) ->
     stop(Third, WaitThird),
     stop(Store, WaitStore).
 
+%% report Appendix E.21, §8.7: a process the host holds in a send to
+%% another node that takes no more is Suspended. The desk's connection to
+%% the store held back and a sender of the desk's waiting in a send to it,
+%% as killer_waits_on_no_peer/1 has them, the desk reads the sender's
+%% status: nothing leaves the host's buffer for the store until the desk
+%% lets the connection go, so the sender is held while the desk reads it.
+%%
+%% It does not cover a call, a find, a spawn, a compute or a utilization
+%% that waits as a send waits, which the host holds alike, nor a peer that
+%% is stopped, whose wait the kernel's buffers put off, nor the sender once
+%% the connection is let go.
+sender_held_in_its_send_test_() ->
+    nodes_test({waits, 7}, fun sender_held_in_its_send/1).
+
+sender_held_in_its_send(Base) ->
+    Program = buffer_build(Base),
+    {Store, Desk} = buffer_nodes(Base),
+    WaitStore = start(Store, Program, ["sink"]),
+    prints(Store, "offered"),
+    WaitDesk = start(Desk, Program, ["status"]),
+    prints(Desk, "found"),
+    prints(Desk, "the host says the sender waits in a send"),
+    prints(Desk, "the sender's activity: "),
+    has(written(Desk, out), "the sender's activity: Some(Process.Suspended)"),
+    stop(Desk, WaitDesk),
+    stop(Store, WaitStore).
+
 %% A store that listens and a desk that dials it, the desk finding the
 %% store's sink there.
 buffer_nodes(Base) ->
@@ -9058,9 +9085,12 @@ buffer_build(Base) ->
 // and one after it; or, the store stopped, a sender sends until a send waits,
 // and the desk says what ended the wait, or what a spawn on the store or a
 // call of its sink answered meanwhile, or what a third node's asks of the
-// desk and the desk's spawn on it answered; or, the desk's connection to the
-// store held back, whether the desk's own processes that serve the whole
-// node, its killer, its reaper and its exchange, still serve it.
+// desk and the desk's spawn on it answered.
+//
+// Or, the desk's connection to the store held back, the desk says whether
+// its own processes that serve the whole node, its killer, its reaper and
+// its exchange, still serve it, and what `Process.status` says of a sender
+// held in its send.
 
 // The host's report of each time the process is suspended in a send to
 // another node, its count sent to the address.
@@ -9151,6 +9181,8 @@ export fn main() : Unit receiving DeskMsg =
             reaps(found(), fn(sink) = monitor(sink, SinkEnded), fn(sink) = demonitor(sink))
       | [\"exchange\"] ->
             exchanges()
+      | [\"status\"] ->
+            reads(found())
       | _ ->
             Unit
     }
@@ -9445,6 +9477,20 @@ fn askingTheReaper(desk : Address(DeskMsg),
     receive {
         SinkEnded(_) -> Unit
     }
+}
+
+// Report Appendix E.21, §8.7: the desk's connection to the store held back
+// and the flooder waiting in a send to it, the desk says what
+// `Process.status` answers of the flooder, and then lets the connection go.
+fn reads(address : Address(SinkMsg)) : Unit receiving DeskMsg = {
+    let sender = flooder(address);
+    Io.println(\"found\");
+    let connection = flooded(address, sender);
+    let activity =
+        Optional.map(Process.status(Process.fromAddress(sender)), fn(status) = status.activity);
+    Io.println(\"the sender's activity: \" <> Io.show(activity));
+    let _ = resumed(connection);
+    held()
 }
 
 // The next Down a monitor of the desk's gives, said.

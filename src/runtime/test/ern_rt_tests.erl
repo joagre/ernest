@@ -186,6 +186,62 @@ process_status_test() ->
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
+%% report Appendix E.21: a process the host holds is Suspended whatever it
+%% waited for: one held in a receive, one held while it carries a call's
+%% mark and one held while it carries a peer wait's, which read Suspended
+%% and not Calling; let go, each reads what it read before.
+%%
+%% The host holds each here by its own suspension, which says `suspended`
+%% as it does of a send to another node that takes no more (ern_nodes_tests'
+%% sender_held_in_its_send_test_) and of a write to a port of the node's own
+%% that takes no more (ern_os_tests' held_at_its_port_test). It does not
+%% cover a kill under way, which the killer holds for a moment no test can
+%% choose, nor a load's mark, which the same clause reads.
+held_process_status_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Quiet = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.quiet:1">>),
+               Server = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.s:2">>),
+               Ask = fun(Reply) -> Reply end,
+               Caller = ern_rt:spawn(fun() -> ern_rt:call_forever(Server, Ask) end,
+                                     <<"M.caller:3">>),
+               OnPeer = ern_rt:spawn(fun() ->
+                                         ern_rt:peer_wait(ern_rt:monotonic()),
+                                         receive stop -> ern_rt:peer_waited() end
+                                     end, <<"M.peer:4">>),
+               Pids = [ern_rt:process_of(Address) || Address <- [Quiet, Caller, OnPeer]],
+               [QuietPid, CallerPid, OnPeerPid] = Pids,
+               Waited = fun() ->
+                            ok = ern_waits:waiting(QuietPid),
+                            ok = ern_waits:calling(CallerPid),
+                            ok = ern_waits:waiting(OnPeerPid)
+                        end,
+               Activities = fun() ->
+                                [Activity || Pid <- Pids,
+                                             {'Some', {'Status', _, _, Activity, _}}
+                                                 <- [ern_rt:status(Pid)]]
+                            end,
+               %% each waits, which this one counts as timed so that it is
+               %% no deadlock (§8.6)
+               ern_rt:timed(),
+               Waited(),
+               Before = Activities(),
+               [true = erlang:suspend_process(Pid) || Pid <- Pids],
+               Held = Activities(),
+               [true = erlang:resume_process(Pid) || Pid <- Pids],
+               Waited(),
+               After = Activities(),
+               ern_rt:untimed(),
+               Self ! {activities, Before, Held, After},
+               [ern_rt:kill(Address) || Address <- [Quiet, Caller, OnPeer, Server]]
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
+    {Before, Held, After} = receive {activities, B, H, A} -> {B, H, A} end,
+    ?assertMatch(['Receiving', {'Calling', {'Some', _}, false, _}, {'Calling', 'None', true, _}],
+                 Before),
+    ?assertEqual(['Suspended', 'Suspended', 'Suspended'], Held),
+    ?assertEqual(Before, After).
+
 %% report Appendix E.21, E.18, E.23: a read whose request carries its time,
 %% Tcp's and Os's, made through its module, is a call whose wait is
 %% limited, its callee the socket or the running program it reads. A

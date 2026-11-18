@@ -950,6 +950,61 @@ piece_ahead_of_the_down_kept_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Right', {'Stdout', <<"x\n">>}}, wait(read)).
 
+%% report Appendix E.21, E.23: a running program's process that writes to
+%% its helper's port, which takes no more, is Suspended, the host holding
+%% it at the port; once the port takes again, the process waits as it did
+%% before.
+%%
+%% The helper is stopped by its signal before anything is written, so that
+%% it reads nothing of its port: the first write, more than the port holds,
+%% fills it past its limit, and the process is held at the second.
+%% Continued, the helper gives the program both, which it takes to its end.
+%% It does not cover a port of the node's own other than a program's
+%% helper's.
+held_at_its_port_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sh">>, [<<"-c">>, <<"exec cat >/dev/null">>]),
+               {links, Links} = process_info(Program, links),
+               [Helper] = [Link || Link <- Links, is_port(Link)],
+               {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+               Number = integer_to_list(OsPid),
+               Bytes = binary:copy(<<"x">>, 1 bsl 20),
+               %% the program's process and the writers wait, which this
+               %% one counts as timed so that it is no deadlock (§8.6)
+               ern_rt:timed(),
+               ok = ern_waits:waiting(Program),
+               Before = activity_of(Program),
+               _ = os:cmd("kill -STOP " ++ Number),
+               Held = try
+                          [ern_rt:spawn_monitored(fun() -> write(Program, Bytes, 600000) end,
+                                                  fun(Down) -> {written, Down} end,
+                                                  <<"M.writer:1">>)
+                           || _ <- [first, second]],
+                          ok = ern_waits:until(Program,
+                                               fun() ->
+                                                   erlang:process_info(Program, status)
+                                                       =:= {status, suspended}
+                                               end),
+                          activity_of(Program)
+                      after
+                          os:cmd("kill -CONT " ++ Number)
+                      end,
+               [receive {written, _} -> ok end || _ <- [first, second]],
+               ok = ern_waits:waiting(Program),
+               After = activity_of(Program),
+               ern_rt:untimed(),
+               Self ! {activities, [Before, Held, After]},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(['Receiving', 'Suspended', 'Receiving'], wait(activities)).
+
+%% What Process.status says Pid, a live process the runtime started, does.
+activity_of(Pid) ->
+    {'Some', {'Status', _, _, Activity, _}} = ern_rt:status(Pid),
+    Activity.
+
 %% A reader of Program killed while its read waits, once the program's
 %% process watches it, and returned from once that process no longer
 %% does, so that its `DOWN` comes before what the caller sends after.

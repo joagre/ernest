@@ -33,6 +33,7 @@ fn word(activity : Process.Activity) : String =
         Process.Running -> "running"
       | Process.Receiving -> "receiving"
       | Process.Calling() -> "calling"
+      | Process.Suspended -> "suspended"
     }
 
 // Report §11.2: a call's words after `calling`: its callee where it is
@@ -171,8 +172,8 @@ fn sited(listed : List(#(Process, Process.Status))) : (Process) -> Optional(Stri
 
 let processLines =
     Test.Case(name = "a process's line is its site, its activity and its bytes",
-              run = fn() = match processes(6) {
-                  [a, b, c, d, e, unknown] -> {
+              run = fn() = match processes(7) {
+                  [a, b, c, d, e, f, unknown] -> {
                       let listed =
                           [#(a, statusAt("M.a:1", Process.Running, 10)),
                            #(b, statusAt("M.b:2", Process.Receiving, 20)),
@@ -188,13 +189,15 @@ let processLines =
                                       Process.Calling(callee = None,
                                                       limited = false,
                                                       since = 40000),
-                                      50))];
+                                      50)),
+                           #(f, statusAt("M.f:6", Process.Suspended, 60))];
                       Test.equal(lines(listed, sited(listed), 0, 42000),
                                  ["M.a:1 running 10 bytes",
                                   "M.b:2 receiving 20 bytes",
                                   "M.c:3 calling M.b:2 without limit for 41 s 30 bytes",
                                   "M.d:4 calling for 0 s 40 bytes",
-                                  "M.e:5 calling without limit for 2 s 50 bytes"])
+                                  "M.e:5 calling without limit for 2 s 50 bytes",
+                                  "M.f:6 suspended 60 bytes"])
                   }
                 | _ ->
                       Test.Failed("processes")
@@ -202,10 +205,11 @@ let processLines =
 
 let order =
     Test.Case(name = "a site's processes are by their activity's word and then by memory",
-              run = fn() = match processes(5) {
-                  [a, b, c, d, e] -> {
+              run = fn() = match processes(6) {
+                  [a, b, c, d, e, f] -> {
                       let listed =
-                          [#(a, statusAt("M.s:1", Process.Running, 5)),
+                          [#(f, statusAt("M.s:1", Process.Suspended, 2)),
+                           #(a, statusAt("M.s:1", Process.Running, 5)),
                            #(b, statusAt("M.s:1", Process.Receiving, 20)),
                            #(c,
                              statusAt("M.s:1",
@@ -218,7 +222,8 @@ let order =
                                   "M.s:1 calling for 0 s 300 bytes",
                                   "M.s:1 receiving 3 bytes",
                                   "M.s:1 receiving 20 bytes",
-                                  "M.s:1 running 5 bytes"])
+                                  "M.s:1 running 5 bytes",
+                                  "M.s:1 suspended 2 bytes"])
                   }
                 | _ ->
                       Test.Failed("processes")

@@ -55,8 +55,8 @@
 export type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 
 /// What a live process is doing: running, waiting in a `receive` or in
-/// `Clock.sleep`, or waiting for an answer: a call's, a load's evaluator's, a
-/// peer's or, as it restarts, its watchers'.
+/// `Clock.sleep`, held by the host, or waiting for an answer: a call's, a
+/// load's evaluator's, a peer's or, as it restarts, its watchers'.
 ///
 /// A process that waits for an answer is `Calling`. `callee` is the process
 /// behind the address called, as `fromAddress` gives it, and `None` for a
@@ -73,6 +73,12 @@ export type Status = Status(site : String, queued : Int, activity : Activity, me
 /// in every process of a node for a moment when code is let go there (report
 /// Appendix E.21).
 ///
+/// A process is `Suspended` while the host holds it: in a `send` to another
+/// node, or in a call or a wait on a peer that waits as a `send` waits (report
+/// §6.6, §8.7, Appendix E.27); while the runtime carries out a `kill` of it
+/// (report §6.9); or while it writes to one of the node's own ports that takes
+/// no more. A process the host holds is `Suspended` whatever it waited for.
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -83,6 +89,7 @@ export type Activity =
     Running
   | Receiving
   | Calling(callee : Optional(Process), limited : Bool, since : Int)
+  | Suspended
 
 /// A fault of a process the runtime started: the process, where it was spawned,
 /// the cause, whether it restarts after the fault, its trace, the peer whose

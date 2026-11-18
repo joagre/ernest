@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 107**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 87**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -61,23 +61,14 @@ nothing waits on it.
 
 Item 102, what item 98's build found the same day, stands after item 91.
 
-Items 105 to 107 are what item 97's probes and its build found, placed with the user on
-2026-11-18 (the log's *What a Full Buffer Holds*). Item 107 stands first, and items 105
-and 106 stand after item 102. The items stand below in that order.
+Items 105 and 106 are what item 97's probes and its build found, placed with the user on
+2026-11-18 (the log's *What a Full Buffer Holds*), and stand after item 102. The items
+stand below in that order.
 
 Item 108, a reading that item 104's build left unread, was planned with the user on
 2026-11-18 (the log's *The Runtime's Processes Wait on No Peer*), and stands after item
 106.
 
-- **107. `Process.status` says `Suspended` of a process the host holds**, decided with
-  the user on 2026-11-18 (the log's *What a Full Buffer Holds*, its paragraph
-  *`Process.status`*). `Activity` gains the constructor `Suspended`, with no field: a
-  process the host holds in a send to another node (§6.6, §8.7, Appendix E.27), while a
-  kill of it is under way, or at a busy port of the node's own.
-
-  E.21 changes first. An agent builds it in `ern_rt:activity/4`, in `Process` and in the
-  shell's listing, which orders a site's processes by the activity's word, each with its
-  test.
 - **87. Nothing holds that a shell test names a home**, found 2026-11-16 by the fix of the
   27 sites that ran under the inherited `HOME` (the log's *The Shell's Tests in a Home of
   Their Own*). A new test that starts `ern shell` by hand runs the startup file of whoever
@@ -378,6 +369,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
 | 97 | What else waits where a `send` to a peer waits: a call, a find, a spawn, a compute and a utilization are held before and after their wait, which §6.6, §6.7, §8.7 and E.27 now say; the gateway waits on no peer, its telling and its utilization's answer not sent where they would wait; a send to a lost peer returns, as the report had it | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
 | 104 | The runtime's processes that serve the whole node wait on no peer: the killer, the reaper and the exchange's process set the host's `async_dist`, so that a kill ends its process and the node spawns while one peer takes nothing; the clock sends a peer nothing, and the departure's wait is §12.6's, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
+| 107 | `Process.status` says `Suspended` of a process the host holds, in a send to another node, in a kill the runtime carries out, or at a port of the node's own that takes no more; `:processes` writes `suspended`, last in a site's order, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
 
 ## MVP 4.17 (what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
 

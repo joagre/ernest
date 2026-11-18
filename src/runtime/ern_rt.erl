@@ -2596,11 +2596,17 @@ status(_) ->
 %% Appendix E.21: what a process does, which the host's status does not
 %% tell of a wait: one that waits with a call's mark, a load's or a wait's
 %% on a peer or a restart's is Calling, read from the mark, and one that
-%% waits with none is Receiving. Every other status of the host's is
-%% Running, its work in a process that waits among them, which no item of
-%% the host's tells from the process's own.
+%% waits with none is Receiving.
+%%
+%% One the host holds, its status suspended, is Suspended whatever mark it
+%% carries: in a send to another node, while a kill of it is under way, or
+%% at a port of the node's own that takes no more, which the status does
+%% not tell apart. Every other status of the host's is Running, its work in
+%% a process that waits among them, which no item of the host's tells from
+%% the process's own.
 -type activity() :: 'Running' | 'Receiving'
-                  | {'Calling', 'None' | {'Some', pid()}, boolean(), integer()}.
+                  | {'Calling', 'None' | {'Some', pid()}, boolean(), integer()}
+                  | 'Suspended'.
 
 activity(waiting, #call{callee = Callee, limited = Limited, since = Since}, _, _) ->
     {'Calling', callee(Callee), Limited, Since};
@@ -2610,6 +2616,8 @@ activity(waiting, undefined, undefined, Since) when is_integer(Since) ->
     {'Calling', 'None', true, Since};
 activity(waiting, _, _, _) ->
     'Receiving';
+activity(suspended, _, _, _) ->
+    'Suspended';
 activity(_, _, _, _) ->
     'Running'.
 
