@@ -124,24 +124,28 @@ runbook(Base) ->
 %% `ern config` makes the directory, its owner's alone, its key readable by
 %% its owner alone, a certificate and an `ernest.conf` that listens on
 %% 0.0.0.0:8654 and lists no peer and no service, and prints the key as the
-%% console shows it; it fails where the directory exists, empty or not; a
-%% node that lists its own key as a peer's is refused; the node starts as
+%% console shows it; and it fails where the directory exists, empty or
+%% not.
+%%
+%% A node that lists its own key as a peer's is refused; the node starts as
 %% the console starts it, and a second start from its directory is
 %% refused; `ern reload` reads the file again, a peer added and a changed
 %% `listen` refused, the configuration kept; `ern stop` returns once the
-%% node has ended by termination; and `ern stop` and `ern reload` fail
-%% where no node runs, the file gone or held by none.
+%% node has ended by termination; a node killed leaves no `ernest.pid`;
+%% and `ern stop` and `ern reload` fail where no node runs, the file gone
+%% or held by none, as one a machine that stopped leaves, made here by
+%% hand.
 %%
 %% The guide's paths are the harness's, and its counter the example's
 %% first build. The test does not cover `kill -HUP`, a second `ern stop`
 %% while the first waits, which ern_nodes_tests' stop_waits covers, nor a
 %% directory another user owns or may write. Its limit is the sum of its
-%% twenty waits, each bounded by the harness's time for one wait: thirteen
-%% jobs, two ports that answer, two lines, two nodes' ends and what the
-%% first said; written after its limit of 120 s, a number of its own, ran
-%% out under the full run's load.
+%% twenty-one waits, each bounded by the harness's time for one wait:
+%% thirteen jobs, two ports that answer, two lines, two nodes' ends and
+%% what each said; written after its limit of 120 s, a number of its own,
+%% ran out under the full run's load.
 one_node_test_() ->
-    ern_nodes_tests:nodes_test({waits, 20}, fun one_node/1).
+    ern_nodes_tests:nodes_test({waits, 21}, fun one_node/1).
 
 one_node(Base) ->
     [[{Config, Key}]] = consoles("### 1.1"),
@@ -203,7 +207,9 @@ one_node(Base) ->
     {ok, Last} = file:read_file(PidFile),
     "" = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Last))),
     ?assertEqual(137, Killed()),
-    ?assert(filelib:is_file(PidFile)),
+    _ = ern_nodes_tests:said(Dir),
+    ?assertNot(filelib:is_file(PidFile)),
+    ok = file:write_file(PidFile, Last),
     [Stale, _] = [no_node(Base, Job, Dir) || Job <- ["stop", "reload"]],
     [ern_nodes_tests:has(Said, "no node runs from the directory") || Said <- Gone],
     %% the lines as the guide quotes them, the refusal of its own key in

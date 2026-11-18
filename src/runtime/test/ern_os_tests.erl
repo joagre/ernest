@@ -1146,25 +1146,21 @@ wait(Tag) ->
 %% alone, whatever the mask, and never through a link; and a signal to the
 %% node that holds it is sent where the file is its user's own, whatever
 %% its mode, its group or every user able to write it, and whoever may
-%% write its directory: neither is tested. The number is this host's, which
-%% the signal 0 asks after. A regression test, written after the code: the
-%% file was made 0666 under the mask, group-writable under Ubuntu's 002,
-%% and a link was followed; then a file its group may write was refused as
-%% every user's, and then one every user may write. A file another user
-%% owns, the superuser's to another user or another user's to the
-%% superuser, which a test run as one user cannot make, is not covered
+%% write its directory: neither is tested. The number is a living
+%% process's, which the signal 0 asks after, and whose end lets the lock
+%% go.
+%%
+%% A regression test, written after the code: the file was made 0666
+%% under the mask, group-writable under Ubuntu's 002, and a link was
+%% followed; then a file its group may write was refused as every user's,
+%% and then one every user may write. A file another user owns, the
+%% superuser's to another user or another user's to the superuser, which a
+%% test run as one user cannot make, is not covered
 node_file_test() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_os_node_" ++ os:getpid()),
-    ok = filelib:ensure_path(Dir),
+    Dir = node_dir("ern_os_node_"),
     PidFile = filename:join(Dir, "ernest.pid"),
-    Number = list_to_integer(os:getpid()),
-    Self = self(),
-    Holder = spawn(fun() ->
-                       Self ! {locked, ern_os:locked(PidFile, Number)},
-                       receive stop -> ok end
-                   end),
-    ?assertEqual(locked, wait(locked)),
+    {Living, Number} = living(),
+    Holder = held(PidFile, Number),
     {ok, #file_info{mode = Mode}} = file:read_file_info(PidFile),
     ?assertEqual(8#644 band bnot ern_os:umask(), Mode band 8#777),
     ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
@@ -1176,14 +1172,93 @@ node_file_test() ->
                  [Signaled(Path, Given)
                   || {Path, Given} <- [{PidFile, 8#664}, {PidFile, 8#666}, {Dir, 8#777}]]),
     ok = file:change_mode(Dir, 8#700),
-    MonitorRef = erlang:monitor(process, Holder),
-    Holder ! stop,
-    receive {'DOWN', MonitorRef, process, Holder, _} -> ok end,
     Link = filename:join(Dir, "linked.pid"),
     ok = file:make_symlink(PidFile, Link),
     Followed = {failed, "too many levels of symbolic links"},
     ?assertEqual({Followed, Followed},
-                 {ern_os:locked(Link, Number), ern_os:node_signaled(Link, 0, false)}).
+                 {ern_os:locked(Link, Number), ern_os:node_signaled(Link, 0, false)}),
+    ended_by_termination(PidFile, Living),
+    ?assertNot(filelib:is_file(PidFile)),
+    released(Holder).
+
+%% report §12.5, §11.2: the helper holds a node's lock until the process
+%% it watches has ended, and not until its port closes, as the host's halt
+%% closes it while the node still runs: the holder of the port gone, the
+%% lock is still held and the process still signaled as the node; once the
+%% process has ended, the file is removed and then the lock let go, so that
+%% a wait on the lock returns with the file gone. A regression test,
+%% written after the code: the lock went as the port closed. It does not
+%% cover the host's halt itself, which test/ern_nodes_tests.erl's
+%% node_in_its_halt_test_ holds a node in
+lock_outlives_its_port_test() ->
+    PidFile = filename:join(node_dir("ern_os_outlives_"), "ernest.pid"),
+    {Living, Number} = living(),
+    released(held(PidFile, Number)),
+    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+    ?assertEqual({ok, list_to_binary(integer_to_list(Number) ++ "\n")}, file:read_file(PidFile)),
+    ended_by_termination(PidFile, Living),
+    ?assertNot(filelib:is_file(PidFile)).
+
+%% report §12.5: the helper removes only the file it holds: one put at the
+%% path in place of it while the node runs stays at the node's end, and so
+%% does the one it held, renamed away. A regression test, written after the
+%% code; it does not cover a file put in place in the instant between the
+%% helper's check of the path and its removal of the file
+replaced_file_kept_test() ->
+    Dir = node_dir("ern_os_replaced_"),
+    PidFile = filename:join(Dir, "ernest.pid"),
+    Renamed = filename:join(Dir, "renamed.pid"),
+    {Living, Number} = living(),
+    Holder = held(PidFile, Number),
+    ok = file:rename(PidFile, Renamed),
+    ok = file:write_file(PidFile, <<"999999\n">>),
+    ended_by_termination(Renamed, Living),
+    released(Holder),
+    ?assertEqual({{ok, <<"999999\n">>}, {ok, list_to_binary(integer_to_list(Number) ++ "\n")}},
+                 {file:read_file(PidFile), file:read_file(Renamed)}).
+
+%% A directory of the test's own for a node's file, named for the test.
+node_dir(Prefix) ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        Prefix ++ os:getpid() ++ "_"
+                            ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    Dir.
+
+%% A living process that is no node, which reads its input and echoes it,
+%% and its number, once it has echoed: until it first runs, the process the
+%% host forks ignores the termination, and one sent it then would not show
+%% (docs/otp_bugs.md, 22).
+living() ->
+    Living = open_port({spawn_executable, os:find_executable("cat")}, [binary, exit_status]),
+    true = port_command(Living, <<"running">>),
+    receive {Living, {data, <<"running">>}} -> ok end,
+    {os_pid, Number} = erlang:port_info(Living, os_pid),
+    {Living, Number}.
+
+%% A process that holds the helper's port of a lock on PidFile for the
+%% process Number, until it is told to stop, once the lock is taken.
+held(PidFile, Number) ->
+    Self = self(),
+    Holder = spawn(fun() ->
+                       Self ! {locked, ern_os:locked(PidFile, Number)},
+                       receive stop -> ok end
+                   end),
+    ?assertEqual(locked, wait(locked)),
+    Holder.
+
+%% Until the holder of a lock's port has ended, the port closed with it.
+released(Holder) ->
+    MonitorRef = erlang:monitor(process, Holder),
+    Holder ! stop,
+    receive {'DOWN', MonitorRef, process, Holder, _} -> ok end.
+
+%% report §12.5, §11.2: the process the lock on PidFile watches ended by
+%% termination, as `ern stop` ends a node, and the lock waited for, which
+%% the wait returns once it has gone.
+ended_by_termination(PidFile, Living) ->
+    ?assertEqual(sent, ern_os:node_signaled(PidFile, 15, true)),
+    ?assertEqual(128 + 15, receive {Living, {exit_status, Status}} -> Status end).
 
 %% report §11, §12.5: a node's ernest.pid whose name reaches no regular
 %% file, a named pipe, a socket or a directory, is not opened, neither to
@@ -1219,24 +1294,16 @@ unopened_node_file_test() ->
 %% they were, and is then signaled as the node's. A regression test: before
 %% the rule, the node took the file as it found it and `ern stop` refused it
 found_node_file_test() ->
-    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
-                        "ern_os_found_" ++ os:getpid()),
-    ok = filelib:ensure_path(Dir),
-    PidFile = filename:join(Dir, "ernest.pid"),
+    PidFile = filename:join(node_dir("ern_os_found_"), "ernest.pid"),
     ok = file:write_file(PidFile, <<"999999\n">>),
     ok = file:change_mode(PidFile, 8#664),
-    Self = self(),
-    Holder = spawn(fun() ->
-                       Self ! {locked, ern_os:locked(PidFile, list_to_integer(os:getpid()))},
-                       receive stop -> ok end
-                   end),
-    ?assertEqual(locked, wait(locked)),
+    {Living, Number} = living(),
+    Holder = held(PidFile, Number),
     {ok, #file_info{mode = Mode}} = file:read_file_info(PidFile),
     Signaled = ern_os:node_signaled(PidFile, 0, false),
-    MonitorRef = erlang:monitor(process, Holder),
-    Holder ! stop,
-    receive {'DOWN', MonitorRef, process, Holder, _} -> ok end,
-    ?assertEqual({8#644, sent}, {Mode band 8#777, Signaled}).
+    ended_by_termination(PidFile, Living),
+    released(Holder),
+    ?assertEqual({8#644, sent, false}, {Mode band 8#777, Signaled, filelib:is_file(PidFile)}).
 
 %% report §12.5: the helper sends a process a signal and says how it went,
 %% the signal 0 asking whether the process lives: this host's process

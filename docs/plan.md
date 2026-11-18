@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 102**, as the milestone's *What is left* gives it.
+**The next item is MVP 4.16's item 116**, as the milestone's *What is left* gives it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -52,42 +52,33 @@ were placed with the user on 2026-11-18 (the log's *What a Full Buffer Holds*). 
 109 and 110 were planned with the user the same day, each in the log entry it names. Item 99
 is what ernest-httpd's session handed back on 2026-11-17. Item 112 was found by the cold
 reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
-that item's build (the log's *A Checker Acts for the Target*).
+that item's build (the log's *A Checker Acts for the Target*). Items 116 and 117 were found by
+item 102's probes and decided with the user the same day (the log's *A Lock Held to the
+Process's End*).
 
-- **102. A node in its halt holds no lock, and `ern stop` says that no node runs**, found
-  2026-11-17 by item 98's build (the log's *A Connection That Cannot Drain*, its paragraph
-  *`ern stop` and a node in its halt*). The node removes `ernest.pid` before the host's
-  `halt`, and the halt closes every port, the lock helper's among them, so the lock is let
-  go while the node's process still runs. `ern stop` then answers at once, status 1, `no
-  such file: no node runs from the directory`. §11.2 has it wait on the lock until the node
-  has ended, and §12.5 has the node hold the file locked for its life.
+- **116. The job halts without the host's flush**, found 2026-11-18 by item 102's probes
+  (the log's *A Lock Held to the Process's End*, its paragraph *The halt waits for a
+  socket*). A program that ends with more written to a `Tcp` socket than its far end has
+  taken is held in the host's `halt` without a limit, on a node and under `ern run` alike:
+  the process ran on for 30 seconds in every run, until the client read. A termination
+  does nothing there, three runs of three, where §8.6 has it end the program at once; the
+  interrupt ends it. E.18 has a socket's bytes sent "until the runtime stops", so the stop
+  is the bound.
 
-  The test harness's `killed/1` and `test/Makefile`'s `NODES_RUN` find a node by
-  `ernest.pid`, and miss one in its halt for the same reason.
-
-  Item 98 removed the one case seen that held a node there without end. The window stays
-  for any halt that takes time. An agent first shows it with a program: a node whose halt
-  a stopped reader of its output holds, which is a reading and not yet shown.
-
-  The shape of the fix: the helper holds the lock until the node's process has ended, by a
-  pidfd on Linux and kqueue's `NOTE_EXIT` on BSD and macOS, and removes `ernest.pid` itself
-  before it lets go.
-
-  Three more stand with it, from ernest-httpd's probe of 0.10.0 on 2026-11-17 (line 33 of
-  its `docs/language_feedback.md`), decided with the user the same day. Each is probed on
-  the checkout first, which holds item 98's fix where the release does not.
-
-  A termination sent to a node in its halt did not end it within 30 seconds, three runs
-  of three. §8.6 has a termination once the end has begun end the program at once, and
-  the log's *A Connection That Cannot Drain* lists an end by termination as not shown.
-
-  The socket to a lost peer stayed established for 240 seconds with 2.49 MB unsent, and
-  the peer, continued, took 3.1 to 3.4 MB after the loss. §8.7 has a loss drop what waited
-  to be sent.
-
-  The deployment guide's opening says that a node is the operating system's one process,
-  where `beam.smp` has `erl_child_setup` and `ern_exec` beneath it, and silencing a node
-  took all three. The sentence is read, then corrected or left.
+  Decided with the user on 2026-11-18: the job halts without the host's flush, which
+  chooses no time. An agent first reads what else the flush carries, at each of the job's
+  halts, and shows that nothing of the job's own is lost. `make test-full` then shows what
+  leans on today's delivery. Line 33 of ernest-httpd's `docs/language_feedback.md` asked
+  for it, and is answered once it is built.
+- **117. A termination once the end has begun ends the flush of a stalled stream**, found
+  2026-11-18 by item 102's probes (the same entry, its paragraph *A termination in the
+  flush*). A node whose standard output a stopped reader holds waits in the end's flush,
+  and a termination sent then did not end it within 30 seconds, three runs of three. §8.6
+  has a termination once the end has begun end the program at once, and the deployment
+  guide has a second `ern stop` end at once, "losing what it was writing". No rule
+  changes. The cause is a reading and not shown: the runner waits for the stream and does
+  not take the signal. An agent diagnoses it first, standard error among it, and owns the
+  loop to a passing test.
 - **105. Whether a message is placed whole**, found 2026-11-17 by item 97's probes: a
   reading of the host's code, and not shown. §8.7 says that a message of any size "is
   placed there whole", and `docs/design/nodes.md` that the host's send "places a message
@@ -406,6 +397,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 | 97 | What else waits where a `send` to a peer waits: a call, a find, a spawn, a compute and a utilization are held before and after their wait, which §6.6, §6.7, §8.7 and E.27 now say; the gateway waits on no peer, its telling and its utilization's answer not sent where they would wait; a send to a lost peer returns, as the report had it | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
 | 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
+| 102 | A node's lock on `ernest.pid` is held until its process has ended, however it ends, and its helper removes the file then; a Linux without `pidfd_open` refuses a node; the socket to a lost peer goes at the loss, and the guide says a node is one process with its helpers, with the user | 2026-11-18 | §11.2, §12.5; *A Lock Held to the Process's End*, *A New OTP and Nothing Else New* |
 | 104 | The runtime's processes that serve the whole node wait on no peer: the killer, the reaper and the exchange's process set the host's `async_dist`, so that a kill ends its process and the node spawns while one peer takes nothing; the clock sends a peer nothing, and the departure's wait is §12.6's, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
 | 107 | `Process.status` says `Suspended` of a process the host holds, in a send to another node, in a kill the runtime carries out, or at a port of the node's own that takes no more; `:processes` writes `suspended`, last in a site's order, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
 | 111 | A checker acts for its address's target: where foreign code sends to an adapted address, the checker applies the function as on arrival; the reaper makes and holds each checker and takes its rows at its end, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |

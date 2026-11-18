@@ -7,8 +7,10 @@
  * signal to the node that holds one (report §12.5). It is C99 over
  * POSIX.1-2008 alone, its XSI option among it for the pseudo-terminal, so
  * that any POSIX host builds it, but for two ioctls that Linux and macOS
- * both have beyond it, TIOCSCTTY and TIOCSWINSZ; Ernest runs on Linux and
- * macOS.
+ * both have beyond it, TIOCSCTTY and TIOCSWINSZ, and the watch of a node's
+ * process for its end: a pidfd on Linux and kqueue on the BSDs and macOS,
+ * which a host with neither builds without (below); Ernest runs on Linux
+ * and macOS.
  *
  * Run with the argument `run`, the helper runs the program the runtime's
  * first frame names. The runtime and this helper talk over fd 0 and fd 1 in
@@ -88,17 +90,28 @@
  *
  * With the arguments `lock`, a path and a process number, the helper is a
  * node's hold on its ernest.pid (report §12.5), which the host has no word
- * for: it opens the file, made where it is not there, writable by its
+ * for. It first watches the process of that number for its end. Where the
+ * host cannot watch it, a Linux without pidfd_open or a system the watch
+ * has no code for, it writes a 'k' frame, the system's name and release as
+ * uname gives them with a space between, and exits, having made no file.
+ *
+ * It then opens the file, made where it is not there, writable by its
  * owner alone, and never through a link, and takes the node's lock on it
  * without waiting. Where another holds that lock, it writes an 'h' frame,
  * the number the file holds, and exits. Where it took the lock, it takes
  * the write bits of the file's group and of others off a file it found
  * there, so that the file is its owner's alone to write as one it makes
- * is, writes the number and a line feed as the file's whole content, then
- * an 'l' frame, and holds the lock until fd 0 ends, which the host ends
- * with the node however the node ends; it ignores the signals a terminal
- * or a service manager sends the node's process group, so that the lock
- * goes with the node and not before it. An error is an 'f' frame and its
+ * is, writes the number and a line feed as the file's whole content, and
+ * then an 'l' frame.
+ *
+ * It holds the lock until the process has ended, however it ends, and not
+ * until fd 0 ends, which the host's halt closes while the node still runs.
+ * It then removes the file, where the path still names the one it holds,
+ * and exits, which lets the lock go. It ignores the signals a terminal or
+ * a service manager sends the node's process group, so that the lock goes
+ * with the node and not before it. It keeps the node's standard error,
+ * which the host gives every program it starts, until it exits, so that
+ * the stream ends once the file is gone. An error is an 'f' frame and its
  * name. A path that names what is neither a regular file nor a link, a
  * named pipe, a device, a socket or a directory, is not opened, and the
  * helper exits 9 (report §11).
@@ -134,8 +147,14 @@
  * environment it writes, are then the user's and not the host's.
  */
 /* POSIX.1-2008 with its XSI option, which holds posix_openpt and the
-   functions that ready its terminal */
+   functions that ready its terminal; and the host's own names beside it
+   for the watch of a process, syscall(2) on Linux and kqueue on macOS */
 #define _XOPEN_SOURCE 700
+#if defined(__linux__)
+#define _DEFAULT_SOURCE
+#elif defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -147,8 +166,18 @@
 #include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#if defined(__linux__)
+#include <poll.h>
+#include <sys/syscall.h>
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) \
+    || defined(__DragonFly__)
+#define WATCH_BY_KQUEUE
+#include <sys/event.h>
+#include <sys/time.h>
+#endif
 
 #define CHUNK 65536
 
@@ -759,49 +788,165 @@ static int is_unopened(const char *path)
     return lstat(path, &status) == 0 && !S_ISREG(status.st_mode) && !S_ISLNK(status.st_mode);
 }
 
+/* Report §12.5: a descriptor that watches the process of the number given
+   for its end, or -1 and errno, ENOSYS where the host cannot watch one. On
+   Linux a pidfd, readable once the process has ended, asked for by the
+   call's number, so that the helper builds against a C library older than
+   the call's wrapper; on the BSDs and macOS a kqueue with the process's
+   NOTE_EXIT. A filter that keeps the call from a program answers EPERM,
+   which the call itself never does, and the host cannot watch there
+   either. */
+#if defined(__linux__)
+#ifndef SYS_pidfd_open
+#define SYS_pidfd_open 434
+#endif
+
+static int process_watched(pid_t process)
+{
+    int watcher = (int)syscall(SYS_pidfd_open, process, 0);
+    if (watcher < 0 && errno == EPERM)
+        errno = ENOSYS;
+    return watcher;
+}
+
+/* Until the watched process has ended; a wait the host fails, for want of
+   memory, is waited again, since the lock must not go before the node. */
+static void process_ended(int watcher)
+{
+    struct pollfd ready;
+    ready.fd = watcher;
+    ready.events = POLLIN;
+    while (poll(&ready, 1, -1) < 1)
+        ;
+}
+#elif defined(WATCH_BY_KQUEUE)
+static int process_watched(pid_t process)
+{
+    struct kevent change;
+    int queue = kqueue();
+    if (queue < 0)
+        return -1;
+    EV_SET(&change, (uintptr_t)process, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, NULL);
+    if (kevent(queue, &change, 1, NULL, 0, NULL) < 0) {
+        int error = errno;
+        close(queue);
+        errno = error;
+        return -1;
+    }
+    return queue;
+}
+
+static void process_ended(int watcher)
+{
+    struct kevent event;
+    while (kevent(watcher, NULL, 0, &event, 1, NULL) < 1)
+        ;
+}
+#else
+static int process_watched(pid_t process)
+{
+    (void)process;
+    errno = ENOSYS;
+    return -1;
+}
+
+static void process_ended(int watcher)
+{
+    (void)watcher;
+}
+#endif
+
+/* Report §12.5: the 'k' frame of a host that cannot watch a node's
+   process, the system's name and release as uname gives them. */
+static int unwatched(void)
+{
+    struct utsname host;
+    char text[sizeof host.sysname + 1 + sizeof host.release];
+    if (uname(&host) < 0)
+        return fail('f', errno, 1);
+    snprintf(text, sizeof text, "%s %s", host.sysname, host.release);
+    frame('k', (const unsigned char *)text, strlen(text));
+    return 0;
+}
+
+/* Whether Path still names the file at fd, linked, and not another put in
+   its place; a link at the path names none. */
+static int is_named(const char *path, int fd)
+{
+    struct stat held, named;
+    return fstat(fd, &held) == 0 && held.st_nlink > 0 && lstat(path, &named) == 0
+        && named.st_dev == held.st_dev && named.st_ino == held.st_ino;
+}
+
+/* The node's lock taken on the file at fd, the number's byte held: 1,
+   or 0 where a node holds it, its number written in an 'h' frame, or -1
+   and errno. */
+static int node_locked(int fd)
+{
+    struct flock lock;
+    char text[16];
+    long held;
+    int length;
+
+    if (byte_lock(fd, F_SETLK, F_WRLCK, NODE_BYTE, &lock) == 0)
+        return 1;
+    if ((errno != EACCES && errno != EAGAIN)
+        || byte_lock(fd, F_GETLK, F_WRLCK, NODE_BYTE, &lock) < 0)
+        return -1;
+    if (lock.l_type == F_WRLCK) {
+        held = number_held(fd);
+        length = held < 0 ? 0 : snprintf(text, sizeof text, "%ld", held);
+        frame('h', (const unsigned char *)text, (size_t)length);
+        return 0;
+    }
+    /* held for reading alone, by an `ern stop` whose node has ended, which
+       lets it go at once; no node can take it meanwhile, since this one
+       holds the number's byte */
+    return byte_lock(fd, F_SETLKW, F_WRLCK, NODE_BYTE, &lock) < 0 ? -1 : 1;
+}
+
 /* `lock PATH NUMBER`: the node's hold on its ernest.pid (above). The
    signals are ignored before the lock is taken, so that none ends the hold
-   while the node lives. Report §12.5: a file it makes is writable by its
-   owner alone, whatever the mask, which takes bits away and adds none; a
-   file it finds, an earlier node's that others may write among them, is
-   made so once the lock is held, its other bits as they were; and one at
-   the path that is a link is refused, not followed. */
+   while the node lives, and the process is watched before the file is
+   opened, so that a host that cannot watch it makes no file. Report §12.5:
+   a file it makes is writable by its owner alone, whatever the mask, which
+   takes bits away and adds none; a file it finds, an earlier node's that
+   others may write among them, is made so once the lock is held, its other
+   bits as they were; and one at the path that is a link is refused, not
+   followed. */
 static int hold_lock(int argc, char **argv)
 {
     static const int ignored[] = {SIGHUP, SIGINT, SIGQUIT, SIGTERM};
     struct flock lock;
     struct stat status;
-    unsigned char buffer[64];
     char text[16];
     long number;
     size_t index;
-    int fd, length;
+    int fd, length, watcher, taken;
 
     if (argc != 4 || (number = number_of(argv[3])) < 1)
         return 7;
     for (index = 0; index < sizeof ignored / sizeof ignored[0]; index++)
         signal(ignored[index], SIG_IGN);
-    if (is_unopened(argv[2]))
-        return 9;
-    fd = open(argv[2], O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
-    if (fd < 0 || byte_lock(fd, F_SETLKW, F_WRLCK, NUMBER_BYTE, &lock) < 0)
-        return fail('f', errno, 1);
-    if (byte_lock(fd, F_SETLK, F_WRLCK, NODE_BYTE, &lock) < 0) {
-        long held;
-        if ((errno != EACCES && errno != EAGAIN)
-            || byte_lock(fd, F_GETLK, F_WRLCK, NODE_BYTE, &lock) < 0)
+    watcher = process_watched((pid_t)number);
+    if (watcher < 0)
+        return errno == ENOSYS ? unwatched() : fail('f', errno, 1);
+    for (;;) {
+        if (is_unopened(argv[2]))
+            return 9;
+        fd = open(argv[2], O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
+        if (fd < 0 || byte_lock(fd, F_SETLKW, F_WRLCK, NUMBER_BYTE, &lock) < 0)
             return fail('f', errno, 1);
-        if (lock.l_type == F_WRLCK) {
-            held = number_held(fd);
-            length = held < 0 ? 0 : snprintf(text, sizeof text, "%ld", held);
-            frame('h', (const unsigned char *)text, (size_t)length);
+        if ((taken = node_locked(fd)) < 0)
+            return fail('f', errno, 1);
+        if (taken == 0)
             return 0;
-        }
-        /* held for reading alone, by an `ern stop` whose node has ended,
-           which lets it go at once; no node can take it meanwhile, since
-           this one holds the number's byte */
-        if (byte_lock(fd, F_SETLKW, F_WRLCK, NODE_BYTE, &lock) < 0)
-            return fail('f', errno, 1);
+        /* a file opened before an ending node's helper removed it, and
+           locked once that helper let it go, is named by no path, and the
+           path is opened again */
+        if (is_named(argv[2], fd))
+            break;
+        close(fd);
     }
     if (fstat(fd, &status) < 0
         || ((status.st_mode & (S_IWGRP | S_IWOTH))
@@ -812,11 +957,12 @@ static int hold_lock(int argc, char **argv)
         || byte_lock(fd, F_SETLK, F_UNLCK, NUMBER_BYTE, &lock) < 0)
         return fail('f', errno, 1);
     frame('l', NULL, 0);
-    for (;;) {
-        ssize_t got = read(0, buffer, sizeof buffer);
-        if (got == 0 || (got < 0 && errno != EINTR))
-            return 0;
-    }
+    process_ended(watcher);
+    /* the file removed while the lock is held, so that no node that
+       starts meanwhile takes it, and only where it is still this one's */
+    if (is_named(argv[2], fd))
+        unlink(argv[2]);
+    return 0;
 }
 
 /* Report §11.2, §12.5: whether the file at fd names a process this user

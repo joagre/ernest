@@ -3,13 +3,13 @@
 %% the node signs itself and `ernest.conf`, and lists in it a peer of this
 %% machine read from the peer's own directory; a node started with it checks
 %% it, reads `ernest.conf` whole, writes its process number to `ernest.pid`,
-%% holds the file locked for its life and removes it at its end, and starts
-%% the host's measures the file names; `ern reload` and `ern stop` signal
-%% the node that holds the file. A refusal is the runner's
+%% holds the file locked until its process has ended, when the file is
+%% removed, and starts the host's measures the file names; `ern reload` and
+%% `ern stop` signal the node that holds the file. A refusal is the runner's
 %% (ern_build:fail/1), naming the file.
 -module(ern_node).
 
--export([create/2, public_pem/1, add_peer/2, start/1, start/2, stop/1, file/2,
+-export([create/2, public_pem/1, add_peer/2, start/1, start/2, stop/0, file/2,
          read/1, measures_changed/3, signaled/2, stopped/1, listen_text/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
@@ -243,24 +243,17 @@ start(ConfigDir, Configuration) ->
     pid_written(ConfigDir),
     try measures_started(ConfigDir, Configuration#configuration.measures)
     catch Class:Reason:Trace ->
-        stop(ConfigDir),
+        stop(),
         erlang:raise(Class, Reason, Trace)
     end,
     Configuration.
 
-%% Report §12.5: a node stops the host's measures at its end, and removes
-%% `ernest.pid`, where the file is still its own; its lock on the file goes
-%% when the host ends with it (pid_written/1). The file is read as every
-%% file a job reads is (report §11).
--spec stop(file:filename()) -> ok.
-stop(ConfigDir) ->
-    measures_stopped(),
-    PidFile = file(ConfigDir, pid),
-    Own = list_to_binary(os:getpid() ++ "\n"),
-    case ern_build:regular_bytes(PidFile) of
-        {ok, Own} -> _ = file:delete(PidFile), ok;
-        _ -> ok
-    end.
+%% Report §12.5: a node stops the host's measures at its end; its
+%% `ernest.pid` goes once its process has ended, removed by the helper that
+%% holds its lock (pid_written/1).
+-spec stop() -> ok.
+stop() ->
+    measures_stopped().
 
 %% A file of the configuration directory: `ernest.conf`, the key, the
 %% certificate or `ernest.pid`.
@@ -374,11 +367,13 @@ certified_key(#'OTPCertificate'{tbsCertificate = Tbs}) ->
     point_der(Point).
 
 %% Report §12.5: `ernest.pid` holds this node's process number from its
-%% start, and the node holds it locked for its life, through the runtime's
-%% helper, whose port this process owns until the host ends with the node,
-%% however it ends; a file a living node holds refuses the start, naming the
-%% number it holds, and one no node holds is overwritten, whatever number it
-%% names. A name that reaches no regular file is not opened (report §11).
+%% start, and the node holds it locked until its process has ended, however
+%% it ends, through the runtime's helper, which watches the process and
+%% removes the file then (ern_os:locked/2); a file a living node holds
+%% refuses the start, naming the number it holds, and one no node holds is
+%% overwritten, whatever number it names. A host that cannot watch a process
+%% for its end refuses the start, naming its system and its release, and no
+%% file is made. A name that reaches no regular file is not opened (report §11).
 pid_written(ConfigDir) ->
     PidFile = file(ConfigDir, pid),
     case ern_os:locked(PidFile, list_to_integer(os:getpid())) of
@@ -393,6 +388,9 @@ pid_written(ConfigDir) ->
                            ++ ?PID_FILE ++ " names");
         unopened ->
             fail(ConfigDir, ?PID_FILE, ern_build:reason(unopened));
+        {unwatched, Host} ->
+            ern_build:fail("a node needs pidfd_open, of Linux 5.3 and later, which this host, "
+                           ++ binary_to_list(Host) ++ ", does not have");
         {failed, Text} ->
             fail(ConfigDir, ?PID_FILE, Text)
     end.
@@ -443,7 +441,8 @@ signaled(ConfigDir, Number) ->
 
 %% Report §8.6, §11.2: termination sent to the node as signaled/2 sends a
 %% signal, and its end waited for, on the lock it holds on `ernest.pid`,
-%% which the host lets go when the node ends, however it ends.
+%% which its helper lets go once the node's process has ended, however it
+%% ends.
 -spec stopped(file:filename()) -> ok.
 stopped(ConfigDir) ->
     node_signaled(ConfigDir, 15, true).

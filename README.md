@@ -94,7 +94,7 @@ Young: the [releases page](https://github.com/joagre/ernest/releases) names the 
 
 ## Installing
 
-On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages `make` and `gcc`, and OTP 29 is installed as below, since their own `erlang` package is older. Ernest is tested on Linux; on macOS the same steps are expected to work:
+On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages `make` and `gcc`, and OTP 29 is installed as below, since their own `erlang` package is older. A node needs Linux 5.3 or later. Ernest is tested on Linux; on macOS the same steps are expected to work:
 
 ```
 git clone https://github.com/joagre/ernest.git

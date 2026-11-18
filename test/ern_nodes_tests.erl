@@ -155,9 +155,9 @@ step(What, Steps) ->
     end.
 
 %% Report §8.6, a node detecting no deadlock: each node whose ernest.pid is
-%% still in a directory under Base killed, a stopped one among them. A test
-%% that passed has stopped its nodes, and one a test killed left a file
-%% naming a process that has ended.
+%% still in a directory under Base killed, a stopped one among them, and one
+%% held in the host's halt. A test that passed has stopped its nodes, and
+%% the file of one a test killed is gone with it (report §12.5).
 killed(Base) ->
     lists:foreach(fun node_killed/1, filelib:wildcard(filename:join([Base, "*", "ernest.pid"]))).
 
@@ -681,7 +681,10 @@ written(Dir, Stream) ->
     receive {written, Stream, Text} -> binary_to_list(Text) end.
 
 %% What a node that has ended wrote, once both its streams have ended: one
-%% step.
+%% step. The helper that holds a node's lock keeps the node's standard error
+%% until it has removed the node's ernest.pid and ended (report §12.5), so
+%% that a node's file is gone once said/1 returns, and once finished/1 does
+%% for a command that sends the node's standard error to its output.
 -spec said(file:filename()) -> {string(), string()}.
 said(Dir) ->
     step({said, Dir}),
@@ -3659,17 +3662,21 @@ stop_in_order(Base) ->
     ?assertEqual(1, Status),
     has(Said, "ernest.pid: no such file: no node runs from the directory").
 
-%% report §12.5, §11.2: a node holds ernest.pid locked for its life, which
-%% the host ends with it however it ends: a node killed leaves the file, and
-%% the next start from the directory takes it, saying nothing of a refusal,
-%% the file holding the new node's number; a running node refuses a second
-%% start, naming its number; and where the file names a living process that
-%% is no node, `ern stop` and `ern reload` fail, saying that no node holds
-%% it, and the process is sent nothing. A regression test, written after the
-%% code (the log's *MVP 3.1 Read*): a start was refused by a file whose
-%% number a living process held, and the jobs signaled that process
+%% report §12.5, §11.2: a node holds ernest.pid locked until its process
+%% has ended, however it ends, and the file is removed then: a node killed
+%% leaves no file. A file no node holds, as one a node whose machine stopped
+%% leaves, made here by hand, is taken by the next start from the
+%% directory, saying nothing of a refusal, the file holding the new node's
+%% number; a running node refuses a second start, naming its number; and
+%% where the file names a living process that is no node, `ern stop` and
+%% `ern reload` fail, saying that no node holds it, and the process is sent
+%% nothing.
+%%
+%% A regression test, written after the code (the log's *MVP 3.1 Read*): a
+%% start was refused by a file whose number a living process held, and the
+%% jobs signaled that process; and a node killed left its file
 pid_lock_test_() ->
-    nodes_test({waits, 11}, fun pid_lock/1).
+    nodes_test({waits, 12}, fun pid_lock/1).
 
 pid_lock(Base) ->
     A = made(Base, "a", none),
@@ -3680,7 +3687,9 @@ pid_lock(Base) ->
     {ok, Killed} = file:read_file(PidFile),
     [] = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Killed))),
     ?assertEqual(137, WaitKilled()),
-    ?assertEqual({ok, Killed}, file:read_file(PidFile)),
+    _ = said(A),
+    ?assertNot(filelib:is_file(PidFile)),
+    ok = file:write_file(PidFile, Killed),
     WaitA = start(A, Program, []),
     prints(A, "waiting"),
     {ok, Number} = file:read_file(PidFile),
@@ -3725,27 +3734,7 @@ stop_waits_test_() ->
 stop_waits(Base) ->
     A = made(Base, "a", none),
     PidFile = filename:join(A, "ernest.pid"),
-    Root = filename:join(Base, "build"),
-    ok = filelib:ensure_path(Root),
-    ok = file:write_file(filename:join(Root, "stopping.ern"), <<"
-// Report §8.6: a subscriber of the end that answers once a line comes.
-
-type Msg = Terminating(Reply(Unit))
-
-export fn main() : Unit receiving Msg = {
-    Os.termination(Terminating);
-    Io.println(\"subscribed\");
-    receive {
-        Terminating(reply) -> {
-            Io.println(\"told\");
-            let _ = Io.readLine();
-            answer(reply, Unit)
-        }
-    }
-}
-"/utf8>>),
-    0 = built([Root]),
-    Program = filename:join(Root, "stopping.erc"),
+    Program = stopping(Base),
     %% a stop begun, and what waits for what it said once it has returned
     Stopping = fun() -> begun(?ERN ++ " stop --config-dir " ++ A ++ " 2>&1") end,
     {Port, Wait} = started(A, Program, []),
@@ -3770,6 +3759,188 @@ export fn main() : Unit receiving Msg = {
     ?assertEqual(143, WaitAgain()),
     {_, ErrAgain} = said(A),
     has(ErrAgain, "the end was cut short, 1 subscriber unanswered: Stopping.main").
+
+%% Report §8.6: a program whose subscriber of the end answers once a line
+%% comes, built under Base: one step. Answers its compiled form.
+stopping(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "stopping.ern"), <<"
+// Report §8.6: a subscriber of the end that answers once a line comes.
+
+type Msg = Terminating(Reply(Unit))
+
+export fn main() : Unit receiving Msg = {
+    Os.termination(Terminating);
+    Io.println(\"subscribed\");
+    receive {
+        Terminating(reply) -> {
+            Io.println(\"told\");
+            let _ = Io.readLine();
+            answer(reply, Unit)
+        }
+    }
+}
+"/utf8>>),
+    0 = built([Root]),
+    filename:join(Root, "stopping.erc").
+
+%% report §12.5, §11.2, §8.6: a node killed while `ern stop` waits for its
+%% end, which a subscriber holds, ends the wait: the stop returns with
+%% status 0 once the node's process has ended, its ernest.pid removed
+%% before the lock was let go. A regression test, written after the code:
+%% the file stayed after a kill. It does not cover a kill that takes the
+%% lock's helper with the node, a whole group's or a service manager's,
+%% which leaves the file for the next start
+killed_while_stopped_test_() ->
+    nodes_test({waits, 5}, fun killed_while_stopped/1).
+
+killed_while_stopped(Base) ->
+    A = made(Base, "a", none),
+    PidFile = filename:join(A, "ernest.pid"),
+    Wait = start(A, stopping(Base), []),
+    prints(A, "subscribed"),
+    Stopped = begun(?ERN ++ " stop --config-dir " ++ A ++ " 2>&1"),
+    %% told once the stop has sent the termination, after which it waits
+    %% on the lock
+    prints(A, "told"),
+    {ok, Number} = file:read_file(PidFile),
+    [] = os:cmd("kill -KILL " ++ string:trim(binary_to_list(Number))),
+    ?assertMatch({0, _}, Stopped()),
+    ?assertNot(filelib:is_file(PidFile)),
+    ?assertEqual(137, Wait()).
+
+%% report §12.5, §11.2: a node held in the host's halt, by a socket its
+%% program wrote more to than its client has taken, still runs, and holds
+%% its ernest.pid locked until its process has ended: in the hold the file
+%% is there and a node holds it; once the client reads, the node ends, a
+%% wait on the lock returns with the node's process ended, and the file is
+%% gone.
+%%
+%% A regression test, written after the code: the halt closed the lock's
+%% port, the lock went with it, and the node had removed the file before,
+%% so that `ern stop` said no node ran. The hold is seen from its start,
+%% the program's last line: it does not cover a lock that would go later in
+%% the hold, which nothing outside the node shows
+node_in_its_halt_test_() ->
+    nodes_test({waits, 8}, fun node_in_its_halt/1).
+
+node_in_its_halt(Base) ->
+    A = made(Base, "a", none),
+    PidFile = filename:join(A, "ernest.pid"),
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "halting.ern"), [<<"
+// Report §12.5: a node that listens, takes one connection, waits for a
+// line, writes the megabytes it is given to the socket, and ends with the
+// connection open, so that the host's halt waits on what its client has
+// not taken.
+
+export fn main() : Unit =
+    match Os.arguments {
+        [megabytes] ->
+            Io.println(\"served: \"
+                           <> Io.show(served(Optional.withDefault(String.toInt(megabytes), 0))))
+      | _ ->
+            Unit
+    }
+
+fn served(megabytes : Int) : Either(Io.Error, Unit) = {
+    let listener <- Tcp.listen(\"127.0.0.1\", 0);
+    let port <- Tcp.port(listener);
+    Io.println(\"port \" <> Int.toString(port));
+    let socket <- Tcp.accept(listener, waitMs());
+    Io.println(\"accepted\");
+    let _ = Io.readLine();
+    let _ <- Tcp.write(socket, Bytes.repeat(<<120>>, megabytes * 1048576), waitMs());
+    Right(Unit)
+}
+"/utf8>>, wait_ms_declaration()]),
+    0 = built([Root]),
+    Megabytes = 32,
+    {Input, Wait} = started(A, filename:join(Root, "halting.erc"), [integer_to_list(Megabytes)]),
+    prints(A, "port "),
+    {match, [Port]} = re:run(written(A, out), "port ([0-9]+)\n", [{capture, all_but_first, list}]),
+    Client = connected(list_to_integer(Port), []),
+    prints(A, "accepted"),
+    true = port_command(Input, "go\n"),
+    prints(A, "served: Right(Unit)"),
+    {ok, Text} = file:read_file(PidFile),
+    Number = list_to_integer(string:trim(binary_to_list(Text))),
+    ?assertEqual(sent, ern_os:node_signaled(PidFile, 0, false)),
+    Self = self(),
+    _ = spawn_link(fun() -> Self ! {unlocked, ern_os:node_signaled(PidFile, 0, true)} end),
+    ?assertMatch({ok, _}, received(Client, Megabytes * 1048576)),
+    ?assertEqual(0, Wait()),
+    step(unlocked),
+    ?assertEqual(sent, receive {unlocked, Answer} -> Answer after ?WAIT_MS -> timeout end),
+    ?assertEqual(none, ern_os:signal(0, Number)),
+    ?assertNot(filelib:is_file(PidFile)),
+    ok = gen_tcp:close(Client).
+
+%% report §12.5: on a Linux without pidfd_open, one before 5.3, a node
+%% refuses to start, making no file, naming the system and its release as
+%% uname gives them. The kernel's answer, ENOSYS, is given by a library
+%% the node's command alone loads before the C library, which answers that
+%% call so and passes every other on. A regression test, written after the
+%% code; it does not run a kernel older than 5.3, nor a host the helper's
+%% watch has no code for, whose frame is the same
+unwatched_host_test_() ->
+    nodes_test({waits, 2}, fun unwatched_host/1).
+
+unwatched_host(Base) ->
+    A = made(Base, "a", none),
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "ran.ern"),
+                         <<"export fn main() : Unit = Io.println(\"ran\")\n">>),
+    0 = built([Root]),
+    Shim = filename:join(Base, "no_pidfd_open.so"),
+    ok = file:write_file(Shim ++ ".c", no_pidfd_open()),
+    "" = os:cmd(lists:flatten(["cc -shared -fPIC -o ", Shim, " ", Shim, ".c -ldl"])),
+    {1, Said} = finished(["LD_PRELOAD=", Shim, " ", ?ERN, " run --config-dir ", A, " ",
+                          filename:join(Root, "ran.erc"), " 2>&1"]),
+    Host = string:trim(os:cmd("uname -s")) ++ " " ++ string:trim(os:cmd("uname -r")),
+    ?assertEqual("ern run: a node needs pidfd_open, of Linux 5.3 and later, which this host, "
+                 ++ Host ++ ", does not have\n", Said),
+    ern_deployment_tests:cataloged(Said, "7", "needs pidfd_open",
+                                   [{"Linux 4.15.0-213-generic", Host}]),
+    ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
+
+%% A library for LD_PRELOAD, as C: syscall(2) answers pidfd_open with
+%% ENOSYS, as a kernel without the call does, and passes every other call
+%% to the C library's, the host's own futexes among them.
+no_pidfd_open() ->
+    <<"#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#ifndef SYS_pidfd_open
+#define SYS_pidfd_open 434
+#endif
+
+long syscall(long number, ...)
+{
+    static long (*host)(long, ...);
+    va_list given;
+    long arguments[6];
+    int index;
+    if (number == SYS_pidfd_open) {
+        errno = ENOSYS;
+        return -1;
+    }
+    if (host == NULL)
+        *(void **)&host = dlsym(RTLD_NEXT, \"syscall\");
+    va_start(given, number);
+    for (index = 0; index < 6; index++)
+        arguments[index] = va_arg(given, long);
+    va_end(given);
+    return host(number, arguments[0], arguments[1], arguments[2], arguments[3], arguments[4],
+                arguments[5]);
+}
+">>.
 
 %% report §12.5, §11.2: `ern reload` sends the node hangup, which reads
 %% ernest.conf again: a peer removed has its connection ended and is

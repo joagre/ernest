@@ -7157,7 +7157,8 @@ signal_jobs_take_any_mode_test() ->
     %% program's number as it forks it, and the forked process ignores the
     %% termination, as erl_child_setup does, until it first runs: a number
     %% named before the echo may be sent the termination to no effect
-    %% (docs/otp_bugs.md, 22)
+    %% (docs/otp_bugs.md, 22). The holder lives until the lock's helper has
+    %% ended, once the process the lock watches has ended
     Held = fun() ->
                Living = open_port({spawn_executable, os:find_executable("cat")},
                                   [binary, exit_status]),
@@ -7165,7 +7166,7 @@ signal_jobs_take_any_mode_test() ->
                {os_pid, Number} = erlang:port_info(Living, os_pid),
                Holder = spawn(fun() ->
                                   Self ! {locked, ern_os:locked(PidFile, Number)},
-                                  receive stop -> ok end
+                                  receive {_Helper, {exit_status, _}} -> ok end
                               end),
                receive {locked, Locked} -> ?assertEqual(locked, Locked) end,
                ok = file:change_mode(PidFile, 8#666),
@@ -7173,7 +7174,6 @@ signal_jobs_take_any_mode_test() ->
            end,
     Released = fun(Holder) ->
                    MonitorRef = erlang:monitor(process, Holder),
-                   Holder ! stop,
                    receive {'DOWN', MonitorRef, process, Holder, _} -> ok end
                end,
     %% a program a signal ends exits with 128 and the signal's number
@@ -7195,11 +7195,12 @@ signal_jobs_take_any_mode_test() ->
     ok = file:rename(Dir ++ "/held.pid", PidFile),
     _ = spawn_link(fun() -> Self ! {stopped, Signal("stop")} end),
     ?assertEqual(128 + 15, Ended(Terminated)),
-    Released(Holder),
+    %% the lock goes once the process it watches has ended, the file removed
+    %% before it, and `ern stop` returns only then: the next holder takes
+    %% the directory
     ?assertEqual(0, receive {stopped, Status} -> Status end),
-    %% the lock goes once its holder's helper has read the end of its input
-    %% and exited, after the holder's end, and `ern stop` returns only then:
-    %% the next holder takes the file
+    ?assertNot(filelib:is_file(PidFile)),
+    Released(Holder),
     {Hung, Holding} = Held(),
     ?assertEqual(0, Signal("reload")),
     ?assertEqual(128 + 1, Ended(Hung)),

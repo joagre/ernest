@@ -29,6 +29,29 @@ refusal(Fun) ->
         throw:{cli_error, Message} -> Message
     end.
 
+%% Report §12.5: a host of its own, an operating-system process beside the
+%% test's, with the test's code, so that a node started in it holds its
+%% ernest.pid until that process has ended, which the test ends; the host's
+%% report of the termination that ends it is not written.
+node_host() ->
+    Own = [Dir || Dir <- code:get_path(), not lists:prefix(code:root_dir(), Dir)],
+    {ok, Host, _} = peer:start(#{connection => standard_io,
+                                 args => ["-kernel", "logger_level", "notice"
+                                          | lists:append([["-pz", Dir] || Dir <- Own])]}),
+    Host.
+
+%% Report §12.5, §11.2: a node started from Dir in a host of its own, Run
+%% applied there while it runs, and the node then ended as `ern stop` ends
+%% it, which returns once the node's process has ended and its ernest.pid
+%% is gone. Answers what Run answers.
+in_host(Dir, Run) ->
+    Host = node_host(),
+    ?assertMatch(#configuration{}, peer:call(Host, ern_node, start, [Dir])),
+    Answer = peer:call(Host, erlang, apply, [Run, []]),
+    ok = ern_node:stopped(Dir),
+    ?assertNot(filelib:is_file(filename:join(Dir, "ernest.pid"))),
+    Answer.
+
 %% ernest.conf of the directory written as Text.
 conf(Dir, Text) ->
     ok = file:write_file(filename:join(Dir, "ernest.conf"), Text).
@@ -440,8 +463,7 @@ modes_untested_test() ->
     [ok = file:change_mode(Path, Mode)
      || {Path, Mode} <- [{Dir, 8#777}, {filename:join(Dir, "ernest.conf"), 8#666},
                          {filename:join(Dir, "certificate.pem"), 8#666}]],
-    ?assertMatch(#configuration{}, ern_node:start(Dir)),
-    ok = ern_node:stop(Dir).
+    in_host(Dir, fun() -> ok end).
 
 %% report §12.5: a node refuses a key whose mode lets any but its owner
 %% read or write it, its group among them, and takes one its owner alone
@@ -522,37 +544,37 @@ links_test() ->
     _ = ern_node:create(filename:join(Elsewhere, "node"), "0.0.0.0:8654"),
     Given = filename:join(Base, "given"),
     ok = file:make_symlink("elsewhere/node", Given),
-    ?assertMatch(#configuration{}, ern_node:start(Given)),
-    ok = ern_node:stop(Given).
+    in_host(Given, fun() -> ok end).
 
 %% report §12.5: a node writes its process number to ernest.pid as it
-%% starts, holds the file locked and removes it at its end; a file a living
-%% node holds refuses the start, and one no node holds is overwritten,
-%% whatever number it names, a living process's among them; a file another
-%% wrote meanwhile is not removed. A regression test of the lock, written
-%% after the code: a file that named a living process refused the start,
-%% the process another than a node
+%% starts, holds the file locked until its process has ended, and the file
+%% is removed then; a file a living node holds refuses the start, and one
+%% no node holds is overwritten, whatever number it names, a living
+%% process's among them. A regression test of the lock, written after the
+%% code: a file that named a living process refused the start, the process
+%% another than a node. A file put in place of the node's is
+%% src/runtime/test/ern_os_tests.erl's replaced_file_kept_test
 pid_test() ->
     Dir = made(),
     Pid = filename:join(Dir, "ernest.pid"),
-    _ = ern_node:start(Dir),
-    ?assertEqual({ok, list_to_binary(os:getpid() ++ "\n")}, file:read_file(Pid)),
-    ?assertEqual(Dir ++ " is the configuration directory of the running node " ++ os:getpid()
+    Running = fun() ->
+                  Own = os:getpid(),
+                  ?assertEqual({ok, list_to_binary(Own ++ "\n")}, file:read_file(Pid)),
+                  Own
+              end,
+    Host = node_host(),
+    ?assertMatch(#configuration{}, peer:call(Host, ern_node, start, [Dir])),
+    Number = peer:call(Host, erlang, apply, [Running, []]),
+    ?assertEqual(Dir ++ " is the configuration directory of the running node " ++ Number
                  ++ ", which ernest.pid names",
                  refusal(fun() -> ern_node:start(Dir) end)),
-    ok = ern_node:stop(Dir),
+    ok = ern_node:stopped(Dir),
     ?assertNot(filelib:is_file(Pid)),
     lists:foreach(fun(Left) ->
                       ok = file:write_file(Pid, Left),
-                      _ = ern_node:start(Dir),
-                      ?assertEqual({ok, list_to_binary(os:getpid() ++ "\n")},
-                                   file:read_file(Pid)),
-                      ok = ern_node:stop(Dir)
+                      _ = in_host(Dir, Running)
                   end, [<<"999999\n">>, <<"not a process\n">>, <<"0\n">>, <<"1\n">>,
-                        list_to_binary(os:getpid() ++ "\n")]),
-    ok = file:write_file(Pid, <<"1\n">>),
-    ok = ern_node:stop(Dir),
-    ?assertEqual({ok, <<"1\n">>}, file:read_file(Pid)).
+                        list_to_binary(os:getpid() ++ "\n")]).
 
 %% report §12.5: a node follows no link at ernest.pid, and one that starts
 %% and finds a link there refuses to start, with the host's reason, whether
@@ -629,15 +651,16 @@ pid_unopened_test() ->
 %% holds ernest.pid, and fail where there is no file or no node holds it,
 %% a living process the file names among the ways, which is sent nothing.
 %% A regression test, written after the code: the file's number was signaled
-%% where it named a living process, a node or not; it does not cover the wait
-%% for the node's end, which the nodes' tests do
+%% where it named a living process, a node or not; it does not cover a node
+%% whose end waits, which the nodes' tests do
 signaled_test() ->
     Dir = made(),
     Pid = filename:join(Dir, "ernest.pid"),
-    _ = ern_node:start(Dir),
+    Host = node_host(),
+    ?assertMatch(#configuration{}, peer:call(Host, ern_node, start, [Dir])),
     %% the signal 0 sends nothing, and asks whether the node lives
     ?assertEqual(ok, ern_node:signaled(Dir, 0)),
-    ok = ern_node:stop(Dir),
+    ok = ern_node:stopped(Dir),
     ?assertEqual(Pid ++ ": no such file: no node runs from the directory",
                  refusal(fun() -> ern_node:signaled(Dir, 0) end)),
     Waiting = erlang:open_port({spawn_executable, os:find_executable("cat")}, [binary]),
@@ -663,32 +686,30 @@ signaled_test() ->
 %% node's standard error
 measures_test() ->
     Dir = made(),
-    _ = ern_node:start(Dir),
-    ok = ern_node:stop(Dir),
-    ?assertEqual(false, lists:keymember(os_mon, 1, application:which_applications())),
+    Stopped = fun() ->
+                  ok = ern_node:stop(),
+                  ?assertEqual(false, lists:keymember(os_mon, 1, application:which_applications())),
+                  ?assertEqual([], measure_programs())
+              end,
+    in_host(Dir, Stopped),
     with(Dir, #{<<"measures">> => #{<<"cpu">> => #{},
                                     <<"disk">> => #{<<"check-interval">> => 60000,
                                                     <<"almost-full">> => 0.95}}}),
-    try
-        _ = ern_node:start(Dir),
-        ?assert(is_pid(whereis(cpu_sup))),
-        ?assert(is_pid(whereis(disksup))),
-        ?assertEqual(undefined, whereis(memsup)),
-        ?assertEqual(60000, disksup:get_check_interval()),
-        ?assertEqual(95, disksup:get_almost_full_threshold()),
-        %% the CPU measure's program runs once the measure has answered, which
-        %% it does through the program; asked here so that the test waits on
-        %% that and not on the host's start of it, which a loaded machine
-        %% delays (a regression: the test raced the start)
-        _ = cpu_sup:util(),
-        ?assertNotEqual([], measure_programs()),
-        ok = ern_node:stop(Dir),
-        ?assertEqual(false, lists:keymember(os_mon, 1, application:which_applications())),
-        ?assertEqual([], measure_programs())
-    after
-        ok = ern_node:stop(Dir),
-        _ = application:stop(sasl)
-    end.
+    in_host(Dir, fun() ->
+                     ?assert(is_pid(whereis(cpu_sup))),
+                     ?assert(is_pid(whereis(disksup))),
+                     ?assertEqual(undefined, whereis(memsup)),
+                     ?assertEqual(60000, disksup:get_check_interval()),
+                     ?assertEqual(95, disksup:get_almost_full_threshold()),
+                     %% the CPU measure's program runs once the measure has
+                     %% answered, which it does through the program; asked
+                     %% here so that the test waits on that and not on the
+                     %% host's start of it, which a loaded machine delays (a
+                     %% regression: the test raced the start)
+                     _ = cpu_sup:util(),
+                     ?assertNotEqual([], measure_programs()),
+                     Stopped()
+                 end).
 
 %% Until the host's memory measure has collected once, its program then
 %% waiting for the next request: the host closes the program's port with a
@@ -712,14 +733,10 @@ measures_reloaded_test() ->
     Dir = made(),
     Measures = #{memory => #{check_interval => 120000}},
     with(Dir, #{<<"measures">> => #{<<"memory">> => #{<<"check-interval">> => 120000}}}),
-    try
-        _ = ern_node:start(Dir),
-        ?assertEqual(120000, memsup:get_check_interval()),
-        collected(),
-        ok = ern_node:measures_changed(Dir, Measures, #{memory => #{}}),
-        ?assertEqual(60000, memsup:get_check_interval()),
-        collected()
-    after
-        ok = ern_node:stop(Dir),
-        _ = application:stop(sasl)
-    end.
+    in_host(Dir, fun() ->
+                     ?assertEqual(120000, memsup:get_check_interval()),
+                     collected(),
+                     ok = ern_node:measures_changed(Dir, Measures, #{memory => #{}}),
+                     ?assertEqual(60000, memsup:get_check_interval()),
+                     collected()
+                 end).

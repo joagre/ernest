@@ -1561,9 +1561,10 @@ run_node(ConfigDir, Read, LoadPath, Say, Run) ->
         ok = ern_carrier:list(Configuration),
         Run(#{node => fun() -> ern_carrier:start(Configuration) end})
     after
-        %% report §8.7: a node stops in order, then its ernest.pid goes
+        %% report §8.7, §12.5: a node stops in order; its ernest.pid goes
+        %% once its process has ended
         ern_carrier:depart(),
-        ern_node:stop(ConfigDir)
+        ern_node:stop()
     end.
 
 %% Report §11.2: `--main` names a function of the file the job is given, and
