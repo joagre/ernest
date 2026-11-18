@@ -80,6 +80,8 @@ Wider claims gave nothing. The heading stands in the opening's column and took a
 
 **Three sizes named.** The design note names sizes of the page, which are exact, and `make test-browser` holds each. The first screen's margin is thin: one more line in a claim is 21 pixels, and the button had 16 to spare before the spaces were tightened.
 
+**A claim's code on one line.** The fourth claim broke `ern test` across two lines, each word in a box of its own. Kept on one line it costs the claim no line, measured at 960, 1024, 1200 and 1536 pixels wide.
+
 ## The example's columns
 
 The example's blocks stood in two equal columns with a gap of 20 pixels, under an opening and claims whose columns are `1fr` and `1.15fr` with a gap of 48. So the blocks' inner edges stood at 751 and 771 under the texts' at 699 and 747. On one grid the edges are the same, and the tour's sentence ends where the counter does.

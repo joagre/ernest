@@ -1,6 +1,6 @@
 # The homepage and the blocks' tools
 
-What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6's items 3 and 4, since 2026-11-18. Nothing in it is authoritative.
+What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6's items 3 and 4, since 2026-11-18, item 3 built ahead of its milestone. Nothing in it is authoritative.
 
 | File | What it is | Status |
 |---|---|---|

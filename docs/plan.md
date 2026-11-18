@@ -88,6 +88,9 @@ log's *The Job Halts Without the Host's Flush*).
   buffer that grows. An agent first shows what a writer to a program that reads nothing
   makes the helper hold, and whether anything bounds it. Memory that nothing reclaims is
   a defect (`CLAUDE.md`, *Defects and gaps*), and the fix's shape follows the probe.
+- **MVP 4.6's item 3, the homepage, is taken here**, ahead of its milestone, decided with
+  the user on 2026-11-18 (the log's *The Homepage and the Shell's Editing Planned*, its
+  paragraph *The site first*). That section holds the item.
 - **108. Whether a peer's worker waits on another peer**, left unread 2026-11-18 by item
   104's build (the log's *The Runtime's Processes Wait on No Peer*). A worker serves one
   peer, so that one peer's wait holds no other's frames. The sends read in `ern_peer` and
@@ -415,7 +418,7 @@ Editing Planned*).
 
 ### What is left
 
-The shell's editing is built first, since MVP 4.6's item 3 waits on it.
+The shell's editing is built first.
 
 - **119. An input of several lines is edited by its lines**, found 2026-11-17 on the
   rehearsal, with the homepage's counter waiting in the shell. No key moves between the
@@ -439,6 +442,9 @@ The shell's editing is built first, since MVP 4.6's item 3 waits on it.
   Then the shell's design note, the shell's Ernest, the documents that restate the keys
   and the terminal harness's tests change. None of them was read for the item but §11.2.
   The build closes on `make test-shell` and `make test`.
+
+  The homepage's opening then gains its last clause, which MVP 4.6's item 3 left for this
+  item (the proposal [`proposals/homepage/`](proposals/homepage/README.md), *Open*, 1).
 
 What item 43's discussion decided is built first, each item changing the report first (the
 log's *The Trust Said Once*). Items 52 and 54 are left of it.
@@ -602,15 +608,22 @@ on a path the rehearsal has walked.
    `make test-browser`.
 3. **The homepage and the blocks' tools**, decided with the user on 2026-11-18 (the log's
    *The Homepage and the Shell's Editing Planned*), the proposal
-   [`proposals/homepage/`](proposals/homepage/README.md). It follows item 2, so that the
-   site's design note is read once and Try it is pressed against the client that ships. It
-   follows MVP 4.17's item 119 too, which the opening's last clause waits on.
+   [`proposals/homepage/`](proposals/homepage/README.md). It is built first, after MVP
+   4.16's item 106 and ahead of this milestone, so that the page is tried for real before
+   more is decided on a mock. The opening's last clause is left for MVP 4.17's item 119,
+   and item 2 reads the site's design note as this item leaves it.
 
    The proposal's *What changes, by owner* lists what it touches: `site/templates/home.html`,
    `tools/site.ern`, the stylesheet, `site.js`, `guide/why.md` and `docs/design/site.md`.
    `make test-browser` gains the first screen at three sizes of the page, and a block's
-   tools above a first line that reaches them. The item closes on `make test`, the site's
-   targets and `make test-browser`, with Try it pressed on a shell that runs.
+   tools above a first line that reaches them.
+
+   Before it closes its build is installed on ernest-httpd's rehearsal, Try it is pressed
+   there on a shell that runs, and the page is looked at on real screens, a phone among
+   them. ernest-httpd's `deploy/` is read first for how, and its session is told
+   (`docs/clean_room.md`). Whether the checkout's `site.js` speaks the rehearsal's wire
+   was not read. The item closes on `make test`, the site's targets and
+   `make test-browser`.
 4. **The stylesheet's units**, after item 3 (the proposal's *The stylesheet's units*).
    `:root`'s size follows the reader's, and the widths at which the layout changes and the
    page's width leave the pixel, together or not at all. The first screen's three sizes

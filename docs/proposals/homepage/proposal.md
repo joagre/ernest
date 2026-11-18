@@ -16,6 +16,7 @@ The layout is the rehearsal's: the opening with the claims beside it, the exampl
 6. A sentence on the tour stands under the example, before the doors. It ends at the counter's right edge.
 7. The first claim's sentence and the mailbox's are reworded.
 8. Three spaces are tighter: above the heading, above the example, and around each claim.
+9. A claim's inline code stays on one line.
 
 ### Its texts
 
@@ -85,6 +86,7 @@ Over the rehearsal's stylesheet. The mock gave the tour's sentence its width by 
 .home-intro .lead { margin-bottom: 0; }
 .home-intro .lead + .lead { margin-top: .5rem; }
 .claims a { padding: .4rem 0; }
+.claims code { white-space: nowrap; }
 .home-use { padding-top: 0; }
 .home-use .example {
     margin-top: 1.5rem;
@@ -168,7 +170,7 @@ From 1200 pixels wide and up the page is the same page, 1120 pixels wide and cen
 | 1536×730 | the example and Try it as well |
 | 1920×950 | the tour's sentence as well |
 
-**Narrower than 1200.** The two columns hold down to 800 pixels, and the page grows taller as the heading and the claims wrap. At 1024 the counter's longest line runs 56 pixels past its block and the session's 45, and each block scrolls sideways. From 1200 up neither does.
+**Narrower than 1200.** The two columns hold down to 800 pixels, and the page grows taller as the heading and the claims wrap. At 1024 the counter's longest line runs 56 pixels past its block and the session's 45, and each block scrolls sideways. At 960, half of a screen of 1920, they run 86 and 79 pixels past. From 1200 up neither does.
 
 **Not measured again.** The phone's figures and the panel's were made on the page before the tighter spaces, the shared columns and the tools' one rule. At 390×844 the counter began 1.3 screens down where it began 1.5, the session 1.7 where it was 1.9, and Try it ended 2.0 screens down where it ended 2.3. With the panel beside the page in a window of 1440 pixels, a block of the example was 362 pixels wide, and the header's name stood at 24 pixels where it stood at 160.
 
@@ -211,7 +213,8 @@ Every render was made in a headless Chromium, which reports no mouse. The mouse'
 
 - The tools are always shown on every page.
 - No page of its own for a phone, yet.
-- The shell's editing is changed before the homepage is built. It is a change to report §11.2, and the plan's item for it holds it: in an input of several lines the up and down arrows move between its lines.
+- The shell's editing is changed before the launch. It is a change to report §11.2, and the plan's item for it holds it: in an input of several lines the up and down arrows move between its lines.
+- The homepage is built first and tried on the rehearsal, with a shell that runs and on real screens. Its last clause comes with the shell's editing.
 
 ## Open
 
