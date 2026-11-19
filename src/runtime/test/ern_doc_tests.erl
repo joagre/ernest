@@ -125,6 +125,9 @@ is_run(Block) ->
 %% is the type its module's interface prints, its inferred restrictions
 %% marked and the module's own types written without its namespace, so that
 %% the report states each function's whole contract
+%%
+%% A listing's `type` lines are held to the modules' declarations by
+%% ern_prelude_tests' stdlib_types_test and libraries_test.
 listings_are_the_interfaces_test() ->
     Printed = maps:from_list(
                 [{ern_namespace:text(QualifiedName),

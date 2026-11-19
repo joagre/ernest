@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 109**, a test that holds Appendix E's `type` lines to the
-library.
+**The next item is MVP 4.16's item 110**, the run's home stated once for the targets
+`make test-full` runs.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,14 +60,6 @@ Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **109. No test holds Appendix E's `type` lines to the library**, found 2026-11-18 by
-  item 107's build (the log's *Suspended Is the Host's Word*).
-  `ern_doc_tests:listings_are_the_interfaces_test` reads a listing's function lines
-  alone, so a `type` line of the report's equals its module's declaration by a reading
-  only. The shape of the fix: the test holds each `type` line of a listing equal to the
-  type its module exports, as it holds each function's. An agent first shows which of
-  the lines differ today, and each difference is brought to the user before either side
-  changes.
 - **110. Nothing holds that a shell start outside `make test-shell` names a home**, found
   2026-11-18 by item 87's build (the log's *A Home of the Run's Own*). Three starts in the
   integration and the install tests ran under the inherited `HOME`, and a new one would
@@ -378,6 +370,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 106 | What a program's helper holds for a program that does not read, with the user | 2026-11-18 | Appendix E.21, E.23; *What a Program's Helper Holds* |
 | 107 | `Process.status` says `Suspended` of a process the host holds, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
 | 108 | A peer's worker read whole; items 125 and 126 hold the fixes, with the user | 2026-11-19 | §6.5, §8.7, §12.6; *What a Peer's Worker Waits On* |
+| 109 | A test that holds Appendix E's `type` lines to the library | dropped 2026-11-19 on the user's word: `ern_prelude_tests` holds them, and Appendix G's | *The Type Lines Are Held* |
 | 111 | A checker acts for its address's target, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
 | 116 | The job halts without the host's flush, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
 | 117 | A termination once the end's wait is over ends the end at once | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
