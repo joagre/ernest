@@ -21,7 +21,7 @@ Ernest is for programs written in it from the start. An Ernest program is not an
 
 The hash is never written in a program. It is what a peer asks for, and what tells two versions of a definition apart.
 
-A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It stands on the same floor, one minor release of `ern` on one major release of OTP, and holds the standard library and the host's modules the program's foreign declarations name, and of the program nothing, and runs whichever version the spawn names:
+A spawn names its function by hash, and a peer that lacks it is sent the definition with every definition it references, before the process starts. `foo` is a bare node, started from a configuration directory and no program. It stands on the same floor, one minor release of `ern` on one major release of OTP. It holds the standard library and the host's modules the program's foreign declarations name, and nothing of the program. It runs whichever version the spawn names:
 
 ```ernest-fragment
 match Peer.spawn("foo", fn() = count(0), 5000) {
@@ -45,7 +45,7 @@ match Peer.compute(fn() = render(scene, row), 5000) {
 
 Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was the less busy of two peers drawn at random when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
 
-On one node the message type's hash finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The hash is what finds the processes such a message is for: `Code.running(f)` lists, typed, the processes of the node that run `f`, or another version of it with the same message type, by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
+On one node the message type's hash finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The hash is what finds the processes such a message is for. `Code.running(f)` lists, typed, the processes of the node that run `f`, or another version of it with the same message type. It finds them by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
 
 ```ernest-fragment
 type CounterMsg =

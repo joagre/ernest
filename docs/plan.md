@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.6's item 3, the homepage**, taken in MVP 4.16's *What is left*.
+**The next item is MVP 4.16's item 108**, whether a peer's worker waits on another peer.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,9 +60,6 @@ day (the log's *A Termination Ends a Stalled Flush*). Items 122 and 123 were fou
 (the log's *What a Program's Helper Holds*). Item 124 was found by item 121's probes and
 placed with the user the same day (the log's *A Down Follows the Send*).
 
-- **MVP 4.6's item 3, the homepage, is taken here**, ahead of its milestone, decided with
-  the user on 2026-11-18 (the log's *The Homepage and the Shell's Editing Planned*, its
-  paragraph *The site first*). That section holds the item.
 - **108. Whether a peer's worker waits on another peer**, left unread 2026-11-18 by item
   104's build (the log's *The Runtime's Processes Wait on No Peer*). A worker serves one
   peer, so that one peer's wait holds no other's frames. The sends read in `ern_peer` and
@@ -626,32 +623,10 @@ on a path the rehearsal has walked.
    design's *The client* for the interface, with the sweep the proposal lists. It goes live
    with the launch's switch, and closes on `make test`, the site's targets and
    `make test-browser`.
-3. **The homepage and the blocks' tools**, decided with the user on 2026-11-18 (the log's
-   *The Homepage and the Shell's Editing Planned*), the proposal
-   [`proposals/homepage/`](proposals/homepage/README.md). It is built first, after MVP
-   4.16's item 106 and ahead of this milestone, so that the page is tried for real before
-   more is decided on a mock. The opening's last clause is left for MVP 4.17's item 119,
-   and item 2 reads the site's design note as this item leaves it.
-
-   Built on 2026-11-19 as the proposal's *What changes, by owner* lists it (the log's *The
-   Homepage Built*). `make test-browser` holds the first screen at three sizes of the
-   page, a block's tools by its first line, and the example on a page of 960×950.
-
-   Its build stands on ernest-httpd's rehearsal since 2026-11-19, where Try it was pressed
-   on a shell that runs, and ernest-httpd's session was told. The item closes once the
-   page has been looked at there on real screens, a phone among them, and the three
-   decisions below are made.
-
-   The three decisions, each the user's:
-
-   - **The example beside the shell's panel.** The example stacks by the window's width,
-     so beside the panel its blocks keep two columns and scroll sideways. Recommended: a
-     container query on the page's column, which states "narrower than its full width"
-     with no figure derived (the log's *The Homepage Built*, its last paragraph).
-   - **A line above each block**, the two ways the proposal's section of that name set
-     aside until the page is seen.
-   - **Two sentences of Why's *Code travels***, which the proposal's *Open* has split at
-     their turns. Recommended: split in this item, the sentences shown to the user first.
+3. **The homepage and the blocks' tools**, done on 2026-11-19, ahead of this milestone (the
+   log's *The Homepage Built*), the proposal
+   [`proposals/homepage/`](proposals/homepage/README.md). The opening's last clause is
+   MVP 4.17's item 119, and item 2 reads the site's design note as this item left it.
 4. **The stylesheet's units**, after item 3 (the proposal's *The stylesheet's units*).
    `:root`'s size follows the reader's, and the widths at which the layout changes and the
    page's width leave the pixel, together or not at all. The first screen's three sizes
