@@ -79,7 +79,9 @@ Launch*).
   give the lambda its mailbox type, and the lambda so written is refused again, since a
   function that receives and one that receives nothing do not match. An agent shows both
   first: whether any program can write a `monitor` in `f`, and the help's two texts. What
-  changes, §6.5's sentence or the type checker, is then decided with the user.
+  changes, §6.5's sentence or the type checker, is then decided with the user. Where it is
+  the type checker, MVP 4.4's tabling of the checker's cases comes first, as its item 4
+  says of a checker item.
 - **120. A termination ends the subscribers' wait where a stream is stalled**, found
   2026-11-18 by item 117's probes (the log's *A Termination Ends a Stalled Flush*, its
   paragraph *The subscribers' wait*). A plain run with standard output stalled and a
@@ -421,6 +423,7 @@ The shell's editing is built first.
 
   The homepage's opening then gains its last clause, which MVP 4.6's item 3 left for this
   item (the proposal [`proposals/homepage/`](proposals/homepage/README.md), *Open*, 1).
+  That step closes on `make test-browser`, which holds the page's first screen.
 
 What item 43's discussion decided is built next, each item changing the report first (the
 log's *The Trust Said Once*). Items 52 and 54 are left of it.
@@ -436,6 +439,9 @@ log's *The Trust Said Once*). Items 52 and 54 are left of it.
     written, and a `HOME` unset or relative.
   - "The person's" becomes "its user's".
   - §11.2 says that a link at `$HOME/.ernest` is followed. No guard is added.
+
+  Item 54's second line, how the shell names the history file, is decided with the
+  table, since both write the same lines of §11.2.
 
   The report changes first. The build closes on `make test-shell` and
   `make test`.
@@ -581,6 +587,12 @@ on a path the rehearsal has walked.
    page's width leave the pixel, together or not at all. The first screen's three sizes
    are measured again, and the page is looked at with the browser's font size at 20 and at
    24 pixels.
+5. **The proposals' reading and sweep**, once items 2 and 4 and MVP 4.17's item 119 are
+   done, and before MVP 4.4's release. [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md)
+   and [`proposals/homepage/`](proposals/homepage/README.md) are read for what they hold
+   that no owner has yet, in a reading decided with the user. That goes to the site's
+   design note or the log. The item removes each directory once this milestone's row names
+   the log entries that argue it and nothing else cites the directory.
 
 ---
 
@@ -705,7 +717,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 5. **The launch's release**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
-   log's *The Layout Built*); the feedback file and the findings file empty.
+   log's *The Layout Built*); the findings file empty, and the feedback file holding only entries
+   that an item of MVP 4.5 holds.
 
    Before the tag, the last read, decided with the user 2026-11-16 (the log's *The Documents
    Before the Launch*). The user reads the tour, the guide and the report on the site built
