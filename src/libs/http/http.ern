@@ -885,15 +885,14 @@ fn received(socket : Address(Tcp.SocketMsg),
 /// no body: the answer is an empty body and `carried` as it was, and the
 /// socket is not read.
 ///
-/// The codings of every `Transfer-Encoding` header are one list, parted at
-/// commas, an empty element dropped, each coding compared in any case of
-/// the letters `A` to `Z` and without the spaces and tabs around it; a
-/// coding with a parameter, `chunked;q=1`, is not `chunked`, and a header
-/// that names no coding is read as naming another last. A chunk's size
-/// line is hexadecimal digits, spaces and tabs, and the extensions after a
-/// `;`; one of another form, or a chunk's bytes not followed directly by a
-/// line's ending, is `Protocol(Malformed)`, and a trailer is dropped
-/// whatever its form.
+/// The codings are `elements(request.headers, "Transfer-Encoding")`, each
+/// compared in any case of the letters `A` to `Z`; a coding with a
+/// parameter, `chunked;q=1`, is not `chunked`, and a header that names no
+/// coding is read as naming another last. A chunk's size line is
+/// hexadecimal digits, spaces and tabs, and the extensions after a `;`; one
+/// of another form, or a chunk's bytes not followed directly by a line's
+/// ending, is `Protocol(Malformed)`, and a trailer is dropped whatever its
+/// form.
 ///
 /// A client whose request carries `Expect: 100-continue` may hold its body
 /// back until the server answers with status 100 (RFC 9110, section
@@ -987,9 +986,9 @@ type Reading = Reading(socket : Address(Tcp.SocketMsg), limit : Int, deadline : 
 type Framing = Chunked | Length(Int) | ToClose
 
 // Report Appendix G.11, RFC 9112, sections 6.1 and 6.3: a transfer coding
-// frames the body, its last coding deciding how, and the field's values are
-// one list however many lines carry them; a `Content-Length` beside it, or
-// `chunked` named twice, frames none that can be read. Every
+// frames the body, its last coding deciding how, and the field's codings are
+// its `elements`, however many lines carry them; a `Content-Length` beside
+// it, or `chunked` named twice, frames none that can be read. Every
 // `Content-Length` names one decimal number, the same. Where neither field
 // frames the body, a request has none, and a response's runs to the close.
 fn framing(fields : List(Header), sender : Sender) : Either(Error, Framing) =
@@ -1001,13 +1000,8 @@ fn framing(fields : List(Header), sender : Sender) : Either(Error, Framing) =
               | #([Some(size)], _) -> Right(Length(size))
               | _ -> Left(Malformed)
             }
-      | #(values, []) -> {
-            let codings =
-                List.filter(List.map(List.flatMap(values, fn(value) = String.split(value, ",")),
-                                     fn(coding) = String.toAsciiLower(trimmedText(coding))),
-                            fn(coding) = coding != "");
-            coded(codings, sender)
-        }
+      | #(_, []) ->
+            coded(List.map(elements(fields, "Transfer-Encoding"), String.toAsciiLower), sender)
       | _ ->
             Left(Malformed)
     }
@@ -1165,7 +1159,80 @@ export fn headers(headers : List(Header), name : String) : List(String) = {
 fn isNamed(header : Header, lowered : String) : Bool =
     String.toAsciiLower(header.name) == lowered
 
-/// The pairs of every `Cookie` header in `headers`, RFC 6265's, in order:
+/// Every element of the values under `name` in `fields`, as RFC 9110 reads
+/// a list header, one list in order, the names compared in any case of the
+/// letters `A` to `Z`.
+///
+/// Each value is parted at its commas. An element is read without the
+/// spaces and tabs around it and otherwise as written, its case and its
+/// quotes kept, and an empty element is dropped.
+///
+/// A comma within a quoted string does not part. A quoted string begins at
+/// a `"` and ends at the next `"`, and a `\` within it takes the character
+/// after it, so `\"` does not end it. One that does not end runs to its
+/// value's end. Nothing else keeps a comma from parting: a comment's
+/// parentheses do not, nor the `<` and `>` around a URI.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Http.elements([Http.Header(name = "Connection", value = "keep-alive, Upgrade"),
+///                Http.Header(name = "connection", value = " ,close")],
+///               "Connection")
+/// // => ["keep-alive", "Upgrade", "close"]
+/// ```
+///
+/// ```ernest
+/// Http.elements([Http.Header(name = "If-None-Match", value = "W/\"a,b\", \"c\"")],
+///               "If-None-Match")
+/// // => ["W/\"a,b\"", "\"c\""]
+/// ```
+///
+/// since 0.11.0
+export fn elements(fields : List(Header), name : String) : List(String) =
+    List.flatMap(headers(fields, name), valueElements)
+
+// Report Appendix G.11: the elements of one value, read in one pass over its
+// bytes. A byte stands for a character, since a comma, a quote, a backslash,
+// a space and a tab are each one byte of UTF-8, and no other character's
+// bytes hold one; where a backslash takes the first byte of a longer
+// character, its other bytes are none of those.
+fn valueElements(value : String) : List(String) = {
+    let bytes = String.toUtf8(value);
+    parted(bytes, 0, bytes, [])
+}
+
+// The elements of a value outside a quoted string: `element` is the bytes
+// from the element's start to the value's end, `size` of them read and
+// `unread` not, and `acc` the elements before it, the last first.
+fn parted(element : Bytes, size : Int, unread : Bytes, acc : List(String)) : List(String) =
+    match unread {
+        <<',':utf8, rest:bytes>> -> parted(rest, 0, rest, kept(element, size, acc))
+      | <<'"':utf8, rest:bytes>> -> quoted(element, size + 1, rest, acc)
+      | <<_, rest:bytes>> -> parted(element, size + 1, rest, acc)
+      | _ -> List.reverse(kept(element, size, acc))
+    }
+
+// The elements of a value within a quoted string, read as `parted` reads
+// them: the next quote ends it, a backslash takes the byte after it, and one
+// that does not end runs to the value's end.
+fn quoted(element : Bytes, size : Int, unread : Bytes, acc : List(String)) : List(String) =
+    match unread {
+        <<'"':utf8, rest:bytes>> -> parted(element, size + 1, rest, acc)
+      | <<'\\':utf8, _, rest:bytes>> -> quoted(element, size + 2, rest, acc)
+      | <<_, rest:bytes>> -> quoted(element, size + 1, rest, acc)
+      | _ -> List.reverse(kept(element, size, acc))
+    }
+
+// The elements before, last first, with the first `size` bytes of `element`
+// on them, without the spaces and tabs around them, where they are not
+// empty. What is left of UTF-8 is UTF-8, so the decoding loses nothing.
+fn kept(element : Bytes, size : Int, acc : List(String)) : List(String) = {
+    let element = trimmed(Bytes.slice(element, 0, size));
+    if Bytes.isEmpty(element) then acc else String.fromUtf8Lossy(element) :: acc
+}
+
+/// The pairs of every `Cookie` header in `fields`, RFC 6265's, in order:
 /// each value parted at `;`, each part parted at its first `=`, the cookie's
 /// name before it and its value after, each trimmed of the spaces and tabs
 /// around it.
@@ -2609,6 +2676,102 @@ let anyCase =
                              #(Some("text/plain"), Some("a=1"), None, ["a=1", "b=2"], [], None))
               })
 
+// The elements of one header's value, as `elements` reads them.
+fn elementsOf(value : String) : List(String) =
+    elements([Header(name = "Example", =value)], "Example")
+
+// report Appendix G.11, RFC 9110, section 5.6.1
+let listElements =
+    Test.Case(name = "a list header's value is parted at its commas, an empty element dropped",
+              run = fn() =
+                  Test.equal(List.map(["foo,bar",
+                                       "foo ,bar,",
+                                       "foo , ,bar,charlie",
+                                       "",
+                                       ",",
+                                       ",   ,",
+                                       " \t a b \t ,\tc"],
+                                      elementsOf),
+                             [["foo", "bar"],
+                              ["foo", "bar"],
+                              ["foo", "bar", "charlie"],
+                              [],
+                              [],
+                              [],
+                              ["a b", "c"]]))
+
+// report Appendix G.11
+let elementsNamed =
+    Test.Case(name = "the elements of every value under a name, in any case, are one list in order",
+              run = fn() = {
+                  let fields =
+                      [Header(name = "Accept-Encoding", value = "gzip, br"),
+                       Header(name = "Host", value = "a, b"),
+                       Header(name = "ACCEPT-encoding", value = ""),
+                       Header(name = "accept-encoding", value = "zstd")];
+                  Test.equal(#(elements(fields, "Accept-Encoding"), elements(fields, "Connection")),
+                             #(["gzip", "br", "zstd"], []))
+              })
+
+// report Appendix G.11, RFC 9110, section 5.6.4
+let elementsQuoted =
+    Test.Case(name = "a quoted string keeps its commas, a backslash within it taking what follows",
+              run = fn() =
+                  Test.equal(List.map(["\"a, b\", c",
+                                       "W/\"a,b\", \"c\"",
+                                       "\"a\\\", b\", c",
+                                       "\"a\\\\\", b",
+                                       "\"a\"b, c"],
+                                      elementsOf),
+                             [["\"a, b\"", "c"],
+                              ["W/\"a,b\"", "\"c\""],
+                              ["\"a\\\", b\"", "c"],
+                              ["\"a\\\\\"", "b"],
+                              ["\"a\"b", "c"]]))
+
+// report Appendix G.11
+let quoteUnended =
+    Test.Case(name = "a quoted string that does not end runs to its value's end, and no further",
+              run = fn() =
+                  Test.equal(elements([Header(name = "X", value = "a, \"b, c"),
+                                       Header(name = "X", value = "d, e"),
+                                       Header(name = "X", value = "\"f\\"),
+                                       Header(name = "X", value = "g, \"h \t")],
+                                      "X"),
+                             ["a", "\"b, c", "d", "e", "\"f\\", "g", "\"h"]))
+
+// report Appendix G.11
+let onlyQuotesKeep =
+    Test.Case(name = "only a quoted string keeps a comma: no backslash, comment or URI's brackets",
+              run = fn() =
+                  Test.equal(List.map(["a\\,b",
+                                       "a\\\"b, c",
+                                       "1.1 proxy (Apache, 1.1)",
+                                       "<http://a/b,c>; rel=next"],
+                                      elementsOf),
+                             [["a\\", "b"],
+                              ["a\\\"b, c"],
+                              ["1.1 proxy (Apache", "1.1)"],
+                              ["<http://a/b", "c>; rel=next"]]))
+
+// report Appendix G.11
+let elementsAsWritten =
+    Test.Case(name = "an element is trimmed of spaces and tabs alone and is otherwise as written",
+              run = fn() = {
+                  // U+00A0 and U+2003 are no white space here, and the Kelvin
+                  // sign, U+212A, is no `k` in ASCII's case
+                  let lowered = fn(value) = List.map(elementsOf(value), String.toAsciiLower);
+                  Test.equal(#(List.map(["x,\u{A0}close\u{2003}",
+                                         "\u{212A}eep-alive",
+                                         "websoc\u{212A}et"],
+                                        lowered),
+                               elementsOf(" \tClose, Keep-Alive\t")),
+                             #([["x", "\u{A0}close\u{2003}"],
+                                ["\u{212A}eep-alive"],
+                                ["websoc\u{212A}et"]],
+                               ["Close", "Keep-Alive"]))
+              })
+
 // report Appendix G.11, RFC 6265, section 4.2
 let cookiesRead =
     Test.Case(name = "the pairs of every Cookie header are read in order",
@@ -3204,6 +3367,37 @@ let codingsListed =
                                                                      0))),
                              Right(List.repeat(Right(#(String.toUtf8("a"), String.toUtf8("rest"))),
                                                3)))
+              })
+
+// report Appendix G.11
+let codingsQuoted =
+    Test.Case(name = "a coding's quoted string keeps its comma, and one not ended keeps the rest",
+              run = fn() = {
+                  let carried = String.toUtf8("1\r\na\r\n0\r\n\r\nrest");
+                  let coded = fn(value) = [Header(name = "Transfer-Encoding", =value)];
+                  let unended = coded("gzip;x=\"a, chunked");
+                  let ended = coded("gzip;x=\"a,b\", chunked");
+                  Test.equal(#(served([],
+                                      StaysOpen,
+                                      fn(socket) =
+                                          List.map([unended, ended],
+                                                   fn(headers) =
+                                                       readRequestBody(socket,
+                                                                       carried,
+                                                                       asked(headers),
+                                                                       100,
+                                                                       0))),
+                               served([],
+                                      Closes,
+                                      fn(socket) =
+                                          readResponseBody(socket,
+                                                           carried,
+                                                           answered(unended),
+                                                           100,
+                                                           1000))),
+                             #(Right([Left(Protocol(Malformed)),
+                                      Right(#(String.toUtf8("a"), String.toUtf8("rest")))]),
+                               Right(Right(#(carried, <<>>)))))
               })
 
 // report Appendix G.11

@@ -1277,6 +1277,8 @@ A request line is three words parted at runs of spaces and tabs, the third `HTTP
 
 A value is read without the white space before and after it. White space in this section is spaces and tabs. A limit counts a line's ending, a line that passes it is refused before its line feed comes, and a limit below 1 lets no line in. `defaultLimits` is `Limits(line = 8192, headers = 65536)`. `header(headers, name)` is the first value under the name, compared in any case of the letters `A` to `Z`, and `headers(headers, name)` every value under it, in order.
 
+`elements(fields, name)` is the elements of every value under the name among `fields` as one list, in order, as RFC 9110 reads a list header: each value parted at its commas, an element read without the white space around it and otherwise as written, and an empty element dropped. A comma within a quoted string does not part. A quoted string begins at a `"` and ends at the next `"`, and a `\` within it takes the character after it, so `\"` does not end it. One that does not end runs to its value's end. Nothing else keeps a comma from parting: a comment's parentheses do not, nor the `<` and `>` around a URI.
+
 `cookies(fields)` is the pairs of every `Cookie` header among `fields`, RFC 6265's, in order: each value parted at `;`, each part parted at its first `=`, its name and its value each trimmed of the white space around them, a part with no `=` or with an empty name dropped, and a value otherwise kept as written, its quotes among them. `cookie(headers, name)` is the first value under the name, compared exactly.
 
 `readRequest(socket, carried, limits, ms)` and `readResponse(socket, carried, limits, ms)` read one head from a socket of `Tcp` (E.18): `carried` is what an earlier read took past its head, a pipelined request among them, and is read before the socket; `ms` bounds the whole head and not each read, so a client that sends a byte a second meets it. A `Left` is a `SocketError`, the error of every function over a socket: `Protocol(error)`, the parse's, or `Socket(error)`, the socket's, `Socket(Timeout)` when the milliseconds pass and `Socket(Closed)` where the connection closes before the head ends.
@@ -1285,7 +1287,7 @@ A value is read without the white space before and after it. White space in this
 
 `ms` bounds the whole body. `limit` counts the body's bytes as they come, the chunked coding's framing among them: a body past it is `Protocol(BodyTooLarge)`, found at the bytes that pass it, a `Content-Length` past it and a chunk's size that would pass it at once. A `Content-Length` that is no decimal number or two that name different numbers, and a `Transfer-Encoding` beside a `Content-Length` or naming `chunked` twice, are `Protocol(Malformed)`; a response whose last transfer coding is not `chunked` runs to the connection's close, as RFC 9112 has a client read it, and such a request is `Protocol(Malformed)`. Where the connection closes before a body of a size or a chunked body ends, the answer is `Socket(Closed)`.
 
-The codings of every `Transfer-Encoding` header are one list, parted at commas, an empty element dropped. A coding is read without the white space around it and compared in any case of the letters `A` to `Z`. A coding written with a parameter, `chunked;q=1`, is not `chunked`, and a `Transfer-Encoding` that names no coding is read as one whose last coding is not `chunked`.
+The codings of a body's framing are the elements of the head's `Transfer-Encoding` headers, as `elements` reads them. A coding is compared in any case of the letters `A` to `Z`. A coding written with a parameter, `chunked;q=1`, is not `chunked`, and a `Transfer-Encoding` that names no coding is read as one whose last coding is not `chunked`.
 
 A line of the chunked coding ends as a head's does, in a line feed with or without a carriage return before it. A chunk's size line is the size in hexadecimal digits of either case, then white space, then a `;` and the extensions; the white space and the extensions may be absent, and both are dropped. A chunk of size 0 is the last, however many digits write it. A size line of any other form, white space before the size among them, and a chunk whose bytes a line's ending does not follow directly are `Protocol(Malformed)`. A trailer is dropped unread, whatever its form.
 
@@ -1321,6 +1323,7 @@ Http.writeResponse : (Address(Tcp.SocketMsg), Response, Bytes, Int) -> Either(So
 Http.writeChunk : (Address(Tcp.SocketMsg), Bytes, Int) -> Either(SocketError, Unit) // one chunk, as chunk writes it; empty bytes the last chunk
 Http.header : (List(Header), String) -> Optional(String) // the first value under the name, in any case
 Http.headers : (List(Header), String) -> List(String) // every value under the name, in order
+Http.elements : (List(Header), String) -> List(String) // every element of the values under the name, parted at commas, in order
 Http.renderResponse : (Response, Bytes) -> Bytes // the head and the body
 Http.renderRequest : (Request, Bytes) -> Bytes // the head and the body
 Http.reason : (Int) -> String // RFC 9110's phrase; "" for a status it does not name
