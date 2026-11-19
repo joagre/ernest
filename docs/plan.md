@@ -637,11 +637,12 @@ on a path the rehearsal has walked.
    Homepage Built*). `make test-browser` holds the first screen at three sizes of the
    page, a block's tools by its first line, and the example on a page of 960×950.
 
-   Before it closes its build is installed on ernest-httpd's rehearsal, Try it is pressed
-   there on a shell that runs, and the page is looked at on real screens, a phone among
-   them. ernest-httpd's session is told (`docs/clean_room.md`).
+   Its build stands on ernest-httpd's rehearsal since 2026-11-19, where Try it was pressed
+   on a shell that runs, and ernest-httpd's session was told. The item closes once the
+   page has been looked at there on real screens, a phone among them, and the three
+   decisions below are made.
 
-   Three decisions wait for that look, each the user's:
+   The three decisions, each the user's:
 
    - **The example beside the shell's panel.** The example stacks by the window's width,
      so beside the panel its blocks keep two columns and scroll sideways. Recommended: a
