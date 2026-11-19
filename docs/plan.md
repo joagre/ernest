@@ -28,6 +28,13 @@ The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose re
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
 log entry that placed it.
 
+**A line stands before MVP 4.4**, drawn on 2026-11-19 (the log's *The Line Before the
+Launch*). A sentence of the report that a program shows false is mended before MVP 4.4, by a
+narrower sentence first. A reading not yet made, a cost, a question where the report is true
+and a report against OTP stand in MVP 4.5. Each new item is judged against that test when it
+is written into the plan, and its paragraph says which side it stands on and why. One that
+goes to MVP 4.5 keeps its date and its fix's shape.
+
 ---
 
 ## MVP 4.16 (a deadlock's scope and its report, a package's manifest and build, and the flake hunt), about a week
@@ -43,10 +50,14 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 ### What is left
 
 What is left is small, and each item stands alone. The items stand below in the order they
-are taken, in four groups. The groups' order was decided with the user on 2026-11-15 (the
+are taken, in three groups. The groups' order was decided with the user on 2026-11-15 (the
 log's *A Status Read Before the Watch*, its paragraph *The order of what is left*): what the
 builds found, then what needs the user. An item planned since stands where its group's
 sentence says.
+
+Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
+and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
+Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it. Items 109 and
 110 were planned with the user on 2026-11-18, each in the log entry it names. Item 99 is
@@ -54,12 +65,10 @@ what ernest-httpd's session handed back on 2026-11-17.
 
 The others were found by an item's build or its reading. Item 112 was found by the cold
 reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
-that item's build (the log's *A Checker Acts for the Target*). Item 118 was found by item
-116's reading and placed with the user the same day (the log's *The Job Halts Without the
-Host's Flush*). Item 120 was found by item 117's probes and placed with the user the same
-day (the log's *A Termination Ends a Stalled Flush*). Items 122 and 123 were found by item 106's probes and placed with the user the same day
-(the log's *What a Program's Helper Holds*). Item 124 was found by item 121's probes and
-placed with the user the same day (the log's *A Down Follows the Send*).
+that item's build (the log's *A Checker Acts for the Target*). Item 120 was found by item
+117's probes and placed with the user the same day (the log's *A Termination Ends a Stalled
+Flush*). Item 124 was found by item 121's probes and placed with the user the same day (the
+log's *A Down Follows the Send*).
 
 Items 125 and 126 were found by item 108's reading on 2026-11-19, and their fixes decided
 with the user the same day (the log's *What a Peer's Worker Waits On*).
@@ -110,13 +119,6 @@ with the user the same day (the log's *What a Peer's Worker Waits On*).
   function that receives and one that receives nothing do not match. An agent shows both
   first: whether any program can write a `monitor` in `f`, and the help's two texts. What
   changes, §6.5's sentence or the type checker, is then decided with the user.
-- **118. What a listed peer's dial meets while a node ends**, found 2026-11-18 by item
-  116's reading (the log's *The Job Halts Without the Host's Flush*, its paragraph *Item
-  118*), and not read. A node's host takes dials from `ern_carrier:depart/0` until its
-  process exits, and that time is long while the end waits on a stalled stream. An agent
-  first shows, on two nodes, what a listed peer that dials then is told, what its sends and
-  its monitors meet, and which reason the node's exit gives it, against §8.7 and §12.6's
-  *A node's end*. What it shows is brought to the user.
 - **120. A termination ends the subscribers' wait where a stream is stalled**, found
   2026-11-18 by item 117's probes (the log's *A Termination Ends a Stalled Flush*, its
   paragraph *The subscribers' wait*). A plain run with standard output stalled and a
@@ -133,20 +135,6 @@ with the user the same day (the log's *What a Peer's Worker Waits On*).
   An agent shows first whether the line that says whom the end waits for holds the same
   way. It also shows what item 117 left: the shell's end at once, `ern test` after a
   launch ended so, and an `Os.exit` during the flush.
-- **122. Whether a socket's writes that time out are bounded**, found 2026-11-18 by item
-  106's reading (the log's *What a Program's Helper Holds*). E.18 says of `Tcp.write` what
-  E.23 says of `Os.write`: a `Left(Timeout)` does not undo the write. A socket's writer
-  takes its writes from its mailbox one after another, so by a reading the writes that
-  timed out wait there and nothing bounds them. An agent first shows what a writer to a
-  socket whose far end reads nothing makes the node hold, and what gives it back. The
-  shape then follows item 106's: E.18 says what the rule costs, and what is held past
-  its use is mended.
-- **123. What 20,000 faults at once hold**, found 2026-11-18 by item 106's probes (the
-  log's *What a Program's Helper Holds*, its paragraph *Found beside it*). A kill of a
-  program with 20,000 writers waiting faulted them all, and the node's memory peaked at
-  4.4 GB while their reports were written, about 220 KB a report. An agent first shows
-  what one fault's report holds and what many at once add, and the fix's shape follows
-  what it shows.
 - **124. A node's end says `Unreachable` of a process that waited in a send**, found
   2026-11-18 by item 121's probes (the log's *A Down Follows the Send*, its paragraph *A
   node's end, found beside it*). A desk's program ended while two of its processes waited
@@ -161,6 +149,10 @@ with the user the same day (the log's *What a Peer's Worker Waits On*).
   is gone while its exit still waits. An agent diagnoses it first. What it finds is
   brought to the user: whether the node's end can wait for those exits, or §8.7 says
   what a peer is told of a process that ended so.
+
+  The narrower sentence is weighed first, and a question with it: whether one sentence of
+  §8.7 on a peer that stands still and is not yet lost answers this item and MVP 4.5's
+  item 118 together (the log's *The Line Before the Launch*).
 - **125. A disconnect that waits on no connection**, found 2026-11-19 by item 108's
   reading (the log's *What a Peer's Worker Waits On*). `erlang:disconnect_node/1` holds
   the host's `net_kernel` until the connection's controller has taken its exit, and over
@@ -254,11 +246,9 @@ build found, decided on 2026-11-18 (the log's *The Process Behind a Check*).
   E.21, whose line gains the check beside the adapted address. Its tests: the two are `==`,
   and a `kill` of it ends the target.
 
-**What needs the user**, each a decision or a design discussion of its own. Item 101 stands
-first, since its rule is the measure for items 68 and 100. Item 100, ernest-httpd's session's
-two lines on a close, stands before item 96, since three of that session's tests wait on it.
-Item 96, feedback 260 of the reading of the reviews from outside, stands after it. Item 113,
-what item 111's cold reading found on 2026-11-18, stands last of them.
+**What needs the user**, each a design discussion of its own. Item 101 stands first, since
+its rule is the measure for item 100 and for MVP 4.5's item 68. Item 100, ernest-httpd's
+session's two lines on a close, follows it, and three of that session's tests wait on it.
 
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
@@ -283,17 +273,6 @@ what item 111's cold reading found on 2026-11-18, stands last of them.
   sends through two addresses of one process, and what it sends against what its caller
   sends after it, can change places. §6.4 and §8.7 give a process's messages an order, and
   no sentence says whether a message foreign code sends is a process's.
-- **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
-  diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
-  a job outside a run at once, and so does the host's termination or hangup (§11). Neither
-  end writes the other stream out, and the host writes a stream from a thread of its own, so
-  a line the job has said on standard error may be lost where its standard output's reader
-  has gone. That is read from the code, and the item first runs a program that shows it.
-
-  Decided with the user: whether an end at once writes out what the other stream took.
-  Recommended: it does where a stream has gone, as the job's own end does since item 40,
-  and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
-  hold a termination.
 - **100. When a close reaches the far end, and what a read answers after one**, feedback
   262 and 263, found 2026-11-17 by ernest-httpd's session on 0.10.0 (the log's *Two Lines on
   a Close*). A socket that ended while its host held bytes closed, for the far end, a second
@@ -318,39 +297,6 @@ what item 111's cold reading found on 2026-11-18, stands last of them.
 
   Three of ernest-httpd's regression tests wait on the verdicts, and that session is told
   them.
-- **96. A write that reaches the disk**, feedback 260, found 2026-11-17 (the log's *The
-  Outside Reviews Read*, its paragraph *A write that survives a crash*). `Fs` has no sync,
-  so a program that keeps data across a power loss cannot be written in Ernest. E.0 rule 1
-  admits the operation, since the host has `file:sync/1` and `file:datasync/1`.
-
-  Decided with the user, in a design discussion of its own: its shape. `Fs` has paths and
-  no open file, where the host's sync takes an open file, and a write that survives needs
-  the file synced and, after the rename, its directory. Recommended: one function over a
-  path, a file's or a directory's, with `Fs.write` left as it is, since a write that always
-  synced would make every write pay for a need few have. E.17 changes first.
-
-- **113. A process for each address that crossed**, feedback 265, found 2026-11-18 by the
-  cold reading of item 111's sentences (the log's *A Checker Acts for the Target*). §8.4
-  keeps one check for each distinct address that has crossed, until the process the address
-  names ends, and an adapted address is distinct by its function and by what it captured.
-  A server that gives foreign code a fresh adapted address for each request keeps a process
-  for each while it lives, which §10 states. To decide with the user: whether a check ends
-  sooner, and at what.
-
-**Last of all**, since nothing waits on it: two behaviors of OTP's that item 98's build met.
-
-- **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
-  build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
-  its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
-  `{error, noconnection}` where it is called at once on the node's `nodeup`, since the host
-  sends that message before the connection counts as up: 40 of 1,000 connections with OTP
-  alone. `net_kernel:setopts(new, ...)` answers `{error, enotsup}` under TLS distribution,
-  since `inet_tls_dist` exports no `setopts/2`, which has no script with OTP alone yet.
-
-  Nothing of Ernest's meets either, since the carrier sets its sockets' options by boot
-  flags. An agent writes both as reports in [`otp_bugs.md`](otp_bugs.md)'s form, each
-  reproduced with OTP alone, and the session runs each script as placed. Filing is the
-  user's.
 
 ### What is done
 
@@ -691,6 +637,14 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    chain of closures, which cost `Base64.decode`'s loop about four times the host where the same
    test in the body cost 1.4 to 2.3 (the log's *The Libraries' Shims Read Against E.0 Rule 1*).
    The emitter compiles it so that a loop pays the call alone, or §11 states the cost.
+
+   MVP 4.16's item 123, what 20,000 faults at once hold, is read with the fault's report,
+   moved here on 2026-11-19 (the log's *The Line Before the Launch*). It was found
+   2026-11-18 by item 106's probes (the log's *What a Program's Helper Holds*, its paragraph
+   *Found beside it*). A kill of a program with 20,000 writers waiting faulted them all, and
+   the node's memory peaked at 4.4 GB while their reports were written, about 220 KB a
+   report. An agent first shows what one fault's report holds and what many at once add, and
+   the fix's shape follows what it shows.
 3. **The raise a primitive catches**, `ern_json:decode` among them, whose cost grows with the
    caller's stack, 0.4 microseconds on a shallow stack and 110 at 100,000 frames, the trace's
    capture (found 2026-11-01; the log's *The Four Libraries*): read in erts and taken to
@@ -698,6 +652,10 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
+
+   A finding that meets one of MVP 4.5's items 68, 96, 103, 113, 118 and 122 is sorted to
+   that item. It comes before the launch only where a program shows a sentence of the report
+   false (the log's *The Line Before the Launch*).
 
    Before its readers start:
 
@@ -845,13 +803,22 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
 ---
 
-## MVP 4.5 (`:trace f`, two requests to OTP, and a decision on a listener), about a week, after the launch
+## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left after the launch), about two weeks, after the launch
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
 Round, Decided Again*), and following the launch since 2026-11-05 (the log's *MVP 4.3 Becomes
 MVP 4.5*): of its eight items one remains, three moved into MVP 4.0's shell, where
 the operator's prompt is, and four were dropped with their verdicts in the log.
+
+On 2026-11-19 the milestone took what the line left after the launch (the log's *The Line
+Before the Launch*): six items of MVP 4.16, each under the number it had there, and feedback
+264 as item 5. An item number above 5 in their paragraphs is MVP 4.16's. An item found later
+and judged to stand here is added the same way, with its date and its fix's shape.
+
+Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
+1 to 4 follow, then items 68, 96, 113 and 5. Item 103 is last, since nothing of Ernest's
+meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -878,6 +845,71 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
    E.0's admission rules first, and then against ernest-httpd's proposal for new code while
    it serves, where that session writes one. Where neither comes, the item closes on a log
    line that drops the entry and says why.
+5. **Whether a program can wait for a peer's telling**, feedback 264, found 2026-11-17 by
+   the read-back of MVP 4.16's item 97 (the log's *What a Full Buffer Holds*). Four sites of
+   the tests read `Peer.utilizations` in a loop with a sleep of the teller's interval, since
+   a telling is the runtime's frame and no message shows that one came. A decision, and
+   nothing is built: a wait for a telling is read against E.0's admission rules. Where a
+   rule admits it, E.27 changes first. Where none does, the four sites keep their wait with
+   its reason beside it, and the item closes on a log line that drops the entry.
+
+What the line left, in the order it is taken:
+
+- **118. What a listed peer's dial meets while a node ends**, found 2026-11-18 by item
+  116's reading (the log's *The Job Halts Without the Host's Flush*, its paragraph *Item
+  118*), and not read. A node's host takes dials from `ern_carrier:depart/0` until its
+  process exits, and that time is long while the end waits on a stalled stream. An agent
+  first shows, on two nodes, what a listed peer that dials then is told, what its sends and
+  its monitors meet, and which reason the node's exit gives it, against §8.7 and §12.6's
+  *A node's end*. What it shows is brought to the user.
+- **122. Whether a socket's writes that time out are bounded**, found 2026-11-18 by item
+  106's reading (the log's *What a Program's Helper Holds*). E.18 says of `Tcp.write` what
+  E.23 says of `Os.write`: a `Left(Timeout)` does not undo the write. A socket's writer
+  takes its writes from its mailbox one after another, so by a reading the writes that
+  timed out wait there and nothing bounds them. An agent first shows what a writer to a
+  socket whose far end reads nothing makes the node hold, and what gives it back. The
+  shape then follows item 106's: E.18 says what the rule costs, and what is held past
+  its use is mended.
+- **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
+  diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
+  a job outside a run at once, and so does the host's termination or hangup (§11). Neither
+  end writes the other stream out, and the host writes a stream from a thread of its own, so
+  a line the job has said on standard error may be lost where its standard output's reader
+  has gone. That is read from the code, and the item first runs a program that shows it.
+
+  Decided with the user: whether an end at once writes out what the other stream took.
+  Recommended: it does where a stream has gone, as the job's own end does since item 40,
+  and §11 says so; a signal's end stays at once, since a stream whose reader is slow would
+  hold a termination.
+- **96. A write that reaches the disk**, feedback 260, found 2026-11-17 (the log's *The
+  Outside Reviews Read*, its paragraph *A write that survives a crash*). `Fs` has no sync,
+  so a program that keeps data across a power loss cannot be written in Ernest. E.0 rule 1
+  admits the operation, since the host has `file:sync/1` and `file:datasync/1`.
+
+  Decided with the user, in a design discussion of its own: its shape. `Fs` has paths and
+  no open file, where the host's sync takes an open file, and a write that survives needs
+  the file synced and, after the rename, its directory. Recommended: one function over a
+  path, a file's or a directory's, with `Fs.write` left as it is, since a write that always
+  synced would make every write pay for a need few have. E.17 changes first.
+- **113. A process for each address that crossed**, feedback 265, found 2026-11-18 by the
+  cold reading of item 111's sentences (the log's *A Checker Acts for the Target*). §8.4
+  keeps one check for each distinct address that has crossed, until the process the address
+  names ends, and an adapted address is distinct by its function and by what it captured.
+  A server that gives foreign code a fresh adapted address for each request keeps a process
+  for each while it lives, which §10 states. To decide with the user: whether a check ends
+  sooner, and at what.
+- **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
+  build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
+  its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
+  `{error, noconnection}` where it is called at once on the node's `nodeup`, since the host
+  sends that message before the connection counts as up: 40 of 1,000 connections with OTP
+  alone. `net_kernel:setopts(new, ...)` answers `{error, enotsup}` under TLS distribution,
+  since `inet_tls_dist` exports no `setopts/2`, which has no script with OTP alone yet.
+
+  Nothing of Ernest's meets either, since the carrier sets its sockets' options by boot
+  flags. An agent writes both as reports in [`otp_bugs.md`](otp_bugs.md)'s form, each
+  reproduced with OTP alone, and the session runs each script as placed. Filing is the
+  user's.
 
 ---
 
@@ -937,4 +969,4 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 | MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
-| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, and a decision on a listener handed over | | | above |
+| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16 and a decision on a wait for a telling | | | above |
