@@ -6867,7 +6867,7 @@ no_home() ->
                                                   " absolute path">>)).
 
 %% report §11.2: a session started under the run's own home, as
-%% test/Makefile's shell target gives it, runs that home's startup file,
+%% test/Makefile's AREA_RUN gives every area, runs that home's startup file,
 %% fixtures/session/startup, which prints its line and ends the session
 %% before its first input. The run's home is the guard against a test that
 %% names no home, and this is the one test besides no_home that names

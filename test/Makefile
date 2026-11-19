@@ -11,7 +11,8 @@
 # generated from it, the well-typed programs generated and run, and the
 # shell and the terminal, driven through the
 # pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern over
-# Os.startTerminal, which the pty target builds and ern_pty runs.
+# Os.startTerminal, which the pty target builds and ern_pty runs. Each area
+# runs in a directory and under a home of the run's own, AREA_RUN's.
 # Beside them, the loads, the service manager's checks and the bench, which
 # a release runs, and the targets that write the catalog, the contents
 # lists, the layout and the site's expected pages anew.
@@ -98,17 +99,30 @@ beams: $(BEAMS) prepare machines pty
 named:
 	@$(MAKE) -s -C .. runtime-test-beams
 
-# The modules $(2), each one's tests side by side, in a directory of the
-# run's own named for the part $(1), where the nodes its tests start live:
-# each whose ernest.pid is still there when the tests end is stopped before
-# the directory goes (report §11.2), so that a test that failed or ran out
-# of time before it stopped its nodes leaves none running.
-NODES_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(2)); \
-	  status=$$?; \
-	  for pid in $$(find "$$dir" -name ernest.pid); do \
-	    ../bin/ern stop --config-dir "$$(dirname "$$pid")" > /dev/null 2>&1; done; \
-	  rm -rf "$$dir"; exit $$status
+# The command $(2) in a directory of the run's own, named for the area
+# $(1), which its tests make their homes, sources and inputs under
+# (ern_pty:run_dir/0) and which is removed when the command ends, whatever
+# its outcome; the step $(3), where one is given, runs before it goes. The
+# status is the command's. Every area of make test-full runs in one.
+#
+# The run's HOME is there too, its startup file fixtures/session/startup,
+# so that a shell a test starts without naming a home of its own runs no
+# startup file of the person's: it prints that file's line and ends before
+# its first input (report §11.2), so its test fails. ern_shell_tests'
+# inherited_home holds both.
+AREA_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
+	  mkdir -p "$$dir/home/.ernest" && cp fixtures/session/startup "$$dir/home/.ernest" && \
+	  HOME="$$dir/home" ERN_TEST_DIR=$$dir $(2); \
+	  status=$$?; $(3) rm -rf "$$dir"; exit $$status
+
+# The modules $(2), each one's tests side by side, in an area's run for
+# the part $(1), whose tests start their nodes in the run's directory: each
+# whose ernest.pid is still there when the tests end is stopped before the
+# directory goes (report §11.2), so that a test that failed or ran out of
+# time before it stopped its nodes leaves none running.
+NODES_RUN = $(call AREA_RUN,$(1),$(call EUNIT_SIDE_BY_SIDE,$(2)),$(NODES_STOPPED))
+NODES_STOPPED = for pid in $$(find "$$dir" -name ernest.pid); do \
+	  ../bin/ern stop --config-dir "$$(dirname "$$pid")" > /dev/null 2>&1; done;
 
 # The programs' six parts. The example programs and the test programs, the
 # signals and the streams, with the programs `measured` builds, the
@@ -116,7 +130,7 @@ NODES_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
 # of a run with the last and the release's.
 integration: $(BEAMS) prepare measured named
 	@$(call NODES_RUN,integration,$(INTEGRATION))
-	$(call EUNIT_ALONE,$(MEASURE) $(LAST_RUN_TESTS))
+	@$(call AREA_RUN,measure,$(call EUNIT_ALONE,$(MEASURE) $(LAST_RUN_TESTS)))
 
 # Nodes on one machine, with the machines' tools ern_machine_tests tests.
 nodes: $(BEAMS) prepare machines pty
@@ -136,10 +150,10 @@ tour: $(BEAMS) prepare
 # install's `make manual`, so the two never run at once (the repository's
 # Makefile, test-install).
 manual: $(BEAMS) prepare
-	$(call EUNIT_ALONE,$(MANUAL))
+	@$(call AREA_RUN,manual,$(call EUNIT_ALONE,$(MANUAL)))
 
 install: $(BEAMS) prepare
-	$(call EUNIT_ALONE,$(INSTALL))
+	@$(call AREA_RUN,install,$(call EUNIT_ALONE,$(INSTALL)))
 
 # The bench's parts, in the order `bench` runs them, and their harnesses:
 # core's ern_bench, library's ern_measure and each other part's
@@ -183,65 +197,50 @@ build/bench/twins/%.beam: fixtures/bench/%.erl
 	@erlc $(ERLC_FLAGS) -o $(@D) $<
 
 docs: $(BEAMS)
-	$(call EUNIT_ALONE,$(DOCS))
+	@$(call AREA_RUN,docs,$(call EUNIT_ALONE,$(DOCS)))
 
 # The calls of the toolchain's own Erlang, the shims and the units, which
 # the repository's `make units` links under ../build/units before its
 # `make xref` runs these.
 xref: $(BEAMS)
-	$(call EUNIT_ALONE,$(XREF))
+	@$(call AREA_RUN,xref,$(call EUNIT_ALONE,$(XREF)))
 
 guide: $(BEAMS) prepare
-	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_guide_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir $(call EUNIT_ALONE,$(GUIDE)); \
-	  status=$$?; rm -rf "$$dir"; exit $$status
+	@$(call AREA_RUN,guide,$(call EUNIT_ALONE,$(GUIDE)))
 
 # The site's generator, built by `make` into ../build/tools, run over the
 # fixture's tree under build/site, which starts no node.
 site: $(BEAMS) prepare
-	$(call EUNIT_ALONE,$(SITE))
+	@$(call AREA_RUN,site,$(call EUNIT_ALONE,$(SITE)))
 
 # The blocks the site offers the shell, each pasted into a bare `ern
 # shell` through the pseudo-terminal harness, and site/unrunnable.md held
-# to those it cannot run, under a directory of the run's own for the
-# shells' homes.
+# to those it cannot run.
 site-shell: $(BEAMS) prepare pty
-	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_site_shell_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir $(call EUNIT_ALONE,$(SITE_SHELL)); \
-	  status=$$?; rm -rf "$$dir"; exit $$status
+	@$(call AREA_RUN,site_shell,$(call EUNIT_ALONE,$(SITE_SHELL)))
 
 # The site's client in a headless Chrome over its DevTools protocol, the
 # fixture's pages served by OTP's httpd and a stub at the shell's path;
 # it says so and stops where no Chrome is found.
 browser: $(BEAMS) prepare
-	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_browser_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir erl -noshell $(CODE_PATH) -pa $(EBIN) \
-	    -eval 'ern_browser_tests:run().'; \
-	  status=$$?; rm -rf "$$dir"; exit $$status
+	@$(call AREA_RUN,browser,erl -noshell $(CODE_PATH) -pa $(EBIN) \
+	    -eval 'ern_browser_tests:run().')
 
 # Appendix A read as data, and the programs generated from it, whose seed
 # ERN_SEED gives again.
 grammar: $(BEAMS)
-	$(call EUNIT_ALONE,$(GRAMMAR))
+	@$(call AREA_RUN,grammar,$(call EUNIT_ALONE,$(GRAMMAR)))
 
 # Well-typed programs generated, checked, compiled and run in one host,
 # whose seed ERN_SEED gives again. Core dumps are on, so that a fault of
 # the host leaves its core in this directory.
 typed: $(BEAMS) named
-	ulimit -c unlimited; $(call EUNIT_ALONE,$(TYPED))
+	@ulimit -c unlimited; $(call AREA_RUN,typed,$(call EUNIT_ALONE,$(TYPED)))
 
-# The shell's and the terminal's tests make their homes, sources and inputs
-# under one directory of the run's own, which is removed when the run ends,
-# whatever its outcome (ern_pty:run_dir/0). The run's HOME is there too,
-# its startup file fixtures/session/startup, so that a session whose test
-# names no home of its own runs no startup file of the person's: it prints
-# that file's line and ends before its first input (report §11.2), so its
-# test fails. ern_shell_tests' inherited_home holds both.
+# The shell's sessions and the terminal's keys, through the pseudo-terminal
+# harness, each module's tests side by side.
 shell: $(BEAMS) prepare pty
-	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_shell_XXXXXX") && \
-	  mkdir -p "$$dir/home/.ernest" && cp fixtures/session/startup "$$dir/home/.ernest" && \
-	  HOME="$$dir/home" ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS)); \
-	  status=$$?; rm -rf "$$dir"; exit $$status
+	@$(call AREA_RUN,shell,$(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS)))
 
 # The programs compiled here stay between runs: ern build recompiles what a
 # changed compiler changes (report §11.1).
@@ -265,10 +264,8 @@ site-expected: $(BEAMS) prepare
 	erl -noshell $(CODE_PATH) -pa $(EBIN) -eval 'ern_site_tests:write_expected(), halt().'
 
 site-unrunnable: $(BEAMS) prepare pty
-	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_site_shell_XXXXXX") && \
-	  ERN_TEST_DIR=$$dir erl -noshell $(CODE_PATH) -pa $(EBIN) \
-	    -eval 'ern_site_shell_tests:write_unrunnable(), halt().'; \
-	  status=$$?; rm -rf "$$dir"; exit $$status
+	@$(call AREA_RUN,site_shell,erl -noshell $(CODE_PATH) -pa $(EBIN) \
+	    -eval 'ern_site_shell_tests:write_unrunnable()$(comma) halt().')
 
 format: $(EBIN)/ern_style_tests.beam
 	erl -noshell $(CODE_PATH) -pa $(EBIN) -eval 'ern_style_tests:write_formatted(), halt().'
