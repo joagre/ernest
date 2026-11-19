@@ -2817,7 +2817,7 @@ It reads `count` when it begins to count: no file is the first start, and 0, and
 
 While the end waits every process runs on, and a peer still finds and calls the store. Nothing of the runtime's times the wait: a second `ern stop`, and the interrupt, end the program at once. `ern stop` itself returns once the node has ended, so a script that restarts a node writes `ern stop --config-dir foo && ern run --config-dir foo store.erc`.
 
-The runtime says on standard error whom the end waits for, each subscriber by its spawn site, `the end waits for 1 subscriber: Store.counter:6`, and each as it answers, `the subscriber Store.counter:6 answered`, for a node and for a program that is none alike; where a second termination cuts the wait short, a second `ern stop` for a node, it names the subscribers that went unanswered (report §8.6, report §11.2, Appendix E.23).
+The runtime says on standard error whom the end waits for, each subscriber by its spawn site, `the end waits for 1 subscriber: Store.counter:6`, and each as it answers, `the subscriber Store.counter:6 answered`, for a node and for a program that is none alike; where a second termination cuts the wait short, a second `ern stop` for a node, it names the subscribers whose answers it had not taken (report §8.6, report §11.2, Appendix E.23).
 
 What the program keeps is its own: the runtime holds no state and reads none back, a state of more parts is written in the form the program chooses, `Json` (report Appendix G.6) among them, and where a new build changes the shape, the program's own code reads the old one.
 

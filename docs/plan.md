@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 141**, a subscriber that answered and is named
-unanswered.
+**The next item is MVP 4.16's item 124**, a node's end that says `Unreachable` of a process
+that waited in a send.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -63,17 +63,6 @@ corner shows it (the log's *Item 140 Stands After the Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **141. A subscriber that answered is named unanswered**, found 2026-11-19 by item
-  120's probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside
-  it*). A subscriber answered and then called `Os.exit`,
-  and `the end was cut short` named it unanswered. Its answer reaches the runner through
-  its teller and the exit comes straight from its caller, so the exit can pass the
-  answer.
-
-  §11.2 has the line name the subscribers the wait left unanswered, and the program shows
-  that false, so the item stands here. The narrower sentence is weighed first: the line
-  names each subscriber whose answer the end had not taken when it was cut. An agent
-  first shows whether a termination passes an answer the same way.
 - **124. A node's end says `Unreachable` of a process that waited in a send**, found
   2026-11-18 by item 121's probes (the log's *A Down Follows the Send*, its paragraph *A
   node's end, found beside it*). A desk's program ended while two of its processes waited
@@ -433,6 +422,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 120 | The runner waits for no line of the end's wait, a termination during the flush ends the program without it, and one termination never both begins the end or cuts the wait and ends the flush, with the user | 2026-11-19 | §8.6, §11.2, §12.4; *The Runner Waits for No Line* |
 | 138 | The shell's flush ends at the end of standard output's process, and an end at once gives the terminal back without the end of its paste mode | 2026-11-19 | §8.6, §11.2, §12.1, §12.4; *The Shell Ends at Once* |
 | 139 | `ern test` ends by a termination or a hangup that cut short the end of a run, a module's tests' or an example's, and runs no launch after it, with the user | 2026-11-19 | §11, §11.8; *`ern test` Ends by a Signal That Cut an End* |
+| 141 | `the end was cut short` names each subscriber whose answer the end had not taken, a narrower sentence and no code, with the user | 2026-11-19 | §11.2; *A Subscriber Named Unanswered* |
 
 ---
 
