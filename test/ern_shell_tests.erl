@@ -6867,13 +6867,13 @@ no_home() ->
                                                   " absolute path">>)).
 
 %% report §11.2: a session started under the run's own home, as
-%% test/Makefile's AREA_RUN gives every area, runs that home's startup file,
-%% fixtures/session/startup, which prints its line and ends the session
-%% before its first input. The run's home is the guard against a test that
-%% names no home, and this is the one test besides no_home that names
-%% none. Written with the guard, and red without it. It does not cover a
-%% session that ends before its startup files run, which the guard lets
-%% through
+%% test/run.mk's AREA_RUN gives every area and the roots' unit tests, runs
+%% that home's startup file, fixtures/session/startup, which prints its line
+%% and ends the session before its first input. The run's home is the guard
+%% against a test that names no home, and this is the one test besides
+%% no_home that names none. Written with the guard, and red without it. It
+%% does not cover a session that ends before its startup files run, which
+%% the guard lets through
 inherited_home_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun inherited_home/0).
 

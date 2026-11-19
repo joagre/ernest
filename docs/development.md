@@ -59,9 +59,11 @@ test/              what spans the roots of src/: the integration, nodes, deploym
                    runs the Ernest program of fixtures/pty/ that make builds, and the
                    watcher of a directory's changes, ern_changes.py; ern_grammar.erl, which
                    reads Appendix A; ern_repository.erl, which the document and style
-                   tests read the repository through; and ern_machine, ern_machine_node
+                   tests read the repository through; ern_machine, ern_machine_node
                    and ern_machines, which run nodes on the machines of test/machines/,
-                   with their tests, ern_machine_tests
+                   with their tests, ern_machine_tests; and run.mk, the run's directory
+                   and its home, which test/Makefile and the repository's Makefile
+                   include
 test/fixtures/     what the tests read: target/, the hand-written target modules;
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the

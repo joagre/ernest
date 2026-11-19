@@ -61,7 +61,7 @@ line_length_test() ->
                 "editors/emacs/test/*.el", "src/libs/**/*.ern", "tools/**/*.ern",
                 "tools/**/*.erl", "tour/*/*.ern", "tools/*.sh", "test/machines/*.sh",
                 "tools/*.escript", "bin/ern", "src/**/*.hrl", "Makefile", "test/Makefile",
-                "release/Makefile"],
+                "test/run.mk", "release/Makefile"],
     Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File)],

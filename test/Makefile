@@ -12,7 +12,7 @@
 # shell and the terminal, driven through the
 # pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern over
 # Os.startTerminal, which the pty target builds and ern_pty runs. Each area
-# runs in a directory and under a home of the run's own, AREA_RUN's.
+# runs in a directory and under a home of the run's own, run.mk's AREA_RUN.
 # Beside them, the loads, the service manager's checks and the bench, which
 # a release runs, and the targets that write the catalog, the contents
 # lists, the layout and the site's expected pages anew.
@@ -75,7 +75,6 @@ HOST = erl -noinput $(CODE_PATH) -pa $(EBIN)
 EUNIT_ALONE = erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
 	  'halt(case eunit:test(ern_eunit:alone([$(subst $(space),$(comma) ,$(strip $(1)))])) of \
 	  ok -> 0; _ -> 1 end).'
-comma := ,
 space := $(subst ,, )
 
 # The same, the modules side by side and each module's tests side by side,
@@ -99,21 +98,9 @@ beams: $(BEAMS) prepare machines pty
 named:
 	@$(MAKE) -s -C .. runtime-test-beams
 
-# The command $(2) in a directory of the run's own, named for the area
-# $(1), which its tests make their homes, sources and inputs under
-# (ern_pty:run_dir/0) and which is removed when the command ends, whatever
-# its outcome; the step $(3), where one is given, runs before it goes. The
-# status is the command's. Every area of make test-full runs in one.
-#
-# The run's HOME is there too, its startup file fixtures/session/startup,
-# so that a shell a test starts without naming a home of its own runs no
-# startup file of the person's: it prints that file's line and ends before
-# its first input (report §11.2), so its test fails. ern_shell_tests'
-# inherited_home holds both.
-AREA_RUN = dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_$(1)_XXXXXX") && \
-	  mkdir -p "$$dir/home/.ernest" && cp fixtures/session/startup "$$dir/home/.ernest" && \
-	  HOME="$$dir/home" ERN_TEST_DIR=$$dir $(2); \
-	  status=$$?; $(3) rm -rf "$$dir"; exit $$status
+# AREA_RUN, the run's directory and its home, which the repository's Makefile
+# shares.
+include run.mk
 
 # The modules $(2), each one's tests side by side, in an area's run for
 # the part $(1), whose tests start their nodes in the run's directory: each

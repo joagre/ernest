@@ -1072,7 +1072,7 @@ tools() ->
 %% under test/ and the Makefiles.
 toolchain() ->
     ern_repository:files(["src/**/*.erl", "src/**/*.hrl", "src/runtime/c_src/*.c", "test/*.erl",
-                          "Makefile", "test/Makefile", "release/Makefile"]).
+                          "Makefile", "test/Makefile", "test/run.mk", "release/Makefile"]).
 
 stdlib() ->
     ern_repository:files(["src/stdlib/*.ern", "src/libs/*/*.ern"]).
