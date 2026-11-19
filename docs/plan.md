@@ -257,6 +257,12 @@ session's two lines on a close, follows it, and three of that session's tests wa
   the close follows the last byte at once, and whether a write that answers `Left(Closed)`
   keeps what has arrived for the reads after it.
 
+  A third question joins the two, placed with the user on 2026-11-19 (the log's *What a
+  Program Can Wait On Before Its End*): what a program can wait on to know that the far end
+  has taken a socket's bytes, before the program ends. E.18 sends them "until the runtime
+  stops", and since item 116 a job's end cuts what a slow client has not taken. No
+  recommendation is made before the probes.
+
   Recommended, on that session's probes alone: the close follows the last byte, since a
   reader predicts so (principle 1), and a second that no entry decided is a defect. A read
   after the close answers what arrived before it and then `Left(Closed)`, and E.18 says so.
