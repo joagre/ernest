@@ -441,7 +441,7 @@ The shell's editing is built first.
   The homepage's opening then gains its last clause, which MVP 4.6's item 3 left for this
   item (the proposal [`proposals/homepage/`](proposals/homepage/README.md), *Open*, 1).
 
-What item 43's discussion decided is built first, each item changing the report first (the
+What item 43's discussion decided is built next, each item changing the report first (the
 log's *The Trust Said Once*). Items 52 and 54 are left of it.
 
 - **52. What item 50's cold reading left**, found 2026-11-14 in §11.2's *Startup and history*,
@@ -718,8 +718,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      review.
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
-   whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop, against the archive of the
-   commit the readers read; ernest-httpd's review has a security reader, since it goes public at
+   whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop,
+   against the archive of the commit the readers read; ernest-httpd's review has a security
+   reader, since it goes public at
    item 6. What they find of Ernest's comes as lines of their feedback files and is sorted in this
    round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*). As they begin, the
    three floors rise to the launch's minor, each by its own session, since a development build of
@@ -803,7 +804,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
 ---
 
-## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left after the launch), about two weeks, after the launch
+## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about two weeks, after the launch
 
 The shell's second round, decided with the user on 2026-09-30 (the log's *The Shell's Second
 Round*) and decided again on 2026-10-30 against the attached shell (the log's *The Shell's Second
@@ -966,7 +967,7 @@ What the line left, in the order it is taken:
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, and the flake hunt | | | above |
-| MVP 4.17 | what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
+| MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16 and a decision on a wait for a telling | | | above |
