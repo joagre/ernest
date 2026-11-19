@@ -2999,25 +2999,31 @@ fn trickle(client : Address(Tcp.SocketMsg)) : Unit receiving TrickleMsg =
         }
     }
 
+// What `read` answers on the server's socket while the client, having
+// written the text, writes a byte at a time.
+fn trickled(text : String,
+            read : (Address(Tcp.SocketMsg)) -> a) : Either(Io.Error, a) receiving Watched = {
+    let #(server, client) <- connection();
+    let _ <- Tcp.write(client, String.toUtf8(text), 1000);
+    let writer = spawnMonitored(fn() = trickle(client), Ended);
+    Tcp.give(client, Process.fromAddress(writer));
+    let answer = read(server);
+    send(writer, Stop);
+    receive {
+        Ended(_) -> Unit
+    };
+    Tcp.close(server);
+    Right(answer)
+}
+
 // report Appendix G.11
 let endlessHead =
     Test.Case(name = "a head that never ends meets the milliseconds, though bytes keep coming",
-              run = fn() : Test.Result receiving Watched = match connection() {
-                  Right(#(server, client)) -> {
-                      let _ = Tcp.write(client, String.toUtf8("GET / HTTP/1.1\r\nX: "), 1000);
-                      let writer = spawnMonitored(fn() = trickle(client), Ended);
-                      Tcp.give(client, Process.fromAddress(writer));
-                      let large = Limits(line = 100000000, headers = 100000000);
-                      let read = readRequest(server, <<>>, large, 200);
-                      send(writer, Stop);
-                      receive {
-                          Ended(_) -> Unit
-                      };
-                      Tcp.close(server);
-                      Test.equal(read, Left(Socket(Io.Timeout)))
-                  }
-                | Left(error) ->
-                      Test.Failed(Io.show(error))
+              run = fn() = {
+                  let large = Limits(line = 100000000, headers = 100000000);
+                  Test.equal(trickled("GET / HTTP/1.1\r\nX: ",
+                                      fn(socket) = readRequest(socket, <<>>, large, 200)),
+                             Right(Left(Socket(Io.Timeout))))
               })
 
 // report Appendix G.11: written with the code, which reads the line under
@@ -3204,32 +3210,43 @@ let bodilessStatuses =
 let bodyTooLarge =
     Test.Case(name = "a body past the limit is too large, at the bytes that pass it", run = fn() = {
         let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
-        Test.equal(served(["5\r\nhello\r\n5\r\nworld\r\n"],
-                          StaysOpen,
-                          fn(socket) =
-                              [readRequestBody(socket, <<>>, asked(sized("101")), 100, 1000),
-                               readRequestBody(socket,
-                                               String.toUtf8("1\r\na\r\n0\r\n"),
-                                               asked(chunked),
-                                               8,
-                                               0),
-                               readRequestBody(socket,
-                                               String.toUtf8("1\r\na\r\n0\r\nX: yyyy"),
-                                               asked(chunked),
-                                               14,
-                                               0),
-                               readRequestBody(socket,
-                                               String.toUtf8("ffffffffffffffffff\r\n"),
-                                               asked(chunked),
-                                               100,
-                                               0),
-                               readRequestBody(socket, <<>>, asked(chunked), 12, 1000),
-                               readResponseBody(socket,
-                                                String.toUtf8("0123456789x"),
-                                                answered([]),
-                                                10,
-                                                0)]),
-                   Right(List.repeat(Left(Protocol(BodyTooLarge)), 6)))
+        // the last two take the bytes that pass the limit from the socket,
+        // which sends no more: a chunk's size line with no line feed yet,
+        // and a body that runs to the close
+        Test.equal(#(served(["5\r\nhello\r\n5\r\nworld\r\n"],
+                            StaysOpen,
+                            fn(socket) =
+                                [readRequestBody(socket, <<>>, asked(sized("101")), 100, 1000),
+                                 readRequestBody(socket,
+                                                 String.toUtf8("1\r\na\r\n0\r\n"),
+                                                 asked(chunked),
+                                                 8,
+                                                 0),
+                                 readRequestBody(socket,
+                                                 String.toUtf8("1\r\na\r\n0\r\nX: yyyy"),
+                                                 asked(chunked),
+                                                 14,
+                                                 0),
+                                 readRequestBody(socket,
+                                                 String.toUtf8("ffffffffffffffffff\r\n"),
+                                                 asked(chunked),
+                                                 100,
+                                                 0),
+                                 readRequestBody(socket, <<>>, asked(chunked), 12, 1000),
+                                 readResponseBody(socket,
+                                                  String.toUtf8("0123456789x"),
+                                                  answered([]),
+                                                  10,
+                                                  0)]),
+                     served(["5\r\nhello\r\n1;aaaaaaaaaaaaa"],
+                            StaysOpen,
+                            fn(socket) = readRequestBody(socket, <<>>, asked(chunked), 20, 1000)),
+                     served(["0123456789abcdefghijk"],
+                            StaysOpen,
+                            fn(socket) = readResponseBody(socket, <<>>, answered([]), 20, 1000))),
+                   #(Right(List.repeat(Left(Protocol(BodyTooLarge)), 6)),
+                     Right(Left(Protocol(BodyTooLarge))),
+                     Right(Left(Protocol(BodyTooLarge)))))
     })
 
 // report Appendix G.11
@@ -3330,6 +3347,10 @@ let bodyCut =
                                                            answered(chunked),
                                                            100,
                                                            1000)),
+                               served(["1\r\na\r\n0\r\nX: y\r\n"],
+                                      Closes,
+                                      fn(socket) =
+                                          readRequestBody(socket, <<>>, asked(chunked), 100, 1000)),
                                served(["abc"],
                                       StaysOpen,
                                       fn(socket) =
@@ -3340,7 +3361,23 @@ let bodyCut =
                                                           100))),
                              #(Right(Left(Socket(Io.Closed))),
                                Right(Left(Socket(Io.Closed))),
+                               Right(Left(Socket(Io.Closed))),
                                Right(Left(Socket(Io.Timeout)))))
+              })
+
+// report Appendix G.11
+let endlessBody =
+    Test.Case(name = "a body that never ends meets the milliseconds, though bytes keep coming",
+              run = fn() = {
+                  let large = 100000000;
+                  Test.equal(trickled("",
+                                      fn(socket) =
+                                          readRequestBody(socket,
+                                                          <<>>,
+                                                          asked(sized(Int.toString(large))),
+                                                          large,
+                                                          200)),
+                             Right(Left(Socket(Io.Timeout))))
               })
 
 // What `write` answers on one end of a connection, and what `read` answers

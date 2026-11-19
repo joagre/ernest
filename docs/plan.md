@@ -349,7 +349,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 | 97 | What else waits where a `send` to a peer waits, and a gateway that waits on no peer | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
 | 98 | A node whose program has ended ends while a lost peer's socket holds output; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
-| 99 | Two tests of a request's head over a socket: one that comes in pieces is read, and one that trickles past its time answers the timeout | 2026-11-19 | Appendix G.11; *A Head in Pieces, Tested* |
+| 99 | A request's head read from a socket a piece to each read; the library's own cases held the rest, which the item's search had missed | 2026-11-19 | Appendix G.11; *A Head in Pieces, Tested* |
 | 102 | A node's lock on `ernest.pid` held until its process has ended, with the user | 2026-11-18 | §11.2, §12.5; *A Lock Held to the Process's End*, *A New OTP and Nothing Else New* |
 | 104 | The runtime's processes that serve the whole node wait on no peer, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
 | 105 | A message for a peer is placed in the host's buffer in parts, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |
@@ -363,6 +363,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 117 | A termination once the end's wait is over ends the end at once | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
 | 121 | A process killed while what it sends waits has sent it, and its `Down` may wait on a third node, with the user | 2026-11-19 | §6.6, §6.9, §8.7; *A Down Follows the Send* |
 | 127 | The roots' unit tests run under the run's home, `AREA_RUN` in `test/run.mk` for both makefiles, with the user | 2026-11-19 | *The Roots' Unit Tests Under the Run's Home* |
+| 128 | A body read a piece to each read, a body that never ends, a close inside the trailers and a limit met in bytes from the socket, with the user | 2026-11-19 | Appendix G.11; *A Body, Tested* |
 
 ---
 
