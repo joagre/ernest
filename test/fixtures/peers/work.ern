@@ -15,3 +15,29 @@ export fn watchedOn(name : String,
 // A process that ends at once, whose spawn `make bench` times.
 export fn idleOn(name : String, ms : Int) : Either(Io.Error, Address(Never)) =
     Peer.spawn(name, fn() = Unit, ms)
+
+// Report §8.4, §8.7: a taker, which says each number it takes on the node
+// it runs on, until a negative one ends it.
+fn taking() : Unit receiving Int =
+    receive {
+        n ->
+            if n < 0 then
+                Io.println("the taker ends")
+            else {
+                Io.println("the taker took " <> Int.toString(n));
+                taking()
+            }
+    }
+
+export fn takerOn(name : String, ms : Int) : Either(Io.Error, Address(Int)) =
+    Peer.spawn(name, fn() = taking(), ms)
+
+// A taker that ends too at its Down of `watched`, a process of another
+// node, which a loss of that node gives it.
+fn mortal(watched : Process) : Unit receiving Int = {
+    monitor(watched, fn(_) = -1);
+    taking()
+}
+
+export fn mortalOn(name : String, watched : Process, ms : Int) : Either(Io.Error, Address(Int)) =
+    Peer.spawn(name, fn() = mortal(watched), ms)

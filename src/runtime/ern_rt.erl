@@ -358,11 +358,13 @@ send(Address, Message) ->
 %% function, not a process of its own, so sending applies the function here
 %% and the message goes straight into the target's mailbox. A fault in the
 %% function is the target's, on one node and across nodes alike: it takes
-%% the message's place in the target's mailbox, and the target faults at
-%% the wait that reaches it, as at a bad message's fault (§8.4), which
-%% `restarting` restarts (§6.9); a target of this node the runtime did not
-%% start, a foreign process, has no wait of Ernest's and is ended by the
-%% fault as an exit signal (sent/1); the sender goes on.
+%% the message's place in the target's mailbox, but that it goes straight
+%% to the target and can pass a message that takes the one step more on
+%% another node, and the target faults at the wait that reaches it, as at
+%% a bad message's fault (§8.4), which `restarting` restarts (§6.9); a
+%% target of this node the runtime did not start, a foreign process, has
+%% no wait of Ernest's and is ended by the fault as an exit signal
+%% (sent/1); the sender goes on.
 %%
 %% Report §8.7, §11.2: an address made by an earlier start of this node, or
 %% by an earlier run of `ern test` over a directory, is dead, and a message

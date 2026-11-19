@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 112**, a check across two nodes shown on two nodes
-first. Item 131, `Http.elements`, follows it directly, on the user's word of 2026-11-19.
+**The next item is MVP 4.16's item 131**, `Http.elements`. Item 132, a bad message's fault
+to a foreign target, follows it, both on the user's word of 2026-11-19.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,20 +60,17 @@ Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **112. A check across two nodes: a loss ends it, and its fault can pass a message**, found
-  2026-11-18 by the cold reading of item 111's sentences (the log's *A Checker Acts for the
-  Target*), read from the code and not shown. A check stands in front of an address until
-  the process the address names ends (§8.4), and an address reaches its process again after
-  a loss (§8.7). The checker ends at its monitor of that process, and a monitor of a process
-  on another node ends at a loss. What foreign code sends to the address after the loss
-  would then be lost, though an Ernest sender reaches the process again. An agent shows it
-  on two nodes first. The fix's shape: a checker stands through a loss and ends at its
-  process's end alone.
+- **132. A bad message's fault to a foreign target**, found 2026-11-19 by the cold reading
+  of item 112's sentences (the log's *A Check Stands Through a Loss*), read from the code
+  and not shown. Foreign code sends a bad message to an adapted address over a foreign
+  address. The check sends its fault to the foreign process as a plain message, where §6.5
+  ends such a target with an exit signal at a fault in `f`. §8.4 speaks of a receiving
+  Ernest process alone.
 
-  Read with it, from the code too: where an address crossed on another node than its
-  maker's, a failed check's fault goes straight to the target, and a checked message goes
-  by the maker's node (§6.5). So the fault can pass a good message sent before it, where
-  §8.4 has it take the message's place.
+  By the line's test it would stand in MVP 4.5, since the report is silent there and no
+  program has shown it. Decided with the user: it is taken after item 131, before the
+  other items found. An agent shows it first. The fix's shape: the check sends its fault as
+  a fault in `f` is sent, and §8.4 gains the receiver the runtime did not start.
 
 - **115. A `monitor` in an adapted address's function, and a help that leads to a second
   refusal**, found 2026-11-18 by item 111's build (the log's *A Checker Acts for the
@@ -157,9 +154,9 @@ Launch*).
 
 - **131. `Http.elements`, a list header's elements**, feedback 267, found 2026-11-19 by
   ernest-httpd's session and decided with the user the same day (the log's *A List Header's
-  Elements*). It is taken directly after item 112, before the items found, on the user's
-  word. It stands before MVP 4.4 since another repository waits on it: ernest-httpd's two
-  readings of `Connection` and `Upgrade` take it at its floor's rise.
+  Elements*). It is taken first, before the items found, on the user's word. It stands
+  before MVP 4.4 since another repository waits on it: ernest-httpd's two readings of
+  `Connection` and `Upgrade` take it at its floor's rise.
 
   G.11 changes first. `elements(headers, name)` is every value under the name as one list,
   parted at commas, each element without the white space around it and as written, an
@@ -221,6 +218,16 @@ Launch*).
   `monitor` already takes such a `Process` for the target. The build brings the code to
   E.21, whose line gains the check beside the adapted address. Its tests: the two are `==`,
   and a `kill` of it ends the target.
+
+  Read with it, from the code and not shown (the log's *A Check Stands Through a Loss*): a
+  bad message to an adapted address over such an address has its fault sent to the check in
+  front of the process, which checks it as a message. The target then faults with that
+  check's type in its cause, where §12.3 names the type the address crossed at. A third
+  test holds the cause.
+
+  And a fault in the function of such an adapted address is sent to that check as an exit,
+  since a check has no row among the processes: the check ends, and the target meets no
+  fault, where §6.5 has the fault the target's. A fourth test holds it.
 
 **What needs the user**, each a design discussion of its own. Item 101 stands first, since
 its rule is the measure for item 100 and for MVP 4.5's item 68. Item 100, ernest-httpd's
@@ -376,6 +383,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 111 | A checker acts for its address's target, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
 | 116 | The job halts without the host's flush, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
 | 117 | A termination once the end's wait is over ends the end at once | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
+| 112 | A check stands through a loss of its target's node, and a fault goes straight to its target and can pass a message that takes §6.5's step, with the user | 2026-11-19 | §6.5, §8.4, §10; *A Check Stands Through a Loss* |
 | 121 | A process killed while what it sends waits has sent it, and its `Down` may wait on a third node, with the user | 2026-11-19 | §6.6, §6.9, §8.7; *A Down Follows the Send* |
 | 127 | The roots' unit tests run under the run's home, `AREA_RUN` in `test/run.mk` for both makefiles, with the user | 2026-11-19 | *The Roots' Unit Tests Under the Run's Home* |
 | 128 | A body read a piece to each read, a body that never ends, a close inside the trailers and a limit met in bytes from the socket, with the user | 2026-11-19 | Appendix G.11; *A Body, Tested* |
@@ -868,6 +876,9 @@ What the line left, in the order it is taken:
   A server that gives foreign code a fresh adapted address for each request keeps a process
   for each while it lives, which §10 states. To decide with the user: whether a check ends
   sooner, and at what.
+
+  Weighed with it: since item 112 a check of a process on a node that never connects again
+  stands until the program ends (the log's *A Check Stands Through a Loss*).
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers

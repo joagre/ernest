@@ -775,7 +775,9 @@ An adapted address held on another node keeps nothing alive on the node that mad
 
 `adapted(self(), Wrap)`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`.
 
-A fault in `f` is the target's, on one node and across nodes alike: it takes the message's place in the target's mailbox, and the target faults at the wait that reaches it, as at a fault of its own (§8.4), which `restarting` restarts (§6.9); a target the runtime did not start, a foreign process (§8.4), has no wait of Ernest's and is ended by the fault as an exit signal, and one on another node takes the fault as a message; the sender goes on.
+A fault in `f` is the target's, on one node and across nodes alike: it takes the message's place in the target's mailbox, with one exception (below), and the target faults at the wait that reaches it, as at a fault of its own (§8.4), which `restarting` restarts (§6.9); a target the runtime did not start, a foreign process (§8.4), has no wait of Ernest's and is ended by the fault as an exit signal, and one on another node takes the fault as a message; the sender goes on.
+
+The fault goes straight to the target. Where `f`'s results go on through an adapted address made on another node than the one that applies `f`, they take the one step more on the node that made it (above), and the fault can pass a message sent through that address before it.
 
 Addresses have no equality (§3.10). An address is the permission to send to a process; a `Process` is its identity, which a `Down` carries, a monitor watches and `kill` ends (Appendix E.21). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (§6.9, Appendix E.21). There is no registry. A process reaches another through an address it holds or received, through a top-level binding that holds one, which is a *service*, or, from another node, through the name the service is offered under (§8.7):
 
@@ -943,7 +945,7 @@ The module `Peer` (Appendix E.27) acts on a peer by its listed name: `Peer.spawn
 
 ### 8.4 Foreign code
 
-The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them (§8.2). Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach faults the receiving Ernest process: a bad return value or reply when the call returns, a bad message on delivery. A bad message's fault takes the message's place in the receiver's mailbox, and the receiver faults at the wait that reaches it, in a `receive`, in `Clock.sleep`, for a call's answer or for a load's (Appendix E.28), as at a fault of its own, which `restarting` restarts (§6.9).
+The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them (§8.2). Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach faults the receiving Ernest process: a bad return value or reply when the call returns, a bad message on delivery. A bad message's fault takes the message's place in the receiver's mailbox, with one exception (**Addresses and answers**), and the receiver faults at the wait that reaches it, in a `receive`, in `Clock.sleep`, for a call's answer or for a load's (Appendix E.28), as at a fault of its own, which `restarting` restarts (§6.9).
 
 **What is checked.** The standard library and the system processes are the runtime's own, and what passes between them and a program is not checked: the return of one of the library's foreign functions, a message from a system process, an address or a `Reply` given to either, and the answer to a call the library makes. A message from a peer is not checked on arrival; a value of another type a faulty peer sends is met where the receiving process matches on it.
 
@@ -956,6 +958,8 @@ A foreign function's return declared `Unit` that is the atom `ok` is `Unit`: the
 A message sent to a foreign address, an answer given to a `Reply` foreign code gave, and a foreign function's argument cross into foreign code: a message foreign code sends to an address in one is checked on delivery. That check lasts until the process the address names ends, and there is one for each distinct address that has crossed. An address made by `adapted` is distinct by the address it adapts, by its function and by the values its function captured.
 
 A message foreign code sends to an adapted address is checked against the type the address crossed at before its function is applied. Where the address crossed on the node that made it, the function is applied as on arrival (§6.5), in the process that checks (§10), which takes the place of the process kept for the address; a function that never finishes holds what foreign code sends to the address and nothing else. Where it crossed on another node, the checked message goes on as a `send` from that node does.
+
+A bad message's fault goes straight to the receiver. It can pass a message foreign code sent to the same address before it where the checked messages take the one step more of §6.5 on their way.
 
 An answer foreign code gives to a call is checked when `Address.call` or `Address.callForever` returns it. An answer Ernest code gives to a `Reply` foreign code gave crosses into foreign code, and no other answer is checked.
 

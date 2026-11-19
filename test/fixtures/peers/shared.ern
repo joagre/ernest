@@ -10,7 +10,11 @@ export fn tellPeers(name : String) : Either(Io.Error, Address(Never)) =
     Peer.spawn(name, fn() = Io.println("the peers here: " <> Io.show(peers)), Harness.waitMs())
 
 export fn found(service : Peer.Service(m)) : Address(m) =
-    match Peer.find(service, Harness.waitMs()) {
+    answered(Peer.find(service, Harness.waitMs()))
+
+// The address a find or a spawn answered, or a fault that says why none was.
+export fn answered(answer : Either(Io.Error, Address(m))) : Address(m) =
+    match answer {
         Right(address) -> address
       | Left(failure) -> fault(Io.show(failure))
     }

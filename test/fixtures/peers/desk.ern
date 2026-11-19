@@ -20,6 +20,9 @@ export fn main() : Unit receiving Msg =
       | ["calls"] -> calls()
       | ["restart"] -> restartTold()
       | ["reconnect"] -> reconnected()
+      | ["check-loss"] -> stoodThroughALoss()
+      | ["check-unreached"] -> endedOutOfReach()
+      | ["check-end"] -> endedWithItsTarget()
       | ["ending"] -> ending()
       | ["reload"] -> reloaded()
       | ["place", interval] -> placed(Optional.withDefault(String.toInt(interval), 0))
@@ -502,6 +505,112 @@ fn computeWaiting(desk : Address(Msg), limit : Int) : Unit = {
                        limit);
     Io.println("the compute: " <> Io.show(computed))
 }
+
+// Report §8.4, §8.7: a check stands through a loss of its target's node.
+// Foreign code is given the address of a taker spawned on the store and
+// sends it 1, which the test waits to see taken. The desk ends the
+// connection as the reconnection does, and, told that both nodes have run
+// the loss, opens it again by a find. The process foreign code was given
+// lives, the address given again is given as the same process, and what
+// foreign code sends through it reaches the taker, which the test waits to
+// see taken.
+//
+// The taker's end, the connection open, then ends the check. No lookout is
+// left, once the connection is open or at the check's end (§10).
+fn stoodThroughALoss() : Unit receiving Msg = {
+    let limit = Harness.waitMs();
+    let taker = Shared.answered(Work.takerOn("store", limit));
+    handToForeign("before", taker);
+    lose(taker);
+    Io.println("alive after the loss: " <> Io.show(heldAlive("before")));
+    Io.println("found after: " <> started(Peer.find(Counter.service, limit)));
+    hold("again", taker);
+    Io.println("the same process: " <> Io.show(held("again") == held("before")));
+    sentThrough("before", 2);
+    let _ = Io.readLine();
+    Io.println("lookouts once connected: " <> Int.toString(lookoutsLeft(limit)));
+    send(taker, -1);
+    sayEnd("before", limit)
+}
+
+// Report §8.4, §8.7: a check whose target ends while the target's node is
+// out of reach ends once the nodes have connected again. The taker on the
+// store ends at its Down of this process, which the loss gives there, and
+// the test waits to see it end before it tells the desk to open the
+// connection again; the check stands until then, and no lookout is left at
+// its end (§10).
+fn endedOutOfReach() : Unit receiving Msg = {
+    let limit = Harness.waitMs();
+    let taker = Shared.answered(Work.mortalOn("store", Process.current(), limit));
+    handToForeign("mortal", taker);
+    lose(taker);
+    Io.println("alive after the loss: " <> Io.show(heldAlive("mortal")));
+    Io.println("found after: " <> started(Peer.find(Counter.service, limit)));
+    sayEnd("mortal", limit)
+}
+
+// Report §8.4: a check ends at its target's end, the connection open: the
+// taker on the store is sent 1 through the process foreign code was given,
+// which the test waits to see taken, and then ends; no lookout is made.
+fn endedWithItsTarget() : Unit = {
+    let limit = Harness.waitMs();
+    let taker = Shared.answered(Work.takerOn("store", limit));
+    handToForeign("taker", taker);
+    send(taker, -1);
+    sayEnd("taker", limit)
+}
+
+// The taker's address given to foreign code, which holds it under key and
+// sends 1 through what it was given; until the test has seen it taken.
+fn handToForeign(key : String, taker : Address(Int)) : Unit = {
+    hold(key, taker);
+    sentThrough(key, 1);
+    let _ = Io.readLine();
+    Unit
+}
+
+// Report §8.7: the connection to the target's node ended, as the
+// reconnection ends it, by a frame the store's gateway cannot read; this
+// node has run the loss once its monitor of the target gives Unreachable.
+// Until the test, which has seen both nodes run it, says to go on.
+fn lose(target : Address(Int)) : Unit receiving Msg = {
+    monitor(Process.fromAddress(target), Died);
+    sever(Process.fromAddress(target));
+    receive {
+        Died(down) -> Io.println("lost: " <> Io.show(down.reason))
+    };
+    Io.println("now open the connection again");
+    let _ = Io.readLine();
+    Unit
+}
+
+// How the process foreign code holds under key ended, and the lookouts
+// left then (§10).
+fn sayEnd(key : String, limit : Int) : Unit = {
+    Io.println("its end: " <> heldEnd(key, limit));
+    Io.println("lookouts at its end: " <> Int.toString(lookoutsLeft(limit)))
+}
+
+// Report §8.4: foreign code, which holds each address it is given under a
+// key, as the process it was given, and sends through it as foreign code
+// sends, straight to that process.
+foreign fn hold(key : String, address : Address(Int)) : Unit =
+    "ern_peers_host:hold/2"
+
+foreign fn held(key : String) : String =
+    "ern_peers_host:held/1"
+
+foreign fn sentThrough(key : String, n : Int) : Unit =
+    "ern_peers_host:sent_through/2"
+
+foreign fn heldAlive(key : String) : Bool =
+    "ern_peers_host:held_alive/1"
+
+foreign fn heldEnd(key : String, ms : Int) : String =
+    "ern_peers_host:held_end/2"
+
+foreign fn lookoutsLeft(ms : Int) : Int =
+    "ern_peers_host:lookouts_left/1"
 
 // Report §8.7: the store ended by `ern stop`, which a monitor made before
 // sees as ProgramEnd, and one made once the store has stopped, which the

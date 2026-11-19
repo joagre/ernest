@@ -3643,6 +3643,117 @@ reconnect(Base) ->
      || {Err, Line} <- [{DeskErr, "the peer store connected"},
                         {StoreErr, "the peer desk connected"}]].
 
+%% report §8.4, §8.7: a check stands through a loss of its target's node,
+%% since "that check lasts until the process the address names ends" and a
+%% loss ends no address. Foreign code on the desk is given the address of a
+%% taker the desk spawns on the store, and sends it 1, which the store takes.
+%% The desk ends the connection as reconnect_test's does, and, told that
+%% both nodes have run the loss, opens it again by a find. The process
+%% foreign code was given lives; the address given again is given as the
+%% same process, one check for each distinct address; and what foreign code
+%% sends through it reaches the taker.
+%%
+%% Report §10: no lookout, the process beside a check whose target's node
+%% is out of reach, is left once the nodes have connected. The taker's end,
+%% the connection open, then ends the check through the monitor it made
+%% again, and no lookout is left.
+%%
+%% Written before its code, and red there: the check ended at the loss,
+%% with the host's monitor of its target, the address given again was given
+%% as another process, and what foreign code sent through the first was
+%% lost. It does not cover a check made while the target's node is out of
+%% reach, whose first monitor's dial is given up and which then takes the
+%% loss's path, nor a node that never connects again, whose check stands
+%% until the program ends
+check_through_a_loss_test_() ->
+    nodes_test({waits, 11}, fun check_through_a_loss/1).
+
+check_through_a_loss(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["check-loss"]),
+    prints(Store, "the taker took 1"),
+    true = port_command(DeskPort, "go\n"),
+    prints(Desk, "now open the connection again"),
+    says(Desk, "the peer store was lost: it closed"),
+    says(Store, "the peer desk was lost: it closed"),
+    true = port_command(DeskPort, "go\n"),
+    prints(Store, "the taker took 2"),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    prints(Store, "the taker ends"),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line)
+     || Line <- ["lost: Unreachable", "alive after the loss: true", "found after: Right",
+                 "the same process: true", "lookouts once connected: 0", "its end: ended",
+                 "lookouts at its end: 0"]].
+
+%% report §8.4, §8.7: a check of a target that ends while its node is out
+%% of reach stands until the nodes have connected again, and ends then. The
+%% taker the desk spawns on the store ends at its Down of the desk's process,
+%% which the loss gives there; told that both nodes have run the loss and
+%% that the taker has ended, the desk opens the connection again by a find.
+%% The process foreign code was given lived until then, and ends after.
+%% Report §10: no lookout is left at the check's end.
+%%
+%% Written before its code, and red there: the check ended at the loss, and
+%% the process foreign code was given was dead before the nodes connected
+%% again. It does not cover a node that started anew meanwhile, whose
+%% process the check's monitor made again finds no more, as it finds no
+%% more a process that ended
+check_of_an_end_out_of_reach_test_() ->
+    nodes_test({waits, 10}, fun check_of_an_end_out_of_reach/1).
+
+check_of_an_end_out_of_reach(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["check-unreached"]),
+    prints(Store, "the taker took 1"),
+    true = port_command(DeskPort, "go\n"),
+    prints(Desk, "now open the connection again"),
+    says(Desk, "the peer store was lost: it closed"),
+    says(Store, "the peer desk was lost: it closed"),
+    prints(Store, "the taker ends"),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line)
+     || Line <- ["lost: Unreachable", "alive after the loss: true", "found after: Right",
+                 "its end: ended", "lookouts at its end: 0"]].
+
+%% report §8.4: a check ends at the end of its target on another node, the
+%% connection open: the taker the desk spawns on the store is sent 1
+%% through the process foreign code was given, which the store takes, and
+%% then ends, and that process ends. Report §10: no lookout is made.
+%%
+%% Written before its code, and green there, since the check ended at any
+%% end of the host's monitor of its target; it holds that a check whose
+%% target's node is never lost still ends as it did. It does not cover a
+%% target that ends as the connection is lost, which the host's monitor
+%% tells as the loss
+check_ends_with_its_target_test_() ->
+    nodes_test({waits, 7}, fun check_ends_with_its_target/1).
+
+check_ends_with_its_target(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["check-end"]),
+    prints(Store, "the taker took 1"),
+    true = port_command(DeskPort, "go\n"),
+    ?assertEqual(0, WaitDesk()),
+    prints(Store, "the taker ends"),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line) || Line <- ["its end: ended", "lookouts at its end: 0"]].
+
 %% report §6.5, §8.7: the function of an adapted address made on the store,
 %% sent to from the desk, runs on the store in the process the store keeps
 %% for the address and the desk, so that one that calls a process there,

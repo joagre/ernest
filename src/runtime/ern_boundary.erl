@@ -9,7 +9,8 @@
 %% address's mailbox type on delivery and forwards it, or ends the target
 %% with the fault. The checker is a process of the runtime's own that acts
 %% for the target, as a process kept for an adapted address does
-%% (ern_rt:checker_for/3).
+%% (ern_rt:checker_for/3), and stands through a loss of the target's node
+%% (checker_loop/5).
 %%
 %% An address that comes from foreign code and names no process of the
 %% program is held as foreign, {foreign, Pid, Descriptor, Bound},
@@ -39,7 +40,7 @@
 -include_lib("runtime/include/ern_rt.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({own_process, [checker_loop/5]}).
+-receives({own_process, [checker_loop/5, lookout_loop/4]}).
 
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
                     | unit | foreign
@@ -422,14 +423,16 @@ expose({mu, Id, Descriptor}, Value, Bound) -> expose(Descriptor, Value, Bound#{I
 expose({ref, Id}, Value, Bound) -> expose(maps:get(Id, Bound), Value, Bound);
 expose(_, Value, _) -> Value.
 
-%% Report §8.4: the checker lives as long as the process behind the address
-%% it stands before, and there is one of it per address and mailbox type
-%% however often the address is exposed (ern_rt:checker_for/3); a message
-%% that does not match ends the process behind the address with the fault,
-%% as its own receive would have. A message that matches is sent on as a
-%% send of this node's sends it: an adapted address made on this node has
-%% its function applied here, as on arrival (§6.5), the checker acting for
-%% the target, and one made on another node is carried to that node.
+%% Report §8.4: "That check lasts until the process the address names ends,
+%% and there is one for each distinct address that has crossed": one
+%% checker per address and mailbox type however often the address is
+%% exposed (ern_rt:checker_for/3), which watches the process behind the
+%% address by the host's monitor. A message that does not match ends that
+%% process with the fault, as its own receive would have. A message that
+%% matches is sent on as a send of this node's sends it: an adapted address
+%% made on this node has its function applied here, as on arrival (§6.5),
+%% the checker acting for the target, and one made on another node is
+%% carried to that node.
 checker(Behind, MessageDescriptor, Bound, Cause) ->
     ern_rt:checker_for({Behind, MessageDescriptor, Bound}, Behind,
                        fun(Target) ->
@@ -438,22 +441,93 @@ checker(Behind, MessageDescriptor, Bound, Cause) ->
                        end).
 
 %% Report §6.5: a function that runs as the target ends runs on, and the
-%% checker takes its messages in turn until the target's Down, at which it
+%% checker takes its messages in turn until the target's end, at which it
 %% ends, the reaper taking its rows.
-checker_loop(Behind, MonitorRef, Descriptor, Bound, Cause) ->
+%%
+%% Report §8.7: "a loss does not end it", the address, and so it ends no
+%% check either. The host ends its monitor of a process of another node with
+%% `noconnection` at a loss, and where a dial is given up. The checker then
+%% checks and sends on as before, and learns from a lookout (lookout/1) when
+%% its target's node connects, since a monitor made again at once would
+%% dial, and "a connection is opened again when an operation needs it,
+%% never in the background". At the lookout's word it monitors its target
+%% again: `noproc`, for a process that ended meanwhile or a node started
+%% anew, ends it as any end does, and another `noconnection` waits again.
+%%
+%% Heard is the reference the checker hears of its target by: its monitor's,
+%% or, while the target's node is out of reach, its lookout's.
+checker_loop(Behind, Heard, Descriptor, Bound, Cause) ->
     receive
-        {'DOWN', MonitorRef, process, _, _} ->
+        %% a process of this node that ended with that reason has ended
+        {'DOWN', Heard, process, Target, noconnection} when node(Target) =/= node() ->
+            checker_loop(Behind, lookout(node(Target)), Descriptor, Bound, Cause);
+        {'DOWN', Heard, process, _, _} ->
             ok;
+        {Heard, connected} ->
+            MonitorRef = erlang:monitor(process, ern_rt:process_of(Behind)),
+            checker_loop(Behind, MonitorRef, Descriptor, Bound, Cause);
         Message ->
             case conformed(Descriptor, Message, Bound) of
                 {ok, Checked} ->
                     ern_rt:send(Behind, Checked);
-                %% report §8.4: the fault takes the message's place, and
-                %% the receiver faults at the wait that reaches it, as at a
+                %% report §8.4: the fault takes the message's place, but
+                %% that it goes straight to the receiver and can pass a
+                %% message that takes §6.5's one step more, and the
+                %% receiver faults at the wait that reaches it, as at a
                 %% fault of its own, which `restarting` restarts (§6.9),
                 %% its trace the receiver's stack there (§7.3)
                 error ->
                     ern_rt:process_of(Behind) ! {'$ern_fault', {ern, fault, Cause}}
             end,
-            checker_loop(Behind, MonitorRef, Descriptor, Bound, Cause)
+            checker_loop(Behind, Heard, Descriptor, Bound, Cause)
+    end.
+
+%% Report §8.7, §10: "A check of a process whose node is out of reach is
+%% kept at least until that node connects again. While it waits so it costs
+%% a second process", the lookout, made only then, whose reference the
+%% checker answers.
+%%
+%% The host tells a process that asks of each node that connects, by a
+%% message with no reference, and the checker's mailbox holds any term
+%% foreign code sends. So the lookout asks, and gives the checker a
+%% reference only the two know: no term foreign code sends is read as the
+%% host's word, and none of the host's as a message.
+%%
+%% The host's word comes once a connection's handshake has ended, Ernest's
+%% check of the peer's key and its cookie inside it, and before anything
+%% the peer sends over it, so a monitor made at it goes over the connection
+%% the word is of. The lookout looks at the connected nodes once it has
+%% asked, and the host lists a node before its word, so no connection made
+%% before the asking is missed.
+%%
+%% The lookout ends at its word, or at the checker's end however that
+%% comes, and holds nothing after either.
+%%
+%% Report §7.4, §12.5: where the host's table of processes is full, no
+%% lookout can be made, and the check stands until the program ends, as one
+%% of a node that never connects again does, checking and sending on.
+lookout(Node) ->
+    Checker = self(),
+    Ref = make_ref(),
+    _ = try spawn(fun() ->
+                      MonitorRef = erlang:monitor(process, Checker),
+                      ok = net_kernel:monitor_nodes(true, [{node_type, all}]),
+                      case lists:member(Node, nodes(connected)) of
+                          true -> Checker ! {Ref, connected};
+                          false -> lookout_loop(Checker, Ref, Node, MonitorRef)
+                      end
+                  end)
+        catch
+            error:system_limit -> none
+        end,
+    Ref.
+
+%% Report §10: "Each connection that opens or closes costs that process a
+%% message", the host's word of it; the one of Node's connection is the
+%% lookout's last, and costs the one more to the checker.
+lookout_loop(Checker, Ref, Node, MonitorRef) ->
+    receive
+        {nodeup, Node, _} -> Checker ! {Ref, connected};
+        {'DOWN', MonitorRef, process, _, _} -> ok;
+        _ -> lookout_loop(Checker, Ref, Node, MonitorRef)
     end.
