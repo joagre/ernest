@@ -264,11 +264,19 @@ Item 92 and item 95's other two lines keep their place.
   - The tour's restart limit. Chapter 4 starts its counter with `within = 3600000`, in
     the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
 
-**What needs the user**, each a design discussion of its own. Item 101 stands first, since
+**What needs the user**, each a design discussion of its own. Item 142 is read on its date
+and orders nothing. Item 101 stands first of the rest, since
 its rule is the measure for item 100, for MVP 4.5's item 68, and for item 93 and item 95's
 first line, which follow it. Item 100, ernest-httpd's
 session's two lines on a close, follows it, and three of that session's tests wait on it.
 
+- **142. Whether the short rules stay**, to decide with the user on 2026-11-24 (the log's
+  *The Rules Cut for a Trial*). The root's `CLAUDE.md` is a short file on trial from
+  2026-11-20 through 2026-11-23, and
+  [`proposals/short_rules/`](proposals/short_rules/README.md) holds what is watched and
+  the list of lapses. The trial's first job is the items left read against that file's
+  line, what a first user meets, with the user. Until then the paragraph *A line stands
+  before MVP 4.4* stands as written.
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
   ([`limit_findings.md`](limit_findings.md), its section 3.2; the log's *The Limits Read*).
