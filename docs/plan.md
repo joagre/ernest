@@ -21,7 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 108**, whether a peer's worker waits on another peer.
+**The next item is MVP 4.16's item 109**, a test that holds Appendix E's `type` lines to the
+library.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -47,9 +48,9 @@ log's *A Status Read Before the Watch*, its paragraph *The order of what is left
 builds found, then what needs the user. An item planned since stands where its group's
 sentence says.
 
-**What was found**, each item begun by an agent that shows it or tests it. Items 108, 109
-and 110 were planned with the user on 2026-11-18, each in the log entry it names. Item 99
-is what ernest-httpd's session handed back on 2026-11-17.
+**What was found**, each item begun by an agent that shows it or tests it. Items 109 and
+110 were planned with the user on 2026-11-18, each in the log entry it names. Item 99 is
+what ernest-httpd's session handed back on 2026-11-17.
 
 The others were found by an item's build or its reading. Item 112 was found by the cold
 reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
@@ -60,14 +61,9 @@ day (the log's *A Termination Ends a Stalled Flush*). Items 122 and 123 were fou
 (the log's *What a Program's Helper Holds*). Item 124 was found by item 121's probes and
 placed with the user the same day (the log's *A Down Follows the Send*).
 
-- **108. Whether a peer's worker waits on another peer**, left unread 2026-11-18 by item
-  104's build (the log's *The Runtime's Processes Wait on No Peer*). A worker serves one
-  peer, so that one peer's wait holds no other's frames. The sends read in `ern_peer` and
-  `ern_gateway` go to the worker's own peer or stay on the node, and the worker's code
-  was not read whole. An agent lists each site where a worker, or the code it runs for a
-  frame, sends a signal to a node other than its own peer, a send, a monitor, a demonitor
-  or an exit, and shows a hold where it finds one. A hold found is brought to the user
-  with its fix's shape, and no flag is set meanwhile.
+Items 125 and 126 were found by item 108's reading on 2026-11-19, and their fixes decided
+with the user the same day (the log's *What a Peer's Worker Waits On*).
+
 - **109. No test holds Appendix E's `type` lines to the library**, found 2026-11-18 by
   item 107's build (the log's *Suspended Is the Host's Word*).
   `ern_doc_tests:listings_are_the_interfaces_test` reads a listing's function lines
@@ -165,6 +161,41 @@ placed with the user the same day (the log's *A Down Follows the Send*).
   is gone while its exit still waits. An agent diagnoses it first. What it finds is
   brought to the user: whether the node's end can wait for those exits, or §8.7 says
   what a peer is told of a process that ended so.
+- **125. A disconnect that waits on no connection**, found 2026-11-19 by item 108's
+  reading (the log's *What a Peer's Worker Waits On*). `erlang:disconnect_node/1` holds
+  the host's `net_kernel` until the connection's controller has taken its exit, and over
+  TLS the controller reads nothing while its socket is full. A node calls it at a reload
+  that removes a peer, at a frame it cannot read and at the peer limit's refusal. With a
+  peer stopped and its connection full, a reload that removed it left the node deciding
+  no loss. It held another peer's worker, a termination and that peer's departure, until
+  the stopped node ran again.
+
+  The fix's shape, decided with the user: the three sites call
+  `net_kernel:async_disconnect/1`, which sends the same exit and does not wait. Its
+  documentation is hidden, and `docs/code_style.md`'s *Shims* names its use with the
+  build. An agent builds it against the reading's probes, which become its tests: the
+  reload, the termination behind it, and the peer really stopped.
+
+  The build shows three things beside it. The first is the gateway's refusal at the peer
+  limit under the hold, since the nodes' note says the gateway waits on no peer. The
+  second is the line "its connection was ended", said before the disconnect is made,
+  which then says what is so. The third is one unconfirmed sighting, shown or dismissed:
+  a node whose program had ended, lost as silent by a quiet peer on a sound connection.
+
+  The agent writes the host's behavior as report 26 in [`otp_bugs.md`](otp_bugs.md)'s
+  form, reproduced with OTP alone, and the session runs its script as placed. Filing is
+  the user's.
+- **126. A worker's fault for a third node, and a `find`'s alias**, found 2026-11-19 by
+  item 108's reading (the log's *What a Peer's Worker Waits On*). At a full process table
+  a worker cannot start the process kept for an adapted address, and sends the fault to
+  the address's process itself, which may be on a third node. The host held the worker
+  there, and its own peer's `find` went unanswered. The `find` frame answers to the alias
+  it names and checks no node, where the `compute` frame does.
+
+  The fixes' shapes, decided with the user: the worker sets the host's `async_dist`
+  around that one send, and the nodes' note lists it; the `find` frame takes the
+  `compute` frame's guard. An agent builds both, the first against the reading's probe,
+  which becomes its test.
 
 **What is decided and waits for its build** stands between the two: items 92 and 93, what
 item 60 decided on 2026-11-17, item 95, what a reading of five reviews from outside
@@ -420,6 +451,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 105 | A message for a peer is placed in the host's buffer in parts while less than 1 MB waits there, and its `send` then waits with the rest; the report and the nodes' note had it placed whole, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |
 | 106 | Nothing bounds what waits for a program that does not read, and E.23 says so; the helper lets its input go once it is taken, a write after `closeInput` answers `Left(Closed)` at once, no timeout scans the writes or the reads that wait, the helper's failure is E.23's fault every time, and a write's bytes are copied once; a running program has a writer, so its process is never held at its port and E.21 names no such hold, with the user | 2026-11-18 | Appendix E.21, E.23; *What a Program's Helper Holds* |
 | 121 | A process that dies with `Killed` while what it sends waits has sent it, and a `Down` for a watcher on another node may wait on a third node, until that node takes again or is lost; the kill's reason stays a tuple, since an atom lets a callee's `Down` overtake its answer, with the user | 2026-11-19 | §6.6, §6.9, §8.7; *A Down Follows the Send* |
+| 108 | A peer's worker read whole: of its six sends that leave the node four go to its own peer; a fault at a full process table reaches a third node, where the host held the worker; a `find`'s answer checks no node; and the host's disconnect holds `net_kernel`, and the node with it, at a connection that cannot drain. Items 125 and 126 hold the fixes, with the user | 2026-11-19 | §6.5, §8.7, §12.6; *What a Peer's Worker Waits On* |
 
 ---
 
