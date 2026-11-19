@@ -116,6 +116,13 @@ Launch*).
   The narrower sentence is weighed first, and a question with it: whether one sentence of
   §8.7 on a peer that stands still and is not yet lost answers this item and MVP 4.5's
   item 118 together (the log's *The Line Before the Launch*).
+
+  The agent makes item 118's showing in the same run, decided with the user on
+  2026-11-19. The ending node pings each connected peer once it has told it of its end,
+  so a store that stands still holds the node in item 118's window. The agent records
+  what a listed peer that dials then is told, what its sends and its monitors meet, and
+  which reason the node's exit gives it. A sentence that showing finds false is mended
+  with this item, and the rest stays item 118's.
 - **125. A disconnect that waits on no connection**, found 2026-11-19 by item 108's
   reading (the log's *What a Peer's Worker Waits On*). `erlang:disconnect_node/1` holds
   the host's `net_kernel` until the connection's controller has taken its exit, and over
@@ -169,7 +176,10 @@ Launch*).
   shape for the first: the held address carries the process behind it. The second is
   decided with the user after the showing, by the line's test.
 
-**What is decided and waits for its build** stands between the two.
+**What is decided and waits for its build** stands between the two. Item 93 and item 95's
+first line are taken after item 101, decided with the user on 2026-11-19: each is a
+verdict on an order nobody promised, made before item 101's rule, which reads it again.
+Item 92 and item 95's other two lines keep their place.
 
 - **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
   log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
@@ -196,12 +206,14 @@ Launch*).
   the connection has closed.
 
   E.18 and E.23 change first. An agent builds the two, each with a test that acts at once
-  after the close, and the terminal harness's write of nothing goes.
+  after the close, and the terminal harness's write of nothing goes. The build follows
+  item 101, whose rule reads this verdict as one of its seven.
 - **95. A shell session that shows more than the report promises**, decided with the user
   on 2026-11-17 (the log's *The Outside Reviews Read*, its paragraph *Three shell
   sessions*). The session writes it, and it closes on `make test`.
 
-  - A send and a call to another node, in two inputs. The tour's chapter 2 says that each
+  - A send and a call to another node, in two inputs, written after item 101, whose rule
+    reads this verdict again. The tour's chapter 2 says that each
     input is a sender of its own, that the report orders one sender's messages alone
     (§6.4), that the page shows one order, and that a program which needs the order sends
     both from one process. The guide's §1.4 gains the same as a clause. The transcripts
@@ -214,7 +226,8 @@ Launch*).
     the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
 
 **What needs the user**, each a design discussion of its own. Item 101 stands first, since
-its rule is the measure for item 100 and for MVP 4.5's item 68. Item 100, ernest-httpd's
+its rule is the measure for item 100, for MVP 4.5's item 68, and for item 93 and item 95's
+first line, which follow it. Item 100, ernest-httpd's
 session's two lines on a close, follows it, and three of that session's tests wait on it.
 
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
@@ -251,6 +264,12 @@ session's two lines on a close, follows it, and three of that session's tests wa
   bytes go: in Ernest's code, the host's socket or the kernel. It searches the log for what
   was decided of each, *What One Read Answers* and *A Socket Lives Until It Is Closed* among
   its entries.
+
+  The probes take the case of MVP 4.5's item 122 with them, decided with the user on
+  2026-11-19: a far end that reads nothing, writes that time out, then a close. By a
+  reading, a close ends the socket's writer and drops a write that timed out and still
+  waits there, where E.18 says that a `Left(Timeout)` does not undo the write. The third
+  question below rests on what that shows.
 
   Decided with the user, in a design discussion of its own, one question at a time: whether
   the close follows the last byte at once, and whether a write that answers `Left(Closed)`
@@ -843,6 +862,11 @@ What the line left, in the order it is taken:
   first shows, on two nodes, what a listed peer that dials then is told, what its sends and
   its monitors meet, and which reason the node's exit gives it, against §8.7 and §12.6's
   *A node's end*. What it shows is brought to the user.
+
+  The showing with a peer that stands still is made by MVP 4.16's item 124, decided with
+  the user on 2026-11-19, and what it finds false is mended there. This item keeps the
+  rest, and the window of an end that waits on a stalled stream, which stays unread
+  until then.
 - **122. Whether a socket's writes that time out are bounded**, found 2026-11-18 by item
   106's reading (the log's *What a Program's Helper Holds*). E.18 says of `Tcp.write` what
   E.23 says of `Os.write`: a `Left(Timeout)` does not undo the write. A socket's writer
@@ -851,6 +875,10 @@ What the line left, in the order it is taken:
   socket whose far end reads nothing makes the node hold, and what gives it back. The
   shape then follows item 106's: E.18 says what the rule costs, and what is held past
   its use is mended.
+
+  What a close does with such writes is shown by MVP 4.16's item 100's probes, decided
+  with the user on 2026-11-19, and what they find false is mended there. This item starts
+  from that showing and keeps the bound.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
