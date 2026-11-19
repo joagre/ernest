@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 120**, a termination that ends the subscribers' wait
-where a stream is stalled.
+**The next item is MVP 4.16's item 138**, the shell's end at once. Items 139 to 141 follow
+it, decided with the user on 2026-11-19.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -62,22 +62,53 @@ Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **120. A termination ends the subscribers' wait where a stream is stalled**, found
-  2026-11-18 by item 117's probes (the log's *A Termination Ends a Stalled Flush*, its
-  paragraph *The subscribers' wait*). A plain run with standard output stalled and a
-  subscriber that never answers was alive after three terminations, where §8.6 has a
-  termination once the end has begun end the program at once. The termination that cuts
-  the wait has the runner say `the end was cut short`, and that line waits on standard
-  error, which is held behind standard output.
+- **138. The shell ends at once**, found 2026-11-19 by item 120's probes (the log's *The
+  Runner Waits for No Line*, its paragraph *Found beside it*). A shell whose output was
+  stalled was sent a termination once the end's wait was over. In line mode it ended about
+  8 s later, after two of the screen's drains. At a terminal it never ended: giving the
+  terminal back writes the end of its paste mode through the stalled stream.
 
-  The shape, decided with the user: the runner records that it took a termination, and
-  the next termination kills the writers, as item 117's does. The line is kept wherever
-  nothing stalls, and a run that is stalled needs one more termination. Whether §11.2
-  says so is brought to the user at the item's cold reading.
+  §8.6 has a termination during the flush end the program without it, and the shell shows
+  that false, so by the line's test the item stands here. The shape: an end at once ends
+  the shell's screen with the writers, and the terminal is given back without the write.
+  Its settings come back as they do today. The end of the paste mode is output not
+  written, which §12.4 names as lost.
+- **139. `ern test` ends at a termination that ended a launch**, found 2026-11-19 by item
+  120's probes (the same paragraph). A termination during the stalled flush of one
+  module's launch ended that launch, and the job went on to the next module. It exited 0
+  where the reader then went on. The killed stream's port wrote its bytes later, since
+  the job lived on.
 
-  An agent shows first whether the line that says whom the end waits for holds the same
-  way. It also shows what item 117 left: the shell's end at once, `ern test` after a
-  launch ended so, and an `Os.exit` during the flush.
+  §10 has a termination end a job at once, and the job shows that false, so the item
+  stands here. Decided with the user: the job ends there by the signal, with status 143.
+  An agent first shows whether a termination that cuts a launch's wait with nothing
+  stalled lets the job go on too, and that no byte comes once the job ends there.
+
+  It needs nothing of MVP 4.5's item 68, which is of a job outside a run. Both leave a
+  signal's end at once.
+- **140. An `Os.exit` once the end's wait is over**, found 2026-11-19 by item 120's
+  probes (the same paragraph). On a node, a process kept for an adapted address called
+  `Os.exit(7)` while the flush was stalled. Nothing read it: the node stayed alive, and
+  ended with status 0 at a termination, or once its reader went on.
+
+  §8.6 has an `Os.exit` once the end has begun end the program at once, with its status,
+  so the item stands here. The shape: once the wait is over the exit's status is the
+  job's, and the flush goes on, since only a termination ends a flush. An exit that ended
+  it would lose a run's output by timing where nothing is stalled (principle 1). Decided
+  with the user: the exit's status stands through a later termination.
+
+  It makes its case with the process kept for an address, as item 136 does, and needs
+  nothing of that item, which is of a wrap's fault there.
+- **141. A subscriber that answered is named unanswered**, found 2026-11-19 by item
+  120's probes (the same paragraph). A subscriber answered and then called `Os.exit`,
+  and `the end was cut short` named it unanswered. Its answer reaches the runner through
+  its teller and the exit comes straight from its caller, so the exit can pass the
+  answer.
+
+  §11.2 has the line name the subscribers the wait left unanswered, and the program shows
+  that false, so the item stands here. The narrower sentence is weighed first: the line
+  names each subscriber whose answer the end had not taken when it was cut. An agent
+  first shows whether a termination passes an answer the same way.
 - **124. A node's end says `Unreachable` of a process that waited in a send**, found
   2026-11-18 by item 121's probes (the log's *A Down Follows the Send*, its paragraph *A
   node's end, found beside it*). A desk's program ended while two of its processes waited
@@ -421,6 +452,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 114 | `Process.fromAddress` answers the process behind a check, and a fault to an adapted address over an address given back at another type is its target's, with the user | 2026-11-19 | §8.4, Appendix E.21; *The Process Behind a Check*, *The Process Behind a Check, Built* |
 | 132 | A bad message's fault to a foreign process the runtime did not start is sent as a fault in `f` is, an exit signal, and a foreign address gains no check of its own, with the user | 2026-11-19 | §6.5, §8.4, Appendix F; *A Bad Message's Fault to a Foreign Target* |
 | 115 | The wrap of a `monitor` in an adapted address's function, or in a wrap, answers no value, and a lambda refused where a function that receives nothing is expected has the use that makes it receive labeled, with the user | 2026-11-19 | §6.5, §6.9, §11.5; *A `monitor` in an Adapted Address's Function* |
+| 120 | The runner waits for no line of the end's wait, a termination during the flush ends the program without it, and one termination never both begins the end or cuts the wait and ends the flush, with the user | 2026-11-19 | §8.6, §11.2, §12.4; *The Runner Waits for No Line* |
 
 ---
 

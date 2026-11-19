@@ -199,7 +199,8 @@
 %% {reading, Kind}, the entry process, {entry_process, Pid}, the process a
 %% deadlock faults, {deadlock_victim, Pid}, while the end looks for its
 %% subscribers and waits for them, the runner that tells them, {ending,
-%% Runner, Launch}, once the wait is over, {wait_over}, and the utilization
+%% Runner, Launch}, once the wait is over, {wait_over}, each termination's
+%% word the runner took before then, {{taken, Word}}, and the utilization
 %% the program set with `Peer.setUtilization`, {utilization, Utilization}
 %% (Appendix E.27)
 -define(LAUNCH, ern_launch).
@@ -4338,13 +4339,16 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% through a port, which learns when the stream has gone (§12.1). stdin =>
 %% fun(() -> eof | {error, term()} | unicode:chardata()), called for each
 %% read, and keys => the same for the terminal's keys, for tests (fed/1).
-%% say => fun((iodata()) -> any()), which writes the runtime's own line on
-%% standard error, ern_carrier:say/1 for `ern run` and `ern test`, and by
-%% default the line through stderr (say/2, report §11.2). flush => fun(()
-%% -> any()), the shell's, run once the end's wait is over and stdout and
-%% stderr have taken what was sent them, which writes what they passed on
-%% to its screen (passed_on/2, §8.6). Report §12.1: the standard streams
-%% carry bytes for the run, whatever the host's locale.
+%% flush => fun(() -> any()), the shell's, run once the end's wait is over
+%% and stdout and stderr have taken what was sent them, which writes what
+%% they passed on to its screen (passed_on/2, §8.6). Report §12.1: the
+%% standard streams carry bytes for the run, whatever the host's locale.
+%%
+%% The option of the runtime's own lines: say => fun((iodata()) -> any()),
+%% which writes the runtime's own line on standard error and waits for no
+%% stream to take it, since the runner calls it while the end waits
+%% (told/3): ern_carrier:say/1 for `ern run` and `ern test`, and by default
+%% the line through stderr (say/2, report §11.2).
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
     make_tables(),
@@ -4411,6 +4415,11 @@ run_main(EntryPoint, Site, Options) ->
 %% cut short. A subscriber is named by its spawn site, several in the order
 %% their processes were spawned (Appendix E.22), so that a line is the same
 %% from run to run. The outcome the program ends with.
+%%
+%% Report §8.6: the runner waits for no line it says (say/2), so that it
+%% reads each word the wait is sent while a stream is stalled. The line
+%% that names the subscribers to be told is sent before they are, so that
+%% it stands before what they write once told.
 told(Outcome, Launch, Say) ->
     true = ets:insert(?LAUNCH, {ending, erlang:self(), Launch}),
     case untold(subscriptions(), #{}) of
@@ -4466,7 +4475,8 @@ waited(Outcome, Launch, Say, Waiting) ->
         {exit, Launch, Status} ->
             cut_short(Say, Waiting),
             {exit, Status};
-        {signal, Launch, _} ->
+        {signal, Launch, {_, Word}} ->
+            taken(Word),
             cut_short(Say, Waiting),
             Outcome
     end.
@@ -4681,12 +4691,18 @@ passed_on(_System, _Options) ->
 %% Report §8.6: the wait is on standard error's port, which the look cannot
 %% see take the line, and may be a program's process's, an entry process's
 %% as its initializers end among them (ern_cli:say_limits/0).
+%%
+%% Report §8.6, §11.2: the runner's own line, the end's wait's (told/3), is
+%% sent to the process bare, as a fault's line is, and not waited for, so
+%% that the runner reads every word while a stream is stalled. The end's
+%% flush waits for it as for anything the process was sent (end_program/4),
+%% and where the stream has gone the line goes with it.
 -spec say(binary(), fun((binary()) -> term())) -> ok.
 say(Line, Outside) ->
-    case launch_field(#launch.stderr, none) of
-        none ->
-            Outside(Line);
-        Stderr ->
+    case ets_lookup(?LAUNCH, launch) of
+        [#launch{runner = Runner, stderr = Stderr}] when is_pid(Stderr), Runner =:= erlang:self() ->
+            Stderr ! Line;
+        [#launch{stderr = Stderr}] when is_pid(Stderr) ->
             Reply = erlang:monitor(process, Stderr, [{alias, demonitor}]),
             Stderr ! {'Write', Line, {Reply, current()}},
             entered_foreign(),
@@ -4698,7 +4714,9 @@ say(Line, Outside) ->
                     after
                         left_foreign()
                     end,
-            Taken orelse Outside(Line)
+            Taken orelse Outside(Line);
+        _ ->
+            Outside(Line)
     end,
     ok.
 
@@ -4896,7 +4914,8 @@ entry_end(EntryProcess, Launch) ->
             {{refused, Text}, none};
         {gone, Launch, Stream} ->
             {{gone, Stream}, none};
-        {signal, Launch, Signal} ->
+        {signal, Launch, {Signal, Word}} ->
+            taken(Word),
             {{signal, Signal}, none}
     end.
 
@@ -5014,15 +5033,30 @@ entry_process() ->
 %% (end_at_once/0). The word is sent before the table is read, and the
 %% runner reads its mailbox once it has written the row (run_main/3), so
 %% that a termination that comes as the wait ends is taken by one or both.
+%%
+%% The word carries a reference of its own, and the runner marks each word
+%% it takes before the wait is over, the one that began the end or cut the
+%% wait (taken/1), so that one termination never both begins or cuts the
+%% wait and ends the end's flush, whatever the handler and the runner did
+%% between the word and the read.
 -spec signal(sigterm | sighup) -> ok | none.
 signal(Signal) ->
-    case told_runner(signal, Signal) of
+    Word = make_ref(),
+    case told_runner(signal, {Signal, Word}) of
         ok ->
-            _ = is_wait_over() andalso end_at_once(),
+            _ = is_wait_over() andalso not is_taken(Word) andalso end_at_once(),
             ok;
         none ->
             none
     end.
+
+%% Report §8.6: a termination's word the runner took before the end's wait
+%% was over, marked, and whether a word was.
+taken(Word) ->
+    true = ets:insert(?LAUNCH, {{taken, Word}}).
+
+is_taken(Word) ->
+    ets_lookup(?LAUNCH, {taken, Word}) =/= [].
 
 %% Report §8.6: a termination once the end has begun ends the program at
 %% once, with the status of what began the end: the processes that write

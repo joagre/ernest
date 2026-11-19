@@ -87,7 +87,7 @@ The node says `ernest.conf was read again` and a line for each peer added, remov
 
 `ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that asked to be told of the end, its *subscribers*, are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` while it waits, so that what a program keeps is written; then the node tells each connected peer that it ends and waits for each peer's answer, so that the peer says `ended` and not `lost`, and exits; a peer that has fallen silent holds the end until it is lost, 45 to 75 seconds, and about ten seconds more where the node had sent the peer more than its connection took (report §8.7, §12.6).
 
-A second `ern stop` while the first waits is a second termination, which ends the node at once. `kill -TERM` by the number in `ernest.pid` signals without waiting.
+A second `ern stop` while the first waits is a second termination, which ends the node at once. A node that ends still writes out what its standard output and standard error hold, and waits until they have taken it; a termination during that wait ends the node, and what was not written is lost (report §8.6). `kill -TERM` by the number in `ernest.pid` signals without waiting.
 
 Both `ern stop` and `ern reload` fail where no node holds the file, `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory`, or `no such file` where the node's end removed it, so that no signal reaches a process whose number the file names by chance.
 

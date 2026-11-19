@@ -4116,35 +4116,45 @@ second_stop_ends_a_stalled_flush(Base) ->
         closed(Holder)
     end.
 
-%% A node of Base's directory a running held_writer/1, given Ending, its
-%% Stream, out or err, a pipe whose reading end is held open and never
-%% read, its other stream the port's: the directory, the port that started
-%% it, whose writes are its standard input, the program's connection,
-%% which the test has taken, and the holder of the reading end, which
-%% holds it until its input ends. The node is the port's own process, so
-%% that no shell between them writes of a signal's end to the pipe and
-%% waits there. The program is sent the line that has it write. Two steps.
+%% A node of Base's directory a running held_writer/1, given Stream and
+%% Ending (held_run/5), with no subscriber: the directory, the port that
+%% started it, the program's connection and the holder of its stalled
+%% stream's reading end. Two steps.
 stalled(Base, Stream, Ending) ->
     A = made(Base, "a", none),
     Program = held_writer(filename:join(Base, "build")),
+    {Node, Socket, Holder} = held_run(A, [" --config-dir ", A], Program, Stream, Ending),
+    {A, Node, Socket, Holder}.
+
+%% Program run by `ern run` with Options before it, given the port of a
+%% listener of the test's, Stream and Arguments, the program's arguments
+%% after them; its Stream, out or err, the pipe Dir names with `.pipe`
+%% after it, whose reading end is held open and never read, its other
+%% stream the port's: the port that started the run, whose writes are its
+%% standard input, the program's connection, which the test has taken, and
+%% the holder of the reading end, which holds it until its input ends. The
+%% run is the port's own process, so that no shell between them writes of
+%% a signal's end to the pipe and waits there. The program is sent the line
+%% that has it write. One step.
+held_run(Dir, Options, Program, Stream, Arguments) ->
     {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Listener),
-    Pipe = A ++ ".pipe",
+    Pipe = Dir ++ ".pipe",
     [] = os:cmd("mkfifo " ++ Pipe),
     Redirected = case Stream of
                      out -> " 2>&1 > " ++ Pipe;
                      err -> " 2> " ++ Pipe
                  end,
-    Command = lists:flatten(["exec ", ?ERN, " run --config-dir ", A, " ", Program, " ",
-                             integer_to_list(Port), " ", atom_to_list(Stream), " ", Ending,
+    Command = lists:flatten(["exec ", ?ERN, " run", Options, " ", Program, " ",
+                             integer_to_list(Port), " ", atom_to_list(Stream), " ", Arguments,
                              Redirected]),
-    Node = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
+    Run = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
     Holder = open_port({spawn_executable, "/bin/sh"},
                        [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line"]}, exit_status, binary]),
     Socket = accepted(Listener),
     ok = gen_tcp:close(Listener),
-    true = port_command(Node, "go\n"),
-    {A, Node, Socket, Holder}.
+    true = port_command(Run, "go\n"),
+    {Run, Socket, Holder}.
 
 %% Report §8.6: a program whose process of its own holds a connection to
 %% the port of the loopback interface its first argument names until the
@@ -4152,30 +4162,48 @@ stalled(Base, Stream, Ending) ->
 %% stream its second argument names, `out` or `err`; then, where its third
 %% is `return`, it returns, and where it is `wait`, the holder says
 %% `written` on the connection and the program waits for another line.
-%% Built in Root: one step. Answers its compiled form.
+%% Where a fourth, `subscribed`, follows, its end waits for a subscriber
+%% that never answers: once the end tells it, the holder says `told`, and
+%% where the third is `exit` calls Os.exit(7). Built in Root: one step.
+%% Answers its compiled form.
 -spec held_writer(file:filename()) -> file:filename().
 held_writer(Root) ->
     ok = filelib:ensure_path(Root),
     ok = file:write_file(filename:join(Root, "held_writer.ern"), [<<"
 // Report §8.6: a program whose process of its own holds a connection
 // until the program's end, and that writes a megabyte to the stream it is
-// given once a line comes, then returns or waits for another line.
+// given once a line comes, then returns or waits for another line. Where
+// it is asked to, its end waits for a subscriber that never answers; once
+// the end tells it, the holder says so, and calls Os.exit where asked to.
 
-type HoldMsg = Written
+type MainMsg = Subscribed
 
-export fn main() : Unit =
+type HoldMsg = Written | Told
+
+type SubscriberMsg = Terminating(Reply(Unit))
+
+export fn main() : Unit receiving MainMsg =
     match Os.arguments {
-        [port, stream, ending] ->
-            match String.toInt(port) {
-                Some(number) -> writeMegabyte(number, stream, ending)
-              | None -> Io.printlnError(\"not a port: \" <> port)
-            }
-      | _ ->
-            Io.printlnError(\"usage: port out|err return|wait\")
+        [port, stream, ending] -> started(port, stream, ending, false)
+      | [port, stream, ending, \"subscribed\"] -> started(port, stream, ending, true)
+      | _ -> Io.printlnError(\"usage: port out|err return|wait|exit [subscribed]\")
     }
 
-fn writeMegabyte(port : Int, stream : String, ending : String) : Unit = {
-    let holder = spawn(fn() = hold(port));
+fn started(port : String,
+           stream : String,
+           ending : String,
+           subscribed : Bool) : Unit receiving MainMsg =
+    match String.toInt(port) {
+        Some(number) -> writeMegabyte(number, stream, ending, subscribed)
+      | None -> Io.printlnError(\"not a port: \" <> port)
+    }
+
+fn writeMegabyte(port : Int,
+                 stream : String,
+                 ending : String,
+                 subscribed : Bool) : Unit receiving MainMsg = {
+    let holder = spawn(fn() = hold(port, ending));
+    if subscribed then subscribe(holder) else Unit;
     let _ = Io.readLine();
     let megabyte = Bytes.repeat(<<120>>, 1048576);
     match stream {
@@ -4193,22 +4221,244 @@ fn writeMegabyte(port : Int, stream : String, ending : String) : Unit = {
     }
 }
 
-fn hold(port : Int) : Unit receiving HoldMsg =
+fn subscribe(holder : Address(HoldMsg)) : Unit receiving MainMsg = {
+    let me = self();
+    let _ = spawn(fn() = subscriber(holder, me));
+    receive {
+        Subscribed -> Unit
+    }
+}
+
+fn subscriber(holder : Address(HoldMsg), main : Address(MainMsg)) : Unit receiving SubscriberMsg = {
+    Os.termination(Terminating);
+    send(main, Subscribed);
+    receive {
+        Terminating(_) -> {
+            send(holder, Told);
+            unanswered()
+        }
+    }
+}
+
+fn unanswered() : Unit receiving SubscriberMsg =
+    receive {
+        Terminating(_) -> unanswered()
+    }
+
+fn hold(port : Int, ending : String) : Unit receiving HoldMsg =
     match Tcp.connect(\"127.0.0.1\", port, waitMs()) {
-        Right(socket) -> holding(socket)
+        Right(socket) -> holding(socket, ending)
       | Left(error) -> Io.printlnError(\"not connected: \" <> Io.show(error))
     }
 
-fn holding(socket : Address(Tcp.SocketMsg)) : Unit receiving HoldMsg =
+fn holding(socket : Address(Tcp.SocketMsg), ending : String) : Unit receiving HoldMsg =
     receive {
         Written -> {
-            let _ = Tcp.write(socket, String.toUtf8(\"written\\n\"), waitMs());
-            holding(socket)
+            said(socket, \"written\");
+            holding(socket, ending)
+        }
+      | Told -> {
+            said(socket, \"told\");
+            match ending {
+                \"exit\" -> Os.exit(7)
+              | _ -> holding(socket, ending)
+            }
         }
     }
+
+fn said(socket : Address(Tcp.SocketMsg), text : String) : Unit = {
+    let _ = Tcp.write(socket, String.toUtf8(text <> \"\\n\"), waitMs());
+    Unit
+}
 "/utf8>>, wait_ms_declaration()]),
     0 = built([Root]),
     filename:join(Root, "held_writer.erc").
+
+%% report §8.6, §11.2: the runner says each line of the end's wait without
+%% waiting for standard error to take it, so a stream whose reader takes
+%% nothing holds the runner at no line of the wait, and the runner reads
+%% every word. Here
+%% main's return begins the end, whose one subscriber never answers. The
+%% subscriber is told, which it says on the connection, also where standard
+%% error is the stalled stream. A termination cuts the wait, also where
+%% standard output is the stalled stream and standard error, which says
+%% that the wait was cut short, waits behind it.
+%%
+%% The end's flush then lasts, the program's processes ended, which closes
+%% the connection, and a second termination ends the run with the return's
+%% status, 0. A plain run and a node, each stream stalled. That the run
+%% stays in its flush is read at one moment, once the connection has
+%% closed, by a signal 0 that reaches the run's process.
+termination_cuts_a_stalled_wait_test_() ->
+    nodes_test({waits, 17}, fun termination_cuts_a_stalled_wait/1).
+
+termination_cuts_a_stalled_wait(Base) ->
+    Program = held_writer(filename:join(Base, "build")),
+    lists:foreach(fun({Kind, Stream}) ->
+                      waited_run(Base, Kind, Program, Stream, "return",
+                                 fun(Run, Socket) ->
+                                     ?assertEqual({ok, <<"told\n">>}, received(Socket, 5)),
+                                     cut_and_ended(Run, Socket, 0)
+                                 end)
+                  end, stalled_runs()).
+
+%% report §8.6, §11.2: the same where a first termination began the end,
+%% once the program has said on the connection that its write was taken:
+%% the subscriber is told, a second termination cuts the wait, and a third
+%% ends the run with the signal's status, 143.
+second_termination_cuts_a_stalled_wait_test_() ->
+    nodes_test({waits, 21}, fun second_termination_cuts_a_stalled_wait/1).
+
+second_termination_cuts_a_stalled_wait(Base) ->
+    Program = held_writer(filename:join(Base, "build")),
+    lists:foreach(fun({Kind, Stream}) ->
+                      waited_run(Base, Kind, Program, Stream, "wait",
+                                 fun(Run, Socket) ->
+                                     ?assertEqual({ok, <<"written\n">>}, received(Socket, 8)),
+                                     true = run_signaled(Run, "TERM"),
+                                     ?assertEqual({ok, <<"told\n">>}, received(Socket, 5)),
+                                     cut_and_ended(Run, Socket, 143)
+                                 end)
+                  end, stalled_runs()).
+
+%% report §8.6, §11.2, Appendix E.23: an Os.exit while the end waits is
+%% read at once, the stalled stream holding the wait's first line. Main's
+%% return begins the end; once the subscriber is told, the program's process
+%% that holds the connection says so and calls Os.exit(7). The wait is cut,
+%% the end's flush lasts, and a termination ends the run with the exit's
+%% status, which stands.
+exit_cuts_a_stalled_wait_test_() ->
+    nodes_test({waits, 17}, fun exit_cuts_a_stalled_wait/1).
+
+exit_cuts_a_stalled_wait(Base) ->
+    Program = held_writer(filename:join(Base, "build")),
+    lists:foreach(fun({Kind, Stream}) ->
+                      waited_run(Base, Kind, Program, Stream, "exit",
+                                 fun(Run, Socket) ->
+                                     ?assertEqual({ok, <<"told\n">>}, received(Socket, 5)),
+                                     flushed_and_ended(Run, Socket, 7)
+                                 end)
+                  end, stalled_runs()).
+
+%% report §8.6, §11.2: the lines of the end's wait keep their place among
+%% what the subscribers write on standard error where nothing stalls. The
+%% first subscriber, told, writes a line and makes a late subscriber, which
+%% is told, writes a line and answers, and then the first answers. Which of
+%% the two answers is said first is a matter of scheduling, which the test
+%% does not fix, and it runs three times of each kind. A regression test,
+%% written after the code that keeps the order: it does not cover standard
+%% output, a run under `ern test` or the shell, nor a stream that stalls.
+wait_lines_in_order_test_() ->
+    nodes_test({waits, 7}, fun wait_lines_in_order/1).
+
+wait_lines_in_order(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "told_in_order.ern"), <<"
+// Report §8.6, §11.2: a program whose end tells a subscriber that writes a
+// line on standard error and makes a late subscriber, which writes a line
+// too and answers; then the first answers.
+
+type Msg = Terminating(Reply(Unit)) | Ready | Answered
+
+export fn main() : Unit receiving Msg = {
+    let me = self();
+    let _ = spawn(fn() : Unit receiving Msg = early(me));
+    receive {
+        Ready -> Unit
+    }
+}
+
+fn early(main : Address(Msg)) : Unit receiving Msg = {
+    Os.termination(Terminating);
+    send(main, Ready);
+    receive {
+        Terminating(reply) -> {
+            Io.printlnError(\"early told\");
+            let me = self();
+            let _ = spawn(fn() : Unit receiving Msg = late(me));
+            receive {
+                Answered -> answer(reply, Unit)
+            }
+        }
+    }
+}
+
+fn late(earlier : Address(Msg)) : Unit receiving Msg = {
+    Os.termination(Terminating);
+    receive {
+        Terminating(reply) -> {
+            Io.printlnError(\"late told\");
+            answer(reply, Unit);
+            send(earlier, Answered)
+        }
+    }
+}
+"/utf8>>),
+    0 = built([Root]),
+    Program = filename:join(Root, "told_in_order.erc"),
+    A = made(Base, "a", none),
+    lists:foreach(fun(Options) ->
+                      {0, Said} = finished([?ERN, " run", Options, " ", Program, " 2>&1"]),
+                      [Waits, EarlyTold, Too, LateTold | Answers] =
+                          string:split(string:trim(unstamped(Said), trailing), "\n", all),
+                      ?assertEqual({"the end waits for 1 subscriber: ToldInOrder.main:10",
+                                    "early told",
+                                    "the end waits for ToldInOrder.early:23 too",
+                                    "late told"},
+                                   {Waits, EarlyTold, Too, LateTold}),
+                      ?assertEqual(["the subscriber ToldInOrder.early:23 answered",
+                                    "the subscriber ToldInOrder.main:10 answered"],
+                                   lists:sort(Answers))
+                  end, lists:append(lists:duplicate(3, ["", [" --config-dir ", A]]))).
+
+%% A plain run and a node, each with standard error stalled and then
+%% standard output.
+stalled_runs() ->
+    [{Kind, Stream} || Kind <- [plain, node], Stream <- [err, out]].
+
+%% Check run on a run of held_writer/1, Program, given Stream and Ending
+%% (held_run/5), whose end waits for its subscriber, plain or a node as
+%% Kind says, from a directory of its own under Base, given the run's port
+%% and the program's connection; the holder of the stalled stream and the
+%% run closed after, however Check ended. One step beside Check's.
+waited_run(Base, Kind, Program, Stream, Ending, Check) ->
+    Dir = filename:join(Base, atom_to_list(Kind) ++ "_" ++ atom_to_list(Stream)),
+    Options = case Kind of
+                  plain -> "";
+                  node -> [" --config-dir ", made(Base, filename:basename(Dir), none)]
+              end,
+    {Run, Socket, Holder} = held_run(Dir, Options, Program, Stream, Ending ++ " subscribed"),
+    try
+        Check(Run, Socket)
+    after
+        closed(Holder),
+        closed(Run)
+    end.
+
+%% Report §8.6: a termination cuts the end's wait, and the run is ended from
+%% its flush (flushed_and_ended/3). Two steps.
+cut_and_ended(Run, Socket, Status) ->
+    true = run_signaled(Run, "TERM"),
+    flushed_and_ended(Run, Socket, Status).
+
+%% Report §8.6: the end's wait is over, the program's processes ended,
+%% which closes the program's connection, and the run is still there in the
+%% end's flush, whose stream takes nothing; a termination ends it, with
+%% Status. Two steps.
+flushed_and_ended(Run, Socket, Status) ->
+    ?assertEqual({error, closed}, received(Socket, 0)),
+    ?assert(run_signaled(Run, "0")),
+    true = run_signaled(Run, "TERM"),
+    ?assertMatch({Status, _}, collected(Run, 1)).
+
+%% Whether the signal Name was sent to the run its port started, which is
+%% the port's own process; none is sent to a run whose port has ended.
+run_signaled(Run, Name) ->
+    case erlang:port_info(Run, os_pid) of
+        {os_pid, Number} -> os:cmd("kill -" ++ Name ++ " " ++ integer_to_list(Number)) =:= "";
+        undefined -> false
+    end.
 
 %% report §12.5: on a Linux without pidfd_open, one before 5.3, a node
 %% refuses to start, making no file, naming the system and its release as
