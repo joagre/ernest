@@ -34,7 +34,7 @@ let claimsShown : Int = 4
 let homeDescription : String = "Start a process on another node, and its code goes with it."
 
 let shellDescription : String =
-    "An Ernest shell of your own, in this page, with a second node, foo, beside it."
+    "This page runs an Ernest shell of your own and a second node named foo beside it."
 
 // The 404 page's fixed body (site.md *The generation*).
 let notFoundText : String =
