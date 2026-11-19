@@ -45,6 +45,8 @@ the flake hunt, stands apart from the two.
 
 Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to 10, 23 and
 43, is MVP 4.17's, each under the number it had here (the log's *The Milestone Split*).
+Items 10 and 23 went on to MVP 4.4's item 4 on 2026-11-19 (the log's *The Plan Read for
+Build Order*).
 
 ### What is left
 
@@ -402,7 +404,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 
 ---
 
-## MVP 4.17 (the shell's editing, what a job trusts, and the rest of packages: archives, the guide and the other repositories), about a week
+## MVP 4.17 (the shell's editing, what a job trusts, and the rest of packages: archives and the guide), about a week
 
 Split from MVP 4.16 with the user on 2026-11-14 (the log's *The Milestone Split*), so that MVP
 4.16 ends with its small items, and the discussion of §11.9 opens a milestone, where it can
@@ -411,6 +413,10 @@ them by number. It follows MVP 4.16, and comes before MVP 4.6, as its items
 did. Item 43 added items 47 to 49 and cut what item 8 builds. Item 119, the shell's editing,
 was placed first in it with the user on 2026-11-18 (the log's *The Homepage and the Shell's
 Editing Planned*).
+
+Items 10 and 23, the other repositories and the packages proposal's sweep, moved to MVP 4.4's
+item 4 on 2026-11-19, since the manifests' write is the floors' rise (the log's *The Plan
+Read for Build Order*). So the milestone ends with item 9.
 
 ### What is left
 
@@ -508,6 +514,11 @@ changes the report first (the log's *A Package and Its Manifest*).
     and an archive that holds anything else is refused. A name given twice is no fault, and
     the last stands. A file is made by the mask, and of a member's mode only whether its
     owner may run it is read. A test over hostile archives holds the rules.
+  - **A package's `priv`**, moved here from item 10 on 2026-11-19 (the log's *The Plan Read
+    for Build Order*). A fixture package with an `ebin` and a `priv` is unpacked by `ern
+    unpack`, and a program over it takes the `priv` through `code:priv_dir`, as §11.9's
+    paragraph on the load path says. So the sentence's test needs no other repository, and
+    the full review reads it.
   - **What is not tested.** An empty or a `.` segment, the kind of the directory's own
     member and a control character in a name. A broken archive fails with the host's
     reason.
@@ -528,35 +539,12 @@ changes the report first (the log's *A Package and Its Manifest*).
   add` again. Both texts use the report's verbs, which get their line in the glossary.
   Whether a test holds the phrase out of the user-facing texts is decided as the item
   opens.
-- **10. The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
-  manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
-  host part as the proposal's question 5 says.
 
-  - **Who writes what**, decided with the user 2026-11-11. This session writes the
-    packages' part in the three, their sessions closed, as a change across the repositories
-    in their shape alone (`docs/clean_room.md`): each manifest, the template's Makefile and
-    `TEMPLATE.md`, and ernest-epx's moved files and Makefile. ernest-epx's release stays its
-    own session's. So do ernest-httpd's four matches on a bare `Process.Calling`, which
-    take `Process.Calling()` then, since item 3 gave it fields (E.21).
-  - **An installed program**, decided with the user 2026-11-13 (the log's *An Installed
-    Program's Packages*). The launcher gives `--package-dir` with its root and loses its
-    loop, and `make install` copies `package.conf`. A program's own Erlang is named from a
-    directory of its own, `erl` in a checkout, so that `lib` holds the named packages alone.
-    The item's tests take a `priv` found through `code:priv_dir`.
-  - **The template's archive**, found 2026-11-14, reading ernest-epx's release step. It
-    holds a library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link copied
-    through, where §11.9 has a package's Erlang under its own `ebin` with its `priv` beside
-    it. The item moves it there, and holds the archive it makes to `ern unpack`'s rules on
-    an archive's members.
-  - **The site**, decided with the user 2026-11-17 (the log's *Packages and No Manager*).
-    Once ernest-epx's release is an archive that `ern unpack` takes, `site/projects.md`
-    says in one sentence how a project is taken, an entry in `package.conf` and `ern
-    unpack`.
-
-The proposal's sweep is last.
-
-- **23. The packages proposal's reading and sweep**, once item 10 is done and before MVP 4.4's
-  release, as *A Built Proposal's Sweep Is an Item* places one.
+  The item writes the site's sentence too, decided with the user 2026-11-17 and moved here
+  from item 10 on 2026-11-19 (the log's *Packages and No Manager*, *The Plan Read for Build
+  Order*). `site/projects.md` says in one sentence how a project is taken, an entry in
+  `package.conf` and `ern unpack`. It is written before the tag, since the site is built
+  from the tag and goes live after the three other releases, and MVP 4.4's item 6 holds it.
 
 ### What is done
 
@@ -650,6 +638,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    caller's stack, 0.4 microseconds on a shallow stack and 110 at 100,000 frames, the trace's
    capture (found 2026-11-01; the log's *The Four Libraries*): read in erts and taken to
    `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
+
+   It is taken before item 2, whole, decided with the user 2026-11-19 (the log's *The Plan
+   Read for Build Order*). Its reading says what a raise does with the stack beneath it,
+   which item 2's one candidate and item 123 rest on. Its verdict may change the depth,
+   which E.28 and §10 state, or add the bench a row for a raise beneath a deep stack, and
+   item 2 then reads the bench once.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
@@ -717,6 +711,38 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      `src/toolchain/checker/test/` or in `test/ern_typed_programs_tests.erl`, or none. A
      case with no test gets one. It comes earlier where a checker item comes before the
      review.
+   - **The other repositories take their manifests**, MVP 4.17's item 10, moved here on
+     2026-11-19 (the log's *The Plan Read for Build Order*). The write is the floors' rise:
+     a manifest's `ernest` line takes the place of the Makefile's `ERN_VERSION`, and no
+     release before the launch's reads a manifest. ernest-template is first, with its
+     Makefile cut, and ernest-epx's release carries its host part as the proposal's
+     question 5 says.
+
+     Ernest's session writes it against the archive of the commit the readers are to read,
+     and runs `make` in each. A defect of Ernest's that the three show is mended and the
+     archive made again, before the commit is named and the readers start. What fails for
+     the application's own code goes to its session in the message.
+
+     - **Who writes what**, decided with the user 2026-11-11. This session writes the
+       packages' part in the three, their sessions closed, as a change across the
+       repositories in their shape alone (`docs/clean_room.md`): each manifest, the
+       template's Makefile and `TEMPLATE.md`, and ernest-epx's moved files and Makefile.
+       ernest-epx's release stays its own session's. So do ernest-httpd's four matches on a
+       bare `Process.Calling`, which take `Process.Calling()` then, since MVP 4.16's item 3
+       gave it fields (E.21).
+     - **An installed program**, decided with the user 2026-11-13 (the log's *An Installed
+       Program's Packages*). The launcher gives `--package-dir` with its root and loses its
+       loop, and `make install` copies `package.conf`. A program's own Erlang is named from
+       a directory of its own, `erl` in a checkout, so that `lib` holds the named packages
+       alone. The test of a `priv` found through `code:priv_dir` is MVP 4.17's item 8's.
+     - **The template's archive**, found 2026-11-14, reading ernest-epx's release step. It
+       holds a library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link
+       copied through, where §11.9 has a package's Erlang under its own `ebin` with its
+       `priv` beside it. The item moves it there, and holds the archive it makes to `ern
+       unpack`'s rules on an archive's members.
+   - **The packages proposal's reading and sweep**, MVP 4.17's item 23, moved here with
+     item 10. It follows the manifests' write, which is the last that reads the proposal,
+     and comes before the release, as *A Built Proposal's Sweep Is an Item* places one.
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop,
@@ -725,10 +751,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    their feedback files and is sorted in this round (the log's *The Applications' Full
    Review*, *Ernest Stays at 0.x*).
 
-   As they begin, the three floors rise to the launch's minor, each by its own session, since
-   a development build of the floor is what an archive before the release is (the log's *The
-   Floors and the Releases*). Ernest's session names the minor, the archive's path and its
-   commit to all three by a message, and asks for the reviews, on the user's word.
+   As they begin, the three floors rise to the launch's minor, since a development build of
+   the floor is what an archive before the release is (the log's *The Floors and the
+   Releases*). The rise is the manifests' write above. Ernest's session then names the minor,
+   the archive's path and its commit to all three by a message, and asks for the reviews, on
+   the user's word. Each application's own session opens on the new floor, changes what its
+   code needs there and begins its review.
 
    The three floors stand on 0.10 since 2026-11-10, and rise together from there (the log's
    *The Release Review Before 0.10.0*, its last paragraph).
@@ -781,6 +809,10 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 6. **The site live at ernest-lang.org**, last, so that each project it lists builds on the release
    it names (the log's *The Site Goes Live With 1.0*, *Ernest Stays at 0.x*): `make site` from
    that tag, the copy of `build/site/` to the host, and the smoke test against the live site.
+
+   Before the copy, ernest-epx's published archive is taken as `site/projects.md` says, by an
+   entry in a `package.conf` and `ern unpack`, since MVP 4.17's item 9 wrote the sentence
+   before that release. Where it fails, the site waits for the archive.
 
    Before it, the generator writes `/robots.txt` and `/sitemap.xml`, the second naming
    ernest-lang.org alone, which the site's proposal decided and MVP 4.2 did not build (the log's
@@ -988,7 +1020,7 @@ What the line left, in the order it is taken:
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found | | | above |
-| MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
+| MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide | | | above |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16 and a decision on a wait for a telling | | | above |
