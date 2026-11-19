@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 99**, two tests of a request's head that arrives in
-pieces.
+**The next item is MVP 4.16's item 112**, a check across two nodes shown on two nodes
+first.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -59,14 +59,6 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
-
-- **99. No test holds a request's head that arrives in pieces**, found 2026-11-17 by
-  ernest-httpd's reading of its own tests against the reviews from outside (the log's *The
-  Server's Answers*, its paragraph *A head in pieces*). Appendix G.11 says that
-  `readRequest`'s time bounds the whole head and not each read. `Http.readRequest` is called
-  only by `examples/web_server.ern`, whose test sends each request whole, and by a
-  benchmark. An agent writes two tests: a head written in pieces, which is served, and a
-  head that trickles past its time, which answers the timeout.
 
 - **112. A check across two nodes: a loss ends it, and its fault can pass a message**, found
   2026-11-18 by the cold reading of item 111's sentences (the log's *A Checker Acts for the
@@ -357,6 +349,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
 | 97 | What else waits where a `send` to a peer waits, and a gateway that waits on no peer | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
 | 98 | A node whose program has ended ends while a lost peer's socket holds output; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
+| 99 | Two tests of a request's head over a socket: one that comes in pieces is read, and one that trickles past its time answers the timeout | 2026-11-19 | Appendix G.11; *A Head in Pieces, Tested* |
 | 102 | A node's lock on `ernest.pid` held until its process has ended, with the user | 2026-11-18 | §11.2, §12.5; *A Lock Held to the Process's End*, *A New OTP and Nothing Else New* |
 | 104 | The runtime's processes that serve the whole node wait on no peer, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
 | 105 | A message for a peer is placed in the host's buffer in parts, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |

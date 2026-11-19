@@ -4,9 +4,21 @@
 %% host reads a line past the form RFC 9112 writes. Written with the
 %% code; libs/http's own cases read the same heads
 %% through the module's Ernest.
+%%
+%% And a request's head read from a loopback socket as it comes in pieces,
+%% by the library's unit called from Erlang, which libs/http's own cases
+%% cannot pace.
 -module(ern_http_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+
+%% eunit's time for one test, which no test here outlasts: the
+%% milliseconds a socket's step is given where its time is not what the
+%% test holds.
+-define(MS, 5000).
+
+%% Http.defaultLimits.
+-define(LIMITS, {'Limits', 8192, 65536}).
 
 %% report Appendix G.11: a first line, a request line or a status line,
 %% with its version, a status line's status and the bytes after it, the
@@ -91,3 +103,137 @@ delete_test() ->
                  ern_http:read_field(<<"X", 127, "Y: a\r\n\r\n">>, 0)),
     ?assertMatch({'Field', <<"X">>, <<"a", 127>>, _},
                  ern_http:read_field(<<"X: a", 127, "\r\n\r\n">>, 0)).
+
+%% report Appendix G.11: a regression test, written after the code: a
+%% request's head that comes in pieces, cut inside the request line, inside
+%% a header's name, between a line's carriage return and its line feed and
+%% before the empty line, with bytes after the head in the last piece, is
+%% read whole, and those bytes are answered after it. Each piece is written
+%% once the reader has taken the one before, so no read takes two. It does
+%% not cover a response's head through `readResponse`, a body's pieces, a
+%% piece that a limit passes inside, nor `carried`.
+head_in_pieces_test() ->
+    Pieces = [<<"GET /pie">>, <<"ces HTTP/1.1\r\nHo">>, <<"st: example.com\r">>,
+              <<"\nAccept: */*\r\n">>, <<"\r\nnext">>],
+    Writer = spawn(fun() -> written_one_by_one(Pieces) end),
+    Request = {'Request', <<"GET">>, <<"/pieces">>, {'Version', 1, 1},
+               [{'Header', <<"Host">>, <<"example.com">>}, {'Header', <<"Accept">>, <<"*/*">>}]},
+    ?assertEqual({ok, {'Right', {Request, <<"next">>}}}, read_request(Writer, ?MS)).
+
+%% report Appendix G.11: a regression test, written after the code: `ms`
+%% bounds the whole head and not each read, so a head that comes a piece at
+%% a time, each well within `ms` of the one before, answers
+%% `Socket(Timeout)` once `ms` has passed. It does not cover a response's
+%% head through `readResponse`, a body's time, nor a client that sends
+%% nothing at all.
+%%
+%% The head ends only after so many pieces that their gaps add up to
+%% eunit's time for one test, and the test is given that time again for the
+%% rest: a reader that bounded each read would answer the head, not hang.
+head_trickled_past_its_time_test_() ->
+    {timeout, 2 * ?MS div 1000, fun head_trickled_past_its_time/0}.
+
+head_trickled_past_its_time() ->
+    Ms = 200,
+    %% A trickle is a pace, so the gap is a time by its meaning: half of
+    %% Ms, so that each read waits well inside Ms while the head's time
+    %% passes it. Timers fire late, never early, and the writer begins once
+    %% the reader says its read begins, so the head ends within Ms only
+    %% where the reader or its socket stalls before its clock starts for
+    %% longer than eunit's time for one test.
+    Gap = Ms div 2,
+    Writer = spawn(fun() -> trickled(Gap, ?MS div Gap) end),
+    ?assertEqual({ok, {'Left', {'Socket', 'Timeout'}}}, read_request(Writer, Ms)).
+
+%% The outcome of a program that reads one request's head given Ms, from a
+%% connection Writer makes, and what readRequest answered. Writer is told
+%% the port and the reader, then that the read begins, and once the
+%% program has ended that the reader has answered; the test waits for its
+%% end.
+read_request(Writer, Ms) ->
+    Self = self(),
+    ReadRequest = (http())(readRequest),
+    Tcp = ern_named:functions('ern@tcp'),
+    Result = ern_rt:run_main(
+               fun() ->
+                   {'Right', Listener} = Tcp(listen)(<<"127.0.0.1">>, 0),
+                   {'Right', Port} = Tcp(port)(Listener),
+                   Writer ! {port, Port, self()},
+                   {'Right', Server} = Tcp(accept)(Listener, ?MS),
+                   Writer ! reading,
+                   Self ! {read, ReadRequest(Server, <<>>, ?LIMITS, Ms)}
+               end, <<"read_request">>, #{}),
+    MonitorRef = erlang:monitor(process, Writer),
+    Writer ! answered,
+    receive {'DOWN', MonitorRef, process, Writer, _} -> ok end,
+    {Result, receive {read, Answer} -> Answer after 0 -> none end}.
+
+%% Http's functions by their Ernest names, its unit loaded once from its
+%% .erc under the library's build, as a program's load path gives it: it is
+%% no unit of the toolchain's own, which ern_named finds alone
+%% (ern_code:own_file/1).
+http() ->
+    case erlang:module_loaded('ern@http') of
+        true ->
+            ok;
+        false ->
+            Erc = filename:join(ern_tree:build("libs/http"), "http.erc"),
+            {ok, Bytes} = file:read_file(Erc),
+            {module, 'ern@http'} = code:load_binary('ern@http', Erc, Bytes)
+    end,
+    ern_named:functions('ern@http').
+
+%% A writer's connection to the port it is told, and the reader it is
+%% told of, once the read begins.
+connected() ->
+    {Port, Reader} = receive {port, Told, Process} -> {Told, Process} end,
+    {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, Port,
+                                   [binary, {active, false}, {nodelay, true}]),
+    receive reading -> ok end,
+    {Socket, Reader}.
+
+%% The pieces written one at a time, each once the reader has taken the one
+%% before, which the host shows as the socket's answer to its read put in
+%% the reader's mailbox, a call's reply answered `Right`. The reader is sent
+%% other messages as it reads, a code server's reply and a timeout among
+%% them, which are passed by. A piece the host split in two would let the
+%% next reach a read with the second half, which holds less and fails
+%% nothing.
+written_one_by_one(Pieces) ->
+    {Socket, Reader} = connected(),
+    MonitorRef = erlang:monitor(process, Reader),
+    try erlang:trace(Reader, true, ['receive']) of
+        _ -> taken_one_by_one(Socket, Reader, MonitorRef, Pieces)
+    catch
+        error:badarg -> ended
+    end,
+    receive answered -> gen_tcp:close(Socket) end.
+
+taken_one_by_one(_, _, _, []) ->
+    ok;
+taken_one_by_one(Socket, Reader, MonitorRef, [Piece | Pieces]) ->
+    _ = gen_tcp:send(Socket, Piece),
+    receive
+        {trace, Reader, 'receive', {_, answered, {'Right', _}}} ->
+            taken_one_by_one(Socket, Reader, MonitorRef, Pieces);
+        {'DOWN', MonitorRef, process, Reader, _} -> ended
+    end.
+
+%% A request line, then a header line each Gap until the reader has
+%% answered, and the head's empty line after Count of them. A write after
+%% the reader's end may find the socket closed, which ends nothing.
+trickled(Gap, Count) ->
+    {Socket, _} = connected(),
+    _ = gen_tcp:send(Socket, <<"GET / HTTP/1.1\r\n">>),
+    trickling(Socket, Gap, Count).
+
+trickling(Socket, _, 0) ->
+    _ = gen_tcp:send(Socket, <<"\r\n">>),
+    receive answered -> gen_tcp:close(Socket) end;
+trickling(Socket, Gap, Count) ->
+    receive
+        answered -> gen_tcp:close(Socket)
+    after Gap ->
+        _ = gen_tcp:send(Socket, <<"X: a\r\n">>),
+        trickling(Socket, Gap, Count - 1)
+    end.
