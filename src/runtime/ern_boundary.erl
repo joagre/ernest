@@ -6,8 +6,8 @@
 %% a message sent to a foreign address, or an answer given to a Reply
 %% foreign code gave, is exposed: every Ernest address in it is replaced by
 %% a checker that checks each message the foreign side sends against the
-%% address's mailbox type on delivery and forwards it, or ends the target
-%% with the fault. The checker is a process of the runtime's own that acts
+%% address's mailbox type on delivery and forwards it, or faults the
+%% target. The checker is a process of the runtime's own that acts
 %% for the target, as a process kept for an adapted address does
 %% (ern_rt:checker_for/3), and stands through a loss of the target's node
 %% (checker_loop/5).
@@ -427,12 +427,12 @@ expose(_, Value, _) -> Value.
 %% and there is one for each distinct address that has crossed": one
 %% checker per address and mailbox type however often the address is
 %% exposed (ern_rt:checker_for/3), which watches the process behind the
-%% address by the host's monitor. A message that does not match ends that
-%% process with the fault, as its own receive would have. A message that
-%% matches is sent on as a send of this node's sends it: an adapted address
-%% made on this node has its function applied here, as on arrival (§6.5),
-%% the checker acting for the target, and one made on another node is
-%% carried to that node.
+%% address by the host's monitor. A message that does not match is that
+%% process's fault, sent as a fault in an adapted address's function is
+%% (ern_rt:faulted/3). A message that matches is sent on as a send of this
+%% node's sends it: an adapted address made on this node has its function
+%% applied here, as on arrival (§6.5), the checker acting for the target,
+%% and one made on another node is carried to that node.
 checker(Behind, MessageDescriptor, Bound, Cause) ->
     ern_rt:checker_for({Behind, MessageDescriptor, Bound}, Behind,
                        fun(Target) ->
@@ -476,8 +476,16 @@ checker_loop(Behind, Heard, Descriptor, Bound, Cause) ->
                 %% receiver faults at the wait that reaches it, as at a
                 %% fault of its own, which `restarting` restarts (§6.9),
                 %% its trace the receiver's stack there (§7.3)
+                %%
+                %% Report §8.4, §6.5: a receiver that is a foreign process
+                %% the runtime did not start takes it as a fault in an
+                %% adapted address's function (ern_rt:faulted/3). It is met
+                %% at no wait, and this is the runtime's own code, whose
+                %% frames a trace leaves out (Appendix E.21), so the trace
+                %% of its end is empty.
                 error ->
-                    ern_rt:process_of(Behind) ! {'$ern_fault', {ern, fault, Cause}}
+                    ern_rt:faulted(ern_rt:process_of(Behind), {ern, fault, Cause},
+                                   {ern, fault, Cause, <<>>})
             end,
             checker_loop(Behind, Heard, Descriptor, Bound, Cause)
     end.

@@ -17,7 +17,7 @@ A line is `fix`, made in the round; `decide`, with the user; or `dropped`, with 
 - P7 — MVP 4.4's item 5 asks for an empty feedback file at the release, and entries 260, 261, 264 and 265 stand in MVP 4.5. decided with the user: item 5 lets an entry stand that an item of MVP 4.5 holds. done 2026-11-19.
 - P8 — item 52 writes §11.2's lines on a history file that item 54's second line names again. decided with the user: item 54's second line is decided with item 52's table. done 2026-11-19.
 - P9 — MVP 4.6 has no item that sweeps `proposals/homepage/` and `proposals/ernest_httpd/` before the launch's release. decided with the user: MVP 4.6's item 5. done 2026-11-19.
-- P10 — items 134 and 135, which item 132 adds, join sets held in three places: MVP 4.4's item 4's list of MVP 4.5's items, MVP 4.5's sentence on its order, and the list under it. decide: item 132's commit changes each.
+- P10 — items 134 and 135, which item 132 adds, join sets held in three places: MVP 4.4's item 4's list of MVP 4.5's items, MVP 4.5's sentence on its order, and the list under it. decided with the user: item 134 joins MVP 4.4's item 4's list, MVP 4.5's sentence on its order and its list, and item 135 stands last of what was found. done 2026-11-19.
 - P11 — item 119 closes without `make test-browser`, and its last step changes the homepage's opening, whose first screen that test holds. decided with the user: item 119's last step closes on that target. done 2026-11-19.
 
 ## The reader's list

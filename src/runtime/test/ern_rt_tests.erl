@@ -3986,8 +3986,9 @@ cancel_after_the_clock_is_set() ->
 
 %% report §6.5: a fault in an adapted address's function is the target's,
 %% and a target the runtime did not start, a foreign process, which has no
-%% wait of Ernest's, is ended by it as an exit signal, while a process the
-%% runtime started takes it at its next wait. A regression test, written
+%% wait of Ernest's, is sent it as an exit signal, which ends one that does
+%% not trap exits, while a process the runtime started takes it at its next
+%% wait. A regression test, written
 %% after the code: every target was sent the fault as a message, which a
 %% foreign process ignored and lived on; it does not cover a foreign target
 %% on another node, which takes the message
@@ -4007,6 +4008,104 @@ fault_ends_a_foreign_target_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end}),
     ?assertMatch({{ern, fault, <<"division by zero">>, _}, {'Fault', <<"division by zero">>}},
                  wait(ended)).
+
+%% report §8.4, §6.5, §12.2: a bad message foreign code sends to an adapted
+%% address over a foreign process of this node, which the runtime did not
+%% start and which has no wait of Ernest's, is that process's fault, sent
+%% to it as a fault in the address's function is, as the host's exit signal
+%% of a fault's end, which ends a process that does not trap exits. The
+%% fault is met at no wait, and the check that sends it is the runtime's
+%% own code, so its trace is empty (Appendix E.21)
+bad_message_ends_a_foreign_target_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Foreign = erlang:spawn(fun() -> forwarding(Main) end),
+               MonitorRef = erlang:monitor(process, Foreign),
+               adapted_over_foreign(Foreign) ! <<"no Int">>,
+               Self ! {met, ended_or_took(MonitorRef, Foreign)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({ended, {ern, fault, <<"message does not match Int">>, <<>>}}, wait(met)).
+
+%% report §8.4, §6.5, §12.2: such a target that traps exits takes the exit
+%% signal as the host's message of one, from the check foreign code sent
+%% to, and takes no message of a fault in its place; it lives on, and what
+%% foreign code sends there next reaches it
+bad_message_to_a_trapping_foreign_target_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Foreign = erlang:spawn(fun() ->
+                                          erlang:process_flag(trap_exit, true),
+                                          Main ! trapping,
+                                          forwarding(Main)
+                                      end),
+               receive trapping -> ok end,
+               Checker = adapted_over_foreign(Foreign),
+               Checker ! <<"no Int">>,
+               Checker ! 5,
+               %% the check sends both on in the order it took them, and
+               %% the host keeps that order between two processes
+               First = receive {took, Taken} -> Taken end,
+               Second = receive {took, Next} -> Next end,
+               Alive = erlang:is_process_alive(Foreign),
+               exit(Foreign, kill),
+               Self ! {met, {Checker, First, Second, Alive}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({Checker,
+                  {'EXIT', Checker, {ern, fault, <<"message does not match Int">>, <<>>}},
+                  <<"5">>, true},
+                 wait(met)).
+
+%% report §8.4, §6.5, §12.2: a check stands in front of a foreign process
+%% with no adapted address where foreign code calls an Ernest function in
+%% a process of its own and the function gives `self()` to foreign code; a
+%% bad message foreign code sends there is that process's fault, sent to it
+%% as the host's exit signal of a fault's end, its trace empty
+bad_message_ends_a_foreign_caller_test() ->
+    Self = self(),
+    Cause = <<"message does not match Int">>,
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = erlang:self(),
+               Foreign = erlang:spawn(
+                           fun() ->
+                               Main ! {checker, ern_boundary:expose({address, int, Cause},
+                                                                    ern_rt:self())},
+                               forwarding(Main)
+                           end),
+               MonitorRef = erlang:monitor(process, Foreign),
+               receive {checker, Checker} -> Checker ! <<"no Int">> end,
+               Self ! {met, ended_or_took(MonitorRef, Foreign)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({ended, {ern, fault, Cause, <<>>}}, wait(met)).
+
+%% Target's address as foreign code gave it, at String, adapted to Int and
+%% given to foreign code at Int: the check foreign code sends to (report
+%% §8.4, §6.5).
+adapted_over_foreign(Target) ->
+    Held = ern_boundary:value({address, string, <<"message does not match String">>}, Target,
+                              <<"bad return">>),
+    ern_boundary:expose({address, int, <<"message does not match Int">>},
+                        ern_rt:adapted(Held, fun(Int) -> integer_to_binary(Int) end)).
+
+%% A foreign process, which the runtime did not start, that hands each
+%% message it takes to To.
+forwarding(To) ->
+    receive Message -> To ! {took, Message} end,
+    forwarding(To).
+
+%% The end of Foreign, watched by MonitorRef, or the first message it took,
+%% whichever comes first; Foreign is ended after either.
+ended_or_took(MonitorRef, Foreign) ->
+    Met = receive
+              {'DOWN', MonitorRef, process, Foreign, ExitReason} -> {ended, ExitReason};
+              {took, Taken} -> {took, Taken}
+          end,
+    exit(Foreign, kill),
+    Met.
 
 %% report §6.6, §6.9: a caller the host ends while it waits in a call,
 %% killed by foreign code, runs no `after` and keeps its CALL key no

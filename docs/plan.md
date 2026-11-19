@@ -21,8 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 132**, a bad message's fault to a foreign target, on the
-user's word of 2026-11-19.
+**The next item is MVP 4.16's item 115**, a `monitor` in an adapted address's function.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -59,18 +58,6 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
-
-- **132. A bad message's fault to a foreign target**, found 2026-11-19 by the cold reading
-  of item 112's sentences (the log's *A Check Stands Through a Loss*), read from the code
-  and not shown. Foreign code sends a bad message to an adapted address over a foreign
-  address. The check sends its fault to the foreign process as a plain message, where §6.5
-  ends such a target with an exit signal at a fault in `f`. §8.4 speaks of a receiving
-  Ernest process alone.
-
-  By the line's test it would stand in MVP 4.5, since the report is silent there and no
-  program has shown it. Decided with the user: it is taken before the other items found.
-  An agent shows it first. The fix's shape: the check sends its fault as
-  a fault in `f` is sent, and §8.4 gains the receiver the runtime did not start.
 
 - **115. A `monitor` in an adapted address's function, and a help that leads to a second
   refusal**, found 2026-11-18 by item 111's build (the log's *A Checker Acts for the
@@ -175,6 +162,17 @@ Launch*).
   with item 114, would be shown false. An agent shows both on two nodes first. The fix's
   shape for the first: the held address carries the process behind it. The second is
   decided with the user after the showing, by the line's test.
+- **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
+  item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
+  the reader's probe and the session's run. A listener is started by the runtime and has
+  no wait of Ernest's. After a fault in `f` and after a bad message through its check,
+  each fault stood unread in its mailbox, the listener answered its port, and the run
+  ended with status 0. By a reading a socket does the same.
+
+  §6.5 and §8.4 have the receiver fault at the wait that reaches it, and a program with
+  no foreign code shows that false, so by the line's test the item stands here. To
+  decide with the user at its turn: whether the resource ends at the fault, or the fault
+  is dropped and a sentence says so. The narrower sentence is weighed first.
 
 **What is decided and waits for its build** stands between the two. Item 93 and item 95's
 first line are taken after item 101, decided with the user on 2026-11-19: each is a
@@ -400,6 +398,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 130 | `Http.header` and `Http.headers` compare a name in ASCII case, left to the session by the user | 2026-11-19 | Appendix G.11; *A Header's Name in ASCII Case* |
 | 131 | `Http.elements`, a list header's elements, a quoted string keeping its comma and nothing else, and a body's framing refuses a `Transfer-Encoding` whose quoted string does not end, feedback 267, with the user | 2026-11-19 | Appendix G.11; *A List Header's Elements* |
 | 114 | `Process.fromAddress` answers the process behind a check, and a fault to an adapted address over an address given back at another type is its target's, with the user | 2026-11-19 | §8.4, Appendix E.21; *The Process Behind a Check*, *The Process Behind a Check, Built* |
+| 132 | A bad message's fault to a foreign process the runtime did not start is sent as a fault in `f` is, an exit signal, and a foreign address gains no check of its own, with the user | 2026-11-19 | §6.5, §8.4, Appendix F; *A Bad Message's Fault to a Foreign Target* |
 
 ---
 
@@ -655,7 +654,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
 
-   A finding that meets one of MVP 4.5's items 68, 96, 103, 113, 118 and 122 is sorted to
+   A finding that meets one of MVP 4.5's items 68, 96, 103, 113, 118, 122 and 134 is sorted to
    that item. It comes before the launch only where a program shows a sentence of the report
    false (the log's *The Line Before the Launch*).
 
@@ -817,7 +816,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113 and 5. Item 103 is last, since nothing of Ernest's
+1 to 4 follow, then items 68, 96, 113, 134 and 5. Item 103 is last, since nothing of Ernest's
 meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -910,6 +909,17 @@ What the line left, in the order it is taken:
 
   Weighed with it: since item 112 a check of a process on a node that never connects again
   stands until the program ends (the log's *A Check Stands Through a Loss*).
+- **134. The term of a fault a foreign process takes as a message**, found 2026-11-19 by
+  item 132's showing (the log's *A Bad Message's Fault to a Foreign Target*). A foreign
+  process on another node than the fault's sender takes a fault as a message (§6.5), and
+  the report gives that message no term. The code has two shapes: the cause alone from a
+  check, and the whole fault from a fault in `f`. §6.5 is true as it stands and silent
+  on the term, so by the line's test the item stands here.
+
+  The shape: §12.2 states one term, and the code sends one shape. §12.2 says three
+  things more of the exit signal a foreign process of the sender's node is sent: that a
+  process that traps exits takes it as a message, which process it comes from, and that
+  the trace of a bad message's fault is empty.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers

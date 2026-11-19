@@ -3205,6 +3205,24 @@ foreign_messages_test() ->
                        "}\n"),
     ?assertMatch({fault, <<"reply does not match Int">>, _}, Result2).
 
+%% report §8.4, Appendix E.21: a bad message foreign code sends to a
+%% process the runtime started faults it at the wait that reaches it, and
+%% the fault's trace is its own stack there, the receive's own line. A
+%% regression test, written after the code: only a fault laid in the
+%% mailbox by hand held the trace (trace_through_a_wait_test/0), and not
+%% one the check sends; it does not cover a wait for a call's answer, nor
+%% a receiver on another node
+bad_message_trace_is_the_receivers_test() ->
+    ?assertMatch({{fault, <<"message does not match Msg">>, <<"M.main:6\n">>}, _},
+                 run("type Msg = Go(Int)\n"
+                     "foreign fn junk(a : Address(Msg)) : Unit = \"ern_emitter_tests:junk/1\"\n"
+                     "export fn main() : Unit receiving Msg = {\n"
+                     "    junk(self());\n"
+                     "\n"
+                     "    receive { Go(n) -> Io.println(Int.toString(n)) };\n"
+                     "    Unit\n"
+                     "}\n")).
+
 %% report §8.4: a function that stands inside a foreign function's argument
 %% crosses as one given alone does, each argument foreign code calls it with
 %% checked. A regression test: only a parameter that was itself a function

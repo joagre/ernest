@@ -40,9 +40,9 @@
 %% docs/design/nodes.md's.
 -module(ern_rt).
 
--export([send/2, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3, is_never_given/1,
-         is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3, spawn_root/2,
-         spawn_monitored_root/3, self/0,
+-export([send/2, faulted/3, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3,
+         is_never_given/1, is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3,
+         spawn_root/2, spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, call_limited/2,
          compute/4, answer/2, refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2,
          demonitor/1, kill/1, killed/2, reason/1, peer_restarted/1, left_waiting/1,
@@ -363,8 +363,8 @@ send(Address, Message) ->
 %% another node, and the target faults at the wait that reaches it, as at
 %% a bad message's fault (§8.4), which `restarting` restarts (§6.9); a
 %% target of this node the runtime did not start, a foreign process, has
-%% no wait of Ernest's and is ended by the fault as an exit signal
-%% (sent/1); the sender goes on.
+%% no wait of Ernest's and is sent the fault as an exit signal
+%% (faulted/3); the sender goes on.
 %%
 %% Report §8.7, §11.2: an address made by an earlier start of this node, or
 %% by an earlier run of `ern test` over a directory, is dead, and a message
@@ -407,17 +407,10 @@ adapted_way(Address, Message) ->
 
 sent(dropped) ->
     ok;
-%% report §6.5: a process the runtime started, on this node or another,
-%% takes the fault at its next wait, its trace and its moment the fault's;
-%% a process of this node it did not start, which has no row, is ended by
-%% it, with the host's term of a fault's end (§12.2)
-sent({fault, Pid, #fault{cause = Cause, trace = Trace} = Fault}) when node(Pid) =:= node() ->
-    case ets_lookup(?PROCESSES, Pid) of
-        [_] -> Pid ! {'$ern_fault', {ern, Fault}};
-        [] -> exit(Pid, {ern, fault, Cause, Trace})
-    end;
-sent({fault, Pid, Fault}) ->
-    Pid ! {'$ern_fault', {ern, Fault}};
+%% report §6.5: a fault met on the message's way, its trace and its moment
+%% where it was met, which a process that takes it at its next wait keeps
+sent({fault, Pid, #fault{cause = Cause, trace = Trace} = Fault}) ->
+    faulted(Pid, {ern, Fault}, {ern, fault, Cause, Trace});
 %% report §6.5, §12.6: a message to an adapted address made on another node
 %% is carried, unconverted, to that node's gateway, where the process kept
 %% for the address and this node applies the function (kept/1)
@@ -429,6 +422,26 @@ sent({{foreign, Pid, Descriptor, Bound}, Message}) ->
     Pid ! ern_boundary:expose(Descriptor, Message, Bound);
 sent({Pid, Message}) ->
     Pid ! Message.
+
+%% Report §6.5, §8.4: a fault sent to Pid, a fault in an adapted address's
+%% function or a bad message's. A process of this node the runtime started
+%% takes Thrown at its next wait, which raises it there as at a fault of its
+%% own. One it did not start, which has no row and no wait of Ernest's, is
+%% sent ExitReason, the host's term of a fault's end (§12.2), as an exit
+%% signal from the process that sends the fault. A process of another node
+%% takes Thrown as a message, which one the runtime started there raises at
+%% its next wait.
+-spec faulted(pid(), {ern, #fault{}} | {ern, fault, binary()},
+              {ern, fault, binary(), binary()}) -> ok.
+faulted(Pid, Thrown, ExitReason) when node(Pid) =:= node() ->
+    case ets_lookup(?PROCESSES, Pid) of
+        [_] -> Pid ! {'$ern_fault', Thrown};
+        [] -> exit(Pid, ExitReason)
+    end,
+    ok;
+faulted(Pid, Thrown, _) ->
+    Pid ! {'$ern_fault', Thrown},
+    ok.
 
 %% Report §6.5, §12.6: the process this node keeps for an adapted address it
 %% made and a peer that sends to it, started by the gateway's worker for
