@@ -155,7 +155,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap`, `tryFold` and `tryForEach` for a step that can fail.
 
-   Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`.
+   Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, `toAsciiLower`, `toAsciiUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`, `toAsciiLower`, `toAsciiUpper`.
 
    A set adds `union`, `intersection`, `difference`, and `isSubset`. A map adds `keys`, `values`, `update`, `merge` and `mergeWith`.
 
@@ -368,7 +368,7 @@ A search for a second string, `contains`, `indexOf`, `lastIndexOf`, `startsWith`
 
 The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `drop`, `toLower` and `toUpper`, which need Unicode's tables, the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`, and functions of the host's beneath `repeat`, `join`, and `toIntBase`. Three that need Unicode's tables are private to the module: the slice `slice` makes once it has clipped its two indexes, the last grapheme `trimEnd` takes off, found from the string's end, and `around`, the string before a part's first occurrence and the string after it. So is `decoded`, what the host's decoder finds in bytes, beneath the two conversions that read bytes that may not all be UTF-8 (E.0 rule 1). The rest is Ernest over them.
 
-Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
+Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `toAsciiLower` changes the letters `A` to `Z` alone, and `toAsciiUpper` the letters `a` to `z`; every other code point stays as written: `String.toAsciiLower("ÅB")` is `"Åb"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 `splitOnce` splits at the separator's first occurrence alone, and answers `None` for an empty separator, at which `split` does not split.
 
@@ -398,6 +398,8 @@ String.trimStart : (String) -> String // without leading whitespace
 String.trimEnd : (String) -> String // without trailing whitespace
 String.toLower : (String) -> String
 String.toUpper : (String) -> String
+String.toAsciiLower : (String) -> String // the letters A to Z in lower case, every other code point as written
+String.toAsciiUpper : (String) -> String // the letters a to z in upper case, every other code point as written
 String.lines : (String) -> List(String) // at each line feed and each carriage return with a line feed; a line's end at the end adds no empty line, and "" has no lines
 String.words : (String) -> List(String) // the parts between runs of whitespace, none empty
 String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
@@ -417,7 +419,7 @@ String.fromUtf8Piece : (Bytes) -> #(String, Bytes) // a piece's text, and the by
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
 
-The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll, `isMark` is M, `isNumber` is N, `isPunctuation` is P, `isSymbol` is S, `isSeparator` is Z, and `isControl` is Cc. `isAsciiDigit` is the digits `0` to `9` alone, those `String.toInt` reads (E.5). `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9). The primitives are the predicates `isAlpha`, `isControl`, `isDigit`, `isLower`, `isMark`, `isNumber`, `isPunctuation`, `isSeparator`, `isSpace`, `isSymbol`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toCodePoint`, and the conversion `fromCodePoint` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
+The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll, `isMark` is M, `isNumber` is N, `isPunctuation` is P, `isSymbol` is S, `isSeparator` is Z, and `isControl` is Cc. `isAsciiDigit` is the digits `0` to `9` alone, those `String.toInt` reads (E.5). `toAsciiLower` changes the letters `A` to `Z` alone, and `toAsciiUpper` the letters `a` to `z`. `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9). The primitives are the predicates `isAlpha`, `isControl`, `isDigit`, `isLower`, `isMark`, `isNumber`, `isPunctuation`, `isSeparator`, `isSpace`, `isSymbol`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toCodePoint`, and the conversion `fromCodePoint` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Char.isDigit : (Char) -> Bool
@@ -435,6 +437,8 @@ Char.isSeparator : (Char) -> Bool // a space, line or paragraph separator, categ
 Char.isControl : (Char) -> Bool // a control character, category Cc
 Char.toUpper : (Char) -> Char // itself when it has no single upper-case form
 Char.toLower : (Char) -> Char // itself when it has no single lower-case form
+Char.toAsciiLower : (Char) -> Char // the lower-case letter of one of A to Z, itself otherwise
+Char.toAsciiUpper : (Char) -> Char // the upper-case letter of one of a to z, itself otherwise
 Char.toString : (Char) -> String
 Char.toCodePoint : (Char) -> Int // the code point
 Char.fromCodePoint : (Int) -> Optional(Char) // None outside U+0000 to U+10FFFF or for a surrogate
@@ -1271,7 +1275,7 @@ A request line is three words parted at runs of spaces and tabs, the third `HTTP
 
 `target` percent-encodes a path and a query before it reads them. They are the whole of an origin form, and what follows an absolute form's scheme and authority. It encodes each visible ASCII character RFC 3986 writes in neither but `#`, which begins a fragment: `"`, `<`, `>`, `[`, `\`, `]`, `^`, `` ` ``, `{`, `|` and `}`. A `%` before two hexadecimal digits begins an encoding and is kept; any other `%` is encoded as `%25`. An encoding `target` writes has upper-case digits. A scheme and an authority are read as written, an IP literal's brackets among them. So `/?a[]=1` is read as the path `/` and the query `a%5B%5D=1`, which `Uri.decode` (G.12) reads as `a[]=1`. The `Request` keeps its target as written. RFC 9112 §3.2 has a server answer such a target with a 400 or a redirect to the target encoded; `target` reads it encoded instead.
 
-A value is read without the white space before and after it. A limit counts a line's ending, a line that passes it is refused before its line feed comes, and a limit below 1 lets no line in. `defaultLimits` is `Limits(line = 8192, headers = 65536)`. `header(headers, name)` is the first value under the name, compared in any case, and `headers(headers, name)` every value under it, in order.
+A value is read without the white space before and after it. White space in this section is spaces and tabs. A limit counts a line's ending, a line that passes it is refused before its line feed comes, and a limit below 1 lets no line in. `defaultLimits` is `Limits(line = 8192, headers = 65536)`. `header(headers, name)` is the first value under the name, compared in any case, and `headers(headers, name)` every value under it, in order.
 
 `cookies(fields)` is the pairs of every `Cookie` header among `fields`, RFC 6265's, in order: each value parted at `;`, each part parted at its first `=`, its name and its value each trimmed of the white space around them, a part with no `=` or with an empty name dropped, and a value otherwise kept as written, its quotes among them. `cookie(headers, name)` is the first value under the name, compared exactly.
 
@@ -1279,7 +1283,11 @@ A value is read without the white space before and after it. A limit counts a li
 
 `readRequestBody(socket, carried, request, limit, ms)` and `readResponseBody(socket, carried, response, limit, ms)` read the body the head's headers frame and answer it with the bytes after it: `Transfer-Encoding: chunked` decoded, its chunks' extensions and its trailers dropped, else `Content-Length` bytes; where neither frames one a request has no body, and a response's runs to the connection's close (RFC 9112). A response of status 1xx, 204 or 304 has no body, whatever its headers; one to a `HEAD` request has none either, which the reader cannot know, so a client that sent `HEAD` reads none.
 
-`ms` bounds the whole body. `limit` counts the body's bytes as they come, the chunked coding's framing among them: a body past it is `Protocol(BodyTooLarge)`, found at the bytes that pass it, a `Content-Length` past it at once. A `Content-Length` that is no decimal number or two that name different numbers, and a `Transfer-Encoding` beside a `Content-Length` or naming `chunked` twice, are `Protocol(Malformed)`; a response whose last transfer coding is not `chunked` runs to the connection's close, as RFC 9112 has a client read it, and such a request is `Protocol(Malformed)`.
+`ms` bounds the whole body. `limit` counts the body's bytes as they come, the chunked coding's framing among them: a body past it is `Protocol(BodyTooLarge)`, found at the bytes that pass it, a `Content-Length` past it and a chunk's size that would pass it at once. A `Content-Length` that is no decimal number or two that name different numbers, and a `Transfer-Encoding` beside a `Content-Length` or naming `chunked` twice, are `Protocol(Malformed)`; a response whose last transfer coding is not `chunked` runs to the connection's close, as RFC 9112 has a client read it, and such a request is `Protocol(Malformed)`. Where the connection closes before a body of a size or a chunked body ends, the answer is `Socket(Closed)`.
+
+The codings of every `Transfer-Encoding` header are one list, parted at commas, an empty element dropped. A coding is read without the white space around it and compared in any case of the letters `A` to `Z`. A coding written with a parameter, `chunked;q=1`, is not `chunked`, and a `Transfer-Encoding` that names no coding is read as one whose last coding is not `chunked`.
+
+A line of the chunked coding ends as a head's does, in a line feed with or without a carriage return before it. A chunk's size line is the size in hexadecimal digits of either case, then white space, then a `;` and the extensions; the white space and the extensions may be absent, and both are dropped. A chunk of size 0 is the last, however many digits write it. A size line of any other form, white space before the size among them, and a chunk whose bytes a line's ending does not follow directly are `Protocol(Malformed)`. A trailer is dropped unread, whatever its form.
 
 `renderResponse(response, body)` and `renderRequest(request, body)` write the head and the body: the first line, with the value's version, each header as `name: value`, `Content-Length` of the body's size where the headers carry none and no `Transfer-Encoding`, the status is no 1xx, 204 or 304, and, for a request, the body is not empty, an empty line, and the body.
 

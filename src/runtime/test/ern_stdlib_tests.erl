@@ -523,6 +523,20 @@ string_test() ->
      || Text <- [<<"1.">>, <<".5">>, <<"1.5e">>, <<"1.5e+">>, <<"1.5.3">>, <<"--1.5">>,
                  <<"+1.5">>, <<"1.5 ">>, <<"-">>, <<>>]],
     ?assertEqual(<<"ABC">>, String(toUpper)(<<"abC">>)),
+    %% the ASCII case: the 26 letters each way, every other code point as
+    %% written, the Kelvin sign that toLower gives as k among them
+    ?assertEqual(<<"abcdefghijklmnopqrstuvwxyz">>,
+                 String(toAsciiLower)(<<"ABCDEFGHIJKLMNOPQRSTUVWXYZ">>)),
+    ?assertEqual(<<"ABCDEFGHIJKLMNOPQRSTUVWXYZ">>,
+                 String(toAsciiUpper)(<<"abcdefghijklmnopqrstuvwxyz">>)),
+    ?assertEqual(<<"Åb"/utf8>>, String(toAsciiLower)(<<"ÅB"/utf8>>)),
+    ?assertEqual(<<"åB"/utf8>>, String(toAsciiUpper)(<<"åb"/utf8>>)),
+    ?assertEqual(<<"0-9; ß"/utf8>>, String(toAsciiUpper)(<<"0-9; ß"/utf8>>)),
+    ?assertEqual(<<"chun", 16#212A/utf8, "ed">>,
+                 String(toAsciiLower)(<<"CHUN", 16#212A/utf8, "ED">>)),
+    ?assertEqual(<<"chunked">>, String(toLower)(<<"CHUN", 16#212A/utf8, "ED">>)),
+    ?assertEqual(<<>>, String(toAsciiLower)(<<>>)),
+    ?assertEqual(<<>>, String(toAsciiUpper)(<<>>)),
     ?assertEqual([$a, $b], String(toList)(<<"ab">>)),
     ?assertEqual(<<"ab">>, String(fromList)([$a, $b])),
     ?assertEqual({'Some', <<"ab">>}, String(fromUtf8)(<<"ab">>)),
@@ -626,6 +640,16 @@ char_test() ->
     ?assertEqual(16#DF, Char(toUpper)(16#DF)),
     ?assertEqual($a, Char(toLower)($A)),
     ?assertEqual($1, Char(toLower)($1)),
+    %% the ASCII case: each of the 26 letters each way, and a digit,
+    %% punctuation, a letter of another script and the Kelvin sign, which
+    %% toLower gives as k, unchanged
+    ?assertEqual(lists:seq($a, $z), [Char(toAsciiLower)(Letter) || Letter <- lists:seq($A, $Z)]),
+    ?assertEqual(lists:seq($A, $Z), [Char(toAsciiUpper)(Letter) || Letter <- lists:seq($a, $z)]),
+    ?assertEqual(lists:seq($a, $z), [Char(toAsciiLower)(Letter) || Letter <- lists:seq($a, $z)]),
+    ?assertEqual(lists:seq($A, $Z), [Char(toAsciiUpper)(Letter) || Letter <- lists:seq($A, $Z)]),
+    [?assertEqual({Other, Other}, {Char(toAsciiLower)(Other), Char(toAsciiUpper)(Other)})
+     || Other <- [$7, $;, $@, $[, $`, ${, 16#C5, 16#E5, 16#212A]],
+    ?assertEqual($k, Char(toLower)(16#212A)),
     ?assertEqual({'Some', 16#E9}, Char(fromCodePoint)(16#E9)),
     ?assertEqual('None', Char(fromCodePoint)(16#D800)),
     ?assertEqual('None', Char(fromCodePoint)(16#110000)),

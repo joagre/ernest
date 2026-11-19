@@ -214,6 +214,40 @@ export foreign fn toUpper(char : Char) : Char =
 export foreign fn toLower(char : Char) : Char =
     "ern_char:to_lower/1"
 
+/// The lower-case letter of one of `A` to `Z`, and `char` itself for every
+/// other character: a letter of another script, and the Kelvin sign,
+/// U+212A, which `toLower` gives as `'k'`, stay as they are.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.toAsciiLower('A'), Char.toAsciiLower('Å'), Char.toLower('\u{212A}'))
+/// // => #('a', 'Å', 'k')
+/// ```
+///
+/// ```ernest
+/// Char.toAsciiLower('\u{212A}') == '\u{212A}'
+/// // => true
+/// ```
+///
+/// since 0.11.0
+export fn toAsciiLower(char : Char) : Char =
+    if char >= 'A' && char <= 'Z' then toLower(char) else char
+
+/// The upper-case letter of one of `a` to `z`, and `char` itself for every
+/// other character.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.toAsciiUpper('a'), Char.toAsciiUpper('é'), Char.toAsciiUpper('1'))
+/// // => #('A', 'é', '1')
+/// ```
+///
+/// since 0.11.0
+export fn toAsciiUpper(char : Char) : Char =
+    if char >= 'a' && char <= 'z' then toUpper(char) else char
+
 /// The string of that one character.
 ///
 /// ### Examples

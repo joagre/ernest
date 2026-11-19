@@ -352,7 +352,8 @@ members(Set) ->
 
 %% report Appendix E.5: text, every search matching whole graphemes of the
 %% string searched, `split` then `join` giving the string back, `replace` as
-%% `split` and `join`, the slices and the pads counted in graphemes
+%% `split` and `join`, the slices and the pads counted in graphemes, the
+%% ASCII case
 string_laws_test_() ->
     laws([{"fromList of toList", fun text/1, fun string_chars/1},
           {"the graphemes make the string, size counts them", fun text/1,
@@ -375,6 +376,8 @@ string_laws_test_() ->
            fun text/1, fun string_trims/1},
           {"toLower and toUpper: each code point's full mapping, no rule of a context",
            fun text/1, fun string_cases/1},
+          {"toAsciiLower and toAsciiUpper: A to Z and a to z alone, each code point else kept",
+           fun text/1, fun string_ascii_cases/1},
           {"lines at each line feed and carriage return with line feed", fun text/1,
            fun string_lines/1},
           {"words: the parts between runs of the graphemes trim removes, none empty", fun text/1,
@@ -483,6 +486,18 @@ string_cases(Whole) ->
     Upper = unicode:characters_to_binary([string:uppercase([Char]) || Char <- Chars]),
     ?STRING(toLower)(Whole) =:= Lower andalso ?STRING(toUpper)(Whole) =:= Upper.
 
+string_ascii_cases(Whole) ->
+    Chars = unicode:characters_to_list(Whole),
+    ?STRING(toAsciiLower)(Whole) =:= unicode:characters_to_binary([ascii_lower(C) || C <- Chars])
+        andalso ?STRING(toAsciiUpper)(Whole)
+                    =:= unicode:characters_to_binary([ascii_upper(C) || C <- Chars]).
+
+ascii_lower(Char) when Char >= $A, Char =< $Z -> Char - $A + $a;
+ascii_lower(Char) -> Char.
+
+ascii_upper(Char) when Char >= $a, Char =< $z -> Char - $a + $A;
+ascii_upper(Char) -> Char.
+
 string_lines(Whole) ->
     ?STRING(lines)(Whole) =:= lines_model(Whole).
 
@@ -525,8 +540,8 @@ string_compare({First, Second}) ->
 %%
 
 %% report Appendix E.6: a character's code point and back, the ASCII digits,
-%% a digit's value in a base, the classes, the single case forms, the order
-%% by code point
+%% a digit's value in a base, the classes, the single case forms, the ASCII
+%% case, the order by code point
 char_laws_test_() ->
     laws([{"fromCodePoint of toCodePoint, toString", fun one_char/1, fun char_code/1},
           {"fromCodePoint: None outside U+0000 to U+10FFFF and for a surrogate",
@@ -538,6 +553,8 @@ char_laws_test_() ->
            " and at most one of the seven categories", fun one_char/1, fun char_classes/1},
           {"toUpper and toLower: itself where there is no single form", fun one_char/1,
            fun char_cases/1},
+          {"toAsciiLower and toAsciiUpper: A to Z and a to z alone, itself otherwise",
+           fun one_char/1, fun char_ascii_cases/1},
           {"compare by code point", fun two_chars/1, fun char_compare/1}]).
 
 char_code(Char) ->
@@ -584,6 +601,10 @@ char_cases(Char) ->
              end,
     ?CHAR(toUpper)(Char) =:= Single(string:uppercase([Char]))
         andalso ?CHAR(toLower)(Char) =:= Single(string:lowercase([Char])).
+
+char_ascii_cases(Char) ->
+    ?CHAR(toAsciiLower)(Char) =:= ascii_lower(Char)
+        andalso ?CHAR(toAsciiUpper)(Char) =:= ascii_upper(Char).
 
 char_compare({First, Second}) ->
     ?CHAR(compare)(First, Second) =:= ordering(First, Second).

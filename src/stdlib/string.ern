@@ -363,6 +363,36 @@ export foreign fn toLower(text : String) : String =
 export foreign fn toUpper(text : String) : String =
     "ern_string:to_upper/1"
 
+/// `text` with the letters `A` to `Z` in lower case and every other code
+/// point as written, a protocol's word compared in any case among them: a
+/// letter of another script stays as it is, and so does the Kelvin sign,
+/// U+212A, which `toLower` writes as `"k"`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toAsciiLower("ÅB"), String.toLower("ÅB"))
+/// // => #("Åb", "åb")
+/// ```
+///
+/// since 0.11.0
+export fn toAsciiLower(text : String) : String =
+    fromList(List.map(toList(text), Char.toAsciiLower))
+
+/// `text` with the letters `a` to `z` in upper case and every other code
+/// point as written: `"ß"` stays `"ß"`, where `toUpper` writes `"SS"`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.toAsciiUpper("chunked; ß"), String.toUpper("ß"))
+/// // => #("CHUNKED; ß", "SS")
+/// ```
+///
+/// since 0.11.0
+export fn toAsciiUpper(text : String) : String =
+    fromList(List.map(toList(text), Char.toAsciiUpper))
+
 /// The lines of `text`, split at each line feed and at each carriage return
 /// followed by a line feed. A line end at the very end adds no empty line, and
 /// `""` has no lines.

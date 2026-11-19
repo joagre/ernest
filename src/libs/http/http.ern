@@ -20,7 +20,7 @@
 ///
 /// **A head.** A line ends in a line feed, with or without a carriage return
 /// before it. A request's method and target and a header's name are kept as
-/// written, and a header's value without the white space around it. A head
+/// written, and a header's value without the spaces and tabs around it. A head
 /// that passes its `Limits` is refused at the bytes that pass them, so that
 /// a reader holds no more of a head than the limits allow.
 ///
@@ -120,7 +120,7 @@ export let http11 : Version = Version(major = 1, minor = 1)
 export type Header = Header(
     /// The name, which `header` and `headers` compare in any case.
     name : String,
-    /// The value, without the white space before and after it.
+    /// The value, without the spaces and tabs before and after it.
     value : String)
 
 /// A request's head: its method, its target, its version and its headers,
@@ -299,7 +299,7 @@ export fn parseRequest(bytes : Bytes, limits : Limits) : Either(Error, Parsed(Re
 /// The status is three digits, and a status line whose status is not is
 /// `Malformed`, as a request line is; the line's phrase is dropped. A
 /// header folded over two lines is read with each fold, a line break and
-/// the white space around it, replaced by one space (RFC 9112, section
+/// the spaces and tabs around it, replaced by one space (RFC 9112, section
 /// 5.2), where `parseRequest` refuses it.
 ///
 /// ### Examples
@@ -590,6 +590,12 @@ fn isPlain(bytes : Bytes) : Bool =
 fn trimmed(bytes : Bytes) : Bytes =
     trimmedEnd(trimmedStart(bytes))
 
+// Report Appendix G.11: the text without the spaces and tabs before and
+// after it, the section's white space, which `trimmed` takes off its bytes.
+// What is left of UTF-8 is UTF-8, so the decoding loses nothing.
+fn trimmedText(text : String) : String =
+    String.fromUtf8Lossy(trimmed(String.toUtf8(text)))
+
 fn trimmedStart(bytes : Bytes) : Bytes =
     match bytes {
         <<byte, rest:bytes>> when isBlank(byte) -> trimmedStart(rest)
@@ -879,6 +885,16 @@ fn received(socket : Address(Tcp.SocketMsg),
 /// no body: the answer is an empty body and `carried` as it was, and the
 /// socket is not read.
 ///
+/// The codings of every `Transfer-Encoding` header are one list, parted at
+/// commas, an empty element dropped, each coding compared in any case of
+/// the letters `A` to `Z` and without the spaces and tabs around it; a
+/// coding with a parameter, `chunked;q=1`, is not `chunked`, and a header
+/// that names no coding is read as naming another last. A chunk's size
+/// line is hexadecimal digits, spaces and tabs, and the extensions after a
+/// `;`; one of another form, or a chunk's bytes not followed directly by a
+/// line's ending, is `Protocol(Malformed)`, and a trailer is dropped
+/// whatever its form.
+///
 /// A client whose request carries `Expect: 100-continue` may hold its body
 /// back until the server answers with status 100 (RFC 9110, section
 /// 10.1.1): a server that reads such a body writes a response of status 100
@@ -988,7 +1004,7 @@ fn framing(fields : List(Header), sender : Sender) : Either(Error, Framing) =
       | #(values, []) -> {
             let codings =
                 List.filter(List.map(List.flatMap(values, fn(value) = String.split(value, ",")),
-                                     fn(coding) = String.toLower(String.trim(coding))),
+                                     fn(coding) = String.toAsciiLower(trimmedText(coding))),
                             fn(coding) = coding != "");
             coded(codings, sender)
         }
@@ -1041,14 +1057,14 @@ fn chunks(reading : Reading,
     }
 }
 
-// A chunk's size, the hexadecimal digits before any `;` and the white space
-// before it.
+// A chunk's size, the hexadecimal digits before any `;` and the spaces and
+// tabs before it.
 fn chunkSize(sizeLine : Bytes) : Optional(Int) = {
     let digits = match Bytes.indexOf(sizeLine, <<';':utf8>>) {
         Some(index) -> Bytes.slice(sizeLine, 0, index)
       | None -> sizeLine
     };
-    let text <- Optional.map(String.fromUtf8(digits), String.trimEnd);
+    let text <- String.fromUtf8(trimmedEnd(digits));
     if text != "" && List.all(String.toList(text), isHexadecimal) then
         String.toIntBase(text, 16)
     else
@@ -1150,7 +1166,7 @@ fn isNamed(header : Header, lowered : String) : Bool =
 
 /// The pairs of every `Cookie` header in `headers`, RFC 6265's, in order:
 /// each value parted at `;`, each part parted at its first `=`, the cookie's
-/// name before it and its value after, each trimmed of the white space
+/// name before it and its value after, each trimmed of the spaces and tabs
 /// around it.
 ///
 /// A part with no `=` or with an empty name is dropped. A value is
@@ -1173,8 +1189,8 @@ export fn cookies(fields : List(Header)) : List(#(String, String)) =
 // its value, each trimmed; `None` where the part has no `=` or no name.
 fn cookiePair(part : String) : Optional(#(String, String)) =
     Optional.andThen(String.splitOnce(part, "="), fn(#(name, value)) = {
-        let name = String.trim(name);
-        if name == "" then None else Some(#(name, String.trim(value)))
+        let name = trimmedText(name);
+        if name == "" then None else Some(#(name, trimmedText(value)))
     })
 
 /// The value of the first cookie named `name` in the `Cookie` headers of
@@ -2609,10 +2625,11 @@ let cookieParts =
               run = fn() =
                   Test.equal(cookies([Header(name = "Cookie",
                                              value = " a = 1 ;b=x=y;  ; flag ;=2; = 3;e= x y ;"
-                                                 <> "c=\"q;\";d= ")]),
+                                                 <> "\tf=\u{A0}z\t;c=\"q;\";d= ")]),
                              [#("a", "1"),
                               #("b", "x=y"),
                               #("e", "x y"),
+                              #("f", "\u{A0}z"),
                               #("c", "\"q"),
                               #("d", "")]))
 
@@ -3162,6 +3179,52 @@ let chunkedLineFeeds =
     })
 
 // report Appendix G.11
+let codingsListed =
+    Test.Case(name = "the codings of every Transfer-Encoding are one list, each trimmed",
+              run = fn() = {
+                  let coded =
+                      fn(values) =
+                          asked(List.map(values,
+                                         fn(value) = Header(name = "Transfer-Encoding", =value)));
+                  let carried = String.toUtf8("1\r\na\r\n0\r\n\r\nrest");
+                  Test.equal(served([],
+                                    StaysOpen,
+                                    fn(socket) =
+                                        List.map([coded(["gzip", "chunked"]),
+                                                  coded(["gzip\t,  chunked"]),
+                                                  coded([", , chunked,"])],
+                                                 fn(request) =
+                                                     readRequestBody(socket,
+                                                                     carried,
+                                                                     request,
+                                                                     100,
+                                                                     0))),
+                             Right(List.repeat(Right(#(String.toUtf8("a"), String.toUtf8("rest"))),
+                                               3)))
+              })
+
+// report Appendix G.11
+let chunkSizes =
+    Test.Case(name = "a chunk's size line and a trailer are read in each form the coding allows",
+              run = fn() = {
+                  let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
+                  // a size in lower case, a tab after a size, a size of three zeros, and a
+                  // trailer of no header's form
+                  let chunks =
+                      "a\r\n0123456789\r\n5\t\r\nhello\r\n000\r\nno header here\r\n\r\nrest";
+                  Test.equal(served([],
+                                    StaysOpen,
+                                    fn(socket) =
+                                        readRequestBody(socket,
+                                                        String.toUtf8(chunks),
+                                                        asked(chunked),
+                                                        100,
+                                                        0)),
+                             Right(Right(#(String.toUtf8("0123456789hello"),
+                                           String.toUtf8("rest")))))
+              })
+
+// report Appendix G.11
 let requestUnframed =
     Test.Case(name = "a request whose headers frame no body has none, and its bytes are kept",
               run = fn() =
@@ -3237,14 +3300,16 @@ let bodyTooLarge =
                                                   String.toUtf8("0123456789x"),
                                                   answered([]),
                                                   10,
-                                                  0)]),
+                                                  0),
+                                 // no body, whose 0 bytes are past a limit of -1
+                                 readRequestBody(socket, <<>>, asked([]), -1, 0)]),
                      served(["5\r\nhello\r\n1;aaaaaaaaaaaaa"],
                             StaysOpen,
                             fn(socket) = readRequestBody(socket, <<>>, asked(chunked), 20, 1000)),
                      served(["0123456789abcdefghijk"],
                             StaysOpen,
                             fn(socket) = readResponseBody(socket, <<>>, answered([]), 20, 1000))),
-                   #(Right(List.repeat(Left(Protocol(BodyTooLarge)), 6)),
+                   #(Right(List.repeat(Left(Protocol(BodyTooLarge)), 7)),
                      Right(Left(Protocol(BodyTooLarge))),
                      Right(Left(Protocol(BodyTooLarge)))))
     })
@@ -3261,7 +3326,15 @@ let malformedBody =
              #(sized("1") <> sized("2"), ""),
              #([Header(name = "Transfer-Encoding", value = "gzip")] <> sized("1"), ""),
              #([Header(name = "Transfer-Encoding", value = "chunked, gzip")], ""),
+             #([Header(name = "Transfer-Encoding", value = "chunked;q=1")], ""),
+             #([Header(name = "Transfer-Encoding", value = "")], ""),
+             #([Header(name = "Transfer-Encoding", value = "\u{A0}chunked")], ""),
+             #([Header(name = "Transfer-Encoding", value = "chun\u{212A}ed")], ""),
              #(chunked, "xyz\r\n"),
+             #(chunked, " 5\r\nhello\r\n"),
+             #(chunked, "1\u{A0}\r\na\r\n"),
+             #(chunked, "1\u{B}\r\na\r\n"),
+             #(chunked, "1\r\r\na\r\n"),
              #(chunked, "\r\n"),
              #(chunked, "1\r\nab\r\n")];
         Test.equal(served([],
@@ -3274,7 +3347,7 @@ let malformedBody =
                                                            asked(headers),
                                                            100,
                                                            0))),
-                   Right(List.repeat(Left(Protocol(Malformed)), 10)))
+                   Right(List.repeat(Left(Protocol(Malformed)), 18)))
     })
 
 // report Appendix G.11, RFC 9112, section 6.1: a regression test: the
@@ -3304,12 +3377,20 @@ let framedTwice =
 // report Appendix G.11, RFC 9112, section 6.3: written with the code.
 let unchunkedResponse =
     Test.Case(name = "a response whose last coding is not chunked runs to the close", run = fn() = {
-        let response = answered([Header(name = "Transfer-Encoding", value = "chunked, gzip")]);
-        Test.equal(served(["def"],
-                          Closes,
-                          fn(socket) =
-                              readResponseBody(socket, String.toUtf8("abc"), response, 100, 1000)),
-                   Right(Right(#(String.toUtf8("abcdef"), <<>>))))
+        let responses =
+            List.map(["chunked, gzip", "chunked;q=1", ""],
+                     fn(value) = answered([Header(name = "Transfer-Encoding", =value)]));
+        Test.equal(List.map(responses,
+                            fn(response) =
+                                served(["def"],
+                                       Closes,
+                                       fn(socket) =
+                                           readResponseBody(socket,
+                                                            String.toUtf8("abc"),
+                                                            response,
+                                                            100,
+                                                            1000))),
+                   List.repeat(Right(Right(#(String.toUtf8("abcdef"), <<>>))), 3))
     })
 
 // report Appendix G.11
