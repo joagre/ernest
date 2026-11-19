@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 140**, an `Os.exit` once the end's wait is over. Item 141
-follows it, decided with the user on 2026-11-19.
+**The next item is MVP 4.16's item 141**, a subscriber that answered and is named
+unanswered.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -58,26 +58,14 @@ what needs the user. An item planned since stands where its group's sentence say
 
 Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
 and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
-Launch*).
+Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
+corner shows it (the log's *Item 140 Stands After the Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **140. An `Os.exit` once the end's wait is over**, found 2026-11-19 by item 120's
-  probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside it*). On
-  a node, a process kept for an adapted address called `Os.exit(7)` while the flush was
-  stalled. Nothing read it: the node stayed alive, and ended with status 0 at a
-  termination, or once its reader went on.
-
-  §8.6 has an `Os.exit` once the end has begun end the program at once, with its status,
-  so the item stands here. The shape: once the wait is over the exit's status is the
-  job's, and the flush goes on, since only a termination ends a flush. An exit that ended
-  it would lose a run's output by timing where nothing is stalled (principle 1). Decided
-  with the user: the exit's status stands through a later termination.
-
-  It makes its case with the process kept for an address, as item 136 does, and needs
-  nothing of that item, which is of a wrap's fault there.
 - **141. A subscriber that answered is named unanswered**, found 2026-11-19 by item
-  120's probes (the same paragraph). A subscriber answered and then called `Os.exit`,
+  120's probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside
+  it*). A subscriber answered and then called `Os.exit`,
   and `the end was cut short` named it unanswered. Its answer reaches the runner through
   its teller and the exit comes straight from its caller, so the exit can pass the
   answer.
@@ -692,8 +680,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
 
-   A finding that meets one of MVP 4.5's items 68, 96, 103, 113, 118, 122 and 134 is sorted to
-   that item. It comes before the launch only where a program shows a sentence of the report
+   A finding that meets one of MVP 4.5's items 68, 96, 103, 113, 118, 122, 134 and 140 is
+   sorted to that item. It comes before the launch only where a program shows a sentence of the report
    false (the log's *The Line Before the Launch*).
 
    Before its readers start:
@@ -898,8 +886,8 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134 and 5. Item 103 is last, since nothing of Ernest's
-meets it.
+1 to 4 follow, then items 68, 96, 113, 134, 140 and 5. Item 103 is last, since nothing of
+Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -1002,6 +990,25 @@ What the line left, in the order it is taken:
   things more of the exit signal a foreign process of the sender's node is sent: that a
   process that traps exits takes it as a message, which process it comes from, and that
   the trace of a bad message's fault is empty.
+- **140. An `Os.exit` once the end's wait is over**, found 2026-11-19 by item 120's
+  probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside it*). On
+  a node, a process kept for an adapted address called `Os.exit(7)` while the flush was
+  stalled. Nothing read it: the node stayed alive, and ended with status 0 at a
+  termination, or once its reader went on.
+
+  §8.6 has an `Os.exit` once the end has begun end the program at once, with its status,
+  and the node shows that false. Only a built corner shows it: an adapted address whose
+  function calls `Os.exit`, a peer's send to it once the node's wait is over, and a flush
+  that lasts until the send arrives. A plain run cannot make it. So the item moved here
+  on the user's word on 2026-11-19 (the log's *Item 140 Stands After the Launch*).
+
+  The shape: once the wait is over the exit's status is the job's, and the flush goes on,
+  since only a termination ends a flush. An exit that ended it would lose a run's output
+  by timing where nothing is stalled (principle 1). Decided with the user: the exit's
+  status stands through a later termination.
+
+  It makes its case with the process kept for an address, as item 136 does, and needs
+  nothing of that item, which is of a wrap's fault there.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
