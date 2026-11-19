@@ -1,15 +1,21 @@
 %% The pseudo-terminal harness, the Ernest program fixtures/pty/pty.ern,
 %% which test/Makefile's pty target builds, as the shell's and the
 %% terminal's tests call it, and the helpers both share: a command run
-%% with a terminal of its own and the steps it is sent, a command run
-%% without one, and a count of what a screen shows.
+%% with a terminal of its own and the steps it is sent, one whose end a
+%% watcher tells while the harness reads nothing, a command run without
+%% one, and a count of what a screen shows.
 -module(ern_pty).
 
--export([run/3, tried/3, run_dir/0, sh/1, count/2]).
+-export([run/3, tried/3, watched/5, watcher/0, settings/2, paste_off/0, run_dir/0, sh/1,
+         count/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
 -type option() :: {size, non_neg_integer(), non_neg_integer()} | screen.
+
+%% A step of the harness's (fixtures/pty/pty.ern), its signal named as the
+%% harness names it, `termination`, `hangup` or `interrupt`.
+-type step() :: {expect | resize | send | put | signal, string()} | hangup | stall | release.
 
 %% Command with a terminal of its own, under the harness's Options, the
 %% terminal's size, 24 rows and 80 columns where none is given, and
@@ -25,7 +31,7 @@
 %% sum, to which the harness's run is held too (ern_nodes_tests:collected/2),
 %% and a step that fails is told by its own bound before the test's runs
 %% out.
--spec run(string(), [tuple() | hangup], [option()]) -> {integer() | timeout, binary()}.
+-spec run(string(), [step()], [option()]) -> {integer() | timeout, binary()}.
 run(Command, Steps, Options) ->
     {Status, Data, Unmet} = tried(Command, Steps, Options),
     ?assertEqual([], Unmet),
@@ -35,7 +41,7 @@ run(Command, Steps, Options) ->
 %% program that never answered among them: the harness stops at the first
 %% step it cannot meet (fixtures/pty/pty.ern), and `Unmet` holds its line
 %% naming the steps left, none where it met them all.
--spec tried(string(), [tuple() | hangup], [option()]) ->
+-spec tried(string(), [step()], [option()]) ->
           {integer() | timeout, binary(), [binary()]}.
 tried(Command, Steps, Options) ->
     Arguments = ["--timeout", integer_to_list(ern_nodes_tests:wait_ms())]
@@ -47,6 +53,55 @@ tried(Command, Steps, Options) ->
     [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
     [<<"data ", Data/binary>>] = [Line || <<"data ", _/binary>> = Line <- Lines],
     {status(Status), base64:decode(Data), [Line || <<"unmet ", _/binary>> = Line <- Lines]}.
+
+%% Command, its last word an `exec`, run by run/3 with Steps after a watcher
+%% of its end that outlives it: the watcher reads the named pipe Watched,
+%% which the command holds open for writing, to its end, which comes as the
+%% command ends, writes the terminal's settings as `stty -g` reads them,
+%% and opens the named pipe Ended for reading, which a `put` waits for; the
+%% settings the command found are written first (settings/2). So a step
+%% after a stall learns of the end, which the harness reads only with the
+%% rest.
+%%
+%% The watcher has a process group of its own, which the runtime's
+%% kill of the command's group at its end misses, reads the terminal by a
+%% descriptor of its own, since a command the shell runs in the background
+%% reads none, and takes no hangup, which the command's end sends the
+%% terminal's process group. Its group is killed by its number once the
+%% harness has ended, since one whose put was not met waits in its open.
+-spec watched(file:filename(), file:filename(), file:filename(), string(), [step()]) ->
+          {integer() | timeout, binary()}.
+watched(Watcher, Watched, Ended, Command, Steps) ->
+    try
+        run("exec 6<&0; stty -g > " ++ Watcher ++ ".found; set -m; ( trap '' HUP; read _ < "
+            ++ Watched ++ "; stty -g <&6 > " ++ Watcher ++ ".left; : < " ++ Ended
+            ++ " ) & echo $! > " ++ Watcher ++ ".pid; set +m; exec 5> " ++ Watched ++ "; "
+            ++ Command, Steps, [])
+    after
+        case file:read_file(Watcher ++ ".pid") of
+            {ok, Group} -> _ = os:cmd("kill -KILL -" ++ string:trim(binary_to_list(Group)));
+            {error, _} -> ok
+        end
+    end.
+
+%% The name the files of a watcher of a command's end begin with
+%% (watched/5), one of its own under the run's directory.
+-spec watcher() -> file:filename().
+watcher() ->
+    filename:join(run_dir(), "ern_watcher_" ++ os:getpid() ++ "_"
+                             ++ integer_to_list(erlang:unique_integer([positive]))).
+
+%% The terminal's settings as `stty -g` read them, as the command found
+%% them or as it left them, where a watcher (watched/5) wrote them.
+-spec settings(file:filename(), found | left) -> {ok, binary()} | {error, term()}.
+settings(Watcher, When) ->
+    file:read_file(Watcher ++ "." ++ atom_to_list(When)).
+
+%% Report §12.1: what ends the terminal's bracketed-paste mode, which the
+%% end of a program the keys were read for writes.
+-spec paste_off() -> binary().
+paste_off() ->
+    <<"\e[?2004l">>.
 
 option({size, Rows, Columns}) ->
     ["--size", integer_to_list(Rows) ++ "x" ++ integer_to_list(Columns)];
@@ -70,7 +125,10 @@ step({expect, Text}) ->
 step({resize, Size}) -> "resize:" ++ Size;
 step({send, Hex}) -> "send:" ++ Hex;
 step({put, Path}) -> "put:" ++ Path;
-step(hangup) -> "hangup".
+step({signal, Name}) -> "signal:" ++ Name;
+step(hangup) -> "hangup";
+step(stall) -> "stall";
+step(release) -> "release".
 
 status(<<"timeout">>) -> timeout;
 status(Text) -> binary_to_integer(Text).

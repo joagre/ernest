@@ -6354,6 +6354,148 @@ shell_told_of_the_end() ->
                  binary:match(Output, <<"the end waits for 1 subscriber: $Session1.input 3:1\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"the subscriber $Session1.input 3:1 answered\n">>)).
 
+%% report §8.6, §11.2, §12.4: in the shell, as in `ern run`, a termination
+%% during the end's flush ends the shell without it, at once, with the
+%% status of what began the end, though what the session wrote waits for
+%% a standard output that takes nothing: the screen and the shell's
+%% writes wait on it, and the end waits on the screen no longer.
+%%
+%% Here standard output is a named pipe whose reading end is held open and
+%% never read. An input spawns a subscriber that, told, says so on a
+%% connection of the test's and never answers; another writes a megabyte
+%% and a byte, and then connects. A termination begins the end, and the
+%% subscriber is told; a hangup and a termination follow, one cutting the
+%% wait and the other ending the flush, in whichever order the host
+%% delivers them, since two different signals are never merged into one.
+%% The shell ends sooner than one of the screen's drains could end, after
+%% which the shell went on before; it is a timing test.
+stalled_flush_ends_at_once_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun stalled_flush_ends_at_once/0).
+
+stalled_flush_ends_at_once() ->
+    Pipe = scratch_name("ern_stalled_"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Listener),
+    Holder = open_port({spawn_executable, "/bin/sh"},
+                       [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line"]}, exit_status, binary]),
+    Shell = open_port({spawn_executable, "/bin/sh"},
+                      [{args, ["-c", alone("exec ../bin/ern shell 2>&1 > " ++ Pipe)]},
+                       exit_status, binary]),
+    Connect = "Tcp.connect(\"127.0.0.1\", " ++ integer_to_list(Port) ++ ", "
+        ++ ern_nodes_tests:wait_ms_text() ++ ")",
+    try
+        true = port_command(Shell, ["spawn(fn() : Unit receiving Reply(Unit) = {"
+                                    " Os.termination(fn(reply) = reply); let c = ", Connect,
+                                    "; receive { _ -> match c { Right(socket) -> {"
+                                    " let _ = Tcp.write(socket, String.toUtf8(\"told\\n\"), ",
+                                    ern_nodes_tests:wait_ms_text(), "); receive { _ -> Unit } }"
+                                    " | Left(_) -> Unit } } })\n"]),
+        Told = ern_nodes_tests:accepted(Listener),
+        true = port_command(Shell, [stalled_write(), " let _ = ", Connect, "; Unit }\n"]),
+        _ = ern_nodes_tests:accepted(Listener),
+        true = ern_nodes_tests:run_signaled(Shell, "TERM"),
+        ?assertEqual({ok, <<"told\n">>}, ern_nodes_tests:received(Told, 5)),
+        Sent = erlang:monotonic_time(millisecond),
+        true = ern_nodes_tests:run_signaled(Shell, "HUP"),
+        true = ern_nodes_tests:run_signaled(Shell, "TERM"),
+        ?assertMatch({143, _}, ern_nodes_tests:collected(Shell, 1)),
+        ?assertMatch({Ms, Drain} when Ms < Drain,
+                     {erlang:monotonic_time(millisecond) - Sent, screen_ms()})
+    after
+        ok = gen_tcp:close(Listener),
+        ern_nodes_tests:closed(Holder),
+        ern_nodes_tests:closed(Shell)
+    end.
+
+%% report §8.6, §12.1, §12.4: the same at a terminal whose reader has
+%% stopped, the harness reading nothing once the megabyte's first bytes
+%% have come, so that a write of the shell's waits on the terminal: the
+%% shell ends, what it had still to write lost, the end of the paste mode
+%% among it, and the terminal's settings given back.
+%%
+%% The subscriber and the write each say where they stand by a named pipe
+%% of the test's that `cat` reads, and the shell's end while the terminal
+%% is not read is told by a watcher that the command starts before the
+%% shell, which reads a named pipe the shell holds open for writing to its
+%% end, then reads the terminal's settings as the shell left them and opens
+%% a third pipe. Then the harness reads again, and the shell's status is
+%% the termination's.
+stalled_terminal_ends_at_once_test_() ->
+    ern_nodes_tests:counted_test({waits, 5}, fun stalled_terminal_ends_at_once/0).
+
+stalled_terminal_ends_at_once() ->
+    [Subscribed, Told, Written, Watched, Ended] =
+        [scratch_name("ern_" ++ Name ++ "_")
+         || Name <- ["subscribed", "told", "written", "watched", "ended"]],
+    lists:foreach(fun(Pipe) -> [] = os:cmd("mkfifo " ++ Pipe) end,
+                  [Subscribed, Told, Written, Watched, Ended]),
+    Watcher = ern_pty:watcher(),
+    Read = fun(Pipe) -> "let _ = Os.run(Os.command(\"cat\", [\"" ++ Pipe ++ "\"]), "
+                            ++ ern_nodes_tests:wait_ms_text() ++ ");" end,
+    Subscriber = "spawn(fn() : Unit receiving Reply(Unit) = { Os.termination(fn(reply) = reply); "
+        ++ Read(Subscribed) ++ " receive { _ -> { " ++ Read(Told)
+        ++ " receive { _ -> Unit } } } })\r",
+    Write = stalled_write() ++ " " ++ Read(Written) ++ " Unit }\r",
+    {Status, Data} = ern_pty:watched(Watcher, Watched, Ended, alone("exec ../bin/ern shell"),
+                                     [{expect, "> "},
+                                      {send, hex(Subscriber)},
+                                      {put, Subscribed},
+                                      {expect, "Address("},
+                                      {expect, "> "},
+                                      {send, hex(Write)},
+                                      {expect, "xxxxxxxxxxxxxxxx"},
+                                      stall,
+                                      {put, Written},
+                                      {signal, "termination"},
+                                      {put, Told},
+                                      {signal, "hangup"},
+                                      {signal, "termination"},
+                                      {put, Ended},
+                                      release]),
+    ?assertEqual(143, Status),
+    ?assertEqual(ern_pty:settings(Watcher, found), ern_pty:settings(Watcher, left)),
+    ?assertEqual(nomatch, binary:match(Data, ern_pty:paste_off())),
+    ?assert(ern_pty:count(Data, <<"x">>) < 1048576).
+
+%% report §12.1, §11.2: where nothing stalls, the shell's end at a terminal
+%% ends the paste mode it began, once, after all it wrote, and gives the
+%% terminal's settings back. A regression test, written beside the tests
+%% above, of the end's write of the paste mode's end: it does not cover a
+%% session that `C-d` ends, nor an attached shell.
+shell_end_gives_the_terminal_back_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun shell_end_gives_the_terminal_back/0).
+
+shell_end_gives_the_terminal_back() ->
+    [Watched, Ended] = [scratch_name("ern_" ++ Name ++ "_") || Name <- ["watched", "ended"]],
+    lists:foreach(fun(Pipe) -> [] = os:cmd("mkfifo " ++ Pipe) end, [Watched, Ended]),
+    Watcher = ern_pty:watcher(),
+    {0, Data} = ern_pty:watched(Watcher, Watched, Ended, alone("exec ../bin/ern shell"),
+                                [{expect, "> "},
+                                 {send, hex("1 + 1\r")},
+                                 {expect, "2 : Int"},
+                                 {send, hex(":quit\r")},
+                                 {put, Ended}]),
+    ?assertEqual(ern_pty:settings(Watcher, found), ern_pty:settings(Watcher, left)),
+    PasteOff = ern_pty:paste_off(),
+    ?assertEqual(1, ern_pty:count(Data, PasteOff)),
+    ?assertEqual(PasteOff, binary:part(Data, byte_size(Data), -byte_size(PasteOff))).
+
+%% An input that writes a megabyte and then a byte to standard output, a
+%% block whose end the caller writes: the screen writes the megabyte, and
+%% the byte waits behind it where standard output takes nothing.
+stalled_write() ->
+    "{ Io.write(Bytes.repeat(<<120>>, 1048576)); Io.write(<<121>>);".
+
+%% Report §11.2, §8.6: the milliseconds the screen waits for the local
+%% half to write what it was sent, which a drain of the end's waited
+%% before it went on without, as the shell's source states them.
+screen_ms() ->
+    {ok, Source} = file:read_file("../src/shell/ernest/shell.ern"),
+    {match, [Ms]} = re:run(Source, "^let screenMs = ([0-9]+)$",
+                           [multiline, {capture, all_but_first, binary}]),
+    binary_to_integer(Ms).
+
 demo(Value) ->
     ["export fn answer() : Int = ", integer_to_list(Value), "\n\n",
      %% a wait with no alarm, so that `:processes` finds it receiving at

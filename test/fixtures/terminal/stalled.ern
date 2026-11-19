@@ -1,0 +1,84 @@
+//
+// An end that waits on a terminal that takes nothing, for the terminal
+// tests (report §8.6, §12.1, §12.4): a process of the program's own
+// subscribes to Os.termination, and once it has, the program subscribes to
+// the keys and says that it is ready. On a key it writes a megabyte to
+// standard output, waits until `cat` has read the named pipe its first
+// argument names to its end, and writes a byte, which waits behind the
+// megabyte where the terminal takes nothing. The subscriber, told, waits
+// until `cat` has read the pipe its second argument names and never
+// answers. The third is the milliseconds each wait may take, the test's
+// time for one step.
+//
+
+type MainMsg = Key(Terminal.Event) | Subscribed
+
+type SubscriberMsg = Terminating(Reply(Unit))
+
+export fn main() : Unit receiving MainMsg =
+    match Os.arguments {
+        [written, told, text] ->
+            match String.toInt(text) {
+                Some(ms) -> started(written, told, ms)
+              | None -> Io.printlnError("not milliseconds: " <> text)
+            }
+      | _ ->
+            Io.printlnError("usage: written told ms")
+    }
+
+fn started(written : String, told : String, ms : Int) : Unit receiving MainMsg = {
+    let me = self();
+    let _ = spawn(fn() = subscriber(me, told, ms));
+    awaitSubscribed();
+    match Terminal.subscribe(Key) {
+        Right(_) -> {
+            Io.println("ready");
+            awaitKey();
+            Io.write(Bytes.repeat(<<120>>, 1048576));
+            readToItsEnd(written, ms);
+            Io.write(<<121>>);
+            waiting()
+        }
+      | Left(error) ->
+            Io.printlnError("no keys: " <> Io.show(error))
+    }
+}
+
+fn awaitSubscribed() : Unit receiving MainMsg =
+    receive {
+        Subscribed -> Unit
+      | Key(_) -> awaitSubscribed()
+    }
+
+fn awaitKey() : Unit receiving MainMsg =
+    receive {
+        Key(_) -> Unit
+      | Subscribed -> awaitKey()
+    }
+
+fn waiting() : Unit receiving MainMsg =
+    receive {
+        Key(_) -> waiting()
+      | Subscribed -> waiting()
+    }
+
+fn subscriber(main : Address(MainMsg), told : String, ms : Int) : Unit receiving SubscriberMsg = {
+    Os.termination(Terminating);
+    send(main, Subscribed);
+    receive {
+        Terminating(_) -> {
+            readToItsEnd(told, ms);
+            unanswered()
+        }
+    }
+}
+
+fn unanswered() : Unit receiving SubscriberMsg =
+    receive {
+        Terminating(_) -> unanswered()
+    }
+
+fn readToItsEnd(pipe : String, ms : Int) : Unit = {
+    let _ = Os.run(Os.command("cat", [pipe]), ms);
+    Unit
+}

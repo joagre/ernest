@@ -23,7 +23,7 @@
          wait_ms_text/0, client/0, client/8, key_files/1, start/3, bare_started/2, bound_port/1,
          launched/2, says/2, says/3, prints/2, prints/4, stop/2, written/2, said/1, wait_ms/0,
          detector_ms/0, has/2, connected/2, accepted/1, received/2, unread_writer/1,
-         read_to_its_end/1, collected/2, closed/1]).
+         read_to_its_end/1, run_signaled/2, collected/2, closed/1]).
 
 %% What waits for a node's end: its status, or `timeout` where it has not
 %% ended within the harness's time for one wait.
@@ -4454,6 +4454,7 @@ flushed_and_ended(Run, Socket, Status) ->
 
 %% Whether the signal Name was sent to the run its port started, which is
 %% the port's own process; none is sent to a run whose port has ended.
+-spec run_signaled(port(), string()) -> boolean().
 run_signaled(Run, Name) ->
     case erlang:port_info(Run, os_pid) of
         {os_pid, Number} -> os:cmd("kill -" ++ Name ++ " " ++ integer_to_list(Number)) =:= "";

@@ -4946,18 +4946,29 @@ to_screen(Bytes) ->
 %% no program's process, by the screen's process, and under a monitor, as
 %% ern_rt:say/2 asks standard error's process, since a screen that has
 %% ended, with the program among the ways, has nothing left to write.
+%%
+%% Report §8.6, §12.4: a termination during the flush ends the program
+%% without it, and kills standard output's process with what it had not
+%% written (ern_rt:end_at_once/0), so the wait goes on at that process's
+%% end too: the screen's own writes may wait on a stream that takes
+%% nothing, and what they would write is lost with the rest.
 -spec flush_screen() -> ok.
 flush_screen() ->
     case persistent_term:get({?MODULE, screen}, undefined) of
         undefined ->
             ok;
         Screen ->
+            Stdout = erlang:monitor(process, ern_rt:system_process(stdout)),
             Reply = erlang:monitor(process, Screen, [{alias, demonitor}]),
             Screen ! {'Flush', {Reply, erlang:self()}},
             receive
-                {Reply, answered, _} -> erlang:demonitor(Reply, [flush]), ok;
-                {'DOWN', Reply, process, _, _} -> ok
-            end
+                {Reply, answered, _} -> ok;
+                {'DOWN', Reply, process, _, _} -> ok;
+                {'DOWN', Stdout, process, _, _} -> ok
+            end,
+            erlang:demonitor(Reply, [flush]),
+            erlang:demonitor(Stdout, [flush]),
+            ok
     end.
 
 %% Report §8.7, Appendix H: a name the session binds is a binding, whose

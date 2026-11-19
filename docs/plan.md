@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 138**, the shell's end at once. Items 139 to 141 follow
-it, decided with the user on 2026-11-19.
+**The next item is MVP 4.16's item 139**, `ern test` at a termination that ended a launch.
+Items 140 and 141 follow it, decided with the user on 2026-11-19.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -62,17 +62,6 @@ Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **138. The shell ends at once**, found 2026-11-19 by item 120's probes (the log's *The
-  Runner Waits for No Line*, its paragraph *Found beside it*). A shell whose output was
-  stalled was sent a termination once the end's wait was over. In line mode it ended about
-  8 s later, after two of the screen's drains. At a terminal it never ended: giving the
-  terminal back writes the end of its paste mode through the stalled stream.
-
-  §8.6 has a termination during the flush end the program without it, and the shell shows
-  that false, so by the line's test the item stands here. The shape: an end at once ends
-  the shell's screen with the writers, and the terminal is given back without the write.
-  Its settings come back as they do today. The end of the paste mode is output not
-  written, which §12.4 names as lost.
 - **139. `ern test` ends at a termination that ended a launch**, found 2026-11-19 by item
   120's probes (the same paragraph). A termination during the stalled flush of one
   module's launch ended that launch, and the job went on to the next module. It exited 0
@@ -453,6 +442,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 132 | A bad message's fault to a foreign process the runtime did not start is sent as a fault in `f` is, an exit signal, and a foreign address gains no check of its own, with the user | 2026-11-19 | §6.5, §8.4, Appendix F; *A Bad Message's Fault to a Foreign Target* |
 | 115 | The wrap of a `monitor` in an adapted address's function, or in a wrap, answers no value, and a lambda refused where a function that receives nothing is expected has the use that makes it receive labeled, with the user | 2026-11-19 | §6.5, §6.9, §11.5; *A `monitor` in an Adapted Address's Function* |
 | 120 | The runner waits for no line of the end's wait, a termination during the flush ends the program without it, and one termination never both begins the end or cuts the wait and ends the flush, with the user | 2026-11-19 | §8.6, §11.2, §12.4; *The Runner Waits for No Line* |
+| 138 | The shell's flush ends at the end of standard output's process, and an end at once gives the terminal back without the end of its paste mode | 2026-11-19 | §8.6, §11.2, §12.1, §12.4; *The Shell Ends at Once* |
 
 ---
 
@@ -706,6 +696,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
    Before its readers start:
 
+   - **Eve beside nike**, to decide with the user, raised 2026-11-19. The review's clone
+     builds and runs `make test-full` on committed code while the readers read, and eve,
+     alone of the other machines, could run it beside nike. CLAUDE.md's *The repository* keeps another machine to tests
+     of nodes across a network, so that rule changes first, in the template, or the clone
+     stays on nike. Recommended: eve runs the clone, which needs committed code alone. A
+     second machine was weighed for an item's build the same day and helped nothing there.
    - **The tools weighed.** `tools/paragraphs.sh`, `tools/comments.sh` and
      `tools/unicode_width.escript` are weighed against CLAUDE.md's *Ernest or Erlang*, each
      written in Ernest or its reason to stay stated (the log's *The Layout's Proposal Read*).

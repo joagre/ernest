@@ -33,12 +33,13 @@
 %% whether keys can come, which a test's keys say they can.
 -module(ern_tty).
 
--export([loop/2, size/0, raw_mode/1, restore/1, holder/2, is_terminal/1, more/2, decode/1,
-         flush/1]).
+-export([loop/2, size/0, raw_mode/1, restore/1, at_once/1, holder/2, is_terminal/1, more/2,
+         decode/1, flush/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [refusing/0, loop/4, couriered/2, courier/1, unsubscribe/3,
-                         reader_opened/1, held/2, given_back/0, restore/1, bidden/2]}).
+                         reader_opened/1, held/2, given_back/0, restore/1, bidden/2,
+                         written/1]}).
 
 %% What waits for more to arrive: the characters of an escape that may
 %% still grow into a sequence, or a paste under way, its text so far
@@ -67,6 +68,12 @@
 %% give-back fails only where the terminal is gone, and stty's word of it
 %% is not written on the program's standard error (§12.1).
 %%
+%% Told `now`, as an end at once tells it (given_back/0), it gives the
+%% settings back without waiting for what was written to the terminal to go
+%% out, by stty's `-drain`, since a write under way to a terminal that takes
+%% nothing holds a stty that waits until the terminal takes it (§8.6,
+%% §12.4); where stty has no such setting, it gives them back as stty does.
+%%
 %% Where the settings cannot be read or the mode set, stty's words of it
 %% are said in place of `held`, the settings it read given back, and the
 %% holder ends, so that the subscription answers why (raw_mode/1).
@@ -76,7 +83,8 @@
               "\"$1\" raw -echo opost 2>&4 || { \"$1\" \"$found\" 2>/dev/null; exit 1; }\n"
               "echo held >&4\n"
               "read done <&3\n"
-              "\"$1\" \"$found\" 2>/dev/null\n").
+              "[ \"$done\" = now ] && \"$1\" -drain \"$found\" 2>/dev/null ||\n"
+              "    \"$1\" \"$found\" 2>/dev/null\n").
 %% The key of the terminal's process's dictionary that holds the holder's
 %% port while it holds the terminal.
 -define(HOLDER, '$ern_holder').
@@ -104,7 +112,10 @@ refusing() ->
             Pid ! {Ref, fresh};
         {restore, From, Ref} ->
             %% report §12.1: no mode was set
-            From ! {Ref, restored}
+            From ! {Ref, restored};
+        at_once ->
+            %% report §8.6: no mode is written here, so the word asks nothing
+            ok
     end,
     refusing().
 
@@ -138,6 +149,10 @@ loop(Subscribers, Reader, Pending, Size) ->
         {restore, From, Ref} ->
             given_back(),
             From ! {Ref, restored},
+            loop(Subscribers, Reader, Pending, Size);
+        at_once ->
+            %% report §8.6: the word of an end at once that came while no
+            %% write waited, after which a write finds the end ended (write/1)
             loop(Subscribers, Reader, Pending, Size);
         {Holder, {exit_status, _}} when is_port(Holder) ->
             %% the holder ended of itself, a kill from outside among the
@@ -513,9 +528,23 @@ restore(Terminal) ->
         {'DOWN', MonitorRef, process, _, _} -> ok
     end.
 
+%% Report §8.6, §12.4: a termination ended the program's end at once, so
+%% the terminal's process Terminal, none where the run has none, writes
+%% nothing more of the terminal's mode, and a write of it that waits on a
+%% stream that takes nothing goes on (write/1): the terminal is given back
+%% without the end of its paste mode, which is output not written.
+-spec at_once(pid() | none) -> ok.
+at_once(Terminal) when is_pid(Terminal) ->
+    Terminal ! at_once,
+    ok;
+at_once(none) ->
+    ok.
+
 %% The terminal's mode given back, its handler of resizes gone, and the
 %% holder told and waited for, once, as it gives back the settings and
-%% ends.
+%% ends; the end of the paste mode is written first, unless a termination
+%% ended the end at once (write/1), and then the holder gives the settings
+%% back without waiting for the terminal to take what was written (?HOLD).
 given_back() ->
     _ = gen_event:delete_handler(erl_signal_server, ern_tty_signal, stop),
     write(?PASTE_OFF),
@@ -523,17 +552,40 @@ given_back() ->
         undefined ->
             ok;
         Holder ->
-            _ = told(Holder, <<"done\n">>),
+            _ = told(Holder, case ern_rt:ended_at_once() of
+                                 true -> <<"now\n">>;
+                                 false -> <<"done\n">>
+                             end),
             receive {Holder, {exit_status, _}} -> ok end
     end.
 
 %% Report §12.1: the terminal's own mode, written past the sinks a program's
 %% output is bound to, since it is the terminal that is being spoken to.
+%% Report §8.6, §12.4: nothing of it is written once a termination has
+%% ended the end at once, and a write under way waits until the job's
+%% standard output has taken it or the termination comes (at_once/1),
+%% whichever is first (written/1).
 write(Text) ->
-    case terminal() of
-        true -> file:write(standard_io, unicode:characters_to_binary(Text));
+    case terminal() andalso not ern_rt:ended_at_once() of
+        true -> written(unicode:characters_to_binary(Text));
         false -> ok
     end.
+
+%% Bytes written to the job's standard output, the process's group leader,
+%% by the request file:write/2 makes of it, waited for here so that the
+%% word of an end at once ends the wait as the reply or the leader's end
+%% does; a reply that comes after the word is no longer read.
+written(Bytes) ->
+    Out = erlang:group_leader(),
+    MonitorRef = erlang:monitor(process, Out),
+    Out ! {io_request, erlang:self(), MonitorRef, {put_chars, latin1, Bytes}},
+    receive
+        {io_reply, MonitorRef, _} -> ok;
+        {'DOWN', MonitorRef, process, _, _} -> ok;
+        at_once -> ok
+    end,
+    erlang:demonitor(MonitorRef, [flush]),
+    ok.
 
 system_stty() ->
     case [Path || Path <- ["/bin/stty", "/usr/bin/stty"], filelib:is_regular(Path)] of
@@ -556,8 +608,9 @@ system_stty() ->
 %% The holder is waited for with no time of the runtime's own, as the
 %% runtime waits for its helper (ern_os): stty waits on the terminal alone,
 %% which takes a mode once what was written to it has gone out, and a
-%% terminal whose output is stopped holds every writer so. A wait cut short
-%% would leave stty running, to set its mode after the runtime had gone on.
+%% terminal whose output is stopped holds every writer so, but at an end at
+%% once, where nothing more is waited for (?HOLD). A wait cut short would
+%% leave stty running, to set its mode after the runtime had gone on.
 hold() ->
     holder(terminal(), system_stty()).
 

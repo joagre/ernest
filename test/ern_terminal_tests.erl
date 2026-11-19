@@ -132,7 +132,10 @@ utf8_key_interrupt() ->
     ?assertEqual(0, Status).
 
 %% report §12.1: the runtime restores line mode with echo when the program
-%% ends, so the terminal is the one the program found
+%% ends, so the terminal is the one the program found, and ends the paste
+%% mode it began, once, after what the program wrote; that last a
+%% regression test of the end's write, written with a change to it, which
+%% does not cover an end that a termination or a hangup began
 terminal_restored_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun terminal_restored/0).
 
@@ -145,7 +148,11 @@ terminal_restored() ->
     ?assert(ern_pty:count(
         Screen, <<"ready">>) =:= 1 andalso ern_pty:count(Screen, <<"escape">>) =:= 1),
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-echo([ \t;\r\n]|$)", [{capture, none}])),
-    ?assert(ern_pty:count(Screen, <<"speed">>) >= 2).
+    ?assert(ern_pty:count(Screen, <<"speed">>) >= 2),
+    ?assertEqual(1, ern_pty:count(Screen, ern_pty:paste_off())),
+    {Escape, _} = binary:match(Screen, <<"escape">>),
+    {PasteOff, _} = binary:match(Screen, ern_pty:paste_off()),
+    ?assert(Escape < PasteOff).
 
 %% report §12.1: the terminal's settings a program found are the ones it
 %% leaves, not stty's defaults. A regression test: the end ran `stty sane`,
@@ -182,6 +189,51 @@ killed_host_restored() ->
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-(echo|icanon)([ \t;\r\n]|$)",
                                  [{capture, none}])),
     ?assert(ern_pty:count(Screen, <<"speed">>) >= 2).
+
+%% report §8.6, §12.1, §12.4: a termination during the end's flush ends the
+%% program without it at a terminal whose reader has stopped: what it had
+%% still to write is lost, the end of the paste mode among it, and the
+%% terminal's settings are given back.
+%%
+%% The harness reads nothing from the program's `ready` on. The program
+%% writes a megabyte, says so by a named pipe of the test's that `cat`
+%% reads, and writes a byte, which waits behind a write of the megabyte's
+%% under way; its end waits for a subscriber that never answers. A
+%% termination begins the end, and the subscriber is told, which it says by
+%% a pipe too; a hangup and a termination follow, one cutting the wait and
+%% the other ending the flush, in whichever order the host delivers them,
+%% since two different signals are never merged into one. A watcher tells
+%% the end while the harness reads nothing (ern_pty:watched/5); then the
+%% harness reads again, and the status is the termination's.
+stalled_terminal_ends_at_once_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun stalled_terminal_ends_at_once/0).
+
+stalled_terminal_ends_at_once() ->
+    ok = build("fixtures/terminal/stalled.ern", "fixtures/terminal"),
+    Base = filename:join(ern_pty:run_dir(), "terminal_stalled_" ++ os:getpid() ++ "_"
+                         ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Base),
+    [Written, Told, Watched, Ended] =
+        [filename:join(Base, Name ++ ".pipe") || Name <- ["written", "told", "watched", "ended"]],
+    lists:foreach(fun(Pipe) -> [] = os:cmd("mkfifo " ++ Pipe) end, [Written, Told, Watched, Ended]),
+    Watcher = filename:join(Base, "watcher"),
+    {Status, Screen} = ern_pty:watched(Watcher, Watched, Ended,
+                                       "exec ../bin/ern run build/terminal/stalled.erc " ++ Written
+                                       ++ " " ++ Told ++ " " ++ ern_nodes_tests:wait_ms_text(),
+                                       [{expect, "ready"},
+                                        stall,
+                                        {send, "78"},
+                                        {put, Written},
+                                        {signal, "termination"},
+                                        {put, Told},
+                                        {signal, "hangup"},
+                                        {signal, "termination"},
+                                        {put, Ended},
+                                        release]),
+    ?assertEqual(143, Status),
+    ?assertEqual(ern_pty:settings(Watcher, found), ern_pty:settings(Watcher, left)),
+    ?assertEqual(nomatch, binary:match(Screen, ern_pty:paste_off())),
+    ?assert(ern_pty:count(Screen, <<"x">>) < 1048576).
 
 %% report §12.1, §12.5: at a full table of ports, which a node's `limits`
 %% makes small, a subscription answers the host's refusal,

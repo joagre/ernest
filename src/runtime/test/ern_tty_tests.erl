@@ -273,6 +273,42 @@ unset_mode_given_back_test() ->
                  ern_tty:raw_mode(Holder)),
     ?assertEqual({ok, <<"-g\nraw -echo opost\nsaved\n">>}, file:read_file(Calls)).
 
+%% report §8.6, §12.1, §12.4: the holder gives the settings back as stty
+%% does, and, told `now`, as an end at once tells it, by stty's `-drain`,
+%% which waits for nothing written to go out, or as stty does where stty
+%% refuses the setting; the test's stty writes down each call. A
+%% regression test, written after the code: it does not cover a terminal
+%% that takes nothing, which the terminal tests do
+holder_gives_back_test_() ->
+    [?_assertEqual(<<"-g\nraw -echo opost\nsaved\n">>, given_back(<<"done\n">>, "")),
+     ?_assertEqual(<<"-g\nraw -echo opost\n-drain saved\n">>, given_back(<<"now\n">>, "")),
+     ?_assertEqual(<<"-g\nraw -echo opost\n-drain saved\nsaved\n">>,
+                   given_back(<<"now\n">>, "  -drain) exit 1;;\n"))].
+
+%% The calls a holder made of the test's stty, told to hold and then Word,
+%% the stty refusing what Refused says.
+given_back(Word, Refused) ->
+    Dir = scratch("ern_tty_given_back_"),
+    Calls = filename:join(Dir, "calls"),
+    Stty = fake_stty(Dir, ["echo \"$*\" >> '", Calls, "'\n"
+                           "case \"$1\" in\n"
+                           "  -g) echo saved;;\n", Refused,
+                           "esac\n"]),
+    {ok, Holder} = ern_tty:holder(true, Stty),
+    true = port_command(Holder, <<"hold\n">>),
+    held(Holder, <<>>),
+    true = port_command(Holder, Word),
+    receive {Holder, {exit_status, 0}} -> ok end,
+    {ok, Made} = file:read_file(Calls),
+    Made.
+
+%% The holder's word that it holds, read to its end.
+held(Holder, Said) ->
+    case Said of
+        <<"held\n">> -> ok;
+        _ -> receive {Holder, {data, Bytes}} -> held(Holder, <<Said/binary, Bytes/binary>>) end
+    end.
+
 %% A stty of a test's own, a shell script of Body, written in Dir.
 fake_stty(Dir, Body) ->
     Path = filename:join(Dir, "stty"),

@@ -5063,14 +5063,19 @@ is_taken(Word) ->
 %% out what the program and the runtime said, standard output's, standard
 %% error's and the sayer of the lines said later, are killed with what
 %% they have not written, so that each wait of the end on them goes on at
-%% their end (sink_flushed/1, wait_for_later/0, stopped_in_order/1), and
-%% the job writes out nothing more (ended_at_once/0). Run by the signal's
-%% handler or by the runner, either or both, so it can be run twice.
+%% their end (sink_flushed/1, wait_for_later/0, stopped_in_order/1, and the
+%% shell's flush, ern_shell:flush_screen/0); the terminal's process writes
+%% nothing more of its mode and gives the settings back without waiting for
+%% the terminal to take what was written, so without the end of its paste
+%% mode (ern_tty:at_once/1, §12.4); and the job writes out nothing more
+%% (ended_at_once/0). Run by the signal's handler or by the
+%% runner, either or both, so it can be run twice.
 end_at_once() ->
     persistent_term:put({?MODULE, at_once}, true),
     Writers = [persistent_term:get({?MODULE, Name}, none) || Name <- [stdout, stderr]]
         ++ [erlang:whereis(?SAY_LATER)],
     lists:foreach(fun(Pid) -> is_pid(Pid) andalso exit(Pid, kill) end, Writers),
+    ern_tty:at_once(persistent_term:get({?MODULE, terminal}, none)),
     true.
 
 %% Report §8.6: whether a termination ended the last launch's end at once

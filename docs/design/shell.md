@@ -249,7 +249,7 @@ Every sink sends `Wrote` to the screen's process by its host identity, which the
 
 The screen keeps a character cut across two writes until its end comes, one cut to a screen whichever stream wrote, and it goes with the screen.
 
-Once the program's end has waited for its subscribers (§8.6), the runtime drains the screen as a prompt does, so that what a subscriber wrote after a plain shell's session ended is written before the screen ends with the program; the local half writes it, living until the end.
+Once the program's end has waited for its subscribers (§8.6), the runtime drains the screen as a prompt does, so that what a subscriber wrote after a plain shell's session ended is written before the screen ends with the program; the local half writes it, living until the end. The runner's wait on the screen ends too at the end of the runtime's standard output, which a termination during the flush kills, so that no drain of the screen's holds an end at once (`ern_shell:flush_screen/0`; the log's *The Shell Ends at Once*).
 
 `:output path` is the session's, in Ernest (the log's *What Erlang Held, Moved*). Its local half tries the path with an append of nothing on the shell's own node, which creates a file that is not there and refuses what is neither a file nor a device (E.17), and appends to that path from then on and to no other. A named pipe is refused so, since opening one no one reads would hold the session.
 
