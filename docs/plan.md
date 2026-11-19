@@ -380,7 +380,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 128 | A body read a piece to each read, a body that never ends, a close inside the trailers and a limit met in bytes from the socket, with the user | 2026-11-19 | Appendix G.11; *A Body, Tested* |
 | 129 | G.11 states what a client sends in a body; `Http` reads white space as spaces and tabs and a coding in ASCII case; `Char` and `String` gain `toAsciiLower` and `toAsciiUpper`, with the user | 2026-11-19 | Appendices E.0, E.5, E.6, G.11; *G.11 States What a Client Sends*, *An ASCII Case in the Library* |
 | 130 | `Http.header` and `Http.headers` compare a name in ASCII case, left to the session by the user | 2026-11-19 | Appendix G.11; *A Header's Name in ASCII Case* |
-| 131 | `Http.elements`, a list header's elements, a quoted string keeping its comma and nothing else, feedback 267, with the user | 2026-11-19 | Appendix G.11; *A List Header's Elements* |
+| 131 | `Http.elements`, a list header's elements, a quoted string keeping its comma and nothing else, and a body's framing refuses a `Transfer-Encoding` whose quoted string does not end, feedback 267, with the user | 2026-11-19 | Appendix G.11; *A List Header's Elements* |
 
 ---
 

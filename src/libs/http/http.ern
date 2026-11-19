@@ -888,11 +888,12 @@ fn received(socket : Address(Tcp.SocketMsg),
 /// The codings are `elements(request.headers, "Transfer-Encoding")`, each
 /// compared in any case of the letters `A` to `Z`; a coding with a
 /// parameter, `chunked;q=1`, is not `chunked`, and a header that names no
-/// coding is read as naming another last. A chunk's size line is
-/// hexadecimal digits, spaces and tabs, and the extensions after a `;`; one
-/// of another form, or a chunk's bytes not followed directly by a line's
-/// ending, is `Protocol(Malformed)`, and a trailer is dropped whatever its
-/// form.
+/// coding is read as naming another last. A `Transfer-Encoding` value in
+/// which a quoted string does not end is `Protocol(Malformed)`. A chunk's
+/// size line is hexadecimal digits, spaces and tabs, and the extensions
+/// after a `;`; one of another form, or a chunk's bytes not followed
+/// directly by a line's ending, is `Protocol(Malformed)`, and a trailer is
+/// dropped whatever its form.
 ///
 /// A client whose request carries `Expect: 100-continue` may hold its body
 /// back until the server answers with status 100 (RFC 9110, section
@@ -943,7 +944,8 @@ export fn readRequestBody(socket : Address(Tcp.SocketMsg),
 /// Where the headers carry neither `Transfer-Encoding` nor `Content-Length`,
 /// or `Transfer-Encoding` names a coding other than `chunked` last, the body
 /// runs to the connection's close, and no bytes come after it (RFC 9112,
-/// section 6.3).
+/// section 6.3). A `Transfer-Encoding` value in which a quoted string does
+/// not end is `Protocol(Malformed)`, as in a request.
 export fn readResponseBody(socket : Address(Tcp.SocketMsg),
                            carried : Bytes,
                            response : Response,
@@ -987,10 +989,11 @@ type Framing = Chunked | Length(Int) | ToClose
 
 // Report Appendix G.11, RFC 9112, sections 6.1 and 6.3: a transfer coding
 // frames the body, its last coding deciding how, and the field's codings are
-// its `elements`, however many lines carry them; a `Content-Length` beside
-// it, or `chunked` named twice, frames none that can be read. Every
-// `Content-Length` names one decimal number, the same. Where neither field
-// frames the body, a request has none, and a response's runs to the close.
+// its `elements`, however many lines carry them; a quoted string that does
+// not end in a line, a `Content-Length` beside it, or `chunked` named twice,
+// frames none that can be read. Every `Content-Length` names one decimal
+// number, the same. Where neither field frames the body, a request has none,
+// and a response's runs to the close.
 fn framing(fields : List(Header), sender : Sender) : Either(Error, Framing) =
     match #(headers(fields, "Transfer-Encoding"), headers(fields, "Content-Length")) {
         #([], lengths) ->
@@ -1000,8 +1003,14 @@ fn framing(fields : List(Header), sender : Sender) : Either(Error, Framing) =
               | #([Some(size)], _) -> Right(Length(size))
               | _ -> Left(Malformed)
             }
-      | #(_, []) ->
-            coded(List.map(elements(fields, "Transfer-Encoding"), String.toAsciiLower), sender)
+      | #(values, []) -> {
+            let parts = List.map(values, partedValue);
+            let codings = List.flatMap(parts, fn(part) = part.elements);
+            if List.any(parts, fn(part) = part.quoteUnended) then
+                Left(Malformed)
+            else
+                coded(List.map(codings, String.toAsciiLower), sender)
+        }
       | _ ->
             Left(Malformed)
     }
@@ -1190,38 +1199,42 @@ fn isNamed(header : Header, lowered : String) : Bool =
 ///
 /// since 0.11.0
 export fn elements(fields : List(Header), name : String) : List(String) =
-    List.flatMap(headers(fields, name), valueElements)
+    List.flatMap(headers(fields, name), fn(value) = partedValue(value).elements)
 
-// Report Appendix G.11: the elements of one value, read in one pass over its
-// bytes. A byte stands for a character, since a comma, a quote, a backslash,
-// a space and a tab are each one byte of UTF-8, and no other character's
-// bytes hold one; where a backslash takes the first byte of a longer
-// character, its other bytes are none of those.
-fn valueElements(value : String) : List(String) = {
+// The elements of one value, and whether a quoted string in it does not end,
+// which the framing refuses.
+type Parted = Parted(elements : List(String), quoteUnended : Bool)
+
+// Report Appendix G.11: one value parted, read in one pass over its bytes. A
+// byte stands for a character, since a comma, a quote, a backslash, a space
+// and a tab are each one byte of UTF-8, and no other character's bytes hold
+// one; where a backslash takes the first byte of a longer character, its
+// other bytes are none of those.
+fn partedValue(value : String) : Parted = {
     let bytes = String.toUtf8(value);
     parted(bytes, 0, bytes, [])
 }
 
-// The elements of a value outside a quoted string: `element` is the bytes
+// A value parted from outside a quoted string on: `element` is the bytes
 // from the element's start to the value's end, `size` of them read and
 // `unread` not, and `acc` the elements before it, the last first.
-fn parted(element : Bytes, size : Int, unread : Bytes, acc : List(String)) : List(String) =
+fn parted(element : Bytes, size : Int, unread : Bytes, acc : List(String)) : Parted =
     match unread {
         <<',':utf8, rest:bytes>> -> parted(rest, 0, rest, kept(element, size, acc))
       | <<'"':utf8, rest:bytes>> -> quoted(element, size + 1, rest, acc)
       | <<_, rest:bytes>> -> parted(element, size + 1, rest, acc)
-      | _ -> List.reverse(kept(element, size, acc))
+      | _ -> Parted(elements = List.reverse(kept(element, size, acc)), quoteUnended = false)
     }
 
-// The elements of a value within a quoted string, read as `parted` reads
-// them: the next quote ends it, a backslash takes the byte after it, and one
-// that does not end runs to the value's end.
-fn quoted(element : Bytes, size : Int, unread : Bytes, acc : List(String)) : List(String) =
+// A value parted from within a quoted string on, read as `parted` reads it:
+// the next quote ends it, a backslash takes the byte after it, and one that
+// does not end runs to the value's end.
+fn quoted(element : Bytes, size : Int, unread : Bytes, acc : List(String)) : Parted =
     match unread {
         <<'"':utf8, rest:bytes>> -> parted(element, size + 1, rest, acc)
       | <<'\\':utf8, _, rest:bytes>> -> quoted(element, size + 2, rest, acc)
       | <<_, rest:bytes>> -> quoted(element, size + 1, rest, acc)
-      | _ -> List.reverse(kept(element, size, acc))
+      | _ -> Parted(elements = List.reverse(kept(element, size, acc)), quoteUnended = true)
     }
 
 // The elements before, last first, with the first `size` bytes of `element`
@@ -3251,6 +3264,11 @@ let helloBody = "Hello World! My content includes a trailing CRLF.\r\n"
 fn sized(size : String) : List(Header) =
     [Header(name = "Content-Length", value = size)]
 
+// The headers of a body of transfer codings, a `Transfer-Encoding` line for
+// each value.
+fn transferCoded(values : List(String)) : List(Header) =
+    List.map(values, fn(value) = Header(name = "Transfer-Encoding", =value))
+
 // The heads the tests read bodies after: a request's, and a response's of
 // status 200, carrying the headers.
 fn asked(headers : List(Header)) : Request =
@@ -3318,7 +3336,7 @@ let chunkWritten =
 // report Appendix G.11
 let chunksReadBack =
     Test.Case(name = "the chunks chunk writes are read back as the body they write", run = fn() = {
-        let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
+        let chunked = transferCoded(["chunked"]);
         let parts = [String.repeat("x", 300), "Wiki", "pedia"];
         let written =
             Bytes.join(List.map(parts, fn(part) = chunk(String.toUtf8(part))) <> [chunk(<<>>)],
@@ -3348,17 +3366,13 @@ let chunkedLineFeeds =
 let codingsListed =
     Test.Case(name = "the codings of every Transfer-Encoding are one list, each trimmed",
               run = fn() = {
-                  let coded =
-                      fn(values) =
-                          asked(List.map(values,
-                                         fn(value) = Header(name = "Transfer-Encoding", =value)));
                   let carried = String.toUtf8("1\r\na\r\n0\r\n\r\nrest");
                   Test.equal(served([],
                                     StaysOpen,
                                     fn(socket) =
-                                        List.map([coded(["gzip", "chunked"]),
-                                                  coded(["gzip\t,  chunked"]),
-                                                  coded([", , chunked,"])],
+                                        List.map([asked(transferCoded(["gzip", "chunked"])),
+                                                  asked(transferCoded(["gzip\t,  chunked"])),
+                                                  asked(transferCoded([", , chunked,"]))],
                                                  fn(request) =
                                                      readRequestBody(socket,
                                                                      carried,
@@ -3369,42 +3383,56 @@ let codingsListed =
                                                3)))
               })
 
+// The bodies `headers` frame in a request and in a response, each read from
+// the carried bytes of one chunk, `a`, and `rest` after it, with no time to
+// read the socket.
+fn framedBodies(socket : Address(Tcp.SocketMsg),
+                headers : List(Header)) : #(Either(SocketError, #(Bytes, Bytes)),
+                                            Either(SocketError, #(Bytes, Bytes))) = {
+    let carried = String.toUtf8("1\r\na\r\n0\r\n\r\nrest");
+    #(readRequestBody(socket, carried, asked(headers), 100, 0),
+      readResponseBody(socket, carried, answered(headers), 100, 0))
+}
+
 // report Appendix G.11
 let codingsQuoted =
-    Test.Case(name = "a coding's quoted string keeps its comma, and one not ended keeps the rest",
+    Test.Case(name = "a coding's quoted string keeps its comma, and one not ended is malformed",
               run = fn() = {
-                  let carried = String.toUtf8("1\r\na\r\n0\r\n\r\nrest");
-                  let coded = fn(value) = [Header(name = "Transfer-Encoding", =value)];
-                  let unended = coded("gzip;x=\"a, chunked");
-                  let ended = coded("gzip;x=\"a,b\", chunked");
-                  Test.equal(#(served([],
-                                      StaysOpen,
-                                      fn(socket) =
-                                          List.map([unended, ended],
-                                                   fn(headers) =
-                                                       readRequestBody(socket,
-                                                                       carried,
-                                                                       asked(headers),
-                                                                       100,
-                                                                       0))),
-                               served([],
-                                      Closes,
-                                      fn(socket) =
-                                          readResponseBody(socket,
-                                                           carried,
-                                                           answered(unended),
-                                                           100,
-                                                           1000))),
-                             #(Right([Left(Protocol(Malformed)),
-                                      Right(#(String.toUtf8("a"), String.toUtf8("rest")))]),
-                               Right(Right(#(carried, <<>>)))))
+                  let malformed = Left(Protocol(Malformed));
+                  let decoded = Right(#(String.toUtf8("a"), String.toUtf8("rest")));
+                  Test.equal(served([],
+                                    StaysOpen,
+                                    fn(socket) =
+                                        List.map([transferCoded(["gzip;x=\"a, chunked"]),
+                                                  transferCoded(["gzip;x=\"a,b\", chunked"]),
+                                                  transferCoded(["gzip;x=\"a\\\", b\", chunked"]),
+                                                  transferCoded(["\"a\\\", chunked"])],
+                                                 fn(headers) = framedBodies(socket, headers))),
+                             Right([#(malformed, malformed),
+                                    #(decoded, decoded),
+                                    #(decoded, decoded),
+                                    #(malformed, malformed)]))
+              })
+
+// report Appendix G.11
+let quoteOpenRefused =
+    Test.Case(name = "a quote left open in either of two Transfer-Encoding lines is malformed",
+              run = fn() = {
+                  let malformed = Left(Protocol(Malformed));
+                  Test.equal(served([],
+                                    StaysOpen,
+                                    fn(socket) =
+                                        List.map([transferCoded(["\"x", "chunked"]),
+                                                  transferCoded(["chunked", "\"x"])],
+                                                 fn(headers) = framedBodies(socket, headers))),
+                             Right(List.repeat(#(malformed, malformed), 2)))
               })
 
 // report Appendix G.11
 let chunkSizes =
     Test.Case(name = "a chunk's size line and a trailer are read in each form the coding allows",
               run = fn() = {
-                  let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
+                  let chunked = transferCoded(["chunked"]);
                   // a size in lower case, a tab after a size, a size of three zeros, and a
                   // trailer of no header's form
                   let chunks =
@@ -3453,23 +3481,29 @@ let responseToClose =
 let bodilessStatuses =
     Test.Case(name = "a response of 1xx, 204 or 304 has no body, whatever its headers",
               run = fn() = {
-                  // a body of 5 bytes, 3 of them carried, would wait for the other 2
-                  let read = fn(socket, status) = {
-                      let response = Response(..answered(sized("5")), =status);
+                  // a body of 5 bytes, 3 of them carried, would wait for the other 2,
+                  // and a quote left open in a Transfer-Encoding would be malformed;
+                  // that last line is a regression line, written after the code,
+                  // and holds a 204 alone
+                  let read = fn(socket, headers, status) = {
+                      let response = Response(..answered(headers), =status);
                       readResponseBody(socket, String.toUtf8("abc"), response, 100, 1000)
                   };
                   Test.equal(served([],
                                     StaysOpen,
                                     fn(socket) =
                                         List.map([204, 304, 101, 100],
-                                                 fn(status) = read(socket, status))),
-                             Right(List.repeat(Right(#(<<>>, String.toUtf8("abc"))), 4)))
+                                                 fn(status) = read(socket, sized("5"), status))
+                                            <> [read(socket,
+                                                     transferCoded(["\"x", "chunked"]),
+                                                     204)]),
+                             Right(List.repeat(Right(#(<<>>, String.toUtf8("abc"))), 5)))
               })
 
 // report Appendix G.11
 let bodyTooLarge =
     Test.Case(name = "a body past the limit is too large, at the bytes that pass it", run = fn() = {
-        let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
+        let chunked = transferCoded(["chunked"]);
         // the last two take the bytes that pass the limit from the socket,
         // which sends no more: a chunk's size line with no line feed yet,
         // and a body that runs to the close
@@ -3514,19 +3548,19 @@ let bodyTooLarge =
 // report Appendix G.11
 let malformedBody =
     Test.Case(name = "a body whose framing cannot be read is malformed", run = fn() = {
-        let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
+        let chunked = transferCoded(["chunked"]);
         let cases =
             [#(sized("abc"), ""),
              #(sized("-1"), ""),
              #(sized("+1"), ""),
              #(sized("1, 1"), ""),
              #(sized("1") <> sized("2"), ""),
-             #([Header(name = "Transfer-Encoding", value = "gzip")] <> sized("1"), ""),
-             #([Header(name = "Transfer-Encoding", value = "chunked, gzip")], ""),
-             #([Header(name = "Transfer-Encoding", value = "chunked;q=1")], ""),
-             #([Header(name = "Transfer-Encoding", value = "")], ""),
-             #([Header(name = "Transfer-Encoding", value = "\u{A0}chunked")], ""),
-             #([Header(name = "Transfer-Encoding", value = "chun\u{212A}ed")], ""),
+             #(transferCoded(["gzip"]) <> sized("1"), ""),
+             #(transferCoded(["chunked, gzip"]), ""),
+             #(transferCoded(["chunked;q=1"]), ""),
+             #(transferCoded([""]), ""),
+             #(transferCoded(["\u{A0}chunked"]), ""),
+             #(transferCoded(["chun\u{212A}ed"]), ""),
              #(chunked, "xyz\r\n"),
              #(chunked, " 5\r\nhello\r\n"),
              #(chunked, "1\u{A0}\r\na\r\n"),
@@ -3576,7 +3610,7 @@ let unchunkedResponse =
     Test.Case(name = "a response whose last coding is not chunked runs to the close", run = fn() = {
         let responses =
             List.map(["chunked, gzip", "chunked;q=1", ""],
-                     fn(value) = answered([Header(name = "Transfer-Encoding", =value)]));
+                     fn(value) = answered(transferCoded([value])));
         Test.equal(List.map(responses,
                             fn(response) =
                                 served(["def"],
@@ -3608,7 +3642,7 @@ let sameLengthTwice =
 let bodyCut =
     Test.Case(name = "a body that the close or the milliseconds cut short is the socket's error",
               run = fn() = {
-                  let chunked = [Header(name = "Transfer-Encoding", value = "chunked")];
+                  let chunked = transferCoded(["chunked"]);
                   Test.equal(#(served(["abc"],
                                       Closes,
                                       fn(socket) =
