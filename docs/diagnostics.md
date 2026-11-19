@@ -4343,6 +4343,31 @@ example.ern:8:42: the argument does not fit apply: a function that receives wher
   |                                          ^^^^
 ```
 
+### A lambda that receives where a function that receives nothing is expected (§3.9, §6.1, §11.5)
+
+```ernest-rejected
+type Msg = Got(Int)
+
+fn take() : Int receiving Msg =
+    receive {
+        Got(k) -> k
+    }
+
+fn apply(f : (Int) -> Int) : Int = f(1)
+
+fn main() : Int receiving Msg = apply(fn(n) = take() + n)
+```
+
+```console
+$ ern build example.ern
+example.ern:10:39: the argument does not fit apply: expected (Int) -> Int, found (Int) -> Int receiving Msg (a function that receives nothing and one that receives do not match)
+ 9 |
+10 | fn main() : Int receiving Msg = apply(fn(n) = take() + n)
+   |                                 ----- apply : ((Int) -> Int) -> Int
+   |                                       ^^^^^^^^^^^^^^^^^^
+   |                                               ------ this makes the lambda receive
+```
+
 ### `self` in a function that receives nothing (§6.1, §11.5)
 
 ```ernest-rejected

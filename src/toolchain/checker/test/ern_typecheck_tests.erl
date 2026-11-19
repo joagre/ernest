@@ -2102,6 +2102,42 @@ lambda_calling_self_receives_nothing_test() ->
     ?assertEqual(Refused, Late("fn()")),
     ?assertEqual("self needs a mailbox, and the lambda receives nothing", Late("fn() : Unit")).
 
+%% report §6.5, §3.9: a `monitor` in an adapted address's function, which
+%% receives nothing, builds where its wrap faults, and is refused where its
+%% wrap answers a value, which fixes the monitor's mailbox type. A
+%% regression test, written after the checker, which built and refused so
+%% already; it does not cover a wrap that does not finish, nor what a run
+%% does with the wrap's fault
+monitor_in_an_adapted_function_test() ->
+    Front = fun(Wrap) ->
+                "type Msg = Got(Int) | Ended(Down)\n"
+                "fn front(target : Address(Msg), process : Process) : Address(Int) =\n"
+                "    adapted(target, fn(n : Int) = { monitor(process, " ++ Wrap ++ "); Got(n) })\n"
+            end,
+    ?assertEqual(ok, ok(Front("fn(d) = fault(\"down\")"))),
+    ?assertEqual("the argument does not fit adapted: expected (a) -> Msg, found (Int) -> Msg"
+                 " receiving Msg (a function that receives nothing and one that receives do not"
+                 " match)",
+                 refusal(Front("Ended"))).
+
+%% report §6.9, §3.9: a `monitor` in a monitor's wrap, which receives
+%% nothing, builds where its own wrap faults, and is refused where its own
+%% wrap answers a value, which fixes the inner monitor's mailbox type. A
+%% regression test, written after the checker, which built and refused so
+%% already; it does not cover a wrap that does not finish, a wrap of
+%% another call that takes one, nor what a run does with the wrap's fault
+monitor_in_a_wrap_test() ->
+    Watch = fun(Wrap) ->
+                "type Msg = Ended(Down)\n"
+                "fn watch(first : Process, second : Process) : Unit receiving Msg =\n"
+                "    monitor(first, fn(d) = { monitor(second, " ++ Wrap ++ "); Ended(d) })\n"
+            end,
+    ?assertEqual(ok, ok(Watch("fn(e) = fault(\"down\")"))),
+    ?assertEqual("the argument does not fit monitor: expected (Down) -> m, found (Down) -> Msg"
+                 " receiving Msg (a function that receives nothing and one that receives do not"
+                 " match)",
+                 refusal(Watch("Ended"))).
+
 %% report §4.5, §3.9: a recursive group whose member written `: T` calls
 %% one that calls `self` checks, in either order of declaration, since the
 %% members written `: T` are checked after the others, each group's members
@@ -4428,6 +4464,202 @@ effect_origin_of_an_unannotated_lambda_test() ->
     ?assertEqual([], InNever#diagnostic.labels),
     InPure = diagnostic(Helpers ++ "fn run() : Int = { let k = fn() = { g(); h() }; 1 }\n"),
     ?assertEqual([], InPure#diagnostic.labels).
+
+%% The first diagnostic as `ern build` prints it, the source named
+%% example.ern.
+printed(Text) ->
+    ern_diagnostic:format("example.ern", Text, diagnostic(Text)).
+
+%% A lambda given to adapted, the first line of its body Use and the rest
+%% Rest.
+adapted_lambda(Use, Rest) ->
+    "type Msg = Got(Int) | Ended(Down) | Own(Address(Msg))\n"
+    "fn take(me : Address(Msg)) : Int receiving Msg = receive { Got(k) -> k }\n"
+    "fn front(target : Address(Msg), process : Process, me : Address(Msg)) : Address(Int) =\n"
+    "    adapted(target, fn(n : Int) = {\n" ++ Use ++ Rest ++ "    })\n".
+
+%% Its refusal, the lines after the lambda's first one Shown.
+adapted_lambda_refused(Shown) ->
+    "example.ern:4:21: the argument does not fit adapted: expected (a) -> Msg, found (Int) ->"
+    " Msg receiving Msg (a function that receives nothing and one that receives do not match)\n"
+    "3 | fn front(target : Address(Msg), process : Process, me : Address(Msg)) :"
+    " Address(Int) =\n"
+    "4 |     adapted(target, fn(n : Int) = {\n"
+    "  |     ------- adapted : (Address(b), (a) -> b) -> Address(a)\n"
+    "  |                     ^^^^^^^^^^^^^^^\n" ++ Shown.
+
+%% report §11.5: a lambda that receives, where a function that receives
+%% nothing is expected, has a use labeled beside the origin: a `receive`,
+%% `self`, a call that takes a wrap and a call of a function that receives,
+%% each the lambda's one use
+receiving_lambda_labels_its_use_test() ->
+    Last = "        Got(m + n)\n",
+    Receive = "        let m = receive { Got(k) -> k };\n",
+    ?assertEqual(adapted_lambda_refused("5 | " ++ Receive ++ "  |                 "
+                                        "----------------------- this makes the lambda receive\n"),
+                 printed(adapted_lambda(Receive, Last))),
+    Self = "        send(me, Own(self()));\n",
+    ?assertEqual(adapted_lambda_refused("5 | " ++ Self ++ "  |                      ------"
+                                        " this makes the lambda receive\n"),
+                 printed(adapted_lambda(Self, "        Got(n)\n"))),
+    Wrap = "        monitor(process, Ended);\n",
+    ?assertEqual(adapted_lambda_refused("5 | " ++ Wrap ++ "  |         "
+                                        "----------------------- this makes the lambda receive\n"),
+                 printed(adapted_lambda(Wrap, "        Got(n)\n"))),
+    Call = "        let m = take(me);\n",
+    ?assertEqual(adapted_lambda_refused("5 | " ++ Call ++ "  |                 --------"
+                                        " this makes the lambda receive\n"),
+                 printed(adapted_lambda(Call, Last))).
+
+%% report §11.5, §3.9: the use labeled is the first in the source after
+%% which the lambda's mailbox can no longer be none: a call of a function
+%% that receives after a `self` that leaves it open, and of two such the
+%% first, a statement's call before a later `receive` and a call before the
+%% `receive` in its argument. Where each use leaves it open, the first of
+%% them is labeled, a `self` whose address a later statement sends.
+%%
+%% A regression test, written after the code: it does not cover a lambda
+%% whose uses all leave its mailbox open and whose first use is not the one
+%% that makes it receive.
+receiving_lambda_labels_its_first_use_test() ->
+    Label = " this makes the lambda receive\n",
+    ?assertEqual(adapted_lambda_refused("...\n"
+                                        "6 |         let m = take(me);\n"
+                                        "  |                 --------" ++ Label),
+                 printed(adapted_lambda("        send(me, Own(self()));\n",
+                                        "        let m = take(me);\n"
+                                        "        Got(m + n)\n"))),
+    Twice = "        let m = take(me);\n",
+    ?assertEqual(adapted_lambda_refused("5 | " ++ Twice ++ "  |                 --------"
+                                        ++ Label),
+                 printed(adapted_lambda(Twice, "        let k = receive { Got(j) -> j };\n"
+                                               "        Got(m + k + n)\n"))),
+    Nested = "        let m = take(receive { Own(a) -> a });\n",
+    ?assertEqual(adapted_lambda_refused("5 | " ++ Nested ++ "  |                 "
+                                        "-----------------------------" ++ Label),
+                 printed(adapted_lambda(Nested, "        Got(m + n)\n"))),
+    Open = "        let here = self();\n",
+    ?assertEqual(adapted_lambda_refused("5 | " ++ Open ++ "  |                    ------"
+                                        ++ Label),
+                 printed(adapted_lambda(Open, "        send(me, Own(here));\n"
+                                              "        Got(n)\n"))).
+
+%% report §11.5: the mismatch at a lambda given as a wrap, at one that is
+%% a body's last expression, at one whose mailbox is a variable that none
+%% does not bind, at one given as a named field, and at one that is the
+%% body to which a use gave its result type, has the use labeled as at an
+%% argument
+receiving_lambda_labeled_where_it_stands_test() ->
+    ?assertEqual("example.ern:3:20: the argument does not fit monitor: expected (Down) -> m,"
+                 " found (Down) -> Msg receiving Msg (a function that receives nothing and one"
+                 " that receives do not match)\n"
+                 "2 | fn watch(first : Process, second : Process) : Unit receiving Msg =\n"
+                 "3 |     monitor(first, fn(d) = {\n"
+                 "  |     ------- monitor : (Process, (Down) -> m) -> Unit receiving m\n"
+                 "  |                    ^^^^^^^^^\n"
+                 "4 |         monitor(second, Ended);\n"
+                 "  |         ---------------------- this makes the lambda receive\n",
+                 printed("type Msg = Ended(Down)\n"
+                         "fn watch(first : Process, second : Process) : Unit receiving Msg =\n"
+                         "    monitor(first, fn(d) = {\n"
+                         "        monitor(second, Ended);\n"
+                         "        Ended(d)\n"
+                         "    })\n")),
+    ?assertEqual("example.ern:3:31: the body does not have the declared result type: expected"
+                 " (Int) -> Msg, found (Int) -> Msg receiving Msg (a function that receives"
+                 " nothing and one that receives do not match)\n"
+                 "2 | fn take() : Int receiving Msg = receive { Got(k) -> k }\n"
+                 "3 | fn adapter() : (Int) -> Msg = fn(n : Int) = Got(take() + n)\n"
+                 "  |                ------------ result type (Int) -> Msg declared here\n"
+                 "  |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+                 "  |                                                 ------"
+                 " this makes the lambda receive\n",
+                 printed("type Msg = Got(Int)\n"
+                         "fn take() : Int receiving Msg = receive { Got(k) -> k }\n"
+                         "fn adapter() : (Int) -> Msg = fn(n : Int) = Got(take() + n)\n")),
+    ?assertEqual("example.ern:2:21: the argument does not fit adapted: a function that receives"
+                 " where one that receives nothing is needed\n"
+                 "1 | fn front(target, process, wrap, make) =\n"
+                 "2 |     adapted(target, fn(n) = {\n"
+                 "  |     ------- adapted : (Address(b), (a) -> b) -> Address(a)\n"
+                 "  |                     ^^^^^^^^^\n"
+                 "3 |         monitor(process, wrap);\n"
+                 "  |         ---------------------- this makes the lambda receive\n",
+                 printed("fn front(target, process, wrap, make) =\n"
+                         "    adapted(target, fn(n) = {\n"
+                         "        monitor(process, wrap);\n"
+                         "        make(n)\n"
+                         "    })\n")),
+    Take = "type Msg = Got(Int)\nfn take() : Int receiving Msg = receive { Got(k) -> k }\n",
+    ?assertEqual("example.ern:4:28: field run: expected () -> Int, found () -> Int receiving Msg"
+                 " (a function that receives nothing and one that receives do not match)\n"
+                 "3 | type Job = Job(run : () -> Int)\n"
+                 "4 | fn job() : Job = Job(run = fn() = take())\n"
+                 "  |                  --- Job declares run : () -> Int\n"
+                 "  |                            ^^^^^^^^^^^^^\n"
+                 "  |                                   ------ this makes the lambda receive\n",
+                 printed(Take ++ "type Job = Job(run : () -> Int)\n"
+                         "fn job() : Job = Job(run = fn() = take())\n")),
+    ?assertEqual("example.ern:7:15: the body does not have the result type second's uses give"
+                 " it: expected (Int) -> Msg, found (Int) -> Msg receiving Msg (a function that"
+                 " receives nothing and one that receives do not match)\n"
+                 "3 | fn first() = {\n"
+                 "4 |     let f : (Int) -> Msg = second();\n"
+                 "  |                            --------"
+                 " this use gives second's result as (Int) -> Msg\n"
+                 "...\n"
+                 "7 | fn second() = fn(n : Int) = {\n"
+                 "  |               ^^^^^^^^^^^^^^^\n"
+                 "...\n"
+                 "9 |     Got(take() + n)\n"
+                 "  |         ------ this makes the lambda receive\n",
+                 printed(Take ++ "fn first() = {\n"
+                         "    let f : (Int) -> Msg = second();\n"
+                         "    Unit\n"
+                         "}\n"
+                         "fn second() = fn(n : Int) = {\n"
+                         "    first();\n"
+                         "    Got(take() + n)\n"
+                         "}\n")).
+
+%% report §11.5: no use is labeled where the mismatch is at a name, a
+%% function's or a `let`-bound lambda's, nor where the function expected
+%% receives
+receiving_lambda_unlabeled_test() ->
+    Take = "type Msg = Got(Int)\nfn take() : Int receiving Msg = receive { Got(k) -> k }\n",
+    ?assertEqual("example.ern:4:66: the argument does not fit adapted: expected (a) -> Msg,"
+                 " found (Int) -> Msg receiving Msg (a function that receives nothing and one"
+                 " that receives do not match)\n"
+                 "3 | fn adapt(n : Int) = Got(take() + n)\n"
+                 "4 | fn front(target : Address(Msg)) : Address(Int) = adapted(target, adapt)\n"
+                 "  |                                                  -------"
+                 " adapted : (Address(b), (a) -> b) -> Address(a)\n"
+                 "  |                                                                  ^^^^^\n",
+                 printed(Take ++ "fn adapt(n : Int) = Got(take() + n)\n"
+                         "fn front(target : Address(Msg)) : Address(Int) ="
+                         " adapted(target, adapt)\n")),
+    ?assertEqual("example.ern:5:21: the argument does not fit adapted: expected (a) -> Msg,"
+                 " found (Int) -> Msg receiving Msg (a function that receives nothing and one"
+                 " that receives do not match)\n"
+                 "4 |     let adapt = fn(n : Int) = Got(take() + n);\n"
+                 "5 |     adapted(target, adapt)\n"
+                 "  |     ------- adapted : (Address(b), (a) -> b) -> Address(a)\n"
+                 "  |                     ^^^^^\n",
+                 printed(Take ++ "fn front(target : Address(Msg)) : Address(Int) = {\n"
+                         "    let adapt = fn(n : Int) = Got(take() + n);\n"
+                         "    adapted(target, adapt)\n"
+                         "}\n")),
+    ?assertEqual("example.ern:4:39: the argument does not fit apply: expected (Int) -> Int"
+                 " receiving String, found (Int) -> Int receiving Msg\n"
+                 "3 | fn apply(f : (Int) -> Int receiving String) : Int receiving String = f(1)\n"
+                 "4 | fn g() : Int receiving String = apply(fn(n : Int) = take() + n)\n"
+                 "  |                                 -----"
+                 " apply : ((Int) -> Int receiving String) -> Int receiving String\n"
+                 "  |                                       ^^^^^^^^^^^^^^^^^^^^^^^^\n"
+                 "  | = help: the types differ at String and Msg\n",
+                 printed(Take ++ "fn apply(f : (Int) -> Int receiving String) : Int receiving"
+                         " String = f(1)\n"
+                         "fn g() : Int receiving String = apply(fn(n : Int) = take() + n)\n")).
 
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
 %% once its operand type is known, calls its member, which receives

@@ -21,7 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 115**, a `monitor` in an adapted address's function.
+**The next item is MVP 4.16's item 120**, a termination that ends the subscribers' wait
+where a stream is stalled.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -61,16 +62,6 @@ Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **115. A `monitor` in an adapted address's function, and a help that leads to a second
-  refusal**, found 2026-11-18 by item 111's build (the log's *A Checker Acts for the
-  Target*). §6.5 says whose a `monitor` in `f` is. `adapted` takes a function that receives
-  nothing, and the type checker refused a `monitor` in the agent's lambda. Its help says to
-  give the lambda its mailbox type, and the lambda so written is refused again, since a
-  function that receives and one that receives nothing do not match. An agent shows both
-  first: whether any program can write a `monitor` in `f`, and the help's two texts. What
-  changes, §6.5's sentence or the type checker, is then decided with the user. Where it is
-  the type checker, MVP 4.4's tabling of the checker's cases comes first, as its item 4
-  says of a checker item.
 - **120. A termination ends the subscribers' wait where a stream is stalled**, found
   2026-11-18 by item 117's probes (the log's *A Termination Ends a Stalled Flush*, its
   paragraph *The subscribers' wait*). A plain run with standard output stalled and a
@@ -175,6 +166,34 @@ Launch*).
   no foreign code shows that false, so by the line's test the item stands here. To
   decide with the user at its turn: whether the resource ends at the fault, or the fault
   is dropped and a sentence says so. The narrower sentence is weighed first.
+- **136. A wrap's fault in the process kept for an address**, found 2026-11-19 by item
+  115's showing (the log's *A `monitor` in an Adapted Address's Function*), read from two
+  runs and not diagnosed. The target was on another node, and `f` made a `monitor` whose
+  wrap faults and then waited in a call. The wrap ran for the kept process, which ended
+  `Returned`. Neither node wrote a fault's line, and the target answered a call after it.
+
+  §6.9 has a wrap's fault be the fault of the process it delivers to, and a program with
+  no foreign code shows that false, so by the line's test the item stands here. An agent
+  first shows where the fault goes. The narrower sentence is weighed first.
+
+  It follows item 135. Both are of a process the runtime started that meets no fault, and
+  both may add to §6.5's sentence on a fault in `f`, so item 135's verdict is read first.
+- **137. Three corners of a diagnostic**, found 2026-11-19 by item 115's build (the log's
+  *A `monitor` in an Adapted Address's Function*), each shown by a probe the build kept.
+  None changes what the checker accepts.
+
+  - A list literal against an annotation reports its mismatch at the whole literal:
+    `fn jobs() : List(() -> Int) = [fn() = 1, fn() = take()]`. §11.5 lists an element
+    among the places a mismatch is reported at. To decide with the user at its turn:
+    whether the element is the place, or §11.5's sentence is read as it is built.
+  - A result annotation in parentheses, `: ((Int) -> Msg)`, has a span from its inner
+    `(` to its outer `)`, so a label on it sits one column to the right. The parser's.
+  - `fn maker() : () -> Int receiving Msg` reads `receiving Msg` as the result type's,
+    and the refusal's label then says the annotation is "without `receiving`".
+
+  It stands alone: no item left names §11.5's paragraph on a mismatch or the parser's
+  spans. Where the first changes what a refusal prints, the batch's run over the
+  repository's own programs comes before its verdict, as *Before code* says.
 
 **What is decided and waits for its build** stands between the two. Item 93 and item 95's
 first line are taken after item 101, decided with the user on 2026-11-19: each is a
@@ -401,6 +420,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 131 | `Http.elements`, a list header's elements, a quoted string keeping its comma and nothing else, and a body's framing refuses a `Transfer-Encoding` whose quoted string does not end, feedback 267, with the user | 2026-11-19 | Appendix G.11; *A List Header's Elements* |
 | 114 | `Process.fromAddress` answers the process behind a check, and a fault to an adapted address over an address given back at another type is its target's, with the user | 2026-11-19 | §8.4, Appendix E.21; *The Process Behind a Check*, *The Process Behind a Check, Built* |
 | 132 | A bad message's fault to a foreign process the runtime did not start is sent as a fault in `f` is, an exit signal, and a foreign address gains no check of its own, with the user | 2026-11-19 | §6.5, §8.4, Appendix F; *A Bad Message's Fault to a Foreign Target* |
+| 115 | The wrap of a `monitor` in an adapted address's function, or in a wrap, answers no value, and a lambda refused where a function that receives nothing is expected has the use that makes it receive labeled, with the user | 2026-11-19 | §6.5, §6.9, §11.5; *A `monitor` in an Adapted Address's Function* |
 
 ---
 

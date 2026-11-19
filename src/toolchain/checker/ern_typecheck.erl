@@ -64,6 +64,11 @@
 %% Name, Effect}, the latest first, each read as the function ends (report
 %% §4.5, read_standing/2)
 %%
+%% receiving_use: the use in the body of the function being inferred that
+%% a lambda's mismatch labels where a function that receives nothing is
+%% expected, {decided, Span} or {open, Span}, or undefined (report §11.5,
+%% use_recorded/3, receiving_origin/4)
+%%
 %% groups: qualified name => the dependency group not yet checked that
 %% declares it, checked on first demand (a reference, or an operator
 %% resolving to it); typed: the declarations of the groups checked so
@@ -94,7 +99,7 @@
               local_types = #{}, local_constructors = #{}, local_values = #{}, session_scope = #{},
               locals = #{}, effect = none, type_state, pending = [], deferred = [], standing = [],
               mailboxes = [], receives = [], annotation_variables = #{}, rigid = [],
-              effect_origin = undefined, declared_none = false,
+              effect_origin = undefined, declared_none = false, receiving_use = undefined,
               groups = #{}, typed = [], diagnostics = [], let_order = [],
               generalizing = false, provided = [], inferring = [], requirement = [], failed = [],
               signature = [], definition, private_types = #{}, private_values = #{},
@@ -1480,7 +1485,8 @@ demand(QualifiedName, #env{groups = UncheckedGroups} = Env) ->
             Clean = Env#env{locals = #{}, effect = none, pending = [], deferred = [],
                             standing = [], mailboxes = [], receives = [],
                             annotation_variables = #{}, rigid = [],
-                            effect_origin = undefined, declared_none = false, inferring = [],
+                            effect_origin = undefined, declared_none = false,
+                            receiving_use = undefined, inferring = [],
                             requirement = [], signature = [], definition = undefined},
             restore_scope(run_group(Group, Clean), Env);
         _ ->
@@ -1495,7 +1501,8 @@ restore_scope(Checked, Env) ->
                 mailboxes = Env#env.mailboxes, receives = Env#env.receives,
                 annotation_variables = Env#env.annotation_variables,
                 rigid = Env#env.rigid, effect_origin = Env#env.effect_origin,
-                declared_none = Env#env.declared_none, inferring = Env#env.inferring,
+                declared_none = Env#env.declared_none, receiving_use = Env#env.receiving_use,
+                inferring = Env#env.inferring,
                 requirement = Env#env.requirement, signature = Env#env.signature,
                 definition = Env#env.definition, binder = Env#env.binder}.
 
@@ -2485,6 +2492,7 @@ check_value(#fn_declaration{span = Span, params = Params, result_type = ResultAn
                     annotation_variables = AnnotationVariables1,
                     rigid = maps:to_list(AnnotationVariables1), effect_origin = Origin,
                     declared_none = declares_none(ResultAnnotation, Effect),
+                    receiving_use = undefined,
                     requirement = [{Variable, Member} || #member{type = Variable, name = Member}
                                                              <- Members]
                                   ++ Env#env.requirement,
@@ -2508,7 +2516,7 @@ check_value(#let_declaration{span = Span, annotation = Annotation, body = Body} 
     Env1 = Env#env{type_state = TypeState, effect = ?NEVER, pending = [], deferred = [],
                    standing = [], mailboxes = [], receives = [],
                    annotation_variables = AnnotationVariables,
-                   declared_none = false,
+                   declared_none = false, receiving_use = undefined,
                    rigid = maps:to_list(AnnotationVariables),
                    definition = {'let', declaration_name(Declaration)},
                    %% report §3.9: a lambda that is the whole initializer is
@@ -2675,16 +2683,28 @@ result_types(ResultAnnotation, Effect, AnnotationVariables, Env) ->
 %% type, and the body that disagrees is the mismatch.
 checked_body(Body, undefined, ResultType, {Name, Placeholder}, Env) ->
     {Fresh, TypeState} = ern_types:fresh(Env#env.type_state),
-    {TypedBody, BodyType, Env1} =
-        check_expr(Body, Fresh, undefined, undefined, Env#env{type_state = TypeState}),
+    {TypedBody, BodyType, Use, Env1} = checked_first(Body, Fresh,
+                                                     Env#env{type_state = TypeState}),
     {TypedBody, unify_at(ern_ast:span(Body), ResultType, BodyType, Env1,
                          "the body does not have the result type " ++ Name ++ "'s uses give it",
-                         giving_use(Name, Placeholder, ResultType, Env1))};
+                         receiving_origin(giving_use(Name, Placeholder, ResultType, Env1), Use,
+                                          {ResultType, TypedBody}, Env1#env.type_state))};
 checked_body(Body, ResultAnnotation, ResultType, _Named, Env) ->
     {TypedBody, _, Env1} =
         check_expr(Body, ResultType, "the body does not have the declared result type",
                    result_origin(ResultAnnotation, ResultType, Env), Env),
     {TypedBody, Env1}.
+
+%% Report §11.5: an expression checked where nothing fixed its type,
+%% Expected a fresh variable, as a first branch is (check_expr/5), with the
+%% use its mismatch labels where it is a lambda (lambda/2), and undefined
+%% where it is not.
+checked_first(#e_lambda{} = Expr, Expected, Env) ->
+    {Typed, Type, Use, Env1} = lambda(Expr, Env),
+    {Typed, Type, Use, bound(Expected, Type, Env1)};
+checked_first(Expr, Expected, Env) ->
+    {Typed, Type, Env1} = check_expr(Expr, Expected, undefined, undefined, Env),
+    {Typed, Type, undefined, Env1}.
 
 %% Report §11.5: the use that gave a definition its result type, the last
 %% at which the result was still undetermined, as the label of a body that
@@ -4848,8 +4868,26 @@ infer(#e_binop{span = Span, operator = Operator, left = Left, right = Right} = E
     Member = operator_member(Span, Operator, LeftType),
     {Expr#e_binop{left = TypedLeft, right = TypedRight, member = Member, type = Type}, Type,
      Env3#env{type_state = TypeState}};
-infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotation,
-                effect = Effect, body = Body} = Expr, Env) ->
+infer(#e_lambda{} = Expr, Env) ->
+    {Typed, Type, _Use, Env1} = lambda(Expr, Env),
+    {Typed, Type, Env1};
+infer(Expr, Env) when is_record(Expr, e_if); is_record(Expr, e_match); is_record(Expr, e_receive) ->
+    {Type, TypeState} = ern_types:fresh(Env#env.type_state),
+    check_expr(Expr, Type, undefined, undefined, Env#env{type_state = TypeState}).
+
+%% Report §11.5: an expression inferred, with the use its mismatch labels
+%% where it is a lambda (lambda/2), and undefined where it is not.
+inferred(#e_lambda{} = Expr, Env) ->
+    lambda(Expr, Env);
+inferred(Expr, Env) ->
+    {Typed, Type, Env1} = infer(Expr, Env),
+    {Typed, Type, undefined, Env1}.
+
+%% Report §4.5, §3.9: a lambda, as its typed form, its type, the use in its
+%% body that its mismatch labels or undefined (report §11.5,
+%% use_recorded/3), and the environment after it.
+lambda(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotation,
+                 effect = Effect, body = Body} = Expr, Env) ->
     %% report §4.5, §3.9: the lambda is inferred at a level of its own, so
     %% that its end tells a variable of its own from one a name around it
     %% holds
@@ -4879,6 +4917,7 @@ infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotati
     Env2 = Env1#env{type_state = ern_types:value_positions_marked(Type, TypeState),
                     effect = EffectType, standing = [],
                     declared_none = declares_none(ResultAnnotation, Effect),
+                    receiving_use = undefined,
                     annotation_variables = AnnotationVariables1,
                     generalizing = false, rigid = New ++ Env1#env.rigid,
                     %% report §11.5: the label names the annotation that fixed the
@@ -4904,14 +4943,13 @@ infer(#e_lambda{span = LambdaSpan, params = Params, result_type = ResultAnnotati
     %% §3.9)
     {Opened, TypeState1} = open_effect(Own, ern_types:leave(Env3#env.type_state)),
     {Expr#e_lambda{params = TypedParams, body = TypedBody, type = Own}, Opened,
+     Env3#env.receiving_use,
      Env3#env{type_state = TypeState1, locals = Env#env.locals, effect = Env#env.effect,
               standing = Env#env.standing, declared_none = Env#env.declared_none,
+              receiving_use = Env#env.receiving_use,
               annotation_variables = Env#env.annotation_variables,
               effect_origin = Env#env.effect_origin,
-              generalizing = false, rigid = Env#env.rigid}};
-infer(Expr, Env) when is_record(Expr, e_if); is_record(Expr, e_match); is_record(Expr, e_receive) ->
-    {Type, TypeState} = ern_types:fresh(Env#env.type_state),
-    check_expr(Expr, Type, undefined, undefined, Env#env{type_state = TypeState}).
+              generalizing = false, rigid = Env#env.rigid}}.
 
 %% Report §4.5, §3.9: the type a lambda has as it ends. One whose effect
 %% variable a call of `self` or `monitor` left free, the lambda's own,
@@ -5082,6 +5120,11 @@ check_expr(#e_constructor{} = Expr, Expected, Rule, Origin, Env) ->
     {Typed, Type, Env1} = constructed(Expr, Expected, Env),
     {Typed, Type,
      unify_at(ern_ast:span(Expr), Expected, Type, expecting(Type, Origin, Env1), Rule, Origin)};
+check_expr(#e_lambda{} = Expr, Expected, Rule, Origin, Env) ->
+    {Typed, Type, Use, Env1} = lambda(Expr, Env),
+    {Typed, Type,
+     unify_at(ern_ast:span(Expr), Expected, Type, expecting(Type, Origin, Env1), Rule,
+              receiving_origin(Origin, Use, {Expected, Typed}, Env1#env.type_state))};
 check_expr(Expr, Expected, Rule, Origin, Env) ->
     constructor_as_function(Expr, Expected, Env),
     {Typed, Type, Env1} = infer(Expr, Env),
@@ -5187,6 +5230,27 @@ with_origin(#deferred_selection{result = Type, origin = undefined} = Item, Type,
     Item#deferred_selection{origin = Origin};
 with_origin(Item, _Type, _Origin) ->
     Item.
+
+%% Report §11.5: a typed lambda that receives, checked where a function
+%% that receives nothing is Expected, has the use recorded in its body
+%% (use_recorded/3) labeled beside Origin; an expression with no use, a
+%% lambda that receives through its annotation alone among them, has none
+%% labeled.
+receiving_origin(Origin, undefined, _Checked, _TypeState) ->
+    Origin;
+receiving_origin(Origin, {_Kind, Use}, {Expected, #e_lambda{type = {tfn, _, Effect, _}}},
+                 TypeState) ->
+    case {ern_types:resolve(Expected, TypeState), ern_types:resolve(Effect, TypeState)} of
+        {_, none} ->
+            Origin;
+        {{tfn, _, ExpectedEffect, _}, _} ->
+            case ern_types:resolve(ExpectedEffect, TypeState) of
+                none -> [Origin, {Use, "this makes the lambda receive"}];
+                _ -> Origin
+            end;
+        _ ->
+            Origin
+    end.
 
 %% Report §11.5: a deferred operand type that a unification at Span fixes,
 %% a variable under Before and no longer one now, keeps Span, where the
@@ -5503,7 +5567,8 @@ use_effect(Span, Name, Effect,
                                 true ->
                                     rigid_mailbox(Span, Name, Resolved, Have, Origin, TypeState);
                                 false ->
-                                    Env#env{type_state = TypeState1}
+                                    Called = call_recorded(Span, Resolved, Env),
+                                    Called#env{type_state = TypeState1}
                             end;
                         {error, {mismatch, _, _}} ->
                             fail(Span, Name ++ " needs mailbox "
@@ -5522,6 +5587,43 @@ is_standing({tvar, Id}, TypeState) ->
         andalso not lists:member(process_only, ern_types:restrictions(Id, TypeState));
 is_standing(_Effect, _TypeState) ->
     false.
+
+%% Report §11.5, §3.9: a call is a use of its function's mailbox by its
+%% callee's effect there, Effect. One after which the mailbox can no longer
+%% be none is decided: a mailbox type, a process-only variable, or an
+%% annotation's. One that leaves it open is a variable in a value position
+%% of the callee's type, as `self`'s is, and a `monitor`'s whose wrap
+%% faults. A variable of no restriction is one the callee takes from its
+%% arguments or its caller, as `List.map`'s, and is no use.
+call_recorded(Span, Effect, Env) ->
+    case call_kind(Effect, Env) of
+        passed -> Env;
+        Kind -> use_recorded(Kind, Span, Env)
+    end.
+
+call_kind({tvar, Id} = Effect, #env{type_state = TypeState, rigid = Rigid}) ->
+    Annotations = [ern_types:resolve(Variable, TypeState) || {_, Variable} <- Rigid],
+    case {lists:member(process_only, ern_types:restrictions(Id, TypeState))
+          orelse lists:member(Effect, Annotations),
+          ern_types:is_marked_in_value_position(Id, TypeState)} of
+        {true, _} -> decided;
+        {false, true} -> open;
+        {false, false} -> passed
+    end;
+call_kind(_Mailbox, _Env) ->
+    decided.
+
+%% Report §11.5: the use at Span, of Kind, recorded where it is the one a
+%% lambda's mismatch labels: a decided use before an open one, and of two of
+%% one kind the first in the source, the one that begins first, or begins
+%% with the other and ends first.
+use_recorded(Kind, Span, #env{receiving_use = Recorded} = Env) ->
+    Env#env{receiving_use = labeled_use({Kind, ern_diagnostic:span(Span)}, Recorded)}.
+
+labeled_use(Use, undefined) -> Use;
+labeled_use({decided, _} = Use, {open, _}) -> Use;
+labeled_use({open, _}, {decided, _} = Recorded) -> Recorded;
+labeled_use({Kind, Span}, {Kind, RecordedSpan}) -> {Kind, min(Span, RecordedSpan)}.
 
 %% Effect: the mailbox type the callee needs, which the help gives where it
 %% is known, a variable where any will do (help/2).
@@ -5707,7 +5809,7 @@ named_base(Expr, Base, _Missing, Constructed, Env) ->
 check_field_set(#field_set{name = FieldName, expr = Value} = FieldSet,
                 #e_constructor{name = Name} = Expr, Names, FieldTypes, Fill, Env) ->
     FieldType = lists:nth(index_of(FieldName, Names), FieldTypes),
-    {TypedValue, ValueType, Env1} = infer(Value, Env),
+    {TypedValue, ValueType, Use, Env1} = inferred(Value, Env),
     Declares = atom_to_list(Name) ++ " declares " ++ atom_to_list(FieldName) ++ " : "
                ++ declared_field_text(Expr, index_of(FieldName, Names), Env1),
     {Rule, Given} =
@@ -5727,7 +5829,8 @@ check_field_set(#field_set{name = FieldName, expr = Value} = FieldSet,
         end,
     {FieldSet#field_set{expr = Given},
      unify_at(ern_ast:span(Value), FieldType, ValueType, Env1, Rule,
-              {constructor_name_span(Expr), Declares})}.
+              receiving_origin({constructor_name_span(Expr), Declares}, Use,
+                               {FieldType, TypedValue}, Env1#env.type_state))}.
 
 %% Report §11.5: a field's type as its constructor's declaration writes it,
 %% under the type's own parameter names, for the label at a field given.
@@ -5941,9 +6044,10 @@ clause_mailbox(Span, #env{effect_origin = Origin} = Env) ->
         {tvar, _} = Variable ->
             {Mailbox, TypeState} = ern_types:fresh(Env#env.type_state, [process_only]),
             Env1 = bound(Variable, Mailbox, Env#env{type_state = TypeState}),
-            {Mailbox, Env1#env{receives = [{Span, Mailbox} | Env1#env.receives]}};
+            {Mailbox, use_recorded(decided, Span,
+                                   Env1#env{receives = [{Span, Mailbox} | Env1#env.receives]})};
         Type ->
-            {Type, Env}
+            {Type, use_recorded(decided, Span, Env)}
     end.
 
 check_clauses(Kind, Clauses, ScrutineeType, ScrutineeOrigin, Expected, Rule, Origin,
