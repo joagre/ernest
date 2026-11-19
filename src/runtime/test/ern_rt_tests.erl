@@ -2574,6 +2574,121 @@ never_given_address_test() ->
     ?assertEqual(Mine, Given),
     ?assertEqual({ern, fault, <<"bad return">>}, Found).
 
+%% report §8.4, Appendix E.21: an address of the program's that foreign
+%% code gives back at another type than it crossed at is foreign, and
+%% `Process.fromAddress` of it is the process the address names, through
+%% the check in front of that process, and not the checker
+retyped_address_names_its_process_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Mine = ern_rt:self(),
+               {Checker, Held} = retyped(Mine),
+               Self ! {behind, {Checker, Held, ern_rt:process_of(Held), Mine}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Checker, Held, Behind, Mine} = wait(behind),
+    ?assertMatch({foreign, Checker, string, _}, Held),
+    ?assertEqual(Mine, Behind).
+
+%% report §8.4, §6.9, Appendix E.21: a `kill` of the process behind such an
+%% address ends the process the address names, and the check in front of
+%% that process ends at that process's end, as every check does
+retyped_address_kill_ends_its_process_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Target = ern_rt:spawn(fun waiting/0, <<"Main.target:3">>),
+               ern_rt:monitor(Target, fun(Down) -> {down, Down} end),
+               {Checker, Held} = retyped(Target),
+               CheckerRef = erlang:monitor(process, Checker),
+               ern_rt:kill(ern_rt:process_of(Held)),
+               Ended = receive {'DOWN', CheckerRef, process, _, ExitReason} -> ExitReason end,
+               %% the checker ends at its target's end, so a target the
+               %% kill ended has ended by now, and its Down is on its way
+               Down = case erlang:is_process_alive(Target) of
+                          true -> alive;
+                          false -> receive {down, TargetDown} -> TargetDown end
+                      end,
+               Self ! {killed, {Ended, Down}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({normal, {'Down', _, 'Killed', <<"Main.target:3">>}}, wait(killed)).
+
+%% report §8.4, §12.3: a message foreign code sends to an adapted address
+%% over such an address, of another type than the adapted address crossed
+%% at, faults the process the address names, its cause naming the type the
+%% adapted address crossed at, and not the type of the check in front of
+%% that process
+retyped_address_bad_message_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Target = ern_rt:spawn(fun waiting/0, <<"Main.target:3">>),
+               ern_rt:monitor(Target, fun(Down) -> {down, Down} end),
+               {_, Held} = retyped(Target),
+               Adapted = ern_rt:adapted(Held, fun(Bool) -> atom_to_binary(Bool) end),
+               Outer = ern_boundary:expose({address, bool, <<"message does not match Bool">>},
+                                           Adapted),
+               Outer ! <<"no Bool">>,
+               receive {down, Down} -> Self ! {d, Down} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({'Down', _, {'Fault', <<"message does not match Bool">>}, <<"Main.target:3">>},
+                 wait(d)).
+
+%% report §6.5, §8.4, §6.9: a fault in the function of an adapted address
+%% over such an address is the fault of the process the address names,
+%% which a restarting one meets at its wait and is restarted for, and the
+%% check in front of that process lives on, so that what foreign code sends
+%% it afterwards reaches the process's next run
+retyped_address_fault_in_function_test() ->
+    Self = self(),
+    Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = ern_rt:self(),
+               Zero = zero(),
+               Run = fun() ->
+                         ern_rt:send(Main, run),
+                         receive
+                             {'$ern_fault', Fault} -> erlang:throw(Fault);
+                             Taken -> ern_rt:send(Main, {took, Taken})
+                         end
+                     end,
+               Worker = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
+                                     <<"Main.worker:2">>),
+               {Checker, Held} = retyped(Worker),
+               Adapted = ern_rt:adapted(Held, fun(_) -> integer_to_binary(1 div Zero) end),
+               Outer = ern_boundary:expose({address, bool, <<"message does not match Bool">>},
+                                           Adapted),
+               receive run -> ok end,
+               CheckerRef = erlang:monitor(process, Checker),
+               Outer ! true,
+               %% the worker's next run, or the end of the check in front
+               %% of it, whichever the fault brings
+               Met = receive
+                         run -> restarted;
+                         {'DOWN', CheckerRef, process, _, ExitReason} -> {ended, ExitReason}
+                     end,
+               case Met of
+                   restarted ->
+                       Checker ! 7,
+                       receive {took, Taken} -> Self ! {met, {restarted, Taken}} end;
+                   _ ->
+                       Self ! {met, Met}
+               end
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
+    ?assertEqual({restarted, 7}, wait(met)),
+    ?assertMatch({'FaultReport', _, <<"Main.worker:2">>, <<"division by zero">>, true, _, _,
+                  'None', 'None', _},
+                 wait(reported)).
+
+%% Target's address given to foreign code at Int, and the checker in front
+%% of it given back by foreign code at String, held as the program holds it
+%% (report §8.4).
+retyped(Target) ->
+    Checker = ern_boundary:expose({address, int, <<"message does not match Int">>}, Target),
+    {Checker, ern_boundary:value({address, string, <<"message does not match String">>}, Checker,
+                                 <<"bad return">>)}.
+
 %% report §6.5, §7.4: a fault in the function is the target's, which faults
 %% at its wait, and the process that sent the message goes on
 adapted_fault_test() ->

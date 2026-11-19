@@ -149,6 +149,23 @@ Launch*).
   around that one send, and the nodes' note lists it; the `find` frame takes the
   `compute` frame's guard. An agent builds both, the first against the reading's probe,
   which becomes its test.
+- **133. An address given back, on another node**, found 2026-11-19 by item 114's build
+  (the log's *The Process Behind a Check, Built*), read from the code and not shown. An
+  address of the program's that foreign code gave back at another type crosses to another
+  node as it is held. Only the node that made the check can lead from the checker to the
+  process behind it. On another node `Process.fromAddress` of it answers the checker, a
+  `kill` of that ends nothing, and a fault sent from there reaches the checker as a
+  message, where E.21 has `fromAddress` go through every check.
+
+  Read beside it: a check in front of a process of another node, given back at its own
+  type, is held as foreign, since that process has no row on this node, where §8.4 has
+  it the program's own. What is sent through it is checked again and takes one step
+  more.
+
+  By the line's test the first stands here, decided with the user: E.21's line, written
+  with item 114, would be shown false. An agent shows both on two nodes first. The fix's
+  shape for the first: the held address carries the process behind it. The second is
+  decided with the user after the showing, by the line's test.
 
 **What is decided and waits for its build** stands between the two.
 
@@ -193,26 +210,6 @@ Launch*).
     `Upgrade` by then.
   - The tour's restart limit. Chapter 4 starts its counter with `within = 3600000`, in
     the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
-
-- **114. `Process.fromAddress` answers the process behind a check**, found 2026-11-18 by
-  item 111's build and decided with the user the same day (the log's *The Process Behind a
-  Check*). An address of the program's that foreign code gives back at another type than it
-  crossed at is foreign (§8.4), and `Process.fromAddress` of it answered the checker in
-  front of the process: the two were not `==`, and a `kill` of it ended the checker while
-  the target lived. E.21 has `fromAddress` answer the process behind the address, and
-  `monitor` already takes such a `Process` for the target. The build brings the code to
-  E.21, whose line gains the check beside the adapted address. Its tests: the two are `==`,
-  and a `kill` of it ends the target.
-
-  Read with it, from the code and not shown (the log's *A Check Stands Through a Loss*): a
-  bad message to an adapted address over such an address has its fault sent to the check in
-  front of the process, which checks it as a message. The target then faults with that
-  check's type in its cause, where §12.3 names the type the address crossed at. A third
-  test holds the cause.
-
-  And a fault in the function of such an adapted address is sent to that check as an exit,
-  since a check has no row among the processes: the check ends, and the target meets no
-  fault, where §6.5 has the fault the target's. A fourth test holds it.
 
 **What needs the user**, each a design discussion of its own. Item 101 stands first, since
 its rule is the measure for item 100 and for MVP 4.5's item 68. Item 100, ernest-httpd's
@@ -381,6 +378,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 129 | G.11 states what a client sends in a body; `Http` reads white space as spaces and tabs and a coding in ASCII case; `Char` and `String` gain `toAsciiLower` and `toAsciiUpper`, with the user | 2026-11-19 | Appendices E.0, E.5, E.6, G.11; *G.11 States What a Client Sends*, *An ASCII Case in the Library* |
 | 130 | `Http.header` and `Http.headers` compare a name in ASCII case, left to the session by the user | 2026-11-19 | Appendix G.11; *A Header's Name in ASCII Case* |
 | 131 | `Http.elements`, a list header's elements, a quoted string keeping its comma and nothing else, and a body's framing refuses a `Transfer-Encoding` whose quoted string does not end, feedback 267, with the user | 2026-11-19 | Appendix G.11; *A List Header's Elements* |
+| 114 | `Process.fromAddress` answers the process behind a check, and a fault to an adapted address over an address given back at another type is its target's, with the user | 2026-11-19 | §8.4, Appendix E.21; *The Process Behind a Check*, *The Process Behind a Check, Built* |
 
 ---
 

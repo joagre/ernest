@@ -813,7 +813,7 @@ A frame of Ernest code is written as a spawn site is (§6.9), the name of the to
 type Status = Status(site : String, queued : Int, activity : Activity, memory : Int)
 type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) | Suspended // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's answer, a load's evaluator, a peer's answer or a restart's watchers (§6.9, E.27, E.28), Suspended while the host holds it
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
-Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address
+Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address and every check (§8.4)
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
 Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, waits for an answer, on whom and since when, or is held by the host, and the bytes it holds; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order

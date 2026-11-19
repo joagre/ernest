@@ -572,9 +572,16 @@ is_of_this_launch(Launch) ->
 %% foreign code comes back as the checker in front of it, and what the
 %% runtime holds of a process, its terminal, its monitors, its death,
 %% must be the process itself.
+%%
+%% Report §8.4, Appendix E.21: "through every adapted address and every
+%% check". A checker foreign code gives back is held foreign where it comes
+%% back at another type than it crossed at, or is in front of a process with
+%% no row (held/3), and the process behind it is still the one its address
+%% names. A send to it goes to the checker, which checks what is sent at the
+%% other type (sent/1); everything else the runtime holds is the process's.
 -spec process_of(address()) -> pid().
 process_of({adapted, _, Target, _, _}) -> process_of(Target);
-process_of({foreign, Pid, _, _}) -> Pid;
+process_of({foreign, Pid, _, _}) -> behind(Pid);
 process_of(Pid) -> behind(Pid).
 
 behind(Pid) ->

@@ -144,8 +144,9 @@ export type FaultReport =
 // since `run` receives nothing in its caller's process.
 type JudgeMsg(a) = Run(Reply(Either(Reason, a))) | Finished(a) | Ended(Down) | CallerEnded(Down)
 
-/// The process behind the address, through every adapted address. Two addresses of one
-/// process give equal processes, though addresses have no equality.
+/// The process behind the address, through every adapted address and every check
+/// (report §8.4). Two addresses of one process give equal processes, though addresses
+/// have no equality.
 ///
 /// ### Examples
 ///
