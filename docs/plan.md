@@ -37,7 +37,7 @@ goes to MVP 4.5 keeps its date and its fix's shape.
 
 ---
 
-## MVP 4.16 (a deadlock's scope and its report, a package's manifest and build, and the flake hunt), about a week
+## MVP 4.16 (a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found)
 
 Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*): two
 proposals built before the launch, so that the full review reads them and the launch shows them.
@@ -49,29 +49,16 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 
 ### What is left
 
-What is left is small, and each item stands alone. The items stand below in the order they
-are taken, in three groups. The groups' order was decided with the user on 2026-11-15 (the
-log's *A Status Read Before the Watch*, its paragraph *The order of what is left*): what the
-builds found, then what needs the user. An item planned since stands where its group's
-sentence says.
+Each item left stands alone. The items stand below in the order they are taken, in three
+groups. The groups' order was decided with the user on 2026-11-15 (the log's *A Status Read
+Before the Watch*, its paragraph *The order of what is left*): what the builds found, then
+what needs the user. An item planned since stands where its group's sentence says.
 
 Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
 and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
 Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it. Items 109 and
-110 were planned with the user on 2026-11-18, each in the log entry it names. Item 99 is
-what ernest-httpd's session handed back on 2026-11-17.
-
-The others were found by an item's build or its reading. Item 112 was found by the cold
-reading of item 111's sentences and placed with the user on 2026-11-18, and item 115 by
-that item's build (the log's *A Checker Acts for the Target*). Item 120 was found by item
-117's probes and placed with the user the same day (the log's *A Termination Ends a Stalled
-Flush*). Item 124 was found by item 121's probes and placed with the user the same day (the
-log's *A Down Follows the Send*).
-
-Items 125 and 126 were found by item 108's reading on 2026-11-19, and their fixes decided
-with the user the same day (the log's *What a Peer's Worker Waits On*).
+**What was found**, each item begun by an agent that shows it or tests it.
 
 - **109. No test holds Appendix E's `type` lines to the library**, found 2026-11-18 by
   item 107's build (the log's *Suspended Is the Host's Word*).
@@ -189,10 +176,7 @@ with the user the same day (the log's *What a Peer's Worker Waits On*).
   `compute` frame's guard. An agent builds both, the first against the reading's probe,
   which becomes its test.
 
-**What is decided and waits for its build** stands between the two: items 92 and 93, what
-item 60 decided on 2026-11-17, item 95, what a reading of five reviews from outside
-decided the same day (the log's *The Outside Reviews Read*), and item 114, what item 111's
-build found, decided on 2026-11-18 (the log's *The Process Behind a Check*).
+**What is decided and waits for its build** stands between the two.
 
 - **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
   log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
@@ -367,7 +351,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 70 | The look reads each checker as it reads a system process, so a message that waits at one is in flight | 2026-11-17 | §8.4, §8.6; *A Sender That Outlives Its Run*, *A Message at a Checker* |
 | 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
 | 72 | A build with nothing to do, measured: `ern build` is not slow, and nothing is built, with the user | 2026-11-17 | *Twenty-Six Hosts Are the Cost* |
-| 73 | A child that waits to run again runs once the group is whole, after a restart in place, a sibling's fault and a parent's ask alike: the watcher holds who waits, with the user | 2026-11-17 | E.22; *Two Orders Stated*, *The Watcher Holds Who Waits* |
+| 73 | A child that waits to run again runs once the group is whole, with the user | 2026-11-17 | E.22; *Two Orders Stated*, *The Watcher Holds Who Waits* |
 | 74 | A process's end ends its deliveries of `Restarted` not yet placed, and no other delivery, with the user | 2026-11-17 | §6.9, §8.7; *No Restarted After a Death* |
 | 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |
 | 76 | `Os.resize`'s example, told of the resize by the signal | 2026-11-16 | E.23; *The Resize Told by Its Signal* |
@@ -381,23 +365,23 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 84 | The tests run side by side run in lanes, a test begun as soon as one ends: `make test-nodes` in 108 s for 209 s, with the user | 2026-11-17 | *Lanes in Place of Chunks* |
 | 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
 | 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
-| 87 | `make test-shell` runs under a home of the run's own, whose startup file prints a line and ends the session, so that a shell test that names no home fails; three starts in the integration and the install tests name a home, with the user | 2026-11-18 | *A Home of the Run's Own* |
+| 87 | `make test-shell` runs under a home of the run's own, with the user | 2026-11-18 | *A Home of the Run's Own* |
 | 88 | A test runs the hunt's rounds: the host's first cancel carried from one round to the next, and the record of a directory that cannot be removed | 2026-11-18 | *The Hunt's Rounds Tested* |
 | 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
-| 91 | The look reads each checker among the processes of its two reads, by its status, its reductions and its marks, so a checker that waits in a call with a time holds its message in sight; one that has ended is left out | 2026-11-18 | §8.4, §8.6; *A Message at a Checker*, *A Checker Among the Processes* |
+| 91 | The look reads each checker among the processes of its two reads | 2026-11-18 | §8.4, §8.6; *A Message at a Checker*, *A Checker Among the Processes* |
 | 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
-| 97 | What else waits where a `send` to a peer waits: a call, a find, a spawn, a compute and a utilization are held before and after their wait, which §6.6, §6.7, §8.7 and E.27 now say; the gateway waits on no peer, its telling and its utilization's answer not sent where they would wait; a send to a lost peer returns, as the report had it | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
-| 98 | A node whose program has ended ends while a lost peer's socket still holds output, by a linger of no time on the carrier's sockets; the loss that comes ten seconds late there is the host's, and §12.6 says so; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
-| 102 | A node's lock on `ernest.pid` is held until its process has ended, however it ends, and its helper removes the file then; a Linux without `pidfd_open` refuses a node; the socket to a lost peer goes at the loss, and the guide says a node is one process with its helpers, with the user | 2026-11-18 | §11.2, §12.5; *A Lock Held to the Process's End*, *A New OTP and Nothing Else New* |
-| 104 | The runtime's processes that serve the whole node wait on no peer: the killer, the reaper and the exchange's process set the host's `async_dist`, so that a kill ends its process and the node spawns while one peer takes nothing; the clock sends a peer nothing, and the departure's wait is §12.6's, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
-| 107 | `Process.status` says `Suspended` of a process the host holds, in a send to another node, in a kill the runtime carries out, or at a port of the node's own that takes no more; `:processes` writes `suspended`, last in a site's order, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
-| 111 | A checker acts for its address's target: where foreign code sends to an adapted address, the checker applies the function as on arrival; the reaper makes and holds each checker and takes its rows at its end, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
-| 116 | The job halts without the host's flush, so that a program's end waits for no socket whose far end takes nothing; a stream that is stopped writes out what its port holds; what the host logs or a node says once the job's output is flushed is not written, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
-| 117 | A termination once the end's wait is over ends the end at once: it kills both standard streams and the sayer of the lines said later with what they hold, so that a stream nobody reads holds no end; the status is that of what began the end | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
-| 105 | A message for a peer is placed in the host's buffer in parts while less than 1 MB waits there, and its `send` then waits with the rest; the report and the nodes' note had it placed whole, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |
-| 106 | Nothing bounds what waits for a program that does not read, and E.23 says so; the helper lets its input go once it is taken, a write after `closeInput` answers `Left(Closed)` at once, no timeout scans the writes or the reads that wait, the helper's failure is E.23's fault every time, and a write's bytes are copied once; a running program has a writer, so its process is never held at its port and E.21 names no such hold, with the user | 2026-11-18 | Appendix E.21, E.23; *What a Program's Helper Holds* |
-| 121 | A process that dies with `Killed` while what it sends waits has sent it, and a `Down` for a watcher on another node may wait on a third node, until that node takes again or is lost; the kill's reason stays a tuple, since an atom lets a callee's `Down` overtake its answer, with the user | 2026-11-19 | §6.6, §6.9, §8.7; *A Down Follows the Send* |
-| 108 | A peer's worker read whole: of its six sends that leave the node four go to its own peer; a fault at a full process table reaches a third node, where the host held the worker; a `find`'s answer checks no node; and the host's disconnect holds `net_kernel`, and the node with it, at a connection that cannot drain. Items 125 and 126 hold the fixes, with the user | 2026-11-19 | §6.5, §8.7, §12.6; *What a Peer's Worker Waits On* |
+| 97 | What else waits where a `send` to a peer waits, and a gateway that waits on no peer | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
+| 98 | A node whose program has ended ends while a lost peer's socket holds output; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
+| 102 | A node's lock on `ernest.pid` held until its process has ended, with the user | 2026-11-18 | §11.2, §12.5; *A Lock Held to the Process's End*, *A New OTP and Nothing Else New* |
+| 104 | The runtime's processes that serve the whole node wait on no peer, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
+| 105 | A message for a peer is placed in the host's buffer in parts, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |
+| 106 | What a program's helper holds for a program that does not read, with the user | 2026-11-18 | Appendix E.21, E.23; *What a Program's Helper Holds* |
+| 107 | `Process.status` says `Suspended` of a process the host holds, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
+| 108 | A peer's worker read whole; items 125 and 126 hold the fixes, with the user | 2026-11-19 | §6.5, §8.7, §12.6; *What a Peer's Worker Waits On* |
+| 111 | A checker acts for its address's target, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
+| 116 | The job halts without the host's flush, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
+| 117 | A termination once the end's wait is over ends the end at once | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
+| 121 | A process killed while what it sends waits has sent it, and its `Down` may wait on a third node, with the user | 2026-11-19 | §6.6, §6.9, §8.7; *A Down Follows the Send* |
 
 ---
 
@@ -490,29 +474,28 @@ changes the report first (the log's *A Package and Its Manifest*).
 - **7. `Crypto.sha256`**, its E.0 reading and its line of Appendix G first. Decided with the
   user 2026-11-14 (the log's *An Archive Without Links*): no library over tar or gzip is
   written, and none reads the tar format in Ernest.
-- **8. `ern unpack`**, in Ernest, over `Crypto.sha256` and the host's `erl_tar`. Decided with the
-  user 2026-11-14 (the log's *An Archive Without Links*): an archive's member is a directory
-  or a regular file, and an archive that holds anything else is refused. `erl_tar` lists the
-  members and hands over the files' bytes, a gzip archive read from its bytes, and the two
-  calls are foreign functions of the job's own module.
+- **8. `ern unpack`**, in Ernest, over `Crypto.sha256` and the host's `erl_tar`. Its rules
+  were decided with the user on 2026-11-14: a member's kind and the host's `erl_tar` in the
+  log's *An Archive Without Links*, and which rules stay in *The Trust Said Once*.
 
-  The item rewrites §11.9's paragraphs on an archive first: its paragraph on where a link
-  may reach goes, and §11.9 states the rules of a member's name and kind itself. It decides
-  there whether a member of a kind the host does not know is passed over or refused, a pax
-  global header among them, which `git archive` writes. A test over hostile archives holds
-  the rules.
-
-  Decided with the user 2026-11-14 (the log's *The Trust Said Once*): three rules of an
-  archive stay, its digest, a member's name under the archive's directory with no `..`,
-  and a member's kind. A name given twice is no fault, and the last stands. An empty or a
-  `.` segment, the kind of the directory's own member and a control character in a name
-  are not tested, and a broken archive fails with the host's reason. A file is made by
-  the mask, and of a member's mode only whether its owner may run it is read.
-
-  Where the job's module stands under `Ernest` is decided as the item opens, and so is how
-  its Ernest gets the manifest's entries. The shape: the command reads the manifest once, by
-  the read every job shares, and hands the job its entries (the log's *The Root Package
-  Read*).
+  - **The report first.** The item rewrites §11.9's paragraphs on an archive: its paragraph
+    on where a link may reach goes, and §11.9 states the rules of a member's name and kind
+    itself. It decides there whether a member of a kind the host does not know is passed
+    over or refused, a pax global header among them, which `git archive` writes.
+  - **An archive's rules.** Three stay: its digest, a member's name under the archive's
+    directory with no `..`, and a member's kind. A member is a directory or a regular file,
+    and an archive that holds anything else is refused. A name given twice is no fault, and
+    the last stands. A file is made by the mask, and of a member's mode only whether its
+    owner may run it is read. A test over hostile archives holds the rules.
+  - **What is not tested.** An empty or a `.` segment, the kind of the directory's own
+    member and a control character in a name. A broken archive fails with the host's
+    reason.
+  - **The job.** `erl_tar` lists the members and hands over the files' bytes, a gzip
+    archive read from its bytes, and the two calls are foreign functions of the job's own
+    module. Where the module stands under `Ernest` is decided as the item opens, and so is
+    how its Ernest gets the manifest's entries. The shape: the command reads the manifest
+    once, by the read every job shares, and hands the job its entries (the log's *The Root
+    Package Read*).
 - **9. The guide's section on a package.** It says what an entry's digest promises: the archive
   that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
   log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
@@ -526,29 +509,28 @@ changes the report first (the log's *A Package and Its Manifest*).
   opens.
 - **10. The other repositories**, with MVP 4.4's items 4 and 5: at its floor's rise each takes its
   manifest, ernest-template first with its Makefile cut, and ernest-epx's release carries its
-  host part as the proposal's question 5 says. ernest-httpd's four matches on a bare
-  `Process.Calling` take `Process.Calling()` then, since item 3 gave it fields (E.21).
-  Decided with the user 2026-11-11: this session writes the packages' part in the three,
-  their sessions closed, as a change across the repositories in their shape alone
-  (`docs/clean_room.md`): each manifest, the template's Makefile and `TEMPLATE.md`, and
-  ernest-epx's moved files and Makefile. ernest-epx's release and ernest-httpd's four matches
-  stay their own sessions'.
+  host part as the proposal's question 5 says.
 
-  Decided with the user 2026-11-13 (the log's *An Installed Program's Packages*): the
-  launcher gives `--package-dir` with its root and loses its loop, and `make install` copies
-  `package.conf`. A program's own Erlang is named from a directory of its own, `erl` in a
-  checkout, so that `lib` holds the named packages alone. The item's tests take a `priv`
-  found through `code:priv_dir`.
-
-  Found 2026-11-14, reading ernest-epx's release step: the template's archive holds a
-  library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link copied through,
-  where §11.9 has a package's Erlang under its own `ebin` with its `priv` beside it. The
-  item moves it there, and holds the archive it makes to `ern unpack`'s rules on an
-  archive's members.
-
-  Decided with the user 2026-11-17 (the log's *Packages and No Manager*): once ernest-epx's
-  release is an archive that `ern unpack` takes, `site/projects.md` says in one sentence
-  how a project is taken, an entry in `package.conf` and `ern unpack`.
+  - **Who writes what**, decided with the user 2026-11-11. This session writes the
+    packages' part in the three, their sessions closed, as a change across the repositories
+    in their shape alone (`docs/clean_room.md`): each manifest, the template's Makefile and
+    `TEMPLATE.md`, and ernest-epx's moved files and Makefile. ernest-epx's release stays its
+    own session's. So do ernest-httpd's four matches on a bare `Process.Calling`, which
+    take `Process.Calling()` then, since item 3 gave it fields (E.21).
+  - **An installed program**, decided with the user 2026-11-13 (the log's *An Installed
+    Program's Packages*). The launcher gives `--package-dir` with its root and loses its
+    loop, and `make install` copies `package.conf`. A program's own Erlang is named from a
+    directory of its own, `erl` in a checkout, so that `lib` holds the named packages alone.
+    The item's tests take a `priv` found through `code:priv_dir`.
+  - **The template's archive**, found 2026-11-14, reading ernest-epx's release step. It
+    holds a library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link copied
+    through, where §11.9 has a package's Erlang under its own `ebin` with its `priv` beside
+    it. The item moves it there, and holds the archive it makes to `ern unpack`'s rules on
+    an archive's members.
+  - **The site**, decided with the user 2026-11-17 (the log's *Packages and No Manager*).
+    Once ernest-epx's release is an archive that `ern unpack` takes, `site/projects.md`
+    says in one sentence how a project is taken, an entry in `package.conf` and `ern
+    unpack`.
 
 The proposal's sweep is last.
 
@@ -581,19 +563,11 @@ goes, for a client the server ships. The order keeps the proposal's: the server'
 which adds and takes nothing away, and no day but the launch's switch changes both repositories,
 on a path the rehearsal has walked.
 
-1. **The ask**, sent to ernest-httpd's session by a message on 2026-11-10, as
-   `docs/clean_room.md` says: a client script served at `/shell/client.js`, the limits the server
-   enforces, a client that is never stale, and its own test. The server's part goes into the
-   release its item 5 makes for the launch, and its rehearsal of the switch (MVP 4.4's item 6)
-   serves the client on scratch ports, so that the switch walks the client's path. The server's
-   proposal for its client, read by each session against the other's on 2026-11-10, holds the
-   interface as the proposal's decision 7 states it (the log's *The Client's Interface Agreed*),
-   ready the same day, so that the server's design's *The client* owns it.
-
-   The server serves the client as *The client* states it since 2026-11-10, said by message, and
-   the rehearsal serves it at `https://ernest-lang.org:8443/` from the same day until the
-   launch's switch; item 2 begins after MVP 4.17, against it.
-2. **Ernest's side**, built against the rehearsal's server once it serves the client.
+1. **The ask**, done on 2026-11-10 (the log's *The Client's Interface Agreed*). The server
+   serves the client as its design's *The client* states it, and the rehearsal serves it at
+   `https://ernest-lang.org:8443/` until the launch's switch. The server's part goes into
+   the release its item 5 makes for the launch.
+2. **Ernest's side**, begun after MVP 4.17 and built against the rehearsal's server.
    `site.js`'s session imports the client, an ES module, on demand. The generator takes no
    configuration, and `make site` the tag alone. The shell's page takes its numbers from the
    client's limits and names no memory. The browser test serves a stub client that speaks the
@@ -720,21 +694,17 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop,
    against the archive of the commit the readers read; ernest-httpd's review has a security
-   reader, since it goes public at
-   item 6. What they find of Ernest's comes as lines of their feedback files and is sorted in this
-   round (the log's *The Applications' Full Review*, *Ernest Stays at 0.x*). As they begin, the
-   three floors rise to the launch's minor, each by its own session, since a development build of
-   the floor is what an archive before the release is (the log's *The Floors and the Releases*).
-   Ernest's session names the minor, the archive's path and its commit to all three by a message,
-   and asks for the reviews, on the user's word.
+   reader, since it goes public at item 6. What they find of Ernest's comes as lines of
+   their feedback files and is sorted in this round (the log's *The Applications' Full
+   Review*, *Ernest Stays at 0.x*).
 
-   The template rose to floor 0.10 on 2026-11-10, before this item, on the user's word, by its
-   own session: `Os.command("git", ["ls-files", pattern])` at `tools/docs.ern`'s `Os.run`,
-   `ERN_VERSION` in its Makefile, the `ern` version under its README's *Building*, and a dated
-   entry in its TEMPLATE_LOG.md, the other rules of 0.10.0 touching nothing in it; ernest-httpd
-   and ernest-epx took the file from that tag the same evening and stand on 0.10, so the three
-   floors rise together from 0.10 here (the log's *The Release Review Before 0.10.0*, its last
-   paragraph).
+   As they begin, the three floors rise to the launch's minor, each by its own session, since
+   a development build of the floor is what an archive before the release is (the log's *The
+   Floors and the Releases*). Ernest's session names the minor, the archive's path and its
+   commit to all three by a message, and asks for the reviews, on the user's word.
+
+   The three floors stand on 0.10 since 2026-11-10, and rise together from there (the log's
+   *The Release Review Before 0.10.0*, its last paragraph).
 5. **The launch's release**, the next minor of 0.x, by `docs/reviews/release.md`'s step, on Linux:
    macOS unverified and said so in the README's installing sentence and the note, which also
    says that the installed layout changed, for a script that points inside an installation (the
@@ -966,7 +936,7 @@ What the line left, in the order it is taken:
 | MVP 4.2 | the website, built and live with MVP 4.4's item 6: what Ernest is, its characteristics, the three doors, the tour, the guide, the report and the library's pages, generated from a tag by `make site`, the projects' page, the live shell's page side, and the browser test that holds it | 2026-11-06 | | the design note `docs/design/site.md`; the log's *ehttpd and the Website*, *The Tour Written*, *The Generator Before MVP 4.15*, *A Node's Limits*, *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Generator's Third Stage*, *The Pages Read Against the Principles*, *A Release Carries No History*, *The Start Line's Length*, *The Client's Questions*, *The Site Goes Live With 1.0*, *The Mode's Brackets*, *Projects, a Page of Their Own*, *The Browser Test's Flake*, *The Site's Proposal Read* |
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
-| MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, and the flake hunt | | | above |
+| MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found | | | above |
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives, the guide and the other repositories | | | above |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
