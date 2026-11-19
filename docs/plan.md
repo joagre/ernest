@@ -22,7 +22,7 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **The next item is MVP 4.16's item 112**, a check across two nodes shown on two nodes
-first.
+first. Item 131, `Http.elements`, follows it directly, on the user's word of 2026-11-19.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -155,6 +155,21 @@ Launch*).
 
 **What is decided and waits for its build** stands between the two.
 
+- **131. `Http.elements`, a list header's elements**, feedback 267, found 2026-11-19 by
+  ernest-httpd's session and decided with the user the same day (the log's *A List Header's
+  Elements*). It is taken directly after item 112, before the items found, on the user's
+  word. It stands before MVP 4.4 since another repository waits on it: ernest-httpd's two
+  readings of `Connection` and `Upgrade` take it at its floor's rise.
+
+  G.11 changes first. `elements(headers, name)` is every value under the name as one list,
+  parted at commas, each element without the white space around it and as written, an
+  empty element dropped. A comma within a quoted string does not part, and a quoted string
+  that does not end runs to its value's end. The build reads RFC 9110, sections 5.6.1 and
+  5.6.4, before G.11's sentences are written, since the quoted string was recommended
+  without the RFC's text read.
+
+  `Http`'s reading of `Transfer-Encoding` calls the function, and its private form goes.
+  An agent builds it, with ernest-httpd's three cases among its tests.
 - **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
   log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
   `Tcp.readForever` and `Os.readForever` wait without a limit, as `Address.callForever`
