@@ -1128,7 +1128,7 @@ fn toClose(reading : Reading, bytes : Bytes) : Either(SocketError, #(Bytes, Byte
     }
 
 /// The first value under `name` in `headers`, the names compared in any
-/// case; `None` where no header has the name.
+/// case of the letters `A` to `Z`; `None` where no header has the name.
 ///
 /// ### Examples
 ///
@@ -1137,13 +1137,13 @@ fn toClose(reading : Reading, bytes : Bytes) : Either(SocketError, #(Bytes, Byte
 /// // => Some("text/html")
 /// ```
 export fn header(headers : List(Header), name : String) : Optional(String) = {
-    let wanted = String.toLower(name);
+    let wanted = String.toAsciiLower(name);
     Optional.map(List.find(headers, fn(header) = isNamed(header, wanted)),
                  fn(header) = header.value)
 }
 
 /// Every value under `name` in `headers`, in their order, the names compared
-/// in any case.
+/// in any case of the letters `A` to `Z`.
 ///
 /// ### Examples
 ///
@@ -1155,14 +1155,15 @@ export fn header(headers : List(Header), name : String) : Optional(String) = {
 /// // => ["a=1", "b=2"]
 /// ```
 export fn headers(headers : List(Header), name : String) : List(String) = {
-    let wanted = String.toLower(name);
+    let wanted = String.toAsciiLower(name);
     List.filterMap(headers,
                    fn(header) = if isNamed(header, wanted) then Some(header.value) else None)
 }
 
-// Whether the header's name, in lower case, is the name.
+// Whether the header's name, its letters `A` to `Z` in lower case, is the
+// name.
 fn isNamed(header : Header, lowered : String) : Bool =
-    String.toLower(header.name) == lowered
+    String.toAsciiLower(header.name) == lowered
 
 /// The pairs of every `Cookie` header in `headers`, RFC 6265's, in order:
 /// each value parted at `;`, each part parted at its first `=`, the cookie's
@@ -2598,12 +2599,14 @@ let anyCase =
                       [Header(name = "Set-Cookie", value = "a=1"),
                        Header(name = "content-TYPE", value = "text/plain"),
                        Header(name = "SET-COOKIE", value = "b=2")];
+                  // the Kelvin sign, U+212A, is no `k`
                   Test.equal(#(header(fields, "Content-Type"),
                                header(fields, "set-cookie"),
                                header(fields, "Host"),
                                headers(fields, "Set-Cookie"),
-                               headers(fields, "Host")),
-                             #(Some("text/plain"), Some("a=1"), None, ["a=1", "b=2"], []))
+                               headers(fields, "Host"),
+                               header([Header(name = "\u{212A}ey", value = "a")], "key")),
+                             #(Some("text/plain"), Some("a=1"), None, ["a=1", "b=2"], [], None))
               })
 
 // report Appendix G.11, RFC 6265, section 4.2
