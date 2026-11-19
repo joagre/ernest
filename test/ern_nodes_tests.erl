@@ -4461,6 +4461,151 @@ run_signaled(Run, Name) ->
         undefined -> false
     end.
 
+%% report §11.8, §11: `ern test` ends by a termination that cut short the
+%% end of a launch, and runs no later launch. Here the first of two modules
+%% leaves a subscriber of Os.termination that never answers, so that its
+%% tests' launch's end waits; once standard error says so, a termination
+%% cuts the wait, and the job ends by it, 143, the second module's name and
+%% lines never written.
+test_ends_at_a_cut_wait_test_() ->
+    nodes_test({waits, 4}, fun test_ends_at_a_cut_wait/1).
+
+test_ends_at_a_cut_wait(Base) ->
+    Root = two_modules(filename:join(Base, "build"), <<"
+// Report §8.6, §11.2: a test that leaves a subscriber of Os.termination
+// that never answers, so that the end of its launch waits for it.
+
+type Msg = Subscribed
+
+type SubscriberMsg = Terminating(Reply(Unit))
+
+let waits : Test.Case(Msg) = Test.Case(name = \"waits\", run = fn() = {
+    let me = self();
+    let _ = spawn(fn() = subscriber(me));
+    receive {
+        Subscribed -> Test.Passed
+    }
+})
+
+fn subscriber(test : Address(Msg)) : Unit receiving SubscriberMsg = {
+    Os.termination(Terminating);
+    send(test, Subscribed);
+    unanswered()
+}
+
+fn unanswered() : Unit receiving SubscriberMsg =
+    receive {
+        Terminating(_) -> unanswered()
+    }
+"/utf8>>),
+    Dir = filename:join(Base, "job"),
+    {Job, Wait} = launched(Dir, ["exec ", ?ERN, " test ", Root]),
+    try
+        says(Dir, "the end waits for "),
+        true = run_signaled(Job, "TERM"),
+        ?assertEqual(143, Wait()),
+        {Out, Err} = said(Dir),
+        has(Out, "First\n"),
+        ?assertEqual({nomatch, nomatch}, {string:find(Out, "Second"), string:find(Err, "Second")})
+    after
+        closed(Job)
+    end.
+
+%% report §11.8, §11: the same where the first module's test writes a
+%% megabyte to a standard output whose reader takes nothing, and passes, so
+%% that its launch's end stalls in its flush: one termination ends the
+%% flush at once, and the job ends by it, 143, while the reader has read
+%% nothing. The end shows as the connection the test's process of its own
+%% held closed. The second module's test, which would connect too, never
+%% does.
+test_ends_at_an_ended_flush_test_() ->
+    nodes_test({waits, 4}, fun test_ends_at_an_ended_flush/1).
+
+test_ends_at_an_ended_flush(Base) ->
+    Root = two_modules(filename:join(Base, "build"), [<<"
+// Report §8.6, §11.2: a test whose process of its own holds a connection to
+// the port ERN_HOLD_PORT names until its launch's end, and that writes a
+// megabyte to standard output and passes.
+
+type Msg = Connected
+
+let writes : Test.Case(Msg) = Test.Case(name = \"writes\", run = fn() = {
+    let me = self();
+    let _ = spawn(fn() = hold(me));
+    receive {
+        Connected -> Unit
+    };
+    Io.write(Bytes.repeat(<<120>>, 1048576));
+    Test.Passed
+})
+
+fn hold(test : Address(Msg)) : Unit receiving Msg =
+    match Optional.andThen(Os.environment(\"ERN_HOLD_PORT\"), String.toInt) {
+        Some(port) -> held(Tcp.connect(\"127.0.0.1\", port, waitMs()), test)
+      | None -> Io.printlnError(\"no port in ERN_HOLD_PORT\")
+    }
+
+// Once connected, waits for a message that never comes, until the end of
+// its launch ends it and closes the connection.
+fn held(connected : Either(Io.Error, Address(Tcp.SocketMsg)),
+        test : Address(Msg)) : Unit receiving Msg =
+    match connected {
+        Right(_) -> {
+            send(test, Connected);
+            receive {
+                Connected -> Unit
+            }
+        }
+      | Left(error) ->
+            Io.printlnError(\"not connected: \" <> Io.show(error))
+    }
+"/utf8>>, wait_ms_declaration()]),
+    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Listener),
+    Pipe = filename:join(Base, "stdout.pipe"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Command = lists:flatten(["ERN_HOLD_PORT=", integer_to_list(Port), " exec ", ?ERN, " test ",
+                             Root, " 2>&1 > ", Pipe]),
+    Job = open_port({spawn_executable, "/bin/sh"}, [{args, ["-c", Command]}, exit_status, binary]),
+    Holder = open_port({spawn_executable, "/bin/sh"},
+                       [{args, ["-c", "exec 3< " ++ Pipe ++ "; read line"]}, exit_status, binary]),
+    try
+        Socket = accepted(Listener),
+        ?assertEqual({error, closed}, received(Socket, 0)),
+        true = run_signaled(Job, "TERM"),
+        ?assertMatch({143, _}, collected(Job, 1)),
+        ?assertEqual({error, timeout}, gen_tcp:accept(Listener, 0))
+    after
+        closed(Holder),
+        closed(Job),
+        ok = gen_tcp:close(Listener)
+    end.
+
+%% A directory Root of two modules built, first.ern of First's source and
+%% second.ern, whose one test passes once it has connected to the port
+%% ERN_HOLD_PORT names, where one is named: one step. Answers Root.
+two_modules(Root, First) ->
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "first.ern"), First),
+    ok = file:write_file(filename:join(Root, "second.ern"), [<<"
+// Report §11.2: a module whose one test passes, once it has connected to
+// the port ERN_HOLD_PORT names, where one is named.
+
+let follows = Test.Case(name = \"follows\", run = fn() = {
+    match Optional.andThen(Os.environment(\"ERN_HOLD_PORT\"), String.toInt) {
+        Some(port) -> {
+            let _ = Tcp.connect(\"127.0.0.1\", port, waitMs());
+            Unit
+        }
+      | None ->
+            Unit
+    };
+    Test.Passed
+})
+"/utf8>>, wait_ms_declaration()]),
+    0 = built([Root]),
+    Root.
+
 %% report §12.5: on a Linux without pidfd_open, one before 5.3, a node
 %% refuses to start, making no file, naming the system and its release as
 %% uname gives them. The kernel's answer, ENOSYS, is given by a library

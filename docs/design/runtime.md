@@ -98,6 +98,7 @@ The host's persistent terms, each put once at a job's start, a launch or a reloa
 - `{ern_cli, flags}`, put in the launcher's first start of a job that makes a node, which says the node's flags and runs no program (§11.2, §12.5);
 - `{ern_cli, load_path}`, where `Code.load` finds the modules a module it loads uses, put as the job's program is loaded (Appendix E.28);
 - `{ern_signals, ended}`, the signal that ended the running program, put as the job ends by it (§8.6, §11.2);
+- `{ern_signals, taken}`, the signal the job took, put by the handler before it tells the runtime, which `ern test` and `ern doc` read as a launch ends, since a signal that cut short the launch's end ends those jobs too (§8.6, §11.8);
 - `{ern_cli, host_ends}`, put as the host's process of a node's connections ends on a spawn beyond the limit, after which the job waits for the host's end (§11.8, §12.5);
 - `{ern_rt, own_modules}`, the toolchain's own modules, a map put once in a host's life;
 - `{ern_rt, holder}`, the process that holds the terminal for a shell, put as the shell claims it and erased at each launch (§11.2, §12.1), and each system process's pid under its name, put at each launch (§8.2);

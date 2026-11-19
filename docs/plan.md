@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 139**, `ern test` at a termination that ended a launch.
-Items 140 and 141 follow it, decided with the user on 2026-11-19.
+**The next item is MVP 4.16's item 140**, an `Os.exit` once the end's wait is over. Item 141
+follows it, decided with the user on 2026-11-19.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -62,23 +62,11 @@ Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **139. `ern test` ends at a termination that ended a launch**, found 2026-11-19 by item
-  120's probes (the same paragraph). A termination during the stalled flush of one
-  module's launch ended that launch, and the job went on to the next module. It exited 0
-  where the reader then went on. The killed stream's port wrote its bytes later, since
-  the job lived on.
-
-  §10 has a termination end a job at once, and the job shows that false, so the item
-  stands here. Decided with the user: the job ends there by the signal, with status 143.
-  An agent first shows whether a termination that cuts a launch's wait with nothing
-  stalled lets the job go on too, and that no byte comes once the job ends there.
-
-  It needs nothing of MVP 4.5's item 68, which is of a job outside a run. Both leave a
-  signal's end at once.
 - **140. An `Os.exit` once the end's wait is over**, found 2026-11-19 by item 120's
-  probes (the same paragraph). On a node, a process kept for an adapted address called
-  `Os.exit(7)` while the flush was stalled. Nothing read it: the node stayed alive, and
-  ended with status 0 at a termination, or once its reader went on.
+  probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside it*). On
+  a node, a process kept for an adapted address called `Os.exit(7)` while the flush was
+  stalled. Nothing read it: the node stayed alive, and ended with status 0 at a
+  termination, or once its reader went on.
 
   §8.6 has an `Os.exit` once the end has begun end the program at once, with its status,
   so the item stands here. The shape: once the wait is over the exit's status is the
@@ -277,6 +265,11 @@ session's two lines on a close, follows it, and three of that session's tests wa
   the list of lapses. The plan is not sorted anew for it. An item is asked that file's
   question, whether a first user meets it, when it comes up to be worked, and one that
   only a built corner shows moves to MVP 4.5 on the user's word.
+
+  Decided with the user on 2026-11-19, for that day: `CLAUDE.md`'s rule on the test runs
+  becomes one, `make test-full` before the commit that closes an item that changed code,
+  and its clause on the runtime, the nodes and the emitter goes (the README's list, its
+  first row). Until then the session's memory carries it.
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
   ([`limit_findings.md`](limit_findings.md), its section 3.2; the log's *The Limits Read*).
@@ -451,6 +444,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 115 | The wrap of a `monitor` in an adapted address's function, or in a wrap, answers no value, and a lambda refused where a function that receives nothing is expected has the use that makes it receive labeled, with the user | 2026-11-19 | §6.5, §6.9, §11.5; *A `monitor` in an Adapted Address's Function* |
 | 120 | The runner waits for no line of the end's wait, a termination during the flush ends the program without it, and one termination never both begins the end or cuts the wait and ends the flush, with the user | 2026-11-19 | §8.6, §11.2, §12.4; *The Runner Waits for No Line* |
 | 138 | The shell's flush ends at the end of standard output's process, and an end at once gives the terminal back without the end of its paste mode | 2026-11-19 | §8.6, §11.2, §12.1, §12.4; *The Shell Ends at Once* |
+| 139 | `ern test` ends by a termination or a hangup that cut short the end of a run, a module's tests' or an example's, and runs no launch after it, with the user | 2026-11-19 | §11, §11.8; *`ern test` Ends by a Signal That Cut an End* |
 
 ---
 

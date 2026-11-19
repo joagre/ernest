@@ -7,8 +7,8 @@
 -module(ern_signals).
 -behaviour(gen_event).
 
--export([install/0, status/1, ended/0, ended/1, die/2, init/1, handle_event/2, handle_call/2,
-         handle_info/2]).
+-export([install/0, status/1, taken/0, ended/0, ended/1, die/2, init/1, handle_event/2,
+         handle_call/2, handle_info/2]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [die/2]}).
@@ -46,6 +46,14 @@ install() ->
 -spec status(sigterm | sighup) -> pos_integer().
 status(sigterm) -> 128 + 15;
 status(sighup) -> 128 + 1.
+
+%% Report §11.8: the signal the job took during a launch, which cut short
+%% the launch's end where it did not end the program, or none. A test's
+%% launch reads it as it ends, since `ern test` ends by it whatever the
+%% outcome says (ern_cli:cases_launch/6).
+-spec taken() -> sigterm | sighup | none.
+taken() ->
+    persistent_term:get({?MODULE, taken}, none).
 
 %% The signal that ended the running program, or none.
 -spec ended() -> sigterm | sighup | none.
@@ -85,8 +93,10 @@ die(Signal, Status) ->
 init(_) ->
     {ok, []}.
 
-%% A running program ends as §8.6 says and its runner returns the signal;
-%% outside one there is nothing to end, and `ern` ends by it at once.
+%% A running program ends as §8.6 says and its runner returns the signal,
+%% or the outcome of what began an end the signal cut short, the signal
+%% recorded either way (end_run/1); outside one there is nothing to end,
+%% and `ern` ends by it at once.
 %% Report §8.7: a node takes hangup as a reload, and goes on.
 -spec handle_event(term(), []) -> {ok, []}.
 handle_event(sighup, State) ->
@@ -101,7 +111,11 @@ handle_event(sigterm, State) ->
 handle_event(_, State) ->
     {ok, State}.
 
+%% Report §11.8: the signal recorded before the runtime is told of it, so
+%% that a launch the signal reached finds it recorded once its runner has
+%% returned (taken/0); outside a launch `ern` ends by it at once.
 end_run(Signal) ->
+    persistent_term:put({?MODULE, taken}, Signal),
     case ern_rt:signal(Signal) of
         ok -> ok;
         none -> die(Signal, status(Signal))

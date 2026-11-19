@@ -754,9 +754,11 @@ page(Options, Beam, Source, ErrorDevice) ->
 %% that reads one finds its value. What Compute gives is passed back to the
 %% job, which writes it. A fault there is reported as a run's is, its cause
 %% and its trace whole on standard error (§11.2), and is then a failure of
-%% ern itself; a signal ends the job as it ends a run (§11.8). Compute is
-%% the job's own code, which calls libs/markdown as foreign code calls a
-%% program's (§8.4); where it waits, the prelude's page reading the
+%% ern itself; a signal ends the job as it ends a run, also where it cut
+%% short an end begun by Compute's return (§11.8).
+%%
+%% Compute is the job's own code, which calls libs/markdown as foreign code
+%% calls a program's (§8.4); where it waits, the prelude's page reading the
 %% standard library's interfaces, it waits on the host's code server and
 %% file server, whose functions the deadlock detector reads on top of the
 %% process's stack as the host's work (§8.6).
@@ -765,11 +767,12 @@ in_runtime(Compute, ErrorDevice) ->
     Ref = make_ref(),
     Options = reporting_options(#{init => fun() -> ern_rt:init_modules(['ern@markdown']) end},
                                 ErrorDevice),
-    case ern_rt:run_main(fun() -> Caller ! {Ref, Compute()} end, <<"ern doc">>,
-                         Options) of
-        ok -> receive {Ref, Result} -> Result end;
-        {signal, Signal} -> throw({ended, ern_signals:ended(Signal)});
-        Outcome -> erlang:error({libs_markdown, Outcome})
+    Outcome = ern_rt:run_main(fun() -> Caller ! {Ref, Compute()} end, <<"ern doc">>, Options),
+    case {Outcome, ern_signals:taken()} of
+        {ok, none} -> receive {Ref, Result} -> Result end;
+        {ok, Signal} -> throw({ended, ern_signals:ended(Signal)});
+        {{signal, Signal}, _} -> throw({ended, ern_signals:ended(Signal)});
+        _ -> erlang:error({libs_markdown, Outcome})
     end.
 
 %% Report §11.4: a directory's documents, or with --man its manual pages,
@@ -1276,11 +1279,12 @@ test(Options, [Path], ErrorDevice) ->
 %% Report §11.2: the modules of a directory in the order of their paths,
 %% each with tests run as `ern test file.erc` runs it, in a runtime of its
 %% own, its name before its tests' lines, and one without passed over,
-%% loaded and not run; the status of each run. A run a signal ended, or
-%% whose output could no longer be written, is the last. Say says each
-%% module read (--verbose). A module that cannot be loaded ends the job at
-%% its turn, and report §11: a `.erc` found that reaches no regular file is
-%% one the job cannot read (ern_build:read/1).
+%% loaded and not run; the status of each run. A run a signal ended or
+%% whose end it cut short (report §11.8), or whose output could no longer
+%% be written, is the last. Say says each module read (--verbose). A module
+%% that cannot be loaded ends the job at its turn, and report §11: a `.erc`
+%% found that reaches no regular file is one the job cannot read
+%% (ern_build:read/1).
 tree_tests([], _Options, _Say, _ErrorDevice, _Node) ->
     [];
 tree_tests([File | Files], Options, Say, ErrorDevice, Node) ->
@@ -2000,11 +2004,11 @@ say_limits() ->
 %% Examples, as ern_examples made them, each a program of its own, in a
 %% launch of its own in an empty directory of its own; status 1 unless
 %% every one passed. A tests' launch that ends otherwise than by its entry
-%% process's return, by an initializer's fault among them, ends the
-%% module's run with the status that end gives (report_outcome/3); an
-%% example's fails that example alone, but for a signal's or a stream's
-%% (example_launch/3). The units the examples' compiling loaded go once the
-%% last has run.
+%% process's return, by an initializer's fault among them, or that a signal
+%% reached (cases_launch/6), ends the module's run with the status that end
+%% gives (report_outcome/3); an example's fails that example alone, but for
+%% a signal's or a stream's (example_launch/3). The units the examples'
+%% compiling loaded go once the last has run.
 run_tests(Namespace, Loaded, {Examples, Units}, Heading, ErrorDevice, Node) ->
     Caller = self(),
     Entry = fun(Running) ->
@@ -2092,6 +2096,9 @@ ended_reason({gone, _}) -> none.
 %% exit with status 1 where any process faulted during the run, but one a
 %% case started, directly or through one it started, while the case runs,
 %% and those `Test.faults` started, which reach no report (Appendix E.24).
+%%
+%% A signal the job took during the launch makes its outcome the signal's,
+%% whatever began the end (ern_signals:taken/0).
 cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
@@ -2126,9 +2133,16 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
               end,
     Faulted = ets:member(Running, faulted),
     ets:delete(Running),
-    case Outcome of
-        ok -> receive {ern_tests, Told} -> {told, failed_by(Told, Faulted)} end;
-        Ended -> {ended, Ended, Carried}
+    Launched = case Outcome of
+                   ok -> receive {ern_tests, Told} -> {told, failed_by(Told, Faulted)} end;
+                   Ended -> {ended, Ended, Carried}
+               end,
+    %% report §11.8: a signal the launch took ends the job at its end, by
+    %% the signal, also where it cut short an end begun otherwise, whose
+    %% outcome is what began it (§8.6)
+    case ern_signals:taken() of
+        none -> Launched;
+        Signal -> {ended, {signal, Signal}, Carried}
     end.
 
 %% Report §11.2, §11.8: a fault reported as `ern run` reports it, beside a
