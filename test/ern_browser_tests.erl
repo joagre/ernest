@@ -10,10 +10,16 @@
 %%
 %% One port takes the browser's connections: one to the shell's path goes
 %% to the stub, and any other is carried to httpd, byte for byte both ways.
+%% The homepage's measures are made on the repository's own site, which a
+%% second httpd serves, since the page's height is its claims', which Why
+%% gives and the fixture's tree does not hold.
+%%
 %% The run needs Chrome, which development.md names among what the tests
 %% need; where none is found it says so and stops (run/0). It is no part of
 %% make test or make test-full. Every test here was written after the code,
-%% a regression test.
+%% a regression test, but the homepage's first screen, the placing of a
+%% block's tools and the homepage on a narrower page, each written before
+%% the code it holds.
 -module(ern_browser_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -65,6 +71,9 @@ checks() ->
     [{"the panel and a session", fun session/1},
      {"Paste, Load and a transcript's Paste", fun pastes/1},
      {"the example's Try it", fun example/1},
+     {"the homepage's first screen", fun first_screen/1},
+     {"a block's tools placed by its first line", fun tools_placed/1},
+     {"the homepage on a narrower page", fun narrower/1},
      {"the navigation that keeps the panel", fun navigation/1},
      {"a page still on its way", fun on_its_way/1},
      {"a whole load and a joined session", fun joined/1},
@@ -146,6 +155,99 @@ example(#{page := Page, url := Url}) ->
     ?assert(eval(Page, "[...document.querySelectorAll('button')].some((button) =>"
                        " button.textContent === 'Try it')")),
     stop(Page, Conn).
+
+%% docs/design/site.md *The homepage*: the repository's own
+%% homepage at three sizes of the page, each the page's own after the
+%% browser's and the system's bars. At 1366 by 650 its first screen holds
+%% the heading, the opening and the four claims; at 1536 by 730 the
+%% counter's code, the session and Try it as well, the counter's block
+%% ending under it by less than its own padding; and at 1920 by 950 that
+%% block whole and the tour's sentence as well. A part is held by its
+%% lower edge.
+first_screen(#{page := Page, repository := Url}) ->
+    Sizes = [{{1366, 650}, ["#intro-title", ".opening .lead:last-child", ".claims ol"]},
+             {{1536, 730}, [".counter-column code", ".session-column .block", ".run button"]},
+             {{1920, 950}, [".counter-column .block", ".next"]}],
+    lists:foldl(fun({Size, Parts}, Held) ->
+                        fresh(Page, Url ++ "/", Size),
+                        drawn(Page),
+                        Shown = Held ++ Parts,
+                        ?assertEqual({Size, []}, {Size, below_first_screen(Page, Shown)}),
+                        Shown
+                end, [], Sizes).
+
+%% docs/design/site.md *The live shell*: a block's tools are always shown,
+%% over its upper right corner where its first line leaves them room, and
+%% on a row of their own above it where it does not, so that the first line
+%% is never under them; and they move when the block's width changes. The
+%% counter's block, on the fixture's homepage, is wide enough for its first
+%% line beside its Copy at the page's full width, and not at a phone's.
+tools_placed(#{page := Page, url := Url}) ->
+    fresh(Page, Url ++ "/", {1440, 900}),
+    drawn(Page),
+    Counter = "document.querySelector('.counter-column .block')",
+    ?assertEqual([false, true, true], eval(Page, placing(Counter))),
+    resized(Page, {400, 844}),
+    until(Page, Counter ++ ".classList.contains('tools-above')"),
+    ?assertEqual([true, true, true], eval(Page, placing(Counter))),
+    resized(Page, {1440, 900}),
+    until(Page, "!" ++ Counter ++ ".classList.contains('tools-above')"),
+    ?assertEqual([false, true, true], eval(Page, placing(Counter))).
+
+%% A block's tools as they stand: whether they are on the row above; that
+%% they stand where that says, above the code's box or inside it at its
+%% corner; and that its first line is not under them, which on the row
+%% above is that the line reaches past the room their buttons take.
+placing(Block) ->
+    "(() => { const block = " ++ Block ++ "; const pre = block.querySelector('pre');"
+    " const tools = block.querySelector('.block-tools'); const box ="
+    " pre.getBoundingClientRect(); const at = tools.getBoundingClientRect();"
+    " const room = tools.lastElementChild.getBoundingClientRect().right -"
+    " tools.firstElementChild.getBoundingClientRect().left; const walker ="
+    " document.createTreeWalker(pre, NodeFilter.SHOW_TEXT); const line ="
+    " document.createRange(); line.selectNodeContents(pre); while (walker.nextNode()) {"
+    " const newline = walker.currentNode.data.indexOf('\\n'); if (newline >= 0) {"
+    " line.setEnd(walker.currentNode, newline); break; } } const end ="
+    " line.getBoundingClientRect().right; const above ="
+    " block.classList.contains('tools-above'); return [above, above ? at.bottom <= box.top :"
+    " at.top >= box.top && at.right <= box.right, above ? end > box.right - room :"
+    " end <= at.left]; })()".
+
+%% docs/design/site.md *The homepage*: on a page of 960 by 950, narrower
+%% than the page's full width, the repository's homepage stands the
+%% example's parts one under the other, the counter, Try it, the session
+%% and the tour's sentence; neither block scrolls sideways; and Try it is
+%% on the first screen.
+narrower(#{page := Page, repository := Url}) ->
+    fresh(Page, Url ++ "/", {960, 950}),
+    drawn(Page),
+    Parts = [".counter-column .block", ".run button", ".session-column .block", ".next"],
+    Edges = eval(Page, selectors(Parts) ++ ".map((part) => { const box ="
+                       " document.querySelector(part).getBoundingClientRect(); return [box.top,"
+                       " box.bottom]; })"),
+    ?assertEqual([], overlapping(Parts, Edges)),
+    ?assertEqual([0, 0], [lists:nth(2, eval(Page, overflow(Block)))
+                          || Block <- [".counter-column pre", ".session-column pre"]]),
+    ?assertEqual([], below_first_screen(Page, [".run button"])).
+
+%% The parts, by their selectors, whose lower edge stands below the first
+%% screen, each with that edge in pixels from the page's top.
+below_first_screen(Page, Parts) ->
+    eval(Page, selectors(Parts) ++ ".map((part) => [part, document.querySelector(part)"
+               ".getBoundingClientRect().bottom + document.scrollingElement.scrollTop])"
+               ".filter(([, edge]) => edge > innerHeight)").
+
+%% The parts, each with the one after it, where the one after begins above
+%% the lower edge of the one before, by their edges, each its top and its
+%% bottom.
+overlapping([Upper, Lower | Parts], [[_, Bottom], [Top, _] = Edge | Edges]) ->
+    [{Upper, Lower} || Top < Bottom] ++ overlapping([Lower | Parts], [Edge | Edges]);
+overlapping(_, _) ->
+    [].
+
+%% The selectors as a list in the page's script.
+selectors(Parts) ->
+    "[" ++ string:join(["'" ++ Part ++ "'" || Part <- Parts], ", ") ++ "]".
 
 %% docs/design/site.md *The live shell*: while the panel is
 %% open a link fetches its page and puts its main in place, the panel, its
@@ -395,7 +497,8 @@ started_twice(#{page := Page, url := Url}) ->
 %% docs/design/site.md *The live shell* and *The other pages*:
 %% the shell's page holds the panel in its frame and scrolls in neither
 %% direction, its terminal filling what the page leaves; on a phone no
-%% panel is offered, no page scrolls sideways, and a Paste opens the
+%% panel is offered, no page scrolls sideways, the homepage's among them,
+%% whose blocks are wider than a phone's page, and a Paste opens the
 %% shell's page with the input arriving there.
 pages(#{page := Page, url := Url, cdp := Cdp}) ->
     stub_mode(#{attach => <<"new">>}),
@@ -408,6 +511,8 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
     ?assert(eval(Page, "document.querySelector('.panel-toggle').hidden")),
     stop(Page, Conn),
     Phone = page(Cdp, {390, 844}, true),
+    fresh(Phone, Url ++ "/", {390, 844}),
+    ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
     fresh(Phone, Url ++ "/guide/1.html", {390, 844}),
     ?assertNot(eval(Phone, "getComputedStyle(document.querySelector('.panel-toggle')).display"
                            " !== 'none'")),
@@ -430,18 +535,10 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
 started() ->
     _ = file:del_dir_r(?SITE_BASE),
     Site = ern_site_tests:fixture_site(?SITE_BASE),
+    Repository = ern_site_tests:repository_site(?SITE_BASE ++ "/repository"),
     ok = application:ensure_started(inets),
-    {ok, Httpd} = inets:start(httpd, [{port, 0}, {server_name, "browser"},
-                                      {server_root, ?SITE_BASE},
-                                      {document_root, Site},
-                                      {bind_address, {127, 0, 0, 1}},
-                                      {directory_index, ["index.html"]},
-                                      {modules, [mod_alias, mod_get, mod_head]},
-                                      {mime_types, [{"html", "text/html"}, {"css", "text/css"},
-                                                    {"js", "text/javascript"},
-                                                    {"svg", "image/svg+xml"},
-                                                    {"png", "image/png"}]}]),
-    [{port, HttpdPort}] = httpd:info(Httpd, [port]),
+    {Httpd, HttpdPort} = served(Site),
+    {Own, OwnPort} = served(Repository),
     {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}},
                                         {reuseaddr, true}]),
     {ok, Port} = inet:port(Listener),
@@ -451,15 +548,32 @@ started() ->
     Cdp = cdp_started(Endpoint),
     persistent_term:put({?MODULE, cdp}, Cdp),
     Page = page(Cdp, {1440, 900}, false),
-    #{httpd => Httpd, front => Front, chrome => Chrome, cdp => Cdp, page => Page,
-      url => "http://127.0.0.1:" ++ integer_to_list(Port)}.
+    #{httpd => Httpd, own => Own, front => Front, chrome => Chrome, cdp => Cdp, page => Page,
+      url => "http://127.0.0.1:" ++ integer_to_list(Port),
+      repository => "http://127.0.0.1:" ++ integer_to_list(OwnPort)}.
 
-stopped(#{httpd := Httpd, front := Front, chrome := Chrome, cdp := Cdp}) ->
+%% A site's pages served by an httpd of their own, and its port.
+served(Pages) ->
+    {ok, Httpd} = inets:start(httpd, [{port, 0}, {server_name, "browser"},
+                                      {server_root, ?SITE_BASE},
+                                      {document_root, Pages},
+                                      {bind_address, {127, 0, 0, 1}},
+                                      {directory_index, ["index.html"]},
+                                      {modules, [mod_alias, mod_get, mod_head]},
+                                      {mime_types, [{"html", "text/html"}, {"css", "text/css"},
+                                                    {"js", "text/javascript"},
+                                                    {"svg", "image/svg+xml"},
+                                                    {"png", "image/png"}]}]),
+    [{port, Port}] = httpd:info(Httpd, [port]),
+    {Httpd, Port}.
+
+stopped(#{httpd := Httpd, own := Own, front := Front, chrome := Chrome, cdp := Cdp}) ->
     %% asked, not waited for: the browser may close before it answers
     Cdp ! {call, self(), <<"Browser.close">>, #{}, none},
     chrome_ended(Chrome),
     exit(Front, kill),
-    inets:stop(httpd, Httpd).
+    inets:stop(httpd, Httpd),
+    inets:stop(httpd, Own).
 
 %%
 %% The front: the shell's path to the stub, the rest to httpd
@@ -700,14 +814,25 @@ fresh(Page, Url, Size) ->
     eval(Page, "localStorage.clear()"),
     open(Page, Url, Size).
 
-open(Page, Url, {Width, Height}) ->
-    call(Page, <<"Emulation.setDeviceMetricsOverride">>,
-         #{width => Width, height => Height, deviceScaleFactor => 1,
-           mobile => maps:get(mobile, Page)}),
+open(Page, Url, Size) ->
+    resized(Page, Size),
     eval(Page, "window.leaving = true"),
     call(Page, <<"Page.navigate">>, #{url => list_to_binary(Url)}),
     until(Page, "!window.leaving && document.readyState === 'complete' && typeof panel ==="
                 " 'object' && panel.element !== null").
+
+%% The page given a size where it stands, as a window is resized.
+resized(Page, {Width, Height}) ->
+    call(Page, <<"Emulation.setDeviceMetricsOverride">>,
+         #{width => Width, height => Height, deviceScaleFactor => 1,
+           mobile => maps:get(mobile, Page)}).
+
+%% The page drawn twice more, so that what a resize observer had to
+%% measure by the next frame it has measured: a frame delivers its
+%% observations after its animation frame's callbacks have run.
+drawn(Page) ->
+    eval(Page, "new Promise((resolve) => requestAnimationFrame(() =>"
+               " requestAnimationFrame(() => resolve(true))))").
 
 state() ->
     "document.querySelector('.panel-state').textContent".

@@ -4,8 +4,8 @@ The argument for the design, in six claims, four of them with a program, one wit
 
 What Ernest adds is where the parts meet:
 
-- **Code travels.** A process started on another node brings its code along, and a module keeps every version it has had: each function is known by a hash of its definition, not by the module it stands in.
-- **The mailbox in the function's type.** Every process receives messages of one type, which a function that receives names in its own type and a process's address carries.
+- **Code travels.** Each function is known by a hash of its definition, not by the module it stands in, so it crosses to a node that lacks it, and a module keeps every version it has had.
+- **The mailbox in the function's type.** A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it.
 - **A deadlock of the whole program is found.** A program that is no node, in which every process waits for a message none can send, ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever.
 - **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows.

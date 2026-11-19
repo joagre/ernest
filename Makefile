@@ -497,8 +497,9 @@ test-site: doc
 test-site-shell: all
 	@$(MAKE) -C test site-shell
 # The site's client in a browser: outside make test and make test-full,
-# a step of the release review (docs/reviews/release.md).
-test-browser: all
+# a step of the release review (docs/reviews/release.md). It measures the
+# repository's own homepage too, generated from the pages make doc writes.
+test-browser: doc
 	@$(MAKE) -C test browser
 test-grammar: all
 	@$(MAKE) -C test grammar

@@ -1,7 +1,8 @@
 <section class="home-intro" aria-labelledby="intro-title">
     <div class="opening">
         <h1 id="intro-title">Start a process on another node, and its code goes with it</h1>
-        <p class="lead">The node is sent the code it lacks, and nothing of the program is installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. It is for programs written in it from the start, a server, a service spread over machines, a tool, and it reaches Erlang's libraries through declarations that give them Ernest types. Why Ernest is made so is <a href="/why/">the whole argument</a>.</p>
+        <p class="lead">The node is sent the code it lacks, and nothing of the program needs to be installed there first. Ernest is a functional language for concurrent programs, on the Erlang runtime. <a href="/why/">Why Ernest</a> gives the whole argument.</p>
+        <p class="lead">Below, a counter is typed into a shell and started on a bare node beside it, <code>foo</code>. Try it gives you that shell and a <code>foo</code> of your own, in your browser.</p>
     </div>
     <div class="claims">
         <h2>What Ernest adds</h2>
@@ -11,13 +12,17 @@
     </div>
 </section>
 
-<section class="home-use" aria-labelledby="use-title">
-    <h2 id="use-title">A counter on another node</h2>
-    <p>The counter's code is typed into the shell, and <code>foo</code> is a second node beside it that has none of that code:</p>
+<section class="home-use" aria-label="A counter on another node">
     <div class="example">
-        {{example_html}}
+        <div class="counter-column">
+            {{counter_html}}
+            <p class="next">The <a href="/tour/">tour</a> takes this counter further, and ends by updating its code while it runs, with its state intact.</p>
+        </div>
+        <div class="session-column">
+            {{session_html}}
+            <p class="run" data-shell="start"><a href="/shell/">Run it yourself in the shell</a></p>
+        </div>
     </div>
-    <p class="run" data-shell="start"><a href="/shell/">Run it yourself in the shell</a></p>
 </section>
 
 <nav class="doors" aria-label="Where to begin">

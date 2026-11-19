@@ -71,18 +71,19 @@ The log's *The Generator's First Stage*, *The Generator's Second Stage* and *The
 
 - It is `home.html`, its text the site's own. The README is the repository's, and the homepage takes nothing from it.
 - In order: an opening under its heading, Why's list beside it, and a small example with its output.
-- The heading and the opening lead with what Ernest adds that no reader expects, a process started on another node bringing its code along. Then they say what kind of language it is and what it is for. They state what Ernest does and never what another language lacks.
+- The example has no heading and no sentence of its own. Its two blocks take the columns above them, the counter the opening's and the session the list's, and a sentence on the tour stands under the counter. In a window under 1168 px, the page's 1120 with its margin of 24 on each side, the counter, Try it, the session and the tour's sentence stand one under the other.
+- The heading and the opening lead with what Ernest adds that no reader expects, a process started on another node bringing its code along. Then the opening says what kind of language it is, and its second paragraph what the example shows and what Try it gives. They state what Ernest does and never what another language lacks.
 - Each thing is said once on the page: the opening says the effect, and the list beside it the means.
 - The list, "What Ernest adds", is four of `guide/why.md`'s claims, the ones a newcomer reads at once: code travels, the mailbox in the function's type, a distribution built for a WAN, and a deadlock of the whole program is found. Each is shown as its bold name and its first sentence alone, word for word, linking to its heading in Why. The rest is Why's.
 - A test runs the example, so the example's button runs what the page shows: a process started on the container's second node, its code typed into the shell and sent there.
-- The opening and the list are visible on a desktop without scrolling. Where they are not, the page is cut, not the rule.
-- Under the example stands its button, "Try it", alone, the page's one action and its one strong color. It is a block's Paste made prominent, and its label never changes. It puts the example's code into the shell, opening the panel and starting a session where needed, and the code waits there for Enter.
+- The first screen is held at three sizes of the page, each the page's own after the browser's and the system's bars. At 1366 × 650 it holds the heading, the opening and the list. At 1536 × 730 it holds the counter's code, the session and Try it as well. At 1920 × 950 it holds the tour's sentence as well. Where it does not, the page is cut, not the rule.
+- Under the session, at its right edge, stands the example's button, "Try it", alone, the page's one action and its one strong color. It is the counter's Paste made prominent, and its label never changes. The counter's block shows Copy alone. The button puts the example's code into the shell, opening the panel and starting a session where needed, and the code waits there for Enter.
 - On a phone the button opens `/shell/` with the code waiting, and without the script it is a link to `/shell/`.
 - After it stand three doors, in this order, each with its question and of one weight: Tour, "show me the language"; Guide, "help me write programs"; Report, "tell me the rules".
-- Why is the link ending the introduction's paragraph, "the whole argument".
+- Why is the link in the sentence that ends the opening's first paragraph, "Why Ernest".
 - Deployment is reached from Install, the guide, the tour, Why, the questions and the footer, never from the homepage's body.
 
-The log's *The Site's Look, by Hand*, *The README Recut* and *The Site's Proposal Read* argue the homepage.
+The log's *The Site's Look, by Hand*, *The README Recut*, *The Site's Proposal Read*, *The Homepage and the Shell's Editing Planned* and *The Homepage Built* argue the homepage.
 
 ## Every page
 
@@ -206,7 +207,7 @@ The server side of the shell is the server's: the pseudo-terminal, the container
 **The panel.**
 
 - The script makes the panel and its toggle on every page, and no template holds them. Its layout is kept in the browser's local storage and never sent to the server. No panel opens until the visitor asks, and a page loaded whole opens it where the visitor left it open.
-- Its toggle is two buttons in the header, beside and below. The open layout's is pressed, pressing it again closes the panel, and pressing the other moves it. The header spans the window.
+- Its toggle is two buttons in the header, beside and below. The open layout's is pressed, pressing it again closes the panel, and pressing the other moves it. The header spans the window, and beside the panel its content runs from the window's left edge to its right.
 - Beside, the panel fills the window's right side below the header, at 45% of the width, and the page scrolls in the rest. Below, it takes 40% of the height and the page scrolls above it. A handle on its inner edge resizes it, by the pointer or the arrow keys, within 25 to 70% of the width and 20 to 75% of the height, the size kept with the layout. Below 1000 px only below is offered. On a phone, a window of 760 px or less, no panel is offered, and `/shell/` still serves.
 - The panel's bar holds the session's state, Start where no session runs and Restart while one does, Stop, and Hide. Hide is the icon of the header button that opened the panel; it hides the panel and keeps the session, and Stop alone ends one. A session that runs while the panel is hidden marks that header button with a dot.
 - Opening moves focus into the terminal. Closing returns it to what opened the panel, a block's Paste among them, and to the header's button where that is gone. Escape is the terminal's.
@@ -235,12 +236,12 @@ With the panel closed a link loads its page whole, and on a phone always. So doe
 - A Paste arrives as one input, as bracketed paste does, and nothing of it runs until Enter.
 - A Paste or a Load is the visitor asking for the shell. Where no panel is open, the click opens it in the layout kept in local storage, beside at first and below where the window is under 1000 px, and starts the session where none runs, the input arriving once the prompt does. On a phone the click opens `/shell/` with the input waiting there.
 - A paste for a session that is starting waits for the session's first output.
-- An input's Paste is a small icon drawn bold, in the accent's color when pointed at or focused, and visible without a hover. It is held at the block's visible right edge where the input is longer than the block is wide.
-- A block's tools show on hover or focus where there is a fine pointer, on the block's own color. On a touch screen they stand on a row of their own above the block, so they never cover its code.
+- A block's tools are always shown, as small buttons: each the page's own color with a line around it, its icon in the accent's color, and both in the text's color when pointed at or focused. An input's Paste is the same small button, in the line it follows. It is held at the block's visible right edge where the input is longer than the block is wide.
+- A block's tools stand over its upper right corner where its first line leaves them room, and on a row of their own above it where it does not, so they never cover that line. The script measures the first line when it makes the tools and again when the block's width changes. The rule is one under a mouse and on a touch screen, and names no width. Without the script a block has no tools.
 
-**The browser test.** `make test-browser` stands outside `make test` and is a step of the release review. Erlang under `test/` drives a headless Chrome over its DevTools protocol, Chrome the one dependency it adds. It serves the fixture's pages by OTP's `httpd`, with a stub socket that speaks ernest-httpd's protocol for the session's states. A real shell behind the socket stays the check by hand on a server before a release ([`reviews/release.md`](../reviews/release.md)).
+**The browser test.** `make test-browser` stands outside `make test` and is a step of the release review. Erlang under `test/` drives a headless Chrome over its DevTools protocol, Chrome the one dependency it adds. It serves the fixture's pages by OTP's `httpd`, with a stub socket that speaks ernest-httpd's protocol for the session's states. Beside them it serves the repository's own site, written from the working tree and the pages `make doc` writes, and measures the homepage there. A real shell behind the socket stays the check by hand on a server before a release ([`reviews/release.md`](../reviews/release.md)).
 
-The log's *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Client's Questions*, *A Node's Limits*, *A Node's Schedulers*, *The Browser Test's Flake* and *The Site's Proposal Read* argue the live shell.
+The log's *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Client's Questions*, *A Node's Limits*, *A Node's Schedulers*, *The Browser Test's Flake*, *The Site's Proposal Read*, *The Homepage and the Shell's Editing Planned* and *The Homepage Built* argue the live shell.
 
 ## The documents
 

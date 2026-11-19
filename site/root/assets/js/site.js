@@ -683,6 +683,43 @@ function placePanel() {
 // A page's code blocks
 //
 
+// A block's tools stand over its upper right corner where its first line
+// leaves them room, and on a row of their own above it where it does not:
+// the first line is measured against the room the tools leave in the
+// corner, when the tools are made and again whenever the block's code
+// changes size, which the observer says. The rule is one under a mouse and
+// on a touch screen, and names no width (site.md *The live shell*). A
+// page put in place of another observes its own blocks.
+let placing = null;
+
+function placeTools(entries) {
+    const blocks = entries.map((entry) => entry.target.parentElement);
+    for (const block of blocks) {
+        block.classList.remove("tools-above");
+    }
+    const above = blocks.map((block) =>
+        firstLineEnd(block.querySelector("pre")) > block.querySelector(".block-tools")
+            .getBoundingClientRect().left);
+    blocks.forEach((block, index) => block.classList.toggle("tools-above", above[index]));
+}
+
+// Where a block's first line ends, as the code lays it out, however far
+// the block is scrolled sideways: its text up to its first line feed, an
+// input's Paste among it.
+function firstLineEnd(pre) {
+    const line = document.createRange();
+    line.selectNodeContents(pre);
+    const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+        const newline = walker.currentNode.data.indexOf("\n");
+        if (newline >= 0) {
+            line.setEnd(walker.currentNode, newline);
+            break;
+        }
+    }
+    return line.getBoundingClientRect().right + pre.scrollLeft;
+}
+
 function addBlockTools(pre) {
     const block = document.createElement("div");
     block.className = "block";
@@ -706,10 +743,11 @@ function addBlockTools(pre) {
     }
     tools.append(iconButton("copy", "Copy", "icon-button", () => copy(pre.textContent)));
     block.prepend(tools);
+    placing.observe(pre);
 }
 
-// Each input of a transcript ends in its own Paste, visible and muted,
-// which puts that input into the shell; the shell's output has none.
+// Each input of a transcript ends in its own Paste, a small button always
+// shown, which puts that input into the shell; the shell's output has none.
 function addInputPastes(pre) {
     for (const input of pre.querySelectorAll(".input")) {
         const text = input.textContent.replace(/^> /, "");
@@ -797,6 +835,8 @@ function followReading() {
 // What the script adds to a page's main, at its load and when a page is
 // put in place of another.
 function addToPage() {
+    placing?.disconnect();
+    placing = new ResizeObserver(placeTools);
     // A block of the page, not a still picture of a terminal.
     for (const pre of document.querySelectorAll("main pre:not(.terminal-frame pre)")) {
         addBlockTools(pre);

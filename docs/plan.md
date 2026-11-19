@@ -633,17 +633,24 @@ on a path the rehearsal has walked.
    more is decided on a mock. The opening's last clause is left for MVP 4.17's item 119,
    and item 2 reads the site's design note as this item leaves it.
 
-   The proposal's *What changes, by owner* lists what it touches: `site/templates/home.html`,
-   `tools/site.ern`, the stylesheet, `site.js`, `guide/why.md` and `docs/design/site.md`.
-   `make test-browser` gains the first screen at three sizes of the page, and a block's
-   tools above a first line that reaches them.
+   Built on 2026-11-19 as the proposal's *What changes, by owner* lists it (the log's *The
+   Homepage Built*). `make test-browser` holds the first screen at three sizes of the
+   page, a block's tools by its first line, and the example on a page of 960×950.
 
    Before it closes its build is installed on ernest-httpd's rehearsal, Try it is pressed
    there on a shell that runs, and the page is looked at on real screens, a phone among
-   them. ernest-httpd's `deploy/` is read first for how, and its session is told
-   (`docs/clean_room.md`). Whether the checkout's `site.js` speaks the rehearsal's wire
-   was not read. The item closes on `make test`, the site's targets and
-   `make test-browser`.
+   them. ernest-httpd's session is told (`docs/clean_room.md`).
+
+   Three decisions wait for that look, each the user's:
+
+   - **The example beside the shell's panel.** The example stacks by the window's width,
+     so beside the panel its blocks keep two columns and scroll sideways. Recommended: a
+     container query on the page's column, which states "narrower than its full width"
+     with no figure derived (the log's *The Homepage Built*, its last paragraph).
+   - **A line above each block**, the two ways the proposal's section of that name set
+     aside until the page is seen.
+   - **Two sentences of Why's *Code travels***, which the proposal's *Open* has split at
+     their turns. Recommended: split in this item, the sentences shown to the user first.
 4. **The stylesheet's units**, after item 3 (the proposal's *The stylesheet's units*).
    `:root`'s size follows the reader's, and the widths at which the layout changes and the
    page's width leave the pixel, together or not at all. The first screen's three sizes

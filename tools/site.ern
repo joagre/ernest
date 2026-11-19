@@ -103,10 +103,12 @@ fn generated(root : Path,
 //
 
 // The homepage, home.html: Why's first claims, each by its name and its
-// first sentence, linking to its heading in Why, and the example, the
-// counter typed into the shell and sent to the container's second node,
-// from site/example.md, which ern_tour_tests runs (site.md *The
-// homepage*). Its footer names home.html, its text the site's own.
+// first sentence, linking to its heading in Why, and the example's two
+// blocks from site/example.md, which ern_tour_tests runs, each in a column
+// of its own: the counter typed into the shell, with Copy alone, and the
+// session that sends it to the container's second node, with a Paste for
+// each input (site.md *The homepage*). Its footer names home.html, its
+// text the site's own.
 fn homeWritten(run : Run.Run) : Either(String, Unit) = {
     let source = "guide/why.md";
     let blocks <- Run.documentOf(run.root, source);
@@ -129,17 +131,25 @@ fn homeWritten(run : Run.Run) : Either(String, Unit) = {
                     #("sentence_html", Run.labeled(sentence))])
     });
     let example <- Run.documentOf(run.root, "site/example.md");
-    let code = List.filterMap(CodeBlock.copied(example), fn(each) = match each.block {
-        Markdown.Code() -> Some(CodeBlock.Placed(..each, given = CodeBlock.Paste))
-      | _ -> None
+    let code = List.filter(CodeBlock.copied(example), fn(each) = match each.block {
+        Markdown.Code() -> true
+      | _ -> false
     });
-    let page <- Run.linkPage(run, "site/example.md", "/", code);
-    let shown <- Run.linkedAll(run, code, page);
+    let #(counter, session) <- match code {
+        [counter, session] ->
+            Right(#(counter, CodeBlock.Placed(..session, given = CodeBlock.Paste)))
+      | _ ->
+            Left("site/example.md does not hold two blocks, the counter's and then the session's")
+    };
+    let page <- Run.linkPage(run, "site/example.md", "/", [counter, session]);
+    let counterShown <- Run.linkedAll(run, [counter], page);
+    let sessionShown <- Run.linkedAll(run, [session], page);
     let main <-
         Run.filled(run,
                    "home.html",
                    [#("claims_html", Run.markup(lines)),
-                    #("example_html", Template.Markup(Html.body(shown, 0))),
+                    #("counter_html", Template.Markup(Html.body(counterShown, 0))),
+                    #("session_html", Template.Markup(Html.body(sessionShown, 0))),
                     #("icons", Template.Plain(run.assets.icons))]);
     Run.pageWritten(run,
                     Run.Output(address = "/",

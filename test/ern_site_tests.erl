@@ -24,7 +24,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--export([fixture_site/1, write_expected/0]).
+-export([fixture_site/1, repository_site/1, write_expected/0]).
 
 -define(TREE, "fixtures/site/tree").
 -define(CONFIG, "fixtures/site/config.json").
@@ -351,18 +351,26 @@ head() ->
     ern_integration_tests:succeed("sh -c 'git -C .. archive HEAD | tar -x -C " ++ Source ++ "'"),
     ok = file:del_dir_r(Source ++ "/site"),
     Tracked = string:lexemes(ern_integration_tests:succeed("git -C .. ls-files site"), "\n"),
-    [copied(filename:join("..", File), filename:join(Source, File)) || File <- Tracked],
+    [copied(filename:join("..", File), filename:join(Source, File))
+     || File <- Tracked ++ built_pages()],
+    ern_integration_tests:succeed(generate(Source, "build/site/head-out", head_commit(),
+                                           ?CONFIG)),
+    ?assert(length([File || File <- files("build/site/head-out"),
+                            filename:extension(File) =:= ".html"]) > 80).
+
+%% The library's pages as the checkout's `make doc` wrote them, by their
+%% paths in the repository, which an export holds none of.
+built_pages() ->
     Pages = [File || Pattern <- ["build/stdlib/*.md", "build/libs/*/*.md",
                                  "build/man/README.md", "build/man/libs/README.md"],
                      File <- filelib:wildcard(Pattern, "..")],
     ?assert(length(Pages) > 25),
-    [copied(filename:join("..", File), filename:join(Source, File)) || File <- Pages],
-    Commit = string:trim(ern_integration_tests:succeed("git rev-parse HEAD")),
-    ern_integration_tests:succeed("../bin/ern run ../build/tools/site.erc " ++ Source
-                                  ++ " build/site/head-out 9.9.9 " ++ binary_to_list(Commit)
-                                  ++ " " ++ ?CONFIG),
-    ?assert(length([File || File <- files("build/site/head-out"),
-                            filename:extension(File) =:= ".html"]) > 80).
+    Pages.
+
+%% The commit HEAD names, which a site of the repository's own documents
+%% reads its pages' dates at.
+head_commit() ->
+    binary_to_list(string:trim(ern_integration_tests:succeed("git rev-parse HEAD"))).
 
 %% docs/development.md *Building*: `make site` refuses to run without the tag
 %% it builds from and the server's configuration, saying how it is called,
@@ -465,6 +473,21 @@ fixture_site(Base) ->
     ern_integration_tests:succeed(generate(Source, Out, ?CONFIG)),
     Out.
 
+%% The repository's own site written under Base, from its tracked files as
+%% the working tree holds them and the library's pages as the checkout's
+%% `make doc` wrote them, its pages' dates read at HEAD, so that the browser's
+%% test measures the pages as they ship (ern_browser_tests): the pages'
+%% directory. A tracked file the working tree has deleted is left out.
+-spec repository_site(file:filename()) -> file:filename().
+repository_site(Base) ->
+    Source = filename:join(Base, "source"),
+    Out = filename:join(Base, "out"),
+    Tracked = string:lexemes(ern_integration_tests:succeed("git -C .. ls-files"), "\n"),
+    [copied(filename:join("..", File), filename:join(Source, File))
+     || File <- Tracked ++ built_pages(), filelib:is_regular(filename:join("..", File))],
+    ern_integration_tests:succeed(generate(Source, Out, head_commit(), ?CONFIG)),
+    Out.
+
 copied(From, To) ->
     ok = filelib:ensure_dir(To),
     {ok, _} = file:copy(From, To).
@@ -473,8 +496,11 @@ generate(Out, Config) ->
     generate(?SOURCE, Out, Config).
 
 generate(Source, Out, Config) ->
+    generate(Source, Out, ?TAG, Config).
+
+generate(Source, Out, Tag, Config) ->
     "../bin/ern run ../build/tools/site.erc " ++ Source ++ " " ++ Out ++ " " ++ ?VERSION ++ " "
-        ++ ?TAG ++ " " ++ Config.
+        ++ Tag ++ " " ++ Config.
 
 %% make site-expected: the expected pages written again from the fixture,
 %% after a change to the look or the generation that is meant.

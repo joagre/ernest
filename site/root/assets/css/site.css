@@ -313,11 +313,25 @@ p {
 /* The homepage: the opening and the claims beside it
    ---------------------------------------------------------------------- */
 
-.home-intro {
+/* The homepage's main alone, whichever page its main replaced. */
+main:has(> .home-intro) {
+    padding-top: 1rem;
+}
+
+/* The page's two columns, for the opening's row and the example's. */
+.home-intro,
+.home-use .example {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
     gap: 3rem;
-    padding-bottom: 1.5rem;
+}
+
+.home-intro .lead {
+    margin-bottom: 0;
+}
+
+.home-intro .lead + .lead {
+    margin-top: .5rem;
 }
 
 .home-intro h1 {
@@ -349,7 +363,7 @@ p {
 
 .claims a {
     display: block;
-    padding: .5rem 0;
+    padding: .4rem 0;
     font-size: .92rem;
     line-height: 1.45;
     color: var(--muted);
@@ -365,23 +379,23 @@ p {
     color: var(--accent);
 }
 
+.claims code {
+    white-space: nowrap;
+}
 
-/* The homepage: the example, its Start and the doors
+
+/* The homepage: the example, its Try it and the doors
    ---------------------------------------------------------------------- */
 
-.home-use {
-    padding-top: .5rem;
-}
-
-.home-use > p {
-    max-width: 75ch;
-}
-
-.example {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 1.25rem;
+/* The example in the page's two columns: the counter with the tour's
+   sentence under it, and the session with Try it under it at the right. */
+.home-use .example {
+    margin-top: 1.5rem;
     align-items: start;
+}
+
+.home-use .next {
+    margin: .75rem 0 0;
 }
 
 .run {
@@ -391,8 +405,49 @@ p {
     margin: 1.25rem 0 0;
 }
 
+.session-column .run {
+    margin-top: .75rem;
+    justify-content: flex-end;
+}
+
 .run span {
     color: var(--muted);
+}
+
+/* Narrower than the page's full width, 1120 px with a margin of 24 px on
+   each side, so in a window under 1120 + 2 × 24 = 1168 px, the example's
+   parts stand one under the other: the counter, Try it, the session and
+   the tour's sentence, so that Try it stays on the first screen. */
+@media (max-width: 1167px) {
+    .home-use .example {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+    }
+
+    .counter-column,
+    .session-column {
+        display: contents;
+    }
+
+    .counter-column .block {
+        order: 1;
+    }
+
+    .session-column .run {
+        order: 2;
+        margin: .75rem 0 1.25rem;
+    }
+
+    .session-column .block {
+        order: 3;
+    }
+
+    .home-use .next {
+        order: 4;
+        margin: 1rem 0 0;
+    }
 }
 
 .doors {
@@ -493,8 +548,9 @@ pre.rejected {
     color: var(--muted);
 }
 
-/* A block's Copy and Paste: on their own row above it on a touch screen,
-   and over its corner, while pointed at, under a mouse. */
+/* A block's Copy and Paste, always shown as small buttons: over its upper
+   right corner where its first line leaves them room, and on a row of their
+   own above it where it does not, which the script measures and marks. */
 .block {
     position: relative;
     min-width: 0;
@@ -510,53 +566,66 @@ pre.rejected {
 }
 
 .block-tools {
+    position: absolute;
+    top: .35rem;
+    right: .35rem;
     display: flex;
     justify-content: flex-end;
-    gap: .15rem;
-    margin-bottom: .25rem;
+    gap: .3rem;
 }
 
-@media (hover: hover) and (pointer: fine) {
-    .block-tools {
-        position: absolute;
-        top: .35rem;
-        right: .35rem;
-        margin: 0;
-        background: var(--panel);
-        opacity: 0;
-    }
-
-    .block:hover .block-tools,
-    .block:focus-within .block-tools {
-        opacity: 1;
-    }
+.block.tools-above .block-tools {
+    position: static;
+    margin: 0 0 .25rem;
 }
 
-/* Each input of a transcript ends in its own Paste, drawn bold, in the
-   accent's color when pointed at or focused, and held at the block's
-   visible right edge, on the block's own color, where the input is longer
-   than the block is wide. */
+/* Each tool is the page's own color with a line around it, its icon in the
+   accent's color, drawn a little heavier; pointed at or focused, the icon
+   and the line take the text's color. */
+.block-tools .icon-button {
+    border-color: var(--line);
+    background: var(--paper);
+    color: var(--accent);
+}
+
+.block-tools .icon-button .icon {
+    stroke-width: 2.5;
+}
+
+.block-tools .icon-button:hover,
+.block-tools .icon-button:focus-visible {
+    border-color: var(--ink);
+    color: var(--ink);
+}
+
+/* Each input of a transcript ends in its own Paste, the same small button
+   in the line it follows, held at the block's visible right edge where the
+   input is longer than the block is wide. */
 .line-paste {
     position: sticky;
     right: 0;
     display: inline-block;
     margin-left: 1ch;
-    padding: 0 0 0 .5ch;
-    border: 0;
-    background: var(--panel);
-    color: var(--muted);
+    padding: .05rem .28rem;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--paper);
+    color: var(--accent);
     font: inherit;
-    vertical-align: baseline;
+    line-height: 1;
+    vertical-align: middle;
     cursor: pointer;
 }
 
 .line-paste .icon {
-    stroke-width: 3;
+    stroke-width: 2.5;
+    vertical-align: -.1em;
 }
 
 .line-paste:hover,
 .line-paste:focus-visible {
-    color: var(--accent);
+    border-color: var(--ink);
+    color: var(--ink);
 }
 
 
@@ -1028,7 +1097,6 @@ td.right {
     }
 
     .home-intro,
-    .example,
     .doc-layout,
     .shell-notes {
         grid-template-columns: minmax(0, 1fr);
@@ -1137,6 +1205,14 @@ body.panel-below {
 
 body.panel-beside .site-header {
     grid-column: 1 / -1;
+}
+
+/* Beside the panel, the header's content runs from the window's left edge
+   to its right, the page's margin from each, where it would otherwise be
+   centered in the window over a page that is not. */
+body.panel-beside .header-inner {
+    width: auto;
+    margin-inline: 1.5rem;
 }
 
 body.panel-beside .page,

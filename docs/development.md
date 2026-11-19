@@ -226,7 +226,8 @@ make test-site-shell # every block the site's pages offer the shell, and every o
                 # make test-full, about 45 seconds
 make test-browser # the site's client in a headless Chrome over its DevTools protocol, the
                 # fixture's pages served by OTP's httpd and a stub speaking
-                # ernest-httpd's protocol at the shell's path; not part of make
+                # ernest-httpd's protocol at the shell's path, and the homepage
+                # measured on the repository's own site; not part of make
                 # test-full, a step of docs/reviews/release.md
 make test-grammar # Appendix A read as data, and a thousand programs generated from it,
                 # parsed, laid out and given as near misses; ERN_SEED=n runs a failing
