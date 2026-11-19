@@ -13,7 +13,7 @@ Status: on trial, decided with the user on 2026-11-19. The short file is the roo
 
 **No rule is added during the trial.** A mistake that a rule of the long file would have stopped goes on the list, with what it cost. On 2026-11-24 the user and the session read the numbers and the list, and put back only what earned it.
 
-**The first job** is the plan's items left read against the short file's line, what a first user meets, with the user. Until then the plan's paragraph on the line before MVP 4.4 stands as written.
+**The plan is not sorted anew.** An item is asked the short file's question, whether a first user meets it, when it comes up to be worked, and a new item when it is written. One that only a built corner shows moves to MVP 4.5 on the user's word. So the trial is of ordinary work, and what it shows is not mixed with an overhaul of the plan.
 
 | Date | The lapse | The rule that would have stopped it | What it cost |
 |---|---|---|---|

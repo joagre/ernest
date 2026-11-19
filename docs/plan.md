@@ -274,9 +274,9 @@ session's two lines on a close, follows it, and three of that session's tests wa
   *The Rules Cut for a Trial*). The root's `CLAUDE.md` is a short file on trial from
   2026-11-20 through 2026-11-23, and
   [`proposals/short_rules/`](proposals/short_rules/README.md) holds what is watched and
-  the list of lapses. The trial's first job is the items left read against that file's
-  line, what a first user meets, with the user. Until then the paragraph *A line stands
-  before MVP 4.4* stands as written.
+  the list of lapses. The plan is not sorted anew for it. An item is asked that file's
+  question, whether a first user meets it, when it comes up to be worked, and one that
+  only a built corner shows moves to MVP 4.5 on the user's word.
 - **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
   found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
   ([`limit_findings.md`](limit_findings.md), its section 3.2; the log's *The Limits Read*).
