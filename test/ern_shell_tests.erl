@@ -2707,7 +2707,7 @@ private_mailbox_type() ->
                                   "p\n", "Plain.Add(1)\n",
                                   "let q : Address(Plain.Msg) = p\n"]),
     ?assertMatch({_, _}, binary:match(Output, <<"> p : Address(Plain.Msg)\n">>)),
-    ?assertMatch({match, _}, re:run(Output, "^> <address [0-9]+> : Address\\(Plain\\.Msg\\)$",
+    ?assertMatch({match, _}, re:run(Output, "^> <address\\.[0-9]+> : Address\\(Plain\\.Msg\\)$",
                                     [multiline])),
     ?assertMatch({_, _}, binary:match(Output, <<":1:1: Plain.Add is a constructor of Plain.Msg,"
                                                 " a type Plain keeps private\n">>)),
@@ -3828,7 +3828,7 @@ reload_keeps_the_type_checked_under() ->
     ?assert(Found(<<"n : Int\n">>)),
     ?assert(Found(<<"expected Counter$1.Msg, found Counter.Msg">>)),
     ?assert(Found(<<"b : $Input5$1.Box\n">>)),
-    ?assertMatch({match, _}, re:run(Output, "> Box\\(<address [0-9]+>\\) : Box\n")),
+    ?assertMatch({match, _}, re:run(Output, "> Box\\(<address\\.[0-9]+>\\) : Box\n")),
     Help = <<"Counter$1.Msg is of a previous version of Counter, which a reload replaced">>,
     ?assertEqual(2, length(binary:matches(Output, Help))),
     %% after the help the checker gave, where it gave one

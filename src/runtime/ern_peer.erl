@@ -21,11 +21,15 @@
 %% program that is no node has none. A wait has no upper bound: it is made
 %% against the moment its time ends, in slices the host takes
 %% (ern_rt:remaining/1).
+%%
+%% How a node's name gives its key's digest is here (host_of/1, digest/1),
+%% so that the carrier's lines and the printer of values (ern_show), which
+%% calls nothing of the carrier's, read it the one way.
 -module(ern_peer).
 
--export([configure/2, tables/0, name/1, peer_of/1, service/1, service/2, offer/2, find/2,
-         spawn/3, spawn/4, spawn_monitored/4, spawn_monitored/5, compute/2, compute/3,
-         compute_at/3, compute_at/4, pick/0, utilization/2, peers/0, utilizations/0,
+-export([configure/2, tables/0, name/1, peer_of/1, host_of/1, digest/1, service/1, service/2,
+         offer/2, find/2, spawn/3, spawn/4, spawn_monitored/4, spawn_monitored/5, compute/2,
+         compute/3, compute_at/3, compute_at/4, pick/0, utilization/2, peers/0, utilizations/0,
          set_utilization/1, hold_utilization/3, drop_utilization/1, frame/2, restart_told/1,
          watchers_told/1, failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
 
@@ -122,6 +126,21 @@ name(Node) ->
 -spec peer_of(pid()) -> {'Some', binary()} | 'None'.
 peer_of(Pid) when node(Pid) =:= node() -> 'None';
 peer_of(Pid) -> name(node(Pid)).
+
+%% Report §12.5: the host of a node's name on the carrier, the part after
+%% its `@`, which holds the digest of the node's key as two labels
+%% (ern_carrier:host/1).
+-spec host_of(node()) -> string().
+host_of(Node) ->
+    lists:last(string:split(atom_to_list(Node), "@")).
+
+%% Report §12.5: the digest of a node's key, which a host of a name on the
+%% carrier holds as two labels (host_of/1), written whole, as a node's lines
+%% name a node its configuration does not list (ern_carrier:named/1) and a
+%% process of such a node prints (Appendix E.1, ern_show).
+-spec digest(string()) -> string().
+digest(Host) ->
+    [Char || Char <- Host, Char =/= $.].
 
 %%
 %% The shims

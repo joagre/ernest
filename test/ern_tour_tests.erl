@@ -518,7 +518,7 @@ fix(Tour) ->
 %% way round, the same address on each; a negative amount is passed over
 %% and the tally kept (report §6.4, §6.10, §11.2, Appendix E.28).
 moved_here(#tour{shell = Shell} = Tour) ->
-    Running = "\\[<address [0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
+    Running = "\\[<address\\.[0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
     Empty = "[] : List(Address(Counter.CounterMsg))",
     #shell{read = Read} = Moved = session(
         Shell,
@@ -555,7 +555,7 @@ moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
     ern_nodes_tests:says(Foo, "the peer ops was added"),
     Attached = started(Base, Ops, " --config-dir ops --attach foo",
                        [<<"the peer foo connected">>]),
-    Running = "\\[<address [0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
+    Running = "\\[<address\\.[0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
     Empty = "[] : List(Address(Counter.CounterMsg))",
     #shell{read = Read} = Moved = session(
         Attached,

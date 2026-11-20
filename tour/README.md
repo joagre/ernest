@@ -555,7 +555,7 @@ First on this node:
 > :reload
 Counter, compiled again
 > Code.running(Counter.count)
-[<address 221>] : List(Address(Counter.CounterMsg))
+[<address.221>] : List(Address(Counter.CounterMsg))
 > Code.running(Counter.countGuarded)
 [] : List(Address(Counter.CounterMsg))
 > Counter.move()
@@ -564,7 +564,7 @@ Counter, compiled again
 > Code.running(Counter.count)
 [] : List(Address(Counter.CounterMsg))
 > Code.running(Counter.countGuarded)
-[<address 221>] : List(Address(Counter.CounterMsg))
+[<address.221>] : List(Address(Counter.CounterMsg))
 > Counter.apply(counter, "inc apples -1")
 "ok" : String
 > Counter.apply(counter, "report")
@@ -603,14 +603,14 @@ Ernest 0.11.0, session 1. :help for help.
 Tally, compiled from tally.ern
 Counter, compiled from counter.ern
 > Code.running(Counter.count)
-[<address 131>] : List(Address(Counter.CounterMsg))
+[<address.131>] : List(Address(Counter.CounterMsg))
 > Code.running(Counter.countGuarded)
 [] : List(Address(Counter.CounterMsg))
 > Counter.move()
 > Code.running(Counter.count)
 [] : List(Address(Counter.CounterMsg))
 > Code.running(Counter.countGuarded)
-[<address 131>] : List(Address(Counter.CounterMsg))
+[<address.131>] : List(Address(Counter.CounterMsg))
 ```
 
 `ops` says `the peer foo connected` as the shell dials, and `foo` says `the peer ops connected`. `:load` read `counter.ern` and `tally.ern` from your directory and sent them to `foo` as text, and `foo` compiled them, as it compiles each input; nothing compiled crossed. The `count` that `foo` compiled from the source is the one that crossed with chapter 6's compute, one hash, so `Code.running` lists `foo`'s counter. `move` ran on `foo` and sent the counter the door's message there, so no function crossed in a message; a `send` on the counter's own node puts its message in the mailbox before it returns (the guide's §4.1), so the `Upgrade` was there before the input answered, and before anything `a` sends next. Back at the shell that is `a`:

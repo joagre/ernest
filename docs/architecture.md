@@ -273,7 +273,7 @@ The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_tls_dist`, `er
 - `ern_gateway` takes every frame of the runtime's from every peer and hands each to a worker for that peer, which `ern_peer:frame/2` reads. Its header comment lists the frames.
 - The gateway records a call's notes in `ern_notes` itself (§8.7, §12.6). It answers a utilization, tells each connected peer its own every `utilization-interval`, and holds each peer's telling in `ern_utilizations`.
 - A gateway's worker keeps a process for each adapted address a peer sends to (`ern_rt:kept/1`), and hands a spawn or a compute of a function the node lacks to the exchange.
-- `ern_peer` is `Peer`'s shims (E.27): `offer/2`, `find/2`, `spawn/3`, `compute/2`, `utilization/2` and `pick/0`, with the work its frames give the gateway.
+- `ern_peer` is `Peer`'s shims (E.27): `offer/2`, `find/2`, `spawn/3`, `compute/2`, `utilization/2` and `pick/0`, with the work its frames give the gateway. It holds the one reading of a node's key's digest from the node's name (`host_of/1`, `digest/1`), which `ern_carrier`'s lines and `ern_show` (E.1) call, since the runtime calls nothing of `nodes`.
 
 ### The code table
 

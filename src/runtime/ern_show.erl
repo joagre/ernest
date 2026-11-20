@@ -54,7 +54,7 @@ by_type(string, Value, _, _) -> ern_literal:string_text(Value);
 by_type(bytes, Value, _, Limits) -> bytes(Value, Limits);
 by_type(unit, Value, _, _) -> atom_to_list(Value);
 by_type({address, _, _}, Value, _, _) -> address(Value);
-by_type(process, Value, _, _) -> ["<process ", number(Value), ">"];
+by_type(process, Value, _, _) -> identity("process", Value);
 by_type({reply, _, _}, _, _, _) -> "<reply>";
 by_type({function, _, _, _, _, _}, _, _, _) -> "<function>";
 by_type({abstract, _}, _, _, _) -> "<abstract>";
@@ -101,10 +101,26 @@ by_type({con, Namespace, Constructors}, Value, Bound, Limits) when is_tuple(Valu
 constructor(none, Tag) -> atom_to_list(Tag);
 constructor(Namespace, Tag) -> [Namespace, ".", atom_to_list(Tag)].
 
-%% Report Appendix E.1: an address by the process behind it, which grants
-%% nothing, and a process by the number the host gives it.
+%% Report Appendix E.1: an address as the process behind it prints, which
+%% grants nothing.
 address(Address) ->
-    ["<address ", number(ern_rt:process_of(Address)), ">"].
+    identity("address", ern_rt:process_of(Address)).
+
+%% Report Appendix E.1: a process by the number the host gives it on its
+%% node, after the name of its node where that is another: the name this
+%% node's configuration lists the peer under, as it stands there (§8.3), or
+%% the digest of the node's key where it lists none, a peer a reload
+%% removed among them (§12.5). A program that is no node lists none.
+identity(Kind, Pid) ->
+    ["<", Kind, ".", node_named(node(Pid)), number(Pid), ">"].
+
+node_named(Node) when Node =:= node() ->
+    "";
+node_named(Node) ->
+    case ern_peer:name(Node) of
+        {'Some', Name} -> [Name, "."];
+        'None' -> [ern_peer:digest(ern_peer:host_of(Node)), "."]
+    end.
 
 number(Pid) ->
     [_, Number, _] = string:split(string:trim(pid_to_list(Pid), both, "<>"), ".", all),

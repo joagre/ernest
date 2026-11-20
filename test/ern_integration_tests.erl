@@ -2317,7 +2317,7 @@ private_mailbox_shown_test_() ->
 
 private_mailbox_shown() ->
     {0, Output} = private_mailbox_printed("shown"),
-    ?assertMatch({match, _}, re:run(Output, "^<address [0-9]+>\n$")).
+    ?assertMatch({match, _}, re:run(Output, "^<address\\.[0-9]+>\n$")).
 
 %% report §4.2, §8.4, §11.1: an address of a mailbox type another module
 %% keeps private, exposed to foreign code, keeps the check of each message

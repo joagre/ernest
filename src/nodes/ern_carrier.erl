@@ -566,7 +566,7 @@ line(Text) ->
 %% digest where it is not listed.
 -spec named(atom()) -> iolist().
 named(Node) ->
-    host_named(lists:last(string:split(atom_to_list(Node), "@"))).
+    host_named(ern_peer:host_of(Node)).
 
 %% A peer as a line names it by the certificate it gave, the DER the host's
 %% TLS answers, before the host's handshake has given its name.
@@ -584,12 +584,13 @@ table_full(Named) ->
     say_later([Named, " was refused: this node's table of processes is full"]).
 
 %% A peer as a line names it by the host of its name on the carrier; one
-%% not listed by that name as the node gave it, which may be any text where
-%% its handshake was refused, its control characters escaped (§11.2).
+%% not listed by the digest that name gives (ern_peer:digest/1), as the node
+%% gave it, which may be any text where its handshake was refused, its
+%% control characters escaped (§11.2).
 host_named(Host) ->
     case peer(Host) of
         #peer{name = Name} -> ["the peer ", Name];
-        none -> ["the node ", controls([Char || Char <- Host, Char =/= $.])]
+        none -> ["the node ", controls(ern_peer:digest(Host))]
     end.
 
 %% Report §12.5: the line a change of a connection is said by, which the

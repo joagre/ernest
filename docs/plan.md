@@ -21,7 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 148**, a process printed with a dot.
+**The next item is MVP 4.16's item 150**, one check for an address however its type is
+written.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,22 +61,9 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
 corner shows it (the log's *Item 140 Stands After the Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it. Items 148 and
-150, found by item 133 and by item 146 after it, are taken first, on the user's word on
-2026-11-20, while their probes are at hand.
+**What was found**, each item begun by an agent that shows it or tests it. Item 150, found
+by item 146, is taken first, on the user's word on 2026-11-20, while its probes are at hand.
 
-- **148. A process is printed with a dot**, decided with the user on 2026-11-20 (the
-  log's *An Address Given Back, on Another Node*, its paragraph *The printed form*).
-  `Io.show` writes a `Process` as `<process.183>` and an address as `<address.84>`, where
-  Appendix E.1 writes a space.
-
-  Decided with it the same day: a process of another node prints its peer's name before
-  its number, `<process.store.183>`, the name as the configuration lists it, and its
-  key's digest where the configuration does not list the node, as §8.7's lines name one.
-  Item 133's showing printed a process of each node as `<process 183>`, two processes
-  that `==` told apart (§0, principle 3). A name prints as it is, a dot or a space in it
-  too. Appendix E.1 changes first, then the code, its tests, the tour and the guide's
-  outputs.
 - **150. One check for an address, however its type is written**, found 2026-11-20 by
   item 146's build (the log's *One Check for an Address of a Recursive Type*), each case
   shown by its probe. An address still gets two checks in two cases. In the first its
@@ -386,6 +374,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 133 | An address foreign code gave carries the process behind it, so `Process.fromAddress`, a `kill`, a `monitor`, a fault and a call name that process on another node, and a check in front of a process of another node comes back as the address that went out, with the user | 2026-11-20 | §6.4, §6.5, §6.6, §6.9, §8.4, §8.7, Appendix E.21; *An Address Given Back, on Another Node* |
 | 146 | An address of a recursive type gets one check whether it crosses alone or inside a value of its type, and comes back as the program's own either way; a function value's result check closes a type whose recursion passes through another | 2026-11-20 | §8.4, §12.3; *One Check for an Address of a Recursive Type* |
 | 147 | A fault taken at a wait names its `receive`'s line, as Appendix E.21 says: the showing counted a line wrong, and two tests of `ern_emitter_tests` now write the clause on a line of its own | 2026-11-20 | Appendix E.21; *A Fault at a Wait Names Its `receive`* |
+| 148 | `Io.show` writes a process as `<process.84>` and an address as `<address.84>`, and a process of another node with its peer's name before the number, `<process.store.84>`, or its key's digest where the node is not listed, with the user | 2026-11-20 | Appendix E.1; *A Process Printed with a Dot, Built* |
 
 ---
 
@@ -833,7 +822,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145, 149 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145, 149, 151 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -1019,6 +1008,21 @@ What the line left, in the order it is taken:
   2026-11-20. The shape: §8.4 says what a pid of another node is where foreign code
   gives it, since a node holds no row of another's processes. The narrower sentence is
   weighed first.
+
+  Found 2026-11-20 by item 148's build, read from the code: `Io.show` writes such a
+  `Process` by the check's number, and a pid of a host that is no node of Ernest's by
+  its host's name without its dots, where Appendix E.1 has a key's digest.
+- **151. A control character in a peer's name**, found 2026-11-20 by item 148's build
+  (the log's *A Process Printed with a Dot, Built*), shown by the agent's run.
+  `ernest.conf` takes any name that is not empty. `Io.show` writes a process of the peer
+  with the name as it stands, so a name that holds a bell and a line feed reaches the
+  terminal as they are, and §12.5's lines write it so too. A fault's line escapes it.
+
+  Appendix E.1 and §12.5 are true as they stand, and only a name written so on purpose
+  meets it, so the item stands here. To decide with the user at its turn, on the
+  session's recommendation: the node refuses to start where a peer's name holds a
+  control character, one rule where the name is read, and `ern config --peer-dir`
+  refuses a directory named so.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers

@@ -6319,10 +6319,14 @@ attach_unanswered(Base) ->
 %% wait for a peer's utilization, a spawn's and a find's, the peer's gateway
 %% suspended so that no answer comes, each with no callee and its limit. The
 %% listing is asked twice, since the first may meet the host's work in each
-%% process as the input before it is let go (ern_shell_tests' listed/3). A
-%% regression test, written after the code
+%% process as the input before it is let go (ern_shell_tests' listed/3).
+%%
+%% Report Appendix E.1, §8.3: the address of the process on the peer, and
+%% that process, print the peer's name before the number, and the shell's
+%% own process its number alone. A regression test, written after the code
+%% but for its printed values, which were written before
 processes_on_peers_test_() ->
-    nodes_test({waits, 11}, fun processes_on_peers/1).
+    nodes_test({waits, 12}, fun processes_on_peers/1).
 
 processes_on_peers(Base) ->
     Root = filename:join(Base, "program"),
@@ -6375,6 +6379,9 @@ processes_on_peers(Base) ->
                          "calling(Process.fromAddress(asker))\n",
                          "calling(Process.fromAddress(spawner))\n",
                          "calling(Process.fromAddress(finder))\n",
+                         "served\n",
+                         "Process.current()\n",
+                         "Process.fromAddress(served)\n",
                          ":processes\n:processes\n"]),
     prints(S, "None : Optional(String)"),
     prints(S, "Some(\"a\") : Optional(String)"),
@@ -6382,6 +6389,11 @@ processes_on_peers(Base) ->
     prints(S, "$Session1.input 7:1 calling for "),
     prints(S, "$Session1.input 8:1 calling for "),
     prints(S, "$Session1.input 9:1 calling for "),
+    prints(S, " : Process\n", 2, ?WAIT_MS),
+    Printed = written(S, out),
+    [?assertMatch({match, _}, re:run(Printed, Line))
+     || Line <- ["<address\\.a\\.[0-9]+> : Address\\(Reply\\(Int\\)\\)\n",
+                 "<process\\.[0-9]+> : Process\n", "<process\\.a\\.[0-9]+> : Process\n"]],
     true = port_command(Input, ":quit\n"),
     ?assertEqual(0, WaitS()),
     stop(B, WaitB),

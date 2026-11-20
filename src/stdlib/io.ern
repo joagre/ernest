@@ -241,7 +241,7 @@ export fn writeError(bytes : Bytes) : Unit =
 
 /// The value as Ernest writes it: a number, a string or a constructor as its
 /// literal is written, `Some("a")`, a named constructor's fields in their
-/// declared order, an address as `<address 84>`, and a function as
+/// declared order, an address as `<address.84>`, and a function as
 /// `<function>`.
 ///
 /// A constructor of the prelude's is written by its name alone, `Some`, and any

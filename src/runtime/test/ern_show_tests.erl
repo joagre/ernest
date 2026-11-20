@@ -60,18 +60,83 @@ qualified_constructor_test() ->
     ?assertEqual(<<"Net.Http.Pair(left = Io.Timeout, right = Io.Timeout)">>,
                  ern_show:show(Nested, {'Pair', 'Timeout', 'Timeout'})).
 
-%% report Appendix E.1, E.21: a process by its number, and an address by
-%% the number of the process behind it, through every adapted address
+%% report Appendix E.1, E.21: a process of this node by its number on its
+%% node after a dot, and an address as the process behind it, through
+%% every adapted address
 identity_test() ->
     Pid = list_to_pid("<0.84.0>"),
-    ?assertEqual(<<"<process 84>">>, ern_show:show(process, Pid)),
-    ?assertEqual(<<"<address 84>">>, ern_show:show({address, any, <<>>}, Pid)),
-    ?assertEqual(<<"<address 84>">>,
+    ?assertEqual(<<"<process.84>">>, ern_show:show(process, Pid)),
+    ?assertEqual(<<"<address.84>">>, ern_show:show({address, any, <<>>}, Pid)),
+    ?assertEqual(<<"<address.84>">>,
                  ern_show:show({address, any, <<>>}, ern_rt:adapted(Pid, fun(X) -> X end))),
     %% and where the type is a variable, by the representation. A
     %% regression test: an adapted address read as a tuple,
     %% `#(adapted, <function>, <address 84>)`
-    ?assertEqual(<<"<address 84>">>, ern_show:show(any, ern_rt:adapted(Pid, fun(X) -> X end))).
+    ?assertEqual(<<"<address.84>">>, ern_show:show(any, ern_rt:adapted(Pid, fun(X) -> X end))).
+
+%% report Appendix E.1, §8.3, §8.4: a process of another node by its peer's
+%% name before its number, the name as this node's configuration lists it,
+%% and an address as the process behind it does: the peer's process's own,
+%% one adapted over it, and one foreign code gave, a check of this node
+%% held with the process behind it; each by its descriptor and by the
+%% representation
+peer_identity_test() ->
+    Node = ern_carrier:name(<<"the store's key">>),
+    Pid = pid_of(Node, 84),
+    Adapted = ern_rt:adapted(Pid, fun(X) -> X end),
+    Given = {foreign, list_to_pid("<0.90.0>"), Pid, int, #{}},
+    listed([{<<"store">>, Node}],
+           fun() ->
+               ?assertEqual(<<"<process.store.84>">>, ern_show:show(process, Pid)),
+               [?assertEqual(<<"<address.store.84>">>, ern_show:show(Descriptor, Address))
+                || Descriptor <- [{address, any, <<>>}, any], Address <- [Pid, Adapted, Given]]
+           end).
+
+%% report Appendix E.1: a peer's name written as it stands in the
+%% configuration, a dot, a space or a letter beyond ASCII in it too
+name_as_listed_test() ->
+    [Dotted, Spaced, Swedish] = [ern_carrier:name(Key) || Key <- [<<"a">>, <<"b">>, <<"c">>]],
+    listed([{<<"eu.store">>, Dotted}, {<<"the store">>, Spaced}, {<<"förråd"/utf8>>, Swedish}],
+           fun() ->
+               ?assertEqual(<<"<process.eu.store.84>">>,
+                            ern_show:show(process, pid_of(Dotted, 84))),
+               ?assertEqual(<<"<address.the store.7>">>, ern_show:show(any, pid_of(Spaced, 7))),
+               ?assertEqual(<<"<process.förråd.84>"/utf8>>,
+                            ern_show:show(process, pid_of(Swedish, 84)))
+           end).
+
+%% report Appendix E.1, §12.5: a process of a node this node's
+%% configuration does not list, a peer a reload removed among them, by the
+%% node's key's digest for the name, as a node's lines name such a node,
+%% and an address as the process behind it does
+unlisted_identity_test() ->
+    Key = <<"a removed peer's key">>,
+    Pid = pid_of(ern_carrier:name(Key), 84),
+    Adapted = ern_rt:adapted(Pid, fun(X) -> X end),
+    Digest = binary:encode_hex(crypto:hash(sha256, Key), lowercase),
+    listed([],
+           fun() ->
+               ?assertEqual(<<"<process.", Digest/binary, ".84>">>, ern_show:show(process, Pid)),
+               ?assertEqual(<<"<address.", Digest/binary, ".84>">>,
+                            ern_show:show({address, any, <<>>}, Adapted))
+           end).
+
+%% The process numbered Number on Node, as the external term format writes
+%% a process of another node (NEW_PID_EXT), its node's name a UTF-8 atom.
+pid_of(Node, Number) ->
+    Name = atom_to_binary(Node),
+    binary_to_term(<<131, 88, 118, (byte_size(Name)):16, Name/binary, Number:32, 0:32, 1:32>>).
+
+%% Test run with this node listing Peers, {Name, Node}, as the carrier lists
+%% them (ern_peer:configure/2), and none listed after it, as a host that is
+%% no node lists none.
+listed(Peers, Test) ->
+    ok = ern_peer:configure(Peers, #{}),
+    try
+        Test()
+    after
+        ok = ern_peer:configure([], #{})
+    end.
 
 %% report Appendix E.1: a foreign value reads by the representation, and as
 %% <foreign> where it reads as none of Ernest's forms; an improper list,
