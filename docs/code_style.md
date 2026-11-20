@@ -259,3 +259,7 @@ And the names that recur across the site generator's modules, `Site` and those u
 - **Taught**: the report's sections the guide's sections cite, each with the guide's sections that cite it, a margin line's, `Site.Book.Taught`.
 - **Declaration**: a declaration of the library a qualified name links to, a heading of a module's page that `make doc` writes, its namespace, its page's address and its anchor, `Site.Links.Declaration`, the run's and the page's `declarations`; the types a page's own code declares, whose members it links to none of, are its `declared`. Not `Entry`, which is a sidebar's.
 - **Library**: the pages `make doc` writes under `build/`, as the generator reads them, its contents' opening and lines and each group's modules with their pages, `Site.Library.Library`.
+
+And the name that recurs across the programs under `tools/`:
+
+- **fileMs**: the milliseconds a tool gives each request of a file, a tolerance the tool chooses and names once, in `tools/flakes.ern`, `tools/manual.ern` and `Site.Run`. Not a number at each call.
