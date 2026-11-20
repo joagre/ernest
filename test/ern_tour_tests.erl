@@ -382,9 +382,10 @@ client(#tour{shell = Shell} = Tour) ->
 %% started, which a negative amount faults, reported with its site and its
 %% trace, the version's number in it, while the send answers "ok"; a call
 %% to it then answers "no answer". A counter under `restarting`, limit one
-%% restart in a minute, watched by a monitor: faulted and restarted, its count lost and its
-%% address kept, then faulted past the limit, which the watcher hears as
-%% the fault's `Down` (report §6.9, §6.10, §7.3, §11.2, Appendix E.21).
+%% restart in an hour, watched by a monitor: faulted and restarted, its
+%% count lost and its address kept, then faulted past the limit, which the
+%% watcher hears as the fault's `Down` (report §6.9, §6.10, §7.3, §11.2,
+%% Appendix E.21).
 fault(#tour{shell = Shell} = Tour) ->
     Trace = "    Counter$3.count:8",
     Tour#tour{shell = session(
@@ -396,7 +397,7 @@ fault(#tour{shell = Shell} = Tour) ->
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
           [["$Session1.input 11:1 faulted: a negative amount", Trace]]},
          {"Counter.apply(counter, \"get\")", ["\"no answer\" : String"]},
-         {"let counter = spawn(restarting(RestartLimit(restarts = 1, within = 60000),"
+         {"let counter = spawn(restarting(RestartLimit(restarts = 1, within = 3600000),"
           " fn() = Counter.count(0)))",
           ["counter : Address(Counter.CounterMsg)"]},
          {"let watcher = spawn(fn() = Counter.watch(counter))",
@@ -542,10 +543,11 @@ moved_here(#tour{shell = Shell} = Tour) ->
 %% sources of Counter and Tally to foo, which compiles them; `Code.running`
 %% lists foo's counter, which chapter 6's compute started, on the old loop
 %% and none on the new, and `Counter.move()` at foo's prompt sends it its
-%% `Upgrade`, the lists then the other way round, the same address on each.
-%% The counter, which the shell that is `a` then calls, passes a negative
-%% amount over and keeps its tally (report §6.4, §8.7, §11.2, §11.3,
-%% Appendix E.28).
+%% `Upgrade`. The counter, which the shell that is `a` then calls, passes a
+%% negative amount over and keeps its tally, and its answer to the report
+%% follows the `Upgrade` it took first, so the lists at foo's prompt are
+%% then the other way round, the same address on each (report §6.4, §8.7,
+%% §11.2, §11.3, Appendix E.28).
 moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
     Ops = filename:join(Base, "ops"),
     created(Base, "config --config-dir ops"),
@@ -557,23 +559,25 @@ moved_there(#tour{base = Base, foo = Foo, shell = Shell} = Tour) ->
                        [<<"the peer foo connected">>]),
     Running = "\\[<address\\.[0-9]+>\\] : List\\(Address\\(Counter\\.CounterMsg\\)\\)",
     Empty = "[] : List(Address(Counter.CounterMsg))",
-    #shell{read = Read} = Moved = session(
+    Sent = session(
         Attached,
         [{":load Counter",
           ["Tally, compiled from tally.ern", "Counter, compiled from counter.ern"]},
          {"Code.running(Counter.count)", [{re, Running}]},
          {"Code.running(Counter.countGuarded)", [Empty]},
-         {"Counter.move()", []},
-         {"Code.running(Counter.count)", [Empty]},
+         {"Counter.move()", []}]),
+    ern_nodes_tests:says(Foo, "the peer ops connected"),
+    Called = session(Shell,
+                     [{"Counter.apply(far, \"inc apples -1\")", [?SENT]},
+                      {"Counter.apply(far, \"report\")",
+                       ["\"apples: 3, pears: 1\" : String"]}]),
+    #shell{read = Read} = Moved = session(
+        Sent,
+        [{"Code.running(Counter.count)", [Empty]},
          {"Code.running(Counter.countGuarded)", [{re, Running}]}]),
     {match, [[First], [Second]]} = re:run(Read, Running, [global, {capture, first, binary}]),
     ?assertEqual(First, Second),
-    ern_nodes_tests:says(Foo, "the peer ops connected"),
-    Tour#tour{attached = Moved,
-              shell = session(Shell,
-                              [{"Counter.apply(far, \"inc apples -1\")", [?SENT]},
-                               {"Counter.apply(far, \"report\")",
-                                ["\"apples: 3, pears: 1\" : String"]}])}.
+    Tour#tour{attached = Moved, shell = Called}.
 
 %% `ern stop --config-dir foo` ends foo by termination, with status 143;
 %% the shell attached to foo ends with it, with status 0, saying on its

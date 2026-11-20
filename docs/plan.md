@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 95**, its two lines that do not wait on item 101: a move
-shown as done, and the tour's restart limit.
+**The next item is MVP 4.16's item 101**, a design discussion with the user: what an order
+nobody promised gets.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -64,10 +64,9 @@ corner shows it (the log's *Item 140 Stands After the Launch*). Items 135 and 13
 there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch* and
 *Item 136 Stands After the Launch*).
 
-**What is decided and waits for its build** stands first. Item 93 and item 95's
-first line are taken after item 101, decided with the user on 2026-11-19: each is a
+**What is decided and waits for its build** stands first. Item 93 and what is left
+of item 95 are taken after item 101, decided with the user on 2026-11-19: each is a
 verdict on an order nobody promised, made before item 101's rule, which reads it again.
-Item 95's other two lines keep their place.
 
 - **93. A close answers once it is made**, decided with the user on 2026-11-17 (the log's
   *Seven Entries of the Feedback*, feedback 258). `Os.closeInput` and `Tcp.closeListener`
@@ -98,7 +97,9 @@ Item 95's other two lines keep their place.
   MVP 4.5's, since no program has shown E.18's sentence false.
 - **95. A shell session that shows more than the report promises**, decided with the user
   on 2026-11-17 (the log's *The Outside Reviews Read*, its paragraph *Three shell
-  sessions*). The session writes it, and it closes on `make test`.
+  sessions*). The session writes it, and it closes on `make test`. Two of its three lines,
+  a move shown as done and the tour's restart limit, were written on 2026-11-20 (the log's
+  *Two Shell Sessions Written*). One is left:
 
   - A send and a call to another node, in two inputs, written after item 101, whose rule
     reads this verdict again. The tour's chapter 2 says that each
@@ -106,17 +107,11 @@ Item 95's other two lines keep their place.
     (§6.4), that the page shows one order, and that a program which needs the order sends
     both from one process. The guide's §1.4 gains the same as a clause. The transcripts
     stay as typed, and the README stays as it is.
-  - A move shown as done. In the tour's chapter 8 the attached shell's two listings move
-    after the lines at `a`'s shell, where a `report` is answered. The deployment guide's
-    "Asked again, it finds none" says what it rests on, that the counter has taken its
-    `Upgrade` by then.
-  - The tour's restart limit. Chapter 4 starts its counter with `within = 3600000`, in
-    the text and in `test/ern_tour_tests.erl`, and its sentence on the minute follows.
 
 **What needs the user**, each a design discussion of its own. Item 142 is read on its date
 and orders nothing. Item 101 stands first of the rest, since
-its rule is the measure for item 100, for MVP 4.5's item 68, and for item 93 and item 95's
-first line, which follow it. Item 100, ernest-httpd's
+its rule is the measure for item 100, for MVP 4.5's item 68, and for item 93 and what is
+left of item 95, which follow it. Item 100, ernest-httpd's
 session's two lines on a close, follows it, and three of that session's tests wait on it.
 
 - **142. Whether the short rules stay**, to decide with the user on 2026-11-24 (the log's

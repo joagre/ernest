@@ -233,7 +233,7 @@ The `$3` is the module's third version in this session, the one this chapter's r
 A counter that must come back is started under `restarting`, and a watcher monitors it:
 
 ```console
-> let counter = spawn(restarting(RestartLimit(restarts = 1, within = 60000), fn() = Counter.count(0)))
+> let counter = spawn(restarting(RestartLimit(restarts = 1, within = 3600000), fn() = Counter.count(0)))
 counter : Address(Counter.CounterMsg)
 > let watcher = spawn(fn() = Counter.watch(counter))
 watcher : Address(Counter.WatchMsg)
@@ -247,7 +247,7 @@ $Session1.input 14:1 faulted, restarted: a negative amount
 "0" : String
 ```
 
-A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). The limit allows one restart in a minute, so the next fault within that minute is the end:
+A process started under `restarting` runs its function again from the start after a fault, its mailbox emptied and its address kept, so `counter` is still good and the count is gone: `"0"` (§6.5). The limit allows one restart in an hour, so the next fault within that hour is the end:
 
 ```console
 > Counter.apply(counter, "inc -1")
@@ -607,10 +607,6 @@ Counter, compiled from counter.ern
 > Code.running(Counter.countGuarded)
 [] : List(Address(Counter.CounterMsg))
 > Counter.move()
-> Code.running(Counter.count)
-[] : List(Address(Counter.CounterMsg))
-> Code.running(Counter.countGuarded)
-[<address.131>] : List(Address(Counter.CounterMsg))
 ```
 
 `ops` says `the peer foo connected` as the shell dials, and `foo` says `the peer ops connected`. `:load` read `counter.ern` and `tally.ern` from your directory and sent them to `foo` as text, and `foo` compiled them, as it compiles each input; nothing compiled crossed. The `count` that `foo` compiled from the source is the one that crossed with chapter 6's compute, one hash, so `Code.running` lists `foo`'s counter. `move` ran on `foo` and sent the counter the door's message there, so no function crossed in a message; a `send` on the counter's own node puts its message in the mailbox before it returns (the guide's §4.1), so the `Upgrade` was there before the input answered, and before anything `a` sends next. Back at the shell that is `a`:
@@ -620,6 +616,15 @@ Counter, compiled from counter.ern
 "ok" : String
 > Counter.apply(far, "report")
 "apples: 3, pears: 1" : String
+```
+
+The `report` was answered after the `Upgrade`, as on this node, so at the attached shell the lists now read the other way round:
+
+```console
+> Code.running(Counter.count)
+[] : List(Address(Counter.CounterMsg))
+> Code.running(Counter.countGuarded)
+[<address.131>] : List(Address(Counter.CounterMsg))
 ```
 
 The counter on the node started with none of this program's code runs its new code, with the tally it has counted since chapter 6.
