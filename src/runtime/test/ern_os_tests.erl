@@ -7,15 +7,16 @@
 %% The size a terminal of the tests begins with, `Terminal.Size(24, 80)`.
 -define(SIZE, {'Size', 24, 80}).
 
-%% Appendix E.23, report §7.4: a write, a read, a signal and a resize that
-%% wait while the helper ends fault their callers, the runtime's own
-%% failure, and a resize to a size the host cannot take answers
-%% `Left(Invalid)` as it does while the helper runs. A regression test: the
-%% process gave them to the port the helper's end had closed, and crashed
-%% with badarg; and of the rule, before which they were answered
-%% `Left(Other(...))`. The resize's fault is not a regression test: it was
-%% written before the resize waited on the helper, which it answered
-%% `Right(Unit)` without
+%% Appendix E.23, report §7.4: a write, a read, a read without a time, a
+%% signal and a resize that wait while the helper ends fault their callers,
+%% the runtime's own failure, and a resize to a size the host cannot take
+%% answers `Left(Invalid)` as it does while the helper runs; a read without
+%% a time after the failure faults too. A regression test: the process gave
+%% them to the port the helper's end had closed, and crashed with badarg;
+%% and of the rule, before which they were answered `Left(Other(...))`. The
+%% resize's fault is not a regression test: it was written before the
+%% resize waited on the helper, which it answered `Right(Unit)` without;
+%% nor are the reads without a time, written with the request
 helper_ends_under_a_write_and_a_read_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -30,6 +31,8 @@ helper_ends_under_a_write_and_a_read_test() ->
                Program ! {'Write', <<"x">>, 5000, {WriteReply, self()}},
                ReadReply = alias(),
                Program ! {'Read', 5000, {ReadReply, self()}},
+               ForeverReply = alias(),
+               Program ! {'ReadForever', {ForeverReply, self()}},
                SignalReply = alias(),
                Program ! {'SendSignal', 'Termination', {SignalReply, self()}},
                ResizeReply = alias(),
@@ -44,13 +47,19 @@ helper_ends_under_a_write_and_a_read_test() ->
                erlang:resume_process(Program),
                Self ! {write, answer(WriteReply)},
                Self ! {read, answer(ReadReply)},
+               Self ! {read_forever, answer(ForeverReply)},
                Self ! {signal, answer(SignalReply)},
                Self ! {resize, answer(ResizeReply)},
-               Self ! {invalid, answer(InvalidReply)}
+               Self ! {invalid, answer(InvalidReply)},
+               LaterReply = alias(),
+               Program ! {'ReadForever', {LaterReply, self()}},
+               Self ! {later, answer(LaterReply)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Failed = {fault, <<"the runtime's helper ern_exec failed">>},
     ?assertEqual(Failed, wait(write)),
     ?assertEqual(Failed, wait(read)),
+    ?assertEqual(Failed, wait(read_forever)),
+    ?assertEqual(Failed, wait(later)),
     ?assertEqual(Failed, wait(signal)),
     ?assertEqual(Failed, wait(resize)),
     ?assertEqual({'Left', 'Invalid'}, wait(invalid)).
@@ -234,6 +243,84 @@ answered_exit_is_a_deadlock_test() ->
                                   ern_waits:forever()
                               end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({fault, <<"deadlock">>, _}, Outcome).
+
+%% report §8.6, Appendix E.18, E.23: a run whose one process waits without
+%% a time, in `Tcp.acceptForever`, `Tcp.readForever` or `Os.readForever`,
+%% is no deadlock: the reaper's look answers that something can still
+%% deliver, and once a connection, a byte or a piece of output comes the
+%% wait answers it and the run ends. The far end, the client and the
+%% program's input are given from outside the run once the look has
+%% answered. Written with the functions, called through their modules
+waits_without_a_time_are_no_deadlock_test_() ->
+    {timeout, 30, fun waits_without_a_time_are_no_deadlock/0}.
+
+waits_without_a_time_are_no_deadlock() ->
+    Tcp = ern_named:functions('ern@tcp'),
+    Os = ern_named:functions('ern@os'),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, FarPort} = inet:port(Listen),
+    Accepting = fun(Observer) ->
+                    {'Right', Listener} = (Tcp(listen))(<<"127.0.0.1">>, 0),
+                    {'Right', Port} = (Tcp(port))(Listener),
+                    Observer ! {given, fun() -> connected(Port) end},
+                    Answer = (Tcp(acceptForever))(Listener),
+                    {'Right', Socket} = Answer,
+                    (Tcp(close))(Socket),
+                    side(Answer)
+                end,
+    Reading = fun(Observer) ->
+                  {'Right', Socket} = (Tcp(connect))(<<"127.0.0.1">>, FarPort, 5000),
+                  {ok, FarEnd} = gen_tcp:accept(Listen, 5000),
+                  Observer ! {given, fun() -> ok = gen_tcp:send(FarEnd, <<"x">>) end},
+                  (Tcp(readForever))(Socket)
+              end,
+    Output = fun(Observer) ->
+                 {'Right', Cat} = (Os(start))(inheriting(<<"cat">>, [])),
+                 Observer ! {given, fun() -> written(Cat, <<"x">>) end},
+                 Answer = (Os(readForever))(Cat),
+                 ern_rt:kill(Cat),
+                 Answer
+             end,
+    Outcomes = [looked_while_waiting(Wait) || Wait <- [Accepting, Reading, Output]],
+    gen_tcp:close(Listen),
+    ?assertEqual([{delivering, 'Right', ok}, {delivering, {'Right', <<"x">>}, ok},
+                  {delivering, {'Right', {'Stdout', <<"x">>}}, ok}],
+                 Outcomes).
+
+%% What the reaper's look answers while the run's one process waits in
+%% Wait, what the wait answers once the observer has given what it waits
+%% for, and how the run ends. Wait tells the observer what to give.
+looked_while_waiting(Wait) ->
+    Self = self(),
+    Observer = spawn(fun() ->
+                         receive {waiting, Main} -> ok end,
+                         receive {given, Give} -> ok end,
+                         ok = ern_waits:calling(Main),
+                         Self ! {looked, next_look()},
+                         Give()
+                     end),
+    Outcome = ern_rt:run_main(fun() ->
+                                  Observer ! {waiting, self()},
+                                  Self ! {answered, Wait(Observer)}
+                              end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {wait(looked), wait(answered), Outcome}.
+
+%% A client's connection to Port made and closed.
+connected(Port) ->
+    {ok, Client} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+    gen_tcp:close(Client).
+
+%% Bytes given to a running program, from outside the run, once it has
+%% taken them.
+written(Program, Bytes) ->
+    Reply = alias(),
+    Program ! {'Write', Bytes, 5000, {Reply, self()}},
+    {'Right', 'Unit'} = answer(Reply),
+    ok.
+
+%% The constructor of an answer, its value left out.
+side(Answer) ->
+    element(1, Answer).
 
 %% Until the program a running program's process started has exited, as
 %% the host shows it: a child of the helper whose state is a zombie's,
@@ -1315,6 +1402,72 @@ read_of_an_ended_caller_dropped_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({{'Right', {'Stdout', <<"x\n">>}}, {'Right', {'Exited', 0}}}, wait(reads)).
 
+%% report Appendix E.23: `readForever` is `read` without a time: a read that
+%% waits answers the piece the program writes after it began, `cat`'s echo
+%% of a write made once the program's process watches the reader, and last
+%% the exit status, which each read after it, with a time or without,
+%% answers again. Written with the request
+read_forever_answers_what_comes_later_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               Main = self(),
+               Reader = ern_rt:spawn(fun() -> Main ! {piece, read_forever(Cat)} end,
+                                     <<"reader">>),
+               ok = ern_waits:watching(Cat, ern_rt:process_of(Reader)),
+               {'Right', 'Unit'} = write(Cat, <<"x\n">>, 5000),
+               Piece = receive {piece, Read} -> Read end,
+               Cat ! 'CloseInput',
+               Exited = read_forever(Cat),
+               Self ! {reads, [Piece, Exited, read_forever(Cat), read(Cat, 5000)]},
+               ern_rt:kill(Cat)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Exited = {'Right', {'Exited', 0}},
+    ?assertEqual([{'Right', {'Stdout', <<"x\n">>}}, Exited, Exited, Exited], wait(reads)).
+
+%% report Appendix E.23, §6.6: a `readForever` faults as `read` does on a
+%% program whose process has ended: one that waits as the program is killed
+%% with `callee was killed`, and one after with `callee had ended`. The kill
+%% comes once the program's process watches the reader. Written with the
+%% request
+read_forever_on_an_ended_program_faults_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               Reader = ern_rt:spawn_monitored(fun() -> read_forever(Cat) end,
+                                               fun(Down) -> {reader, Down} end, <<"reader">>),
+               ok = ern_waits:watching(Cat, ern_rt:process_of(Reader)),
+               ern_rt:kill(Cat),
+               receive {reader, Down} -> Self ! {waiting, Down} end,
+               _ = ern_rt:spawn_monitored(fun() -> read_forever(Cat) end,
+                                         fun(Later) -> {later, Later} end, <<"reader">>),
+               receive {later, Later} -> Self ! {later, Later} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({'Down', _, {'Fault', <<"callee was killed">>}, _}, wait(waiting)),
+    ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, wait(later)).
+
+%% report Appendix E.23: a `readForever` whose caller has ended before it is
+%% answered is dropped as a `read` is, and what it would have taken is the
+%% next read's: the piece `cat` writes after a reader was killed in its
+%% read, and the exit status after a second was. Written with the request,
+%% as read_of_an_ended_caller_dropped_test is
+read_forever_of_an_ended_caller_dropped_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Cat} = start(<<"cat">>, []),
+               killed_in_a_read(Cat, fun read_forever/1),
+               {'Right', 'Unit'} = write(Cat, <<"x\n">>, 5000),
+               Piece = read_forever(Cat),
+               killed_in_a_read(Cat, fun read_forever/1),
+               Cat ! 'CloseInput',
+               Self ! {reads, {Piece, read_forever(Cat)}},
+               ern_rt:kill(Cat)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{'Right', {'Stdout', <<"x\n">>}}, {'Right', {'Exited', 0}}}, wait(reads)).
+
 %% report Appendix E.23: a piece that comes for a read whose caller has
 %% ended, before the program's process has the caller's `DOWN`, is kept for
 %% the next read, the host asked whether the caller lives before the piece
@@ -1645,7 +1798,11 @@ activity_of(Pid) ->
 %% process watches it, and returned from once that process no longer
 %% does, so that its `DOWN` comes before what the caller sends after.
 killed_in_a_read(Program) ->
-    Reader = ern_rt:spawn_monitored(fun() -> read(Program, 60000) end,
+    killed_in_a_read(Program, fun(Read) -> read(Read, 60000) end).
+
+%% The same, the reader's read made by Read.
+killed_in_a_read(Program, Read) ->
+    Reader = ern_rt:spawn_monitored(fun() -> Read(Program) end,
                                     fun(Down) -> {reader, Down} end, <<"reader">>),
     Pid = ern_rt:process_of(Reader),
     ok = ern_waits:watching(Program, Pid),
@@ -1731,6 +1888,10 @@ inheriting(Program, Arguments) ->
 
 read(Program, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Read', Ms, Reply} end).
+
+%% Report Appendix E.23: a read without a time, as `Os.readForever` asks it.
+read_forever(Program) ->
+    ern_rt:call_forever(Program, fun(Reply) -> {'ReadForever', Reply} end).
 
 write(Program, Bytes, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).

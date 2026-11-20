@@ -220,9 +220,10 @@ export foreign fn peer(process : Process) : Optional(String) =
 /// listener, socket and running program it owns (report Appendix E.18,
 /// E.23), and each process started to end with it, a proxy's (report
 /// Appendix G.7). Their sites, which `status` gives, tell them apart:
-/// `Tcp.listen` for a listener, `Tcp.accept` or `Tcp.connect` for a socket,
-/// `Os.start` for a running program. None once the process has ended, and
-/// for a process on another node.
+/// `Tcp.listen` or `Tcp.listenTls` for a listener, `Tcp.accept`,
+/// `Tcp.acceptForever`, `Tcp.connect` or `Tcp.connectTls` for a socket,
+/// `Os.start` or `Os.startTerminal` for a running program. None once the
+/// process has ended, and for a process on another node.
 ///
 /// ### Examples
 ///

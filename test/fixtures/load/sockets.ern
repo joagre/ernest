@@ -27,7 +27,7 @@ export fn main() : Unit =
     }
 
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit = {
-    match Tcp.accept(listener, 60000) {
+    match Tcp.acceptForever(listener) {
         Right(socket) -> {
             let echoer = spawn(fn() = echo(socket));
             Tcp.give(socket, Process.fromAddress(echoer))

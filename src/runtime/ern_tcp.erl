@@ -5,10 +5,12 @@
 %% monitored, killed, and adapted like any other. Each request that waits
 %% carries its milliseconds, and the process that owns the stream decides
 %% whether time ran out, so that a request that timed out has taken
-%% nothing. Such a request, a connect, an accept, a read or a write, is a
-%% source (report §8.6), counted from its arrival until its answer. A
-%% listen waits on the host alone, and its caller's call to this process,
-%% which the reaper reads, covers it.
+%% nothing; an accept or a read without a time carries none, and waits
+%% with no deadline and no timer. Such a request, a connect, an accept, a
+%% read or a write, is a source (report §8.6), counted from its arrival
+%% until its answer, with a time or without. A listen waits on the host
+%% alone, and its caller's call to this process, which the reaper reads,
+%% covers it.
 %%
 %% A listener and a socket over TLS are the same processes over the host's
 %% ssl, whose functions mirror gen_tcp's and inet's: the host's socket is
@@ -50,7 +52,8 @@
                      writes = [], buffer = <<>>, state = open}).
 
 %% A read waiting: its reply, the reference of its caller's monitor, which
-%% names the read to its timer too, its deadline and its timer.
+%% names the read to its timer too, its deadline and its timer, each `none`
+%% for a read without a time.
 -record(read, {reply, monitor_ref, deadline, timer}).
 
 %% A write the writer holds, oldest first in the connection: its reply, its
@@ -567,12 +570,13 @@ held(File) ->
 %% Report Appendix E.18: a connect or an accept, tried again after the
 %% host's timeout until the deadline has passed, and its answer given: the
 %% socket's process, which Open starts, owned by the process that asked,
-%% Timeout, or why it failed.
+%% Timeout, or why it failed. An accept without a time has no deadline,
+%% and the host waits for it without one.
 attempt(Transport, Try, Open, Deadline, Reply) ->
     Answer = case Try() of
                  {ok, Socket} ->
                      held_open(Open, Transport, Socket);
-                 {error, timeout} ->
+                 {error, timeout} when Deadline =/= none ->
                      case ern_rt:remaining(Deadline) of
                          0 -> {'Left', 'Timeout'};
                          _ -> again
@@ -611,7 +615,9 @@ end_source(Reply, Answer) ->
 %% accept does not hold up the next request, and ends at CloseListener,
 %% whose close of the socket answers each accept still waiting. E.0 shape
 %% rule 8: an accept given no time has run out as it begins, and takes no
-%% connection the host holds.
+%% connection the host holds. Report Appendix E.18: an AcceptForever is an
+%% accept without a time, its worker counted as a timed one's is, and the
+%% socket it opens has its own site, the function that opened it.
 listener_loop(Tcp, Transport, Socket, MonitorRef) ->
     receive
         {'Accept', Ms, _, Reply} when Ms =< 0 ->
@@ -619,7 +625,14 @@ listener_loop(Tcp, Transport, Socket, MonitorRef) ->
             listener_loop(Tcp, Transport, Socket, MonitorRef);
         {'Accept', Ms, Owner, Reply} ->
             counted_request(fun() ->
-                                accept(Tcp, Transport, Socket, ern_rt:deadline(Ms), Owner, Reply)
+                                accept(Tcp, Transport, Socket, ern_rt:deadline(Ms),
+                                       <<"Tcp.accept">>, Owner, Reply)
+                            end, Reply),
+            listener_loop(Tcp, Transport, Socket, MonitorRef);
+        {'AcceptForever', Owner, Reply} ->
+            counted_request(fun() ->
+                                accept(Tcp, Transport, Socket, none, <<"Tcp.acceptForever">>,
+                                       Owner, Reply)
                             end, Reply),
             listener_loop(Tcp, Transport, Socket, MonitorRef);
         {'Port', Reply} ->
@@ -659,23 +672,25 @@ port(ssl, Socket) ->
 %% over TLS, the accept is the host's ssl's before the handshake, which
 %% the socket runs (writer/4), so that a client slow to shake hands holds
 %% up no accept; the host's accept starts the connection's processes, and
-%% raises where it cannot (failed/2).
-accept(Tcp, gen_tcp, Socket, Deadline, Owner, Reply) ->
-    Open = fun(Accepted) ->
-               socket_process(Tcp, gen_tcp, Accepted, open, Owner, <<"Tcp.accept">>)
-           end,
-    attempt(gen_tcp, fun() -> accepted(gen_tcp:accept(Socket, ern_rt:remaining(Deadline))) end,
+%% raises where it cannot (failed/2). The socket is opened under Site,
+%% the function that opened it (§6.9).
+accept(Tcp, gen_tcp, Socket, Deadline, Site, Owner, Reply) ->
+    Open = fun(Accepted) -> socket_process(Tcp, gen_tcp, Accepted, open, Owner, Site) end,
+    attempt(gen_tcp, fun() -> accepted(gen_tcp:accept(Socket, host_wait(Deadline))) end,
             Open, Deadline, Reply);
-accept(Tcp, ssl, Socket, Deadline, Owner, Reply) ->
-    Open = fun(Accepted) ->
-               socket_process(Tcp, ssl, Accepted, handshaking, Owner, <<"Tcp.accept">>)
-           end,
+accept(Tcp, ssl, Socket, Deadline, Site, Owner, Reply) ->
+    Open = fun(Accepted) -> socket_process(Tcp, ssl, Accepted, handshaking, Owner, Site) end,
     Try = fun() ->
-              accepted(guarded(fun() ->
-                                   ssl:transport_accept(Socket, ern_rt:remaining(Deadline))
-                               end))
+              accepted(guarded(fun() -> ssl:transport_accept(Socket, host_wait(Deadline)) end))
           end,
     attempt(ssl, Try, Open, Deadline, Reply).
+
+%% The host's next wait towards the deadline, and for a request without a
+%% time the host's wait without a limit.
+host_wait(none) ->
+    infinity;
+host_wait(Deadline) ->
+    ern_rt:remaining(Deadline).
 
 %% Report Appendix E.18: an accept the listener's close answers is
 %% `Closed`. The host answers `closed` to an accept waiting when the close
@@ -756,8 +771,17 @@ handshake_failed(Failure, SocketProcess) ->
 socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
                         monitor_ref = MonitorRef, state = State} = Connection) ->
     receive
+        %% E.0 shape rule 8: a read given no time has run out as it begins,
+        %% whatever has arrived, and takes nothing
+        {'Read', Ms, Reply} when Ms =< 0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            socket_loop(Connection);
         {'Read', Ms, Reply} ->
-            socket_loop(read(Ms, Reply, Connection));
+            socket_loop(read(ern_rt:deadline(Ms), Reply, Connection));
+        %% report Appendix E.18: a read without a time, which waits with no
+        %% deadline
+        {'ReadForever', Reply} ->
+            socket_loop(read(none, Reply, Connection));
         %% E.0 shape rule 8: a write given no time has run out as it
         %% begins, and gives the host nothing
         {'Write', _, Ms, Reply} when Ms =< 0 ->
@@ -975,17 +999,14 @@ written(#connection{writes = [#write{timer = Timer} | Rest]} = Connection) ->
     Connection#connection{writes = Rest}.
 
 %% Report Appendix E.18: a read is answered the bytes no read has taken, or
-%% `Left(Closed)` once the connection has closed, or else waits, counted as
-%% a source, its caller watched, the host's socket asked for bytes when it
-%% is the first to wait on an open connection; one that waits for a
-%% handshake waits within its own milliseconds, and its `Left(Timeout)`
-%% leaves the handshake under way. E.0 shape rule 8: a read given no time
-%% has run out as it begins, whatever has arrived, and takes nothing.
-read(Ms, Reply, Connection) when Ms =< 0 ->
-    ern_rt:answer(Reply, {'Left', 'Timeout'}),
-    Connection;
-read(Ms, Reply, #connection{waiting = Waiting, buffer = Buffer,
-                            state = State} = Connection) ->
+%% `Left(Closed)` once the connection has closed, or else waits until its
+%% deadline, or without one, counted as a source, its caller watched, the
+%% host's socket asked for bytes when it is the first to wait on an open
+%% connection; one that waits for a handshake waits within its own
+%% milliseconds, or without a limit, and a `Left(Timeout)` leaves the
+%% handshake under way.
+read(Deadline, Reply, #connection{waiting = Waiting, buffer = Buffer,
+                                  state = State} = Connection) ->
     case {Buffer, State} of
         {<<>>, closed} ->
             ern_rt:answer(Reply, {'Left', 'Closed'}),
@@ -993,7 +1014,6 @@ read(Ms, Reply, #connection{waiting = Waiting, buffer = Buffer,
         {<<>>, _} ->
             ern_rt:source_begin(),
             MonitorRef = erlang:monitor(process, ern_rt:reply_process(Reply)),
-            Deadline = ern_rt:deadline(Ms),
             Read = #read{reply = Reply, monitor_ref = MonitorRef, deadline = Deadline,
                          timer = arm({read, MonitorRef}, Deadline)},
             Waiting =/= [] orelse asked(Connection),
@@ -1083,12 +1103,17 @@ dropped(MonitorRef, #connection{waiting = Waiting} = Connection) ->
     Connection#connection{waiting = Rest}.
 
 %% A request's timer, a read's by its caller's monitor and a write's by its
-%% reply, armed again until its deadline has passed (report §6.3).
+%% reply, armed again until its deadline has passed (report §6.3); a read
+%% without a time has none.
+arm(_, none) ->
+    none;
 arm(Kind, Deadline) ->
     erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {deadline, Kind}).
 
 %% Report Appendix E.18: a request answered holds no timer. One that fired
 %% as its request was answered finds the request gone, and does nothing.
+let_go(none) ->
+    ok;
 let_go(Timer) ->
     erlang:cancel_timer(Timer, [{async, true}, {info, false}]).
 

@@ -21,7 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 92**, a wait for a life that says so in its name.
+**The next item is MVP 4.16's item 95**, its two lines that do not wait on item 101: a move
+shown as done, and the tour's restart limit.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -66,19 +67,8 @@ there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the La
 **What is decided and waits for its build** stands first. Item 93 and item 95's
 first line are taken after item 101, decided with the user on 2026-11-19: each is a
 verdict on an order nobody promised, made before item 101's rule, which reads it again.
-Item 92 and item 95's other two lines keep their place.
+Item 95's other two lines keep their place.
 
-- **92. A wait for a life says so in its name**, decided with the user on 2026-11-17 (the
-  log's *Seven Entries of the Feedback*, feedback 255). `Tcp.acceptForever`,
-  `Tcp.readForever` and `Os.readForever` wait without a limit, as `Address.callForever`
-  does. A write, a connect and a file's call get no twin, since each is a request that must
-  be answered.
-
-  The report changes first: E.0 shape rule 8 with its list of the waits without a limit,
-  E.18 and E.23. An agent builds the three. `examples/shout.ern`, `examples/web_server.ern`
-  and `tools/flakes.ern` take them and lose their clause for a `Timeout`. The same build
-  names the time for a file once in `tools/site/run.ern`, `tools/manual.ern` and
-  `tools/site.ern`, as `tools/flakes.ern` does.
 - **93. A close answers once it is made**, decided with the user on 2026-11-17 (the log's
   *Seven Entries of the Feedback*, feedback 258). `Os.closeInput` and `Tcp.closeListener`
   are sends, and a caller that acts at once after one may act before it. The terminal
@@ -95,6 +85,17 @@ Item 92 and item 95's other two lines keep their place.
   E.18 and E.23 change first. An agent builds the two, each with a test that acts at once
   after the close, and the terminal harness's write of nothing goes. The build follows
   item 101, whose rule reads this verdict as one of its seven.
+
+  A second order joins it, found 2026-11-20 by item 92's reading (the log's *A Wait for a
+  Life, Built*). `closeListener` answers an accept the listener holds with `Left(Closed)`
+  through the accept's worker, and the caller's watch of the listener, which ends at once,
+  faults it with `callee was closed`; nothing orders the two. A probe met the fault in
+  about 30 of 20,000 rounds where the close came twenty calls after the accept, and in
+  none two hundred calls after, and cannot tell a call taken from one still in the
+  mailbox. The build shows first whether an accept the listener has taken can meet the
+  fault. Where it can, the listener ends only once each accept it holds is answered. It
+  rides with this item's build, which changes how the listener ends; alone it would be
+  MVP 4.5's, since no program has shown E.18's sentence false.
 - **95. A shell session that shows more than the report promises**, decided with the user
   on 2026-11-17 (the log's *The Outside Reviews Read*, its paragraph *Three shell
   sessions*). The session writes it, and it closes on `make test`.
@@ -125,6 +126,9 @@ session's two lines on a close, follows it, and three of that session's tests wa
   the list of lapses. The plan is not sorted anew for it. An item is asked that file's
   question, whether a first user meets it, when it comes up to be worked, and one that
   only a built corner shows moves to MVP 4.5 on the user's word.
+
+  The milestone does not wait on it: where its other items close before that date, this
+  one moves to MVP 4.17 under its number.
 
   Decided with the user on 2026-11-19, for that day: `CLAUDE.md`'s rule on the test runs
   becomes one, `make test-full` before the commit that closes an item that changed code,
@@ -316,6 +320,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 150 | A check is found by its address and the hash of the type the address crossed at, so an address gets one check however its type is written, inside another type or from two modules, and comes back as the program's own; one check at each type, and a bad message's cause names the type as the module whose crossing made the check prints it, with the user | 2026-11-20 | §6.4, §8.4, §8.7, §12.3, Appendix H; *One Check by the Type's Hash* |
 | 152 | §8.4 says what the boundary trusts at a type variable: what foreign code gives there, where it gives back an address or a function that crossed at a type that holds one, that a value at one crosses as it is and is only handed on, and a call's answer at a variable; three holes each shown by a probe, no code changed, with the user | 2026-11-20 | §8.4, §8.7, Appendix H; *What the Boundary Trusts at a Type Variable* |
 | 137 | Three corners of a diagnostic: a literal against an annotation is reported whole, as built, and §11.5 says an element after the first; a type in parentheses spans its parentheses; a result annotation that ends in a `receiving` is labeled as the result type's, and its help writes the function's mailbox type after the result type in parentheses, with the user | 2026-11-20 | §11.5; *Three Corners of a Diagnostic* |
+| 92 | `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever` wait without a limit, each its twin without a time and without `Left(Timeout)`; a socket `acceptForever` opens has its own site; the examples, the flake hunt, two fixtures and the guide's §8.7 take them, and three tools name a file's time once, with the user | 2026-11-20 | Appendix E.0, E.18, E.23; *A Wait for a Life, Built* |
 
 ---
 

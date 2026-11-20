@@ -77,15 +77,13 @@ fn store(counts : Map(SessionId, Int)) : Unit receiving SessionMsg =
 
 // The acceptor: one handler process per connection.
 fn acceptor(sessions : Address(SessionMsg), listener : Address(Tcp.ListenerMsg)) : Unit =
-    match Tcp.accept(listener, 60000) {
+    match Tcp.acceptForever(listener) {
         Right(socket) -> {
             // the handler owns its connection, which ends with it
             let handler = spawn(fn() = handle(sessions, socket));
             Tcp.give(socket, Process.fromAddress(handler));
             acceptor(sessions, listener)
         }
-      | Left(Io.Timeout) ->
-            acceptor(sessions, listener)
       | Left(error) ->
             Io.println("cannot accept: " <> errorText(error))
     }

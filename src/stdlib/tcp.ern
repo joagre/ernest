@@ -1,13 +1,14 @@
 /// TCP connections: listening for them, making them, and moving their bytes.
 ///
-/// Use `listen` and `accept` to serve connections, and `connect` to make one;
-/// `listenTls` and `connectTls` listen and connect over TLS. `read` and `write`
-/// move bytes over a connection, and `close` ends it, over TLS or not. A
-/// connection carries bytes, and a program frames its messages with bitstrings
-/// (report §5.11); there are no socket options.
+/// Use `listen` and `accept` or `acceptForever` to serve connections, and
+/// `connect` to make one; `listenTls` and `connectTls` listen and connect over
+/// TLS. `read`, `readForever` and `write` move bytes over a connection, and
+/// `close` ends it, over TLS or not. A connection carries bytes, and a program
+/// frames its messages with bitstrings (report §5.11); there are no socket
+/// options.
 ///
-/// **A socket is a process.** `accept`, `connect` and `connectTls` answer a
-/// socket's address.
+/// **A socket is a process.** `accept`, `acceptForever`, `connect` and
+/// `connectTls` answer a socket's address.
 /// It can be sent in a message and killed like any other, and
 /// `monitor(Process.fromAddress(socket), wrap)` tells when it ends. A listener
 /// is a process too.
@@ -28,15 +29,16 @@
 /// faults.
 ///
 /// **A wait that times out takes nothing.** The last argument of a function
-/// that waits is the milliseconds it waits. A read, an accept or a connect that
-/// times out has taken nothing, so bytes that arrive later wait for the next
-/// read (report Appendix E.18).
+/// that waits is the milliseconds it waits, but for `acceptForever` and
+/// `readForever`, which are `accept` and `read` without a time and wait without
+/// a limit. A read, an accept or a connect that times out has taken nothing, so
+/// bytes that arrive later wait for the next read (report Appendix E.18).
 ///
 /// **TLS.** A listener over TLS serves a certificate and its key, files in PEM.
-/// A socket `accept` answers on it shakes hands as it is first read or written,
-/// and one `connectTls` answers has shaken hands, the far end's certificate
-/// checked where `Verified` asks it. The versions and the ciphers are the
-/// host's own, TLS 1.2 and 1.3 (report Appendix E.18).
+/// A socket `accept` or `acceptForever` answers on it shakes hands as it is
+/// first read or written, and one `connectTls` answers has shaken hands, the
+/// far end's certificate checked where `Verified` asks it. The versions and the
+/// ciphers are the host's own, TLS 1.2 and 1.3 (report Appendix E.18).
 ///
 /// ## Examples
 ///
@@ -76,12 +78,13 @@
 /// since 0.1.0
 
 /// What a listener's process takes. Its constructors are hidden, so a program
-/// uses `Tcp.accept`, `Tcp.port` and `Tcp.closeListener` on it (report Appendix
-/// E.18).
+/// uses `Tcp.accept`, `Tcp.acceptForever`, `Tcp.port` and `Tcp.closeListener`
+/// on it (report Appendix E.18).
 ///
 /// ### Examples
 ///
-/// A listener's address, which `accept`, `port` and `closeListener` take:
+/// A listener's address, which `accept`, `acceptForever`, `port` and
+/// `closeListener` take:
 ///
 /// ```ernest
 /// {
@@ -93,17 +96,18 @@
 /// ```
 export abstract type ListenerMsg =
     Accept(ms : Int, owner : Process, reply : Reply(Either(Io.Error, Address(SocketMsg))))
+  | AcceptForever(owner : Process, reply : Reply(Either(Io.Error, Address(SocketMsg))))
   | Port(Reply(Either(Io.Error, Int)))
   | CloseListener
 
 /// What a connected socket's process takes. Its constructors are hidden, so a
-/// program uses `Tcp.read`, `Tcp.write`, `Tcp.close`, `Tcp.give`, `Tcp.remote`
-/// and `Tcp.local` on it (report Appendix E.18).
+/// program uses `Tcp.read`, `Tcp.readForever`, `Tcp.write`, `Tcp.close`,
+/// `Tcp.give`, `Tcp.remote` and `Tcp.local` on it (report Appendix E.18).
 ///
 /// ### Examples
 ///
-/// A socket's address, which `read`, `write`, `close`, `give`, `remote` and
-/// `local` take:
+/// A socket's address, which `read`, `readForever`, `write`, `close`, `give`,
+/// `remote` and `local` take:
 ///
 /// ```ernest
 /// Tcp.connect("127.0.0.1", 7000, 1000)
@@ -112,6 +116,7 @@ export abstract type ListenerMsg =
 /// since 0.2.0
 export abstract type SocketMsg =
     Read(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
+  | ReadForever(Reply(Either(Io.Error, Bytes)))
   | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | Close
   | Give(owner : Process)
@@ -260,6 +265,42 @@ export fn accept(listener : Address(ListenerMsg),
     callLimited(listener, fn(reply) = Accept(=ms, =owner, =reply))
 }
 
+/// Waits without a limit for the next connection to the listener, and answers
+/// its socket, which belongs to the caller, as `accept` does without a time. It
+/// answers `Left(Closed)` where the listener is closed while it waits. An
+/// accept whose caller has ended takes its connection, whose socket is killed
+/// at once. On a listener over TLS the socket is answered before its
+/// handshake, which its first read or write waits for.
+///
+/// ### Errors
+///
+/// Faults where the listener has ended, as `accept` does: with the cause
+/// `callee had ended`, or `callee was closed` where `closeListener` ended it as
+/// the call was made.
+///
+/// ### Examples
+///
+/// A connection made before the accept, which it answers:
+///
+/// ```ernest
+/// {
+///     let listener <- Tcp.listen("127.0.0.1", 0);
+///     let port <- Tcp.port(listener);
+///     let client <- Tcp.connect("127.0.0.1", port, 1000);
+///     let accepted = Tcp.acceptForever(listener);
+///     Tcp.close(client);
+///     Tcp.closeListener(listener);
+///     Either.map(accepted, Tcp.close)
+/// }
+/// // => Right(Unit)
+/// ```
+///
+/// since 0.11.0
+export fn acceptForever(listener : Address(ListenerMsg)) : Either(Io.Error, Address(SocketMsg)) = {
+    let owner = Process.current();
+    Address.callForever(listener, fn(reply) = AcceptForever(=owner, =reply))
+}
+
 /// Connects to `port` on `host`, within `ms` milliseconds, and answers the
 /// socket, which belongs to the caller. `host` is an address or a name, as
 /// `listen` takes it.
@@ -280,12 +321,13 @@ export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Addres
 /// file of the server's certificate, its chain after it, and `key` the file of
 /// its key, both in PEM, which the host reads as the listener opens.
 ///
-/// A socket `accept` answers on the listener shakes hands as it is first read
-/// or written, within that read's or write's milliseconds: one that times out
-/// leaves the handshake under way. A handshake that fails closes the
-/// connection: the read or write waiting answers `Left(Other(text))`, in the
-/// host's words, and each later one `Left(Closed)`. A handshake the far end
-/// closes before it is done answers `Left(Closed)`.
+/// A socket `accept` or `acceptForever` answers on the listener shakes hands as
+/// it is first read or written, within that read's or write's milliseconds, or
+/// without a limit for a `readForever`: one that times out leaves the handshake
+/// under way. A handshake that fails closes the connection: the read or write
+/// waiting answers `Left(Other(text))`, in the host's words, and each later one
+/// `Left(Closed)`. A handshake the far end closes before it is done answers
+/// `Left(Closed)`.
 ///
 /// For a file it cannot read or refuses it answers `Left(Other(text))`, the
 /// file's name and what is wrong on one line: for one it cannot read, what `Fs`
@@ -375,6 +417,44 @@ export fn connectTls(host : String,
 /// the call was made.
 export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) =
     callLimited(socket, fn(reply) = Read(=ms, =reply))
+
+/// Waits without a limit for bytes from the connection, and answers what has
+/// arrived, at least one byte, as `read` does without a time. It answers
+/// `Left(Closed)` once the connection has closed and all that came before is
+/// read. A read whose caller has ended before it is answered is dropped, and
+/// what arrives waits for the next read. On a socket over TLS that `accept` or
+/// `acceptForever` answered, it waits for the handshake without a limit.
+///
+/// ### Errors
+///
+/// Faults where the socket has ended, as `read` does: with the cause `callee
+/// had ended`, or `callee was closed` where `close` ended it as the call was
+/// made.
+///
+/// ### Examples
+///
+/// What the far end wrote before it closed the connection, and then the close:
+///
+/// ```ernest
+/// {
+///     let listener <- Tcp.listen("127.0.0.1", 0);
+///     let port <- Tcp.port(listener);
+///     let client <- Tcp.connect("127.0.0.1", port, 1000);
+///     let socket <- Tcp.acceptForever(listener);
+///     Tcp.closeListener(listener);
+///     let _ <- Tcp.write(client, String.toUtf8("bye"), 1000);
+///     Tcp.close(client);
+///     let first = Tcp.readForever(socket);
+///     let last = Tcp.readForever(socket);
+///     Tcp.close(socket);
+///     Right(#(first, last))
+/// }
+/// // => Right(#(Right(<<98, 121, 101>>), Left(Io.Closed)))
+/// ```
+///
+/// since 0.11.0
+export fn readForever(socket : Address(SocketMsg)) : Either(Io.Error, Bytes) =
+    Address.callForever(socket, ReadForever)
 
 /// Writes `bytes` to the connection by the host's send, and answers
 /// `Right(Unit)` once the host has taken them, at most `ms` milliseconds. The

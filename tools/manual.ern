@@ -9,6 +9,9 @@
 // and it writes the page to standard output.
 //
 
+// A file's time, as the other tools give theirs.
+let fileMs : Int = 10000
+
 export fn main() : Unit =
     match Os.arguments {
         [report, version, pages] ->
@@ -23,11 +26,11 @@ export fn main() : Unit =
 // The page's lines, or why there are none.
 fn manual(report : String, version : String, pages : String) : Either(String, List(String)) = {
     let bytes <-
-        Either.mapLeft(Fs.read(Path(report), 10000),
+        Either.mapLeft(Fs.read(Path(report), fileMs),
                        fn(error) = "cannot read " <> report <> ": " <> Io.show(error));
     let text <- Either.fromOptional(String.fromUtf8(bytes), report <> " is not UTF-8");
     let entries <-
-        Either.mapLeft(Fs.list(Path(pages), 10000),
+        Either.mapLeft(Fs.list(Path(pages), fileMs),
                        fn(error) = "cannot list " <> pages <> ": " <> Io.show(error));
     let section <-
         Either.fromOptional(toolchain(Markdown.parse(text)),

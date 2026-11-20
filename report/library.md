@@ -219,7 +219,7 @@ Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 1
 
    `Timeout` is `Io.Error`'s, and a function that answers it answers `Either(Io.Error, a)`. A call, whose one failure is no answer, answers `None` (§6.6).
 
-   `Address.callForever`, `Process.run` and `Test.faults` are the waits on another party without a limit: `callForever` says so in its name, `Process.run` waits as a direct call of its `f` would (E.21), and `Test.faults` waits as `Process.run` does (E.24).
+   `Address.callForever`, `Tcp.acceptForever`, `Tcp.readForever`, `Os.readForever`, `Process.run` and `Test.faults` are the waits on another party without a limit: a function named `Forever` says so in its name, `Process.run` waits as a direct call of its `f` would (E.21), and `Test.faults` waits as `Process.run` does (E.24). A write, a connect and a request of a file have no such form.
 
    One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is none, and a wait given none has run out as it begins, answering `Left(Timeout)` before any other answer, the host given nothing, or a call `None` (§6.6), but where its section orders its answers otherwise (E.27).
 9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.toString`, is not such a choice.
@@ -676,7 +676,7 @@ A socket is a process: its address can be sent like any other, and its process k
 
 `listenTls` and `connectTls` open a listener and a socket over TLS, by the host's `ssl`, and answer the addresses `listen` and `connect` answer: one set of functions accepts, reads, writes, gives and closes, over TLS or not. `listenTls` takes the server's certificate and its key, each a file in PEM, the certificate's file holding its chain after it, and answers for a file it cannot read or refuses `Left(Other(text))`, the file's name and what is wrong on one line: for one it cannot read, the answer `Fs` gives for the path (E.17), `cert.pem: NotFound`, `cert.pem: Denied` or `cert.pem: NotAFile`, and for one it refuses, `cert.pem: no certificate`, `key.pem: not one key`, `key.pem: not a key`; a key that is not the certificate's is not refused there, and fails each handshake.
 
-A socket `accept` answers on such a listener is accepted before its handshake, which runs in the socket's own process: the first `read` or `write` waits for it within its own milliseconds, a `Left(Timeout)` leaving the handshake under way, and a handshake that fails closes the connection, the read or write waiting answering `Left(Other(text))`, the host's reason, and later ones `Left(Closed)`; a handshake the far end closes before it is done answers `Left(Closed)`.
+A socket `accept` answers on such a listener is accepted before its handshake, which runs in the socket's own process: the first `read` or `write` waits for it within its own milliseconds, a `Left(Timeout)` leaving the handshake under way, and a handshake that fails closes the connection, the read or write waiting answering `Left(Other(text))`, the host's reason, and later ones `Left(Closed)`; a handshake the far end closes before it is done answers `Left(Closed)`. A `readForever` waits for the handshake without a limit.
 
 `connectTls` answers once its handshake is done, within its milliseconds, or the `Left` the handshake failed with, `Other(text)`; a file of certificates it cannot read or refuses answers as `listenTls`'s files do, read before the dial, so that its answer comes whatever the far end does.
 
@@ -690,7 +690,7 @@ With `Verified(caFile)` the far end's certificate is checked against the certifi
 
 The host's process of a connection over TLS hibernates after a millisecond's wait, by the host's own `hibernate_after`.
 
-The site of a listener is `Tcp.listen` or `Tcp.listenTls`, and of a socket `Tcp.accept`, `Tcp.connect` or `Tcp.connectTls`, the function that opened it (§6.9), with no line. It is owned by the process that opened it, the caller of `listen`, `listenTls`, `accept`, `connect` or `connectTls`, and `give(socket, process)` makes another a socket's owner. It lives until `Tcp.close`, until it is killed, until its owner dies, which kills it as a running program's is killed (Appendix E.23), or until the program ends; a socket given to a process that has ended is killed at once, and a restart is no death (§6.9). After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`, and so do `remote` and `local`.
+The site of a listener is `Tcp.listen` or `Tcp.listenTls`, and of a socket `Tcp.accept`, `Tcp.acceptForever`, `Tcp.connect` or `Tcp.connectTls`, the function that opened it (§6.9), with no line. It is owned by the process that opened it, the caller of `listen`, `listenTls`, `accept`, `acceptForever`, `connect` or `connectTls`, and `give(socket, process)` makes another a socket's owner. It lives until `Tcp.close`, until it is killed, until its owner dies, which kills it as a running program's is killed (Appendix E.23), or until the program ends; a socket given to a process that has ended is killed at once, and a restart is no death (§6.9). After its connection closes, from either end or by a failure, each `Tcp.read` answers `Left(Closed)`, and so do `remote` and `local`.
 
 A listener lives until `Tcp.closeListener`, until it is killed, until its owner dies, or until the program ends; closing it answers an `accept` waiting on it with `Left(Closed)`. A listener takes a port where connections that an earlier listener accepted are still closing, the host's `SO_REUSEADDR`. A listener takes connections of its address's family alone, `"::"` IPv6's and never an IPv4 connection as `::ffff:a.b.c.d`, a name's the family of the first address the host resolves it to, so a listener on `"0.0.0.0"` and one on `"::"` stand on one port together, and a program that serves both families opens both; a listen on an IPv4-mapped address, `::ffff:a.b.c.d`, answers `Left(Invalid)`.
 
@@ -716,6 +716,8 @@ What had arrived before the far end closed is read before a read answers `Left(C
 
 A `Left(Timeout)` does not undo the write: the bytes may still be sent, after those written before. A write after the connection has closed, from either end or by a failure, answers `Left(Closed)`, and one the host refuses for another reason answers `Left(Other(text))`, the host's reason.
 
+`acceptForever(listener)` and `readForever(socket)` are `accept` and `read` without a time: each waits without a limit, and answers and faults as the other does, but for `Left(Timeout)`.
+
 A read, a write, an accept or a connect given no time answers `Left(Timeout)` before any other answer, the host given nothing (E.0 shape rule 8). On a socket or a listener that has ended, a read, a write or an accept faults all the same, as above. A port outside 0 to 65535, and a host or a path that holds U+0000, which names none, answer `Left(Invalid)`. A request the table of processes leaves no room to serve, but a run's first over TLS (above), answers as §12.5 says.
 
 A read, an accept, or a connect that times out has taken nothing: the host still takes the next piece to arrive, which waits in the socket's process for the next read, and a connection that completes later is closed. A read whose caller has ended before it is answered is dropped the same way, its bytes waiting for the next read; an accept whose caller has ended takes its connection, whose socket is killed at once, as one given to a process that has ended is. There are no options.
@@ -728,10 +730,12 @@ type Verification = Verified(Path) | Unverified // whether connectTls checks the
 Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) // host, port: the interface the host's name or address names, `"127.0.0.1"` the loopback alone and `"0.0.0.0"` or `"::"` every one of its family; port 0 asks the system for a free one
 Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) // the port it listens on
 Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg))
+Tcp.acceptForever : (Address(ListenerMsg)) -> Either(Io.Error, Address(SocketMsg)) // accept without a limit
 Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) // host, port; Left(Refused) where the far end refuses the connection
 Tcp.listenTls : (String, Int, Path, Path) -> Either(Io.Error, Address(ListenerMsg)) // host, port, the certificate's file and the key's, in PEM; Left(Other(text)) where it cannot read or refuses either
 Tcp.connectTls : (String, Int, Verification, Int) -> Either(Io.Error, Address(SocketMsg)) // host, port, the check of the far end's certificate; answers once the handshake is done
 Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) // one piece of what has arrived, at least one byte
+Tcp.readForever : (Address(SocketMsg)) -> Either(Io.Error, Bytes) // read without a limit
 Tcp.write : (Address(SocketMsg), Bytes, Int) -> Either(Io.Error, Unit)
 Tcp.close : (Address(SocketMsg)) -> Unit
 Tcp.give : (Address(SocketMsg), Process) -> Unit // makes the process the socket's owner
@@ -852,7 +856,7 @@ Supervisor.child : (Address(GroupMsg), () -> Unit receiving m) -> () -> Unit rec
 
 ### Appendix E.23. `os.ern` (namespace `Os`)
 
-Over Os's system reference (§8.2). The primitives are `start` and `startTerminal`, which reach Os's process, `exit`, which ends the program through the host, `termination`, which subscribes to the program's end, and `arguments`, `user`, `workingDirectory` and `environment`, bound from what the host gives at start, and `callLimited`, a call private to the module (E.0 rule 1). That call has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21). `read` and `write` are Ernest over it, and `resize`, `signal`, `closeInput` and `give` over the prelude's sends and calls, to a running program's process, `run` over `start`, `closeInput`, `read` and `kill`, and `command` a construction (§5.6).
+Over Os's system reference (§8.2). The primitives are `start` and `startTerminal`, which reach Os's process, `exit`, which ends the program through the host, `termination`, which subscribes to the program's end, and `arguments`, `user`, `workingDirectory` and `environment`, bound from what the host gives at start, and `callLimited`, a call private to the module (E.0 rule 1). That call has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21). `read` and `write` are Ernest over it, and `readForever`, `resize`, `signal`, `closeInput` and `give` over the prelude's sends and calls, to a running program's process, `run` over `start`, `closeInput`, `read` and `kill`, and `command` a construction (§5.6).
 
 `command(program, arguments)` is the command of a program and its arguments alone: empty input, no variable set and `Os.workingDirectory`. A command with input, with a variable set or in another directory updates it (§5.6): `Os.Command(..Os.command("sh", arguments), environment = [#("LANG", "C")])`.
 
@@ -877,6 +881,8 @@ An echo comes among what the program writes, so the echo of a line written while
 `read(program, ms)` answers the next piece of what the program wrote, `Stdout(bytes)` or `Stderr(bytes)`, in the order the host delivered them, and last `Exited(status)`, once the program has exited and its standard output and standard error have both ended. The host takes the program's output only while a read waits, so a program that no one reads waits on its output. A read whose caller has ended before it is answered is dropped, and what it would have taken is the next read's. A status other than 0 is answered as `Exited(status)`, not as a `Left`; a program ended by a signal has 128 plus the signal's number as its status.
 
 When `ms` milliseconds pass first, `read` answers `Left(Timeout)`, the program running on, and what it writes meanwhile is the next read's; a read or a write given no time answers `Left(Timeout)` before any other answer, whatever the program's state (E.0 shape rule 8). On a program whose process has ended it faults all the same, as below.
+
+`readForever(program)` is `read` without a time: it waits without a limit, and answers and faults as `read` does, but for `Left(Timeout)`.
 
 A program ends by its own exit, by a signal `signal` sends that it does not handle, or by `kill`, and has no `close`. A program is killed when its process is killed. Its process is owned by the process that called `start` or `startTerminal`, and `give(program, process)` makes another its owner; it is killed when its owner dies, a program given to a process that has ended at once, and a restart is no death (§6.9). The processes the program started that are still in its process group are killed with it. Its process lives on after the program has exited, as a socket's does after its connection closes (Appendix E.18), until it is killed, until its owner dies or until the Ernest program ends, and each `read` after the one that answered `Exited(status)` answers `Exited(status)` again.
 
@@ -911,6 +917,7 @@ Os.start : (Command) -> Either(Io.Error, Address(ProgramMsg))
 Os.startTerminal : (Command, Terminal.Size) -> Either(Io.Error, Address(ProgramMsg)) // under a pseudo-terminal of the size, in the host's ordinary mode
 Os.resize : (Address(ProgramMsg), Terminal.Size) -> Either(Io.Error, Unit) // the terminal's new size, its foreground told; Left(NotATerminal) on a program start started
 Os.read : (Address(ProgramMsg), Int) -> Either(Io.Error, Output)
+Os.readForever : (Address(ProgramMsg)) -> Either(Io.Error, Output) // read without a limit
 Os.write : (Address(ProgramMsg), Bytes, Int) -> Either(Io.Error, Unit)
 Os.signal : (Address(ProgramMsg), Signal) -> Either(Io.Error, Unit) // sent to the program alone; Left(Closed) once it has exited
 Os.closeInput : (Address(ProgramMsg)) -> Unit

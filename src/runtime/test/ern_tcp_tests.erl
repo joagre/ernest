@@ -291,13 +291,15 @@ close_listener_test() ->
 %% Appendix E.18, report §12: at the operating system's limit of open
 %% files an accept with no connection waiting answers the host's refusal,
 %% `Left(Other("too many open files"))`, at once, since the host takes the
-%% descriptor before it waits for a connection; and a connection that comes
+%% descriptor before it waits for a connection, and so does an
+%% `acceptForever`, which waits without a limit; and a connection that comes
 %% meanwhile waits in the listener's backlog for a later accept, which
 %% takes it once closed listeners have freed files. The program runs in a
 %% host of its own under `ulimit -n`, at_the_file_limit/0, and this host is
 %% its client. A regression test, written after the sentence, whose probe
-%% found the host answering so; it does not cover a listener over TLS, nor
-%% the system's own limit of files, `enfile`
+%% found the host answering so, its `acceptForever` written with the
+%% function; it does not cover a listener over TLS, nor the system's own
+%% limit of files, `enfile`
 accept_at_the_file_limit_test_() ->
     {timeout, 60, fun accept_at_the_file_limit/0}.
 
@@ -317,6 +319,7 @@ accept_at_the_file_limit() ->
     ok = gen_tcp:send(Socket, <<"x">>),
     true = port_command(Host, "connected\n"),
     _ = said(Host, <<"accept: {'Left',{'Other',<<\"too many open files\">>}}">>),
+    _ = said(Host, <<"forever: {'Left',{'Other',<<\"too many open files\">>}}">>),
     <<"took: ", Took/binary>> = said(Host, <<"took: ">>),
     _ = said(Host, <<"later: {'Right',<<\"x\">>}">>),
     Status = receive {Host, {exit_status, Exit}} -> Exit after 20000 -> none end,
@@ -348,12 +351,13 @@ rest(Host) ->
 
 %% The program of accept_at_the_file_limit/0, in the host under the limit:
 %% a door's port said; its listeners opened until one is refused; an accept
-%% at the door, with 2000 ms and nobody connecting, timed; and once the
-%% client has connected, three listeners closed and ended, and the door's
-%% next accept taking the connection and reading its byte. The host loads
-%% what the run's side calls first, as `ern run` does (report §12), since
-%% the limit refuses the file a module is loaded from; the lines of what
-%% was answered are written after the closes for the same reason.
+%% at the door, with 2000 ms and nobody connecting, timed, and one without
+%% a time after it; and once the client has connected, three listeners
+%% closed and ended, and the door's next accept taking the connection and
+%% reading its byte. The host loads what the run's side calls first, as
+%% `ern run` does (report §12), since the limit refuses the file a module
+%% is loaded from; the lines of what was answered are written after the
+%% closes for the same reason.
 -spec at_the_file_limit() -> ok.
 at_the_file_limit() ->
     ok = ern_code:load_runtime(),
@@ -367,13 +371,14 @@ at_the_file_limit() ->
                Start = erlang:monotonic_time(millisecond),
                Refused = accept(Door, 2000),
                Took = erlang:monotonic_time(millisecond) - Start,
+               Forever = accept_forever(Door),
                io:format("filled~n"),
                "connected\n" = io:get_line(""),
                [First, Second, Third | _] = Listeners,
                lists:foreach(fun closed/1, [First, Second, Third]),
                {'Right', Socket} = accept(Door, 5000),
-               io:format("accept: ~0p~ntook: ~p~nlater: ~0p~n",
-                         [Refused, Took, read(Socket, 5000)])
+               io:format("accept: ~0p~nforever: ~0p~ntook: ~p~nlater: ~0p~n",
+                         [Refused, Forever, Took, read(Socket, 5000)])
            end, <<"main">>, quiet()).
 
 %% Listeners opened until the host refuses one, each kept, so that the
@@ -410,6 +415,173 @@ accept_meets_the_close_test() ->
                receive {down, Down} -> Self ! {down, Down} end
            end, <<"main">>, quiet()),
     ?assertMatch({'Down', _, {'Fault', <<"callee was closed">>}, _}, wait(down)).
+
+%% Appendix E.18: `acceptForever` and `readForever` are `accept` and `read`
+%% without a time. An accept that waits answers the connection made after
+%% it began, and a read that waits the bytes written after it began; once
+%% the far end has closed, each read answers `Left(Closed)`. The far end is
+%% this host's, outside the run, and acts once the run's process waits: on
+%% the listener once it calls, and on the socket once the socket watches it.
+%% Written with the requests
+forever_waits_answer_what_comes_later_test() ->
+    Self = self(),
+    FarEnd = spawn(fun() ->
+                       receive {accepting, Main, Port} -> ok end,
+                       ok = ern_waits:calling(Main),
+                       {ok, Connection} = gen_tcp:connect("127.0.0.1", Port,
+                                                          [binary, {active, false}]),
+                       receive {reading, Socket} -> ok end,
+                       ok = ern_waits:watching(ern_rt:process_of(Socket), Main),
+                       ok = gen_tcp:send(Connection, <<"x">>),
+                       receive close -> gen_tcp:close(Connection) end
+                   end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               {'Right', Port} = port(Listener),
+               FarEnd ! {accepting, self(), Port},
+               {'Right', Socket} = accept_forever(Listener),
+               FarEnd ! {reading, Socket},
+               Bytes = read_forever(Socket),
+               FarEnd ! close,
+               Self ! {reads, [Bytes, read_forever(Socket), read_forever(Socket)]}
+           end, <<"main">>, quiet()),
+    ?assertEqual([{'Right', <<"x">>}, {'Left', 'Closed'}, {'Left', 'Closed'}], wait(reads)).
+
+%% Appendix E.18: `closeListener` answers an `acceptForever` waiting on the
+%% listener with `Left(Closed)`, and `close` a `readForever` waiting on the
+%% socket, as they answer `accept` and `read`. The close is sent once the
+%% accept's caller calls, and once the socket watches the read's. Written
+%% with the requests
+close_answers_the_waits_without_a_time_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, FarPort} = inet:port(Listen),
+    Peer = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               Acceptor = ern_rt:spawn_monitored(fun() -> Self ! {accept, accept_forever(Listener)}
+                                                 end, fun(Down) -> {ended, Down} end,
+                                                 <<"acceptor">>),
+               ok = ern_waits:calling(ern_rt:process_of(Acceptor)),
+               ern_rt:send(Listener, 'CloseListener'),
+               {'Right', Socket} = connect(FarPort, 2000),
+               Reader = ern_rt:spawn_monitored(fun() -> Self ! {read, read_forever(Socket)} end,
+                                               fun(Down) -> {ended, Down} end, <<"reader">>),
+               ok = ern_waits:watching(ern_rt:process_of(Socket), ern_rt:process_of(Reader)),
+               ern_rt:send(Socket, 'Close'),
+               [receive {ended, _} -> ok end || _ <- [Acceptor, Reader]]
+           end, <<"main">>, quiet()),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    ?assertEqual({'Left', 'Closed'}, wait(accept)),
+    ?assertEqual({'Left', 'Closed'}, wait(read)).
+
+%% report §6.6, Appendix E.18: an `acceptForever` and a `readForever` fault
+%% as `accept` and `read` do on a listener or a socket that has ended: with
+%% `callee was closed` where the close ends it while the call waits in its
+%% mailbox, and with `callee had ended` where it had ended before. Each is
+%% held still until both the close and the call wait in its mailbox.
+%% Written with the requests
+waits_without_a_time_meet_the_close_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, FarPort} = inet:port(Listen),
+    Peer = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               Self ! {listener, met_the_close(Listener, 'CloseListener', fun accept_forever/1)},
+               {'Right', Socket} = connect(FarPort, 2000),
+               Self ! {socket, met_the_close(Socket, 'Close', fun read_forever/1)}
+           end, <<"main">>, quiet()),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    [?assertMatch({{'Down', _, {'Fault', <<"callee was closed">>}, _},
+                   {'Down', _, {'Fault', <<"callee had ended">>}, _}}, wait(Tag))
+     || Tag <- [listener, socket]].
+
+%% How a caller of Call on Address ends where Close ends it while the call
+%% waits in its mailbox, and how a caller after it ends.
+met_the_close(Address, Close, Call) ->
+    Pid = ern_rt:process_of(Address),
+    erlang:suspend_process(Pid),
+    ern_rt:send(Address, Close),
+    Caller = ern_rt:spawn_monitored(fun() -> Call(Address) end, fun(Down) -> {down, Down} end,
+                                    <<"caller">>),
+    ok = ern_waits:calling(ern_rt:process_of(Caller)),
+    erlang:resume_process(Pid),
+    First = receive {down, Down} -> Down end,
+    _ = ern_rt:spawn_monitored(fun() -> Call(Address) end, fun(Later) -> {later, Later} end,
+                               <<"caller">>),
+    {First, receive {later, Later} -> Later end}.
+
+%% Appendix E.18: an `acceptForever` whose caller has ended takes its
+%% connection, whose socket is killed at once, as an `accept`'s is: the
+%% client finds its connection closed, and the next accept takes the next
+%% connection. The caller is killed once it calls. Written with the
+%% requests; an `accept` with a time, which takes the same way, is not
+%% covered
+accept_forever_of_an_ended_caller_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               {'Right', Port} = port(Listener),
+               Acceptor = ern_rt:spawn_monitored(fun() -> accept_forever(Listener) end,
+                                                 fun(Down) -> {acceptor, Down} end,
+                                                 <<"acceptor">>),
+               ok = ern_waits:calling(ern_rt:process_of(Acceptor)),
+               ern_rt:kill(Acceptor),
+               receive {acceptor, _} -> ok end,
+               %% waits in the host's code, the look's foreign code
+               {ok, First} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               Taken = gen_tcp:recv(First, 0, 5000),
+               {ok, Second} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               ok = gen_tcp:send(Second, <<"x">>),
+               {'Right', Socket} = accept_forever(Listener),
+               Self ! {accepts, {Taken, read_forever(Socket)}},
+               gen_tcp:close(First),
+               gen_tcp:close(Second)
+           end, <<"main">>, quiet()),
+    ?assertEqual({{error, closed}, {'Right', <<"x">>}}, wait(accepts)).
+
+%% Appendix E.18, report §8.6: a `readForever` whose caller has ended before
+%% it is answered is dropped as a `read` is, the bytes that arrive after it
+%% the next read's, and its count as a source ends with it, so that the
+%% program is found deadlocked after. Written with the requests, as
+%% read_of_an_ended_caller_dropped_test is
+read_forever_of_an_ended_caller_dropped_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    Peer = spawn(fun() ->
+                     {ok, Connection} = gen_tcp:accept(Listen),
+                     receive go -> ok end,
+                     ok = gen_tcp:send(Connection, <<"x">>),
+                     receive done -> gen_tcp:close(Connection) end
+                 end),
+    Result = ern_rt:run_main(
+               fun() ->
+                   {'Right', Socket} = connect(Port, 2000),
+                   Reader = ern_rt:spawn_monitored(fun() -> read_forever(Socket) end,
+                                                   fun(Down) -> {reader, Down} end,
+                                                   <<"reader">>),
+                   Pid = ern_rt:process_of(Reader),
+                   ok = ern_waits:watching(Socket, Pid),
+                   ern_rt:kill(Reader),
+                   receive {reader, _} -> ok end,
+                   %% so that its `DOWN` comes before the bytes
+                   ok = ern_waits:unwatched(Socket, Pid),
+                   Peer ! go,
+                   Self ! {read, read_forever(Socket)},
+                   ern_waits:forever()
+               end, <<"main">>, quiet()),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    ?assertEqual({'Right', <<"x">>}, wait(read)),
+    ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
 %% report §8.6: a socket killed while a read waits on it holds no source,
 %% so the deadlock of what is left is still found. A regression test for
@@ -1795,6 +1967,33 @@ tls_slow_handshake_test() ->
     ?assertEqual({'Left', 'Timeout'}, wait(first)),
     ?assertEqual({'Right', <<"slow">>}, wait(first_later)).
 
+%% Appendix E.18: a `readForever` that is the first read of a socket over
+%% TLS that `acceptForever` answered waits for the handshake without a
+%% limit, and answers what the far end sends once it has shaken hands. The
+%% far end connects over TCP, and shakes hands once the socket watches its
+%% reader. Written with the requests
+tls_read_forever_waits_for_the_handshake_test() ->
+    #{server := Server} = pki(),
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               %% waits in the host's code, the deadlock detector's foreign code
+               {ok, Slow} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               {'Right', Socket} = accept_forever(Listener),
+               Main = self(),
+               Reader = ern_rt:spawn(fun() -> Main ! {read, read_forever(Socket)} end,
+                                     <<"reader">>),
+               ok = ern_waits:watching(ern_rt:process_of(Socket), ern_rt:process_of(Reader)),
+               {ok, Upgraded} = ssl:connect(Slow, [binary, {active, false},
+                                                   {verify, verify_none}], 5000),
+               ok = ssl:send(Upgraded, <<"slow">>),
+               Self ! {read, receive {read, Read} -> Read end},
+               ssl:close(Upgraded)
+           end),
+    ?assertEqual({'Right', <<"slow">>}, wait(read)).
+
 %% report Appendix E.1, E.17, E.18: `listenTls` answers a certificate or
 %% key file it cannot read or refuses `Left(Other(text))`, the file's name
 %% and what is wrong on one line: for one it cannot read, what `Fs`
@@ -2271,6 +2470,15 @@ write(Socket, Bytes, Ms) ->
 
 read(Socket, Ms) ->
     ern_rt:call_forever(Socket, fun(Reply) -> {'Read', Ms, Reply} end).
+
+%% Report Appendix E.18: an accept and a read without a time, as
+%% `Tcp.acceptForever` and `Tcp.readForever` ask them.
+accept_forever(Listener) ->
+    Owner = self(),
+    ern_rt:call_forever(Listener, fun(Reply) -> {'AcceptForever', Owner, Reply} end).
+
+read_forever(Socket) ->
+    ern_rt:call_forever(Socket, fun(Reply) -> {'ReadForever', Reply} end).
 
 remote(Socket) ->
     ern_rt:call_forever(Socket, fun(Reply) -> {'Remote', Reply} end).

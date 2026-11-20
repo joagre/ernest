@@ -279,6 +279,47 @@ reads_limited_test() ->
                   {'Some', {'Status', <<"M.os:2">>, _, {'Calling', {'Some', CatPid}, true, _}, _}}],
                  Statuses).
 
+%% report Appendix E.21, E.18, E.23: a wait without a time, Tcp's
+%% acceptForever and readForever and Os's readForever, made through its
+%% module, is a call whose wait is not limited, its callee the listener,
+%% the socket or the running program it waits on. Written with the
+%% functions; each reader is read once its callee watches it, as
+%% reads_limited_test's are, and the acceptor once it calls, since a
+%% listener watches no caller
+waits_without_a_time_not_limited_test() ->
+    Self = self(),
+    Tcp = ern_named:functions('ern@tcp'),
+    Os = ern_named:functions('ern@os'),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = (Tcp(listen))(<<"127.0.0.1">>, 0),
+               {'Right', Port} = (Tcp(port))(Listener),
+               {'Right', _} = (Tcp(connect))(<<"127.0.0.1">>, Port, 5000),
+               {'Right', Socket} = (Tcp(acceptForever))(Listener),
+               {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
+               Waiters = [ern_rt:spawn(fun() -> (Tcp(acceptForever))(Listener) end,
+                                       <<"M.accept:1">>),
+                          ern_rt:spawn(fun() -> (Tcp(readForever))(Socket) end, <<"M.tcp:2">>),
+                          ern_rt:spawn(fun() -> (Os(readForever))(Cat) end, <<"M.os:3">>)],
+               [_ | Readers] = Waiters,
+               ern_rt:timed(),
+               [ok = ern_waits:watching(ern_rt:process_of(Callee), ern_rt:process_of(Reader))
+                || {Reader, Callee} <- lists:zip(Readers, [Socket, Cat])],
+               [ok = ern_waits:calling(ern_rt:process_of(Waiter)) || Waiter <- Waiters],
+               ern_rt:untimed(),
+               Self ! {waits, [ern_rt:status(ern_rt:process_of(Waiter)) || Waiter <- Waiters],
+                       [ern_rt:process_of(Callee) || Callee <- [Listener, Socket, Cat]]},
+               [ern_rt:kill(Address) || Address <- Waiters ++ [Cat]]
+           end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
+    {Statuses, [ListenerPid, SocketPid, CatPid]} = receive {waits, S, C} -> {S, C} end,
+    ?assertMatch([{'Some', {'Status', <<"M.accept:1">>, _,
+                            {'Calling', {'Some', ListenerPid}, false, _}, _}},
+                  {'Some', {'Status', <<"M.tcp:2">>, _,
+                            {'Calling', {'Some', SocketPid}, false, _}, _}},
+                  {'Some', {'Status', <<"M.os:3">>, _,
+                            {'Calling', {'Some', CatPid}, false, _}, _}}],
+                 Statuses).
+
 %% report Appendix E.21, §10: a process's memory is the host's count with
 %% the binaries it references, in its mailbox as in its heap, each whole
 %% however small the part it uses and for each reference, and a process that

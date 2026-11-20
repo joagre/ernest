@@ -619,7 +619,7 @@ The names every module may use without a module's name before them, `Some`, `Lef
 Three more rules concern processes, and are for after §4:
 
 - **A system process is used through its module**, never by `send`.
-- **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Io.Timeout)`: `Fs.read(path, 5000)`. `Io.Timeout` is `Io.Error`'s, whichever module answers it, `Peer.find` (§8.2) among them. A file, a socket, a peer and a program the runtime started are waited on so, since each can hang unseen. A server that waits for as long as it takes asks again on each `Left(Io.Timeout)` (§8.7).
+- **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Io.Timeout)`: `Fs.read(path, 5000)`. `Io.Timeout` is `Io.Error`'s, whichever module answers it, `Peer.find` (§8.2) among them. A file, a socket, a peer and a program the runtime started are waited on so, since each can hang unseen. A wait for a life has a form without a time, which says so in its name: `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever` (§8.7).
 
   The functions that wait on the program's own streams take no time: `Io.readLine`, `Io.read`, `Io.print`, `Io.println`, `Io.write` and their standard-error forms, and `Terminal`'s; a stream that cannot be read faults the entry process, and one that cannot be written ends the program (report §7.4, §8.6).
 - **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Ticked)` puts `Ticked(time)` in the mailbox after 100 ms, `time` being the moment it fired. The function that makes the message receives nothing; the one that takes it, `Clock.alarm` or `Terminal.subscribe`, asks for a delivery into the caller's mailbox, and its type says so, `receiving m` (§4.1). `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while calls `Clock.sleep(ms)` (§4.1).
@@ -1743,7 +1743,7 @@ the worker spawned at Faults.main:10 faulted: division by zero
 
 Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace ends with the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
-A frame of the standard library's own Ernest names its line in the library's source, `Process.run:298` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+A frame of the standard library's own Ernest names its line in the library's source, `Process.run:299` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
@@ -1784,7 +1784,7 @@ $ ern run tasks.erc
 Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
     Tasks.supervise:6
-    Process.run:298
+    Process.run:299
 0: failed, division by zero
 5: 20
 all jobs done
@@ -2999,9 +2999,9 @@ In a pattern, `size(bodySize)` may name a variable bound by an earlier segment. 
 
 ### 8.7 Sockets
 
-A server is a listener and a process for each connection. `Tcp.listen(host, port)` answers a listener, and `Tcp.accept(listener, ms)` the next connection, a socket, or `Left(Io.Timeout)` when none came within `ms` milliseconds. `accept` has no form without a time, so the loop that accepts takes again after a timeout, and that turn is where it looks at anything else it must.
+A server is a listener and a process for each connection. `Tcp.listen(host, port)` answers a listener, and `Tcp.accept(listener, ms)` the next connection, a socket, or `Left(Io.Timeout)` when none came within `ms` milliseconds. A server that accepts for as long as it runs has no time to give: `Tcp.acceptForever(listener)` waits without a limit.
 
-A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at least one byte, `Left(Io.Timeout)` when nothing did, and `Left(Io.Closed)` once the connection has closed; nothing the socket receives comes to a mailbox. A process waits on one thing at a time, so one that must wait on its socket and on its mailbox gives the socket to a reader of its own, as §5.5 teaches.
+A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at least one byte, `Left(Io.Timeout)` when nothing did, and `Left(Io.Closed)` once the connection has closed; nothing the socket receives comes to a mailbox. `Tcp.readForever(socket)` reads without a limit, for a reader that reads for as long as the connection lives. A process waits on one thing at a time, so one that must wait on its socket and on its mailbox gives the socket to a reader of its own, as §5.5 teaches.
 
 One process may read a socket while another writes to it, and a read that waits answers `Left(Io.Closed)` when the socket is closed. A write returns once the host has taken its bytes, whatever their size, and waits, within its milliseconds, only behind earlier writes the far end has not yet taken; it answers `Left(Io.Closed)` once the far end has gone.
 
@@ -3017,14 +3017,12 @@ export fn main() : Unit =
     }
 
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit =
-    match Tcp.accept(listener, 60000) {
+    match Tcp.acceptForever(listener) {
         Right(socket) -> {
             let talker = spawn(fn() = session(socket));
             Tcp.give(socket, Process.fromAddress(talker));
             serve(listener)
         }
-      | Left(Io.Timeout) ->
-            serve(listener)
       | Left(_) ->
             Unit
     }
@@ -3040,13 +3038,11 @@ fn session(socket : Address(Tcp.SocketMsg)) : Unit receiving Session = {
 // What the socket gives, and None once the connection has gone, sent to an
 // address that knows nothing of the session's mailbox.
 fn reader(socket : Address(Tcp.SocketMsg), recipient : Address(Optional(Bytes))) : Unit =
-    match Tcp.read(socket, 60000) {
+    match Tcp.readForever(socket) {
         Right(bytes) -> {
             send(recipient, Some(bytes));
             reader(socket, recipient)
         }
-      | Left(Io.Timeout) ->
-            reader(socket, recipient)
       | Left(_) ->
             send(recipient, None)
     }
@@ -3071,7 +3067,7 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session 
     }
 ```
 
-A socket lives until `Tcp.close`, so the session closes it when its reader finds the connection gone. It is owned by the process that accepted it and is killed when its owner dies, so the loop that accepts gives each socket to its session, `Tcp.give`, and a session that faults takes its connection with it. Its process, and the listener's, are the program's: `Process.live` lists them, and a fault in one is reported under the function that opened it, `Tcp.listen` for the listener and `Tcp.accept` for a socket (report Appendix E.18).
+A socket lives until `Tcp.close`, so the session closes it when its reader finds the connection gone. It is owned by the process that accepted it and is killed when its owner dies, so the loop that accepts gives each socket to its session, `Tcp.give`, and a session that faults takes its connection with it. Its process, and the listener's, are the program's: `Process.live` lists them, and a fault in one is reported under the function that opened it, `Tcp.listen` for the listener and `Tcp.acceptForever` for a socket (report Appendix E.18).
 
 A socket `Tcp.connect` opens is owned the same way, by the process that connected. So a function that connects and may give up before it closes, as a block's `<-` gives up at a `Left`, runs under `Process.run` (§5.2): its process ends as the function returns, and closes what it opened.
 

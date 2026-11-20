@@ -836,6 +836,31 @@ opened_processes_are_live_test() ->
         "}\n"]),
     ?assertEqual(<<"#(\"Tcp.listen\", \"Tcp.connect\", true, true)\nOs.start\n">>, Output).
 
+%% Appendix E.18, report §6.9: an accepted socket's site is the function
+%% that opened it, which Process.status gives: `Tcp.accept` for one a timed
+%% accept answered, and `Tcp.acceptForever` for one an accept without a
+%% time answered. Written with the site; a socket over TLS is not covered
+accepted_sockets_sites_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        [
+        "fn site(p : Process) : String = match Process.status(p) {\n"
+        "    Some(Process.Status(site = s, queued = _, activity = _)) -> s\n"
+        "  | None -> \"none\"\n"
+        "}\n"
+        "fn accepted(l : Address(Tcp.ListenerMsg),\n"
+        "            port : Int) : Either(Io.Error, #(String, String)) = {\n"
+        "    let _ <- Tcp.connect(\"127.0.0.1\", port, 1000);\n"
+        "    let timed <- Tcp.accept(l, 1000);\n"
+        "    let _ <- Tcp.connect(\"127.0.0.1\", port, 1000);\n"
+        "    let forever <- Tcp.acceptForever(l);\n"
+        "    Right(#(site(Process.fromAddress(timed)), site(Process.fromAddress(forever))))\n"
+        "}\n"
+        "export fn main() : Unit = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "    Right(l) -> Io.println(Io.show(Either.andThen(Tcp.port(l), fn(p) = accepted(l, p))))\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"]),
+    ?assertEqual(<<"Right(#(\"Tcp.accept\", \"Tcp.acceptForever\"))\n">>, Output).
+
 %% Appendix E.21, report §8.4: `Process.status` answers `None` for a process
 %% the runtime did not start, here the host's process that serves the
 %% program's group as its leader, which foreign code gives as a `Process`

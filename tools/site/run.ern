@@ -452,6 +452,10 @@ export fn filled(run : Run,
 // The files
 //
 
+/// A file's time, which each of the site's reads and writes of a file is
+/// given.
+export let fileMs : Int = 10000
+
 /// A document of the repository under its root, by its path, read as
 /// Markdown.
 export fn documentOf(root : Path, path : String) : Either(String, List(Markdown.Block)) =
@@ -482,22 +486,22 @@ export fn textOf(path : Path) : Either(String, String) = {
 
 /// A file's bytes.
 export fn bytesOf(path : Path) : Either(String, Bytes) =
-    Either.mapLeft(Fs.read(path, 10000),
+    Either.mapLeft(Fs.read(path, fileMs),
                    fn(error) = "cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
 
 /// A directory's entries.
 export fn listed(path : Path) : Either(String, List(Fs.Entry)) =
-    Either.mapLeft(Fs.list(path, 10000),
+    Either.mapLeft(Fs.list(path, fileMs),
                    fn(error) = "cannot list " <> Path.toString(path) <> ": " <> Io.show(error))
 
 /// A directory made, with those above it.
 export fn made(path : Path) : Either(String, Unit) =
-    Either.mapLeft(Fs.makeDir(path, 10000),
+    Either.mapLeft(Fs.makeDir(path, fileMs),
                    fn(error) = "cannot make " <> Path.toString(path) <> ": " <> Io.show(error))
 
 /// A file copied.
 export fn copied(from : Path, to : Path) : Either(String, Unit) =
-    Either.mapLeft(Fs.copy(from, to, 10000),
+    Either.mapLeft(Fs.copy(from, to, fileMs),
                    fn(error) =
                        "cannot copy "
                            <> Path.toString(from)
@@ -508,5 +512,5 @@ export fn copied(from : Path, to : Path) : Either(String, Unit) =
 
 /// A file written whole.
 export fn fileWritten(path : Path, contents : Bytes) : Either(String, Unit) =
-    Either.mapLeft(Fs.write(path, contents, 10000),
+    Either.mapLeft(Fs.write(path, contents, fileMs),
                    fn(error) = "cannot write " <> Path.toString(path) <> ": " <> Io.show(error))

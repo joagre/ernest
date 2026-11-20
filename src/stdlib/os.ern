@@ -4,10 +4,10 @@
 /// Use `arguments`, `environment` and `workingDirectory` to read what the
 /// program was started with, `exit` to end it with a status, and `termination`
 /// to be told before it ends. Use `run` to run another program to its end and
-/// read all it wrote, `start` with `read` and `write` to talk to one while it
-/// runs, `signal` to send it the termination, the hangup or the interrupt, and
-/// `startTerminal` for one that needs a terminal, a shell or an editor, whose
-/// size `resize` changes.
+/// read all it wrote, `start` with `read` or `readForever` and `write` to talk
+/// to one while it runs, `signal` to send it the termination, the hangup or the
+/// interrupt, and `startTerminal` for one that needs a terminal, a shell or an
+/// editor, whose size `resize` changes.
 ///
 /// **No shell.** A program is found as the host finds a command: a name without
 /// `/` is looked for in the directories of `PATH`, and a relative name with `/`
@@ -16,12 +16,13 @@
 /// `sh` with `-c`.
 ///
 /// **A running program is a process.** `start` and `startTerminal` answer its
-/// address, as `Tcp.connect` answers a socket's. `read` answers what it wrote, a
-/// piece at a time, `write` and `closeInput` feed its input, and `kill` and
-/// `monitor` work on it as on any process. It belongs to the process that
-/// started it, and is killed when that process dies. Its process lives on after
-/// the program has exited, as a socket's does after its connection closes,
-/// until it is killed or its owner dies (report Appendix E.23).
+/// address, as `Tcp.connect` answers a socket's. `read` and `readForever`
+/// answer what it wrote, a piece at a time, `write` and `closeInput` feed its
+/// input, and `kill` and `monitor` work on it as on any process. It belongs to
+/// the process that started it, and is killed when that process dies. Its
+/// process lives on after the program has exited, as a socket's does after its
+/// connection closes, until it is killed or its owner dies (report Appendix
+/// E.23).
 ///
 /// ## Examples
 ///
@@ -113,19 +114,20 @@ export type Signal = Termination | Hangup | Interrupt
 export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 
 /// What a running program's process takes. Its constructors are hidden, so a
-/// program uses `Os.read`, `Os.write`, `Os.resize`, `Os.signal`,
-/// `Os.closeInput` and `Os.give` on it (report Appendix E.23).
+/// program uses `Os.read`, `Os.readForever`, `Os.write`, `Os.resize`,
+/// `Os.signal`, `Os.closeInput` and `Os.give` on it (report Appendix E.23).
 ///
 /// ### Examples
 ///
-/// The address of a running program, which `read`, `write`, `resize`,
-/// `signal`, `closeInput` and `give` take:
+/// The address of a running program, which `read`, `readForever`, `write`,
+/// `resize`, `signal`, `closeInput` and `give` take:
 ///
 /// ```ernest
 /// Os.start(Os.command("cat", []))
 /// ```
 export abstract type ProgramMsg =
     Read(ms : Int, reply : Reply(Either(Io.Error, Output)))
+  | ReadForever(Reply(Either(Io.Error, Output)))
   | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | Resize(size : Terminal.Size, reply : Reply(Either(Io.Error, Unit)))
   | SendSignal(signal : Signal, reply : Reply(Either(Io.Error, Unit)))
@@ -527,6 +529,37 @@ export fn resize(program : Address(ProgramMsg), size : Terminal.Size) : Either(I
 /// ```
 export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) =
     callLimited(program, fn(reply) = Read(=ms, =reply))
+
+/// The next piece of what the program wrote, and last its exit status, as
+/// `read` answers it without a time: it waits without a limit. A read whose
+/// caller has ended before it is answered is dropped, and what it would have
+/// taken is the next read's. Each read after the one that answered the exit
+/// status answers it again.
+///
+/// ### Errors
+///
+/// Faults where the runtime's helper fails, as `start` does, and where the
+/// program's process has ended, as `read` does.
+///
+/// ### Examples
+///
+/// What a program wrote, its exit status, and the status again:
+///
+/// ```ernest
+/// {
+///     let echo <- Os.start(Os.command("echo", ["hi"]));
+///     let first <- Os.readForever(echo);
+///     let last <- Os.readForever(echo);
+///     let again <- Os.readForever(echo);
+///     kill(Process.fromAddress(echo));
+///     Right(#(first, last, again))
+/// }
+/// // => Right(#(Os.Stdout(<<104, 105, 10>>), Os.Exited(0), Os.Exited(0)))
+/// ```
+///
+/// since 0.11.0
+export fn readForever(program : Address(ProgramMsg)) : Either(Io.Error, Output) =
+    Address.callForever(program, ReadForever)
 
 /// Gives `bytes` to the program as its input, after what it was given before.
 /// It answers `Right(Unit)` once the program has taken them, waiting while the

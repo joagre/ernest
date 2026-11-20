@@ -359,7 +359,7 @@ fn notFoundWritten(run : Run.Run) : Either(String, Unit) = {
 
 // The site is written whole into a directory of its own.
 fn absent(out : Path) : Either(String, Unit) =
-    match Fs.stat(out, 10000) {
+    match Fs.stat(out, Run.fileMs) {
         Left(Io.NotFound) ->
             Right(Unit)
       | Right(_) ->

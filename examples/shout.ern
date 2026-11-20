@@ -17,9 +17,10 @@
 // - The process that accepts a connection owns its socket, and `Tcp.give`
 //   hands it to the process that serves it, so that the socket is closed
 //   when that process ends, however it ends.
-// - Every wait has a limit in milliseconds, and an error is a value: a
-//   connection silent for a minute, or one the client has closed, is
-//   closed here too.
+// - The accept waits without a limit, `Tcp.acceptForever`, since the server
+//   accepts for as long as it runs; every other wait has a limit in
+//   milliseconds, and an error is a value: a connection silent for a
+//   minute, or one the client has closed, is closed here too.
 //
 // Run it from this directory, and talk to it from a second terminal on the
 // port it prints, a line at a time:
@@ -51,14 +52,12 @@ export fn main() : Unit =
 // Accepts connections for as long as the program runs, each served by a
 // process of its own.
 fn accepting(listener : Address(Tcp.ListenerMsg)) : Unit =
-    match Tcp.accept(listener, 60000) {
+    match Tcp.acceptForever(listener) {
         Right(socket) -> {
             let server = spawn(fn() = serve(socket, <<>>));
             Tcp.give(socket, Process.fromAddress(server));
             accepting(listener)
         }
-      | Left(Io.Timeout) ->
-            accepting(listener)
       | Left(error) ->
             Io.printlnError("shout: cannot accept: " <> Io.show(error))
     }

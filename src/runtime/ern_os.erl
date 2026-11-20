@@ -8,7 +8,8 @@
 %% the program's writer, a process of its own, which the host holds at a
 %% port that takes no more, so that the program's process takes its
 %% requests, its kill among them, while a write is given the helper. A read
-%% and a write each wait their own milliseconds (E.0 shape rule 8).
+%% and a write each wait their own milliseconds (E.0 shape rule 8), and a
+%% read without a time, a ReadForever, waits with no deadline and no timer.
 %%
 %% The program runs until it exits, until its process is killed, since the
 %% port closing ends the helper, or until its owner dies (E.23). Its
@@ -48,8 +49,9 @@
                   input_closed = false :: boolean()}).
 
 %% A read waiting: its reply, the reference of its caller's monitor and its
-%% timer, the read named to both by its place among the reads (read/6).
--record(read, {reply, monitor_ref :: reference(), timer :: reference()}).
+%% timer, the read named to both by its place among the reads (read/6), and
+%% `none` for the timer of a read without a time.
+-record(read, {reply, monitor_ref :: reference(), timer :: reference() | none}).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -382,13 +384,14 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
 %%
 %% Report Appendix E.23: a read answers `Left(Timeout)` when its
 %% milliseconds pass, the program running on, and the piece asked for it is
-%% the next read's; a read whose caller has ended before it is answered is
-%% dropped, and the piece asked for it is the next read's the same way. The
-%% caller's end is known by its `DOWN`, and before a piece is answered by
-%% asking the host whether the caller lives (given/5). E.0 shape rule 8: a
-%% read given no time has run out as it begins, whatever has arrived, and
-%% takes nothing; a write given no time has too, and gives the program
-%% nothing.
+%% the next read's; a ReadForever is a read without a time, which waits
+%% with no deadline and no timer; a read whose caller has ended before it
+%% is answered is dropped, and the piece asked for it is the next read's
+%% the same way. The caller's end is known by its `DOWN`, and before a
+%% piece is answered by asking the host whether the caller lives
+%% (given/5). E.0 shape rule 8: a read given no time has run out as it
+%% begins, whatever has arrived, and takes nothing; a write given no time
+%% has too, and gives the program nothing.
 %%
 %% A write is answered when the helper says the program has taken its
 %% bytes, `a`, or dropped them, `d`, one for each input in order, each
@@ -414,7 +417,9 @@ running(#program{helper = Helper, writer = Writer, writes = Writes, timers = Tim
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             running(Running, Waiting, Owed, Kept);
         {'Read', Ms, Reply} ->
-            read(Ms, Reply, Running, Waiting, Owed, Kept);
+            read(ern_rt:deadline(Ms), Reply, Running, Waiting, Owed, Kept);
+        {'ReadForever', Reply} ->
+            read(none, Reply, Running, Waiting, Owed, Kept);
         {'Write', _, Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             running(Running, Waiting, Owed, Kept);
@@ -484,10 +489,10 @@ running(#program{helper = Helper, writer = Writer, writes = Writes, timers = Tim
             running(Running, read_timed_out(Place, Deadline, Waiting), Owed, Kept)
     end.
 
-%% A read, answered a piece kept for it, or else waiting; the helper is
-%% asked for a piece but where one is owed to a read that has gone, which
-%% is this one's.
-read(Ms, Reply, #program{writer = Writer} = Running, Waiting, Owed, Kept) ->
+%% A read, answered a piece kept for it, or else waiting until its
+%% deadline, or without one; the helper is asked for a piece but where one
+%% is owed to a read that has gone, which is this one's.
+read(Deadline, Reply, #program{writer = Writer} = Running, Waiting, Owed, Kept) ->
     case queue:out(Kept) of
         {{value, Answer}, Rest} ->
             ern_rt:answer(Reply, Answer),
@@ -496,7 +501,7 @@ read(Ms, Reply, #program{writer = Writer} = Running, Waiting, Owed, Kept) ->
             Place = erlang:unique_integer([monotonic]),
             MonitorRef = erlang:monitor(process, ern_rt:reply_process(Reply),
                                         [{tag, {read, Place}}]),
-            Timer = arm({read, Place}, ern_rt:deadline(Ms)),
+            Timer = arm({read, Place}, Deadline),
             Waiting1 = gb_trees:insert(Place, #read{reply = Reply, monitor_ref = MonitorRef,
                                                     timer = Timer}, Waiting),
             case Owed > gb_trees:size(Waiting) of
@@ -577,22 +582,20 @@ dropped(Place, Waiting) ->
 %% Report Appendix E.23: the program has exited, and its process lives on,
 %% as a socket's does after its close, until it is killed or its owner
 %% dies. The reads take what is kept, in order, and the exit status last,
-%% which stays for every read after it, a read given no time excepted; a
-%% write, a resize and a signal are answered as to a program that has
-%% exited, a write given no time excepted, and `closeInput` does nothing.
-%% The helper's port, closed as the exit came, ends as one that returned.
+%% which stays for every read after it, a read given no time excepted, and
+%% a read without a time among them; a write, a resize and a signal are
+%% answered as to a program that has exited, a write given no time
+%% excepted, and `closeInput` does nothing. The helper's port, closed as
+%% the exit came, ends as one that returned.
 exited(Kept, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             exited(Kept, Running);
         {'Read', _, Reply} ->
-            {{value, Answer}, Rest} = queue:out(Kept),
-            ern_rt:answer(Reply, Answer),
-            case Answer of
-                {'Right', {'Exited', _}} -> exited(Kept, Running);
-                _ -> exited(Rest, Running)
-            end;
+            exited(kept_read(Reply, Kept), Running);
+        {'ReadForever', Reply} ->
+            exited(kept_read(Reply, Kept), Running);
         {'Write', _, Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             exited(Kept, Running);
@@ -618,6 +621,16 @@ exited(Kept, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
             exit(ExitReason);
         _ ->
             exited(Kept, Running)
+    end.
+
+%% A read of an exited program, answered the oldest of what is kept, and the
+%% exit status, last, kept for the reads after it.
+kept_read(Reply, Kept) ->
+    {{value, Answer}, Rest} = queue:out(Kept),
+    ern_rt:answer(Reply, Answer),
+    case Answer of
+        {'Right', {'Exited', _}} -> Kept;
+        _ -> Rest
     end.
 
 %% A time passed: a write's answers `Left(Timeout)` at once, where it still
@@ -648,12 +661,17 @@ read_timed_out(Place, Deadline, Waiting) ->
             Waiting
     end.
 
-%% A request's timer, which names the request and its deadline.
+%% A request's timer, which names the request and its deadline; a read
+%% without a time has none.
+arm(_, none) ->
+    none;
 arm(Kind, Deadline) ->
     erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), {deadline, Kind, Deadline}).
 
 %% Report Appendix E.23: a request answered holds no timer. One that fired
 %% as its request was answered finds the request gone, and does nothing.
+let_go(none) ->
+    ok;
 let_go(Timer) ->
     erlang:cancel_timer(Timer, [{async, true}, {info, false}]).
 
@@ -729,10 +747,11 @@ resize(Size, Reply, Running, Answer) ->
     end.
 
 %% A program whose helper failed: each read, write and signal to come
-%% faults its caller, a read or a write given no time excepted, and each
-%% resize of its terminal whose size the host takes. Its owner may still
-%% die first, which ends this process as it would have ended the program.
-%% The helper's port has ended, and whatever it ends with ends nothing more.
+%% faults its caller, a read without a time among them and a read or a
+%% write given no time excepted, and each resize of its terminal whose size
+%% the host takes. Its owner may still die first, which ends this process
+%% as it would have ended the program. The helper's port has ended, and
+%% whatever it ends with ends nothing more.
 over(Answer, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
@@ -742,6 +761,7 @@ over(Answer, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
             over(Answer, Running);
         {'Read', _, Reply} -> respond(Reply, Answer), over(Answer, Running);
+        {'ReadForever', Reply} -> respond(Reply, Answer), over(Answer, Running);
         {'Write', _, _, WriteReply} -> respond(WriteReply, Answer), over(Answer, Running);
         {'SendSignal', _, SignalReply} -> respond(SignalReply, Answer), over(Answer, Running);
         {'Resize', Size, ResizeReply} ->

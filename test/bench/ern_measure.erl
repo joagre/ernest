@@ -763,6 +763,7 @@ io_scenarios(Bytes, DevNull) ->
 os_scenarios(Bytes) ->
     Os = ern_named:functions('ern@os'),
     OsRead = Os(read),
+    OsReadForever = Os(readForever),
     OsStart = Os(start),
     OsStartTerminal = Os(startTerminal),
     OsResize = Os(resize),
@@ -819,6 +820,9 @@ os_scenarios(Bytes) ->
       {fun() -> OsWrite(Echo, Bytes, 5000), echoed(fun() -> OsRead(Echo, 5000) end, Size) end,
        fun() -> erlang:port_command(HostEcho, Bytes), port_echoed(HostEcho, Size) end}},
      {<<"Os.read">>, {within, <<"Os.write">>}},
+     {<<"Os.readForever">>,
+      {fun() -> OsWrite(Echo, Bytes, 5000), echoed(fun() -> OsReadForever(Echo) end, Size) end,
+       fun() -> erlang:port_command(HostEcho, Bytes), port_echoed(HostEcho, Size) end}},
      %% the host cannot close a program's input alone, so its side starts a
      %% program and waits for its end, as Ernest's does once the input ends
      {<<"Os.closeInput">>,
@@ -917,10 +921,12 @@ tcp_scenarios(Bytes) ->
     TcpPort = Tcp(port),
     TcpConnect = Tcp(connect),
     TcpAccept = Tcp(accept),
+    TcpAcceptForever = Tcp(acceptForever),
     TcpCloseListener = Tcp(closeListener),
     TcpClose = Tcp(close),
     TcpWrite = Tcp(write),
     TcpRead = Tcp(read),
+    TcpReadForever = Tcp(readForever),
     TcpGive = Tcp(give),
     FromAddress = ern_named:function('ern@process', fromAddress),
     TcpRemote = Tcp(remote),
@@ -955,6 +961,19 @@ tcp_scenarios(Bytes) ->
                gen_tcp:close(Far)
        end}},
      {<<"Tcp.accept">>, {within, <<"Tcp.connect">>}},
+     {<<"Tcp.acceptForever">>,
+      {fun() ->
+               {'Right', Near} = TcpConnect(Loopback, Port, 1000),
+               {'Right', Far} = TcpAcceptForever(Listener),
+               TcpClose(Near),
+               TcpClose(Far)
+       end,
+       fun() ->
+               {ok, Near} = gen_tcp:connect({127, 0, 0, 1}, HostPort, [binary, {active, false}]),
+               {ok, Far} = gen_tcp:accept(HostListener),
+               gen_tcp:close(Near),
+               gen_tcp:close(Far)
+       end}},
      {<<"Tcp.close">>, {within, <<"Tcp.connect">>}},
      {<<"Tcp.write">>,
       {fun() -> TcpWrite(Client, Bytes, 1000), echoed(fun() -> TcpRead(Server, 1000) end, Size)
@@ -964,6 +983,13 @@ tcp_scenarios(Bytes) ->
                {ok, _} = gen_tcp:recv(HostServer, Size)
        end}},
      {<<"Tcp.read">>, {within, <<"Tcp.write">>}},
+     {<<"Tcp.readForever">>,
+      {fun() -> TcpWrite(Client, Bytes, 1000), echoed(fun() -> TcpReadForever(Server) end, Size)
+       end,
+       fun() ->
+               ok = gen_tcp:send(HostClient, Bytes),
+               {ok, _} = gen_tcp:recv(HostServer, Size)
+       end}},
      {<<"Tcp.give">>,
       {fun() -> TcpGive(Client, FromAddress(ern_rt:self())) end,
        fun() -> gen_tcp:controlling_process(HostClient, erlang:self()) end}},

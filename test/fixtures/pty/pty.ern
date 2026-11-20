@@ -215,7 +215,7 @@ fn drive(options : Options, ms : Int) : Unit receiving HarnessMsg = {
         Left(error) ->
             fail("/bin/sh cannot start: " <> Io.show(error))
       | Right(program) -> {
-            let reader = reading(program, ms);
+            let reader = reading(program);
             let screen = Screen(seen = <<>>, plain = <<>>, partial = <<>>, cursor = 0);
             let run =
                 Run(=program,
@@ -241,25 +241,23 @@ fn drive(options : Options, ms : Int) : Unit receiving HarnessMsg = {
 }
 
 // The process that reads the program for the harness, which calls it.
-fn reading(program : Address(Os.ProgramMsg), ms : Int) : Process receiving HarnessMsg = {
+fn reading(program : Address(Os.ProgramMsg)) : Process receiving HarnessMsg = {
     let harness = self();
-    Process.fromAddress(spawn(fn() = forward(program, harness, ms)))
+    Process.fromAddress(spawn(fn() = forward(program, harness)))
 }
 
 // Report Appendix E.23: each piece the program writes forwarded to the
 // harness, and last its exit status. The host takes a program's output
-// only while a read waits, so a read always waits; one whose time passes
-// is asked again, since the harness bounds its own waits.
-fn forward(program : Address(Os.ProgramMsg), harness : Address(HarnessMsg), ms : Int) : Unit =
-    match Os.read(program, ms) {
+// only while a read waits, so a read always waits, without a time, since
+// the harness bounds its own waits.
+fn forward(program : Address(Os.ProgramMsg), harness : Address(HarnessMsg)) : Unit =
+    match Os.readForever(program) {
         Right(Os.Stdout(bytes)) or Right(Os.Stderr(bytes)) -> {
             send(harness, Wrote(bytes));
-            forward(program, harness, ms)
+            forward(program, harness)
         }
       | Right(Os.Exited(status)) ->
             send(harness, Ended(status))
-      | Left(Io.Timeout) ->
-            forward(program, harness, ms)
       | Left(error) ->
             send(harness, Unread(error))
     }
@@ -311,7 +309,7 @@ fn take(run : Run, step : Step) : Stepped receiving HarnessMsg =
             Met(run)
         }
       | Release ->
-            Met(Run(..run, reader = reading(run.program, run.ms)))
+            Met(Run(..run, reader = reading(run.program)))
     }
 
 // Report Appendix E.23: the hangup made, which a write of nothing after it

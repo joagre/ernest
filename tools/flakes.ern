@@ -123,12 +123,11 @@ fn hunted(hunt : Hunt) : Either(String, Int) receiving HuntMsg = {
     let rounds <-
         Either.mapLeft(Fs.makeTempDir(fileMs),
                        fn(error) = "cannot make the rounds' directory: " <> Io.show(error));
-    let ms = 60000 * hunt.minutes;
-    let until = Clock.now() + ms;
+    let until = Clock.now() + 60000 * hunt.minutes;
     let hunter = self();
     let hosts = List.map(hunt.parts, fn(part) = {
         let environment = told(part, records, until, rounds);
-        Process.fromAddress(spawn(fn() = relayed(part, environment, records, ms, hunter)))
+        Process.fromAddress(spawn(fn() = relayed(part, environment, records, hunter)))
     });
     let outcomes = waited(hosts, rounds, List.size(hunt.parts), Map.empty);
     List.forEach(loops, fn(loop) = kill(Process.fromAddress(loop)));
@@ -174,41 +173,35 @@ fn waited(hosts : List(Process),
 fn relayed(part : Part,
            environment : List(#(String, String)),
            records : Path,
-           ms : Int,
            hunter : Address(HuntMsg)) : Unit = {
     let command = Os.Command(..Os.command(part.program, part.arguments), =environment);
     let errors = partFile(records, part, Errors);
-    let outcome =
-        match Either.andThen(Os.start(command), fn(host) = relay(host, errors, ms, <<>>)) {
-            Right(status) -> Ran(=status)
-          | Left(error) -> NotRun(=error)
-        };
+    let outcome = match Either.andThen(Os.start(command), fn(host) = relay(host, errors, <<>>)) {
+        Right(status) -> Ran(=status)
+      | Left(error) -> NotRun(=error)
+    };
     send(hunter, Ended(part = part.name, =outcome))
 }
 
-// What the host writes, read until its exit status. No time bounds the
-// read, since a round has none: a read whose time passes reads again, and
-// its time, the hunt's length, says only how often it does.
+// What the host writes, read until its exit status, each read without a
+// time, since a round has none.
 //
 // On standard output, each line is written to the terminal once it is
 // whole, the lines a piece completes with one write, so that no host's
 // line is cut by another's; on standard error, what it writes is appended
 // to the part's file of its own. A last line with no line feed is written
 // with one.
-fn relay(host : Address(Os.ProgramMsg),
-         errors : Path,
-         ms : Int,
-         pending : Bytes) : Either(Io.Error, Int) =
-    match Os.read(host, ms) {
+fn relay(host : Address(Os.ProgramMsg), errors : Path, pending : Bytes) : Either(Io.Error, Int) =
+    match Os.readForever(host) {
         Right(Os.Stdout(bytes)) -> {
             let written = pending <> bytes;
             match Bytes.lastIndexOf(written, newline) {
                 Some(index) -> {
                     Io.write(Bytes.slice(written, 0, index + 1));
-                    relay(host, errors, ms, Bytes.drop(written, index + 1))
+                    relay(host, errors, Bytes.drop(written, index + 1))
                 }
               | None ->
-                    relay(host, errors, ms, written)
+                    relay(host, errors, written)
             }
         }
       | Right(Os.Stderr(bytes)) -> {
@@ -218,14 +211,12 @@ fn relay(host : Address(Os.ProgramMsg),
               | Left(error) ->
                     said("cannot append to " <> Path.toString(errors) <> ": " <> Io.show(error))
             };
-            relay(host, errors, ms, pending)
+            relay(host, errors, pending)
         }
       | Right(Os.Exited(status)) -> {
             if Bytes.isEmpty(pending) then Unit else Io.write(pending <> newline);
             Right(status)
         }
-      | Left(Io.Timeout) ->
-            relay(host, errors, ms, pending)
       | Left(error) ->
             Left(error)
     }
