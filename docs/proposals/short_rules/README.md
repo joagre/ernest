@@ -46,6 +46,7 @@ Status: on trial, decided with the user on 2026-11-19. The short file is the roo
 | 2026-11-20 | Item 154, a rule of §8 decided that day, was placed third among the items left, and item 93 named next. | *Before code*: a change to a rule of §3 to §9 is built the day it is decided. The short file kept the cold reading and dropped the day. | None. Found by the reading before the clear, and the item was moved first. |
 | 2026-11-20 | Item 154 was written with the plan searched for §8.4, §6.4, the checks and foreign code, and not for §6.5, §8.7, §12.2 or the guide's paragraph. | The same rule as item 151's. | None. The search run before the clear found a seam with item 153, and item 154's paragraph names it. |
 | 2026-11-20 | The shape of item 154's sentences and its place were recommended before the log was searched for §8.7's sentence and the step's. | The same rule as item 137's row. | None. The search run before the clear found no earlier decision on either. |
+| 2026-11-20 | Item 154's sentence on a checked message at its function's return, found while the item was built, was recommended before the log was searched. | The same rule as item 137's row. | None. The search run before the commit found no earlier decision. |
 
 **Missed without a cost, 2026-11-20.** Two diffs were committed before they were read whole, and a recommendation was made before the log was searched for it. The short file has both rules. The read-back's two searches, which the short file dropped, were not run, and nothing shows that they were missed. No rule is asked for.
 
