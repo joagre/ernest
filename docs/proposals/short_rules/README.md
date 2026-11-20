@@ -9,18 +9,28 @@ Status: on trial, decided with the user on 2026-11-19. The short file is the roo
 
 ## The trial
 
-**What is watched.** The plan's items left at each day's end, against 28 on 2026-11-19, with the highest item number then 141. The hours an item takes, against about three for item 120 and two for item 138. The list below.
+**What is watched.** The plan's items left at each day's end, against 28 on 2026-11-19, with the highest item number then 141. The hours an item takes, against about three for item 120 and two for item 138. The list below. Before each `/clear` the user asks whether the session missed a rule of the long file.
 
 **No rule is added during the trial.** A mistake that a rule of the long file would have stopped goes on the list, with what it cost. On 2026-11-24 the user and the session read the numbers and the list, and put back only what earned it.
 
 **The plan is not sorted anew.** An item is asked the short file's question, whether a first user meets it, when it comes up to be worked, and a new item when it is written. One that only a built corner shows moves to MVP 4.5 on the user's word. So the trial is of ordinary work, and what it shows is not mixed with an overhaul of the plan.
 
-**Decided for 2026-11-24.** `make test-full` runs before the commit that closes an item that changed code. It replaces the short file's clause on the runtime, the nodes and the emitter. The session's memory carries it until then.
+**Decided for 2026-11-24.**
+
+- `make test-full` runs before the commit that closes an item that changed code. It replaces the short file's clause on the runtime, the nodes and the emitter. The session's memory carries it until then.
+- A rule that is added reads as the short file's rules do: one bold clause and a sentence or two, its reason in the log.
+
+**To weigh on 2026-11-24.**
+
+- The rule on what stands before the launch says when it is asked: of each item as it comes up.
+- The trial's paragraph at the top of `CLAUDE.md` goes.
 
 | Date | The lapse | The rule that would have stopped it | What it cost |
 |---|---|---|---|
 | 2026-11-19 | Item 139's close was planned on `make test` alone, which runs neither the item's new tests, under `test/`, nor the tests of how `ern` ends at a signal. | *Tests*: an item that touched no runtime, node or emitter closes on its area's target and `make test`. The short file kept the two runs and dropped the area's target. | Nothing committed. The user caught it by asking, and the session would not have: the item would have closed with its own tests and the other tests of a signal's end not run. |
 | 2026-11-20 | Item 133 was started without asking whether a first user meets it. Its first half is a built corner. | *Before code*: say whether an item is worth doing before work starts on it. The short file and this one still ask it. | Half of a 26-minute showing and half of a build. Nothing committed. |
+
+**Missed without a cost, 2026-11-20.** Two diffs were committed before they were read whole, and a recommendation was made before the log was searched for it. The short file has both rules. The read-back's two searches, which the short file dropped, were not run, and nothing shows that they were missed. No rule is asked for.
 
 ## Why
 
