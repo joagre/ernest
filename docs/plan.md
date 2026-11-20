@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 135**, a resource's process that meets no fault.
+**The next item is MVP 4.16's item 136**, a wrap's fault in the process kept for an address.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -58,21 +58,11 @@ what needs the user. An item planned since stands where its group's sentence say
 Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
 and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
-corner shows it (the log's *Item 140 Stands After the Launch*).
+corner shows it (the log's *Item 140 Stands After the Launch*). Item 135 moved there on
+2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
-  item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
-  the reader's probe and the session's run. A listener is started by the runtime and has
-  no wait of Ernest's. After a fault in `f` and after a bad message through its check,
-  each fault stood unread in its mailbox, the listener answered its port, and the run
-  ended with status 0. By a reading a socket does the same.
-
-  §6.5 and §8.4 have the receiver fault at the wait that reaches it, and a program with
-  no foreign code shows that false, so by the line's test the item stands here. To
-  decide with the user at its turn: whether the resource ends at the fault, or the fault
-  is dropped and a sentence says so. The narrower sentence is weighed first.
 - **136. A wrap's fault in the process kept for an address**, found 2026-11-19 by item
   115's showing (the log's *A `monitor` in an Adapted Address's Function*), read from two
   runs and not diagnosed. The target was on another node, and `f` made a `monitor` whose
@@ -83,8 +73,9 @@ corner shows it (the log's *Item 140 Stands After the Launch*).
   no foreign code shows that false, so by the line's test the item stands here. An agent
   first shows where the fault goes. The narrower sentence is weighed first.
 
-  It follows item 135. Both are of a process the runtime started that meets no fault, and
-  both may add to §6.5's sentence on a fault in `f`, so item 135's verdict is read first.
+  MVP 4.5's item 135 is of a process the runtime started that meets no fault too, and
+  both may add to §6.5's sentence on a fault in `f`, so its shape is read with this
+  item's verdict.
 - **137. Three corners of a diagnostic**, found 2026-11-19 by item 115's build (the log's
   *A `monitor` in an Adapted Address's Function*), each shown by a probe the build kept.
   None changes what the checker accepts.
@@ -803,7 +794,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145, 149, 153, 151 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 135, 140, 143, 144, 145, 149, 153, 151 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -915,6 +906,28 @@ What the line left, in the order it is taken:
   things more of the exit signal a foreign process of the sender's node is sent: that a
   process that traps exits takes it as a message, which process it comes from, and that
   the trace of a bad message's fault is empty.
+- **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
+  item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
+  the reader's probe and the session's run. A listener is started by the runtime and has
+  no wait of Ernest's. After a fault in `f` and after a bad message through its check,
+  each fault stood unread in its mailbox, the listener answered its port, and the run
+  ended with status 0. By a reading a socket does the same.
+
+  §6.5 and §8.4 have the receiver fault at the wait that reaches it, and the listener
+  shows that false. Only a built corner shows it. The message type of a listener, a
+  socket and a program is abstract, so the function of an adapted address over one can
+  only fault or never finish, and a bad message needs foreign code that sends to a
+  resource's address. So the item moved here on the user's word on 2026-11-20 (the log's
+  *Item 135 Stands After the Launch*).
+
+  To decide with the user at its turn: whether the resource ends at the fault, or the
+  fault is dropped and a sentence says so. The shape, read from the code and not shown:
+  the resource ends. Its loop already traps exits, closes and ends with the exit's
+  reason, so the runtime sends it the fault as the exit signal that a foreign process it
+  did not start is sent, and §6.5's clause names every target with no wait of Ernest's
+  (principle 1). A fault dropped would be lost in silence (principle 3).
+
+  It follows item 134, which is of that exit signal's term in §12.2.
 - **143. A standard input that cannot be read holds its reader**, found 2026-11-20 by
   item 124's tests (the log's *A Node's End Waits for No Send*, its paragraph *Found
   beside it*). With standard input a directory, `ern run p.erc < /tmp`, or a descriptor
