@@ -4635,7 +4635,7 @@ kept_listed() ->
     "foreign fn listed(addresses : List(Address(Kept.KeptMsg))) : Foreign.Term =\n"
     "    \"erlang:hd/1\"\n".
 
-%% report §8.4: "once every type variable in each is written as one
+%% report §8.4: "once every type variable in each is written as the same
 %% variable": an address that crosses at `Address(a)` and at `Address(b)`
 %% is one check, and so is one that crosses at `Address(#(a, b))` and at
 %% `Address(#(a, a))`, each of which takes any message of its shape; one

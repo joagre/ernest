@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 152**, an address at a type that holds a type variable.
+**The next item is MVP 4.16's item 135**, a resource's process that meets no fault.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,36 +60,8 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
 corner shows it (the log's *Item 140 Stands After the Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it. Item 152, found
-by item 150's cold reading, is taken first, on the user's word on 2026-11-20.
+**What was found**, each item begun by an agent that shows it or tests it.
 
-- **152. An address at a type that holds a type variable**, found 2026-11-20 by the cold
-  reading of item 150's sentences (the log's *One Check by the Type's Hash*), shown by
-  the session's probe. An address given to foreign code at `Address(a)` gets a check
-  that takes any message. Foreign code that gives it back at `Address(B)`, or at
-  `Address(b)` from another function, has the program send a `B` to a process that
-  receives `A`: its mailbox held two, in 3 of 3 runs.
-
-  §8.4's **Type variables** names a foreign function's result and an argument foreign
-  code calls a function with, and no message sent to an address. `docs/soundness.md`'s
-  section 2 argues from §8.4 that no address lets a message of another type reach a
-  mailbox, and the program shows that false, so the item stands here. Decided with the
-  user on 2026-11-20: a sentence and no refusal. §8.4's promise at a type variable gains
-  the address, what foreign code sends to it and where it gives it back, and
-  `docs/soundness.md` gains the promise in its sections 2 and 5. The sentence gets its
-  cold reading, and no code changes. It sharpens the log's *The Boundary Trusts a Type
-  Variable*.
-
-  Two lines of the same reading are settled with it.
-
-  - An address that crosses at a bare variable, `foreign fn id(x : a) : a` called with
-    `self()`, crosses as it is, with no check, and §8.4 does not say so. Read from the
-    code and not shown. Item 149 weighs a pid foreign code names of a process it was not
-    given, and needs nothing of this line.
-  - §8.7 and Appendix H's **A type's hash** have a program's type stand in a hash by its
-    hash, where **What is hashed** gives a `foreign type` none and **References** writes
-    it by its name. §8.7 has a type's hash cover its fields' types' hashes, where
-    **Definitions** writes a field's type. Wording alone.
 - **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
   item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
   the reader's probe and the session's run. A listener is started by the runtime and has
@@ -381,6 +353,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 147 | A fault taken at a wait names its `receive`'s line, as Appendix E.21 says: the showing counted a line wrong, and two tests of `ern_emitter_tests` now write the clause on a line of its own | 2026-11-20 | Appendix E.21; *A Fault at a Wait Names Its `receive`* |
 | 148 | `Io.show` writes a process as `<process.84>` and an address as `<address.84>`, and a process of another node with its peer's name before the number, `<process.store.84>`, or its key's digest where the node is not listed, with the user | 2026-11-20 | Appendix E.1; *A Process Printed with a Dot, Built* |
 | 150 | A check is found by its address and the hash of the type the address crossed at, so an address gets one check however its type is written, inside another type or from two modules, and comes back as the program's own; one check at each type, and a bad message's cause names the type as the module whose crossing made the check prints it, with the user | 2026-11-20 | §6.4, §8.4, §8.7, §12.3, Appendix H; *One Check by the Type's Hash* |
+| 152 | §8.4 says what the boundary trusts at a type variable: what foreign code gives there, where it gives back an address or a function that crossed at a type that holds one, that a value at one crosses as it is and is only handed on, and a call's answer at a variable; three holes each shown by a probe, no code changed, with the user | 2026-11-20 | §8.4, §8.7, Appendix H; *What the Boundary Trusts at a Type Variable* |
 
 ---
 
@@ -830,7 +803,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145, 149, 151 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145, 149, 153, 151 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -1020,6 +993,34 @@ What the line left, in the order it is taken:
   Found 2026-11-20 by item 148's build, read from the code: `Io.show` writes such a
   `Process` by the check's number, and a pid of a host that is no node of Ernest's by
   its host's name without its dots, where Appendix E.1 has a key's digest.
+- **153. What foreign code gives back that §8.4 has no rule for**, found 2026-11-20 by the
+  cold reading of item 152's sentences (the log's *What the Boundary Trusts at a Type
+  Variable*), its first line shown by the session's probe and the rest read from the
+  text or the code.
+
+  - A function of the program's given back at another type known whole keeps its
+    check: called with a `String` at `Int`, it faulted `an argument of Probe.describe
+    from foreign code does not match Int`. §8.4's **Functions** checks what foreign
+    code calls it with, and has no rule for what the program calls it with.
+  - A `Reply` of the program's given back at another type is in no rule, and §8.4's "no
+    other answer is checked" leaves the program's answer to it unchecked. In the code
+    the caller checks it.
+  - §8.4 does not say which type a message to a foreign address, or an answer to a
+    foreign `Reply`, crosses at. In the code it is the type foreign code gave the
+    address or the `Reply` at.
+  - An address given at a type variable and given back at an address's type breaks
+    §8.4's promise, and the code has two outcomes: a bad value for a process's address,
+    and the address as it is for an adapted one.
+  - Four of wording. "Its parameter's type" in **Functions** reads as the function's
+    own or as that of the type it crossed at. The result of a function foreign code
+    called is not among what crosses into foreign code. No promise has foreign code
+    call a function in the calling process. §12.2 does not say how foreign code sends
+    to an address.
+
+  Each needs foreign code built for it, so the item stands here on the user's word on
+  2026-11-20. The shape: one sentence each in §8.4, the first three as the code is
+  built, each shown by a probe first. It follows item 149, which is of what foreign
+  code gives too. Item 134 names §12.2 for another line.
 - **151. A control character in a peer's name**, found 2026-11-20 by item 148's build
   (the log's *A Process Printed with a Dot, Built*), shown by the agent's run.
   `ernest.conf` takes any name that is not empty. `Io.show` writes a process of the peer

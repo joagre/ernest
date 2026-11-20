@@ -955,7 +955,7 @@ Two definitions whose forms are one term are one definition: a reference to eith
 
 A lambda's or a local function's identity is the pair `{Hash, Position}` of its enclosing definition's hash and its position among the definition's lambdas and local functions, counted from 1 in the order the walk meets them.
 
-**A type's hash.** A type written whole, the message type a service carries (§8.7) or the type an address crossed at (§8.4), is hashed as `{ernest_type, 2, Type}`, written as above, `Type` as **Types** writes it: a declared type of a program by its hash, and a built-in type or one of the standard library by its name. So `Counter.Msg`'s hash is built from its declaration's, and `Optional(Counter.Msg)`'s from that and `Optional`'s name.
+**A type's hash.** A type written whole, the message type a service carries (§8.7) or the type an address crossed at (§8.4), is hashed as `{ernest_type, 2, Type}`, written as above, `Type` as **Types** writes it, each type in it by its reference (**References**). Every type variable in it is `{variable, 1}`. So `Counter.Msg`'s hash is built from its declaration's, and `Optional(Counter.Msg)`'s from that and `Optional`'s name.
 
 **Definitions.**
 
