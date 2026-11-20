@@ -1176,7 +1176,7 @@ faulty_frame(Base) ->
     WaitB = start(B, Program, []),
     prints(B, "waiting"),
     {InputA, WaitA} = started(A, Program, ["frame", name(B)]),
-    says(B, "its connection was ended"),
+    says(B, "this node ends its connection"),
     says(A, "the peer b was lost: it closed"),
     true = port_command(InputA, "ended\n"),
     ?assertEqual(0, WaitA()),
@@ -1184,7 +1184,7 @@ faulty_frame(Base) ->
     {_, ErrA} = said(A),
     {_, ErrB} = said(B),
     has(ErrB, "a frame that names no peer's process came to the gateway, and was dropped"),
-    has(ErrB, "the peer a sent a frame this node cannot read, and its connection was ended"),
+    has(ErrB, "the peer a sent a frame this node cannot read, and this node ends its connection"),
     has(ErrA, "the peer b was lost: it closed"),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrA, "7", "it closed", [{"b", "b"}]).
@@ -1212,13 +1212,13 @@ unreadable_site(Base) ->
     WaitB = start(B, Program, []),
     prints(B, "waiting"),
     {InputA, WaitA} = started(A, Program, ["site", name(B), Held]),
-    says(B, "its connection was ended"),
+    says(B, "this node ends its connection"),
     says(A, "the peer b was lost: it closed"),
     true = port_command(InputA, "ended\n"),
     ?assertEqual(0, WaitA()),
     stop(B, WaitB),
     {_, ErrB} = said(B),
-    has(ErrB, "the peer a sent a frame this node cannot read, and its connection was ended").
+    has(ErrB, "the peer a sent a frame this node cannot read, and this node ends its connection").
 
 %% report §8.7, §11.2: a node reads every module of its load path at its
 %% start, and is refused where one of them needs a module the path lacks,
@@ -3638,8 +3638,8 @@ reconnect(Base) ->
                  "its caller: Returned", "its computer: Returned",
                  "the same process: Some(3)", "computed after: Right(42)",
                  "spawned after: Right", "found after: Right", "measured after: true"]],
-    has(StoreErr, "the peer desk sent a frame this node cannot read, and its connection was"
-                  " ended"),
+    has(StoreErr, "the peer desk sent a frame this node cannot read, and this node ends its"
+                  " connection"),
     [?assertEqual(2, length(string:split(Err, Line, all)) - 1)
      || {Err, Line} <- [{DeskErr, "the peer store connected"},
                         {StoreErr, "the peer desk connected"}]].
@@ -7954,7 +7954,7 @@ broken_exchange(Base) ->
     [has(ErrB, Line)
      || Line <- ["the peer z's spawn at Lost.z:1 was not loaded: the spawner's node no longer"
                  " holds the function's reach",
-                 "the peer z sent a frame this node cannot read, and its connection was ended",
+                 "the peer z sent a frame this node cannot read, and this node ends its connection",
                  "\n    Lost.waits:" ++ integer_to_list(line_of(Source, "parsed(\"x\") + n"))
                  ++ "\n"]],
     [?assertEqual(nomatch, string:find(ErrB, Part)) || Part <- ["ern$", "could not take"]],
@@ -10356,6 +10356,516 @@ connected_while_stopping(Base) ->
                              {"spawned: ", Unreachable}, {"computed: ", Unreachable},
                              {"the late node saw the idle process, after the end: ",
                               "Unreachable"}]].
+
+%% report §12.5, §12.6, §8.7: a reload waits on no connection. The maker's
+%% connection to the third held back, as killer_waits_on_no_peer/1 holds
+%% one, a reload removes the third, and "a peer removed ... has its
+%% connection ended: both nodes run the loss". The maker says the reload
+%% while the connection is held, and goes on: the asker sends it a frame
+%% it cannot read, and "the node ends the connection", the asker running
+%% the loss; the asker's find of the maker's probe after it answers. Once
+%% the connection is let go, the maker and the third run the loss.
+%%
+%% A regression test, written before the fix: the host's disconnect waited
+%% for the held connection's process to take its exit, holding the reload,
+%% the asker's worker and each disconnect after them (the log's *What a
+%% Peer's Worker Waits On*; docs/otp_bugs.md, report 26). It does not cover
+%% a peer whose key changed, which a reload ends alike, nor a frame the
+%% exchange cannot read.
+reload_waits_on_no_connection_test_() ->
+    nodes_test({waits, 18}, fun reload_waits_on_no_connection/1).
+
+reload_waits_on_no_connection(Base) ->
+    Program = disconnect_build(Base),
+    {Asker, Maker, Third} = disconnect_nodes(Base),
+    WaitThird = offering(Third, Program, "third"),
+    {MakerInput, WaitMaker} = started(Maker, Program, ["held"]),
+    prints(Maker, "found"),
+    {AskerInput, WaitAsker} = started(Asker, Program, ["asker", name(Maker)]),
+    prints(Asker, "found: "),
+    true = port_command(MakerInput, "hold\n"),
+    prints(Maker, "held back"),
+    reloaded_without_the_third(Maker, MakerInput),
+    says(Maker, "the peer third was removed"),
+    true = port_command(AskerInput, "frame\n"),
+    says(Asker, "the peer maker was lost: it closed"),
+    true = port_command(AskerInput, "find\n"),
+    prints(Asker, "found again: "),
+    true = port_command(MakerInput, "free\n"),
+    says(Maker, "the node " ++ digest(Third) ++ " was lost: it closed"),
+    says(Third, "the peer maker was lost: it closed"),
+    [stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Maker, WaitMaker},
+                                       {Third, WaitThird}]],
+    [{AskerOut, _}, {_, MakerErr}, _] = [said(Dir) || Dir <- [Asker, Maker, Third]],
+    [has(AskerOut, Line) || Line <- ["found: Right(", "found again: Right("]],
+    has(MakerErr, "the peer asker sent a frame this node cannot read, and this node ends its"
+                  " connection").
+
+%% report §8.6, §8.7, §12.5: a reload holds no termination. The maker's
+%% connection to the third held back and a reload removing the third, as
+%% reload_waits_on_no_connection/1 has them, the maker is sent termination
+%% once the host has been asked to end the connection: "for a node,
+%% termination ends it the same way", so its subscriber of the end is told
+%% while the connection is still held, and the maker ends with the signal's
+%% status, its processes' end letting the connection go.
+%%
+%% A regression test, written before the fix: the termination waited in the
+%% host's signal server behind the reload's disconnect, which waited for the
+%% held connection (the log's *What a Peer's Worker Waits On*). It does not
+%% cover a hangup or an interrupt then, nor the end of a node whose
+%% connection to the removed peer stays held past its processes' end.
+reload_holds_no_termination_test_() ->
+    nodes_test({waits, 9}, fun reload_holds_no_termination/1).
+
+reload_holds_no_termination(Base) ->
+    Program = disconnect_build(Base),
+    {_, Maker, Third} = disconnect_nodes(Base),
+    WaitThird = offering(Third, Program, "third"),
+    {MakerInput, WaitMaker} = started(Maker, Program, ["held"]),
+    prints(Maker, "found"),
+    true = port_command(MakerInput, "hold\n"),
+    prints(Maker, "held back"),
+    reloaded_without_the_third(Maker, MakerInput),
+    terminated(Maker),
+    prints(Maker, "told of the end"),
+    ?assertEqual(143, WaitMaker()),
+    ?assertEqual(nomatch, string:find(written(Maker, out), "let go")),
+    stop(Third, WaitThird).
+
+%% report §12.5, §8.7, §12.6: a reload waits on no peer that stands still.
+%% The third stopped, the maker sends it more than its connection takes,
+%% until the host holds the sender in its send, and a reload removes the
+%% third, whose connection the host can close only "later than it finds the
+%% silence"; the maker goes on meanwhile. It says the reload; the asker's
+%% frame it cannot read ends the asker's connection, the asker running the
+%% loss; the asker's find after it answers; and the asker's termination
+%% ends it, its end asking the maker's host as it tells each peer that it
+%% ends. The third's connection stands until the third runs again, and the
+%% maker and the third then run the loss.
+%%
+%% A regression test, written before the fix: the reload's disconnect held
+%% the host's process of the node's connections while the third stood
+%% still, so the maker passed no tick and found no loss, and the asker's
+%% end waited (the log's *What a Peer's Worker Waits On*). It does not wait
+%% for the loss while the third stands still, which comes in the host's
+%% time.
+reload_waits_on_no_stopped_peer_test_() ->
+    nodes_test({waits, 17}, fun reload_waits_on_no_stopped_peer/1).
+
+reload_waits_on_no_stopped_peer(Base) ->
+    Program = disconnect_build(Base),
+    {Asker, Maker, Third} = disconnect_nodes(Base),
+    WaitThird = offering(Third, Program, "third"),
+    {MakerInput, WaitMaker} = started(Maker, Program, ["stopped"]),
+    prints(Maker, "found"),
+    {AskerInput, WaitAsker} = started(Asker, Program, ["asker", name(Maker)]),
+    prints(Asker, "found: "),
+    ThirdNumber = pid(Third),
+    _ = os:cmd("kill -STOP " ++ ThirdNumber),
+    try
+        true = port_command(MakerInput, "flood\n"),
+        prints(Maker, "the host holds the flooder in its send to the third"),
+        reloaded_without_the_third(Maker, MakerInput),
+        says(Maker, "the peer third was removed"),
+        true = port_command(AskerInput, "frame\n"),
+        says(Asker, "the peer maker was lost: it closed"),
+        true = port_command(AskerInput, "find\n"),
+        prints(Asker, "found again: "),
+        stop(Asker, WaitAsker)
+    after
+        os:cmd("kill -CONT " ++ ThirdNumber)
+    end,
+    Loss = "the node " ++ digest(Third) ++ " was lost",
+    says(Maker, Loss),
+    says(Third, "the peer maker was lost"),
+    stop(Maker, WaitMaker),
+    stop(Third, WaitThird),
+    [{AskerOut, _}, {_, MakerErr}] = [said(Dir) || Dir <- [Asker, Maker]],
+    [has(AskerOut, Line) || Line <- ["found: Right(", "found again: Right("]],
+    %% the third's connection stood until the third ran again, after the
+    %% asker's end: the maker's sends had filled it
+    {_, MakerLines} = lines_said({0, MakerErr}),
+    ?assertMatch(["the peer asker ended", _],
+                 [Line || Line <- MakerLines,
+                          Line =:= "the peer asker ended" orelse lists:prefix(Loss, Line)]).
+
+%% report §12.5, §12.6, the nodes' note's *The gateway and its workers*: the
+%% gateway's refusal at a full table of processes waits on no connection.
+%% The maker holds its gateway back while the dialer connects, then holds
+%% its connection to the dialer back, fills its table and lets the gateway
+%% go: "a connection to a peer ... that the table leaves no room to serve
+%% is closed as it opens, and the node says so", and the gateway answers
+%% the asker's utilization while that connection is held. Once it is let
+%% go, the dialer runs the loss.
+%%
+%% A regression test, written before the fix: the gateway's disconnect
+%% waited for the held connection's process, and so did every frame of
+%% every peer. It does not cover a refusal whose connection's process
+%% cannot take its exit otherwise than held, which a dial a large message
+%% waits behind meets.
+refusal_waits_on_no_connection_test_() ->
+    nodes_test({waits, 15}, fun refusal_waits_on_no_connection/1).
+
+refusal_waits_on_no_connection(Base) ->
+    Program = disconnect_build(Base),
+    [PortAsker, PortMaker] = [free_port() || _ <- [asker, maker]],
+    Asker = made(Base, "asker", PortAsker),
+    Maker = made(Base, "maker", PortMaker),
+    Dialer = made(Base, "dialer", none),
+    lists(Asker, [{"maker", Maker, PortMaker}]),
+    lists(Maker, [{"asker", Asker, PortAsker}, {"dialer", Dialer, none}]),
+    lists(Dialer, [{"maker", Maker, PortMaker}]),
+    edit(Asker, fun(Conf) -> Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>]}} end),
+    edit(Maker, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    {MakerInput, WaitMaker} = started(Maker, Program, ["refusing"]),
+    prints(Maker, "offered"),
+    {AskerInput, WaitAsker} = started(Asker, Program, ["asker", name(Maker)]),
+    prints(Asker, "found: "),
+    true = port_command(MakerInput, "hold\n"),
+    prints(Maker, "the gateway held back"),
+    {_, WaitDialer} = started(Dialer, Program, ["dialer", name(Maker)]),
+    prints(Dialer, "connect: "),
+    true = port_command(MakerInput, name(Dialer) ++ "\n"),
+    prints(Maker, "the table filled, and the gateway let go"),
+    says(Maker, "the peer dialer was refused: this node's table of processes is full"),
+    true = port_command(AskerInput, "utilization\n"),
+    prints(Asker, "utilization: "),
+    true = port_command(MakerInput, "free\n"),
+    says(Dialer, "the peer maker was lost: it closed"),
+    [stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Dialer, WaitDialer},
+                                       {Maker, WaitMaker}]],
+    [{AskerOut, _}, {DialerOut, _}, _] = [said(Dir) || Dir <- [Asker, Dialer, Maker]],
+    [has(AskerOut, Line) || Line <- ["found: Right(", "utilization: Right("]],
+    has(DialerOut, "connect: true").
+
+%% The disconnect's three nodes, each listening: the asker, which finds the
+%% maker's probe, the maker, which finds the third's sink and bulk, and the
+%% third.
+disconnect_nodes(Base) ->
+    [PortAsker, PortMaker, PortThird] = [free_port() || _ <- [asker, maker, third]],
+    Asker = made(Base, "asker", PortAsker),
+    Maker = made(Base, "maker", PortMaker),
+    Third = made(Base, "third", PortThird),
+    lists(Asker, [{"maker", Maker, PortMaker}]),
+    lists(Maker, [{"asker", Asker, PortAsker}, {"third", Third, PortThird}]),
+    lists(Third, [{"maker", Maker, PortMaker}]),
+    edit(Asker, fun(Conf) -> Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>]}} end),
+    edit(Maker, fun(Conf) ->
+                    Conf#{<<"services">> => #{<<"sink">> => [<<"third">>],
+                                              <<"bulk">> => [<<"third">>]}}
+                end),
+    {Asker, Maker, Third}.
+
+%% Report §12.5: the maker's ernest.conf with the third and its services
+%% removed and the node reloaded, as an operator removes a peer; then
+%% until the maker says the host was asked to end its connection to the
+%% third, which it watches for once its connection is held or full.
+reloaded_without_the_third(Maker, MakerInput) ->
+    edit(Maker, fun(#{<<"peers">> := Peers} = Conf) ->
+                    Conf#{<<"peers">> := [Peer || #{<<"name">> := Name} = Peer <- Peers,
+                                                  Name =/= <<"third">>],
+                          <<"services">> := #{}}
+                end),
+    ?assertMatch({0, _}, signaled("reload", Maker)),
+    true = port_command(MakerInput, "asked\n"),
+    prints(Maker, "the host was asked to end the connection to the third").
+
+%% The disconnect's tests' program, built in Base beside the host modules
+%% it asks of the host, the buffer's (buffer_host/0) and its own
+%% (disconnect_host/0); answers its `.erc`.
+disconnect_build(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "disconnect.ern"), [<<"
+// Report §12.5, §12.6, §8.6, §8.7: a disconnect waits on no connection. The
+// third offers a sink and a bulk, which the maker finds. The maker holds its
+// connection to the third back, or sends the bulk more than the connection
+// takes once the test has stopped the third, and says once the host has been
+// asked to end that connection, which a reload without the third asks. The
+// asker finds the maker's probe, and then sends the maker a frame it cannot
+// read, finds the probe again or asks how busy the maker is, as each line
+// says. The maker's subscriber of the end says when it is told.
+//
+// Or the maker refuses the dialer at its full table of processes: its
+// gateway held back while the dialer connects, its connection to the dialer
+// held back and its table filled, and then its gateway let go.
+
+// The process of the host's that writes what waits for the process's node to
+// the connection, and the one for a node by its name on the carrier.
+foreign fn connectionTo(process : Process) : Foreign.Term =
+    \"ern_nodes_buffer:connection_to/1\"
+
+foreign fn connectionOf(node : Foreign.Term) : Foreign.Term =
+    \"ern_nodes_disconnect:connection_of/1\"
+
+// The host's report of each time the process is suspended in a send to
+// another node, its count sent to the address.
+foreign fn watch(process : Process, to : Address(Int)) : Unit =
+    \"ern_nodes_buffer:watch/2\"
+
+// From now on, each ask of the host's to end a connection watched; and until
+// it has been asked to end the one to the process's node.
+foreign fn disconnectsWatched() : Unit = \"ern_nodes_disconnect:watched/0\"
+
+foreign fn askedToEnd(process : Process) : Unit = \"ern_nodes_disconnect:asked/1\"
+
+// A frame the gateway of the node cannot read.
+foreign fn unreadable(node : Foreign.Term) : Unit = \"ern_nodes_disconnect:unreadable/1\"
+
+foreign fn connect(node : Foreign.Term) : Bool = \"net_kernel:connect_node/1\"
+foreign fn whereis(name : Foreign.Term) : Foreign.Term = \"erlang:whereis/1\"
+foreign fn suspended(process : Foreign.Term) : Bool = \"erlang:suspend_process/1\"
+foreign fn resumed(process : Foreign.Term) : Bool = \"erlang:resume_process/1\"
+foreign fn systemInfo(item : Foreign.Term) : Int = \"erlang:system_info/1\"
+
+type MakerMsg = Subscribed | Suspended(Int)
+
+type FloodMsg = Flood
+
+let sink : Peer.Service(Int) = Peer.service(\"sink\")
+
+let bulk : Peer.Service(Bytes) = Peer.service(\"bulk\")
+
+let probe : Peer.Service(Int) = Peer.service(\"probe\")
+
+export fn main() : Unit receiving MakerMsg =
+    match Os.arguments {
+        [\"third\"] -> {
+            let _ = Peer.offer(sink, spawn(fn() : Unit receiving Int = held()));
+            let _ = Peer.offer(bulk, spawn(fn() : Unit receiving Bytes = held()));
+            Io.println(\"offered\");
+            held()
+        }
+      | [\"held\"] ->
+            heldBack()
+      | [\"stopped\"] ->
+            flooded()
+      | [\"refusing\"] ->
+            refusing()
+      | [\"asker\", maker] -> {
+            Io.println(\"found: \" <> Io.show(Peer.find(probe, waitMs())));
+            asked(maker)
+        }
+      | [\"dialer\", maker] -> {
+            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(maker))));
+            held()
+        }
+      | _ ->
+            Unit
+    }
+
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn held() : Unit receiving m =
+    receive {
+        _ -> held()
+    }
+
+fn found(service : Peer.Service(m)) : Address(m) =
+    match Peer.find(service, waitMs()) {
+        Right(address) -> address
+      | Left(failure) -> fault(Io.show(failure))
+    }
+
+// The probe the asker finds, and a subscriber of the end, once it has
+// subscribed.
+fn offered() : Unit receiving MakerMsg = {
+    let me = self();
+    let _ = Peer.offer(probe, spawn(fn() : Unit receiving Int = held()));
+    let _ = spawn(fn() = subscribed(me));
+    receive {
+        Subscribed -> Unit
+    }
+}
+
+fn subscribed(maker : Address(MakerMsg)) : Unit receiving Reply(Unit) = {
+    Os.termination(fn(reply) = reply);
+    send(maker, Subscribed);
+    receive {
+        reply -> {
+            Io.println(\"told of the end\");
+            answer(reply, Unit)
+        }
+    }
+}
+
+// The maker whose connection to the third is held back, and let go once the
+// test says so.
+fn heldBack() : Unit receiving MakerMsg = {
+    let third = Process.fromAddress(found(sink));
+    offered();
+    Io.println(\"found\");
+    let _ = Io.readLine();
+    let connection = connectionTo(third);
+    let _ = suspended(connection);
+    disconnectsWatched();
+    Io.println(\"held back\");
+    toldOfTheAsk(third);
+    let _ = Io.readLine();
+    let _ = resumed(connection);
+    Io.println(\"let go\");
+    held()
+}
+
+// Once the test says so, until the host has been asked to end the
+// connection to the third.
+fn toldOfTheAsk(third : Process) : Unit = {
+    let _ = Io.readLine();
+    askedToEnd(third);
+    Io.println(\"the host was asked to end the connection to the third\")
+}
+
+// The maker that sends the bulk more than its connection takes once the test
+// has stopped the third, until the host holds the flooder in its send.
+fn flooded() : Unit receiving MakerMsg = {
+    let me = self();
+    let third = Process.fromAddress(found(sink));
+    let target = found(bulk);
+    let flooder = spawn(fn() : Unit receiving FloodMsg = flooding(target));
+    watch(Process.fromAddress(flooder), adapted(me, Suspended));
+    offered();
+    Io.println(\"found\");
+    let _ = Io.readLine();
+    disconnectsWatched();
+    send(flooder, Flood);
+    receive {
+        Suspended(_) -> Io.println(\"the host holds the flooder in its send to the third\")
+    };
+    toldOfTheAsk(third);
+    held()
+}
+
+// A quarter of a megabyte at a time, 32 megabytes in all, so that what waits
+// for the connection is never taken whole before the connection is full, as
+// one message's rest may be while the host holds its sender.
+fn flooding(target : Address(Bytes)) : Unit receiving FloodMsg =
+    receive {
+        Flood -> quarters(target, 128)
+    }
+
+fn quarters(target : Address(Bytes), left : Int) : Unit =
+    if left > 0 then {
+        send(target, Bytes.repeat(<<0>>, 262144));
+        quarters(target, left - 1)
+    } else
+        Unit
+
+// The maker that refuses the dialer at its full table of processes, the
+// dialer's name on the carrier typed once it has connected.
+fn refusing() : Unit receiving MakerMsg = {
+    offered();
+    Io.println(\"offered\");
+    let _ = Io.readLine();
+    let gateway = whereis(Foreign.atom(\"ern_gateway\"));
+    let _ = suspended(gateway);
+    Io.println(\"the gateway held back\");
+    match Io.readLine() {
+        Some(dialer) -> {
+            let connection = connectionOf(Foreign.atom(dialer));
+            let _ = suspended(connection);
+            let fillers = filled(systemInfo(Foreign.atom(\"process_limit\"))
+                                     - systemInfo(Foreign.atom(\"process_count\")),
+                                 []);
+            let _ = resumed(gateway);
+            Io.println(\"the table filled, and the gateway let go\");
+            let _ = Io.readLine();
+            List.forEach(fillers, fn(filler) = send(filler, 0));
+            let _ = resumed(connection);
+            Io.println(\"let go\")
+        }
+      | None ->
+            Unit
+    };
+    held()
+}
+
+// Count processes spawned, each waiting until it is sent a number, after
+// those held.
+fn filled(count : Int, fillers : List(Address(Int))) : List(Address(Int)) =
+    if count > 0 then
+        filled(count - 1, spawn(fn() : Unit receiving Int = receive { _ -> Unit }) :: fillers)
+    else
+        fillers
+
+// The asker, doing what each line says until its input ends.
+fn asked(maker : String) : Unit receiving MakerMsg =
+    match Io.readLine() {
+        Some(\"frame\") -> {
+            unreadable(Foreign.atom(maker));
+            Io.println(\"sent a frame the maker cannot read\");
+            asked(maker)
+        }
+      | Some(\"find\") -> {
+            Io.println(\"found again: \" <> Io.show(Peer.find(probe, waitMs())));
+            asked(maker)
+        }
+      | Some(\"utilization\") -> {
+            Io.println(\"utilization: \" <> Io.show(Peer.utilization(\"maker\", waitMs())));
+            asked(maker)
+        }
+      | _ ->
+            held()
+    }
+"/utf8>>, wait_ms_declaration()]),
+    [begin
+         Source = filename:join(Root, Module ++ ".erl"),
+         ok = file:write_file(Source, Text),
+         {ok, _} = compile:file(Source, [{outdir, Root}])
+     end || {Module, Text} <- [{"ern_nodes_buffer", buffer_host()},
+                               {"ern_nodes_disconnect", disconnect_host()}]],
+    0 = built([Root]),
+    filename:join(Root, "disconnect.erc").
+
+%% A host module for the disconnect's program. It answers the process of the
+%% host's that writes a connection, by the node's name on the carrier, and
+%% sends a node's gateway a frame it cannot read. It watches, by a process
+%% of its own that traces what the host's process of the node's connections
+%% takes, each ask to end a connection, whether a call or a cast, and
+%% answers a process once the host has been asked to end the connection to
+%% a node.
+disconnect_host() ->
+    <<"
+-module(ern_nodes_disconnect).
+-export([connection_of/1, watched/0, asked/1, unreadable/1]).
+connection_of(Node) ->
+    {_, Controller} = lists:keyfind(Node, 1, erlang:system_info(dist_ctrl)),
+    Controller.
+watched() ->
+    Caller = self(),
+    Kernel = whereis(net_kernel),
+    Watcher = spawn(fun() ->
+                        true = register(ern_nodes_disconnects, self()),
+                        1 = erlang:trace(Kernel, true, ['receive']),
+                        Caller ! {ern_nodes_watching, self()},
+                        disconnects(#{}, [])
+                    end),
+    receive {ern_nodes_watching, Watcher} -> 'Unit' end.
+disconnects(Asked, Waiting) ->
+    receive
+        {trace, _, 'receive', {'$gen_call', _, {disconnect, Node}}} ->
+            told(Asked#{Node => true}, Waiting);
+        {trace, _, 'receive', {'$gen_cast', {async_disconnect, Node}}} ->
+            told(Asked#{Node => true}, Waiting);
+        {trace, _, 'receive', _} ->
+            disconnects(Asked, Waiting);
+        {asked, Node, From} ->
+            told(Asked, [{Node, From} | Waiting])
+    end.
+told(Asked, Waiting) ->
+    disconnects(Asked, [Wait || {Node, From} = Wait <- Waiting,
+                                not answered(maps:is_key(Node, Asked), Node, From)]).
+answered(true, Node, From) ->
+    From ! {ern_nodes_asked, Node},
+    true;
+answered(false, _, _) ->
+    false.
+asked(Pid) ->
+    Node = node(Pid),
+    ern_nodes_disconnects ! {asked, Node, self()},
+    receive {ern_nodes_asked, Node} -> 'Unit' end.
+unreadable(Node) ->
+    erlang:send({ern_gateway, Node}, {ern_frame, self(), unreadable}),
+    'Unit'.
+">>.
 
 %% A node of the buffer's program started in Mode, once it has offered its
 %% services; answers what waits for its end.

@@ -231,7 +231,11 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
         %% refused, its connection ended and its loss said no more. Report
         %% §8.7, Appendix E.27: a peer that connects is told at once, so
         %% that it holds this node's utilization before an interval has
-        %% passed, but where the node ends or tells no peer (§11.2)
+        %% passed, but where the node ends or tells no peer (§11.2). The
+        %% refused connection is ended by the host's cast, since its
+        %% erlang:disconnect_node/1 waits for the connection's process to
+        %% take its exit, which a held connection's never does, and would
+        %% hold the gateway and every peer's frames (docs/otp_bugs.md, 26)
         {nodeup, Node, _} = Event when Node =/= node() ->
             case connected(Node, Workers) of
                 {ok, Workers1} ->
@@ -241,7 +245,7 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
                     gateway(Workers1, Ends, Told, Deadline, Departed);
                 limited ->
                     ern_carrier:table_full(ern_carrier:named(Node)),
-                    _ = erlang:disconnect_node(Node),
+                    ok = net_kernel:async_disconnect(Node),
                     gateway(Workers, Ends#{Node => refused}, Measured, Deadline, Departed)
             end;
         %% the node's own start, which the host tells as a connection too,
@@ -591,6 +595,12 @@ outcome(Node, {not_loaded, Kind, Site, Lacked}) ->
                            ern_show:controls(Site, line), " was not loaded: ", Lacked]);
 outcome(Node, unreadable) ->
     ern_carrier:say_later([ern_carrier:named(Node), " sent a frame this node cannot read, and"
-                                                    " its connection was ended"]),
-    _ = erlang:disconnect_node(Node),
-    ok.
+                                                    " this node ends its connection"]),
+    %% the host ends the connection once its process takes the exit the
+    %% host sends it; the host's erlang:disconnect_node/1 waits for that in
+    %% the host's process of the node's connections, without limit while
+    %% another disconnect holds that process or this connection's cannot
+    %% take the exit (docs/otp_bugs.md, 26), and here it held the peer's
+    %% worker, and every frame of the peer behind it; its cast waits for
+    %% nothing
+    ok = net_kernel:async_disconnect(Node).

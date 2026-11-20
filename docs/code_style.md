@@ -62,7 +62,7 @@ How the standard library's and the libraries' operations stand on the host, whic
 
   The page is a source of truth, never of wording: the prose is ours (E.0 shape rule 6), nothing is copied.
 
-  A host module whose documentation is hidden is used only where decided with the user: `unicode_util`'s tables behind `Char` (the log's *Char Reads the Host's Tables*).
+  A host module or function whose documentation is hidden is used only where decided with the user: `unicode_util`'s tables behind `Char` (the log's *Char Reads the Host's Tables*), and `net_kernel:async_disconnect/1` where a node ends a connection (the log's *What a Peer's Worker Waits On*).
 - **No regular expression answers a fixed question in the runtime.** A shim that asks one thing of each value, a category, a literal's form, tests it directly.
 
 ## Glossary

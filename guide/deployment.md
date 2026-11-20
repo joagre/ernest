@@ -79,7 +79,7 @@ It writes its process number to `ernest.pid` in its directory and holds the file
 
 `ern reload --config-dir dir` sends the node the hangup signal, and the node reads `ernest.conf` again (report §12.5, *A reload*). A peer added is listed and nothing more happens until the program reaches for it, by a send, a call, a find, a spawn or a compute, or until it dials in. A send is a message to a process there, and a *call* a send that waits for its answer. A find looks up a service the peer offers, a spawn starts a process there, and a compute runs a function there for its value.
 
-A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures`, `utilization` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3); and a change to `limits` holds from the node's next start, which the node says.
+A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); the node says the removal at once, and serves the peer until the host has closed the connection, which a peer that stands still puts off for up to the 85 seconds of section 1.3; a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures`, `utilization` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3); and a change to `limits` holds from the node's next start, which the node says.
 
 The node says `ernest.conf was read again` and a line for each peer added, removed or renamed.
 

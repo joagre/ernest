@@ -856,7 +856,7 @@ A dial answered by another listed peer than the one dialed is refused by the dia
 
 **A reload.** `ern reload --config-dir dir` sends the node named by `ernest.pid` the hangup signal, which `kill -HUP` sends as well (§8.6, §11.2), and the node reads `ernest.conf` again.
 
-A peer added is listed, and nothing else happens until an operation dials it or it dials in. A peer removed, or one whose key changed, has its connection ended: both nodes run the loss, and the addresses a program holds of its processes are those of a node not listed. A peer whose address changed keeps an open connection, and the next dial uses the new address. A peer whose name changed under the same key keeps its connection; only the name a program uses changes.
+A peer added is listed, and nothing else happens until an operation dials it or it dials in. A peer removed, or one whose key changed, has its connection ended: both nodes run the loss, and the addresses a program holds of its processes are those of a node not listed. The node says the removal at once, and serves the peer as a peer until the host has closed its connection (§12.6). A peer whose address changed keeps an open connection, and the next dial uses the new address. A peer whose name changed under the same key keeps its connection; only the name a program uses changes.
 
 A change to `measures` starts or stops the host's services it names, and a change to `utilization` holds from the next ask, and one to `utilization-interval` from the next telling. A change to `limits` holds from the node's next start, since the host takes its limits only as it boots, and the node says so: `the change to limits holds from the node's next start`.
 

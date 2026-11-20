@@ -21,7 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 125**, a disconnect that waits on no connection.
+**The next item is MVP 4.16's item 126**, a worker's fault for a third node, and a `find`'s
+alias.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -62,30 +63,6 @@ corner shows it (the log's *Item 140 Stands After the Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **125. A disconnect that waits on no connection**, found 2026-11-19 by item 108's
-  reading (the log's *What a Peer's Worker Waits On*). `erlang:disconnect_node/1` holds
-  the host's `net_kernel` until the connection's controller has taken its exit, and over
-  TLS the controller reads nothing while its socket is full. A node calls it at a reload
-  that removes a peer, at a frame it cannot read and at the peer limit's refusal. With a
-  peer stopped and its connection full, a reload that removed it left the node deciding
-  no loss. It held another peer's worker, a termination and that peer's departure, until
-  the stopped node ran again.
-
-  The fix's shape, decided with the user: the three sites call
-  `net_kernel:async_disconnect/1`, which sends the same exit and does not wait. Its
-  documentation is hidden, and `docs/code_style.md`'s *Shims* names its use with the
-  build. An agent builds it against the reading's probes, which become its tests: the
-  reload, the termination behind it, and the peer really stopped.
-
-  The build shows three things beside it. The first is the gateway's refusal at the peer
-  limit under the hold, since the nodes' note says the gateway waits on no peer. The
-  second is the line "its connection was ended", said before the disconnect is made,
-  which then says what is so. The third is one unconfirmed sighting, shown or dismissed:
-  a node whose program had ended, lost as silent by a quiet peer on a sound connection.
-
-  The agent writes the host's behavior as report 26 in [`otp_bugs.md`](otp_bugs.md)'s
-  form, reproduced with OTP alone, and the session runs its script as placed. Filing is
-  the user's.
 - **126. A worker's fault for a third node, and a `find`'s alias**, found 2026-11-19 by
   item 108's reading (the log's *What a Peer's Worker Waits On*). At a full process table
   a worker cannot start the process kept for an adapted address, and sends the fault to
@@ -398,6 +375,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 139 | `ern test` ends by a termination or a hangup that cut short the end of a run, a module's tests' or an example's, and runs no launch after it, with the user | 2026-11-19 | §11, §11.8; *`ern test` Ends by a Signal That Cut an End* |
 | 141 | `the end was cut short` names each subscriber whose answer the end had not taken, a narrower sentence and no code, with the user | 2026-11-19 | §11.2; *A Subscriber Named Unanswered* |
 | 124 | A node's end waits for no send: what is not placed when the node tells a peer that it ends may be dropped, its watcher told `Unreachable`, and a peer that connects while the node stops is told nothing, narrower sentences and no code, with the user | 2026-11-20 | §6.9, §8.6, §8.7, §9.3, §12.6, Appendix E.1; *A Node's End Waits for No Send* |
+| 125 | A disconnect waits on no connection: a reload that removes a peer, a frame a node cannot read and the refusal at a full table end the connection by the host's cast; §12.5 says that a removed peer is served until the host has closed its connection; the line of a frame it cannot read says that the node ends the connection; `otp_bugs.md`'s report 26, with the user | 2026-11-20 | §12.5, §12.6; *The Disconnect Waits for Nothing* |
 
 ---
 
@@ -851,7 +829,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 140, 143 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -973,6 +951,34 @@ What the line left, in the order it is taken:
 
   The shape: the read's failure reaches the runtime, which faults the entry process as
   §12.1 says. An agent first shows what the host's read answers for each of the two.
+- **144. A removed peer's frames until its connection closes**, found 2026-11-20 by item
+  125's build (the log's *The Disconnect Waits for Nothing*, its paragraph *The window
+  after a reload*). A reload that removes a peer asks the host to end its connection, and
+  until the host has closed it the node serves the peer as a peer, which §12.5 states. A
+  spawn that a removed peer sent after the node had said the removal ran on the node, its
+  connection held back, 3 runs of 3. The host closes a sound connection within 2 ms, and
+  one to a peer that stands still about 84 s later.
+
+  By a reading of the host's tick, a peer that keeps sending and reads nothing keeps its
+  connection without limit. Only a peer built so meets that, one that could start code
+  on the node while it was listed, so the item stands here.
+
+  The shape: from the reload on, the gateway drops the runtime's frames of a node that is
+  no longer listed, and says so, as §12.6 has it of a frame that belongs to no
+  connection. What the host carries itself, a message, a monitor and an answer, crosses
+  until the close, and §12.5 then says that alone. An agent first shows the peer that
+  sends and reads nothing.
+- **145. A sender held at the buffer's limit, and its connection idle**, found 2026-11-20
+  by item 125's build (the log's *The Disconnect Waits for Nothing*, its paragraph *Found
+  beside it*), seen and not chased. A node sent a stopped peer one message of 16 MB, and
+  the host held the sender once the buffer passed its limit. In 1 poll of 11 the
+  connection's process then stood idle for about 4.8 s with the rest unsent, and in 1
+  run of 6 the connection was not full when a reload removed the peer. It is a reading
+  not yet made, of the host alone, so the item stands here.
+
+  The shape: an agent reproduces it with OTP alone. Shown, it is a report in
+  [`otp_bugs.md`](otp_bugs.md), and nothing of Ernest's changes: item 125's tests send
+  128 messages of 256 KB, which filled the connection in 15 runs of 15.
 - **140. An `Os.exit` once the end's wait is over**, found 2026-11-19 by item 120's
   probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside it*). On
   a node, a process kept for an adapted address called `Os.exit(7)` while the flush was

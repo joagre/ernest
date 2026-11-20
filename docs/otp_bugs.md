@@ -1422,3 +1422,187 @@ The lines are the same at OTP-29.1.2 and at master (6324707). Master's line numb
 - `erts_proc_exit_handle_link` takes the same branch on `is_immed(reason)` (line 14115; 14112), so an exit signal through a link to another node can overtake the message too. This was read and not shown.
 
 No earlier report of this was found on the tracker.
+
+## 26. `erlang:disconnect_node/1` holds `net_kernel`, and every connection's tick, while the connection's controller cannot take its exit
+
+Found on 2026-11-19 by the reading of MVP 4.16's item 108; the log's *What a Peer's Worker Waits On*. Ernest's nodes no longer meet it: a reload that removes a peer, a frame a node cannot read and the gateway's refusal at a full table of processes end the connection by `net_kernel:async_disconnect/1`, which does not wait (§12.5, §12.6), and the code's comment at each says why.
+
+**Title:** erlang:disconnect_node/1 blocks net_kernel, and every tick and connection with it, until the connection's controller handles its exit
+
+**Describe the bug**
+
+`erlang:disconnect_node/1` calls `net_kernel:disconnect/1`, a `gen_server` call with no timeout. `net_kernel` sends the connection's controller the exit signal `disconnect`, and then waits in a selective receive for the controller's `'EXIT'`, with no timeout. While it waits it handles no other message.
+
+A controller that traps exits takes the signal as a message, and ends only once it reads it. Over TLS the controller is ssl's `tls_sender`, which traps exits. Where the peer reads nothing and the socket's queue is full, the sender waits in `prim_inet:send/4`'s receive for the port's reply, and reads no other message (#12235). The disconnect then lasts until the peer reads again.
+
+Meanwhile:
+
+- `net_kernel` passes no `tick` to the connections. No peer is ticked, and none is given up for its silence: not the one whose connection is being ended, so that nothing ends the wait but that peer reading again. Every other peer that hears nothing else from the node gives the node up after `net_ticktime`.
+- Every call to `net_kernel` waits, `connect_node/1`, `get_net_ticktime/0`, another `disconnect_node/1` and another node's `net_adm:ping/1` among them. A new connection's setup waits in `dist_util`, which asks `net_kernel` to mark it pending.
+- The caller of `erlang:disconnect_node/1` waits too.
+
+`net_kernel:async_disconnect/1`, which `global` uses, sends the same signal and returns at once; `net_kernel` handles the `'EXIT'` when it comes. Its documentation is hidden.
+
+**To Reproduce**
+
+```sh
+#!/bin/sh
+# Usage: sh repro.sh sync|async [net_ticktime]
+MODE=$1 TICK=${2:-8}
+D=$(mktemp -d)
+cd "$D" || exit 1
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=repro \
+    -keyout key.pem -out cert.pem 2>/dev/null
+cat > dist.conf <<EOF
+[{server, [{certfile, "$D/cert.pem"}, {keyfile, "$D/key.pem"}]},
+ {client, [{verify, verify_none}]}].
+EOF
+cat > a.erl <<'EOF'
+-module(a).
+-export([main/1, c/0]).
+
+main([Mode, Tick]) ->
+    [_, Host] = string:split(atom_to_list(node()), "@"),
+    [B, C] = [list_to_atom(Name ++ "@" ++ Host) || Name <- ["repro_b", "repro_c"]],
+    connect(B),
+    connect(C),
+    BPid = erpc:call(B, os, getpid, []),
+    Ctrl = proplists:get_value(B, erlang:system_info(dist_ctrl)),
+    os:cmd("kill -STOP " ++ BPid),
+    spawn(fun() -> fill({nobody, B}, binary:copy(<<0>>, 1 bsl 20)) end),
+    sending(Ctrl),
+    Wait = 3 * list_to_integer(Tick) * 1000,
+    T0 = erlang:monotonic_time(millisecond),
+    S = fun() -> (erlang:monotonic_time(millisecond) - T0) / 1000 end,
+    {repro_c, C} ! {t0, self(), erlang:system_time(millisecond)},
+    Self = self(),
+    Disconnecting = spawn(fun() ->
+                              R = case Mode of
+                                      "sync" -> erlang:disconnect_node(B);
+                                      "async" -> net_kernel:async_disconnect(B)
+                                  end,
+                              Self ! {disconnected, R}
+                          end),
+    io:format("~6.3f s  ~s disconnect of b sent; b's controller: ~p~n",
+              [S(), Mode, erlang:process_info(Ctrl, [status, current_function])]),
+    Asking = spawn(fun() -> Self ! {ticktime, net_kernel:get_net_ticktime()} end),
+    receive
+        {disconnected, R1} -> io:format("~6.3f s  the disconnect returned ~p~n", [S(), R1])
+    after 1000 -> ok
+    end,
+    receive
+        {ticktime, T1} -> io:format("~6.3f s  get_net_ticktime/0 returned ~p~n", [S(), T1])
+    after 1000 -> ok
+    end,
+    receive after Wait -> ok end,
+    io:format("~6.3f s  connected: ~p~n", [S(), nodes(connected)]),
+    io:format("          net_kernel: ~p~n", [info(whereis(net_kernel))]),
+    io:format("          the disconnect's caller: ~p~n", [info(Disconnecting)]),
+    io:format("          get_net_ticktime/0's caller: ~p~n", [info(Asking)]),
+    os:cmd("kill -CONT " ++ BPid),
+    io:format("~6.3f s  b continued~n", [S()]),
+    receive
+        {disconnected, R2} -> io:format("~6.3f s  the disconnect returned ~p~n", [S(), R2])
+    after 5000 -> ok
+    end,
+    os:cmd("kill -KILL " ++ BPid),
+    halt().
+
+%% Run on c: when a's connection goes down, in seconds after a's disconnect.
+c() ->
+    register(repro_c, self()),
+    ok = net_kernel:monitor_nodes(true, [nodedown_reason]),
+    receive {t0, A, T0} ->
+        receive {nodedown, Node, Why} when Node =:= node(A) ->
+            io:format("~6.3f s  on c, nodedown of a: ~p~n",
+                      [(erlang:system_time(millisecond) - T0) / 1000, Why])
+        end
+    end,
+    receive after infinity -> ok end.
+
+connect(Node) ->
+    case net_kernel:connect_node(Node) of
+        true -> ok;
+        false -> receive after 100 -> connect(Node) end
+    end.
+
+fill(To, Bin) ->
+    case erlang:send(To, Bin, [noconnect]) of
+        noconnect -> ok;
+        _ -> fill(To, Bin)
+    end.
+
+%% Until the controller waits in its send to the socket, whose queue is full.
+sending(Ctrl) ->
+    case info(Ctrl) of
+        [{status, waiting}, {current_function, {prim_inet, send, 4}}, _] -> ok;
+        _ -> receive after 10 -> sending(Ctrl) end
+    end.
+
+info(Pid) ->
+    erlang:process_info(Pid, [status, current_function, messages]).
+EOF
+erlc a.erl || exit 1
+FLAGS="-proto_dist inet_tls -ssl_dist_optfile $D/dist.conf -setcookie repro -connect_all false
+       -kernel net_ticktime $TICK -noshell"
+erl -sname repro_b $FLAGS &
+B=$!
+erl -sname repro_c $FLAGS -s a c &
+C=$!
+erl -sname repro_a $FLAGS -run a main "$MODE" "$TICK"
+kill -KILL $B $C 2>/dev/null
+wait
+```
+
+The script makes a certificate and starts three nodes on one machine, with `net_ticktime` 8 and `global`'s mesh off. Node a connects to b and c. It stops b with `SIGSTOP`, sends it 1 MB messages until b's controller waits in its send, and then ends b's connection with `erlang:disconnect_node/1`, or with `net_kernel:async_disconnect/1` given `async`. It asks `net_kernel:get_net_ticktime/0` once. Three ticktimes later it prints the nodes it is connected to and the state of `net_kernel` and of the two callers, continues b, and prints when the disconnect returns. Node c prints when its connection to a goes down. Times are in seconds after the disconnect.
+
+On a machine of 24 hardware threads, `sh repro.sh sync` printed this, c's own "not responding" report left out:
+
+```
+ 0.000 s  sync disconnect of b sent; b's controller: [{status,waiting},
+                                                      {current_function,
+                                                       {prim_inet,send,4}}]
+ 9.671 s  on c, nodedown of a: [{nodedown_reason,net_tick_timeout}]
+26.006 s  connected: [repro_b@nike]
+          net_kernel: [{status,waiting},
+                       {current_function,{net_kernel,disconnect_ctrlr,3}},
+                       {messages,
+                           [{'$gen_call',
+                                {<0.118.0>,#Ref<0.769519162.3919052808.11084>},
+                                ticktime},
+                            tick,tick,tick,tick,tick,
+                            {'EXIT',<0.114.0>,shutdown},
+                            {'EXIT',<0.111.0>,shutdown},
+                            tick,tick,tick,tick,tick,tick,tick,tick]}]
+          the disconnect's caller: [{status,waiting},
+                                    {current_function,{gen,do_call,4}},
+                                    {messages,[]}]
+          get_net_ticktime/0's caller: [{status,waiting},
+                                        {current_function,{gen,do_call,4}},
+                                        {messages,[]}]
+26.009 s  b continued
+26.016 s  the disconnect returned true
+```
+
+- Three runs of `sync` printed c's `nodedown` of a at 9.671, 9.694 and 9.661 s, a sound connection given up for the ticks a held back, and the disconnect returned 7, 2 and 4 ms after b continued, 26 s after it was sent. `get_net_ticktime/0` returned in none of them while b was stopped.
+- Three runs of `async` printed the disconnect returning at 0.003, 0.004 and 0.004 s and `get_net_ticktime/0` returning 8 at the same moment. By 24 s a was connected to c alone, the tick having given b up, and c's connection to a went down only at a's halt, with `shutdown`.
+- That a dial and another node's ping wait too was read, and not shown here.
+
+**Expected behavior**
+
+`erlang:disconnect_node/1` does not hold `net_kernel` while the controller has not ended: `net_kernel` handles the controller's `'EXIT'` when it comes, as it does for `async_disconnect/1`, and replies to the caller then, or the caller waits outside `net_kernel`. A connection that cannot take its exit then holds no other, and the tick gives it up as it gives up any silent peer.
+
+**Affected versions**
+
+OTP 29.1.2, erts 17.1.1, kernel 11.0.4, ssl 11.7.8, on Linux x86_64.
+
+**Additional context**
+
+The lines are the same at OTP-29.1.2 and at master (c81e92f). Master's line numbers are given in parentheses.
+
+- In `erlang.erl`, `disconnect_node/1` calls `net_kernel:disconnect/1` (line 11658; 11879).
+- In `net_kernel.erl`, `disconnect/1` is `request({disconnect, Node})` (line 696; 697), a `gen_server:call` with `infinity` (line 745; 746). `handle_call({disconnect, Node}, ...)` calls `do_disconnect(Node, State, false)` (lines 1186 to 1189; 1187 to 1190). `disconnect_ctrlr/3` sends `exit(Ctrlr, disconnect)` and, where it is not asked to be asynchronous, receives `{'EXIT', Ctrlr, Reason}` with no `after` (lines 2135 to 2147; 2136 to 2148).
+- `handle_info(tick, State)` sends `{self(), tick}` to each connection's owner (lines 1638 to 1644; 1639 to 1645), whose loop in `dist_util.erl` checks the peer's silence and ticks it at that message (line 651; 653).
+- `async_disconnect/1` casts `{async_disconnect, Node}` (lines 699 and 700; 700 and 701), which calls `do_disconnect(Node, State, true)` (lines 1355 to 1358; 1356 to 1359). `global.erl` calls it (lines 1115, 1521 and 1568; 1117, 1523 and 1570).
+
+#5708 met the same wait from another side: a `tls_sender` that ignored the exit while its handshake was not done held `net_kernel` until the connection closed. Its fix, #5711, has the sender assert the distribution's mode by another reference, and leaves `net_kernel`'s wait without a limit.

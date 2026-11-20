@@ -349,7 +349,16 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
     ok = ern_gateway:reloaded(),
     Removed = [Peer || #peer{public_key = Old} = Peer <- Peers,
                        not lists:keymember(Old, #peer.public_key, NewPeers)],
-    lists:foreach(fun(#peer{public_key = Old}) -> erlang:disconnect_node(name(Old)) end, Removed),
+    %% Report §12.5: the host ends a removed peer's connection once its
+    %% process takes the exit the host sends it, and the loss is run then.
+    %% The host's erlang:disconnect_node/1 waits for that in the host's
+    %% process of the node's connections, which then passes no tick, takes
+    %% no connection and ends no other, without limit while a held
+    %% connection, or a full one to a peer that stands still, keeps its
+    %% process from the exit (docs/otp_bugs.md, 26); here it held the signal
+    %% handler too, and so every later signal. Its cast waits for nothing.
+    lists:foreach(fun(#peer{public_key = Old}) -> net_kernel:async_disconnect(name(Old)) end,
+                  Removed),
     [["the peer ", Name, " was added"]
      || #peer{name = Name, public_key = Added} <- NewPeers,
         not lists:keymember(Added, #peer.public_key, Peers)]

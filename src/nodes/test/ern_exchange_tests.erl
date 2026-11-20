@@ -758,8 +758,8 @@ faulty_frame_test() ->
     ?assertEqual(ok, run(Main, Options)),
     ?assertEqual({faulty, [[], [], [], [], [], [], []], []},
                  receive {faulty, _, _} = Got -> Got end),
-    ?assertEqual(lists:duplicate(11, <<"the node nohost sent a frame this node cannot read, and its"
-                                      " connection was ended\n">>),
+    ?assertEqual(lists:duplicate(11, <<"the node nohost sent a frame this node cannot read, and"
+                                      " this node ends its connection\n">>),
                  Said()),
     ?assertError(badarg, binary_to_existing_atom(<<"ern_unknown1">>)).
 
