@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 147**, the line of a fault taken at a wait.
+**The next item is MVP 4.16's item 148**, a process printed with a dot.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,21 +60,10 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
 corner shows it (the log's *Item 140 Stands After the Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it. Items 147, 148
-and 150, found by item 133 and by item 146 after it, are taken first, on the user's word on
+**What was found**, each item begun by an agent that shows it or tests it. Items 148 and
+150, found by item 133 and by item 146 after it, are taken first, on the user's word on
 2026-11-20, while their probes are at hand.
 
-- **147. The line of a fault taken at a wait**, found 2026-11-20 by item 133's showing
-  (the log's *An Address Given Back, on Another Node*). Appendix E.21 has the frame of a
-  fault taken at a wait name the `receive`'s own line. A bad message's fault taken in a
-  `receive` on line 71, its first clause on line 72, was traced `Probe.serve:72` in every
-  run. The emitter's test writes the `receive` and its clause on one line, and cannot
-  tell the two apart.
-
-  A program that writes `receive {` on a line of its own shows E.21's sentence false,
-  so by the line's test the item stands here. An agent first reads the emitter and says
-  which line a frame names, with an `after` and without. The narrower sentence is
-  weighed first, and the test's clause gets a line of its own.
 - **148. A process is printed with a dot**, decided with the user on 2026-11-20 (the
   log's *An Address Given Back, on Another Node*, its paragraph *The printed form*).
   `Io.show` writes a `Process` as `<process.183>` and an address as `<address.84>`, where
@@ -396,6 +385,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 126 | A worker waits on no third node: at a full table the worker sets the host's `async_dist` around the fault it sends an adapted address's process, and the `find` frame takes the `compute` frame's guard; the nodes' note names the send | 2026-11-20 | §6.5, §7.4, §8.7, §12.5, §12.6; *A Worker Waits on No Third Node* |
 | 133 | An address foreign code gave carries the process behind it, so `Process.fromAddress`, a `kill`, a `monitor`, a fault and a call name that process on another node, and a check in front of a process of another node comes back as the address that went out, with the user | 2026-11-20 | §6.4, §6.5, §6.6, §6.9, §8.4, §8.7, Appendix E.21; *An Address Given Back, on Another Node* |
 | 146 | An address of a recursive type gets one check whether it crosses alone or inside a value of its type, and comes back as the program's own either way; a function value's result check closes a type whose recursion passes through another | 2026-11-20 | §8.4, §12.3; *One Check for an Address of a Recursive Type* |
+| 147 | A fault taken at a wait names its `receive`'s line, as Appendix E.21 says: the showing counted a line wrong, and two tests of `ern_emitter_tests` now write the clause on a line of its own | 2026-11-20 | Appendix E.21; *A Fault at a Wait Names Its `receive`* |
 
 ---
 

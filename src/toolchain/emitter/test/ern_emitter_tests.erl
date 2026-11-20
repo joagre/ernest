@@ -1031,9 +1031,10 @@ trace_leaves_the_runtime_out_test() ->
 %% fun, whose frame names the receive's line whether or not it is the last
 %% thing its function does, and a fault in a clause's body stands above the
 %% receive it is in, a frame of the host's stack. A fault taken at the wait
-%% names the receive's line, with an `after` and without. A regression test,
-%% written after the code: a timed receive's frame was taken for a helper's
-%% and its line lost before it, and a fault at a wait had no line
+%% names the receive's line, with an `after` and without, and not its first
+%% clause's, which stands on the line after. A regression test, written
+%% after the code: a timed receive's frame was taken for a helper's and its
+%% line lost before it, and a fault at a wait had no line
 trace_through_a_wait_test() ->
     Types = "type Msg = Msg\n",
     Deadlock = fun(Body) ->
@@ -1089,8 +1090,9 @@ trace_through_a_wait_test() ->
                                  "}\n"),
                 Trace
             end,
-    ?assertEqual(<<"M.main:6\n">>, Poked("receive { Msg -> Unit }")),
-    ?assertEqual(<<"M.main:6\n">>, Poked("receive { Msg -> Unit | after 5000 -> Unit }")).
+    ?assertEqual(<<"M.main:6\n">>, Poked("receive {\n        Msg -> Unit\n    }")),
+    ?assertEqual(<<"M.main:6\n">>,
+                 Poked("receive {\n        Msg -> Unit\n      | after 5000 -> Unit\n    }")).
 
 %% The trace of the process behind Address, once it waits.
 -spec frame_of(ern_rt:address()) -> binary().
@@ -3240,11 +3242,11 @@ foreign_messages_test() ->
 
 %% report §8.4, Appendix E.21: a bad message foreign code sends to a
 %% process the runtime started faults it at the wait that reaches it, and
-%% the fault's trace is its own stack there, the receive's own line. A
-%% regression test, written after the code: only a fault laid in the
-%% mailbox by hand held the trace (trace_through_a_wait_test/0), and not
-%% one the check sends; it does not cover a wait for a call's answer, nor
-%% a receiver on another node
+%% the fault's trace is its own stack there, the receive's own line, its
+%% clause on the line after. A regression test, written after the code:
+%% only a fault laid in the mailbox by hand held the trace
+%% (trace_through_a_wait_test/0), and not one the check sends; it does not
+%% cover a wait for a call's answer, nor a receiver on another node
 bad_message_trace_is_the_receivers_test() ->
     ?assertMatch({{fault, <<"message does not match Msg">>, <<"M.main:6\n">>}, _},
                  run("type Msg = Go(Int)\n"
@@ -3252,7 +3254,9 @@ bad_message_trace_is_the_receivers_test() ->
                      "export fn main() : Unit receiving Msg = {\n"
                      "    junk(self());\n"
                      "\n"
-                     "    receive { Go(n) -> Io.println(Int.toString(n)) };\n"
+                     "    receive {\n"
+                     "        Go(n) -> Io.println(Int.toString(n))\n"
+                     "    };\n"
                      "    Unit\n"
                      "}\n")).
 
