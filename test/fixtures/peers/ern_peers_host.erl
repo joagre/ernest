@@ -3,12 +3,12 @@
 %% atoms, the count of the notes of calls on a callee it keeps for other
 %% nodes, a connection ended by a frame its peer's gateway cannot read, the
 %% host's own round trip to another node, timed, for `make bench`, and
-%% foreign code that holds an address it is given and sends through it
-%% (report §8.4).
+%% foreign code that holds an address it is given and sends through it, or
+%% gives it back (report §8.4).
 -module(ern_peers_host).
 
 -export([atoms/0, notes/1, sever/1, pings/2, hold/2, held/1, sent_through/2, held_alive/1,
-         held_end/2, lookouts_left/1]).
+         held_end/2, lookouts_left/1, back/1]).
 
 -spec atoms() -> non_neg_integer().
 atoms() ->
@@ -77,6 +77,12 @@ lookouts_left(Ms) ->
                        erlang:process_info(Pid, current_function)
                            =:= {current_function, {ern_boundary, lookout_loop, 4}}],
     length([Pid || Pid <- Lookouts, not ended(Pid, Deadline)]).
+
+%% Report §8.4: foreign code that gives back the address it was given, as
+%% the host process it was given, the check in front of the address.
+-spec back(pid()) -> pid().
+back(Pid) when is_pid(Pid) ->
+    Pid.
 
 %% Whether Pid has ended by Deadline, waited for by a monitor of it.
 ended(Pid, Deadline) ->

@@ -8,9 +8,9 @@
 %% An Address is a pid, or {adapted, Function, Target, Maker, Launch} for an
 %% address seen through a function (report §6.5), Maker the process that
 %% made it and Launch the reference of the launch that made it, which
-%% send/2 applies (kept/1, §12.6), or {foreign, Pid, Descriptor, Bound} for
-%% an address foreign code gave (report §8.4), whose messages cross into
-%% foreign code.
+%% send/2 applies (kept/1, §12.6), or {foreign, Pid, Process, Descriptor,
+%% Bound} for an address foreign code gave (report §8.4), whose messages
+%% cross into foreign code, Process the process behind it (held/3).
 %%
 %% A Reply(a) is {Alias, Pid}: the alias of the call's monitor of its
 %% callee, as gen_server's call makes one, which deactivates when the call
@@ -191,8 +191,9 @@
 %% report §8.4: each checker, {{checker, Key}, Checker}, and what it
 %% stands in front of, {{behind, Checker}, Pid, Address, Key}, written as
 %% the reaper makes the checker (started_checker/3) and taken by it as the
-%% checker ends (unchecked/1), read where an address is taken back to its
-%% process (process_of/1, held/3) and, report §8.6, by the deadlock look,
+%% checker ends (unchecked/1), read where an address foreign code gave is
+%% held (held/3) and a pid is taken back to its process (process_of/1),
+%% and, report §8.6, by the deadlock look,
 %% which reads each checker as it reads a process of the program
 -define(CHECKERS, ern_checkers).
 %% report §12.1, §8.6: the launch, #launch{}, the way the terminal is read,
@@ -281,7 +282,7 @@
 %% that made it, which is dead once that launch has ended, by an earlier
 %% start of the node or as an earlier run of `ern test` over a directory
 %% (§8.7, §11.2), or none where no launch was in progress.
--type address() :: pid() | adapted() | {foreign, pid(), term(), map()}.
+-type address() :: pid() | adapted() | {foreign, pid(), pid(), term(), map()}.
 -type adapted() :: {adapted, fun((term()) -> term()), address(), pid(), reference() | none}.
 
 %% Report §8.2: the system processes, by the names the runtime keeps them
@@ -419,7 +420,7 @@ sent({{adapted, _, _, Maker, _} = Address, Message}) ->
     erlang:send({ern_gateway, node(Maker)},
                 {ern_frame, erlang:self(), {adapted, Address, Message}});
 %% report §8.4: a message to a foreign address crosses into foreign code
-sent({{foreign, Pid, Descriptor, Bound}, Message}) ->
+sent({{foreign, Pid, _, Descriptor, Bound}, Message}) ->
     Pid ! ern_boundary:expose(Descriptor, Message, Bound);
 sent({Pid, Message}) ->
     Pid ! Message.
@@ -600,13 +601,17 @@ is_of_this_launch(Launch) ->
 %%
 %% Report §8.4, Appendix E.21: "through every adapted address and every
 %% check". A checker foreign code gives back is held foreign where it comes
-%% back at another type than it crossed at, or is in front of a process with
-%% no row (held/3), and the process behind it is still the one its address
-%% names. A send to it goes to the checker, which checks what is sent at the
-%% other type (sent/1); everything else the runtime holds is the process's.
+%% back at another type than it crossed at, or is in front of a process of
+%% this node with no row, and the process behind it is still the one its
+%% address names, which the held address carries (held/3), since only the
+%% checker's node holds the row that leads there and the address is as good
+%% on any node it is sent to (§8.7). A send to it goes to the checker, which
+%% checks what is sent at the other type (sent/1); everything else the
+%% runtime holds is the process's. A `Process` foreign code gives may be a
+%% checker too, which its row takes to the process.
 -spec process_of(address()) -> pid().
 process_of({adapted, _, Target, _, _}) -> process_of(Target);
-process_of({foreign, Pid, _, _}) -> behind(Pid);
+process_of({foreign, _, Process, _, _}) -> Process;
 process_of(Pid) -> behind(Pid).
 
 behind(Pid) ->
@@ -619,22 +624,33 @@ behind(Pid) ->
 %% describes inside the mu bindings Bound, as the program holds it: where
 %% it is the checker in front of one of the program's processes, the address
 %% that went out, the checker undone and an adapted address kept (§6.5),
-%% and otherwise foreign. A checker comes back as the address that went out
-%% only at the type it went out at; at another it stays foreign, so that
-%% what is sent through it is checked against the process's own type. A
-%% process of the program's with no checker in front of it reaches here only
-%% as an `Address(Never)`, the check refusing it at any other type
-%% (is_never_given/1), and is held foreign, nothing passing through it.
+%% and otherwise foreign, carrying the process behind it, the checker's
+%% process or Pid itself (process_of/1). A checker comes back as the
+%% address that went out only at the type it went out at; at another it
+%% stays foreign, so that what is sent through it is checked against the
+%% process's own type.
+%%
+%% A process of this node is the program's where it has a row, which a
+%% foreign process the runtime did not start has not; one of another node
+%% is taken for the program's, as a send to it is, since this node holds no
+%% row of another's. A process of the program's with no checker in front of
+%% it reaches here only as an `Address(Never)`, the check refusing it at
+%% any other type (is_never_given/1), and is held foreign, nothing passing
+%% through it.
 -spec held(pid(), term(), map()) -> address().
 held(Pid, Descriptor, Bound) ->
     case ets_lookup(?CHECKERS, {behind, Pid}) of
-        [{_, Real, Exposed, {_, Descriptor, Bound}}] ->
-            case ets_lookup(?PROCESSES, Real) of
+        [{_, Process, Exposed, {_, Descriptor, Bound}}] when node(Process) =/= node() ->
+            Exposed;
+        [{_, Process, Exposed, {_, Descriptor, Bound}}] ->
+            case ets_lookup(?PROCESSES, Process) of
                 [_] -> Exposed;
-                [] -> {foreign, Pid, Descriptor, Bound}
+                [] -> {foreign, Pid, Process, Descriptor, Bound}
             end;
-        _ ->
-            {foreign, Pid, Descriptor, Bound}
+        [{_, Process, _, _}] ->
+            {foreign, Pid, Process, Descriptor, Bound};
+        [] ->
+            {foreign, Pid, Pid, Descriptor, Bound}
     end.
 
 %% Report §8.4: whether foreign code gives as an address a process of the
@@ -660,7 +676,7 @@ is_address(Pid) when is_pid(Pid) -> true;
 is_address({adapted, Function, Target, Maker, Launch})
   when is_function(Function, 1), is_pid(Maker), is_reference(Launch) ->
     is_address(Target);
-is_address({foreign, Pid, _, _}) -> is_pid(Pid);
+is_address({foreign, Pid, Process, _, _}) -> is_pid(Pid) andalso is_pid(Process);
 is_address(_) -> false.
 
 %% Site names the spawning function for Down (report §6.9); the compiler

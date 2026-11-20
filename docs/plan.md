@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 133**, an address given back, on another node.
+**The next item is MVP 4.16's item 146**, two checks for one address of a recursive type.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,25 +60,43 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
 corner shows it (the log's *Item 140 Stands After the Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it.
+**What was found**, each item begun by an agent that shows it or tests it. Items 146 to 148,
+found by item 133, are taken first, on the user's word on 2026-11-20, while that item's
+probes are at hand.
 
-- **133. An address given back, on another node**, found 2026-11-19 by item 114's build
-  (the log's *The Process Behind a Check, Built*), read from the code and not shown. An
-  address of the program's that foreign code gave back at another type crosses to another
-  node as it is held. Only the node that made the check can lead from the checker to the
-  process behind it. On another node `Process.fromAddress` of it answers the checker, a
-  `kill` of that ends nothing, and a fault sent from there reaches the checker as a
-  message, where E.21 has `fromAddress` go through every check.
+- **146. Two checks for one address of a recursive type**, found 2026-11-20 by item 133's
+  showing (the log's *An Address Given Back, on Another Node*), shown by its probe on one
+  node and on two. An address whose message type names itself crosses into foreign code
+  alone and inside a value of that type, and gets a check for each. The check's key holds
+  the type in two forms, written out and as a reference to its binding. Foreign code is
+  given two processes for one address, and notes it sends in turn through the two arrive
+  out of order, 98 of 100 misplaced. Read from the code and not shown: any address inside
+  a recursive type gets a check apart from the one it gets alone.
 
-  Read beside it: a check in front of a process of another node, given back at its own
-  type, is held as foreign, since that process has no row on this node, where §8.4 has
-  it the program's own. What is sent through it is checked again and takes one step
-  more.
+  §8.4 has one check for each distinct address that has crossed, and a program with
+  foreign code shows that false, so by the line's test the item stands here. The fix's
+  shape: the key holds the type in one form. An agent writes the test first. Item 113
+  weighs how long a check lasts and needs nothing of this item.
+- **147. The line of a fault taken at a wait**, found 2026-11-20 by item 133's showing
+  (the log's *An Address Given Back, on Another Node*). Appendix E.21 has the frame of a
+  fault taken at a wait name the `receive`'s own line. A bad message's fault taken in a
+  `receive` on line 71, its first clause on line 72, was traced `Probe.serve:72` in every
+  run. The emitter's test writes the `receive` and its clause on one line, and cannot
+  tell the two apart.
 
-  By the line's test the first stands here, decided with the user: E.21's line, written
-  with item 114, would be shown false. An agent shows both on two nodes first. The fix's
-  shape for the first: the held address carries the process behind it. The second is
-  decided with the user after the showing, by the line's test.
+  A program that writes `receive {` on a line of its own shows E.21's sentence false,
+  so by the line's test the item stands here. An agent first reads the emitter and says
+  which line a frame names, with an `after` and without. The narrower sentence is
+  weighed first, and the test's clause gets a line of its own.
+- **148. A process is printed with a dot**, decided with the user on 2026-11-20 (the
+  log's *An Address Given Back, on Another Node*, its paragraph *The printed form*).
+  `Io.show` writes a `Process` as `<process.183>` and an address as `<address.84>`, where
+  Appendix E.1 writes a space.
+
+  To decide with the user before the build: what a process of another node prints. Item
+  133's showing printed a process of each node as `<process 183>`, two processes that
+  `==` told apart. Appendix E.1 changes first, then the code, its tests, the tour and the
+  guide's outputs.
 - **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
   item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
   the reader's probe and the session's run. A listener is started by the runtime and has
@@ -365,6 +383,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 124 | A node's end waits for no send: what is not placed when the node tells a peer that it ends may be dropped, its watcher told `Unreachable`, and a peer that connects while the node stops is told nothing, narrower sentences and no code, with the user | 2026-11-20 | §6.9, §8.6, §8.7, §9.3, §12.6, Appendix E.1; *A Node's End Waits for No Send* |
 | 125 | A disconnect waits on no connection: a reload that removes a peer, a frame a node cannot read and the refusal at a full table end the connection by the host's cast; §12.5 says that a removed peer is served until the host has closed its connection; the line of a frame it cannot read says that the node ends the connection; `otp_bugs.md`'s report 26, with the user | 2026-11-20 | §12.5, §12.6; *The Disconnect Waits for Nothing* |
 | 126 | A worker waits on no third node: at a full table the worker sets the host's `async_dist` around the fault it sends an adapted address's process, and the `find` frame takes the `compute` frame's guard; the nodes' note names the send | 2026-11-20 | §6.5, §7.4, §8.7, §12.5, §12.6; *A Worker Waits on No Third Node* |
+| 133 | An address foreign code gave carries the process behind it, so `Process.fromAddress`, a `kill`, a `monitor`, a fault and a call name that process on another node, and a check in front of a process of another node comes back as the address that went out, with the user | 2026-11-20 | §6.4, §6.5, §6.6, §6.9, §8.4, §8.7, Appendix E.21; *An Address Given Back, on Another Node* |
 
 ---
 
@@ -818,7 +837,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 140, 143, 144, 145, 149 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -987,6 +1006,23 @@ What the line left, in the order it is taken:
 
   It makes its case with the process kept for an address, as item 136 does, and needs
   nothing of that item, which is of a wrap's fault there.
+- **149. A pid that foreign code names of a process it was not given**, found 2026-11-20
+  by item 133's build (the log's *An Address Given Back, on Another Node*), three
+  corners read from the code and not shown.
+
+  - A `Process` foreign code gives may be the pid of a check. On the check's node the
+    runtime takes it to the process behind the check, and on another node nothing leads
+    there. §8.4 and Appendix E.21 do not say which process it is.
+  - A check's pid that foreign code carries to another node by its own means, and gives
+    the program there as an address, is held as foreign and names the check.
+  - A pid of another node's process that foreign code invents and gives as an address is
+    held as foreign, where §8.4 has a process whose address foreign code was never given
+    be a bad value.
+
+  Each needs foreign code built for it, so the item stands here on the user's word on
+  2026-11-20. The shape: §8.4 says what a pid of another node is where foreign code
+  gives it, since a node holds no row of another's processes. The narrower sentence is
+  weighed first.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers

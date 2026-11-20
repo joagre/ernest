@@ -2587,8 +2587,46 @@ retyped_address_names_its_process_test() ->
                Self ! {behind, {Checker, Held, ern_rt:process_of(Held), Mine}}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Checker, Held, Behind, Mine} = wait(behind),
-    ?assertMatch({foreign, Checker, string, _}, Held),
+    ?assertMatch({foreign, Checker, Mine, string, _}, Held),
     ?assertEqual(Mine, Behind).
+
+%% report §8.4, Appendix E.21: such an address carries the process it names,
+%% and names it where no row of the check in front of that process leads
+%% there, as on another node than the check's: here once the program has
+%% ended, and the check's rows with it. Written before its code, and red
+%% there: the address named the check
+retyped_address_carries_its_process_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Mine = ern_rt:self(),
+               {_, Held} = retyped(Mine),
+               Self ! {held, {Held, Mine}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Held, Mine} = wait(held),
+    ?assertEqual(Mine, ern_rt:process_of(Held)).
+
+%% report §8.4: the address of a process of another node, which crossed into
+%% foreign code here, comes back as the program's own at the type it crossed
+%% at, as the address of a process of this node does, and at another type is
+%% foreign, carrying that process. Written before its code, and red there:
+%% at its own type it came back foreign, that process having no row here
+far_address_given_back_test() ->
+    Self = self(),
+    Far = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+    ok = ern_rt:run_main(
+           fun() ->
+               Checker = ern_boundary:expose({address, int, <<"message does not match Int">>},
+                                             Far),
+               Same = ern_boundary:value({address, int, <<"message does not match Int">>},
+                                         Checker, <<"bad return">>),
+               Other = ern_boundary:value({address, string, <<"message does not match String">>},
+                                          Checker, <<"bad return">>),
+               Self ! {given_back, {Checker, Same, Other}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Checker, Same, Other} = wait(given_back),
+    ?assertEqual(Far, Same),
+    ?assertMatch({foreign, Checker, Far, string, _}, Other).
 
 %% report §8.4, §6.9, Appendix E.21: a `kill` of the process behind such an
 %% address ends the process the address names, and the check in front of

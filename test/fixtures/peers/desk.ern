@@ -10,6 +10,16 @@ type Msg = Died(Down) | Told(Down) | Reported(Process.FaultReport) | Started(Str
 // What a gate that holds a call until it is released is told.
 type GateMsg = Hold(Reply(Unit)) | Release
 
+// Report §8.4: what P, a process of the desk's whose address foreign code
+// here gives back at Retyped.Msg, takes: a note, which it drops, a request
+// that faults it, and one it keeps unanswered, telling its owner so.
+type AskedMsg = Note(Int) | Crash(Reply(Int)) | Stall(Reply(Int))
+
+// Report §8.4: what Q, a process the desk spawns on the store, takes: a
+// note, which it counts in the order it comes; an address, of which it says
+// whether it names Q; and its own address, asked for.
+type RecorderMsg = Record(Int) | Carry(Address(RecorderMsg)) | Identify(Reply(Address(RecorderMsg)))
+
 let early : Either(Io.Error, Address(Counter.Msg)) = Peer.find(Counter.service, Harness.waitMs())
 
 export fn main() : Unit receiving Msg =
@@ -23,6 +33,8 @@ export fn main() : Unit receiving Msg =
       | ["check-loss"] -> stoodThroughALoss()
       | ["check-unreached"] -> endedOutOfReach()
       | ["check-end"] -> endedWithItsTarget()
+      | ["retyped"] -> retypedOnTheStore()
+      | ["given-back"] -> givenBackFromTheStore()
       | ["ending"] -> ending()
       | ["reload"] -> reloaded()
       | ["place", interval] -> placed(Optional.withDefault(String.toInt(interval), 0))
@@ -611,6 +623,254 @@ foreign fn heldEnd(key : String, ms : Int) : String =
 
 foreign fn lookoutsLeft(ms : Int) : Int =
     "ern_peers_host:lookouts_left/1"
+
+// Report §8.4, Appendix E.21, §6.9: the address of P, a process of the
+// desk's, that foreign code here gives back at another type than it crossed
+// at, which the desk holds foreign, crosses to the store in a compute's
+// captures and a spawn's. There Process.fromAddress of it is P, a kill of
+// that ends P, and a monitor of it is told P's end. Report §6.5, §8.4, §6.6:
+// a fault in the function of an adapted address made there over it is P's,
+// and so is a bad message foreign code there sends to such an address; a
+// callForever there through it ends with P's cause where P faults and at
+// P's kill, and a call there ends at once at P's restart.
+//
+// Each part has a P of its own; the two that wait on what a kill or a
+// restart gives come last, so that what comes before is said where neither
+// is given.
+fn retypedOnTheStore() : Unit receiving Msg = {
+    let limit = Harness.waitMs();
+    namedThere(limit);
+    monitoredThere(limit);
+    faultedThere(limit);
+    badThere(limit);
+    calledThere(limit);
+    killedThere(limit);
+    restartedThere(limit)
+}
+
+// P, and its address as foreign code here gives it back.
+fn askedAndRetyped(p : Address(AskedMsg)) : #(Process, Address(Retyped.Msg)) =
+    #(Process.fromAddress(p), retyped(p))
+
+fn asked(owner : Address(Msg)) : Unit receiving AskedMsg =
+    receive {
+        Note(_) ->
+            asked(owner)
+      | Crash(_) ->
+            fault("crashed")
+      | Stall(_) -> {
+            send(owner, Started("stalled"));
+            asked(owner)
+        }
+    }
+
+fn namedThere(limit : Int) : Unit receiving Msg = {
+    let me = self();
+    let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
+    let named = Peer.computeAt("store", fn() = Process.fromAddress(held) == p, limit);
+    Io.println("there, the process behind it is P: " <> Io.show(named))
+}
+
+fn monitoredThere(limit : Int) : Unit receiving Msg = {
+    let me = self();
+    let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
+    let _ = Shared.answered(Peer.spawn("store", fn() = watches(held, p, me), limit));
+    receive {
+        Started("watching") -> kill(p)
+    };
+    receive {
+        Started(seen) -> Io.println("the monitor there: " <> seen)
+    }
+}
+
+// On the store: a monitor of the process behind the address, and of its
+// Down whether it names P, its reason and its site, told the desk.
+fn watches(held : Address(Retyped.Msg), p : Process, desk : Address(Msg)) : Unit receiving Down = {
+    monitor(Process.fromAddress(held), fn(down) = down);
+    send(desk, Started("watching"));
+    receive {
+        down ->
+            send(desk,
+                 Started(Io.show(down.process == p)
+                             <> " "
+                             <> Io.show(down.reason)
+                             <> " "
+                             <> Io.show(down.site)))
+    }
+}
+
+// A fault in the function of an adapted address made on the store over the
+// address.
+fn faultedThere(limit : Int) : Unit receiving Msg = {
+    let me = self();
+    let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
+    monitor(p, Died);
+    let _ =
+        Peer.computeAt("store",
+                       fn() = send(Prelude.adapted(held, fn(n : Int) = Retyped.Note(100 / n)), 0),
+                       limit);
+    receive {
+        Died(down) -> Io.println("a fault in f there: " <> Io.show(down.reason))
+    }
+}
+
+// A term of no type that foreign code on the store sends to an adapted
+// address made there over the address, given it at Bool.
+fn badThere(limit : Int) : Unit receiving Msg = {
+    let me = self();
+    let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
+    monitor(p, Died);
+    let _ = Peer.computeAt("store", fn() = sentBad(held), limit);
+    receive {
+        Died(down) -> Io.println("a bad message there: " <> Io.show(down.reason))
+    }
+}
+
+fn sentBad(held : Address(Retyped.Msg)) : Unit = {
+    holdBool("bad", Prelude.adapted(held, fn(yes : Bool) = Retyped.Note(if yes then 1 else 0)));
+    sentThrough("bad", 1)
+}
+
+// Report §6.6: a callForever on the store whose request faults P, and one
+// that P keeps unanswered until the desk kills P.
+fn calledThere(limit : Int) : Unit receiving Msg = {
+    let me = self();
+    let #(_, crashing) = askedAndRetyped(spawn(fn() = asked(me)));
+    let crashed = Peer.computeAt("store", fn() = calledForever(crashing, Retyped.Crash), limit);
+    Io.println("callForever there, its callee faulted: " <> Io.show(crashed));
+    let #(stalling, held) = askedAndRetyped(spawn(fn() = asked(me)));
+    let _ = Shared.answered(Peer.spawn("store", fn() = stalledAndTold(held, me), limit));
+    receive {
+        Started("stalled") -> kill(stalling)
+    };
+    receive {
+        Started(ended) -> Io.println("callForever there, its callee killed: " <> ended)
+    }
+}
+
+// How a callForever through the address ended, in a process of its own.
+fn calledForever(held : Address(Retyped.Msg),
+                 request : (Reply(Int)) -> Retyped.Msg) : Either(Reason, Int) =
+    Process.run(fn() = Address.callForever(held, request))
+
+// On the store: how a callForever P keeps unanswered ended, told the desk.
+fn stalledAndTold(held : Address(Retyped.Msg), desk : Address(Msg)) : Unit =
+    send(desk, Started(Io.show(calledForever(held, Retyped.Stall))))
+
+fn killedThere(limit : Int) : Unit receiving Msg = {
+    let me = self();
+    let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
+    monitor(p, Died);
+    let _ = Peer.computeAt("store", fn() = kill(Process.fromAddress(held)), limit);
+    receive {
+        Died(down) -> Io.println("killed there: " <> Io.show(down.reason))
+    }
+}
+
+// Report §6.6: a call on the store whose request restarts P.
+fn restartedThere(limit : Int) : Unit receiving Msg = {
+    let me = self();
+    let #(_, restarted) =
+        askedAndRetyped(spawn(restarting(RestartLimit(restarts = 3, within = 60000),
+                                         fn() = asked(me))));
+    let called = Peer.computeAt("store", fn() = callRestarted(restarted, limit), limit);
+    Io.println("a call there, its callee restarted: " <> Io.show(called))
+}
+
+// What the call answered, and whether it ended before its time ran out.
+fn callRestarted(held : Address(Retyped.Msg), limit : Int) : String = {
+    let since = Clock.monotonic();
+    let answer = Address.call(held, Retyped.Crash, limit);
+    Io.show(answer) <> " " <> Io.show(Clock.monotonic() - since < limit)
+}
+
+// Report §8.4, §6.4, §8.7, Appendix E.21: the address of Q, a process the
+// desk spawns on the store, that foreign code here gives back at the type it
+// crossed at is the desk's own address of Q, and not foreign. Notes one
+// process sends in turn through it and through Q's address come in the
+// order sent; each, sent to Q through the other, names Q there; and a call
+// through it that Q answers with its own address answers Q here. Given to
+// foreign code again, it is given as the same process, and a term of no
+// type that foreign code sends through that faults Q, as before.
+fn givenBackFromTheStore() : Unit receiving Msg = {
+    let me = self();
+    let limit = Harness.waitMs();
+    let count = 100;
+    let q = Shared.answered(Peer.spawn("store", fn() = recording(me, [], count), limit));
+    let back = givenBack(q);
+    List.forEach(List.range(1, count / 2), fn(index) = {
+        send(back, Record(2 * index - 1));
+        send(q, Record(2 * index))
+    });
+    receive {
+        Started(ordered) -> Io.println("in turn through both, in order: " <> ordered)
+    };
+    carried("q through the address given back", back, q);
+    carried("the address given back through q", q, back);
+    let answered = Address.call(back, Identify, limit);
+    Io.println("answered through it: "
+                   <> Io.show(Optional.map(answered,
+                                           fn(address) =
+                                               Process.fromAddress(address)
+                                                   == Process.fromAddress(q))));
+    holdRecorder("first", q);
+    holdRecorder("again", back);
+    Io.println("given again, the same process: " <> Io.show(held("again") == held("first")));
+    monitor(Process.fromAddress(back), Died);
+    sentThrough("again", 1);
+    receive {
+        Died(down) -> Io.println("a term of no type through it: " <> Io.show(down.reason))
+    }
+}
+
+// Q, on the store: the notes in the order they come, and once `expected`
+// have come, whether in the order sent; whether an address it is sent names
+// Q; and its own address, answered.
+fn recording(owner : Address(Msg),
+             arrived : List(Int),
+             expected : Int) : Unit receiving RecorderMsg =
+    receive {
+        Record(n) ->
+            if List.size(arrived) + 1 == expected then {
+                send(owner,
+                     Started(Io.show(List.reverse(n :: arrived) == List.range(1, expected))));
+                recording(owner, [], expected)
+            } else
+                recording(owner, n :: arrived, expected)
+      | Carry(address) -> {
+            send(owner, Started(Io.show(Process.fromAddress(address) == Process.current())));
+            recording(owner, arrived, expected)
+        }
+      | Identify(reply) -> {
+            answer(reply, self());
+            recording(owner, arrived, expected)
+        }
+    }
+
+fn carried(what : String,
+           through : Address(RecorderMsg),
+           address : Address(RecorderMsg)) : Unit receiving Msg = {
+    send(through, Carry(address));
+    receive {
+        Started(named) -> Io.println(what <> ": " <> named)
+    }
+}
+
+// Report §8.4: foreign code that gives back the address it was given, as
+// the process it was given, at another type than the address crossed at
+// and at the same type; and foreign code that holds an address given it at
+// Bool and at RecorderMsg, as hold does one at Int.
+foreign fn retyped(address : Address(AskedMsg)) : Address(Retyped.Msg) =
+    "ern_peers_host:back/1"
+
+foreign fn givenBack(address : Address(RecorderMsg)) : Address(RecorderMsg) =
+    "ern_peers_host:back/1"
+
+foreign fn holdBool(key : String, address : Address(Bool)) : Unit =
+    "ern_peers_host:hold/2"
+
+foreign fn holdRecorder(key : String, address : Address(RecorderMsg)) : Unit =
+    "ern_peers_host:hold/2"
 
 // Report §8.7: the store ended by `ern stop`, which a monitor made before
 // sees as ProgramEnd, and one made once the store has stopped, which the

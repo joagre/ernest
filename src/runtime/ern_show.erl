@@ -123,7 +123,8 @@ represented(Pid, _) when is_pid(Pid) -> address(Pid);
 %% a Reply and an address foreign code gave (ern_rt), the Reply checked
 %% for its shape before it was armed (ern_boundary)
 represented({foreign_reply, _, _, _}, _) -> "<reply>";
-represented({foreign, Pid, _, _} = Address, _) when is_pid(Pid) -> address(Address);
+represented({foreign, Pid, Process, _, _} = Address, _) when is_pid(Pid), is_pid(Process) ->
+    address(Address);
 represented(Function, _) when is_function(Function) -> "<function>";
 represented(Value, #limits{depth = 0}) when is_list(Value); is_tuple(Value); is_map(Value) ->
     "...";

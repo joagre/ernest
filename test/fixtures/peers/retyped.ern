@@ -1,0 +1,7 @@
+// Report §8.4: the constructors of the desk's AskedMsg at another type, at
+// which foreign code on the desk gives back the address of a process of the
+// desk's that crossed at AskedMsg. The address is held foreign, behind the
+// check in front of that process, and every message of this type passes
+// that check.
+
+export type Msg = Note(Int) | Crash(Reply(Int)) | Stall(Reply(Int))

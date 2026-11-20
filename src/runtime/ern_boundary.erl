@@ -13,9 +13,10 @@
 %% (checker_loop/5).
 %%
 %% An address that comes from foreign code and names no process of the
-%% program is held as foreign, {foreign, Pid, Descriptor, Bound},
-%% Descriptor its messages' descriptor, so that what is sent to it is
-%% exposed, and a Reply as {foreign_reply, Reply, Descriptor, Bound},
+%% program is held as foreign, {foreign, Pid, Process, Descriptor, Bound},
+%% Process the process behind it and Descriptor its messages' descriptor,
+%% so that what is sent to it is exposed, and a Reply as {foreign_reply,
+%% Reply, Descriptor, Bound},
 %% Descriptor its answer's descriptor, so that its answer is exposed, given
 %% in foreign code's form, and checked.
 %%
@@ -397,7 +398,7 @@ expose({address, MessageDescriptor, Cause}, Value, Bound) when is_pid(Value) ->
 expose({address, MessageDescriptor, Cause}, {adapted, _, _, _, _} = Value, Bound) ->
     checker(Value, MessageDescriptor, Bound, Cause);
 %% an address foreign code gave goes back to it as it came
-expose({address, _, _}, {foreign, Pid, _, _}, _) -> Pid;
+expose({address, _, _}, {foreign, Pid, _, _, _}, _) -> Pid;
 %% a Reply foreign code gave goes back to it as it came
 expose({reply, _, _}, {foreign_reply, Reply, _, _}, _) -> Reply;
 expose({list, ElementDescriptor}, Value, Bound) when is_list(Value) ->

@@ -3797,6 +3797,84 @@ check_ends_with_its_target(Base) ->
     {Out, _} = said(Desk),
     [has(Out, Line) || Line <- ["its end: ended", "lookouts at its end: 0"]].
 
+%% report §8.4, Appendix E.21, §6.9: an address of the program's that
+%% foreign code gives back at another type than it crossed at is foreign,
+%% and names the process behind the check in front of it on every node.
+%% Foreign code on the desk gives back so the address of P, a process of
+%% the desk's, and the address crosses to the store in a compute's captures
+%% and a spawn's. There `Process.fromAddress` of it is P; a kill of that
+%% ends P; and a monitor of it is told P's end, Killed, its site empty as
+%% any process of another node's is.
+%%
+%% Report §6.5, §8.4: a fault in the function of an adapted address made
+%% there over it is P's, `division by zero`, and so is a bad message
+%% foreign code there sends to such an address, at that address's type,
+%% Bool. Report §6.6: a callForever there through it ends with P's cause
+%% where P faults, and with `callee was killed` where P is killed, and a
+%% call there ends at once at P's restart.
+%%
+%% Written before its code, and red there: on the store the address named
+%% the check, which only the desk can take to P. `fromAddress` answered the
+%% check, a kill of it ended nothing, and a monitor of it was told the
+%% check's end, Returned. The fault in the function and the bad message
+%% reached the check as messages, which it found no AskedMsg, so P faulted
+%% with the check's cause. Each callForever ended with `callee returned
+%% without answering`, and the call waited its whole time
+retyped_address_on_another_node_test_() ->
+    nodes_test({waits, 5}, fun retyped_address_on_another_node/1).
+
+retyped_address_on_another_node(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["retyped"]))()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line)
+     || Line <- ["there, the process behind it is P: Right(true)",
+                 "the monitor there: true Killed \"\"",
+                 "a fault in f there: Fault(\"division by zero\")",
+                 "a bad message there: Fault(\"message does not match Bool\")",
+                 "callForever there, its callee faulted: Right(Left(Fault(\"crashed\")))",
+                 "callForever there, its callee killed: Left(Fault(\"callee was killed\"))",
+                 "killed there: Killed",
+                 "a call there, its callee restarted: Right(\"None true\")"]].
+
+%% report §8.4, §6.4, §8.7, Appendix E.21: an address of the program's that
+%% foreign code gives back at the type it crossed at is the program's own,
+%% the process behind it on another node too. Foreign code on the desk gives
+%% back so the address of Q, a process the desk spawns on the store. Notes
+%% one process of the desk's sends in turn through it and through Q's own
+%% address come in the order sent; each, sent to Q through the other, names
+%% Q there; and a call through it that Q answers with its own address
+%% answers Q on the desk. What held before still holds: given to foreign
+%% code again, it is given as the same process, one check for each distinct
+%% address, and a term of no type foreign code sends through that faults Q
+%% with Q's type.
+%%
+%% Written before its code, and red there: the address was held foreign,
+%% since Q has no row on the desk, so what the desk sent through it crossed
+%% into foreign code and was checked again. The notes came out of order;
+%% each address sent through the other reached Q as a check, which Q did
+%% not name; and Q's answer reached the desk as a check on the store
+given_back_from_another_node_test_() ->
+    nodes_test({waits, 5}, fun given_back_from_another_node/1).
+
+given_back_from_another_node(Base) ->
+    {StoreProgram, DeskProgram} = peers(Base),
+    {Store, Desk} = store_and_desk(Base),
+    WaitStore = start(Store, StoreProgram, []),
+    prints(Store, "offered"),
+    ?assertEqual(0, (start(Desk, DeskProgram, ["given-back"]))()),
+    stop(Store, WaitStore),
+    {Out, _} = said(Desk),
+    [has(Out, Line)
+     || Line <- ["in turn through both, in order: true", "q through the address given back: true",
+                 "the address given back through q: true", "answered through it: Some(true)",
+                 "given again, the same process: true",
+                 "a term of no type through it: Fault(\"message does not match RecorderMsg\")"]].
+
 %% report §6.5, §8.7: the function of an adapted address made on the store,
 %% sent to from the desk, runs on the store in the process the store keeps
 %% for the address and the desk, so that one that calls a process there,
