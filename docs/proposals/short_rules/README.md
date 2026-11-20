@@ -22,7 +22,9 @@ Status: on trial, decided with the user on 2026-11-19. The short file is the roo
 
 **To weigh on 2026-11-24.**
 
-- The rule on what stands before the launch says when it is asked: of each item as it comes up.
+- The rule on what stands before the launch says when it is asked: of each item as it comes up, before its first agent starts. It was missed twice on 2026-11-20.
+- An item is read against the items left when it is written, as one clause: the plan is searched for each section, file and name the item names. The rule was dropped, and its lapse is on the list.
+- A rule wider than the one agreed goes to the user before it is written, as a clause of *The user decides the language*.
 - The trial's paragraph at the top of `CLAUDE.md` goes.
 
 | Date | The lapse | The rule that would have stopped it | What it cost |
