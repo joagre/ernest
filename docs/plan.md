@@ -21,8 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 126**, a worker's fault for a third node, and a `find`'s
-alias.
+**The next item is MVP 4.16's item 133**, an address given back, on another node.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -63,17 +62,6 @@ corner shows it (the log's *Item 140 Stands After the Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **126. A worker's fault for a third node, and a `find`'s alias**, found 2026-11-19 by
-  item 108's reading (the log's *What a Peer's Worker Waits On*). At a full process table
-  a worker cannot start the process kept for an adapted address, and sends the fault to
-  the address's process itself, which may be on a third node. The host held the worker
-  there, and its own peer's `find` went unanswered. The `find` frame answers to the alias
-  it names and checks no node, where the `compute` frame does.
-
-  The fixes' shapes, decided with the user: the worker sets the host's `async_dist`
-  around that one send, and the nodes' note lists it; the `find` frame takes the
-  `compute` frame's guard. An agent builds both, the first against the reading's probe,
-  which becomes its test.
 - **133. An address given back, on another node**, found 2026-11-19 by item 114's build
   (the log's *The Process Behind a Check, Built*), read from the code and not shown. An
   address of the program's that foreign code gave back at another type crosses to another
@@ -376,6 +364,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 141 | `the end was cut short` names each subscriber whose answer the end had not taken, a narrower sentence and no code, with the user | 2026-11-19 | §11.2; *A Subscriber Named Unanswered* |
 | 124 | A node's end waits for no send: what is not placed when the node tells a peer that it ends may be dropped, its watcher told `Unreachable`, and a peer that connects while the node stops is told nothing, narrower sentences and no code, with the user | 2026-11-20 | §6.9, §8.6, §8.7, §9.3, §12.6, Appendix E.1; *A Node's End Waits for No Send* |
 | 125 | A disconnect waits on no connection: a reload that removes a peer, a frame a node cannot read and the refusal at a full table end the connection by the host's cast; §12.5 says that a removed peer is served until the host has closed its connection; the line of a frame it cannot read says that the node ends the connection; `otp_bugs.md`'s report 26, with the user | 2026-11-20 | §12.5, §12.6; *The Disconnect Waits for Nothing* |
+| 126 | A worker waits on no third node: at a full table the worker sets the host's `async_dist` around the fault it sends an adapted address's process, and the `find` frame takes the `compute` frame's guard; the nodes' note names the send | 2026-11-20 | §6.5, §7.4, §8.7, §12.5, §12.6; *A Worker Waits on No Third Node* |
 
 ---
 

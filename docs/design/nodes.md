@@ -52,6 +52,8 @@ The processes of the runtime's that serve the whole node and send a peer a signa
 
 Each of the three sends a peer one signal for one operation of a program's or one frame of the peer's, and never a stream of its own making: the killer a call's second note; the reaper a monitor, a demonitor, a call's second note and, to a compute's caller, how the compute's process ended; the exchange its frames, each answering a frame of the peer's. A test holds the list to the code (§6.9, §8.7, §12.7; the log's *The Runtime's Processes Wait on No Peer*).
 
+A peer's worker sets the flag around one send alone: the fault it sends an adapted address's process where the full table left no room for the process kept for the address (`ern_rt:kept/1`). That process may be on a third node, whose full buffer would hold the worker, and its own peer's frames behind it. Every other send of a worker's that leaves the node goes to its own peer (§6.5, §12.5; the log's *What a Peer's Worker Waits On*).
+
 The frames are seventeen, listed in the runtime's note and in §12.6's *What passes*, and a test holds both lists to the modules that read them (`test/ern_docs_tests.erl`, `runtime_frames_test`). Everything else that crosses is the host's: a message straight into the mailbox, a monitor and its `Down`, an answer through an alias, a sign of life, the handshake. A `kill` of a process of another node is a frame to that node, which carries it out as its own kill, suspending the victim, reading its call and ending it (§6.9; the runtime's note, *A call, a restart, a kill*).
 
 ## A loss

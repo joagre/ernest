@@ -477,6 +477,14 @@ faulted(Pid, Thrown, _) ->
 %% none can be kept, and the fault is met on the message's way: the target
 %% faults with the host's class and reason, `Fault("error:system_limit")`,
 %% as at a fault in the address's function, and the message is dropped.
+%%
+%% Report §6.5, §8.7: the target may be on a third node, whose full buffer
+%% would hold the worker in the fault's send, and its own peer's frames
+%% behind it. The worker sets the host's `async_dist` around that one send,
+%% so that the host places the fault whatever the buffer holds, and gives
+%% the flag back as it was; every other send of the worker's that leaves the
+%% node goes to its own peer (the nodes' note's *The gateway and its
+%% workers*).
 -spec kept(address()) -> pid() | none.
 kept({adapted, _, _, _, Launch} = Address) ->
     Worker = erlang:self(),
@@ -492,7 +500,10 @@ kept({adapted, _, _, _, Launch} = Address) ->
                                     end)
             catch
                 error:system_limit:Stack ->
-                    sent({fault, process_of(Address), met(error, system_limit, Stack)}),
+                    Fault = {fault, process_of(Address), met(error, system_limit, Stack)},
+                    Async = erlang:process_flag(async_dist, true),
+                    sent(Fault),
+                    _ = erlang:process_flag(async_dist, Async),
                     none
             end
     end.

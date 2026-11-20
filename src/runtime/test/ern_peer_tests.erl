@@ -251,6 +251,9 @@ faulty_fields_test() ->
          || Body <- [{answer, make_ref(), garbage}, {answer, make_ref(), {failed, 'Other'}},
                      {answer, make_ref(), {spawned, Elsewhere}}, {answer, nothing, {spawned, Here}},
                      {find, 1, <<"Int">>, make_ref()},
+                     %% a find or a compute whose alias is another node's
+                     {find, <<"k">>, <<"Int">>, ElsewhereRef},
+                     {compute, ElsewhereRef, {function, <<0:256>>}, <<"s">>, ?MS},
                      {adapted, {adapted, Wrap, Here, Elsewhere, make_ref()}, 1},
                      {adapted, not_an_address, 1},
                      {spawn, make_ref(), not_a_function, <<"s">>, false, ?MS},

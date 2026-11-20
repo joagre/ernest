@@ -49,7 +49,6 @@
 %% start it, with the words docs/design/nodes.md names it by where it waits
 %% on no peer.
 -define(UNWAITING, [{{ern_rt, killer}, "the killer"}, {{ern_rt, reaper}, "the reaper"},
-                    {{ern_rt, clock}, "the clock"},
                     {{ern_exchange, start}, "the exchange's process"}]).
 
 %% The code that reads a peer's frames: the gateway, which reads some
@@ -937,20 +936,29 @@ frames_sentence(File) ->
     [Sentence | _] = binary:split(Rest, <<". ">>),
     binary:replace(Sentence, <<"`">>, <<>>, [global]).
 
-%% docs/design/nodes.md, report §8.7, §6.9, §12.7: the processes of the
-%% runtime's that serve the whole node and wait on no peer are those the
-%% note lists, and they are the processes whose code gives itself the
-%% host's `async_dist`. A regression test, written after the code; a
-%% process that sends a peer a signal and sets no flag is found by no test
-%% here, but by reading its sends.
+%% docs/design/nodes.md, report §8.7, §6.9, §12.7, §6.5: the processes of
+%% the runtime's that serve the whole node and wait on no peer are those
+%% the note lists, and they are the processes whose code gives itself the
+%% host's `async_dist`; the one send of a peer's worker that sets it too is
+%% the function the note's next paragraph names. A regression test, written
+%% after the code; a process that sends a peer a signal and sets no flag is
+%% found by no test here, but by reading its sends.
 unwaiting_processes_test() ->
-    [_, Rest] = binary:split(ern_repository:read("docs/design/nodes.md"),
-                             <<"wait on no peer either: ">>),
+    Note = ern_repository:read("docs/design/nodes.md"),
+    [_, Rest] = binary:split(Note, <<"wait on no peer either: ">>),
     [List | _] = binary:split(Rest, <<" each set the host's">>),
+    [_, Around] = binary:split(Note, <<"sets the flag around one send alone: ">>),
+    [Sentence | _] = binary:split(Around, <<". ">>),
+    {match, Named} = re:run(Sentence, "`([a-z_]+):([a-z_]+)/[0-9]+`",
+                            [global, {capture, all_but_first, binary}]),
+    Sends = [{binary_to_atom(Module), binary_to_atom(Function)} || [Module, Function] <- Named],
     Starters = lists:usort([Starter || File <- ern_repository:modules(),
                                        Starter <- unwaiting(File)]),
+    {Senders, Processes} = lists:partition(fun(Starter) -> lists:member(Starter, Sends) end,
+                                           Starters),
+    ?assertEqual(lists:usort(Sends), Senders),
     ?assertEqual(lists:sort(named(List)),
-                 lists:sort([words(Starter) || Starter <- Starters])).
+                 lists:sort([words(Starter) || Starter <- Processes])).
 
 %% The words the note names a process by, or the process where it has none.
 words(Starter) ->

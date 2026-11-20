@@ -516,8 +516,11 @@ drop_utilization(Node) ->
           ok | unreadable | {not_loaded, spawn | compute, binary(), iodata()}
           | {exchange, identity()} | {adapted, ern_rt:address(), term()}
           | {restart_waits, [pid()], fun(() -> term())}.
-frame(_From, {find, Name, Hash, Alias})
-  when is_binary(Name), is_binary(Hash), is_reference(Alias) ->
+%% report §12.6: a find is answered through the asker's alias, which is of
+%% the peer's node, so that a frame naming another node's is one this node
+%% cannot read, as a compute's is
+frame(From, {find, Name, Hash, Alias})
+  when is_binary(Name), is_binary(Hash), is_reference(Alias), node(Alias) =:= node(From) ->
     Answer = case ern_rt:asked_of_run({offered, Name, Hash}) of
                  {answered, Offered} -> Offered;
                  none -> 'Unreachable'

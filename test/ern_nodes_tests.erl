@@ -257,8 +257,8 @@ digest(Dir) ->
 
 %% The test program, built in Root: it dials a peer, sends it a frame its
 %% gateway cannot read, sends it a spawn of the function whose hash it is
-%% given with a site that is not UTF-8, asks how busy a peer is, or waits,
-%% as its arguments say.
+%% given with a site that is not UTF-8, sends it a find whose alias is of
+%% another node, asks how busy a peer is, or waits, as its arguments say.
 -spec program(file:filename()) -> file:filename().
 program(Root) ->
     ok = filelib:ensure_path(Root),
@@ -266,6 +266,7 @@ program(Root) ->
 foreign fn connect(node : Foreign.Term) : Bool = \"net_kernel:connect_node/1\"
 foreign fn frame(node : Foreign.Term) : Unit = \"ern_nodes_frame:send/1\"
 foreign fn site(node : Foreign.Term, hash : String) : Unit = \"ern_nodes_frame:site/2\"
+foreign fn elsewhere(node : Foreign.Term) : Unit = \"ern_nodes_frame:elsewhere/1\"
 
 export fn main() : Unit receiving Unit =
     match Os.arguments {
@@ -280,6 +281,12 @@ export fn main() : Unit receiving Unit =
       | [\"site\", peer, hash] -> {
             Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
             site(Foreign.atom(peer), hash);
+            let _ = Io.readLine();
+            Unit
+        }
+      | [\"elsewhere\", peer] -> {
+            Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(peer))));
+            elsewhere(Foreign.atom(peer));
             let _ = Io.readLine();
             Unit
         }
@@ -300,7 +307,7 @@ fn held() : Unit receiving Unit = receive { _ -> held() }
 ">>, wait_ms_declaration()]),
     ok = file:write_file(filename:join(Root, "ern_nodes_frame.erl"), <<"
 -module(ern_nodes_frame).
--export([send/1, site/2]).
+-export([send/1, site/2, elsewhere/1]).
 send(Node) ->
     erlang:send({ern_gateway, Node}, unreadable),
     erlang:send({ern_gateway, Node}, {ern_frame, self(), unreadable}),
@@ -309,6 +316,12 @@ site(Node, Hash) ->
     Spawned = {function, binary:decode_hex(Hash)},
     %% the site alone out of shape, the spawner waiting nothing
     Frame = {spawn, make_ref(), Spawned, <<255>>, false, 0},
+    erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
+    'Unit'.
+elsewhere(Node) ->
+    %% the alias alone out of shape, a reference of a node no peer lists
+    Alias = binary_to_term(<<131, 90, 1:16, 119, 13, \"other@node.er\", 1:32, 1:32>>),
+    Frame = {find, <<\"sink\">>, <<0:256>>, Alias},
     erlang:send({ern_gateway, Node}, {ern_frame, self(), Frame}),
     'Unit'.
 ">>),
@@ -1212,6 +1225,35 @@ unreadable_site(Base) ->
     WaitB = start(B, Program, []),
     prints(B, "waiting"),
     {InputA, WaitA} = started(A, Program, ["site", name(B), Held]),
+    says(B, "this node ends its connection"),
+    says(A, "the peer b was lost: it closed"),
+    true = port_command(InputA, "ended\n"),
+    ?assertEqual(0, WaitA()),
+    stop(B, WaitB),
+    {_, ErrB} = said(B),
+    has(ErrB, "the peer a sent a frame this node cannot read, and this node ends its connection").
+
+%% report §12.6, §8.7: a find frame whose alias is of another node than its
+%% sender's is a frame the node cannot read, as a compute's is, since a
+%% find is answered through the asker's alias: the node ends the
+%% connection, saying so, and the sender's node is told of the loss. A
+%% regression test, written before the fix: the node answered through the
+%% alias wherever it was, so that a full buffer for the alias's node would
+%% have held the sender's frames behind the answer (the log's *What a
+%% Peer's Worker Waits On*)
+unreadable_find_alias_test_() ->
+    nodes_test({waits, 7}, fun unreadable_find_alias/1).
+
+unreadable_find_alias(Base) ->
+    {PortA, PortB} = {free_port(), free_port()},
+    A = made(Base, "a", PortA),
+    B = made(Base, "b", PortB),
+    lists(A, [{"b", B, PortB}]),
+    lists(B, [{"a", A, PortA}]),
+    Program = program(filename:join(Base, "build")),
+    WaitB = start(B, Program, []),
+    prints(B, "waiting"),
+    {InputA, WaitA} = started(A, Program, ["elsewhere", name(B)]),
     says(B, "this node ends its connection"),
     says(A, "the peer b was lost: it closed"),
     true = port_command(InputA, "ended\n"),
@@ -10538,9 +10580,49 @@ refusal_waits_on_no_connection(Base) ->
     [has(AskerOut, Line) || Line <- ["found: Right(", "utilization: Right("]],
     has(DialerOut, "connect: true").
 
+%% report §6.5, §7.4, §8.7, §12.5: a peer's worker waits on no third node.
+%% The maker's holder gives the asker an address adapted over the third's
+%% sink, which the maker applies "in a process the node keeps for the
+%% address and the sending node". Its connection to the third held back, as
+%% killer_waits_on_no_peer/1 holds one, more than 1 MB waiting for the
+%% third and its table of processes full, the asker sends to the address:
+%% "a message ... the runtime has no room to make, through an adapted
+%% address ... faults the process it is for", the third's sink, and the
+%% asker's find of the maker's probe after it is answered while the
+%% connection is held. Once it is let go, the sink faults with
+%% `error:system_limit`.
+%%
+%% A regression test, written after the code and before its fix: the
+%% worker's send of the fault waited in the host's buffer for the third,
+%% and every frame of the asker's behind it (the log's *What a Peer's
+%% Worker Waits On*). It does not cover a third node that is stopped, nor
+%% the fault dropped at the third's loss.
+worker_waits_on_no_third_node_test_() ->
+    nodes_test({waits, 13}, fun worker_waits_on_no_third_node/1).
+
+worker_waits_on_no_third_node(Base) ->
+    Program = disconnect_build(Base),
+    {Asker, Maker, Third} = disconnect_nodes(Base),
+    edit(Maker, fun(Conf) -> Conf#{<<"limits">> => #{<<"processes">> => 1024}} end),
+    WaitThird = offering(Third, Program, "third"),
+    {MakerInput, WaitMaker} = started(Maker, Program, ["kept"]),
+    prints(Maker, "found"),
+    {AskerInput, WaitAsker} = started(Asker, Program, ["sender"]),
+    prints(Asker, "found: "),
+    true = port_command(MakerInput, "hold\n"),
+    prints(Maker, "held back, and the table filled"),
+    true = port_command(AskerInput, "send\n"),
+    prints(Asker, "found while held: "),
+    true = port_command(MakerInput, "free\n"),
+    says(Third, "faulted: error:system_limit"),
+    [stop(Dir, Wait) || {Dir, Wait} <- [{Asker, WaitAsker}, {Maker, WaitMaker},
+                                       {Third, WaitThird}]],
+    [{AskerOut, _}, _, _] = [said(Dir) || Dir <- [Asker, Maker, Third]],
+    [has(AskerOut, Line) || Line <- ["found: Right(", "found while held: Right("]].
+
 %% The disconnect's three nodes, each listening: the asker, which finds the
-%% maker's probe, the maker, which finds the third's sink and bulk, and the
-%% third.
+%% maker's probe and its holder, the maker, which finds the third's sink and
+%% bulk, and the third.
 disconnect_nodes(Base) ->
     [PortAsker, PortMaker, PortThird] = [free_port() || _ <- [asker, maker, third]],
     Asker = made(Base, "asker", PortAsker),
@@ -10549,7 +10631,10 @@ disconnect_nodes(Base) ->
     lists(Asker, [{"maker", Maker, PortMaker}]),
     lists(Maker, [{"asker", Asker, PortAsker}, {"third", Third, PortThird}]),
     lists(Third, [{"maker", Maker, PortMaker}]),
-    edit(Asker, fun(Conf) -> Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>]}} end),
+    edit(Asker, fun(Conf) ->
+                    Conf#{<<"services">> => #{<<"probe">> => [<<"maker">>],
+                                              <<"holder">> => [<<"maker">>]}}
+                end),
     edit(Maker, fun(Conf) ->
                     Conf#{<<"services">> => #{<<"sink">> => [<<"third">>],
                                               <<"bulk">> => [<<"third">>]}}
@@ -10589,6 +10674,12 @@ disconnect_build(Base) ->
 // Or the maker refuses the dialer at its full table of processes: its
 // gateway held back while the dialer connects, its connection to the dialer
 // held back and its table filled, and then its gateway let go.
+//
+// Or the maker's worker for the asker waits on no third node: the maker's
+// holder gives the asker an address adapted over the third's sink, and the
+// maker holds its connection to the third back, with the bulk sent more than
+// the buffer holds and its table filled, while the asker sends to the address
+// and finds the probe; then it empties its table and lets the connection go.
 
 // The process of the host's that writes what waits for the process's node to
 // the connection, and the one for a node by its name on the carrier.
@@ -10622,11 +10713,16 @@ type MakerMsg = Subscribed | Suspended(Int)
 
 type FloodMsg = Flood
 
+// What the maker's holder of the address it adapted is asked.
+type HolderMsg = Get(Reply(Address(Int)))
+
 let sink : Peer.Service(Int) = Peer.service(\"sink\")
 
 let bulk : Peer.Service(Bytes) = Peer.service(\"bulk\")
 
 let probe : Peer.Service(Int) = Peer.service(\"probe\")
+
+let holder : Peer.Service(HolderMsg) = Peer.service(\"holder\")
 
 export fn main() : Unit receiving MakerMsg =
     match Os.arguments {
@@ -10642,10 +10738,14 @@ export fn main() : Unit receiving MakerMsg =
             flooded()
       | [\"refusing\"] ->
             refusing()
+      | [\"kept\"] ->
+            kept()
       | [\"asker\", maker] -> {
             Io.println(\"found: \" <> Io.show(Peer.find(probe, waitMs())));
             asked(maker)
         }
+      | [\"sender\"] ->
+            sending()
       | [\"dialer\", maker] -> {
             Io.println(\"connect: \" <> Io.show(connect(Foreign.atom(maker))));
             held()
@@ -10786,6 +10886,48 @@ fn filled(count : Int, fillers : List(Address(Int))) : List(Address(Int)) =
     else
         fillers
 
+// The maker whose worker for the asker can keep no process for the address
+// its holder gives, adapted over the third's sink: once the test says so,
+// its connection to the third held back, the bulk sent more than the buffer
+// holds until the host holds the flooder in its send, and its table of
+// processes filled; once the test says so again, the table emptied and the
+// connection let go.
+fn kept() : Unit receiving MakerMsg = {
+    let me = self();
+    let target = found(sink);
+    let floodTarget = found(bulk);
+    let flooder = spawn(fn() : Unit receiving FloodMsg = flooding(floodTarget));
+    watch(Process.fromAddress(flooder), adapted(me, Suspended));
+    let address = adapted(target, fn(count) = count);
+    let _ = Peer.offer(holder, spawn(fn() : Unit receiving HolderMsg = holding(address)));
+    offered();
+    Io.println(\"found\");
+    let _ = Io.readLine();
+    let connection = connectionTo(Process.fromAddress(target));
+    let _ = suspended(connection);
+    send(flooder, Flood);
+    receive {
+        Suspended(_) -> Unit
+    };
+    let fillers = filled(systemInfo(Foreign.atom(\"process_limit\"))
+                             - systemInfo(Foreign.atom(\"process_count\")),
+                         []);
+    Io.println(\"held back, and the table filled\");
+    let _ = Io.readLine();
+    List.forEach(fillers, fn(filler) = send(filler, 0));
+    let _ = resumed(connection);
+    Io.println(\"let go\");
+    held()
+}
+
+fn holding(address : Address(Int)) : Unit receiving HolderMsg =
+    receive {
+        Get(reply) -> {
+            answer(reply, address);
+            holding(address)
+        }
+    }
+
 // The asker, doing what each line says until its input ends.
 fn asked(maker : String) : Unit receiving MakerMsg =
     match Io.readLine() {
@@ -10805,6 +10947,20 @@ fn asked(maker : String) : Unit receiving MakerMsg =
       | _ ->
             held()
     }
+
+// The asker that sends to the maker's adapted address once the test says so,
+// and then finds the probe, which the maker's worker for it answers.
+fn sending() : Unit receiving MakerMsg = {
+    let address = match Address.call(found(holder), Get, waitMs()) {
+        Some(address) -> address
+      | None -> fault(\"the holder gave no address\")
+    };
+    Io.println(\"found: \" <> Io.show(Peer.find(probe, waitMs())));
+    let _ = Io.readLine();
+    send(address, 1);
+    Io.println(\"found while held: \" <> Io.show(Peer.find(probe, waitMs())));
+    held()
+}
 "/utf8>>, wait_ms_declaration()]),
     [begin
          Source = filename:join(Root, Module ++ ".erl"),
