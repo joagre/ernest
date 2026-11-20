@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 146**, two checks for one address of a recursive type.
+**The next item is MVP 4.16's item 147**, the line of a fault taken at a wait.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -60,23 +60,10 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
 corner shows it (the log's *Item 140 Stands After the Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it. Items 146 to 148,
-found by item 133, are taken first, on the user's word on 2026-11-20, while that item's
-probes are at hand.
+**What was found**, each item begun by an agent that shows it or tests it. Items 147, 148
+and 150, found by item 133 and by item 146 after it, are taken first, on the user's word on
+2026-11-20, while their probes are at hand.
 
-- **146. Two checks for one address of a recursive type**, found 2026-11-20 by item 133's
-  showing (the log's *An Address Given Back, on Another Node*), shown by its probe on one
-  node and on two. An address whose message type names itself crosses into foreign code
-  alone and inside a value of that type, and gets a check for each. The check's key holds
-  the type in two forms, written out and as a reference to its binding. Foreign code is
-  given two processes for one address, and notes it sends in turn through the two arrive
-  out of order, 98 of 100 misplaced. Read from the code and not shown: any address inside
-  a recursive type gets a check apart from the one it gets alone.
-
-  §8.4 has one check for each distinct address that has crossed, and a program with
-  foreign code shows that false, so by the line's test the item stands here. The fix's
-  shape: the key holds the type in one form. An agent writes the test first. Item 113
-  weighs how long a check lasts and needs nothing of this item.
 - **147. The line of a fault taken at a wait**, found 2026-11-20 by item 133's showing
   (the log's *An Address Given Back, on Another Node*). Appendix E.21 has the frame of a
   fault taken at a wait name the `receive`'s own line. A bad message's fault taken in a
@@ -93,10 +80,34 @@ probes are at hand.
   `Io.show` writes a `Process` as `<process.183>` and an address as `<address.84>`, where
   Appendix E.1 writes a space.
 
-  To decide with the user before the build: what a process of another node prints. Item
-  133's showing printed a process of each node as `<process 183>`, two processes that
-  `==` told apart. Appendix E.1 changes first, then the code, its tests, the tour and the
-  guide's outputs.
+  Decided with it the same day: a process of another node prints its peer's name before
+  its number, `<process.store.183>`, the name as the configuration lists it, and its
+  key's digest where the configuration does not list the node, as §8.7's lines name one.
+  Item 133's showing printed a process of each node as `<process 183>`, two processes
+  that `==` told apart (§0, principle 3). A name prints as it is, a dot or a space in it
+  too. Appendix E.1 changes first, then the code, its tests, the tour and the guide's
+  outputs.
+- **150. One check for an address, however its type is written**, found 2026-11-20 by
+  item 146's build (the log's *One Check for an Address of a Recursive Type*), each case
+  shown by its probe. An address still gets two checks in two cases. In the first its
+  recursive type stands inside another type of the program's, `type Entry =
+  Entry(Address(QMsg))`, where the emitter numbers the recursion by the types around it.
+  In the second it crosses from two modules, where the type's descriptor holds a cause
+  that prints the type as each module writes it. An address given back is compared the
+  same way, so in either case it comes back as foreign at the type it crossed at.
+
+  Read from the code and not shown: a function field's descriptor differs between
+  units, and an abstract type's between its module and another.
+
+  §8.4 has one check for each distinct address, and an address given back be the
+  program's own at the type it crossed at. A program with foreign code shows both false,
+  so by the line's test the item stands here. To decide with the user first, on the
+  session's recommendation after a reading of the emitter: the key's form. It is the
+  type's hash of Appendix H, with the closed form beside it for a type that holds a
+  variable, or the descriptor renumbered with its causes and its functions left out.
+  With it, §12.3 says which module's form a bad message's cause names where one check
+  serves the crossings of two modules. Item 113 weighs how long a check lasts and needs
+  nothing of this item.
 - **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
   item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
   the reader's probe and the session's run. A listener is started by the runtime and has
@@ -384,6 +395,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 125 | A disconnect waits on no connection: a reload that removes a peer, a frame a node cannot read and the refusal at a full table end the connection by the host's cast; §12.5 says that a removed peer is served until the host has closed its connection; the line of a frame it cannot read says that the node ends the connection; `otp_bugs.md`'s report 26, with the user | 2026-11-20 | §12.5, §12.6; *The Disconnect Waits for Nothing* |
 | 126 | A worker waits on no third node: at a full table the worker sets the host's `async_dist` around the fault it sends an adapted address's process, and the `find` frame takes the `compute` frame's guard; the nodes' note names the send | 2026-11-20 | §6.5, §7.4, §8.7, §12.5, §12.6; *A Worker Waits on No Third Node* |
 | 133 | An address foreign code gave carries the process behind it, so `Process.fromAddress`, a `kill`, a `monitor`, a fault and a call name that process on another node, and a check in front of a process of another node comes back as the address that went out, with the user | 2026-11-20 | §6.4, §6.5, §6.6, §6.9, §8.4, §8.7, Appendix E.21; *An Address Given Back, on Another Node* |
+| 146 | An address of a recursive type gets one check whether it crosses alone or inside a value of its type, and comes back as the program's own either way; a function value's result check closes a type whose recursion passes through another | 2026-11-20 | §8.4, §12.3; *One Check for an Address of a Recursive Type* |
 
 ---
 

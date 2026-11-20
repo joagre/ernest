@@ -630,6 +630,11 @@ behind(Pid) ->
 %% stays foreign, so that what is sent through it is checked against the
 %% process's own type.
 %%
+%% The two types are compared closed, as the checker's key holds its type
+%% (ern_boundary:closed/2), so that an address of a recursive type that went
+%% out alone comes back inside a value of that type as the address that
+%% went out, and the other way round.
+%%
 %% A process of this node is the program's where it has a row, which a
 %% foreign process the runtime did not start has not; one of another node
 %% is taken for the program's, as a send to it is, since this node holds no
@@ -639,10 +644,11 @@ behind(Pid) ->
 %% through it.
 -spec held(pid(), term(), map()) -> address().
 held(Pid, Descriptor, Bound) ->
+    Closed = ern_boundary:closed(Descriptor, Bound),
     case ets_lookup(?CHECKERS, {behind, Pid}) of
-        [{_, Process, Exposed, {_, Descriptor, Bound}}] when node(Process) =/= node() ->
+        [{_, Process, Exposed, {_, Closed}}] when node(Process) =/= node() ->
             Exposed;
-        [{_, Process, Exposed, {_, Descriptor, Bound}}] ->
+        [{_, Process, Exposed, {_, Closed}}] ->
             case ets_lookup(?PROCESSES, Process) of
                 [_] -> Exposed;
                 [] -> {foreign, Pid, Process, Descriptor, Bound}

@@ -34,7 +34,7 @@
 -module(ern_boundary).
 
 -export([raised/6, raised/4, called_raised/3, expose/2, check/3, value/3, result/4, argument/5,
-         expose/3]).
+         closed/2, expose/3]).
 
 -export_type([descriptor/0]).
 
@@ -237,12 +237,20 @@ arm({mu, Id, Descriptor}, Value, Bound) -> arm(Descriptor, Value, Bound#{Id => D
 arm({ref, Id}, Value, Bound) -> arm(maps:get(Id, Bound), Value, Bound);
 arm(_, Value, _) -> Value.
 
-%% Report §12.3: a result's descriptor as the wrapper checks it at each call,
-%% where no mu around it binds its refs any more: each ref free in it is its
-%% mu again, which binds the refs inside it.
+%% Report §12.3, §8.4: a descriptor where no mu around it binds its refs any
+%% more: each ref free in it is its mu again, closed in turn, since a
+%% type's recursion may pass through a type around it. A function value's
+%% result is checked so at each call, and a checker is keyed so by its
+%% address's messages (checker/4), one form whether the address crosses
+%% alone or inside a value of a recursive type. Under no binding a
+%% descriptor is closed as it stands, so that an address that crosses
+%% alone, and one foreign code gives alone, is not walked.
+-spec closed(descriptor(), map()) -> descriptor().
+closed(Descriptor, Bound) when map_size(Bound) =:= 0 ->
+    Descriptor;
 closed({ref, Id} = Descriptor, Bound) ->
     case Bound of
-        #{Id := Body} -> {mu, Id, Body};
+        #{Id := Body} -> closed({mu, Id, Body}, Bound);
         _ -> Descriptor
     end;
 closed({mu, Id, Descriptor}, Bound) -> {mu, Id, closed(Descriptor, maps:remove(Id, Bound))};
@@ -427,15 +435,20 @@ expose(_, Value, _) -> Value.
 %% Report §8.4: "That check lasts until the process the address names ends,
 %% and there is one for each distinct address that has crossed": one
 %% checker per address and mailbox type however often the address is
-%% exposed (ern_rt:checker_for/3), which watches the process behind the
-%% address by the host's monitor. A message that does not match is that
-%% process's fault, sent as a fault in an adapted address's function is
-%% (ern_rt:faulted/3). A message that matches is sent on as a send of this
-%% node's sends it: an adapted address made on this node has its function
-%% applied here, as on arrival (§6.5), the checker acting for the target,
-%% and one made on another node is carried to that node.
+%% exposed (ern_rt:checker_for/3), the type closed (closed/2), since inside
+%% a value of a recursive type it crosses as a ref to the mu around it and
+%% alone as that mu. It checks against the type in the form the address
+%% first crossed in.
+%%
+%% The checker watches the process behind the address by the host's
+%% monitor. A message that does not match is that process's fault, sent as
+%% a fault in an adapted address's function is (ern_rt:faulted/3). A
+%% message that matches is sent on as a send of this node's sends it: an
+%% adapted address made on this node has its function applied here, as on
+%% arrival (§6.5), the checker acting for the target, and one made on
+%% another node is carried to that node.
 checker(Behind, MessageDescriptor, Bound, Cause) ->
-    ern_rt:checker_for({Behind, MessageDescriptor, Bound}, Behind,
+    ern_rt:checker_for({Behind, closed(MessageDescriptor, Bound)}, Behind,
                        fun(Target) ->
                            MonitorRef = erlang:monitor(process, Target),
                            checker_loop(Behind, MonitorRef, MessageDescriptor, Bound, Cause)

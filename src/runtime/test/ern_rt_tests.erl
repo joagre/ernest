@@ -2727,6 +2727,96 @@ retyped(Target) ->
     {Checker, ern_boundary:value({address, string, <<"message does not match String">>}, Checker,
                                  <<"bad return">>)}.
 
+%% report §8.4: "there is one for each distinct address that has crossed":
+%% an address of a recursive type that crosses alone and inside a value of
+%% that type is given to foreign code as one checker, and so is an address
+%% of another type that crosses alone and inside a value of a recursive
+%% type. Written before its code, and red there: foreign code was given two
+%% checkers for each, the checker's key holding the type as it crossed with
+%% the recursive types around it
+recursive_address_one_check_test() ->
+    Self = self(),
+    Tree = {mu, 1, {con, <<"Main">>,
+                    [{'Leaf', []},
+                     {'Node', [{ref, 1}, {address, int, <<"message does not match Int">>}]}]}},
+    ok = ern_rt:run_main(
+           fun() ->
+               Mine = ern_rt:self(),
+               Alone = ern_boundary:expose(note_address(), Mine),
+               {'Carry', Inside} = ern_boundary:expose(note_message(), {'Carry', Mine}),
+               Counter = ern_rt:spawn(fun waiting/0, <<"Main.counter:4">>),
+               CounterAlone = ern_boundary:expose({address, int, <<"message does not match Int">>},
+                                                  Counter),
+               {'Node', 'Leaf', CounterInside} = ern_boundary:expose(Tree,
+                                                                     {'Node', 'Leaf', Counter}),
+               Self ! {exposed, {{Alone, CounterAlone}, {Inside, CounterInside}}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Alone, Inside} = wait(exposed),
+    ?assertEqual(Alone, Inside).
+
+%% report §8.4: "An address of the program's that foreign code gives back is
+%% the program's own at the type it crossed at": an address of a recursive
+%% type that crossed alone comes back inside a value of that type as the
+%% program's own, and one that crossed inside such a value comes back alone
+%% as the program's own. Written before its code, and red there: each came
+%% back foreign
+recursive_address_given_back_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               First = ern_rt:spawn(fun waiting/0, <<"Main.first:2">>),
+               Second = ern_rt:spawn(fun waiting/0, <<"Main.second:3">>),
+               Alone = ern_boundary:expose(note_address(), First),
+               {'Carry', Inside} = ern_boundary:expose(note_message(), {'Carry', Second}),
+               BackInside = ern_boundary:value(note_message(), {'Carry', Alone}, <<"bad return">>),
+               BackAlone = ern_boundary:value(note_address(), Inside, <<"bad return">>),
+               Self ! {given_back, {First, BackInside, Second, BackAlone}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {First, BackInside, Second, BackAlone} = wait(given_back),
+    ?assertEqual({{'Carry', First}, Second}, {BackInside, BackAlone}).
+
+%% report §8.4: "the program's own at the type it crossed at, and foreign at
+%% any other": an address whose type's recursion passes through the type
+%% around it, `B(a) = B1(a) | B2(Address(B(a)))` of a module Z inside `T =
+%% TB(Z.B(T)) | TN`, comes back inside a value of that type as the
+%% program's own, and inside a value of another module's `T`, whose
+%% address's type is written the same, as foreign. A regression test of
+%% what the report states
+recursive_address_through_another_type_test() ->
+    Self = self(),
+    Around = fun(Namespace) ->
+                 {mu, 1, {con, Namespace, [{'TB', [{mu, 2, written_through()}]}, {'TN', []}]}}
+             end,
+    ok = ern_rt:run_main(
+           fun() ->
+               Target = ern_rt:spawn(fun waiting/0, <<"X.target:2">>),
+               {'TB', {'B2', Checker}} = ern_boundary:expose(Around(<<"X">>),
+                                                             {'TB', {'B2', Target}}),
+               Same = ern_boundary:value(Around(<<"X">>), {'TB', {'B2', Checker}}, <<"bad">>),
+               Other = ern_boundary:value(Around(<<"Y">>), {'TB', {'B2', Checker}}, <<"bad">>),
+               Self ! {given_back, {Target, Checker, Same, Other}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Target, Checker, Same, Other} = wait(given_back),
+    ?assertEqual({'TB', {'B2', Target}}, Same),
+    ?assertMatch({'TB', {'B2', {foreign, Checker, Target, {ref, 2}, _}}}, Other).
+
+%% `Z.B(T)` as the emitter writes it inside `T`, its ref to `T` bound by the
+%% mu around it.
+written_through() ->
+    {con, <<"Z">>, [{'B1', [{ref, 1}]},
+                    {'B2', [{address, {ref, 2}, <<"message does not match Z.B(T)">>}]}]}.
+
+%% The descriptor of a recursive type as the emitter writes it, `type
+%% QMsg = QNote(Int) | Carry(Address(QMsg))` of a module Main, and of an
+%% address of it (report §8.4).
+note_message() ->
+    {mu, 1, {con, <<"Main">>,
+             [{'QNote', [int]},
+              {'Carry', [{address, {ref, 1}, <<"message does not match QMsg">>}]}]}}.
+
+note_address() ->
+    {address, note_message(), <<"message does not match QMsg">>}.
+
 %% report §6.5, §7.4: a fault in the function is the target's, which faults
 %% at its wait, and the process that sent the message goes on
 adapted_fault_test() ->

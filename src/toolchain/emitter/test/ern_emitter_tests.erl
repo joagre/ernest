@@ -2785,6 +2785,39 @@ foreign_function_value_test() ->
                                            " ern_emitter_tests:'-funs/0-fun-[0-9]+-'/1"
                                            " does not match Int$")).
 
+%% report §12.3: a function value foreign code gives inside a value of a type
+%% whose recursion passes through another type, `B` inside `A`, has its
+%% result checked against its result type at each call: a result of that
+%% type is taken, and one of no type faults. Written before its code, and
+%% red there: a result of the type faulted with the host's
+%% `error:{badkey,1}`, the check reading `A` unbound
+foreign_function_value_through_another_type_test() ->
+    Types = "type A = A1(B) | ANone\n"
+            "type B = B1(A) | BF(() -> B)\n",
+    ?assertEqual({ok, <<"M.B1(M.ANone)\n">>}, run(
+        Types ++
+        "foreign fn first(values : List(A)) : A = \"erlang:hd/1\"\n"
+        "export fn main() : Unit =\n"
+        "    match first([A1(BF(fn() = B1(ANone)))]) {\n"
+        "        A1(BF(f)) -> Io.println(Io.show(f()))\n"
+        "      | _ -> Unit\n"
+        "    }\n")),
+    {Bad, _} = run(
+        Types ++
+        "foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
+        "    : Foreign.Term = \"erlang:make_fun/3\"\n"
+        "foreign fn tuple(parts : List(Foreign.Term)) : Foreign.Term =\n"
+        "    \"erlang:list_to_tuple/1\"\n"
+        "foreign fn outer(parts : List(Foreign.Term)) : A = \"erlang:list_to_tuple/1\"\n"
+        "export fn main() : Unit = {\n"
+        "    let f = made(Foreign.atom(\"erlang\"), Foreign.atom(\"self\"), 0);\n"
+        "    match outer([Foreign.atom(\"A1\"), tuple([Foreign.atom(\"BF\"), f])]) {\n"
+        "        A1(BF(g)) -> Io.println(Io.show(g()))\n"
+        "      | _ -> Unit\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual(return_cause("erlang:self/0", "B"), cause_of(Bad)).
+
 %% report §12.2, §8.4: a foreign function's return declared `Unit` that is
 %% the host's `ok`, as `lists:foreach/2` answers, is `Unit`, the type's one
 %% value and no other term. A regression test, written after the code; it
@@ -4322,6 +4355,32 @@ retyped_address_test() ->
         "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
     ?assertEqual(<<"got 5\nFault(\"message does not match Int\")\n">>, Output).
+
+%% report §8.4, §6.4: an address of a recursive type that crosses into
+%% foreign code alone and inside a message of its type is one address with
+%% one check, so the notes foreign code sends in turn through the two
+%% arrive in the order sent. Written before its code, and red there: each
+%% crossing had a check of its own, and the notes arrived out of order
+recursive_address_in_order_test() ->
+    ?assertEqual({ok, <<"true\n">>}, run(
+        "type QMsg = QNote(Int) | Carry(Address(QMsg))\n" ++ foreign_sent() ++
+        "foreign fn alone(addresses : List(Address(QMsg))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "foreign fn inside(index : Int, message : QMsg) : Foreign.Term =\n"
+        "    \"erlang:element/2\"\n"
+        "fn arrived(notes : List(Int), count : Int) : List(Int) receiving QMsg =\n"
+        "    if count == 0 then List.reverse(notes)\n"
+        "    else receive { QNote(note) -> arrived(note :: notes, count - 1) }\n"
+        "export fn main() : Unit receiving QMsg = {\n"
+        "    let first = alone([self()]);\n"
+        "    let second = inside(2, Carry(self()));\n"
+        "    List.forEach(List.range(1, 50), fn(index) = {\n"
+        "        let _ = sent(first, Foreign.term(QNote(2 * index - 1)));\n"
+        "        let _ = sent(second, Foreign.term(QNote(2 * index)));\n"
+        "        Unit\n"
+        "    });\n"
+        "    Io.println(Io.show(arrived([], 100) == List.range(1, 100)))\n"
+        "}\n")).
 
 %% report §8.4: a process of the program's whose address foreign code was
 %% never given is a bad value where foreign code gives it as an address: its
