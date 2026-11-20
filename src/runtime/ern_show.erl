@@ -53,7 +53,7 @@ by_type(char, Value, _, _) -> ern_literal:char_text(Value);
 by_type(string, Value, _, _) -> ern_literal:string_text(Value);
 by_type(bytes, Value, _, Limits) -> bytes(Value, Limits);
 by_type(unit, Value, _, _) -> atom_to_list(Value);
-by_type({address, _, _}, Value, _, _) -> address(Value);
+by_type({address, _, _, _}, Value, _, _) -> address(Value);
 by_type(process, Value, _, _) -> identity("process", Value);
 by_type({reply, _, _}, _, _, _) -> "<reply>";
 by_type({function, _, _, _, _, _}, _, _, _) -> "<function>";

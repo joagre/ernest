@@ -66,9 +66,9 @@ qualified_constructor_test() ->
 identity_test() ->
     Pid = list_to_pid("<0.84.0>"),
     ?assertEqual(<<"<process.84>">>, ern_show:show(process, Pid)),
-    ?assertEqual(<<"<address.84>">>, ern_show:show({address, any, <<>>}, Pid)),
+    ?assertEqual(<<"<address.84>">>, ern_show:show({address, any, <<>>, none}, Pid)),
     ?assertEqual(<<"<address.84>">>,
-                 ern_show:show({address, any, <<>>}, ern_rt:adapted(Pid, fun(X) -> X end))),
+                 ern_show:show({address, any, <<>>, none}, ern_rt:adapted(Pid, fun(X) -> X end))),
     %% and where the type is a variable, by the representation. A
     %% regression test: an adapted address read as a tuple,
     %% `#(adapted, <function>, <address 84>)`
@@ -89,7 +89,8 @@ peer_identity_test() ->
            fun() ->
                ?assertEqual(<<"<process.store.84>">>, ern_show:show(process, Pid)),
                [?assertEqual(<<"<address.store.84>">>, ern_show:show(Descriptor, Address))
-                || Descriptor <- [{address, any, <<>>}, any], Address <- [Pid, Adapted, Given]]
+                || Descriptor <- [{address, any, <<>>, none}, any],
+                   Address <- [Pid, Adapted, Given]]
            end).
 
 %% report Appendix E.1: a peer's name written as it stands in the
@@ -118,7 +119,7 @@ unlisted_identity_test() ->
            fun() ->
                ?assertEqual(<<"<process.", Digest/binary, ".84>">>, ern_show:show(process, Pid)),
                ?assertEqual(<<"<address.", Digest/binary, ".84>">>,
-                            ern_show:show({address, any, <<>>}, Adapted))
+                            ern_show:show({address, any, <<>>, none}, Adapted))
            end).
 
 %% The process numbered Number on Node, as the external term format writes

@@ -6,8 +6,8 @@
 -export([run/1, run/2, run_at_terminal/1, run/3, scratch/0, write_golden/0, frame_of/1, poke/1,
          stack_here/0, calls_held/0, pair/0, funs/0, opt/1, improper/1, remember/1, junk/1,
          good/1, tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1,
-         same/1, call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1, checker_ended/1,
-         taken/0]).
+         same/1, identical/2, call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1,
+         checker_ended/1, taken/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -57,6 +57,30 @@ run_loaded(ErlangModule, Options) ->
                              (maps:merge(#{stderr => Collect}, maps:remove(standard, Options)))
                                  #{init => fun() -> init(ErlangModule) end, stdout => Collect,
                                    stdin => fun() -> eof end}),
+    {Result, collect([])}.
+
+%% The same of a program of several modules, each {Namespace, Text}, in the
+%% order a build compiles them, each checked against the compiled
+%% interfaces of those before it (report §11.1), the last one's main run
+%% once each module is initialized (§8.5).
+run_modules(Sources) ->
+    {ErlangModules, _} =
+        lists:mapfoldl(fun({Namespace, Text}, Interfaces) ->
+                           {ok, Declarations} = ern_parser:parse_string(Text),
+                           {ok, Typed, Interface, Env} =
+                               ern_typecheck:check(Namespace, Declarations, Interfaces),
+                           {ok, ErlangModule, Beam} =
+                               ern_compile:compile(Namespace, Typed, Interface, Env),
+                           {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+                           {ok, #{interface := Compiled}} = ern_interface:read(Beam),
+                           {ErlangModule, Interfaces ++ [Compiled]}
+                       end, [], Sources),
+    Self = self(),
+    Collect = fun(Written) -> Self ! {out, Written} end,
+    Result = ern_rt:run_main(fun() -> (ern_named:main(lists:last(ErlangModules)))() end,
+                             <<"main">>,
+                             #{init => fun() -> lists:foreach(fun init/1, ErlangModules) end,
+                               stdout => Collect, stderr => Collect, stdin => fun() -> eof end}),
     {Result, collect([])}.
 
 %% report §11: a declaration the checker would not have passed is a defect
@@ -3478,6 +3502,12 @@ relay_good({Alias, _}) -> Alias ! {Alias, 5}, 'Unit'.
 %% report §8.4: a Reply handed back as it was given, its type declared anew
 -spec same(Reply) -> Reply.
 same(Reply) -> Reply.
+%% report §8.4: whether foreign code given two values at type variables,
+%% which cross as the runtime holds them, is given one term, by which a test
+%% tells an address the program holds as its own from one it holds as
+%% foreign
+-spec identical(term(), term()) -> boolean().
+identical(Given, Own) -> Given =:= Own.
 %% report §8.4: foreign code that calls the function inside its argument
 %% with a value of another type, or of the declared one
 -spec call_nested_bad({integer(), fun((term()) -> integer())}) -> integer().
@@ -4421,6 +4451,292 @@ recursive_address_in_order_test() ->
         "        Unit\n"
         "    });\n"
         "    Io.println(Io.show(arrived([], 100) == List.range(1, 100)))\n"
+        "}\n")).
+
+%% report §8.4, §8.7: "there is one for each distinct address that has
+%% crossed, at each type it crossed at", a type the type an address crossed
+%% at where the two have one hash: an address of a recursive type crosses
+%% alone, inside a value of its own type and inside a value of another type
+%% of the program's as one check, and foreign code is given one address.
+%% Written before its code, and red there inside the other type, whose
+%% descriptor numbered the recursion by the types around it
+recursive_address_checked_once_test() ->
+    ?assertEqual({ok, <<"#(true, true)\n">>}, run(
+        queue_declarations() ++
+        "export fn main() : Unit receiving QMsg = {\n"
+        "    let alone = listed([self()]);\n"
+        "    let carried = fieldOfCarry(2, Carry(self()));\n"
+        "    let entered = fieldOfEntry(2, Entry(self()));\n"
+        "    Io.println(Io.show(#(alone == carried, alone == entered)))\n"
+        "}\n")).
+
+%% report §8.4: "An address of the program's that foreign code gives back is
+%% the program's own at the type it crossed at": an address of a recursive
+%% type that went out alone comes back inside a value of its own type and of
+%% another type as the program's own, and one that went out inside either
+%% comes back alone so. Written before its code, and red there through the
+%% other type, where it came back foreign
+recursive_address_back_as_its_own_test() ->
+    ?assertEqual({ok, <<"#(true, true, true, true)\n">>}, run(
+        queue_declarations() ++
+        "foreign fn asCarry(parts : List(Foreign.Term)) : QMsg =\n"
+        "    \"erlang:list_to_tuple/1\"\n"
+        "foreign fn asEntry(parts : List(Foreign.Term)) : Entry =\n"
+        "    \"erlang:list_to_tuple/1\"\n"
+        "foreign fn asAlone(terms : List(Foreign.Term)) : Address(QMsg) =\n"
+        "    \"erlang:hd/1\"\n" ++ foreign_identical() ++
+        "export fn main() : Unit receiving QMsg = {\n"
+        "    let alone = listed([self()]);\n"
+        "    let inCarry = match asCarry([Foreign.atom(\"Carry\"), alone]) {\n"
+        "        Carry(address) -> identical(address, self())\n"
+        "      | QNote(_) -> false\n"
+        "    };\n"
+        "    let Entry(entered) = asEntry([Foreign.atom(\"Entry\"), alone]);\n"
+        "    let fromCarry = asAlone([fieldOfCarry(2, Carry(self()))]);\n"
+        "    let fromEntry = asAlone([fieldOfEntry(2, Entry(self()))]);\n"
+        "    Io.println(Io.show(#(inCarry, identical(entered, self()),\n"
+        "                         identical(fromCarry, self()), identical(fromEntry, self()))))\n"
+        "}\n")).
+
+%% `type QMsg = QNote(Int) | Carry(Address(QMsg))`, a type that holds an
+%% address of it, `Entry`, and foreign functions that give foreign code an
+%% address of it alone, inside a QMsg and inside an Entry.
+queue_declarations() ->
+    "type QMsg = QNote(Int) | Carry(Address(QMsg))\n"
+    "type Entry = Entry(Address(QMsg))\n"
+    "foreign fn listed(addresses : List(Address(QMsg))) : Foreign.Term =\n"
+    "    \"erlang:hd/1\"\n"
+    "foreign fn fieldOfCarry(index : Int, message : QMsg) : Foreign.Term =\n"
+    "    \"erlang:element/2\"\n"
+    "foreign fn fieldOfEntry(index : Int, entry : Entry) : Foreign.Term =\n"
+    "    \"erlang:element/2\"\n".
+
+%% A foreign function given two values at type variables, which cross as
+%% the runtime holds them (report §8.4), whether they are one term.
+foreign_identical() ->
+    "foreign fn identical(given : a, own : b) : Bool =\n"
+    "    \"ern_emitter_tests:identical/2\"\n".
+
+%% report §8.4, §8.7: an address that crosses from two modules at one type
+%% is one check, where its message type holds an address of a type one
+%% module writes `Note` and the other `Kept.Note`. Written before its code,
+%% and red there: each module's crossing had a check of its own, its
+%% descriptor holding the nested address's cause as its module prints it
+address_from_two_modules_checked_once_test() ->
+    ?assertEqual({ok, <<"true\n">>}, crossed_from_two_modules(kept_module(), "KeptMsg")).
+
+%% report §8.4, §8.7: the same where the message type holds a function.
+%% Written before its code, and red there: each module's crossing had a
+%% check of its own, its descriptor holding two funs of its unit's code
+function_field_from_two_modules_checked_once_test() ->
+    ?assertEqual({ok, <<"true\n">>}, crossed_from_two_modules(
+        "export type TaskMsg = Task(() -> Int) | Count(Int)\n"
+        "export fn handedAlone(address : Address(TaskMsg)) : Foreign.Term =\n"
+        "    listed([address])\n"
+        "foreign fn listed(addresses : List(Address(TaskMsg))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n",
+        "TaskMsg")).
+
+%% Whether foreign code is given one address for the process of main, whose
+%% mailbox type is Kept's Message, by a crossing of the module Kept, its
+%% handedAlone, and one of main's module.
+crossed_from_two_modules(Kept, Message) ->
+    run_modules(
+      [{['Kept'], Kept},
+       {['Main'],
+        "foreign fn listed(addresses : List(Address(Kept." ++ Message ++ "))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "export fn main() : Unit receiving Kept." ++ Message ++ " = {\n"
+        "    let here = listed([self()]);\n"
+        "    let there = Kept.handedAlone(self());\n"
+        "    Io.println(Io.show(here == there))\n"
+        "}\n"}]).
+
+%% report §8.4: an address that went out through one module's crossing comes
+%% back through the other module's, at the type it crossed at, as the
+%% program's own. Written before its code, and red there: it came back
+%% foreign each way
+address_from_two_modules_back_as_its_own_test() ->
+    ?assertEqual({ok, <<"#(true, true)\n">>}, run_modules(
+        [{['Kept'], kept_module()},
+         {['Main'],
+          kept_listed() ++
+          "foreign fn asAlone(terms : List(Foreign.Term)) : Address(Kept.KeptMsg) =\n"
+          "    \"erlang:hd/1\"\n" ++ foreign_identical() ++
+          "export fn main() : Unit receiving Kept.KeptMsg = {\n"
+          "    let fromKept = asAlone([Kept.handedAlone(self())]);\n"
+          "    let fromHere = Kept.back(listed([self()]));\n"
+          "    Io.println(Io.show(#(identical(fromKept, self()), identical(fromHere, self()))))\n"
+          "}\n"}])).
+
+%% report §6.4, §8.4: what foreign code sends in turn through one address,
+%% given it by two modules' crossings, arrives in the order sent. Written
+%% before its code, and red there: each crossing had a check of its own,
+%% and the counts arrived out of order
+address_from_two_modules_in_order_test() ->
+    ?assertEqual({ok, <<"true\n">>}, run_modules(
+        [{['Kept'], kept_module()},
+         {['Main'],
+          kept_listed() ++ foreign_sent() ++
+          "fn arrived(numbers : List(Int), count : Int) : List(Int) receiving Kept.KeptMsg =\n"
+          "    if count == 0 then List.reverse(numbers)\n"
+          "    else receive { Kept.Count(number) -> arrived(number :: numbers, count - 1) }\n"
+          "export fn main() : Unit receiving Kept.KeptMsg = {\n"
+          "    let here = listed([self()]);\n"
+          "    let there = Kept.handedAlone(self());\n"
+          "    List.forEach(List.range(1, 50), fn(index) = {\n"
+          "        let _ = sent(here, Foreign.term(Kept.Count(2 * index - 1)));\n"
+          "        let _ = sent(there, Foreign.term(Kept.Count(2 * index)));\n"
+          "        Unit\n"
+          "    });\n"
+          "    Io.println(Io.show(arrived([], 100) == List.range(1, 100)))\n"
+          "}\n"}])).
+
+%% report §12.3: a message that does not match through a check two modules'
+%% crossings share faults the receiver with the type printed as the module
+%% whose crossing made the check prints it, in either order of crossing.
+%% Written before its code, and red there: each crossing had a check of its
+%% own, which printed the type as its own module does
+shared_check_cause_test() ->
+    Faulted = fun(First, Second) ->
+                  {Result, _} = run_modules(
+                    [{['Kept'], kept_module()},
+                     {['Main'],
+                      kept_listed() ++ foreign_sent() ++
+                      "export fn main() : Unit receiving Kept.KeptMsg = {\n"
+                      "    let _ = " ++ First ++ ";\n"
+                      "    let second = " ++ Second ++ ";\n"
+                      "    let _ = sent(second, Foreign.term(\"no message\"));\n"
+                      "    receive { _ -> Unit }\n"
+                      "}\n"}]),
+                  cause_of(Result)
+              end,
+    ?assertEqual({<<"message does not match KeptMsg">>, <<"message does not match Kept.KeptMsg">>},
+                 {Faulted("Kept.handedAlone(self())", "listed([self()])"),
+                  Faulted("listed([self()])", "Kept.handedAlone(self())")}).
+
+%% A module Kept whose mailbox type holds an address of another of its
+%% types, which gives foreign code an address of it, and takes one back.
+kept_module() ->
+    "export type Note = Note(Int)\n"
+    "export type KeptMsg = Hand(Address(Note)) | Count(Int)\n"
+    "export fn handedAlone(address : Address(KeptMsg)) : Foreign.Term =\n"
+    "    listed([address])\n"
+    "export fn back(term : Foreign.Term) : Address(KeptMsg) =\n"
+    "    asAlone([term])\n"
+    "foreign fn listed(addresses : List(Address(KeptMsg))) : Foreign.Term =\n"
+    "    \"erlang:hd/1\"\n"
+    "foreign fn asAlone(terms : List(Foreign.Term)) : Address(KeptMsg) =\n"
+    "    \"erlang:hd/1\"\n".
+
+%% Another module's foreign function that gives foreign code an address of
+%% Kept's mailbox type.
+kept_listed() ->
+    "foreign fn listed(addresses : List(Address(Kept.KeptMsg))) : Foreign.Term =\n"
+    "    \"erlang:hd/1\"\n".
+
+%% report §8.4: "once every type variable in each is written as one
+%% variable": an address that crosses at `Address(a)` and at `Address(b)`
+%% is one check, and so is one that crosses at `Address(#(a, b))` and at
+%% `Address(#(a, a))`, each of which takes any message of its shape; one
+%% that crosses at `Address(a)` and at `Address(PingMsg)` is two. A
+%% regression test of what the report states
+address_at_type_variables_test() ->
+    ?assertEqual({ok, <<"#(true, true, false)\n">>}, run(
+        "type PingMsg = Ping(Int)\n"
+        "fn pairs() : Unit receiving #(Int, Int) =\n"
+        "    receive { #(left, right) -> Io.println(Int.toString(left + right)) }\n"
+        "foreign fn atA(addresses : List(Address(a))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "foreign fn atB(addresses : List(Address(b))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "foreign fn atPair(addresses : List(Address(#(a, b)))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "foreign fn atSame(addresses : List(Address(#(a, a)))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "foreign fn atPing(addresses : List(Address(PingMsg))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "export fn main() : Unit receiving PingMsg = {\n"
+        "    let pair = spawn(pairs);\n"
+        "    Io.println(Io.show(#(atA([self()]) == atB([self()]),\n"
+        "                         atPair([pair]) == atSame([pair]),\n"
+        "                         atA([self()]) == atPing([self()]))))\n"
+        "}\n")).
+
+%% report §8.4, §8.7: "the program's own at the type it crossed at, and
+%% foreign at any other": an address whose type's recursion passes through
+%% the type around it, `B(a) = B1(a) | B2(Address(B(a)))` of a module Z,
+%% that crosses inside `X.T = TB(Z.B(T)) | TN`, comes back inside an `X.T`
+%% as the program's own and inside a `Y.T`, declared the same, as foreign.
+%% A regression test of what the report states
+recursive_address_foreign_through_another_type_test() ->
+    Around = "export type T = TB(Z.B(T)) | TN\n",
+    ?assertEqual({ok, <<"#(true, false)\n">>}, run_modules(
+        [{['Z'], "export type B(a) = B1(a) | B2(Address(B(a)))\n"},
+         {['X'], Around},
+         {['Y'], Around},
+         {['Main'],
+          "foreign fn fieldOf(index : Int, value : X.T) : Foreign.Term =\n"
+          "    \"erlang:element/2\"\n"
+          "foreign fn asX(parts : List(Foreign.Term)) : X.T =\n"
+          "    \"erlang:list_to_tuple/1\"\n"
+          "foreign fn asY(parts : List(Foreign.Term)) : Y.T =\n"
+          "    \"erlang:list_to_tuple/1\"\n" ++ foreign_identical() ++
+          "export fn main() : Unit receiving Z.B(X.T) = {\n"
+          "    let inner = fieldOf(2, X.TB(Z.B2(self())));\n"
+          "    let same = match asX([Foreign.atom(\"TB\"), inner]) {\n"
+          "        X.TB(Z.B2(address)) -> identical(address, self())\n"
+          "      | _ -> false\n"
+          "    };\n"
+          "    let other = match asY([Foreign.atom(\"TB\"), inner]) {\n"
+          "        Y.TB(Z.B2(address)) -> identical(address, self())\n"
+          "      | _ -> false\n"
+          "    };\n"
+          "    Io.println(Io.show(#(same, other)))\n"
+          "}\n"}])).
+
+%% report §8.4, §8.7: a type's hash holds its arguments where its descriptor
+%% does not, so an address that crossed at `Address(Tagged(Int))`, of `type
+%% Tagged(a) = Tagged(Int)`, comes back as the program's own there and
+%% foreign at `Address(Tagged(String))`. Written before its code, and red
+%% there: it came back as the program's own at either
+phantom_argument_foreign_test() ->
+    ?assertEqual({ok, <<"#(true, false)\n">>}, run(
+        "type Tagged(a) = Tagged(Int)\n"
+        "foreign fn atInt(addresses : List(Address(Tagged(Int)))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "foreign fn backAtInt(terms : List(Foreign.Term)) : Address(Tagged(Int)) =\n"
+        "    \"erlang:hd/1\"\n"
+        "foreign fn backAtString(terms : List(Foreign.Term)) : Address(Tagged(String)) =\n"
+        "    \"erlang:hd/1\"\n" ++ foreign_identical() ++
+        "export fn main() : Unit receiving Tagged(Int) = {\n"
+        "    let crossed = atInt([self()]);\n"
+        "    Io.println(Io.show(#(identical(backAtInt([crossed]), self()),\n"
+        "                         identical(backAtString([crossed]), self()))))\n"
+        "}\n")).
+
+%% report §8.4, Appendix H: a type at a crossing in a definition of the
+%% group of the type it names, the type's own `compare`, names the type as
+%% every other definition does, by its hash, so the address that crosses
+%% there and in `main` is one check. A regression test of what the report
+%% states
+group_member_crossing_checked_once_test() ->
+    ?assertEqual({ok, <<"true\n">>}, run(
+        "type CountMsg = Ranked(rank : Int, owner : Address(CountMsg)) | Seen(Foreign.Term)\n"
+        "fn CountMsg.compare(left : CountMsg, right : CountMsg) : Ordering =\n"
+        "    match left {\n"
+        "        Ranked(=owner) -> {\n"
+        "            send(owner, Seen(Foreign.term(owner)));\n"
+        "            Equal\n"
+        "        }\n"
+        "      | Seen(_) -> Equal\n"
+        "    }\n"
+        "foreign fn listed(addresses : List(Address(CountMsg))) : Foreign.Term =\n"
+        "    \"erlang:hd/1\"\n"
+        "export fn main() : Unit receiving CountMsg = {\n"
+        "    let here = listed([self()]);\n"
+        "    let _ = Ranked(rank = 1, owner = self()) < Ranked(rank = 2, owner = self());\n"
+        "    receive { Seen(there) -> Io.println(Io.show(here == there)) }\n"
         "}\n")).
 
 %% report §8.4: a process of the program's whose address foreign code was

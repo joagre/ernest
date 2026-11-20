@@ -34,7 +34,7 @@
 -module(ern_boundary).
 
 -export([raised/6, raised/4, called_raised/3, expose/2, check/3, value/3, result/4, argument/5,
-         closed/2, expose/3]).
+         expose/3]).
 
 -export_type([descriptor/0]).
 
@@ -48,7 +48,8 @@
                     | {ref, pos_integer()}
                     | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
                     | {map, descriptor(), descriptor()}
-                    | {address, descriptor(), binary()} | {reply, descriptor(), binary()}
+                    | {address, descriptor(), binary(), binary()}
+                    | {reply, descriptor(), binary()}
                     | {'fun', non_neg_integer(), descriptor(), ern_descriptor:named_cause(), fun(),
                        fun()}
                     | {con, binary() | none,
@@ -206,7 +207,7 @@ armed(Descriptor, Value, Bound) ->
     end.
 
 needs_arming({'fun', _, _, _, _, _}) -> true;
-needs_arming({address, _, _}) -> true;
+needs_arming({address, _, _, _}) -> true;
 needs_arming({reply, _, _}) -> true;
 needs_arming(Part) when is_tuple(Part) -> lists:any(fun needs_arming/1, tuple_to_list(Part));
 needs_arming(Parts) when is_list(Parts) -> lists:any(fun needs_arming/1, Parts);
@@ -214,8 +215,8 @@ needs_arming(_) -> false.
 
 arm({'fun', _, ResultDescriptor, _, Make, _}, Value, Bound) ->
     Make(Value, closed(ResultDescriptor, Bound));
-arm({address, MessageDescriptor, _}, Value, Bound) when is_pid(Value) ->
-    ern_rt:held(Value, MessageDescriptor, Bound);
+arm({address, MessageDescriptor, _, Hash}, Value, Bound) when is_pid(Value) ->
+    ern_rt:held(Value, MessageDescriptor, Bound, Hash);
 arm({reply, AnswerDescriptor, _}, {Alias, Pid} = Value, Bound)
   when is_reference(Alias), is_pid(Pid) ->
     {foreign_reply, Value, AnswerDescriptor, Bound};
@@ -237,17 +238,11 @@ arm({mu, Id, Descriptor}, Value, Bound) -> arm(Descriptor, Value, Bound#{Id => D
 arm({ref, Id}, Value, Bound) -> arm(maps:get(Id, Bound), Value, Bound);
 arm(_, Value, _) -> Value.
 
-%% Report §12.3, §8.4: a descriptor where no mu around it binds its refs any
-%% more: each ref free in it is its mu again, closed in turn, since a
-%% type's recursion may pass through a type around it. A function value's
-%% result is checked so at each call, and a checker is keyed so by its
-%% address's messages (checker/4), one form whether the address crosses
-%% alone or inside a value of a recursive type. Under no binding a
-%% descriptor is closed as it stands, so that an address that crosses
-%% alone, and one foreign code gives alone, is not walked.
+%% Report §12.3: a function value's result descriptor where no mu around it
+%% binds its refs any more: each ref free in it is its mu again, closed in
+%% turn, since a type's recursion may pass through a type around it, so
+%% that its result is checked at each call outside the value it came in.
 -spec closed(descriptor(), map()) -> descriptor().
-closed(Descriptor, Bound) when map_size(Bound) =:= 0 ->
-    Descriptor;
 closed({ref, Id} = Descriptor, Bound) ->
     case Bound of
         #{Id := Body} -> closed({mu, Id, Body}, Bound);
@@ -318,9 +313,9 @@ matches(unit, Value, _) -> Value =:= 'Unit';
 %% holds an address in any of its forms; a process of the program's whose
 %% address foreign code was never given is no address it may give, but as
 %% an `Address(Never)`, through which no message passes
-matches({address, never, _}, Value, _) ->
+matches({address, never, _, _}, Value, _) ->
     ern_rt:is_address(Value);
-matches({address, _, _}, Value, _) ->
+matches({address, _, _, _}, Value, _) ->
     ern_rt:is_address(Value) andalso not ern_rt:is_never_given(Value);
 matches({reply, _, _}, {foreign_reply, Value, _, _}, _) -> ern_rt:is_reply(Value);
 matches({reply, _, _}, Value, _) -> ern_rt:is_reply(Value);
@@ -399,14 +394,14 @@ elements_match(_, _, _) -> false.
 %% or in an answer
 expose({'fun', _, _, _, _, Exposer}, Value, Bound) when is_function(Value) ->
     Exposer(Value, Bound);
-expose({address, MessageDescriptor, Cause}, Value, Bound) when is_pid(Value) ->
-    checker(Value, MessageDescriptor, Bound, Cause);
+expose({address, MessageDescriptor, Cause, Hash}, Value, Bound) when is_pid(Value) ->
+    checker(Value, Hash, MessageDescriptor, Bound, Cause);
 %% report §6.5: an address seen through a function is an address too, and
 %% foreign code must reach it through the same checker
-expose({address, MessageDescriptor, Cause}, {adapted, _, _, _, _} = Value, Bound) ->
-    checker(Value, MessageDescriptor, Bound, Cause);
+expose({address, MessageDescriptor, Cause, Hash}, {adapted, _, _, _, _} = Value, Bound) ->
+    checker(Value, Hash, MessageDescriptor, Bound, Cause);
 %% an address foreign code gave goes back to it as it came
-expose({address, _, _}, {foreign, Pid, _, _, _}, _) -> Pid;
+expose({address, _, _, _}, {foreign, Pid, _, _, _}, _) -> Pid;
 %% a Reply foreign code gave goes back to it as it came
 expose({reply, _, _}, {foreign_reply, Reply, _, _}, _) -> Reply;
 expose({list, ElementDescriptor}, Value, Bound) when is_list(Value) ->
@@ -433,12 +428,13 @@ expose({ref, Id}, Value, Bound) -> expose(maps:get(Id, Bound), Value, Bound);
 expose(_, Value, _) -> Value.
 
 %% Report §8.4: "That check lasts until the process the address names ends,
-%% and there is one for each distinct address that has crossed": one
-%% checker per address and mailbox type however often the address is
-%% exposed (ern_rt:checker_for/3), the type closed (closed/2), since inside
-%% a value of a recursive type it crosses as a ref to the mu around it and
-%% alone as that mu. It checks against the type in the form the address
-%% first crossed in.
+%% and there is one for each distinct address that has crossed, at each
+%% type it crossed at": one checker per address and Hash, the hash of the
+%% type it crosses at (§8.7), however often and from whatever module the
+%% address is exposed (ern_rt:checker_for/3), so that foreign code is given
+%% one address for each check. It checks against the descriptor, the
+%% bindings and the cause of the crossing that made it, as §12.3 prints
+%% the type.
 %%
 %% The checker watches the process behind the address by the host's
 %% monitor. A message that does not match is that process's fault, sent as
@@ -447,8 +443,8 @@ expose(_, Value, _) -> Value.
 %% adapted address made on this node has its function applied here, as on
 %% arrival (§6.5), the checker acting for the target, and one made on
 %% another node is carried to that node.
-checker(Behind, MessageDescriptor, Bound, Cause) ->
-    ern_rt:checker_for({Behind, closed(MessageDescriptor, Bound)}, Behind,
+checker(Behind, Hash, MessageDescriptor, Bound, Cause) ->
+    ern_rt:checker_for({Behind, Hash}, Behind,
                        fun(Target) ->
                            MonitorRef = erlang:monitor(process, Target),
                            checker_loop(Behind, MonitorRef, MessageDescriptor, Bound, Cause)

@@ -2540,7 +2540,7 @@ alive() ->
 %% process and not the proxy
 proxy_names_its_process_test() ->
     Self = self(),
-    Descriptor = {address, string, <<"a String">>},
+    Descriptor = {address, string, <<"a String">>, hash(<<"String">>)},
     ok = ern_rt:run_main(
            fun() ->
                Mine = ern_rt:self(),
@@ -2559,7 +2559,7 @@ proxy_names_its_process_test() ->
 %% own at whatever type foreign code named
 never_given_address_test() ->
     Self = self(),
-    Descriptor = {address, string, <<"a String">>},
+    Descriptor = {address, string, <<"a String">>, hash(<<"String">>)},
     ok = ern_rt:run_main(
            fun() ->
                Mine = ern_rt:self(),
@@ -2616,12 +2616,10 @@ far_address_given_back_test() ->
     Far = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
     ok = ern_rt:run_main(
            fun() ->
-               Checker = ern_boundary:expose({address, int, <<"message does not match Int">>},
-                                             Far),
-               Same = ern_boundary:value({address, int, <<"message does not match Int">>},
-                                         Checker, <<"bad return">>),
-               Other = ern_boundary:value({address, string, <<"message does not match String">>},
-                                          Checker, <<"bad return">>),
+               Checker = ern_boundary:expose(address_at(int, <<"Int">>), Far),
+               Same = ern_boundary:value(address_at(int, <<"Int">>), Checker, <<"bad return">>),
+               Other = ern_boundary:value(address_at(string, <<"String">>), Checker,
+                                          <<"bad return">>),
                Self ! {given_back, {Checker, Same, Other}}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Checker, Same, Other} = wait(given_back),
@@ -2664,8 +2662,7 @@ retyped_address_bad_message_test() ->
                ern_rt:monitor(Target, fun(Down) -> {down, Down} end),
                {_, Held} = retyped(Target),
                Adapted = ern_rt:adapted(Held, fun(Bool) -> atom_to_binary(Bool) end),
-               Outer = ern_boundary:expose({address, bool, <<"message does not match Bool">>},
-                                           Adapted),
+               Outer = ern_boundary:expose(address_at(bool, <<"Bool">>), Adapted),
                Outer ! <<"no Bool">>,
                receive {down, Down} -> Self ! {d, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -2695,8 +2692,7 @@ retyped_address_fault_in_function_test() ->
                                      <<"Main.worker:2">>),
                {Checker, Held} = retyped(Worker),
                Adapted = ern_rt:adapted(Held, fun(_) -> integer_to_binary(1 div Zero) end),
-               Outer = ern_boundary:expose({address, bool, <<"message does not match Bool">>},
-                                           Adapted),
+               Outer = ern_boundary:expose(address_at(bool, <<"Bool">>), Adapted),
                receive run -> ok end,
                CheckerRef = erlang:monitor(process, Checker),
                Outer ! true,
@@ -2723,9 +2719,20 @@ retyped_address_fault_in_function_test() ->
 %% of it given back by foreign code at String, held as the program holds it
 %% (report §8.4).
 retyped(Target) ->
-    Checker = ern_boundary:expose({address, int, <<"message does not match Int">>}, Target),
-    {Checker, ern_boundary:value({address, string, <<"message does not match String">>}, Checker,
-                                 <<"bad return">>)}.
+    Checker = ern_boundary:expose(address_at(int, <<"Int">>), Target),
+    {Checker, ern_boundary:value(address_at(string, <<"String">>), Checker, <<"bad return">>)}.
+
+%% An address's descriptor as the emitter writes it (report §8.4): the
+%% descriptor of its messages, the cause a message that does not match
+%% faults with, which names Type, and the hash of Type, by which its check
+%% is found (§8.7).
+address_at(MessageDescriptor, Type) ->
+    {address, MessageDescriptor, <<"message does not match ", Type/binary>>, hash(Type)}.
+
+%% The hash of the type Type names, written by hand, one for each type a
+%% test names, as the emitter makes one for each type (report §8.7).
+hash(Type) ->
+    <<"the hash of ", Type/binary>>.
 
 %% report §8.4: "there is one for each distinct address that has crossed":
 %% an address of a recursive type that crosses alone and inside a value of
@@ -2738,15 +2745,14 @@ recursive_address_one_check_test() ->
     Self = self(),
     Tree = {mu, 1, {con, <<"Main">>,
                     [{'Leaf', []},
-                     {'Node', [{ref, 1}, {address, int, <<"message does not match Int">>}]}]}},
+                     {'Node', [{ref, 1}, address_at(int, <<"Int">>)]}]}},
     ok = ern_rt:run_main(
            fun() ->
                Mine = ern_rt:self(),
                Alone = ern_boundary:expose(note_address(), Mine),
                {'Carry', Inside} = ern_boundary:expose(note_message(), {'Carry', Mine}),
                Counter = ern_rt:spawn(fun waiting/0, <<"Main.counter:4">>),
-               CounterAlone = ern_boundary:expose({address, int, <<"message does not match Int">>},
-                                                  Counter),
+               CounterAlone = ern_boundary:expose(address_at(int, <<"Int">>), Counter),
                {'Node', 'Leaf', CounterInside} = ern_boundary:expose(Tree,
                                                                      {'Node', 'Leaf', Counter}),
                Self ! {exposed, {{Alone, CounterAlone}, {Inside, CounterInside}}}
@@ -2785,7 +2791,8 @@ recursive_address_given_back_test() ->
 recursive_address_through_another_type_test() ->
     Self = self(),
     Around = fun(Namespace) ->
-                 {mu, 1, {con, Namespace, [{'TB', [{mu, 2, written_through()}]}, {'TN', []}]}}
+                 {mu, 1, {con, Namespace, [{'TB', [{mu, 2, written_through(Namespace)}]},
+                                           {'TN', []}]}}
              end,
     ok = ern_rt:run_main(
            fun() ->
@@ -2800,11 +2807,13 @@ recursive_address_through_another_type_test() ->
     ?assertEqual({'TB', {'B2', Target}}, Same),
     ?assertMatch({'TB', {'B2', {foreign, Checker, Target, {ref, 2}, _}}}, Other).
 
-%% `Z.B(T)` as the emitter writes it inside `T`, its ref to `T` bound by the
-%% mu around it.
-written_through() ->
+%% `Z.B(T)` as the emitter writes it inside `T` of the module Namespace, its
+%% ref to `T` bound by the mu around it, its address's hash that of
+%% `Z.B(T)` there.
+written_through(Namespace) ->
     {con, <<"Z">>, [{'B1', [{ref, 1}]},
-                    {'B2', [{address, {ref, 2}, <<"message does not match Z.B(T)">>}]}]}.
+                    {'B2', [{address, {ref, 2}, <<"message does not match Z.B(T)">>,
+                             hash(<<"Z.B(", Namespace/binary, ".T)">>)}]}]}.
 
 %% The descriptor of a recursive type as the emitter writes it, `type
 %% QMsg = QNote(Int) | Carry(Address(QMsg))` of a module Main, and of an
@@ -2812,10 +2821,10 @@ written_through() ->
 note_message() ->
     {mu, 1, {con, <<"Main">>,
              [{'QNote', [int]},
-              {'Carry', [{address, {ref, 1}, <<"message does not match QMsg">>}]}]}}.
+              {'Carry', [address_at({ref, 1}, <<"QMsg">>)]}]}}.
 
 note_address() ->
-    {address, note_message(), <<"message does not match QMsg">>}.
+    address_at(note_message(), <<"QMsg">>).
 
 %% report §6.5, §7.4: a fault in the function is the target's, which faults
 %% at its wait, and the process that sent the message goes on
@@ -4200,7 +4209,7 @@ bad_message_ends_a_foreign_caller_test() ->
                Main = erlang:self(),
                Foreign = erlang:spawn(
                            fun() ->
-                               Main ! {checker, ern_boundary:expose({address, int, Cause},
+                               Main ! {checker, ern_boundary:expose(address_at(int, <<"Int">>),
                                                                     ern_rt:self())},
                                forwarding(Main)
                            end),
@@ -4214,9 +4223,8 @@ bad_message_ends_a_foreign_caller_test() ->
 %% given to foreign code at Int: the check foreign code sends to (report
 %% §8.4, §6.5).
 adapted_over_foreign(Target) ->
-    Held = ern_boundary:value({address, string, <<"message does not match String">>}, Target,
-                              <<"bad return">>),
-    ern_boundary:expose({address, int, <<"message does not match Int">>},
+    Held = ern_boundary:value(address_at(string, <<"String">>), Target, <<"bad return">>),
+    ern_boundary:expose(address_at(int, <<"Int">>),
                         ern_rt:adapted(Held, fun(Int) -> integer_to_binary(Int) end)).
 
 %% A foreign process, which the runtime did not start, that hands each

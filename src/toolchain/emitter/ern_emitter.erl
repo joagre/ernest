@@ -2406,7 +2406,7 @@ word_test(float) -> is_float.
 %% float, as ern_boundary reads one: a checked value of it is the value
 %% itself.
 is_plain(float) -> false;
-is_plain({address, _, _}) -> false;
+is_plain({address, _, _, _}) -> false;
 is_plain({reply, _, _}) -> false;
 is_plain({function, _, _, _, _, _}) -> false;
 is_plain(Part) when is_tuple(Part) -> lists:all(fun is_plain/1, tuple_to_list(Part));
@@ -2484,6 +2484,10 @@ built_descriptor({function, Arity, ResultDescriptor, Cause, ParamDescriptors, Pa
     Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, Bound], none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(Arity),
                       built_descriptor(ResultDescriptor), term_form(Cause), Maker, Exposer]);
+%% an address's hash, a literal of the unit's code, is bytes and no text
+built_descriptor({address, MessageDescriptor, Cause, Hash}) ->
+    erl_syntax:tuple([erl_syntax:atom(address), built_descriptor(MessageDescriptor),
+                      term_form(Cause), erl_syntax:abstract(Hash)]);
 built_descriptor(Tuple) when is_tuple(Tuple) ->
     erl_syntax:tuple([built_descriptor(Element) || Element <- tuple_to_list(Tuple)]);
 built_descriptor(Elements) when is_list(Elements) ->
@@ -2532,7 +2536,7 @@ named_cause({Before, After}, Named) ->
 
 %% Whether a descriptor holds what crossing into foreign code changes: an
 %% address, a Reply, or a function.
-crosses({address, _, _}) -> true;
+crosses({address, _, _, _}) -> true;
 crosses({reply, _, _}) -> true;
 crosses({function, _, _, _, _, _}) -> true;
 crosses(Part) when is_tuple(Part) -> lists:any(fun crosses/1, tuple_to_list(Part));
@@ -2587,9 +2591,11 @@ described({applied, {named, ['Bytes']}, []}, _, _, _) -> bytes;
 %% its hash references, does not
 described({applied, {named, ['Unit']}, []}, _, _, _) -> unit;
 described({applied, {named, ['Address']}, [MessageType]}, Seen, Scope, Context) ->
-    %% the address's messages, for the checker that exposes it (report §8.4)
+    %% the address's messages, for the checker that exposes it, and the
+    %% hash of the type it crosses at, by which its check is found (report
+    %% §8.4)
     {address, described(MessageType, Seen, Scope, Context),
-     cause("message does not match ", MessageType, Context)};
+     cause("message does not match ", MessageType, Context), crossed_hash(MessageType)};
 described({applied, {named, ['Reply']}, [AnswerType]}, Seen, Scope, Context) ->
     %% the answer's, which a reply that crosses into foreign code is
     %% checked against (report §8.4)
@@ -2637,6 +2643,21 @@ described({applied, Reference, Args} = Type, Seen, {_, Abstract} = Scope, Contex
 
 all_described(Types, Seen, Scope, Context) ->
     [described(Type, Seen, Scope, Context) || Type <- Types].
+
+%% Report §8.4, §8.7, Appendix H: the hash of the type an address crosses
+%% at, its message type as the form writes it, each reference whole, a
+%% declared type of a program by its hash, a member of the form's own group
+%% among them (prepared/2), and every type variable in it written as one
+%% variable, since the check takes any value at each: one type has one hash
+%% in every module, unit, foreign declaration and type around it.
+crossed_hash(MessageType) ->
+    ern_canonical:type_hash(one_variable(MessageType)).
+
+one_variable({variable, Number}) when is_integer(Number) -> {variable, 1};
+one_variable(Type) when is_tuple(Type) -> list_to_tuple([one_variable(Part)
+                                                         || Part <- tuple_to_list(Type)]);
+one_variable(Types) when is_list(Types) -> [one_variable(Type) || Type <- Types];
+one_variable(Type) -> Type.
 
 %% A named constructor's descriptor keeps its fields' names, in declared
 %% order (report §3.5), for printing.

@@ -21,8 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 150**, one check for an address however its type is
-written.
+**The next item is MVP 4.16's item 152**, an address at a type that holds a type variable.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -61,30 +60,36 @@ and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Be
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
 corner shows it (the log's *Item 140 Stands After the Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it. Item 150, found
-by item 146, is taken first, on the user's word on 2026-11-20, while its probes are at hand.
+**What was found**, each item begun by an agent that shows it or tests it. Item 152, found
+by item 150's cold reading, is taken first, on the user's word on 2026-11-20.
 
-- **150. One check for an address, however its type is written**, found 2026-11-20 by
-  item 146's build (the log's *One Check for an Address of a Recursive Type*), each case
-  shown by its probe. An address still gets two checks in two cases. In the first its
-  recursive type stands inside another type of the program's, `type Entry =
-  Entry(Address(QMsg))`, where the emitter numbers the recursion by the types around it.
-  In the second it crosses from two modules, where the type's descriptor holds a cause
-  that prints the type as each module writes it. An address given back is compared the
-  same way, so in either case it comes back as foreign at the type it crossed at.
+- **152. An address at a type that holds a type variable**, found 2026-11-20 by the cold
+  reading of item 150's sentences (the log's *One Check by the Type's Hash*), shown by
+  the session's probe. An address given to foreign code at `Address(a)` gets a check
+  that takes any message. Foreign code that gives it back at `Address(B)`, or at
+  `Address(b)` from another function, has the program send a `B` to a process that
+  receives `A`: its mailbox held two, in 3 of 3 runs.
 
-  Read from the code and not shown: a function field's descriptor differs between
-  units, and an abstract type's between its module and another.
+  §8.4's **Type variables** names a foreign function's result and an argument foreign
+  code calls a function with, and no message sent to an address. `docs/soundness.md`'s
+  section 2 argues from §8.4 that no address lets a message of another type reach a
+  mailbox, and the program shows that false, so the item stands here. Decided with the
+  user on 2026-11-20: a sentence and no refusal. §8.4's promise at a type variable gains
+  the address, what foreign code sends to it and where it gives it back, and
+  `docs/soundness.md` gains the promise in its sections 2 and 5. The sentence gets its
+  cold reading, and no code changes. It sharpens the log's *The Boundary Trusts a Type
+  Variable*.
 
-  §8.4 has one check for each distinct address, and an address given back be the
-  program's own at the type it crossed at. A program with foreign code shows both false,
-  so by the line's test the item stands here. To decide with the user first, on the
-  session's recommendation after a reading of the emitter: the key's form. It is the
-  type's hash of Appendix H, with the closed form beside it for a type that holds a
-  variable, or the descriptor renumbered with its causes and its functions left out.
-  With it, §12.3 says which module's form a bad message's cause names where one check
-  serves the crossings of two modules. Item 113 weighs how long a check lasts and needs
-  nothing of this item.
+  Two lines of the same reading are settled with it.
+
+  - An address that crosses at a bare variable, `foreign fn id(x : a) : a` called with
+    `self()`, crosses as it is, with no check, and §8.4 does not say so. Read from the
+    code and not shown. Item 149 weighs a pid foreign code names of a process it was not
+    given, and needs nothing of this line.
+  - §8.7 and Appendix H's **A type's hash** have a program's type stand in a hash by its
+    hash, where **What is hashed** gives a `foreign type` none and **References** writes
+    it by its name. §8.7 has a type's hash cover its fields' types' hashes, where
+    **Definitions** writes a field's type. Wording alone.
 - **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
   item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
   the reader's probe and the session's run. A listener is started by the runtime and has
@@ -375,6 +380,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 146 | An address of a recursive type gets one check whether it crosses alone or inside a value of its type, and comes back as the program's own either way; a function value's result check closes a type whose recursion passes through another | 2026-11-20 | §8.4, §12.3; *One Check for an Address of a Recursive Type* |
 | 147 | A fault taken at a wait names its `receive`'s line, as Appendix E.21 says: the showing counted a line wrong, and two tests of `ern_emitter_tests` now write the clause on a line of its own | 2026-11-20 | Appendix E.21; *A Fault at a Wait Names Its `receive`* |
 | 148 | `Io.show` writes a process as `<process.84>` and an address as `<address.84>`, and a process of another node with its peer's name before the number, `<process.store.84>`, or its key's digest where the node is not listed, with the user | 2026-11-20 | Appendix E.1; *A Process Printed with a Dot, Built* |
+| 150 | A check is found by its address and the hash of the type the address crossed at, so an address gets one check however its type is written, inside another type or from two modules, and comes back as the program's own; one check at each type, and a bad message's cause names the type as the module whose crossing made the check prints it, with the user | 2026-11-20 | §6.4, §8.4, §8.7, §12.3, Appendix H; *One Check by the Type's Hash* |
 
 ---
 

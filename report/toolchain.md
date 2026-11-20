@@ -796,9 +796,9 @@ A foreign function that raises faults the calling process with `Fault("foreign f
 
 A mismatch at a check of §8.4 faults the calling process: `Fault("the return of foreign function m:f/n does not match T")`, `Fault("reply does not match T")`, and an argument foreign code gives an Ernest function `f` `Fault("an argument of f from foreign code does not match T")` (§8.4).
 
-A message from a foreign process that does not match the type its address crossed at, `M`, faults the receiver on delivery (§8.4): `Fault("message does not match M")`.
+A message from a foreign process that does not match the type its address crossed at, `M`, faults the receiver on delivery (§8.4): `Fault("message does not match M")`. Where an address crossed at `M` from more than one module, `M` is printed as the module whose crossing made the check prints it.
 
-Each names the declared type, a type variable in it written `a`, `b` and on in the order the variables stand in the type, whatever names the declaration writes (Appendix H). Each check reaches as far as §8.4 has it reach: its **What is checked** and **Type variables** say what crosses unchecked.
+Each names the declared type. A type name in it is printed as §11.5 prints one in the module that states the type, in a foreign function's declaration or at the call the check is made for, and a type variable in it is written `a`, `b` and on in the order the variables stand in the type, whatever names the declaration writes (Appendix H). Each check reaches as far as §8.4 has it reach: its **What is checked** and **Type variables** say what crosses unchecked.
 
 A subscription to the terminal after it was read as lines faults the subscriber with `Fault("the terminal is already read as lines")`, and a read of a line or of bytes after it was claimed for keys faults the reader with `Fault("the terminal is already read as keys")` (§12.1). While a shell holds the terminal, subscribing to it or reading a line or bytes from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern run to give it the keyboard")` (§11.2).
 
@@ -955,7 +955,7 @@ Two definitions whose forms are one term are one definition: a reference to eith
 
 A lambda's or a local function's identity is the pair `{Hash, Position}` of its enclosing definition's hash and its position among the definition's lambdas and local functions, counted from 1 in the order the walk meets them.
 
-**A type's hash.** A type written whole, the message type a service carries (§8.7), is hashed as `{ernest_type, 2, Type}`, written as above, `Type` as **Types** writes it: a declared type of a program by its hash, and a built-in type or one of the standard library by its name. So `Counter.Msg`'s hash is built from its declaration's, and `Optional(Counter.Msg)`'s from that and `Optional`'s name.
+**A type's hash.** A type written whole, the message type a service carries (§8.7) or the type an address crossed at (§8.4), is hashed as `{ernest_type, 2, Type}`, written as above, `Type` as **Types** writes it: a declared type of a program by its hash, and a built-in type or one of the standard library by its name. So `Counter.Msg`'s hash is built from its declaration's, and `Optional(Counter.Msg)`'s from that and `Optional`'s name.
 
 **Definitions.**
 

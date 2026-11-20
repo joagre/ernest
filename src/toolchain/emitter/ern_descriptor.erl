@@ -21,14 +21,16 @@
 %% recursive type is described once; a hole stands for a descriptor a
 %% requirement passes in; an abstract type seen from outside its module is
 %% wrapped, and a sum carries its type's namespace and a named
-%% constructor its fields' names, all three for printing. A check's cause
-%% is none in a descriptor the shell prints by, which no check reads.
+%% constructor its fields' names, all three for printing. An address
+%% carries the hash of the type it crosses at, by which the boundary finds
+%% its check (report §8.4). A check's cause, and an address's hash, is none
+%% in a descriptor the shell prints by, which no check reads.
 -type descriptor() :: any | int | float | bool | char | string | bytes | process | never
                     | unit | foreign
                     | {hole, integer()} | {ref, pos_integer()}
                     | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
                     | {map, descriptor(), descriptor()}
-                    | {address, descriptor(), binary() | none}
+                    | {address, descriptor(), binary() | none, binary() | none}
                     | {reply, descriptor(), binary() | none}
                     | {function, non_neg_integer(), descriptor(), named_cause() | none,
                        [descriptor()], [named_cause()] | none}
@@ -74,7 +76,7 @@ descriptor({tcon, ['Bytes'], []}, _, _) -> bytes;
 %% where a program's own type named Unit is its constructors
 descriptor({tcon, ['Unit'], []}, _, _) -> unit;
 descriptor({tcon, ['Address'], [MessageType]}, Seen, Scope) ->
-    {address, descriptor(MessageType, Seen, Scope), none};
+    {address, descriptor(MessageType, Seen, Scope), none, none};
 descriptor({tcon, ['Reply'], [AnswerType]}, Seen, Scope) ->
     {reply, descriptor(AnswerType, Seen, Scope), none};
 descriptor({tcon, ['Process'], []}, _, _) -> process;

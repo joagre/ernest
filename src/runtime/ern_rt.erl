@@ -10,7 +10,7 @@
 %% made it and Launch the reference of the launch that made it, which
 %% send/2 applies (kept/1, §12.6), or {foreign, Pid, Process, Descriptor,
 %% Bound} for an address foreign code gave (report §8.4), whose messages
-%% cross into foreign code, Process the process behind it (held/3).
+%% cross into foreign code, Process the process behind it (held/4).
 %%
 %% A Reply(a) is {Alias, Pid}: the alias of the call's monitor of its
 %% callee, as gen_server's call makes one, which deactivates when the call
@@ -40,7 +40,7 @@
 %% docs/design/nodes.md's.
 -module(ern_rt).
 
--export([send/2, faulted/3, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/3,
+-export([send/2, faulted/3, kept/1, acting_for/1, launch_reaper/0, process_of/1, held/4,
          is_never_given/1, is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3,
          spawn_root/2, spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, call_limited/2,
@@ -188,11 +188,12 @@
 %% {{Recipient, Starter, Pid}}, ordered, so that a restart of the recipient
 %% reads its own deliveries and no other process's
 -define(DELIVERIES, ern_deliveries).
-%% report §8.4: each checker, {{checker, Key}, Checker}, and what it
-%% stands in front of, {{behind, Checker}, Pid, Address, Key}, written as
+%% report §8.4: each checker, {{checker, Key}, Checker}, Key the address
+%% and the hash of the type it crossed at, and what it stands in front of,
+%% {{behind, Checker}, Pid, Address, Key}, written as
 %% the reaper makes the checker (started_checker/3) and taken by it as the
 %% checker ends (unchecked/1), read where an address foreign code gave is
-%% held (held/3) and a pid is taken back to its process (process_of/1),
+%% held (held/4) and a pid is taken back to its process (process_of/1),
 %% and, report §8.6, by the deadlock look,
 %% which reads each checker as it reads a process of the program
 -define(CHECKERS, ern_checkers).
@@ -603,7 +604,7 @@ is_of_this_launch(Launch) ->
 %% check". A checker foreign code gives back is held foreign where it comes
 %% back at another type than it crossed at, or is in front of a process of
 %% this node with no row, and the process behind it is still the one its
-%% address names, which the held address carries (held/3), since only the
+%% address names, which the held address carries (held/4), since only the
 %% checker's node holds the row that leads there and the address is as good
 %% on any node it is sent to (§8.7). A send to it goes to the checker, which
 %% checks what is sent at the other type (sent/1); everything else the
@@ -621,19 +622,20 @@ behind(Pid) ->
     end.
 
 %% Report §8.4: an address foreign code gave, whose messages Descriptor
-%% describes inside the mu bindings Bound, as the program holds it: where
-%% it is the checker in front of one of the program's processes, the address
-%% that went out, the checker undone and an adapted address kept (§6.5),
-%% and otherwise foreign, carrying the process behind it, the checker's
-%% process or Pid itself (process_of/1). A checker comes back as the
-%% address that went out only at the type it went out at; at another it
+%% describes inside the mu bindings Bound, at the type whose hash is Hash,
+%% as the program holds it: where it is the checker in front of one of the
+%% program's processes, the address that went out, the checker undone and
+%% an adapted address kept (§6.5), and otherwise foreign, carrying the
+%% process behind it, the checker's process or Pid itself (process_of/1).
+%% A checker comes back as the address that went out only at the type it
+%% went out at, the type whose hash its key holds (§8.7); at another it
 %% stays foreign, so that what is sent through it is checked against the
 %% process's own type.
 %%
-%% The two types are compared closed, as the checker's key holds its type
-%% (ern_boundary:closed/2), so that an address of a recursive type that went
-%% out alone comes back inside a value of that type as the address that
-%% went out, and the other way round.
+%% A type has one hash whatever module and types around it write it, so an
+%% address of a recursive type that went out alone comes back inside a
+%% value of that type as the address that went out, and one that went out
+%% from one module comes back through another.
 %%
 %% A process of this node is the program's where it has a row, which a
 %% foreign process the runtime did not start has not; one of another node
@@ -642,13 +644,12 @@ behind(Pid) ->
 %% it reaches here only as an `Address(Never)`, the check refusing it at
 %% any other type (is_never_given/1), and is held foreign, nothing passing
 %% through it.
--spec held(pid(), term(), map()) -> address().
-held(Pid, Descriptor, Bound) ->
-    Closed = ern_boundary:closed(Descriptor, Bound),
+-spec held(pid(), term(), map(), binary()) -> address().
+held(Pid, Descriptor, Bound, Hash) ->
     case ets_lookup(?CHECKERS, {behind, Pid}) of
-        [{_, Process, Exposed, {_, Closed}}] when node(Process) =/= node() ->
+        [{_, Process, Exposed, {_, Hash}}] when node(Process) =/= node() ->
             Exposed;
-        [{_, Process, Exposed, {_, Closed}}] ->
+        [{_, Process, Exposed, {_, Hash}}] ->
             case ets_lookup(?PROCESSES, Process) of
                 [_] -> Exposed;
                 [] -> {foreign, Pid, Process, Descriptor, Bound}
@@ -3162,7 +3163,8 @@ snapshot(Pids) ->
      end || Pid <- Pids].
 
 %% Report §8.4: the checker in front of an address exposed to foreign
-%% code, one per address and mailbox type, not one per call: two checkers
+%% code, one per address and type it crosses at, Key, the address and the
+%% type's hash (ern_boundary:checker/5), not one per call: two checkers
 %% checking the same messages for the same process are two of the same
 %% thing. One that stands is used where the caller finds it; otherwise the
 %% reaper is asked for it, which makes it unless one was made since
@@ -3213,7 +3215,7 @@ started_checker(Key, Behind, Check) ->
                                   end) of
                 Pid ->
                     %% what the checker stands before, and the key, which
-                    %% holds the type it checks (ern_boundary:checker/4)
+                    %% holds the hash of the type it checks (held/4)
                     ets:insert(?CHECKERS, [{{checker, Key}, Pid},
                                            {{behind, Pid}, Target, Behind, Key}]),
                     Pid
