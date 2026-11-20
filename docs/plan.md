@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 136**, a wrap's fault in the process kept for an address.
+**The next item is MVP 4.16's item 137**, three corners of a diagnostic.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -58,24 +58,12 @@ what needs the user. An item planned since stands where its group's sentence say
 Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
 and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
 Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
-corner shows it (the log's *Item 140 Stands After the Launch*). Item 135 moved there on
-2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch*).
+corner shows it (the log's *Item 140 Stands After the Launch*). Items 135 and 136 moved
+there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch* and
+*Item 136 Stands After the Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **136. A wrap's fault in the process kept for an address**, found 2026-11-19 by item
-  115's showing (the log's *A `monitor` in an Adapted Address's Function*), read from two
-  runs and not diagnosed. The target was on another node, and `f` made a `monitor` whose
-  wrap faults and then waited in a call. The wrap ran for the kept process, which ended
-  `Returned`. Neither node wrote a fault's line, and the target answered a call after it.
-
-  §6.9 has a wrap's fault be the fault of the process it delivers to, and a program with
-  no foreign code shows that false, so by the line's test the item stands here. An agent
-  first shows where the fault goes. The narrower sentence is weighed first.
-
-  MVP 4.5's item 135 is of a process the runtime started that meets no fault too, and
-  both may add to §6.5's sentence on a fault in `f`, so its shape is read with this
-  item's verdict.
 - **137. Three corners of a diagnostic**, found 2026-11-19 by item 115's build (the log's
   *A `monitor` in an Adapted Address's Function*), each shown by a probe the build kept.
   None changes what the checker accepts.
@@ -794,7 +782,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 135, 140, 143, 144, 145, 149, 153, 151 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 135, 136, 140, 143, 144, 145, 149, 153, 151 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -928,6 +916,26 @@ What the line left, in the order it is taken:
   (principle 1). A fault dropped would be lost in silence (principle 3).
 
   It follows item 134, which is of that exit signal's term in §12.2.
+- **136. A wrap's fault in the process kept for an address**, found 2026-11-19 by item
+  115's showing (the log's *A `monitor` in an Adapted Address's Function*), read from two
+  runs and not diagnosed. The target was on another node, and `f` made a `monitor` whose
+  wrap faults and then waited in a call. The wrap ran for the kept process, which ended
+  `Returned`. Neither node wrote a fault's line, and the target answered a call after it.
+
+  §6.9 has a wrap's fault be the fault of the process it delivers to, and the two runs
+  show that false. Only a built corner shows it: two nodes, an adapted address made on
+  one over a target on the other, a function that makes a `monitor` whose wrap faults,
+  and that function held in a call until the monitored process dies. So the item moved
+  here on the user's word on 2026-11-20 (the log's *Item 136 Stands After the Launch*).
+
+  An agent first shows where the fault goes. The shape, by §6.9 and §6.5 as they stand
+  and not diagnosed: the kept process meets the fault at its wait in `f`, and it is then
+  a fault in `f`, the target's, so the report stays and the code follows it. The
+  narrower sentence is weighed first.
+
+  It follows item 135, which is of a process the runtime started that meets no fault
+  too. Both may add to §6.5's sentence on a fault in `f`, so item 135's verdict is read
+  first.
 - **143. A standard input that cannot be read holds its reader**, found 2026-11-20 by
   item 124's tests (the log's *A Node's End Waits for No Send*, its paragraph *Found
   beside it*). With standard input a directory, `ern run p.erc < /tmp`, or a descriptor
