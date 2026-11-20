@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 154**, the order of the messages foreign code sends. A
-probe shows it first, and §8.4 gains its sentences.
+**The next item is MVP 4.16's item 93**, a close that answers once it is made. E.18 and
+E.23 change first.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -66,33 +66,8 @@ there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the La
 
 **What is decided and waits for its build** stands first. Item 93 and what is left
 of item 95 are each a verdict on an order nobody promised. Item 101's rule read both again
-on 2026-11-20, and both stand (the log's *An Order Nobody Promised*). Item 154 is that
-discussion's own, and is taken first: it changes a rule of §8, and such a change is built
-while its decision is fresh.
+on 2026-11-20, and both stand (the log's *An Order Nobody Promised*).
 
-- **154. Foreign code's messages keep their order through one address**, decided with the
-  user on 2026-11-20 in item 101's discussion (the log's *An Order Nobody Promised*). Each
-  address that crossed has a check of its own (§8.4), a process whose host identity is
-  the address foreign code is given. So what foreign code sends through two addresses of
-  one process, and what it sends against what its caller sends after it, can change
-  places. §8.7 says that what one process sends another arrives in the order it was sent,
-  "whichever addresses it was sent through", and the guide's *Order* paragraph (§8.2) says
-  the same. That is read from the code and not shown.
-
-  - A probe shows the pass first, through two addresses and against the caller's next
-    send.
-  - §8.4 gains the sentences, and §6.4 its pointer. §8.7's sentence names the check's step
-    beside §6.5's, and the guide's *Order* paragraph follows it. The shape: messages
-    foreign code sends from one process to one address that crossed are received in
-    sending order; each takes one step more, its check, and a message sent after it to
-    the same process, through another address or by Ernest code, can pass it.
-  - The sentences get one cold reading. The session writes them, and an agent writes the
-    tests: the order kept through one address, and the pass through two.
-
-  It follows item 101. It stands before the launch, since §8.7's sentence is one a program
-  shows false, and no corner is built for it: a binding that gives foreign code one
-  adapted address for each kind of event meets it. Item 153 names §12.2 for how foreign
-  code sends to an address, which this item's sentences rest on and do not write.
 - **93. A close answers once it is made**, decided with the user on 2026-11-17 (the log's
   *Seven Entries of the Feedback*, feedback 258). `Os.closeInput` and `Tcp.closeListener`
   are sends, and a caller that acts at once after one may act before it. The terminal
@@ -327,6 +302,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 137 | Three corners of a diagnostic: a literal against an annotation is reported whole, as built, and §11.5 says an element after the first; a type in parentheses spans its parentheses; a result annotation that ends in a `receiving` is labeled as the result type's, and its help writes the function's mailbox type after the result type in parentheses, with the user | 2026-11-20 | §11.5; *Three Corners of a Diagnostic* |
 | 92 | `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever` wait without a limit, each its twin without a time and without `Left(Timeout)`; a socket `acceptForever` opens has its own site; the examples, the flake hunt, two fixtures and the guide's §8.7 take them, and three tools name a file's time once, with the user | 2026-11-20 | Appendix E.0, E.18, E.23; *A Wait for a Life, Built* |
 | 101 | What an order nobody promised gets: nothing, unless a sentence of the report or a sibling operation leads to it; then a mechanism where there is something to wait on, no rule breaks and the cost is a fraction, and otherwise a sentence; the seven verdicts, item 93 and item 95's line stand, the eighth case is item 154, and item 142 carries the rule to `CLAUDE.md`, with the user | 2026-11-20 | *An Order Nobody Promised* |
+| 154 | Messages one process sends through one check are received in sending order; a checked message takes one step more, in the check's process, need not be in its receiver's mailbox when the foreign function that sent it has returned, and can be passed by one sent the same receiver after it another way; foreign code sends as the process it runs in; shown by two probes, four tests, no code of the runtime changed, with the user | 2026-11-20 | §6.4, §8.4, §8.7; *The Order Through One Check* |
 
 ---
 
@@ -1031,6 +1007,10 @@ What the line left, in the order it is taken:
     called is not among what crosses into foreign code. No promise has foreign code
     call a function in the calling process. §12.2 does not say how foreign code sends
     to an address.
+  - §8.7's **Calls** excepts a request through an adapted address made on a third node,
+    and names no request through a check, which takes a step more too (§8.4). Found
+    2026-11-20 by the cold reading of item 154's sentences, read from the text and not
+    shown.
 
   A regression test is written with it for §8.4's sentence on a call's answer at a type
   variable, which no test holds. Item 152's probe showed it: a call written in a

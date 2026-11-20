@@ -4889,11 +4889,8 @@ checked_before_applied_test() ->
 %% after the target's Down
 checker_runs_on_past_its_target_test() ->
     ?assertEqual({ok, <<"Returned\napplied\n">>}, run(
-        "type MainMsg = Ended(Down) | Applied\n"
-        "type GateMsg = Pass(Reply(Unit)) | Open\n" ++ foreign_sent() ++
-        "fn gating() : Unit receiving GateMsg = receive {\n"
-        "    Pass(reply) -> receive { Open -> answer(reply, Unit) }\n"
-        "}\n"
+        "type MainMsg = Ended(Down) | Applied\n" ++
+        gating() ++ foreign_sent() ++
         "fn target(main : Address(MainMsg), gate : Address(GateMsg)) : Unit receiving Int = {\n"
         "    let applying = adapted(self(), fn(n : Int) : Int = {\n"
         "        Address.callForever(gate, Pass);\n"
@@ -4911,6 +4908,105 @@ checker_runs_on_past_its_target_test() ->
         "    send(gate, Open);\n"
         "    receive { Applied -> Io.println(\"applied\") }\n"
         "}\n")).
+
+%% report §8.4, §6.4: "Messages one process sends through one check are
+%% received in sending order": a run foreign code sends from main through
+%% one address it was given, main's own and then an adapted address of
+%% main's, whose function the check's process applies, arrives in the order
+%% sent. Written after the code, which held it already
+check_keeps_sending_order_test() ->
+    ?assertEqual({ok, <<"#(true, true)\n">>}, run(
+        "type RunMsg = Plain(Int) | Wrapped(Int)\n" ++ foreign_sent() ++
+        "fn arrived(numbers : List(Int), count : Int) : List(Int) receiving RunMsg =\n"
+        "    if count == 0 then List.reverse(numbers)\n"
+        "    else receive {\n"
+        "        Plain(number) -> arrived(number :: numbers, count - 1)\n"
+        "      | Wrapped(number) -> arrived(number :: numbers, count - 1)\n"
+        "    }\n"
+        "fn sentRun(address : Foreign.Term, message : (Int) -> Foreign.Term) : Unit =\n"
+        "    List.forEach(List.range(1, 1000), fn(index) = {\n"
+        "        let _ = sent(address, message(index));\n"
+        "        Unit\n"
+        "    })\n"
+        "export fn main() : Unit receiving RunMsg = {\n"
+        "    sentRun(Foreign.term(self()), fn(index) = Foreign.term(Plain(index)));\n"
+        "    let plain = arrived([], 1000) == List.range(1, 1000);\n"
+        "    sentRun(Foreign.term(adapted(self(), Wrapped)), fn(index) = Foreign.term(index));\n"
+        "    Io.println(Io.show(#(plain, arrived([], 1000) == List.range(1, 1000))))\n"
+        "}\n")).
+
+%% report §8.4, §6.4, §6.5: "a message it sends the same receiver after one
+%% of them another way can pass it": a message foreign code sends main
+%% through one address of main's is passed by one it sends after it through
+%% another, main's own, since the first address's function, which its
+%% check's process applies, waits on a gate that opens only once main has
+%% taken the later message. Written after the code, which held it already
+another_check_passes_a_checked_message_test() ->
+    ?assertEqual({ok, <<"later earlier\n">>},
+                 run(gated_earlier("let _ = sent(Foreign.term(self()),"
+                                   " Foreign.term(Later(2)))"))).
+
+%% report §8.4, §6.4, §6.5: the same where main sends itself the later
+%% message with `send` once the foreign function that sent the earlier one
+%% has returned. Written after the code, which held it already
+callers_send_passes_a_checked_message_test() ->
+    ?assertEqual({ok, <<"later earlier\n">>}, run(gated_earlier("send(self(), Later(2))"))).
+
+%% report §8.4: "It need not be in its receiver's mailbox when the foreign
+%% function that sent it has returned": a message foreign code sends main
+%% through an adapted address whose function waits on a gate is not there
+%% for a `receive` with `after 0` once the foreign function has returned,
+%% and arrives once main opens the gate. Written after the code, which held
+%% it already
+checked_message_not_yet_placed_test() ->
+    ?assertEqual({ok, <<"nothing\narrived 1\n">>}, run(
+        "type MainMsg = Earlier(Int)\n" ++ gating() ++ foreign_sent() ++
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let gate = spawn(gating);\n"
+        "    let held = adapted(self(), fn(n : Int) : MainMsg = {\n"
+        "        Address.callForever(gate, Pass);\n"
+        "        Earlier(n)\n"
+        "    });\n"
+        "    let _ = sent(Foreign.term(held), Foreign.term(1));\n"
+        "    receive {\n"
+        "        Earlier(_) -> Io.println(\"placed\")\n"
+        "      | after 0 -> Io.println(\"nothing\")\n"
+        "    };\n"
+        "    send(gate, Open);\n"
+        "    receive { Earlier(n) -> Io.println(\"arrived \" <> Int.toString(n)) }\n"
+        "}\n")).
+
+%% A program whose main has foreign code send `Earlier(1)` to it through an
+%% adapted address whose function waits in a call to a gate, then does
+%% SendLater, which sends it `Later(2)`, and opens the gate only once it has
+%% taken a message; it prints the two messages' order of arrival.
+gated_earlier(SendLater) ->
+    "type MainMsg = Earlier(Int) | Later(Int)\n" ++
+    gating() ++ foreign_sent() ++
+    "fn arrival() : String receiving MainMsg = receive {\n"
+    "    Earlier(_) -> \"earlier\"\n"
+    "  | Later(_) -> \"later\"\n"
+    "}\n"
+    "export fn main() : Unit receiving MainMsg = {\n"
+    "    let gate = spawn(gating);\n"
+    "    let held = adapted(self(), fn(n : Int) : MainMsg = {\n"
+    "        Address.callForever(gate, Pass);\n"
+    "        Earlier(n)\n"
+    "    });\n"
+    "    let _ = sent(Foreign.term(held), Foreign.term(1));\n"
+    "    " ++ SendLater ++ ";\n"
+    "    let first = arrival();\n"
+    "    send(gate, Open);\n"
+    "    Io.println(first <> \" \" <> arrival())\n"
+    "}\n".
+
+%% A gate, a process that answers the call `Pass` only once it is sent
+%% `Open`.
+gating() ->
+    "type GateMsg = Pass(Reply(Unit)) | Open\n"
+    "fn gating() : Unit receiving GateMsg = receive {\n"
+    "    Pass(reply) -> receive { Open -> answer(reply, Unit) }\n"
+    "}\n".
 
 %% A program whose target does Before and then gives foreign code an
 %% adapted address of Int, whose function is Function, which foreign code

@@ -757,7 +757,7 @@ A final clause `after t -> e` gives a time limit of `t` milliseconds; `t` is eva
 
 ### 6.4 Message ordering
 
-Messages from one process to another are received in sending order. Between different senders there is no ordering. A message to an adapted address made on another node can be passed by one sent after it (§6.5).
+Messages from one process to another are received in sending order. Between different senders there is no ordering. A message to an adapted address made on another node can be passed by one sent after it (§6.5). So can a message that goes through a check (§8.4).
 
 ### 6.5 Addresses
 
@@ -961,6 +961,8 @@ A message sent to a foreign address, an answer given to a `Reply` foreign code g
 
 A message foreign code sends to an adapted address is checked against the type the address crossed at before its function is applied. Where the address crossed on the node that made it, the function is applied as on arrival (§6.5), in the process that checks (§10), which takes the place of the process kept for the address; a function that never finishes holds what foreign code sends to the address and nothing else. Where it crossed on another node, the checked message goes on as a `send` from that node does.
 
+Foreign code sends as the process it runs in, the calling process or a foreign process. A message that goes through a check takes one step more, in the check's process (§10), on the node where its address crossed. It need not be in its receiver's mailbox when the foreign function that sent it has returned. Messages one process sends through one check are received in sending order, and a message it sends the same receiver after one of them another way can pass it.
+
 A bad message's fault goes straight to the receiver. It can pass a message foreign code sent to the same address before it where the checked messages take the one step more of §6.5 on their way. A receiver that is a foreign process the runtime did not start takes the fault as such a target takes a fault in `f` (§6.5).
 
 An answer foreign code gives to a call is checked when `Address.call` or `Address.callForever` returns it. An answer Ernest code gives to a `Reply` foreign code gave crosses into foreign code, and no other answer is checked.
@@ -1071,7 +1073,7 @@ A `Down` that a death gives a watcher on another node is placed in the buffer fo
 
 The word that a node ends (**Its start and its end**) is sent to a peer as a `send` sends, and what is placed for the peer before it crosses before it. The node's end waits for nothing else. What a `send` or a death has not placed for the peer by then may be dropped. A watcher on another node whose `Down` is dropped so is told `Unreachable`, and a call that waits on the dead process ends as at a loss (§6.6).
 
-What one process sends another arrives in the order it was sent, whichever addresses it was sent through, but for the one step more of §6.5. Between nodes a message is never dropped alone: where one is dropped, the connection is lost or closed by the node's end, with everything that still waited to be sent. A message arrives once or not at all, and the runtime sends nothing a second time.
+What one process sends another arrives in the order it was sent, whichever addresses it was sent through, but for the one step more of §6.5 and that of a check (§8.4). Between nodes a message is never dropped alone: where one is dropped, the connection is lost or closed by the node's end, with everything that still waited to be sent. A message arrives once or not at all, and the runtime sends nothing a second time.
 
 **Calls.** A loss ends a call as §6.6 says. A restart in place ends every call whose request came before it, but for a request through an adapted address made on a third node.
 

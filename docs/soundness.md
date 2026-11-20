@@ -23,7 +23,7 @@ It does not argue the following.
 
 ## 2. What is assumed
 
-- **The runtime** gives the functions of §9.4 to §9.6 their types and their meaning, and meets §10 and §12: a value never changes, a message is a copy, processes share no memory, and a mailbox holds what was sent to it, in order for each sender (§6.4). The steps below rest on §12's mechanism as the report states it, its terms (§12.2), its alias and its frames (§12.6) and its verification of what crosses (§12.7), which this section assumes.
+- **The runtime** gives the functions of §9.4 to §9.6 their types and their meaning, and meets §10 and §12: a value never changes, a message is a copy, processes share no memory, and a mailbox holds what was sent to it, in §6.4's order. The steps below rest on §12's mechanism as the report states it, its terms (§12.2), its alias and its frames (§12.6) and its verification of what crosses (§12.7), which this section assumes.
 - **The standard library's foreign functions and the system processes** deliver their declared types and keep what their sections of Appendix E say. §8.4 does not check them, and a call of such a function, compiled to the host's function itself (§11.1), rests on the same promise as a call through its declaration.
 - **Other foreign code** is checked where it crosses (§8.4). Five promises are its own (§4.7, §8.4).
 
