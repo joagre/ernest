@@ -456,7 +456,9 @@ log's *The Trust Said Once*). Items 52 and 54 are left of it.
     both as §11.5 names a file.
   - A text read from a file in a line that is no refusal: a peer's name in a reload's
     note is written raw. Recommended: the note is written as a refusal is. The host's
-    log text and the text after `ern: internal error` are the host's, and stay.
+    log text and the text after `ern: internal error` are the host's, and stay. MVP
+    4.5's item 151 weighs refusing such a name where it is read, and is weighed with
+    this line.
   - A value a refusal quotes from a configuration is written with a control character
     below U+0020 as JSON's `\u001B`, and DEL and U+0080 to U+009F as `\x7F`.
     Recommended: the quoting writes every control character of §2.1 as JSON does.
@@ -1023,6 +1025,10 @@ What the line left, in the order it is taken:
   session's recommendation: the node refuses to start where a peer's name holds a
   control character, one rule where the name is read, and `ern config --peer-dir`
   refuses a directory named so.
+
+  It follows MVP 4.17's item 54, whose third line decides how a reload's note writes a
+  peer's name. A name refused where it is read leaves that line nothing to escape, so
+  the two are weighed together at item 54's turn.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
