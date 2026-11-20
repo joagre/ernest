@@ -1017,6 +1017,10 @@ What the line left, in the order it is taken:
     call a function in the calling process. §12.2 does not say how foreign code sends
     to an address.
 
+  A regression test is written with it for §8.4's sentence on a call's answer at a type
+  variable, which no test holds. Item 152's probe showed it: a call written in a
+  function generic in its answer's type took a foreign answer of `"text"` at `Int`.
+
   Each needs foreign code built for it, so the item stands here on the user's word on
   2026-11-20. The shape: one sentence each in §8.4, the first three as the code is
   built, each shown by a probe first. It follows item 149, which is of what foreign
