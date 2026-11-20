@@ -29,8 +29,11 @@ Status: on trial, decided with the user on 2026-11-19. The short file is the roo
 |---|---|---|---|
 | 2026-11-19 | Item 139's close was planned on `make test` alone, which runs neither the item's new tests, under `test/`, nor the tests of how `ern` ends at a signal. | *Tests*: an item that touched no runtime, node or emitter closes on its area's target and `make test`. The short file kept the two runs and dropped the area's target. | Nothing committed. The user caught it by asking, and the session would not have: the item would have closed with its own tests and the other tests of a signal's end not run. |
 | 2026-11-20 | Item 133 was started without asking whether a first user meets it. Its first half is a built corner. | *Before code*: say whether an item is worth doing before work starts on it. The short file and this one still ask it. | Half of a 26-minute showing and half of a build. Nothing committed. |
+| 2026-11-20 | Item 151 was written into the plan with no search of the items left. Item 54 already decides the same line, another way. | *Before code*: an item is read against the items left when it is written. The short file dropped it. | Two items pushed that write one sentence two ways. Mended in a few minutes (8a5dedc6). Found only by the question before the clear. |
 
 **Missed without a cost, 2026-11-20.** Two diffs were committed before they were read whole, and a recommendation was made before the log was searched for it. The short file has both rules. The read-back's two searches, which the short file dropped, were not run, and nothing shows that they were missed. No rule is asked for.
+
+Item 148 too was started without the first-user question, the second time that day. A rule wider than the one agreed, an address printed with its peer's name, was written before the user saw it. The short file has both rules.
 
 ## Why
 
