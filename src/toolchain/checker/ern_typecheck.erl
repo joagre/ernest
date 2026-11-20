@@ -162,7 +162,8 @@
 %% is Never; the span that made it so, its label, undefined where no
 %% annotation made it so, and what to do, which for a function written
 %% `: T` is {receiving, Name}, its help naming the mailbox type the error
-%% needs (help/2).
+%% needs (help/2), and {after_result, Name, Result} where `T` is a function
+%% type that ends in a `receiving`, Result `T` printed without it.
 -record(effect_origin, {what, span, label, help}).
 
 %% The equality constraint an instance carries, checked when its
@@ -2733,19 +2734,48 @@ annotation_origin(Annotation, AnnotationType, Env) ->
      "declared " ++ ern_types:format(AnnotationType, Env#env.type_state) ++ " here"}.
 
 %% Report §11.5: the origin of the function's effect, which an effect error
-%% labels: a `receiving`, or a result type without one.
-%% Name: what the function is named in an error.
+%% labels: a `receiving`, or a result type without one. A result type that
+%% is a function type ending in a `receiving` has that `receiving` as its
+%% own (Appendix A), which the label says, and the help writes the
+%% function's mailbox type after the result type in parentheses. Name:
+%% what the function is named in an error.
 effect_origin(_Name, undefined, undefined, _ResultType, _EffectType, _TypeState) -> undefined;
 effect_origin(Name, ResultAnnotation, undefined, ResultType, _EffectType, TypeState) ->
-    #effect_origin{what = Name, span = ern_ast:span(ResultAnnotation),
-                   label = "`: " ++ ern_types:format(ResultType, TypeState)
-                           ++ "` without `receiving` declares that " ++ Name
-                           ++ " receives nothing",
-                   help = {receiving, Name}};
+    Span = ern_ast:span(ResultAnnotation),
+    case ending_receiving_removed(ResultAnnotation, ResultType) of
+        undefined ->
+            #effect_origin{what = Name, span = Span,
+                           label = "`: " ++ ern_types:format(ResultType, TypeState)
+                                   ++ "` without `receiving` declares that " ++ Name
+                                   ++ " receives nothing",
+                           help = {receiving, Name}};
+        Removed ->
+            #effect_origin{what = Name, span = Span,
+                           label = "the `receiving` here is the result type's, and " ++ Name
+                                   ++ " receives nothing",
+                           help = {after_result, Name, ern_types:format(Removed, TypeState)}}
+    end;
 effect_origin(Name, _ResultAnnotation, Effect, _ResultType, EffectType, TypeState) ->
     #effect_origin{what = Name, span = ern_ast:span(Effect),
                    label = Name ++ " is declared `receiving "
                            ++ ern_types:format(EffectType, TypeState) ++ "` here"}.
+
+%% Report §11.5, Appendix A: the result type, Type, of a result annotation
+%% that is a function type ending in a `receiving`, without that one
+%% `receiving`: the first met down the chain of results, through function
+%% types that have none, parentheses making no node. A function type a
+%% parameter's or another type's argument holds is not where the chain
+%% goes, and an annotation that ends in no `receiving` is undefined.
+ending_receiving_removed(#t_fn{effect = undefined, result_type = Result},
+                         {tfn, Params, Effect, ResultType}) ->
+    case ending_receiving_removed(Result, ResultType) of
+        undefined -> undefined;
+        Removed -> {tfn, Params, Effect, Removed}
+    end;
+ending_receiving_removed(#t_fn{}, {tfn, Params, _Effect, ResultType}) ->
+    {tfn, Params, none, ResultType};
+ending_receiving_removed(_Annotation, _Type) ->
+    undefined.
 
 %% Report §8.1: an exported `main` of no parameters is the entry point a
 %% module's run starts, which `--main` may name otherwise.
@@ -5749,9 +5779,13 @@ twice(Fields, Verb) ->
 %% written `: T` that needs a mailbox is given one: the mailbox type Need
 %% names, where it is known; where any will do, a variable, which its
 %% callers fix; where a `receive`'s clauses will fix it, the type of the
-%% messages they take.
+%% messages they take. Where `T` is a function type that ends in a
+%% `receiving`, the mailbox type is written after Result, the result type
+%% without it, in parentheses.
 help(undefined, _Need) -> "give the function its mailbox type with `receiving`";
 help(#effect_origin{help = {receiving, Name}}, Need) -> receiving_help(Name, Need);
+help(#effect_origin{help = {after_result, Name, Result}}, Need) ->
+    after_result_help(Name, Result, Need);
 help(#effect_origin{help = Help}, _Need) -> Help.
 
 receiving_help(Name, {mailbox, Text}) ->
@@ -5760,6 +5794,15 @@ receiving_help(Name, clauses) ->
     "give " ++ Name ++ " its mailbox type with `receiving`, the type of the messages it takes";
 receiving_help(Name, any) ->
     "give " ++ Name ++ " its mailbox type, `receiving e`".
+
+after_result_help(Name, Result, {mailbox, Text}) ->
+    "write " ++ Name ++ "'s mailbox type after its result type in parentheses, `: ("
+        ++ Result ++ ") receiving " ++ Text ++ "`";
+after_result_help(Name, Result, clauses) ->
+    "write " ++ Name ++ "'s mailbox type, the type of the messages it takes, after its result"
+        " type in parentheses, `: (" ++ Result ++ ") receiving ...`";
+after_result_help(Name, Result, any) ->
+    after_result_help(Name, Result, {mailbox, "e"}).
 
 infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env)
   when Base =/= undefined ->

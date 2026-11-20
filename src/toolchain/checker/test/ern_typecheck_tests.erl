@@ -4326,6 +4326,22 @@ leaf_placement_test() ->
     ?assertEqual([{{2, 20, {2, 21}}, "the value inside has type Int"}],
                  ArrowPattern#diagnostic.labels).
 
+%% report §11.5, Appendix A's ParenType: an annotation in parentheses is
+%% labeled whole, its parentheses with it, nested ones too. A regression
+%% test: the label began at the type inside, a column late
+parenthesized_annotation_labeled_whole_test() ->
+    ?assertEqual("example.ern:2:31: the body does not have the declared result type: expected"
+                 " (Int) -> Msg, found (Int) -> Int\n"
+                 "1 | type Msg = Got(Int)\n"
+                 "2 | fn maker() : ((Int) -> Msg) = fn(n : Int) = n\n"
+                 "  |              -------------- result type (Int) -> Msg declared here\n"
+                 "  |                               ^^^^^^^^^^^^^^^\n"
+                 "  | = help: the types differ at Msg and Int\n",
+                 printed("type Msg = Got(Int)\n"
+                         "fn maker() : ((Int) -> Msg) = fn(n : Int) = n\n")),
+    Annotated = diagnostic("fn f() = { let x : ((Int)) = \"x\"; x }\n"),
+    ?assertEqual([{{1, 20, {1, 27}}, "declared Int here"}], Annotated#diagnostic.labels).
+
 %% report §11.5: the message shows the whole types; when they differ
 %% inside, the help line names the differing part
 differing_part_test() ->
@@ -4464,6 +4480,149 @@ effect_origin_of_an_unannotated_lambda_test() ->
     ?assertEqual([], InNever#diagnostic.labels),
     InPure = diagnostic(Helpers ++ "fn run() : Int = { let k = fn() = { g(); h() }; 1 }\n"),
     ?assertEqual([], InPure#diagnostic.labels).
+
+%% A function that receives, and a top-level `fn` maker over Body whose
+%% result annotation is Annotation.
+maker(Annotation, Body) ->
+    "type Msg = Got(Int)\nfn take() : Int receiving Msg = receive { Got(k) -> k }\n"
+    "fn maker() : " ++ Annotation ++ " = " ++ Body ++ "\n".
+
+%% report §11.5, Appendix A: a result annotation that is a function type
+%% ending in a `receiving`, in parentheses or not, a lambda's too, gives
+%% that `receiving` to the result type, and the label says so. A
+%% regression test: the label said the annotation was without `receiving`,
+%% and the help asked for the `receiving` it holds
+result_type_receiving_labeled_test() ->
+    ?assertEqual("example.ern:4:17: take needs a mailbox, and maker receives nothing\n"
+                 "2 | fn take() : Int receiving Msg = receive { Got(k) -> k }\n"
+                 "3 | fn maker() : () -> Int receiving Msg = {\n"
+                 "  |              ----------------------- the `receiving` here is the result"
+                 " type's, and maker receives nothing\n"
+                 "4 |     let first = take();\n"
+                 "  |                 ^^^^^^\n"
+                 "  | = help: write maker's mailbox type after its result type in parentheses,"
+                 " `: (() -> Int) receiving Msg`\n",
+                 printed(maker("() -> Int receiving Msg",
+                               "{\n    let first = take();\n    fn() = first\n}"))),
+    Parenthesized = diagnostic(maker("(() -> Int receiving Msg)",
+                                     "{ let first = take(); fn() = first }")),
+    ?assertEqual([{{3, 14, {3, 39}},
+                   "the `receiving` here is the result type's, and maker receives nothing"}],
+                 Parenthesized#diagnostic.labels),
+    Lambda = diagnostic(maker("Unit receiving Msg",
+                              "{ let g = fn() : () -> Int receiving Msg ="
+                              " { let first = take(); fn() = first }; Unit }")),
+    ?assertEqual("take needs a mailbox, and the lambda receives nothing",
+                 Lambda#diagnostic.message),
+    ?assertEqual([{{3, 52, {3, 75}},
+                   "the `receiving` here is the result type's, and the lambda receives nothing"}],
+                 Lambda#diagnostic.labels).
+
+%% report §11.5, Appendix A: a function type ends in a `receiving` through
+%% the results of function types that have none of their own, an inner
+%% one in parentheses or not, and the label is the same; the help writes
+%% the result type without that one `receiving`, the first the chain meets
+result_type_ending_in_receiving_test() ->
+    Label = "the `receiving` here is the result type's, and maker receives nothing",
+    Help = fun(Result) ->
+               "write maker's mailbox type after its result type in parentheses, `: ("
+                   ++ Result ++ ") receiving Msg`"
+           end,
+    Two = diagnostic(maker("() -> () -> Int receiving Msg",
+                           "{ let first = take(); fn() = fn() = first }")),
+    ?assertEqual("take needs a mailbox, and maker receives nothing", Two#diagnostic.message),
+    ?assertEqual([{{3, 14, {3, 43}}, Label}], Two#diagnostic.labels),
+    ?assertEqual(Help("() -> () -> Int"), Two#diagnostic.help),
+    Three = diagnostic(maker("() -> () -> () -> Int receiving Msg",
+                             "{ let first = take(); fn() = fn() = fn() = first }")),
+    ?assertEqual([{{3, 14, {3, 49}}, Label}], Three#diagnostic.labels),
+    ?assertEqual(Help("() -> () -> () -> Int"), Three#diagnostic.help),
+    Inner = diagnostic(maker("() -> (() -> Int receiving Msg)",
+                             "{ let first = take(); fn() = fn() = first }")),
+    ?assertEqual([{{3, 14, {3, 45}}, Label}], Inner#diagnostic.labels),
+    ?assertEqual(Help("() -> () -> Int"), Inner#diagnostic.help).
+
+%% report §11.5: where that annotation is a function type that ends in a
+%% `receiving`, the help writes the result type in parentheses without
+%% it, and after it the mailbox type the error knows, a lambda's as a
+%% `fn`'s
+result_type_receiving_names_mailbox_test() ->
+    ?assertEqual({"take needs a mailbox, and maker receives nothing",
+                  "write maker's mailbox type after its result type in parentheses,"
+                  " `: ((Int) -> Int) receiving Msg`"},
+                 refusal_and_help(maker("(Int) -> Int receiving Msg",
+                                        "{ let first = take(); fn(n : Int) = n + first }"))),
+    ?assertEqual("write the lambda's mailbox type after its result type in parentheses,"
+                 " `: (() -> Int) receiving Msg`",
+                 (diagnostic(maker("Unit receiving Msg",
+                                   "{ let g = fn() : (() -> Int receiving Msg) ="
+                                   " { let first = take(); fn() = first }; Unit }")))
+                     #diagnostic.help).
+
+%% report §11.5: where any mailbox will do, the mailbox type after the
+%% result type in parentheses is `e`, for a callee whose mailbox is its
+%% own variable and for one whose is the annotation's, and after a result
+%% type that ends in a `receiving` through another arrow
+result_type_receiving_names_any_mailbox_test() ->
+    Help = "write maker's mailbox type after its result type in parentheses,"
+           " `: (() -> Int) receiving e`",
+    ?assertEqual({"skip needs a mailbox, and maker receives nothing", Help},
+                 refusal_and_help("type Msg = Got(Int)\nfn skip() = receive { _ -> Unit }\n"
+                                  "fn maker() : () -> Int receiving Msg = { skip(); fn() = 1 }\n")),
+    ?assertEqual({"f needs a mailbox, and maker receives nothing", Help},
+                 refusal_and_help("type Msg = Got(Int)\n"
+                                  "fn maker(f : () -> Int receiving e) : () -> Int receiving Msg ="
+                                  " { let first = f(); fn() = first }\n")),
+    ?assertEqual("write maker's mailbox type after its result type in parentheses,"
+                 " `: (() -> () -> Int) receiving e`",
+                 (diagnostic("type Msg = Got(Int)\nfn skip() = receive { _ -> Unit }\n"
+                             "fn maker() : () -> () -> Int receiving Msg ="
+                             " { skip(); fn() = fn() = 1 }\n"))#diagnostic.help).
+
+%% report §11.5: where a `receive`'s clauses will fix the mailbox, the
+%% help names the type of the messages they take after the result type in
+%% parentheses, one that ends in a `receiving` through another arrow too
+result_type_receiving_names_messages_test() ->
+    ?assertEqual({"`receive` needs a mailbox, and maker receives nothing",
+                  "write maker's mailbox type, the type of the messages it takes, after its"
+                  " result type in parentheses, `: (() -> Int) receiving ...`"},
+                 refusal_and_help("type Msg = Got(Int)\nfn maker() : () -> Int receiving Msg ="
+                                  " receive { Got(k) -> fn() = k }\n")),
+    ?assertEqual("write maker's mailbox type, the type of the messages it takes, after its"
+                 " result type in parentheses, `: (() -> () -> Int) receiving ...`",
+                 (diagnostic("type Msg = Got(Int)\nfn maker() : () -> () -> Int receiving Msg ="
+                             " receive { Got(k) -> fn() = fn() = k }\n"))#diagnostic.help).
+
+%% report §11.5, Appendix A: a function type inside another type, an
+%% argument's or a parameter's, at any depth of the chain of results, is
+%% not where the result type ends, and an annotation of no function type
+%% ends in no `receiving`, so each keeps the label and the help of an
+%% annotation without `receiving`
+inner_receiving_keeps_label_and_help_test() ->
+    Inner = diagnostic(maker("List(() -> Int receiving Msg)",
+                             "{ let first = take(); [fn() = first] }")),
+    ?assertEqual([{{3, 14, {3, 43}}, "`: List(() -> Int receiving Msg)` without `receiving`"
+                                     " declares that maker receives nothing"}],
+                 Inner#diagnostic.labels),
+    ?assertEqual("give maker its mailbox type, `receiving Msg`", Inner#diagnostic.help),
+    Deeper = diagnostic(maker("() -> List(() -> Int receiving Msg)",
+                              "{ let first = take(); fn() = [fn() = first] }")),
+    ?assertEqual([{{3, 14, {3, 49}}, "`: () -> List(() -> Int receiving Msg)` without"
+                                     " `receiving` declares that maker receives nothing"}],
+                 Deeper#diagnostic.labels),
+    ?assertEqual("give maker its mailbox type, `receiving Msg`", Deeper#diagnostic.help),
+    Parameter = diagnostic(maker("(() -> Int receiving Msg) -> Int",
+                                 "{ let first = take();"
+                                 " fn(g : () -> Int receiving Msg) = first }")),
+    ?assertEqual([{{3, 14, {3, 46}}, "`: (() -> Int receiving Msg) -> Int` without"
+                                     " `receiving` declares that maker receives nothing"}],
+                 Parameter#diagnostic.labels),
+    ?assertEqual("give maker its mailbox type, `receiving Msg`", Parameter#diagnostic.help),
+    Plain = diagnostic(maker("Unit", "{ let first = take(); Unit }")),
+    ?assertEqual([{{3, 14, {3, 18}},
+                   "`: Unit` without `receiving` declares that maker receives nothing"}],
+                 Plain#diagnostic.labels),
+    ?assertEqual("give maker its mailbox type, `receiving Msg`", Plain#diagnostic.help).
 
 %% The first diagnostic as `ern build` prints it, the source named
 %% example.ern.

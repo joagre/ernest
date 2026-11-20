@@ -21,7 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 137**, three corners of a diagnostic.
+**The next item is MVP 4.16's item 92**, a wait for a life that says so in its name.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -50,10 +50,11 @@ Build Order*).
 
 ### What is left
 
-Each item left stands alone. The items stand below in the order they are taken, in three
-groups. The groups' order was decided with the user on 2026-11-15 (the log's *A Status Read
-Before the Watch*, its paragraph *The order of what is left*): what the builds found, then
-what needs the user. An item planned since stands where its group's sentence says.
+Each item left stands alone. The items stand below in the order they are taken, in two
+groups: what is decided and waits for its build, then what needs the user. The order was
+decided with the user on 2026-11-15 (the log's *A Status Read Before the Watch*, its
+paragraph *The order of what is left*), and its first group, what the builds found, is done
+since 2026-11-20. An item planned since stands where its group's sentence says.
 
 Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
 and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
@@ -62,26 +63,7 @@ corner shows it (the log's *Item 140 Stands After the Launch*). Items 135 and 13
 there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch* and
 *Item 136 Stands After the Launch*).
 
-**What was found**, each item begun by an agent that shows it or tests it.
-
-- **137. Three corners of a diagnostic**, found 2026-11-19 by item 115's build (the log's
-  *A `monitor` in an Adapted Address's Function*), each shown by a probe the build kept.
-  None changes what the checker accepts.
-
-  - A list literal against an annotation reports its mismatch at the whole literal:
-    `fn jobs() : List(() -> Int) = [fn() = 1, fn() = take()]`. §11.5 lists an element
-    among the places a mismatch is reported at. To decide with the user at its turn:
-    whether the element is the place, or §11.5's sentence is read as it is built.
-  - A result annotation in parentheses, `: ((Int) -> Msg)`, has a span from its inner
-    `(` to its outer `)`, so a label on it sits one column to the right. The parser's.
-  - `fn maker() : () -> Int receiving Msg` reads `receiving Msg` as the result type's,
-    and the refusal's label then says the annotation is "without `receiving`".
-
-  It stands alone: no item left names §11.5's paragraph on a mismatch or the parser's
-  spans. Where the first changes what a refusal prints, the batch's run over the
-  repository's own programs comes before its verdict, as *Before code* says.
-
-**What is decided and waits for its build** stands between the two. Item 93 and item 95's
+**What is decided and waits for its build** stands first. Item 93 and item 95's
 first line are taken after item 101, decided with the user on 2026-11-19: each is a
 verdict on an order nobody promised, made before item 101's rule, which reads it again.
 Item 92 and item 95's other two lines keep their place.
@@ -333,6 +315,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 148 | `Io.show` writes a process as `<process.84>` and an address as `<address.84>`, and a process of another node with its peer's name before the number, `<process.store.84>`, or its key's digest where the node is not listed, with the user | 2026-11-20 | Appendix E.1; *A Process Printed with a Dot, Built* |
 | 150 | A check is found by its address and the hash of the type the address crossed at, so an address gets one check however its type is written, inside another type or from two modules, and comes back as the program's own; one check at each type, and a bad message's cause names the type as the module whose crossing made the check prints it, with the user | 2026-11-20 | §6.4, §8.4, §8.7, §12.3, Appendix H; *One Check by the Type's Hash* |
 | 152 | §8.4 says what the boundary trusts at a type variable: what foreign code gives there, where it gives back an address or a function that crossed at a type that holds one, that a value at one crosses as it is and is only handed on, and a call's answer at a variable; three holes each shown by a probe, no code changed, with the user | 2026-11-20 | §8.4, §8.7, Appendix H; *What the Boundary Trusts at a Type Variable* |
+| 137 | Three corners of a diagnostic: a literal against an annotation is reported whole, as built, and §11.5 says an element after the first; a type in parentheses spans its parentheses; a result annotation that ends in a `receiving` is labeled as the result type's, and its help writes the function's mailbox type after the result type in parentheses, with the user | 2026-11-20 | §11.5; *Three Corners of a Diagnostic* |
 
 ---
 

@@ -316,7 +316,14 @@ result_annotation_test() ->
                  declarations("fn f() : ((Int) -> Int receiving M) receiving N = g")),
     %% and in a function type's own result alike
     ?assertEqual("a second `receiving` after a function type's own",
-                 refusal("fn f(g : () -> (Int) -> Int receiving M receiving N) = g")).
+                 refusal("fn f(g : () -> (Int) -> Int receiving M receiving N) = g")),
+    [#fn_declaration{params = [#param{annotation = #t_fn{result_type = Result,
+                                                         effect = #t_named{name = 'N'}}}]}] =
+        declarations("fn f(g : () -> ((Int) -> Int receiving M) receiving N) = g"),
+    ?assertMatch(#t_fn{effect = #t_named{name = 'M'}}, Result),
+    %% a parenthesized `receiving`'s type is no parenthesis around the function type
+    ?assertEqual("a second `receiving` after a function type's own",
+                 refusal("fn f() : (Int) -> Int receiving (M) receiving N = g")).
 
 %% report §2.4, §11.5: a reserved word where a name, a type or a pattern
 %% stands is said to be reserved and to name nothing, `true` and `false`
@@ -1185,6 +1192,21 @@ spans_test() ->
     %% regression test, its span began after `(` and ended at `)`
     {ok, #e_binop{span = {1, 1, {1, 8}}}} = ern_parser:parse_expr("(1 + 2)"),
     {ok, #e_call{args = [#e_literal{span = {1, 3, {1, 6}}}]}} = ern_parser:parse_expr("g((1))"),
+    ok.
+
+%% report §11.5, Appendix A's ParenType: a type in parentheses spans its
+%% parentheses, nested ones too, as a parenthesized expression does, and
+%% they make no node. A regression test: its span began at the type inside
+%% and ended at the outer `)`, so a label on it began a column late
+parenthesized_type_span_test() ->
+    [#fn_declaration{params = [#param{annotation = #t_named{name = 'Int',
+                                                            span = {1, 10, {1, 15}}}}],
+                     result_type = #t_fn{span = {1, 19, {1, 33}},
+                                         params = [#t_named{span = {1, 21, {1, 24}}}]}}] =
+        declarations("fn f(x : (Int)) : ((Int) -> Int) = g\n"),
+    [#fn_declaration{params = [#param{annotation = #t_named{name = 'Int',
+                                                            span = {1, 10, {1, 17}}}}]}] =
+        declarations("fn f(x : ((Int))) = x\n"),
     ok.
 
 %% report §11.5, §5.9: an or-pattern spans its alternatives, from the

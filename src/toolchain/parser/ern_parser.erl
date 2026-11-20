@@ -604,7 +604,7 @@ optional_result_type([{':', _} | Rest]) ->
             %% Appendix A: a function type's `receiving` is its own, so the
             %% function's mailbox type after one is written around the type
             %% in parentheses, the one spelling (principle 2)
-            not is_bare_effectful_function(Type, Rest) orelse
+            not is_bare_effectful_function(Type) orelse
                 fail(Position, "a second `receiving` after a function type's own",
                      "write the function's mailbox type after the type in parentheses,"
                      " : ((A) -> B receiving M) receiving N"),
@@ -617,11 +617,12 @@ optional_result_type(Tokens) ->
     {undefined, undefined, Tokens}.
 
 %% Whether the type is a function type with a `receiving` of its own, written
-%% without parentheses around it: it begins where the annotation does.
-is_bare_effectful_function(#t_fn{span = {Line, Column, _}, effect = Effect}, [First | _]) ->
-    {FirstLine, FirstColumn, _} = ern_diagnostic:span(position(First)),
-    Effect =/= undefined andalso {Line, Column} =:= {FirstLine, FirstColumn};
-is_bare_effectful_function(_, _) ->
+%% without parentheses around it: it ends where its mailbox type does, with
+%% no `)` of its own after it (report §11.5).
+is_bare_effectful_function(#t_fn{span = {_, _, End}, effect = Effect}) when Effect =/= undefined ->
+    {_, _, EffectEnd} = ern_ast:span(Effect),
+    EffectEnd =:= End;
+is_bare_effectful_function(_) ->
     false.
 
 let_declaration([{'let', Position} | Rest], Doc, Export) ->
@@ -774,7 +775,7 @@ parenthesized(Position, Params, [{'->', _} | Rest], Marks) ->
     {ResultType, Rest1} = type(Rest, Marks),
     case Rest1 of
         [{receiving, ReceivingPosition} | Rest2] ->
-            not is_bare_effectful_function(ResultType, Rest) orelse
+            not is_bare_effectful_function(ResultType) orelse
                 fail(ReceivingPosition, "a second `receiving` after a function type's own",
                      "write the function's mailbox type after its result in parentheses,"
                      " (A) -> ((B) -> C receiving M) receiving N"),
@@ -796,8 +797,11 @@ parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _, Marks) 
                           ++ Text ++ "=) -> Bool`"
            end,
     fail(Span, "a type in parentheses takes no equality mark", Help);
-parenthesized(_, [Type], Rest, _Marks) ->
-    spanned({Type, Rest});
+parenthesized(Position, [Type], Rest, _Marks) ->
+    %% report §11.5: a type in parentheses spans its parentheses, as a
+    %% parenthesized expression does, so a diagnostic underlines it whole;
+    %% parentheses make no node
+    spanned({setelement(2, Type, Position), Rest});
 parenthesized(Position, [], Rest, _Marks) ->
     %% report §11.2: at the input's end a further line may hold the `->`
     Diagnostic = diagnostic(Position, "expected a type inside the parentheses, or `->` after them",

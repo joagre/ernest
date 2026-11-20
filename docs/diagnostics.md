@@ -4287,6 +4287,33 @@ example.ern:6:17: g needs a mailbox, and f receives nothing
   | = help: give f its mailbox type, `receiving String`
 ```
 
+### A call of a function that receives, from one whose `receiving` is its result type's (§6.1, §11.5, Appendix A)
+
+```ernest-rejected
+type Msg = Got(Int)
+
+fn take() : Int receiving Msg =
+    receive {
+        Got(k) -> k
+    }
+
+fn maker() : () -> Int receiving Msg = {
+    let first = take();
+    fn() = first
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:9:17: take needs a mailbox, and maker receives nothing
+7 |
+8 | fn maker() : () -> Int receiving Msg = {
+  |              ----------------------- the `receiving` here is the result type's, and maker receives nothing
+9 |     let first = take();
+  |                 ^^^^^^
+  | = help: write maker's mailbox type after its result type in parentheses, `: (() -> Int) receiving Msg`
+```
+
 ### A call of a parameter whose mailbox the caller chooses, from a function that receives nothing (§4.5, §6.1)
 
 ```ernest-rejected
