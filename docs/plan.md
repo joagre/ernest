@@ -21,8 +21,7 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 124**, a node's end that says `Unreachable` of a process
-that waited in a send.
+**The next item is MVP 4.16's item 125**, a disconnect that waits on no connection.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -63,31 +62,6 @@ corner shows it (the log's *Item 140 Stands After the Launch*).
 
 **What was found**, each item begun by an agent that shows it or tests it.
 
-- **124. A node's end says `Unreachable` of a process that waited in a send**, found
-  2026-11-18 by item 121's probes (the log's *A Down Follows the Send*, its paragraph *A
-  node's end, found beside it*). A desk's program ended while two of its processes waited
-  in a `send` to a store that stood still. Once the store ran again, the watchers on the
-  store and on a third node were told `Unreachable` of one sender or both in 2 runs of
-  4, and the store took none of their messages. A fault the runtime found in the entry
-  process while it waited so gave `Unreachable` and never `Fault`, 3 runs of 3.
-
-  §8.7 says that every `Down` already on its way crosses before the node's connections
-  close, and that a peer's monitor gives `ProgramEnd`. By a reading, the node ends before
-  a sender's exit has placed the rest of its message, and the host says such a process
-  is gone while its exit still waits. An agent diagnoses it first. What it finds is
-  brought to the user: whether the node's end can wait for those exits, or §8.7 says
-  what a peer is told of a process that ended so.
-
-  The narrower sentence is weighed first, and a question with it: whether one sentence of
-  §8.7 on a peer that stands still and is not yet lost answers this item and MVP 4.5's
-  item 118 together (the log's *The Line Before the Launch*).
-
-  The agent makes item 118's showing in the same run, decided with the user on
-  2026-11-19. The ending node pings each connected peer once it has told it of its end,
-  so a store that stands still holds the node in item 118's window. The agent records
-  what a listed peer that dials then is told, what its sends and its monitors meet, and
-  which reason the node's exit gives it. A sentence that showing finds false is mended
-  with this item, and the rest stays item 118's.
 - **125. A disconnect that waits on no connection**, found 2026-11-19 by item 108's
   reading (the log's *What a Peer's Worker Waits On*). `erlang:disconnect_node/1` holds
   the host's `net_kernel` until the connection's controller has taken its exit, and over
@@ -423,6 +397,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 138 | The shell's flush ends at the end of standard output's process, and an end at once gives the terminal back without the end of its paste mode | 2026-11-19 | §8.6, §11.2, §12.1, §12.4; *The Shell Ends at Once* |
 | 139 | `ern test` ends by a termination or a hangup that cut short the end of a run, a module's tests' or an example's, and runs no launch after it, with the user | 2026-11-19 | §11, §11.8; *`ern test` Ends by a Signal That Cut an End* |
 | 141 | `the end was cut short` names each subscriber whose answer the end had not taken, a narrower sentence and no code, with the user | 2026-11-19 | §11.2; *A Subscriber Named Unanswered* |
+| 124 | A node's end waits for no send: what is not placed when the node tells a peer that it ends may be dropped, its watcher told `Unreachable`, and a peer that connects while the node stops is told nothing, narrower sentences and no code, with the user | 2026-11-20 | §6.9, §8.6, §8.7, §9.3, §12.6, Appendix E.1; *A Node's End Waits for No Send* |
 
 ---
 
@@ -876,7 +851,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 140 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 140, 143 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -922,10 +897,18 @@ What the line left, in the order it is taken:
   its monitors meet, and which reason the node's exit gives it, against §8.7 and §12.6's
   *A node's end*. What it shows is brought to the user.
 
-  The showing with a peer that stands still is made by MVP 4.16's item 124, decided with
-  the user on 2026-11-19, and what it finds false is mended there. This item keeps the
-  rest, and the window of an end that waits on a stalled stream, which stays unread
-  until then.
+  The showing with a peer that stands still was made by MVP 4.16's item 124 (the log's *A
+  Node's End Waits for No Send*). A peer that connects while the node stops is told
+  nothing and says `lost`, which §8.7 now states. The mechanism is this item's, shaped
+  on 2026-11-20: the node takes no connection once it stops, so that a late dial is
+  refused and answers `Unreachable`. It touches the handshake's rule, and an agent first
+  probes a dial already under way when the node begins to stop.
+
+  This item keeps the window of an end that waits on a stalled stream too, which stays
+  unread until then. Two things were read of it and not shown: between the processes'
+  deaths and the flush's end a peer that connects is still told of the end, and a
+  utilization is answered with the number. Whether a termination that ends a stalled
+  flush (§12.4) tells the peers was not read.
 - **122. Whether a socket's writes that time out are bounded**, found 2026-11-18 by item
   106's reading (the log's *What a Program's Helper Holds*). E.18 says of `Tcp.write` what
   E.23 says of `Os.write`: a `Left(Timeout)` does not undo the write. A socket's writer
@@ -980,6 +963,16 @@ What the line left, in the order it is taken:
   things more of the exit signal a foreign process of the sender's node is sent: that a
   process that traps exits takes it as a message, which process it comes from, and that
   the trace of a bad message's fault is empty.
+- **143. A standard input that cannot be read holds its reader**, found 2026-11-20 by
+  item 124's tests (the log's *A Node's End Waits for No Send*, its paragraph *Found
+  beside it*). With standard input a directory, `ern run p.erc < /tmp`, or a descriptor
+  not open for reading, `0>/dev/null`, `Io.readLine()` and `Io.read()` never answer, and
+  the program waits until it is killed. §12.1 has a standard input that cannot be read
+  as lines or bytes fault the entry process with the host's reason. Only a start built
+  so meets it, so the item stands here: `/dev/null` answers `None` and a pipe reads.
+
+  The shape: the read's failure reaches the runtime, which faults the entry process as
+  §12.1 says. An agent first shows what the host's read answers for each of the two.
 - **140. An `Os.exit` once the end's wait is over**, found 2026-11-19 by item 120's
   probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside it*). On
   a node, a process kept for an adapted address called `Os.exit(7)` while the flush was

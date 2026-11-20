@@ -818,7 +818,7 @@ A function receiving `Never` can send but never receive a message: a `receive` w
 
 ### 6.9 Death
 
-A process dies when its function returns, when `kill` is called on it, on a fault (§7.3), or when the program ends (§8.6). Its `Reason` (§9.3) says which: `Returned`, `Killed`, `Fault(cause)`, or `ProgramEnd`. A monitor on a process of another node gives `Unreachable` when that node goes out of reach, which says nothing of whether the process lives (§8.7). A process the host ends otherwise, killed by foreign code or by the end of a process it is linked to, has the reason `Fault(text)`, `text` the host's term as the host writes it.
+A process dies when its function returns, when `kill` is called on it, on a fault (§7.3), or when the program ends (§8.6). Its `Reason` (§9.3) says which: `Returned`, `Killed`, `Fault(cause)`, or `ProgramEnd`. A monitor on a process of another node gives `Unreachable` when that node goes out of reach or its end drops the `Down`, which says nothing of whether the process lives (§8.7). A process the host ends otherwise, killed by foreign code or by the end of a process it is linked to, has the reason `Fault(text)`, `text` the host's term as the host writes it.
 
 `kill` is asynchronous: the target may run until the runtime interrupts it. `kill` on a process that is dead has no effect, and `kill` on a process of another node reaches it as `send` does (§6.2).
 
@@ -997,7 +997,7 @@ While the end waits, a fault is the process's own, reported as any fault is (§7
 
 For a program that is no node, a signal from outside, the host's termination or hangup, ends it the same way; for a node, termination ends it the same way, and hangup is a reload (§8.7). The host's interrupt ends it at once. What a signal in the host's first fraction of a second does, and what output may be lost, is §12.4's.
 
-A node that ends is no loss to its peers (§8.7). A process this program spawned on a peer runs on there.
+What a node's end is to its peers is §8.7's. A process this program spawned on a peer runs on there.
 
 When no forward progress is possible, the entry process faults with `Fault("deadlock")` (§7.4) and the program ends as above; while an evaluator of a load waits (Appendix E.28), the evaluator faults in its place, the one started last where several wait, and the load is refused. The fault's report lists the waiting processes beneath the trace (§12.4).
 
@@ -1019,7 +1019,9 @@ A *bare node* is `ern run --config-dir dir` with no `.erc` (§11.2): it holds no
 
 A node reads every module of its load path at its start, and is refused where one of them needs a module the path lacks, as `ern run` refuses a module it cannot find (§11.2). It listens and dials only once its initializers have their values (§8.5): a find, a spawn, a compute or a utilization in an initializer answers `Unreachable`.
 
-A node that ends is no loss to its peers. Its processes die with `ProgramEnd`, and the node stops in order (§12.6): every `Down` already on its way crosses before its connections close, and the node tells each connected peer that it ends and waits for the peer's answer, so a peer that has fallen silent holds the node's end until it is lost (**A loss**). A node that has said it ends tells no peer how busy it is after (Appendix E.27). A peer's monitor on one of its processes gives `ProgramEnd`, a call waiting on one of them ends as §6.6 says, and a monitor made while the node stops gives `Unknown`, as for any process that has ended; one made once the node has stopped gives `Unreachable`.
+A node that ends is no loss to the peers connected when it begins to stop. Its processes die with `ProgramEnd` and its output is flushed (§8.6), and from then until its connections have closed the node *stops*, in order (§12.6): it tells each of those peers that it ends, after what is placed for that peer (**Messages**), a `Down` among it, and waits for the peer's answer, so a peer that has fallen silent holds the node's end until it is lost (**A loss**). A peer that connects while the node stops is told nothing, and the close is a loss to it (**A loss**).
+
+A node that stops tells no peer how busy it is (Appendix E.27). A find, a spawn, a compute or a utilization that reaches the node while it stops answers `Unreachable`. A peer's monitor on a process that died with the node's program gives `ProgramEnd`, or `Unreachable` where its `Down` was dropped (**Messages**), a call waiting on one of them ends as §6.6 says, and a monitor made while the node stops gives `Unknown`, as for any process that has ended; one made once the node has stopped gives `Unreachable`.
 
 **A reload.** `ern reload --config-dir dir` makes the node read `ernest.conf` again (§12.5). A peer added is reached by the next operation towards it or when it dials in; a peer removed, or one whose key changed, is lost, both nodes running the loss, and the addresses a program holds of its processes are those of a node not listed; a peer whose address or name changed keeps its connection. The node's own key and `listen` cannot change while it runs.
 
@@ -1055,11 +1057,13 @@ What the connection has not yet taken waits in the host's buffer for that peer, 
 
 A call, a find, a spawn, a compute, a utilization and an `answer` send as a `send` does. What a call, a find, a spawn, a compute and a utilization send the peer as their wait for it begins and as it ends is sent the same way too (§6.6, Appendix E.27).
 
-A process that dies with `Killed` while what it sends waits to be placed has sent it. Whatever is not yet placed is placed as the wait would have placed it. The `Down`s that the death gives watchers on other nodes are sent only once it is placed whole or a loss has dropped it.
+A process that dies while what it sends waits to be placed has sent it. Whatever is not yet placed is placed as the wait would have placed it, until a loss or the node's end (below). The `Down`s that the death gives watchers on other nodes are sent only once it is placed whole or a loss has dropped it.
 
 A `Down` that a death gives a watcher on another node is placed in the buffer for that node. Where 1 MB waits there it may wait to be placed, until the connection has taken enough or the node is lost, and the `Down`s that the same death gives watchers on other nodes may wait behind it. A `Down` to a watcher on the dead process's own node waits on no peer. A call that ends by its callee's death (§6.6) ends when a `Down` to its caller would be sent.
 
-What one process sends another arrives in the order it was sent, whichever addresses it was sent through, but for the one step more of §6.5. Between nodes a message is never dropped alone: where one is dropped, the connection is lost, with everything that waited to be sent. A message arrives once or not at all, and the runtime sends nothing a second time.
+The word that a node ends (**Its start and its end**) is sent to a peer as a `send` sends, and what is placed for the peer before it crosses before it. The node's end waits for nothing else. What a `send` or a death has not placed for the peer by then may be dropped. A watcher on another node whose `Down` is dropped so is told `Unreachable`, and a call that waits on the dead process ends as at a loss (§6.6).
+
+What one process sends another arrives in the order it was sent, whichever addresses it was sent through, but for the one step more of §6.5. Between nodes a message is never dropped alone: where one is dropped, the connection is lost or closed by the node's end, with everything that still waited to be sent. A message arrives once or not at all, and the runtime sends nothing a second time.
 
 **Calls.** A loss ends a call as §6.6 says. A restart in place ends every call whose request came before it, but for a request through an adapted address made on a third node.
 
@@ -1135,7 +1139,7 @@ type RestartLimit = RestartLimit(restarts : Int, within : Int) | Unlimited // wi
 type Path = Path(String) // in the runtime's syntax
 ```
 
-`Unreachable` is given by a monitor on a process of another node alone, when that node goes out of reach (§6.9, §8.7); a `match` on a `Reason` covers it as any constructor (§5.9).
+`Unreachable` is given by a monitor on a process of another node alone (§6.9, §8.7); a `match` on a `Reason` covers it as any constructor (§5.9).
 
 ### 9.4 Built-in functions (§6, Appendix E.1)
 

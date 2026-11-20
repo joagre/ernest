@@ -360,18 +360,21 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
                Same =:= Same2, Name =/= NewName]
         ++ ["the change to limits holds from the node's next start" || NewLimits =/= Limits].
 
-%% Report §8.7, §12.6: a node stops in order, so that every Down already on its
-%% way crosses before its connections close, and tells each peer still
-%% connected that it ends, which the peer's gateway reads before the
-%% connection's end: the runtime's end has waited for the deaths its peers
-%% may watch, the frame goes after their Downs on the connection, and the
-%% host's own question, whether the peer is there, after the frame, so that
-%% its answer comes once they have arrived; a peer that fell silent is given
-%% up by the detector, which answers it, and one lost while another was
-%% waited for has ended with its loss, so the question is not put to it,
-%% which would dial. The gateway tells no peer how busy
-%% the node is once the frame has gone (ern_gateway:departing/0), since a
-%% peer takes a telling after it for a node that goes on.
+%% Report §8.7, §12.6: a node stops in order, and tells the peers connected
+%% when this function reads them that it ends, one after another, a frame
+%% the peer's gateway reads before the connection's end. The runtime's end
+%% has waited for the host's word that each process is gone, which comes
+%% before an exit has placed the rest of a message or its Downs for other
+%% nodes. The frame goes after what is placed for the peer, and what is not
+%% placed by then may be dropped.
+%%
+%% The host's own question, whether the peer is there, goes after the frame,
+%% so that its answer comes once what is placed before it has arrived; a
+%% peer that fell silent is given up by the detector, which answers it, and
+%% one lost while another was waited for has ended with its loss, so the
+%% question is not put to it, which would dial. The gateway tells no peer
+%% how busy the node is once the frame has gone (ern_gateway:departing/0),
+%% since a peer takes a telling after it for a node that goes on.
 -spec depart() -> ok.
 depart() ->
     ok = ern_gateway:departing(),

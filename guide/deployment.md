@@ -189,7 +189,7 @@ A `send` to a process of a lost peer returns at once, unless more than 1 MB then
 
 A silent peer can delay a `Down` for another node too. A process killed while its send to the silent peer waits is reported to watchers on other nodes only once the peer takes again or is lost. The same may hold of any death that a process of the silent peer monitors while 1 MB waits for that peer. A call from another node on such a process ends as late. Watchers and callers on the dead process's own node wait on no peer (report §6.6, §8.7).
 
-The move: look at `b`'s machine. If `b` stopped in order you would have read `ended`; `lost` means the network or the process. `b` restarting shows as `connected` again on `a`, or as `replaced` where `a` still believed the old connection alive.
+The move: look at `b`'s machine. If `b` stopped in order you would have read `ended`, unless `a` connected while `b` was stopping; otherwise `lost` means the network or the process. `b` restarting shows as `connected` again on `a`, or as `replaced` where `a` still believed the old connection alive.
 
 ## 3. Services and placement, as the configuration sees them
 
@@ -368,8 +368,8 @@ The first column is the line as it is written, with the peer's name from `ernest
 |---|---|---|
 | `listening on 127.0.0.1:51204` | The node listens; the port is the host's where `listen` had port 0. | Tell the peers that dial it, where they do not know the port. |
 | `the peer b connected` | A connection opened, dialed by either side. | None. |
-| `the peer b ended` | `b` stopped in order; a process here that monitored one of `b`'s was told `ProgramEnd`. | None; expected at `b`'s stop. |
-| `the peer b was lost: it closed` | The connection broke at once: `b`'s process died or its machine closed the socket. | Look at `b`'s machine and journal. |
+| `the peer b ended` | `b` stopped in order; a process here that monitored one of `b`'s was told `ProgramEnd`, or `Unreachable` where `b`'s end dropped the `Down` (report §8.7). | None; expected at `b`'s stop. |
+| `the peer b was lost: it closed` | The connection broke at once: `b`'s process died or its machine closed the socket, or this node connected while `b` stopped in order. | Look at `b`'s machine and journal. |
 | `the peer b was lost: it fell silent` | Nothing came from `b` for 45 to 75 seconds: network, or a frozen machine. A restart here of a process that `b` monitored or called waited until this line, and so did this node's own end, where it had begun. | Look at the network between them; `b` reconnects at the next operation. |
 | `the peer b's connection was replaced by another from the same node` | `b` dialed anew while the old connection was believed alive, as after a restart. | None. |
 | `a node with the key ... was refused: no peer has its key` | A node dialed in whose key this node's `peers` does not list, named by its key's digest; or this node's own dial of a listed address reached a stranger, named the same way. | Add its key under `peers`, then `ern reload`; or ignore a stranger. |

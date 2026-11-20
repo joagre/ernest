@@ -882,7 +882,7 @@ A message between nodes costs what the host's send costs (§10).
 
 Any traffic is a sign of life, and a tick is sent where nothing else was for 15 seconds; a peer from which nothing came in four such intervals is lost; a silence is found between 45 and 75 seconds after the last traffic, as the host states it; a peer that closes is found at once. The loss is run once the host has closed the connection (§8.7). Where more was sent to a silent peer than its connection took, the host closes it later than it finds the silence, by a time the host decides.
 
-**A node's end.** A node that ends (§8.7) tells each connected peer that it ends, a frame of its own, which the peer says as an end and not a loss, after every `Down` already on its way, and waits until each such peer has answered, which proves that the frame and every `Down` before it crossed; a peer lost while another is waited for has ended with its loss, and is not asked.
+**A node's end.** A node that ends (§8.7) tells each peer connected when it begins to stop that it ends, one peer after another, a frame of its own, which the peer says as an end and not a loss, sent after what is placed for that peer (§8.7), and waits for each peer's answer before it tells the next, which proves that the frame and what was placed before it crossed; a peer lost while another is waited for has ended with its loss, and is not asked.
 
 **A restart's frames.** The restarting process asks each node it tells (§8.7) with a frame that carries an alias of its own, which takes one answer and is let go when the wait ends, so nothing of the wait reaches the new run; the node answers that its watchers have been told with a frame to the alias. Both go as a message does (§8.7).
 

@@ -935,8 +935,9 @@ answered_by_another_key(Base) ->
     ern_deployment_tests:cataloged(ErrA, "7", "answered the dial", [{"c", "c"}, {"b", "b"}]),
     ?assertEqual(nomatch, string:find(ErrA, "connected")).
 
-%% report §8.7, §12.6: a node that ends tells each connected peer so, and then its
-%% connections close, telling none how busy it is after its word: a holder
+%% report §8.7, §12.6: a node that ends tells each peer connected when it
+%% begins to stop so, and then its connections close, telling none how
+%% busy it is after its word: a holder
 %% of b's key, a bare `erl`, that says it ends and then tells a how busy it
 %% is, its connection lasting, has not ended, and a says it was lost when
 %% it closes, not that it ended. A regression test, written after the fix
@@ -9998,9 +9999,10 @@ answered_and_killed(Base, Answer, Got) ->
     stop(Desk, WaitDesk),
     stop(Store, WaitStore).
 
-%% report §8.7, §6.9: a process that dies with Killed while what it sends
-%% waits to be placed has sent it, and the Downs its death gives watchers on
-%% other nodes are sent only once it is placed whole. The desk's connection
+%% report §8.7, §6.9: a process that dies while what it sends waits to be
+%% placed has sent it, here one that dies with Killed, and the Downs its
+%% death gives watchers on other nodes are sent only once it is placed
+%% whole. The desk's connection
 %% to the store held back, so that nothing leaves the host's buffer for the
 %% store, a sender of the desk's waits in its send of a message above the
 %% buffer, part of it placed, and a second in its send of a small one, none
@@ -10022,8 +10024,9 @@ answered_and_killed(Base, Answer, Got) ->
 %% still be said after it, and the test would not see it.
 %%
 %% A regression test, written after the code. It does not cover a peer that
-%% is stopped, nor a peer's kill, which comes as a frame, nor an end other
-%% than a kill, the program's among them (§8.6).
+%% is stopped, nor a peer's kill, which comes as a frame, nor a death other
+%% than a kill; a node's end waits for no send, which end_waits_for_no_send
+%% holds (§8.6).
 killed_sender_has_sent_test_() ->
     nodes_test({waits, 12}, fun killed_sender_has_sent/1).
 
@@ -10166,6 +10169,193 @@ call_from_a_third_node(Base) ->
     stop(Desk, WaitDesk),
     stop(Third, WaitThird),
     stop(Store, WaitStore).
+
+%% report §8.6, §8.7, §12.6, §6.9: a node's end waits for no send. The
+%% desk's connection to the store held back by a process of the host's, a
+%% sender of the desk's waits in its send of 28 MB to the store's sink,
+%% watched from the store and the third node, and the desk's program
+%% returns. The connection is let go once the third's watcher is told that
+%% an idle process of the desk's died, so once the desk's processes have.
+%%
+%% The store takes the message whole or none of it, and its watcher is told
+%% the sender's ProgramEnd exactly where it takes it, and else Unreachable;
+%% the third's watcher is told the sender's Down once, ProgramEnd or
+%% Unreachable, and the idle process's ProgramEnd. Both peers say the desk
+%% ended, and the desk exits 0. Which side comes is the host's race, not
+%% asserted: the store took nothing in 9 of the test's first 11 runs, and
+%% the third's watcher was told Unreachable in 8; in 35 of 37 runs at 28 MB
+%% before the test was written, the store took nothing.
+%%
+%% Report §6.6: two callers of the third's wait on the sender. The call
+%% given the harness's time for one wait returns None before it, and the
+%% one given none faults as the third's watcher was told, `callee ended
+%% with its program` for ProgramEnd and `callee is unreachable` for
+%% Unreachable.
+%%
+%% A regression test, written after the report said it. It does not cover
+%% a peer that falls silent during the end, an `Os.exit` or a termination,
+%% nor what waits for several peers at once.
+end_waits_for_no_send_test_() ->
+    nodes_test({waits, 19}, fun end_waits_for_no_send/1).
+
+end_waits_for_no_send(Base) ->
+    Program = ending_build(Base),
+    Pipe = held_pipe(Base),
+    {Store, Desk, Third} = watched_nodes(Base),
+    {StoreInput, WaitStore} = started(Store, Program, ["store"]),
+    prints(Store, "offered"),
+    WaitThird = offering(Third, Program, "third"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["desk", "ended", sent_bytes(), Pipe]),
+    prints(Desk, "the host says the sender waits in a send"),
+    true = port_command(DeskInput, "end\n"),
+    prints(Third, "the third saw the idle process: "),
+    let_go(Pipe),
+    ?assertEqual(0, WaitDesk()),
+    [says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
+    prints(Store, "the store saw the sender: "),
+    [prints(Third, Part) || Part <- ["the third saw the sender: ",
+                                     "the third saw the forever caller: ",
+                                     "the third's caller got: "]],
+    true = port_command(StoreInput, "count\n"),
+    prints(Store, "the sink has taken: "),
+    stop(Store, WaitStore),
+    stop(Third, WaitThird),
+    [{StoreOut, _}, {ThirdOut, _}, _] = [said(Dir) || Dir <- [Store, Third, Desk]],
+    taken_where_told(StoreOut, "the sender", "ProgramEnd"),
+    ?assertEqual(["ProgramEnd"], said_after(ThirdOut, "the third saw the idle process: ")),
+    [Reason] = said_after(ThirdOut, "the third saw the sender: "),
+    ?assertEqual([forever_fault(Reason)],
+                 said_after(ThirdOut, "the third saw the forever caller: ")),
+    [Got] = said_after(ThirdOut, "the third's caller got: "),
+    {match, [Ms]} = re:run(Got, "^None after ([0-9]+) ms$", [{capture, all_but_first, list}]),
+    ?assert(list_to_integer(Ms) < ?WAIT_MS).
+
+%% Report §6.6: the fault of a call with no time on a process of another
+%% node that ended with that node's program, its monitor told Reason.
+forever_fault("ProgramEnd") ->
+    "Fault(\"callee ended with its program\")";
+forever_fault("Unreachable") ->
+    "Fault(\"callee is unreachable\")".
+
+%% report §8.6, §8.7, §12.1, §6.9: a node's end waits for no send where a
+%% fault the runtime finds ends the program. Under a terminal, the desk's
+%% connection to the store held back, its entry process waits in its send
+%% of 28 MB to the store's sink, watched from the store and the third node,
+%% and is given keys that are not UTF-8. The connection is let go once the
+%% third's watcher is told that an idle process of the desk's died.
+%%
+%% The store takes the message whole or none of it, and its watcher is told
+%% the fault with its cause exactly where it takes it, and else
+%% Unreachable; the third's watcher is told the fault or Unreachable, once,
+%% never ProgramEnd, and the idle process's ProgramEnd. Both peers say the
+%% desk ended, and the desk reports the fault and exits 1. The store took
+%% nothing in 9 of the test's first 11 runs, and the third's watcher was
+%% told Unreachable in 8.
+%%
+%% A regression test, written after the report said it. It does not cover
+%% a fault the entry process raises itself, nor a fault in another process.
+faulted_end_waits_for_no_send_test_() ->
+    nodes_test({waits, 16}, fun faulted_end_waits_for_no_send/1).
+
+faulted_end_waits_for_no_send(Base) ->
+    Program = ending_build(Base),
+    Pipe = held_pipe(Base),
+    {Store, Desk, Third} = watched_nodes(Base),
+    {StoreInput, WaitStore} = started(Store, Program, ["store"]),
+    prints(Store, "offered"),
+    WaitThird = offering(Third, Program, "third"),
+    WaitDesk = under_a_terminal(["exec ", ?ERN, " run --config-dir ", Desk, " ", Program,
+                                 " desk faulted ", sent_bytes(), " ", Pipe],
+                                [{expect, "the host says the entry process waits in a send"},
+                                 {send, "ff"}]),
+    prints(Third, "the third saw the idle process: "),
+    let_go(Pipe),
+    {Status, Data, Unmet} = WaitDesk(),
+    ?assertEqual({1, []}, {Status, Unmet}),
+    Cause = "the standard input is not UTF-8",
+    has(binary_to_list(Data), "Ending.main faulted: " ++ Cause),
+    [says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
+    prints(Store, "the store saw the entry process: "),
+    prints(Third, "the third saw the entry process: "),
+    true = port_command(StoreInput, "count\n"),
+    prints(Store, "the sink has taken: "),
+    stop(Store, WaitStore),
+    stop(Third, WaitThird),
+    [{StoreOut, _}, {ThirdOut, _}] = [said(Dir) || Dir <- [Store, Third]],
+    Faulted = "Fault(\"" ++ Cause ++ "\")",
+    taken_where_told(StoreOut, "the entry process", Faulted),
+    ?assertEqual(["ProgramEnd"], said_after(ThirdOut, "the third saw the idle process: ")),
+    [Reason] = said_after(ThirdOut, "the third saw the entry process: "),
+    ?assert(lists:member(Reason, [Faulted, "Unreachable"])).
+
+%% report §8.7, §12.6, §6.6, Appendix E.27: a peer that connects while the
+%% node stops. The desk's connection to the store held back, so that its
+%% end waits for the store, the desk hands the third node an echo it offers
+%% and an idle process, which the third's watcher monitors, and a late node
+%% fetches them there. The desk's program returns.
+%%
+%% The third, connected all along, asks the desk to find its echo, and is
+%% told Unreachable, an answer that comes once the desk's run has ended, so
+%% once the desk stops. Only then does the late node dial the desk, which
+%% opens a connection, over which the desk tells it nothing, so it holds no
+%% utilization of the desk's: how busy the desk is, a find, a spawn and a
+%% compute answer Unreachable, a call of the echo None, and a monitor of the
+%% idle process gives Unknown. Once the late node has asked, the third asks
+%% how busy the desk is, and is told Unreachable.
+%%
+%% Once the connection to the store is let go and the desk has stopped, the
+%% late node says it lost the desk, the store and the third that the desk
+%% ended, and a monitor the late node makes then gives Unreachable.
+%%
+%% A regression test, written after the report said it. It does not cover
+%% a call of the late node's waiting from before the end, nor a peer that
+%% dials, or a utilization asked, between the processes' deaths and the
+%% flush's end.
+connected_while_stopping_test_() ->
+    nodes_test({waits, 24}, fun connected_while_stopping/1).
+
+connected_while_stopping(Base) ->
+    Program = ending_build(Base),
+    Pipe = held_pipe(Base),
+    {Store, Desk, Third, Late} = window_nodes(Base),
+    WaitStore = offering(Store, Program, "store"),
+    {ThirdInput, WaitThird} = started(Third, Program, ["third"]),
+    prints(Third, "offered"),
+    {LateInput, WaitLate} = started(Late, Program, ["late"]),
+    prints(Late, "ready"),
+    {DeskInput, WaitDesk} = started(Desk, Program, ["desk", "window", Pipe]),
+    prints(Desk, "held"),
+    true = port_command(LateInput, "fetch\n"),
+    prints(Late, "fetched"),
+    true = port_command(DeskInput, "end\n"),
+    prints(Third, "the third saw the idle process: "),
+    true = port_command(ThirdInput, "find\n"),
+    prints(Third, "found: "),
+    true = port_command(LateInput, "ask\n"),
+    prints(Late, "asked in the window"),
+    says(Late, "the peer desk connected"),
+    true = port_command(ThirdInput, "utilization\n"),
+    prints(Third, "utilization: "),
+    let_go(Pipe),
+    ?assertEqual(0, WaitDesk()),
+    says(Late, "the peer desk was lost: it closed"),
+    [says(Dir, "the peer desk ended") || Dir <- [Store, Third]],
+    true = port_command(LateInput, "again\n"),
+    prints(Late, "the late node saw the idle process, after the end: "),
+    [stop(Dir, Wait) || {Dir, Wait} <- [{Late, WaitLate}, {Third, WaitThird},
+                                       {Store, WaitStore}]],
+    [{LateOut, _}, {ThirdOut, _}, _, _] = [said(Dir) || Dir <- [Late, Third, Store, Desk]],
+    Unreachable = "Left(Io.Unreachable)",
+    [?assertEqual([Answer], said_after(ThirdOut, Prefix))
+     || {Prefix, Answer} <- [{"found: ", Unreachable}, {"utilization: ", Unreachable},
+                             {"the third saw the idle process: ", "ProgramEnd"}]],
+    [?assertEqual([Answer], said_after(LateOut, Prefix))
+     || {Prefix, Answer} <- [{"utilization: ", Unreachable}, {"told by the desk: ", "false"},
+                             {"found: ", Unreachable}, {"called: ", "None"},
+                             {"the late node saw the idle process, in the window: ", "Unknown"},
+                             {"spawned: ", Unreachable}, {"computed: ", Unreachable},
+                             {"the late node saw the idle process, after the end: ",
+                              "Unreachable"}]].
 
 %% A node of the buffer's program started in Mode, once it has offered its
 %% services; answers what waits for its end.
@@ -11011,10 +11201,15 @@ fn served(acc : List(Int)) : List(Int) receiving SenderMsg =
 %% the program asks. The host traces what a process takes only as the
 %% process runs, so a suspended process's mailbox is watched through what
 %% is sent to it.
+%%
+%% It holds back the connection to a process's node by a process of its
+%% own, which outlives the program's processes, since a suspension ends
+%% with the process that made it, until a named pipe it reads is opened and
+%% closed (hold/2), which the ending's program asks of it (ending_build/1).
 buffer_host() ->
     <<"
 -module(ern_nodes_buffer).
--export([watch/2, is_connected/1, taken/3, handed_on/4, connection_to/1]).
+-export([watch/2, is_connected/1, taken/3, handed_on/4, connection_to/1, hold/2]).
 watch(Pid, To) ->
     Watcher = case whereis(ern_nodes_watcher) of
                   undefined -> started_watcher();
@@ -11087,7 +11282,484 @@ names(Message, Node) when is_tuple(Message) ->
               tuple_to_list(Message));
 names(_, _) ->
     false.
+hold(Pid, Pipe) ->
+    Caller = self(),
+    Controller = connection_to(Pid),
+    Holder = spawn(fun() ->
+                       true = erlang:suspend_process(Controller),
+                       Caller ! {ern_nodes_held, self()},
+                       Reader = open_port({spawn_executable, \"/bin/cat\"},
+                                          [{args, [Pipe]}, exit_status]),
+                       receive {Reader, {exit_status, _}} -> ok end,
+                       true = erlang:resume_process(Controller)
+                   end),
+    receive {ern_nodes_held, Holder} -> 'Unit' end.
 ">>.
+
+%% The ending's tests' program, built in Base beside the host module it asks
+%% of the host, the buffer's (buffer_host/0); answers its `.erc`.
+ending_build(Base) ->
+    Root = filename:join(Base, "build"),
+    ok = filelib:ensure_path(Root),
+    ok = file:write_file(filename:join(Root, "ending.ern"), [<<"
+// Report §8.6, §8.7, §12.6: a node's end while what its processes send
+// waits for a peer. The store offers a sink and a watcher, and the third
+// node a watcher. The desk finds them and holds its connection to the store
+// back by a process of the host's, which outlives the program's processes,
+// until the test lets it go; and then the desk's program ends.
+//
+// Ended: a sender of the desk's waits in its send of a message above the
+// buffer to the sink, watched from the store and the third node, two
+// callers of the third's waiting on it, and the third's watcher monitors an
+// idle process of the desk's too. Faulted: under a terminal, the entry
+// process is the sender, and keys that are not UTF-8 end the program with
+// its fault. Window: the desk hands the third node its idle process and an
+// echo, which a late node fetches there; the late node dials the desk only
+// once the desk stops, and asks it, as the third node does.
+
+// The host's report of each time the process is suspended in a send to
+// another node, its count sent to the address.
+foreign fn watch(process : Process, to : Address(Int)) : Unit =
+    \"ern_nodes_buffer:watch/2\"
+
+// The connection to the process's node held back by a process of the
+// host's, until the named pipe is opened and closed.
+foreign fn hold(process : Process, pipe : String) : Unit =
+    \"ern_nodes_buffer:hold/2\"
+
+// What the sink takes: a message, or a request for how many it has taken.
+type SinkMsg = Whole(Bytes) | Count(Reply(Int))
+
+type DeskMsg = Held | Watching | Called | Subscribed
+
+// What the sender is asked: to send, or a caller's request, which it takes
+// and never answers.
+type SenderMsg = Go | Ask(Reply(Unit))
+
+type ConductorMsg = Pressed(Terminal.Event) | Told
+
+type EchoMsg = Echo(Reply(String))
+
+// What the desk hands the third node for the late node.
+type Handed = Handed(echo : Address(EchoMsg), idle : Process)
+
+// What a watcher is asked: to monitor a process under a name, telling the
+// asker once the monitor stands, or to call a sender; each Down its
+// monitors give it; and what the desk hands it, and the late node fetches.
+type WatchMsg =
+    Watch(name : String, process : Process, to : Address(DeskMsg))
+  | Call(Address(SenderMsg))
+  | Saw(name : String, down : Down)
+  | Hand(Handed)
+  | Fetch(Reply(Handed))
+
+let sink : Peer.Service(SinkMsg) = Peer.service(\"sink\")
+
+let storeWatch : Peer.Service(WatchMsg) = Peer.service(\"store-watch\")
+
+let thirdWatch : Peer.Service(WatchMsg) = Peer.service(\"third-watch\")
+
+let deskEcho : Peer.Service(EchoMsg) = Peer.service(\"desk-echo\")
+
+export fn main() : Unit receiving DeskMsg =
+    match Os.arguments {
+        [\"store\"] ->
+            stored()
+      | [\"third\"] -> {
+            let _ = Peer.offer(thirdWatch, spawn(fn() = watching(\"the third\", None)));
+            Io.println(\"offered\");
+            askedWhenTold()
+        }
+      | [\"desk\", \"ended\", size, pipe] ->
+            ended(sized(size), pipe)
+      | [\"desk\", \"faulted\", size, pipe] ->
+            faulted(sized(size), pipe)
+      | [\"desk\", \"window\", pipe] ->
+            windowed(pipe)
+      | [\"late\"] ->
+            late()
+      | _ ->
+            Unit
+    }
+
+// Until the node is stopped: a node waiting for ever is no deadlock.
+fn held() : Unit receiving DeskMsg =
+    receive {
+        _ -> held()
+    }
+
+fn found(service : Peer.Service(m)) : Address(m) =
+    match Peer.find(service, waitMs()) {
+        Right(address) -> address
+      | Left(failure) -> fault(Io.show(failure))
+    }
+
+fn sized(text : String) : Int =
+    Optional.withDefault(String.toInt(text), 0)
+
+// Eight bytes count times over, from which the sink tells a message whole.
+fn pattern(count : Int) : Bytes =
+    Bytes.repeat(<<1, 2, 3, 4, 5, 6, 7, 8>>, count)
+
+// The store's sink and watcher offered; then, each time the test says so,
+// how many messages the sink has taken, said.
+fn stored() : Unit receiving DeskMsg = {
+    let sinking = spawn(fn() = taking(0));
+    let _ = Peer.offer(sink, sinking);
+    let _ = Peer.offer(storeWatch, spawn(fn() = watching(\"the store\", None)));
+    Io.println(\"offered\");
+    countedWhenTold(sinking)
+}
+
+fn countedWhenTold(sinking : Address(SinkMsg)) : Unit receiving DeskMsg =
+    match Io.readLine() {
+        Some(_) -> {
+            Io.println(\"the sink has taken: \" <> Io.show(Address.call(sinking, Count, waitMs())));
+            countedWhenTold(sinking)
+        }
+      | None ->
+            held()
+    }
+
+// The sink, count the messages it has taken, each said with whether it
+// came whole.
+fn taking(count : Int) : Unit receiving SinkMsg =
+    receive {
+        Whole(bytes) -> {
+            Io.println(\"took \"
+                           <> Int.toString(Bytes.size(bytes))
+                           <> \" bytes, whole: \"
+                           <> Io.show(bytes == pattern(Bytes.size(bytes) / 8)));
+            taking(count + 1)
+        }
+      | Count(reply) -> {
+            answer(reply, count);
+            taking(count)
+        }
+    }
+
+// Report §8.7, Appendix E.27: what the test's line names asked of the
+// desk and said, a find of its echo or how busy it is.
+fn askedWhenTold() : Unit receiving DeskMsg =
+    match Io.readLine() {
+        Some(\"find\") -> {
+            Io.println(\"found: \" <> Io.show(Peer.find(deskEcho, waitMs())));
+            askedWhenTold()
+        }
+      | Some(\"utilization\") -> {
+            Io.println(\"utilization: \" <> Io.show(Peer.utilization(\"desk\", waitMs())));
+            askedWhenTold()
+        }
+      | Some(_) ->
+            askedWhenTold()
+      | None ->
+            held()
+    }
+
+// Report §6.9, §6.6: a watcher at its place, which monitors each process it
+// is asked to and says each Down its monitors give it, calls a sender from
+// two callers of its own, and keeps what the desk hands it.
+fn watching(place : String, handed : Optional(Handed)) : Unit receiving WatchMsg =
+    receive {
+        Watch(=name, =process, =to) -> {
+            monitor(process, fn(down) = Saw(=name, =down));
+            send(to, Watching);
+            watching(place, handed)
+        }
+      | Call(sender) -> {
+            let _ = spawn(fn() = calling(place, sender));
+            let _ =
+                spawnMonitored(fn() = callingForever(sender),
+                               fn(down) = Saw(name = \"the forever caller\", =down));
+            watching(place, handed)
+        }
+      | Saw(=name, =down) -> {
+            Io.println(place <> \" saw \" <> name <> \": \" <> Io.show(down.reason));
+            watching(place, handed)
+        }
+      | Hand(given) ->
+            watching(place, Some(given))
+      | Fetch(reply) -> {
+            match handed {
+                Some(given) -> answer(reply, given)
+              | None -> Unit
+            };
+            watching(place, handed)
+        }
+    }
+
+// Report §6.6: a call of the sender given the harness's time for one wait,
+// what it answered said, and how long it took.
+fn calling(place : String, sender : Address(SenderMsg)) : Unit = {
+    let began = Clock.monotonic();
+    let got = Address.call(sender, Ask, waitMs());
+    Io.println(place
+                   <> \"'s caller got: \"
+                   <> Io.show(got)
+                   <> \" after \"
+                   <> Int.toString(Clock.monotonic() - began)
+                   <> \" ms\")
+}
+
+// Report §6.6: a call of the sender with no time, whose fault the watcher's
+// monitor says.
+fn callingForever(sender : Address(SenderMsg)) : Unit =
+    Address.callForever(sender, Ask)
+
+// The process monitored by each watcher in turn under the name, once each
+// says it is.
+fn watched(watchers : List(Address(WatchMsg)),
+           name : String,
+           process : Process) : Unit receiving DeskMsg =
+    List.forEach(watchers, fn(watcher) = {
+        send(watcher, Watch(=name, =process, to = self()));
+        receive {
+            Watching -> Unit
+        }
+    })
+
+// A sender of the desk's that sends the sink the message once told to go;
+// the host's report that it waits in its send said to the desk as Held.
+fn sender(address : Address(SinkMsg), message : SinkMsg) : Address(SenderMsg) receiving DeskMsg = {
+    let me = self();
+    let spawned = spawn(fn() : Unit receiving SenderMsg = takingCalls(me, address, message));
+    watch(Process.fromAddress(spawned), adapted(me, fn(_) = Held));
+    spawned
+}
+
+// Until it is told to go, the sender takes each caller's request, answering
+// none, and tells the desk.
+fn takingCalls(desk : Address(DeskMsg),
+               address : Address(SinkMsg),
+               message : SinkMsg) : Unit receiving SenderMsg =
+    receive {
+        Ask(_) -> {
+            send(desk, Called);
+            takingCalls(desk, address, message)
+        }
+      | Go ->
+            send(address, message)
+    }
+
+// Report §8.6, §8.7: the connection to the store held back, the sender
+// waits in its send of a message of the size given, watched from the store
+// and the third node, the third's two callers waiting on it; and an idle
+// process watched from the third. Once the test says so, the entry process
+// returns.
+fn ended(size : Int, pipe : String) : Unit receiving DeskMsg = {
+    let address = found(sink);
+    let third = found(thirdWatch);
+    let large = sender(address, Whole(pattern(size / 8)));
+    let idle = Process.fromAddress(spawn(fn() = held()));
+    watched([found(storeWatch), third], \"the sender\", Process.fromAddress(large));
+    watched([third], \"the idle process\", idle);
+    send(third, Call(large));
+    receive {
+        Called -> Unit
+    };
+    receive {
+        Called -> Unit
+    };
+    hold(Process.fromAddress(address), pipe);
+    send(large, Go);
+    receive {
+        Held -> Io.println(\"the host says the sender waits in a send\")
+    };
+    // until the test says the program ends
+    let _ = Io.readLine();
+    Unit
+}
+
+// Report §8.6, §8.7, §12.1: under a terminal, the connection to the store
+// held back, the entry process waits in its send of a message of the size
+// given, watched from the store and the third node, and an idle process
+// watched from the third. A conductor subscribes to keys and says when the
+// host holds the entry process in its send; keys that are not UTF-8 then
+// end the program with the entry process's fault.
+fn faulted(size : Int, pipe : String) : Unit receiving DeskMsg = {
+    let me = self();
+    let address = found(sink);
+    let third = found(thirdWatch);
+    let entry = Process.current();
+    let idle = Process.fromAddress(spawn(fn() = held()));
+    watched([found(storeWatch), third], \"the entry process\", entry);
+    watched([third], \"the idle process\", idle);
+    hold(Process.fromAddress(address), pipe);
+    let _ = spawn(fn() : Unit receiving ConductorMsg = conducting(me, entry));
+    receive {
+        Subscribed -> Unit
+    };
+    send(address, Whole(pattern(size / 8)))
+}
+
+fn conducting(desk : Address(DeskMsg), entry : Process) : Unit receiving ConductorMsg = {
+    watch(entry, adapted(self(), fn(_) = Told));
+    match Terminal.subscribe(Pressed) {
+        Right(_) -> send(desk, Subscribed)
+      | Left(failure) -> fault(Io.show(failure))
+    };
+    conducted()
+}
+
+fn conducted() : Unit receiving ConductorMsg =
+    receive {
+        Told -> {
+            Io.println(\"the host says the entry process waits in a send\");
+            conducted()
+        }
+      | Pressed(_) ->
+            conducted()
+    }
+
+// Report §8.7: the connection to the store held back, so that the desk's
+// end waits for the store; an idle process watched from the third node and
+// an echo offered, both handed to the third first. Once the test says so,
+// the entry process returns.
+fn windowed(pipe : String) : Unit receiving DeskMsg = {
+    let address = found(sink);
+    let third = found(thirdWatch);
+    let idle = Process.fromAddress(spawn(fn() = held()));
+    let echo = spawn(fn() = echoing());
+    let _ = Peer.offer(deskEcho, echo);
+    // the watcher keeps what is handed before it monitors
+    send(third, Hand(Handed(=echo, =idle)));
+    watched([third], \"the idle process\", idle);
+    hold(Process.fromAddress(address), pipe);
+    Io.println(\"held\");
+    // until the test says the program ends
+    let _ = Io.readLine();
+    Unit
+}
+
+fn echoing() : Unit receiving EchoMsg =
+    receive {
+        Echo(reply) -> {
+            answer(reply, \"echo\");
+            echoing()
+        }
+    }
+
+// Report §8.7: the late node fetches from the third what the desk handed
+// it. Once the test says so, while the desk stops, it asks how busy the desk
+// is, which dials it, and then the rest in turn, each answer said, its
+// monitors' Downs said by a watcher of its own; and once the test says so
+// again, it monitors the idle process anew.
+fn late() : Unit receiving DeskMsg = {
+    let watcher = spawn(fn() = watching(\"the late node\", None));
+    Io.println(\"ready\");
+    let _ = Io.readLine();
+    match Address.call(found(thirdWatch), Fetch, waitMs()) {
+        Some(Handed(=echo, =idle)) -> {
+            Io.println(\"fetched\");
+            let _ = Io.readLine();
+            askedInTheWindow(watcher, echo, idle);
+            let _ = Io.readLine();
+            watched([watcher], \"the idle process, after the end\", idle)
+        }
+      | None ->
+            Io.println(\"fetched nothing\")
+    };
+    held()
+}
+
+fn askedInTheWindow(watcher : Address(WatchMsg),
+                    echo : Address(EchoMsg),
+                    idle : Process) : Unit receiving DeskMsg = {
+    Io.println(\"utilization: \" <> Io.show(Peer.utilization(\"desk\", waitMs())));
+    let told = List.any(Peer.utilizations(), fn(#(peer, _, _)) = peer == \"desk\");
+    Io.println(\"told by the desk: \" <> Io.show(told));
+    Io.println(\"found: \" <> Io.show(Peer.find(deskEcho, waitMs())));
+    Io.println(\"called: \" <> Io.show(Address.call(echo, Echo, waitMs())));
+    watched([watcher], \"the idle process, in the window\", idle);
+    Io.println(\"spawned: \" <> Io.show(Peer.spawn(\"desk\", fn() = Unit, waitMs())));
+    Io.println(\"computed: \" <> Io.show(Peer.computeAt(\"desk\", fn() = 42, waitMs())));
+    Io.println(\"asked in the window\")
+}
+"/utf8>>, wait_ms_declaration()]),
+    ok = file:write_file(filename:join(Root, "ern_nodes_buffer.erl"), buffer_host()),
+    {ok, _} = compile:file(filename:join(Root, "ern_nodes_buffer.erl"), [{outdir, Root}]),
+    0 = built([Root]),
+    filename:join(Root, "ending.erc").
+
+%% The size of the message the desk's sender waits to send in the ending's
+%% tests, in bytes: 28 MB, many times the host's buffer for a peer (report
+%% §8.7, *Messages*), so that its rest is rarely placed before the end.
+sent_bytes() ->
+    "28000000".
+
+%% The window's nodes: the ending's three of watched_nodes/1, the desk
+%% listening too, and a late node that listens nowhere and dials the third
+%% and the desk, which list it with no address. The late node finds the
+%% third's watcher at the third and the desk's echo at the desk, and so does
+%% the third the desk's echo.
+window_nodes(Base) ->
+    [PortStore, PortThird, PortDesk] = [free_port() || _ <- [1, 2, 3]],
+    Store = made(Base, "store", PortStore),
+    Third = made(Base, "third", PortThird),
+    Desk = made(Base, "desk", PortDesk),
+    Late = made(Base, "late", none),
+    lists(Store, [{"desk", Desk, none}]),
+    lists(Third, [{"desk", Desk, none}, {"late", Late, none}]),
+    lists(Desk, [{"store", Store, PortStore}, {"third", Third, PortThird}, {"late", Late, none}]),
+    lists(Late, [{"third", Third, PortThird}, {"desk", Desk, PortDesk}]),
+    [edit(Dir, fun(Conf) -> Conf#{<<"services">> => Services} end)
+     || {Dir, Services} <- [{Desk, #{<<"sink">> => [<<"store">>],
+                                    <<"third-watch">> => [<<"third">>]}},
+                            {Third, #{<<"desk-echo">> => [<<"desk">>]}},
+                            {Late, #{<<"third-watch">> => [<<"third">>],
+                                     <<"desk-echo">> => [<<"desk">>]}}]],
+    {Store, Desk, Third, Late}.
+
+%% The named pipe in Base that the desk's holder of its connection to the
+%% store reads (ern_nodes_buffer:hold/2).
+held_pipe(Base) ->
+    Pipe = filename:join(Base, "held.pipe"),
+    [] = os:cmd("mkfifo " ++ Pipe),
+    Pipe.
+
+%% The desk's connection to the store let go: its holder's named pipe opened
+%% and closed, which waits until the holder reads it: one step.
+let_go(Pipe) ->
+    ?assertEqual({0, ""}, finished([": > ", Pipe])).
+
+%% What each line of Out that begins with Prefix says after it.
+said_after(Out, Prefix) ->
+    [lists:nthtail(length(Prefix), Line)
+     || Line <- string:split(Out, "\n", all), lists:prefix(Prefix, Line)].
+
+%% Report §8.7: the store took the message of the sender, Name, whole or
+%% none of it, as its sink says when asked after the end, and its watcher
+%% was told the death's own Reason exactly where it took it, and else
+%% Unreachable, once.
+taken_where_told(StoreOut, Name, Reason) ->
+    Took = said_after(StoreOut, "took "),
+    case said_after(StoreOut, "the store saw " ++ Name ++ ": ") of
+        [Reason] ->
+            ?assertEqual([sent_bytes() ++ " bytes, whole: true"], Took),
+            has(StoreOut, "the sink has taken: Some(1)");
+        ["Unreachable"] ->
+            ?assertEqual([], Took),
+            has(StoreOut, "the sink has taken: Some(0)")
+    end.
+
+%% Words run under a terminal of their own through the pseudo-terminal's
+%% harness, with its Steps (ern_pty:tried/3), in a process of its own, so
+%% that the test waits on other nodes meanwhile. Answers what waits for the
+%% harness's end and answers what tried/3 answers, counting the harness's
+%% waits as the test's steps, each expect's and the run's end's.
+under_a_terminal(Words, Steps) ->
+    Test = self(),
+    Command = lists:flatten(Words),
+    Runner = spawn_link(fun() -> Test ! {self(), ern_pty:tried(Command, Steps, [])} end),
+    Waits = length([Text || {expect, Text} <- Steps]) + 1,
+    fun() ->
+        step({under_a_terminal, Command}, Waits),
+        receive
+            {Runner, Ran} -> Ran
+        after (Waits + 1) * ?WAIT_MS ->
+            erlang:error({still_running, Command})
+        end
+    end.
 
 %% Report §6.10, §8.7, Appendix E.28: a counter's two builds, built in
 %% Base: the first, whose node runs counters on `count`, and the second,

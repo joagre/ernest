@@ -2047,8 +2047,11 @@ ended_program(From, Ref) ->
     %% report §8.6, §8.7: the end waits for the deaths of every process
     %% but those that trap exits, the runtime's own resources, so that no
     %% process of this launch faults, restarts or reports into the next
-    %% one, and on a node every Down already on its way crosses before its
-    %% connections close, the deaths its peers may watch among them (§3.11)
+    %% one; a death is the host's word that the process is gone, which
+    %% comes before its exit has placed the rest of a message or its Downs
+    %% for other nodes, so on a node the end waits for no send, and what is
+    %% not placed when the node tells its peers it ends may be dropped
+    %% (ern_carrier:depart/0)
     wait_for_ends(maps:from_keys([Pid || Pid <- Ended, not traps_exits(Pid)], true)),
     From ! {Ref, ended},
     ended_program().
