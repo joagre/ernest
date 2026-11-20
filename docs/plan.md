@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 101**, a design discussion with the user: what an order
-nobody promised gets.
+**The next item is MVP 4.16's item 93**, a close that answers once it is made. E.18 and E.23
+change first, and an agent builds it.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -65,8 +65,9 @@ there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the La
 *Item 136 Stands After the Launch*).
 
 **What is decided and waits for its build** stands first. Item 93 and what is left
-of item 95 are taken after item 101, decided with the user on 2026-11-19: each is a
-verdict on an order nobody promised, made before item 101's rule, which reads it again.
+of item 95 are each a verdict on an order nobody promised. Item 101's rule read both again
+on 2026-11-20, and both stand (the log's *An Order Nobody Promised*). Item 154 is that
+discussion's own.
 
 - **93. A close answers once it is made**, decided with the user on 2026-11-17 (the log's
   *Seven Entries of the Feedback*, feedback 258). `Os.closeInput` and `Tcp.closeListener`
@@ -82,8 +83,8 @@ verdict on an order nobody promised, made before item 101's rule, which reads it
   the connection has closed.
 
   E.18 and E.23 change first. An agent builds the two, each with a test that acts at once
-  after the close, and the terminal harness's write of nothing goes. The build follows
-  item 101, whose rule reads this verdict as one of its seven.
+  after the close, and the terminal harness's write of nothing goes. Item 101's rule read
+  the verdict again on 2026-11-20, and it stands.
 
   A second order joins it, found 2026-11-20 by item 92's reading (the log's *A Wait for a
   Life, Built*). `closeListener` answers an accept the listener holds with `Left(Closed)`
@@ -101,18 +102,39 @@ verdict on an order nobody promised, made before item 101's rule, which reads it
   a move shown as done and the tour's restart limit, were written on 2026-11-20 (the log's
   *Two Shell Sessions Written*). One is left:
 
-  - A send and a call to another node, in two inputs, written after item 101, whose rule
-    reads this verdict again. The tour's chapter 2 says that each
+  - A send and a call to another node, in two inputs. Item 101's rule read the verdict
+    again on 2026-11-20, and it stands. The tour's chapter 2 says that each
     input is a sender of its own, that the report orders one sender's messages alone
     (§6.4), that the page shows one order, and that a program which needs the order sends
     both from one process. The guide's §1.4 gains the same as a clause. The transcripts
     stay as typed, and the README stays as it is.
+- **154. Foreign code's messages keep their order through one address**, decided with the
+  user on 2026-11-20 in item 101's discussion (the log's *An Order Nobody Promised*). Each
+  address that crossed has a check of its own (§8.4), a process whose host identity is
+  the address foreign code is given. So what foreign code sends through two addresses of
+  one process, and what it sends against what its caller sends after it, can change
+  places. §8.7 says that what one process sends another arrives in the order it was sent,
+  "whichever addresses it was sent through", and the guide's *Order* paragraph (§8.2) says
+  the same. That is read from the code and not shown.
+
+  - A probe shows the pass first, through two addresses and against the caller's next
+    send.
+  - §8.4 gains the sentences, and §6.4 its pointer. §8.7's sentence names the check's step
+    beside §6.5's, and the guide's *Order* paragraph follows it. The shape: messages
+    foreign code sends from one process to one address that crossed are received in
+    sending order; each takes one step more, its check, and a message sent after it to
+    the same process, through another address or by Ernest code, can pass it.
+  - The sentences get one cold reading. The session writes them, and an agent writes the
+    tests: the order kept through one address, and the pass through two.
+
+  It follows item 101. It stands before the launch, since §8.7's sentence is one a program
+  shows false, and no corner is built for it: a binding that gives foreign code one
+  adapted address for each kind of event meets it.
 
 **What needs the user**, each a design discussion of its own. Item 142 is read on its date
-and orders nothing. Item 101 stands first of the rest, since
-its rule is the measure for item 100, for MVP 4.5's item 68, and for item 93 and what is
-left of item 95, which follow it. Item 100, ernest-httpd's
-session's two lines on a close, follows it, and three of that session's tests wait on it.
+and orders nothing. Item 100, ernest-httpd's session's two lines on a close, is the rest,
+and three of that session's tests wait on it. Item 101's rule is its measure, and that of
+MVP 4.5's item 68 (the log's *An Order Nobody Promised*).
 
 - **142. Whether the short rules stay**, to decide with the user on 2026-11-24 (the log's
   *The Rules Cut for a Trial*). The root's `CLAUDE.md` is a short file on trial from
@@ -129,29 +151,15 @@ session's two lines on a close, follows it, and three of that session's tests wa
   becomes one, `make test-full` before the commit that closes an item that changed code,
   and its clause on the runtime, the nodes and the emitter goes (the README's list, its
   first row). Until then the session's memory carries it.
-- **101. What an order nobody promised gets: no sentence, a sentence, or a mechanism**,
-  found 2026-11-17 by a reading of the log's findings at the limits since 0.10.0
-  ([`limit_findings.md`](limit_findings.md), its section 3.2; the log's *The Limits Read*).
-  Seven times a test of Ernest's own expected an order the report does not give. Three got
-  no sentence, two a sentence in the report, and two a mechanism. Each entry gives a reason,
-  and none says what tells the three apart: two give the same reader's prediction for
-  opposite answers.
 
-  Decided with the user, in a design discussion of its own: the test that tells them apart,
-  as one rule of `CLAUDE.md`'s *Defects and gaps*, beside the rule for where the report is
-  silent. The item first reads the seven entries whole.
+  Decided with the user on 2026-11-20, for that day: `CLAUDE.md` gains item 101's rule
+  under *Who decides*, after the rule for where the report is silent (the log's *An Order
+  Nobody Promised*). Until then the session's memory carries it. Its words:
 
-  Recommended, on the reading alone: a mechanism where both acts are Ernest's own and
-  ordering them costs a fraction of them; a sentence where one act is the host's and a
-  program meets the order; nothing where no program can tell. The seven are then read
-  against the rule, and one that falls otherwise is brought to the user.
-
-  An eighth case is read with the seven, placed with the user on 2026-11-18 (the log's *A
-  Checker Acts for the Target*), though no test met it: the order of the messages foreign
-  code sends. Each address that crossed has a check of its own (§8.4), so what foreign code
-  sends through two addresses of one process, and what it sends against what its caller
-  sends after it, can change places. §6.4 and §8.7 give a process's messages an order, and
-  no sentence says whether a message foreign code sends is a process's.
+  > **An order the report does not give gets nothing, unless a sentence of the report or a
+  > sibling operation leads to it.** Then Ernest keeps it where there is something to wait
+  > on, no rule breaks and the cost is a fraction, and otherwise the report states the
+  > host's order.
 - **100. When a close reaches the far end, and what a read answers after one**, feedback
   262 and 263, found 2026-11-17 by ernest-httpd's session on 0.10.0 (the log's *Two Lines on
   a Close*). A socket that ended while its host held bytes closed, for the far end, a second
@@ -316,6 +324,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 152 | §8.4 says what the boundary trusts at a type variable: what foreign code gives there, where it gives back an address or a function that crossed at a type that holds one, that a value at one crosses as it is and is only handed on, and a call's answer at a variable; three holes each shown by a probe, no code changed, with the user | 2026-11-20 | §8.4, §8.7, Appendix H; *What the Boundary Trusts at a Type Variable* |
 | 137 | Three corners of a diagnostic: a literal against an annotation is reported whole, as built, and §11.5 says an element after the first; a type in parentheses spans its parentheses; a result annotation that ends in a `receiving` is labeled as the result type's, and its help writes the function's mailbox type after the result type in parentheses, with the user | 2026-11-20 | §11.5; *Three Corners of a Diagnostic* |
 | 92 | `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever` wait without a limit, each its twin without a time and without `Left(Timeout)`; a socket `acceptForever` opens has its own site; the examples, the flake hunt, two fixtures and the guide's §8.7 take them, and three tools name a file's time once, with the user | 2026-11-20 | Appendix E.0, E.18, E.23; *A Wait for a Life, Built* |
+| 101 | What an order nobody promised gets: nothing, unless a sentence of the report or a sibling operation leads to it; then a mechanism where there is something to wait on, no rule breaks and the cost is a fraction, and otherwise a sentence; the seven verdicts, item 93 and item 95's line stand, the eighth case is item 154, and item 142 carries the rule to `CLAUDE.md`, with the user | 2026-11-20 | *An Order Nobody Promised* |
 
 ---
 
