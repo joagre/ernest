@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 93**, a close that answers once it is made. E.18 and E.23
-change first, and an agent builds it.
+**The next item is MVP 4.16's item 154**, the order of the messages foreign code sends. A
+probe shows it first, and §8.4 gains its sentences.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -67,8 +67,32 @@ there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the La
 **What is decided and waits for its build** stands first. Item 93 and what is left
 of item 95 are each a verdict on an order nobody promised. Item 101's rule read both again
 on 2026-11-20, and both stand (the log's *An Order Nobody Promised*). Item 154 is that
-discussion's own.
+discussion's own, and is taken first: it changes a rule of §8, and such a change is built
+while its decision is fresh.
 
+- **154. Foreign code's messages keep their order through one address**, decided with the
+  user on 2026-11-20 in item 101's discussion (the log's *An Order Nobody Promised*). Each
+  address that crossed has a check of its own (§8.4), a process whose host identity is
+  the address foreign code is given. So what foreign code sends through two addresses of
+  one process, and what it sends against what its caller sends after it, can change
+  places. §8.7 says that what one process sends another arrives in the order it was sent,
+  "whichever addresses it was sent through", and the guide's *Order* paragraph (§8.2) says
+  the same. That is read from the code and not shown.
+
+  - A probe shows the pass first, through two addresses and against the caller's next
+    send.
+  - §8.4 gains the sentences, and §6.4 its pointer. §8.7's sentence names the check's step
+    beside §6.5's, and the guide's *Order* paragraph follows it. The shape: messages
+    foreign code sends from one process to one address that crossed are received in
+    sending order; each takes one step more, its check, and a message sent after it to
+    the same process, through another address or by Ernest code, can pass it.
+  - The sentences get one cold reading. The session writes them, and an agent writes the
+    tests: the order kept through one address, and the pass through two.
+
+  It follows item 101. It stands before the launch, since §8.7's sentence is one a program
+  shows false, and no corner is built for it: a binding that gives foreign code one
+  adapted address for each kind of event meets it. Item 153 names §12.2 for how foreign
+  code sends to an address, which this item's sentences rest on and do not write.
 - **93. A close answers once it is made**, decided with the user on 2026-11-17 (the log's
   *Seven Entries of the Feedback*, feedback 258). `Os.closeInput` and `Tcp.closeListener`
   are sends, and a caller that acts at once after one may act before it. The terminal
@@ -108,28 +132,6 @@ discussion's own.
     (§6.4), that the page shows one order, and that a program which needs the order sends
     both from one process. The guide's §1.4 gains the same as a clause. The transcripts
     stay as typed, and the README stays as it is.
-- **154. Foreign code's messages keep their order through one address**, decided with the
-  user on 2026-11-20 in item 101's discussion (the log's *An Order Nobody Promised*). Each
-  address that crossed has a check of its own (§8.4), a process whose host identity is
-  the address foreign code is given. So what foreign code sends through two addresses of
-  one process, and what it sends against what its caller sends after it, can change
-  places. §8.7 says that what one process sends another arrives in the order it was sent,
-  "whichever addresses it was sent through", and the guide's *Order* paragraph (§8.2) says
-  the same. That is read from the code and not shown.
-
-  - A probe shows the pass first, through two addresses and against the caller's next
-    send.
-  - §8.4 gains the sentences, and §6.4 its pointer. §8.7's sentence names the check's step
-    beside §6.5's, and the guide's *Order* paragraph follows it. The shape: messages
-    foreign code sends from one process to one address that crossed are received in
-    sending order; each takes one step more, its check, and a message sent after it to
-    the same process, through another address or by Ernest code, can pass it.
-  - The sentences get one cold reading. The session writes them, and an agent writes the
-    tests: the order kept through one address, and the pass through two.
-
-  It follows item 101. It stands before the launch, since §8.7's sentence is one a program
-  shows false, and no corner is built for it: a binding that gives foreign code one
-  adapted address for each kind of event meets it.
 
 **What needs the user**, each a design discussion of its own. Item 142 is read on its date
 and orders nothing. Item 100, ernest-httpd's session's two lines on a close, is the rest,
