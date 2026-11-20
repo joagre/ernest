@@ -1606,3 +1606,70 @@ The lines are the same at OTP-29.1.2 and at master (c81e92f). Master's line numb
 - `async_disconnect/1` casts `{async_disconnect, Node}` (lines 699 and 700; 700 and 701), which calls `do_disconnect(Node, State, true)` (lines 1355 to 1358; 1356 to 1359). `global.erl` calls it (lines 1115, 1521 and 1568; 1117, 1523 and 1570).
 
 #5708 met the same wait from another side: a `tls_sender` that ignored the exit while its handshake was not done held `net_kernel` until the connection closed. Its fix, #5711, has the sender assert the distribution's mode by another reference, and leaves `net_kernel`'s wait without a limit.
+
+## 27. The destructive update pass appends in place to a literal binary
+
+Found on 2026-11-20 by `make test-typed`; the log's *A Literal Binary Grown in Place*. Ernest no longer meets it: the emitter compiles every module with `no_ssa_opt_destructive_update`, and the code's comment at `ern_compile:compiled/2` says why.
+
+**Title:** Segfault: an append rewritten to `private_append` on a literal `<<>>` taken from a literal tuple
+
+**Describe the bug**
+
+The destructive update pass rewrites a `bs_create_bin` `append` to `private_append` when its first fragment is a unique, appendable variable that dies with the instruction. It then tracks that variable back to where it was made, to replace a literal there by a writable binary. Where the variable is `get_tuple_element` of a literal tuple, the tracking stops without patching anything, and the append stays rewritten. The emulator then runs `private_append` on the literal `<<>>`, reads it as a sub-binary of a writable binary, and ends with a segmentation fault.
+
+**To Reproduce**
+
+`t.erl`:
+
+```erlang
+-module(t).
+-export([f/1]).
+
+f(B) ->
+    <<(element(1, case B of true -> {<<>>} end))/binary>>.
+```
+
+```
+$ erlc t.erl && erl -noshell -eval 'io:format("~p~n", [t:f(true)]), halt().'
+Segmentation fault
+$ erlc +no_ssa_opt_destructive_update t.erl && erl -noshell -eval 'io:format("~p~n", [t:f(true)]), halt().'
+<<>>
+```
+
+`erlc -S t.erl` shows the literal given to `private_append`:
+
+```
+{bs_create_bin,{f,0},0,0,256,{x,0},
+               {list,[{atom,private_append},1,8,nil,{literal,<<>>},{atom,all}]}}.
+```
+
+The `case` is needed: without it `sys_core_fold` turns the fragment into the literal `<<>>` itself, which the pass replaces by a `bs_init_writable`, and the module runs. The binary must be empty: `{<<"a">>}` compiles to `append`, since only an empty binary's type is appendable. A second segment is not needed, and with one the module still faults.
+
+**Expected behavior**
+
+`t:f(true)` returns `<<>>`.
+
+**Affected versions**
+
+OTP 29.1.2, erts 17.1.1, compiler 10.0.7, on Linux x86_64. The clauses named below are the same in OTP 27.3.4.19 and 28.5.0.8, and on `maint` and `master`, which were read and not run.
+
+**Additional context**
+
+In `beam_ssa_destructive_update.erl`, `fai_i/4` accepts the append: its first fragment, `_3 = get_tuple_element {<<>>}, 0`, is unique and dies with it, and its type is appendable. `fiv_track_value_in_fun/6` then follows `_3`, but its `get_tuple_element` clause matches a variable tuple only, `[#b_var{}=Tuple,#b_literal{val=Idx}]`. The literal tuple falls to the catch-all clause, whose comment holds such a path unreachable for an appendable bitstring, so no literal is patched, and `patch_is/5` rewrites the append all the same.
+
+In the emulator, `erts_bs_private_append_checked` (`erl_bits.c`) checks that its binary is a sub-binary of a writable one by `ASSERT` alone, and reads the `BinRef` from the words that follow the literal. What ends the emulator therefore depends on those words: a larger module with the same instruction ended with `binary_alloc: Cannot allocate 21050432664586 bytes of memory (of type "binary")` instead.
+
+The same shape through a list's head makes the compiler fail instead, since the `get_hd` clause matches the literal list and finds no type annotation:
+
+```erlang
+f(B) -> <<(hd(case B of true -> [<<>>] end))/binary>>.
+```
+
+```
+Sub pass ssa_opt_destructive_update
+t.erl: internal error in pass beam_ssa_opt:
+exception error: no match of right hand side value #{location => {"t.erl",4},arg_types => #{}}
+  in function  beam_ssa_destructive_update:fiv_track_value_in_fun/6 (beam_ssa_destructive_update.erl:390)
+```
+
+Found by a generator of random well-typed programs in a compiler that emits Erlang, where a field selected from a record that a conditional builds became `element/2` of a `case` the compiler reduced to one literal tuple.

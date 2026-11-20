@@ -236,7 +236,10 @@ make test-grammar # Appendix A read as data, and a thousand programs generated f
                 # seed again
 make test-typed # well-typed programs generated, checked, compiled and run in one host,
                 # each printing what an interpreter of it computes;
-                # ERN_SEED=n runs a failing seed again
+                # ERN_SEED=n runs a failing seed again; a fault of the host names no
+                # seed and leaves its core in test/, which gives the function it
+                # faulted in through OTP's etp-commands and the generated module by
+                # its FOR1 header (the log's *A Literal Binary Grown in Place*)
 make test-shell # the shell's sessions and the terminal
 make test-emacs # the Emacs mode's tests (docs/design/emacs_mode.md)
 make load       # the loads of docs/memory_checks.md; not part of make test-full, whose

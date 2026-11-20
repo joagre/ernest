@@ -219,6 +219,43 @@ validator_refusal_compiled_again_test() ->
                  compile:noenv_forms(Forms, [return_errors])),
     ?assertEqual({ok, <<"-79\n">>}, run(Text)).
 
+%% report §3.5, §4.8, §5.8, §11.1, and docs/otp_bugs.md's report 27, the
+%% compiler's destructive update pass growing a literal binary in place: a
+%% field selected from an `if` whose arm the host's compiler can tell
+%% builds the record with "", the left operand of `<>`, compiles to an
+%% append in place onto that literal, which ends the host, unless the
+%% emitter turns the pass off. A regression test; the shape is the one
+%% `make test-typed` found, reduced. The compiled module is read before it
+%% runs, so that a module with the defect fails the test and does not end
+%% the test's host. It also holds that the host's pass still appends in
+%% place where the module makes no writable binary, so that it fails, and
+%% says the workaround can go, once an OTP with the fix runs it
+literal_grown_in_place_test() ->
+    Text = "type Box = Box(item : String)\n"
+           "\n"
+           "fn suffixed(flag : Bool, suffix : String) : String =\n"
+           "    (if flag then Box(item = \"\") else Box(item = \"a\")).item <> suffix\n"
+           "\n"
+           "export fn main() : Unit =\n"
+           "    Io.println(suffixed(true, \"x\"))\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
+    {ok, _, Faulty} = compile:noenv_forms(ern_compile:forms(['M'], Typed, Env), [return_errors]),
+    {beam_file, _, _, _, _, Functions} = beam_disasm:file(Faulty),
+    ?assertMatch([_ | _], appends_in_place(Faulty)),
+    ?assertNot(lists:member(bs_init_writable,
+                            lists:append([Code || {function, _, _, _, Code} <- Functions]))),
+    {ok, _, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
+    ?assertEqual([], appends_in_place(Beam)),
+    ?assertEqual({ok, <<"x\n">>}, run(Text)).
+
+%% The instructions of a compiled unit that grow a binary in place, the
+%% host's `private_append`.
+appends_in_place(Beam) ->
+    {beam_file, _, _, _, _, Functions} = beam_disasm:file(Beam),
+    [Instruction || {function, _, _, _, Code} <- Functions,
+                    {bs_create_bin, _, _, _, _, _, {list, [{atom, private_append} | _]}}
+                        = Instruction <- Code].
+
 %% report §8.6, Appendix E.0 rule 1: a function the standard library is
 %% given runs as Ernest code, not as foreign code, so that a deadlock in it
 %% is found, the host's frames of the library's primitive beneath it.
@@ -421,7 +458,7 @@ parameter_text({variable, _}) ->
 %% as the host's disassembler reads it.
 function_code(Text, Function) ->
     {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
-    {ok, _, Beam} = compile:noenv_forms(ern_compile:forms(['M'], Typed, Env), []),
+    {ok, _, Beam} = ern_compile:compiled(ern_compile:forms(['M'], Typed, Env), []),
     {beam_file, _, _, _, _, Functions} = beam_disasm:file(Beam),
     [Code] = [Code || {function, Name, _, _, Code} <- Functions, Name =:= Function],
     Code.

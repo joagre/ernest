@@ -542,7 +542,7 @@ cycled() ->
     Forms = [{attribute, 1, module, ern_rules_costs_input},
              {attribute, 1, export, [{input, 0}]},
              {function, 1, input, 0, [{clause, 1, [], [], [{integer, 1, 1}]}]}],
-    {ok, Module, Beam} = compile:noenv_forms(Forms, [return_errors, debug_info]),
+    {ok, Module, Beam} = ern_compile:compiled(Forms, []),
     {module, Module} = code:load_binary(Module, "ern_rules_costs_input", Beam),
     true = code:delete(Module),
     _ = code:purge(Module),

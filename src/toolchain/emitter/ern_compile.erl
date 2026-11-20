@@ -202,11 +202,24 @@ recorded_foreign(#foreign_function{qualified_name = QualifiedName} = Declaration
 %% chunks, or the host's errors. A build's errors are a defect of the
 %% toolchain (compile/5); a unit made from forms that arrived answers them
 %% as the peer's reason (ern_arrival, §12.7).
+%%
+%% `no_ssa_opt_destructive_update` is a workaround of a defect of OTP's
+%% compiler, docs/otp_bugs.md's report 27, its destructive update pass
+%% growing a literal binary in place. OTP 29's compiler 10.0.7 rewrites an
+%% append whose first operand it takes from a literal tuple, a field of a
+%% record that an `if` builds with "" where the compiler can tell the arm,
+%% to its append in place, `private_append`, and leaves the literal as it
+%% is, so that the host ends where the code runs. Nothing at compile time
+%% tells which module is hit, so every unit is compiled with the pass off:
+%% an append then asks at run time whether its binary can grow in place,
+%% and a tuple's update copies it. The workaround goes when an OTP that
+%% Ernest requires has the fix.
 -spec compiled([erl_parse:abstract_form()], [{binary(), binary()}]) ->
           {ok, atom(), binary()} | {error, term()}.
 compiled(Forms, Chunks) ->
     %% report §11: the host's compiler takes nothing from the environment
-    Options = [return_errors, debug_info, {extra_chunks, Chunks}],
+    Options = [return_errors, debug_info, no_ssa_opt_destructive_update,
+               {extra_chunks, Chunks}],
     case compile:noenv_forms(Forms, Options) of
         {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
         {error, Errors, _} -> compiled_without_type_pass(Forms, Options, Errors)

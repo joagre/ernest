@@ -787,12 +787,6 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    release before its own, and answers with any line it keeps, as `docs/clean_room.md`'s *The
    answer* says.
 
-   The release review decides the segmentation fault of the host in the typed programs, moved
-   there on 2026-11-08 (the log's *The Items Left Read Again*): the target runs with core
-   dumps on, so the next fault leaves its core in `test/`, whose stack goes to `docs/otp_bugs.md`
-   and to the OTP team, and where none comes by the review, the review decides whether the
-   watch stays.
-
    The announcement, the user's `~/announcement.txt` outside the repository, shows a shell's
    start line. `make version` does not write it and no test holds it, so the user sets it to
    the release's version before sending it (the log's *The Front Page in the Announcement's
