@@ -1054,7 +1054,7 @@ fn escapedChar(char : Char) : String =
             "\\r"
       | code ->
             if code < 32 || code >= 127 && code <= 159 then
-                "\\u{" <> Optional.withDefault(Int.toStringBase(code, 16), "") <> "}"
+                "\\u{" <> hexadecimal(code) <> "}"
             else
                 Char.toString(char)
     }
@@ -1077,7 +1077,15 @@ fn controlFreeChar(char : Char) : String =
         Char.toString(char)
 
 fn hexByte(byte : Int) : String =
-    "\\x" <> String.padStart(Optional.withDefault(Int.toStringBase(byte, 16), ""), 2, "0")
+    "\\x" <> String.padStart(hexadecimal(byte), 2, "0")
+
+// Base 16 is one `Int.toStringBase` writes in, so `None` does not come,
+// and would be a defect of the library's.
+fn hexadecimal(int : Int) : String =
+    match Int.toStringBase(int, 16) {
+        Some(digits) -> digits
+      | None -> fault("Int.toStringBase writes no digits in base 16")
+    }
 
 // A diagnostic, its first line colored as a fault (report §11.2).
 fn diagnose(screen : Address(ScreenMsg), color : Markdown.Output, text : String) : Unit =

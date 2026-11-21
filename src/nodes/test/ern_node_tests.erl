@@ -313,6 +313,33 @@ read_refusals_not_ascii_test() ->
     with(Dir, #{<<"é"/utf8>> => 1}),
     ?assert(ends(refusal(fun() -> ern_node:read(Dir) end), "the file has the unknown field é")).
 
+%% report §12.5, §2.1: a peer's name holds no control character, an escape, a
+%% tab, DEL or U+009B, and the read refuses one, the name quoted as JSON
+%% writes it (§11)
+peer_name_control_test() ->
+    Dir = made(),
+    Peer = other_key(),
+    lists:foreach(fun({Name, Quoted}) ->
+                      with(Dir, #{<<"peers">> => [#{<<"name">> => Name,
+                                                    <<"public-key">> => Peer}]}),
+                      ?assertEqual(filename:join(Dir, "ernest.conf")
+                                   ++ ": a peer's name holds a control character: " ++ Quoted,
+                                   refusal(fun() -> ern_node:read(Dir) end))
+                  end,
+                  [{<<"a\eb">>, "\"a\\u001Bb\""}, {<<"a\tb">>, "\"a\\tb\""},
+                   {<<"a", 16#7F, "b">>, "\"a\\u007Fb\""},
+                   {<<"a", 16#9B/utf8, "b">>, "\"a\\u009Bb\""}]).
+
+%% report §11, §12.5, §2.1: a value a refusal quotes from ernest.conf is
+%% written as JSON writes it, each control character as its escape there,
+%% DEL and U+009B among them, in the capitals of `\u001B`
+read_refusal_quoted_control_test() ->
+    Dir = made(),
+    with(Dir, #{<<"listen">> => <<"a", 16#7F, "b", 16#9B/utf8, "c\ed">>}),
+    ?assertEqual(filename:join(Dir, "ernest.conf")
+                 ++ ": listen is not address:port: \"a\\u007Fb\\u009Bc\\u001Bd\"",
+                 refusal(fun() -> ern_node:read(Dir) end)).
+
 %% report §12.5: a peer's name is not resolved when the configuration is
 %% read: a name that resolves to nothing, and one that resolves only to the
 %% other family, are kept for the dial, which resolves them and checks the

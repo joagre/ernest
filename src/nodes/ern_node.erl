@@ -634,12 +634,20 @@ peers(ConfigDir, List, Listen) when is_list(List) ->
 peers(ConfigDir, _, _) ->
     fail(ConfigDir, ?CONF, "peers is not a JSON array").
 
+%% Report §12.5: a peer's name is not empty and holds no control character
+%% (§2.1), so that §12.5's lines and a printed process (Appendix E.1) write
+%% it as it stands; every read of the file comes through here, a start, a
+%% reload, `ern reload`'s and `ern config --peer-dir`'s, which judges its
+%% new entry so too (§11.3).
 peer(ConfigDir, Item, Listen) ->
     Fields = object(ConfigDir, "a peer", Item, ?PEER_FIELDS),
     Name = case Fields of
                #{<<"name">> := Text} when is_binary(Text), Text =/= <<>> -> Text;
                _ -> fail(ConfigDir, ?CONF, "a peer has no name")
            end,
+    lists:any(fun ern_build:is_control/1, unicode:characters_to_list(Name))
+        andalso fail(ConfigDir, ?CONF, "a peer's name holds a control character: "
+                                       ++ ern_conf:quoted(Name)),
     Shown = "peer " ++ ern_conf:quoted(Name),
     Key = case Fields of
               #{<<"public-key">> := Pem} ->

@@ -71,11 +71,18 @@ fields(What, Item, Known) ->
                  [Fault || {fault, Fault} <- Said]}
     end.
 
-%% A string the file gives, quoted as JSON writes it, each character one,
-%% in a fault that names a value not of its form: `"0.11"`.
+%% Report §11: a string the file gives, quoted as JSON writes it, each
+%% character one, in a fault that names a value not of its form: `"0.11"`.
+%% Every control character of §2.1 is written as its escape there, `\u001B`:
+%% the host's encoder writes those below U+0020 so, and passes DEL and
+%% U+0080 to U+009F as they are, which are written in its form and its
+%% capitals, `\u007F`.
 -spec quoted(binary()) -> string().
 quoted(Text) ->
-    unicode:characters_to_list(iolist_to_binary(json:encode(Text))).
+    lists:append([case Char >= 16#7F andalso Char =< 16#9F of
+                      true -> lists:flatten(io_lib:format("\\u~4.16.0B", [Char]));
+                      false -> [Char]
+                  end || Char <- unicode:characters_to_list(iolist_to_binary(json:encode(Text)))]).
 
 text(Name) ->
     unicode:characters_to_list(Name).
