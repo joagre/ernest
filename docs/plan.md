@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 100**, when a close reaches the far end and what a read
-answers after one: its probes first, then a design discussion with the user.
+**The next item is what is left of MVP 4.16's item 100**: that a program which writes,
+closes and ends loses nothing, its form decided and then built.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -95,40 +95,40 @@ MVP 4.5's item 68 (the log's *An Order Nobody Promised*).
   > host's order.
 - **100. When a close reaches the far end, and what a read answers after one**, feedback
   262 and 263, found 2026-11-17 by ernest-httpd's session on 0.10.0 (the log's *Two Lines on
-  a Close*). A socket that ended while its host held bytes closed, for the far end, a second
-  after its last byte. A write answered `Left(Closed)` lost the bytes that had arrived and
-  no read had taken. E.18 says neither when the close reaches the far end nor what a read
-  answers after it.
+  a Close*). Its probes ran on 2026-11-21, and its questions were decided that day, one at a
+  time.
 
-  The item first runs both probes here. It shows where the second is spent and where the
-  bytes go: in Ernest's code, the host's socket or the kernel. It searches the log for what
-  was decided of each, *What One Read Answers* and *A Socket Lives Until It Is Closed* among
-  its entries.
+  Done, the first two questions. Over TCP the close follows the last byte, by a shutdown of
+  the socket's writing side as it ends, and over TLS E.18 states the closer's look (the
+  log's *The Close Follows the Last Byte*). A write answered `Left(Closed)` loses what had
+  arrived and no read had taken, and E.18 says so (the log's *A Failed Write Loses What Had
+  Arrived*).
 
-  The probes take the case of MVP 4.5's item 122 with them, decided with the user on
-  2026-11-19: a far end that reads nothing, writes that time out, then a close. By a
-  reading, a close ends the socket's writer and drops a write that timed out and still
-  waits there, where E.18 says that a `Left(Timeout)` does not undo the write. The third
-  question below rests on what that shows.
+  Left, the third question, placed with the user on 2026-11-19 (the log's *What a Program
+  Can Wait On Before Its End*). Shown: a program that writes 8 MiB, closes and returns cuts
+  what the host still held, the far end reads an orderly close, and OTP alone loses
+  nothing. The cut is to be ended, and its form is the item's last decision, which the
+  user left to the session.
 
-  Decided with the user, in a design discussion of its own, one question at a time: whether
-  the close follows the last byte at once, and whether a write that answers `Left(Closed)`
-  keeps what has arrived for the reads after it.
+  A `Tcp.close` that answers once the host's socket has closed was drafted as E.18's
+  sentences and read cold once: it touches E.0's shape rule 8, §6.9 and E.21, and leaves a kill during the wait, a close during a TLS handshake and one case
+  over TLS unsaid. The other form leaves `close` as it is and has the program's end wait
+  for the sockets it closed. The form chosen is shown to the user as sentences before they
+  are written, and is built then. The closer's look once a second stays either way, one
+  mechanism over TCP and over TLS.
 
-  A third question joins the two, placed with the user on 2026-11-19 (the log's *What a
-  Program Can Wait On Before Its End*): what a program can wait on to know that the far end
-  has taken a socket's bytes, before the program ends. E.18 sends them "until the runtime
-  stops", and since item 116 a job's end cuts what a slow client has not taken. No
-  recommendation is made before the probes.
+  At its close MVP 4.5's item 122 takes what the probes showed of its case: a close drops
+  the writes its writer still holds, those answered `Left(Timeout)` among them.
 
-  Recommended, on that session's probes alone: the close follows the last byte, since a
-  reader predicts so (principle 1), and a second that no entry decided is a defect. A read
-  after the close answers what arrived before it and then `Left(Closed)`, and E.18 says so.
-  The write's case waits for the probe, since Ernest cannot keep what the kernel drops at a
-  reset. E.18 changes first.
+  Two decisions named here, to place with the user. The build of the first question found
+  that a socket over TLS closed while a TLS 1.3 handshake waits holds its process for 5
+  seconds, before this item's change and after. And `reload_waits_on_no_stopped_peer` of
+  `ern_nodes_tests` failed in one full run of two: the maker said the stopped third's loss,
+  "it closed", before the asker's end, where the test has the third's connection stand
+  until the third runs again.
 
   Three of ernest-httpd's regression tests wait on the verdicts, and that session is told
-  them.
+  them at the close.
 
 ### What is done
 

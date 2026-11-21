@@ -989,6 +989,17 @@ stop_writer(Writer) ->
 %% connection has gone, and it is closed here; the closer then ends with
 %% the socket's process (closer/1).
 %%
+%% Report Appendix E.18: over TCP the far end reads the connection's close
+%% straight after the last of the bytes. So a socket over TCP handed to its
+%% closer first shuts down its writing side, by the host's shutdown, which
+%% the host documents it postpones until what it holds is written; the
+%% closer's looks at what the host holds then decide only the bounds and
+%% when the host's socket closes. A socket over TLS is not shut down: the
+%% host's shutdown writes no record that ends the connection, and once the
+%% writing side is shut ssl's close cannot write one, so the far end would
+%% read the connection cut short. Its connection ends by ssl's close, with
+%% the record, once the closer finds every byte taken.
+%%
 %% The closer is made now, once the writer has ended (stop_writer/1), so
 %% that it takes the writer's room in the host's table of processes.
 %% Report Appendix E.18, §12.5: where the table has no room for it, the
@@ -1003,6 +1014,10 @@ close_socket(Transport, Socket) ->
             Self = erlang:self(),
             try erlang:spawn(fun() -> closer(Self) end) of
                 Closer ->
+                    _ = case Transport of
+                            gen_tcp -> gen_tcp:shutdown(Socket, write);
+                            ssl -> ok
+                        end,
                     case Transport:controlling_process(Socket, Closer) of
                         ok -> Closer ! {close, Transport, Socket, Pending, Ended};
                         {error, _} -> Transport:close(Socket)

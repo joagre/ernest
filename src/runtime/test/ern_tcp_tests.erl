@@ -1842,6 +1842,90 @@ taken(Connection, Count) ->
         Ended -> {Count, Ended}
     end.
 
+%% report Appendix E.18: however a socket over TCP ends while the host holds
+%% bytes the far end has not taken, by `close`, by `kill`, by its owner's
+%% death or by the program's end, a far end that takes every byte reads the
+%% connection's close straight after the last of them. The closer the
+%% socket made as it ended is held from before the far end reads until the
+%% far end has read the close, so that nothing the closer does gives the
+%% close; let go, it closes the host's socket and ends.
+%%
+%% Written first, a regression test: the close came as the closer looked
+%% again at what the host held, a second after the last byte, so with the
+%% closer held each read of the close ran out its 10 seconds
+socket_closes_after_its_last_byte_test_() ->
+    {timeout, 60, fun closes_after_its_last_byte/0}.
+
+%% The four ends of a socket over TCP, each while the host holds bytes, and
+%% what each gave.
+closes_after_its_last_byte() ->
+    Size = 4 * 1024 * 1024,
+    Ends = [close, kill, owner, ending],
+    ?assertEqual([{End, {Size, {error, closed}}, normal, gone} || End <- Ends],
+                 [ended_while_held(End, Size) || End <- Ends]).
+
+%% A socket over TCP, written Size bytes that the host holds, ended End:
+%% what the far end then took and how its last read ended, read once the
+%% closer the socket made as it ended is held; how the closer ended once let
+%% go; and the host's socket, `gone` once it has closed.
+ended_while_held(End, Size) ->
+    Self = self(),
+    {FarEnd, FarPort} =
+        tcp_far_end(fun(Accepted) -> receive go -> Self ! {taken, taken(Accepted, 0)} end end),
+    ok = quietly(fun() ->
+                     Self ! {held, ended(End, fun() -> held_socket(none, FarPort, Size) end)}
+                 end),
+    {SocketPid, HostSocket} = wait(held),
+    ok = ern_waits:ended([SocketPid]),
+    Closer = closer_of(SocketPid),
+    true = erlang:suspend_process(Closer),
+    FarEnd ! go,
+    Taken = receive {taken, FarTaken} -> FarTaken end,
+    CloserRef = erlang:monitor(process, Closer),
+    HostRef = erlang:monitor(port, HostSocket),
+    true = erlang:resume_process(Closer),
+    Reason = receive {'DOWN', CloserRef, process, Closer, Ended} -> Ended end,
+    receive {'DOWN', HostRef, port, HostSocket, _} -> {End, Taken, Reason, gone} end.
+
+%% Main's part: the socket Held makes, by its process, and its host's
+%% socket, ended End before main returns, or, for `ending`, left open, so
+%% that it ends with the program, whose end main's return begins. A socket
+%% ended with its owner is made by a process of its own, which ends once it
+%% has the socket.
+ended(ending, Held) ->
+    {Socket, HostSocket} = Held(),
+    {ern_rt:process_of(Socket), HostSocket};
+ended(owner, Held) ->
+    Main = self(),
+    _ = erlang:spawn(fun() -> Main ! {owned, Held()} end),
+    {Socket, HostSocket} = receive {owned, Owned} -> Owned end,
+    ok = ended_by(Socket, fun() -> ok end),
+    {ern_rt:process_of(Socket), HostSocket};
+ended(close, Held) ->
+    {Socket, HostSocket} = Held(),
+    ok = ended_by(Socket, fun() -> ern_rt:send(Socket, 'Close') end),
+    {ern_rt:process_of(Socket), HostSocket};
+ended(kill, Held) ->
+    {Socket, HostSocket} = Held(),
+    ok = ended_by(Socket, fun() -> ern_rt:kill(Socket) end),
+    {ern_rt:process_of(Socket), HostSocket}.
+
+%% A socket to the far end on FarPort, over TCP or over TLS with Keys, and
+%% its host's socket, given a send buffer as small as the far end's receive
+%% buffer, so that the hosts take far less than a megabyte, and written Size
+%% bytes, which the host takes whole and holds.
+held_socket(none, FarPort, Size) ->
+    {'Right', Socket} = connect(FarPort, 2000),
+    written(Socket, host_socket(Socket), Size);
+held_socket(_, FarPort, Size) ->
+    {'Right', Socket} = connect_tls(<<"127.0.0.1">>, FarPort, 'Unverified', 5000),
+    written(Socket, tls_host_socket(FarPort), Size).
+
+written(Socket, HostSocket, Size) ->
+    ok = inet:setopts(HostSocket, [{sndbuf, 4096}]),
+    {'Right', 'Unit'} = write(Socket, binary:copy(<<1>>, Size)),
+    {Socket, HostSocket}.
+
 %% Until the socket's writer waits inside the host's send with more than a
 %% write's bytes before it in the host's queue, which the host never takes:
 %% a send the host finishes at once waits in the same function, so the
@@ -2415,6 +2499,95 @@ tls_handshake_fails_test() ->
     ?assertMatch({'Left', {'Other', _}}, wait(wrote)),
     ?assertEqual([{'Left', 'Closed'}, {'Left', 'Closed'}], wait(later)).
 
+%% report Appendix E.18: a socket over TLS that `accept` answered, closed
+%% while its handshake runs, answers the read that waits for the handshake
+%% `Left(Closed)`, ends, and lets go of its connection once each process
+%% it made has ended: a far end that has sent nothing reads the close, and
+%% one paused after the server's hello over TLS 1.2 is let go after. A
+%% regression test, written after the code; it does not cover a far end
+%% paused so over TLS 1.3, whose connection the host ends at the socket's
+%% first call, waiting 5 seconds for the far end
+tls_closed_while_shaking_hands_test_() ->
+    {timeout, 60,
+     fun() ->
+         #{server := Server} = pki(),
+         Cases = [waiting, 'tlsv1.2'],
+         ?assertEqual([{Case, {'Left', 'Closed'}, {ern, closed}, gone,
+                        case Case of waiting -> {error, closed}; _ -> let_go end}
+                       || Case <- Cases],
+                      [closed_while_shaking_hands(Server, Case) || Case <- Cases])
+     end}.
+
+%% A socket over TLS that a listener with Server's certificate accepted,
+%% closed as a read waits for its handshake, which the far end has not
+%% begun or has paused after the server's hello over the version Case: the
+%% read's answer, the socket's end, its host socket, `gone` once it has
+%% closed, waited for once the far end has answered the close and each
+%% process the socket made has ended, and the far end's end, read or let
+%% go.
+closed_while_shaking_hands(Server, Case) ->
+    Self = self(),
+    ok = quietly(
+           fun() ->
+               {'Right', Listener} = listen_tls(0, Server),
+               {'Right', Port} = port(Listener),
+               %% waits in the host's code, the deadlock detector's foreign code
+               {ok, Client} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               {'Right', Socket} = accept(Listener, 5000),
+               {ok, ClientName} = inet:sockname(Client),
+               [HostSocket] = [Q || Q <- erlang:ports(),
+                                    erlang:port_info(Q, name) =:= {name, "tcp_inet"},
+                                    inet:peername(Q) =:= {ok, ClientName}],
+               Main = self(),
+               Reader = ern_rt:spawn(fun() -> Main ! {read, read(Socket, 20000)} end,
+                                     <<"reader">>),
+               ok = ern_waits:waiting(ern_rt:process_of(Reader)),
+               FarEnd = shaking_hands(Case, Client),
+               SocketPid = ern_rt:process_of(Socket),
+               %% the socket has taken the read before the close
+               ok = ern_waits:until(SocketPid,
+                                    fun() ->
+                                        erlang:process_info(SocketPid, message_queue_len)
+                                            =:= {message_queue_len, 0}
+                                    end),
+               SocketRef = erlang:monitor(process, SocketPid),
+               HostRef = erlang:monitor(port, HostSocket),
+               ern_rt:send(Socket, 'Close'),
+               Ended = receive {'DOWN', SocketRef, process, _, Why} -> Why end,
+               Read = receive {read, Answer} -> Answer end,
+               Made = [Pid || Pid <- erlang:processes(),
+                              erlang:process_info(Pid, parent) =:= {parent, SocketPid}],
+               %% the far end answers the close first, which the host's
+               %% close of the connection waits for (docs/otp_bugs.md, 10)
+               FarEnded = far_closed(FarEnd),
+               ok = ern_waits:ended(Made),
+               Gone = receive {'DOWN', HostRef, port, HostSocket, _} -> gone end,
+               Self ! {closed, {Case, Read, Ended, Gone, FarEnded}}
+           end),
+    wait(closed).
+
+%% The far end of a handshake on Client: none begun, or one paused after
+%% the server's hello over Version.
+shaking_hands(waiting, Client) ->
+    Client;
+shaking_hands(Version, Client) ->
+    {ok, Paused, _} = ssl:connect(Client, [binary, {active, false}, {verify, verify_none},
+                                           {versions, [Version]},
+                                           {server_name_indication, disable},
+                                           {handshake, hello}], 5000),
+    Paused.
+
+%% How the far end's connection ended, read and then closed where it began
+%% no handshake, and let go where it paused one, by the host's cancel of a
+%% paused handshake, since its close waits for the handshake to go on.
+far_closed(Client) when is_port(Client) ->
+    {_, Ended} = taken(Client, 0),
+    ok = gen_tcp:close(Client),
+    Ended;
+far_closed(Paused) ->
+    _ = ssl:handshake_cancel(Paused),
+    let_go.
+
 %% report Appendix E.18: the handshake runs in the socket's own process
 %% once `accept` has answered, so a client that connects and does not
 %% shake hands holds up no other: the next client's handshake completes
@@ -2755,6 +2928,62 @@ tls_closed_socket_sends_what_it_took() ->
     Bound = ?LINGER_IDLE div 5 + ?TLS_CLOSE + ?LINGER_IDLE,
     ?assertEqual(HostSockets, gone(HostSockets, Bound)).
 
+%% report Appendix E.18: however a socket over TLS ends while the host
+%% holds bytes the far end has not taken, by `close`, by `kill`, by its
+%% owner's death or by the program's end, a far end that takes every byte
+%% then reads the record that ends the connection, which the host's close
+%% writes as the closer finds every byte taken. The far end, of the host's
+%% own, tells the record by how its process of the connection ends: as the
+%% peer's close after the record, and as the transport's close without it.
+%%
+%% Written first, a regression test: with the host's socket shut for
+%% writing as it went to its closer, no record came and each connection
+%% ended as the transport's close
+tls_socket_ends_with_its_closing_record_test_() ->
+    {timeout, 60, fun ends_with_its_closing_record/0}.
+
+%% The four ends of a socket over TLS, each while the host holds bytes, and
+%% what each gave.
+ends_with_its_closing_record() ->
+    Size = 4 * 1024 * 1024,
+    Ends = [close, kill, owner, ending],
+    ?assertEqual([{End, {Size, {error, closed}}, {shutdown, peer_close}, normal, gone}
+                  || End <- Ends],
+                 [ended_with_record(End, Size) || End <- Ends]).
+
+%% A socket over TLS, written Size bytes that the host holds, ended End:
+%% what the far end, told to go once the socket's process has ended, took
+%% and how its last read ended; how the far end's process of the connection
+%% ended; how the closer the socket made as it ended ended; and the host's
+%% socket, `gone` once the host's process of the connection has closed it.
+ended_with_record(End, Size) ->
+    Self = self(),
+    #{server := Server} = Keys = pki(),
+    {FarEnd, FarPort} =
+        tls_far_end(Server,
+                    fun(Accepted) ->
+                        Connection = tls_connection_of(self()),
+                        ConnectionRef = erlang:monitor(process, Connection),
+                        receive go -> ok end,
+                        Taken = tls_taken(Accepted, 0),
+                        receive
+                            {'DOWN', ConnectionRef, process, Connection, Why} ->
+                                Self ! {taken, Taken, Why}
+                        end
+                    end),
+    ok = quietly(fun() ->
+                     Self ! {held, ended(End, fun() -> held_socket(Keys, FarPort, Size) end)}
+                 end),
+    {SocketPid, HostSocket} = wait(held),
+    ok = ern_waits:ended([SocketPid]),
+    Closer = closer_of(SocketPid),
+    CloserRef = erlang:monitor(process, Closer),
+    HostRef = erlang:monitor(port, HostSocket),
+    FarEnd ! go,
+    {Taken, Why} = receive {taken, FarTaken, FarWhy} -> {FarTaken, FarWhy} end,
+    Reason = receive {'DOWN', CloserRef, process, Closer, Ended} -> Ended end,
+    receive {'DOWN', HostRef, port, HostSocket, _} -> {End, Taken, Why, Reason, gone} end.
+
 %% The closer a socket's process made as it ended, its one child still
 %% alive, the writer having ended before it (ern_tcp:close_socket/2).
 closer_of(SocketPid) ->
@@ -2785,6 +3014,20 @@ tls_far_end({Certificate, Key}, Serve) ->
                        {ok, Accepted} = ssl:handshake(Handshaking, 5000),
                        Serve(Accepted),
                        ssl:close(Listen)
+                   end),
+    {FarEnd, wait(far_port)}.
+
+%% A far end over TCP of the host's own, as tls_far_end/2's over TLS.
+tcp_far_end(Serve) ->
+    Self = self(),
+    FarEnd = spawn(fun() ->
+                       {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {recbuf, 4096},
+                                                         {ip, {127, 0, 0, 1}}]),
+                       {ok, Port} = inet:port(Listen),
+                       Self ! {far_port, Port},
+                       {ok, Accepted} = gen_tcp:accept(Listen, 5000),
+                       Serve(Accepted),
+                       gen_tcp:close(Listen)
                    end),
     {FarEnd, wait(far_port)}.
 
