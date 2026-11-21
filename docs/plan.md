@@ -709,15 +709,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    around the launch come with a new floor, a restart either way, and nothing hands a
    listener over today (the log's *The Server's Answers*, its paragraph *New code under
    traffic*). What Ernest lacks for it is feedback 261, MVP 4.5's item 4.
-7. **The mechanisms read against what they force**, read and closed with the user on
-   2026-11-21 (the log's *The Mechanisms Read, Planned*, *The Check Stays a Process*, *The
-   Mechanisms' Reading Closed*). The measure was the user's: sound first, then the simplest
-   thing that holds it. `docs/proposals/mechanisms/` holds 37 rows and the end's flush,
-   each with what it forces, the simpler forms weighed and the log's entries that weighed
-   them. Every row stays, and nothing in the report or the code changed. The form with no
-   process for the check of what foreign code sends was drafted as the report's sentences,
-   read cold and refused. What the readers read beside their questions is MVP 4.5's items
-   149 and 157.
+7. **The mechanisms read against what they force**, read and closed 2026-11-21 with every
+   row staying (the log's *The Mechanisms' Reading Closed*).
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about two weeks, after the launch
 
@@ -1048,12 +1041,15 @@ What the line left, in the order it is taken:
 
   - `Process.current()` in an adapted address's function on arrival is the process kept
     for the address. Sent on and killed, that process ends with the message it was
-    handed (`ern_gateway.erl:540`).
+    handed (`ern_gateway.erl:540`). Items 136 and 140 make their cases with the same
+    process.
   - A sole subscriber's restart ends the end's wait, so its new run that subscribes again
     may not be told (`ern_rt.erl:4524`), where Appendix E.23 has a restarted run told as
-    a new one.
+    a new one. The log's *MVP 3.1 Read* has a subscriber that restarts while the end
+    waits on another told again, and says nothing of one that is alone.
   - Across nodes a `Restarted` can follow the `Down` of a death where the watcher
-    monitors again at once (`ern_rt.erl:1854`), against §6.9.
+    monitors again at once (`ern_rt.erl:1854`), against §6.9's rule that item 74 built
+    (the log's *No Restarted After a Death*).
   - `examples/lease_broker.ern`'s client acts on a call's answer from the broker's new
     run before it reads the `Restarted` already in its mailbox. A call's answer does not
     pass through the mailbox, so §6.9's order does not cover it, and the example or §6.9
