@@ -22,8 +22,9 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 162**, the keys in
-`:help` and the shell's manual page. Items 163 and 164 follow it and end the milestone.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 162**, `:keys`,
+decided on 2026-11-21 and built next from the item's brief. Items 163 and 164 follow it and
+end the milestone.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -56,21 +57,43 @@ Read for Build Order*). Items 162 to 164 were added last, on the user's word of
 
 ### What is left
 
-- **162. `:help` lists the key bindings, and the shell's manual page**, the user's word on
-  2026-11-21. Today `:help` lists the commands alone, as §11.2 says, and the keys stand
-  only in the prose of §11.2's *Editing* and its search's paragraph.
-  - **The report first.** §11.2's line for `:help` says that it lists the commands and
-    then every key the shell binds, each with a line of help. How the keys are grouped
-    and worded is decided as the item opens. A key the shell binds and §11.2 does not
-    name is said to the user before it is listed.
-  - **One table.** The keys `:help` lists stand once, in the module that binds them, and a
-    test holds that each key the editor binds stands in the table, and each key in the
-    table is bound.
-  - **The manual page.** Read on 2026-11-21: the shell has no page of its own. ern(1),
-    which `make install` installs as `share/man/man1/ern.1`, renders §11 whole, so §11.2
-    stands in its DESCRIPTION, *Editing*'s keys among it, and `man ern` shows them.
-    **Decision:** whether that page is the shell's manual, `:help` naming `man ern` in its
-    last line, or the shell gains a page of its own.
+- **162. `:keys` lists the keys, and `:help` names the manual page**, decided with the user
+  on 2026-11-21 (the log's *The Keys Listed by `:keys`*). §11.2's *Editing* already says what
+  `C-` and `M-` are, and that a control key that sends no character of a named key does
+  nothing. What is left is the build, one agent's, from this brief.
+  - **The report first, in the build's commit**, since `commands_mirror_test` holds §11.2's
+    list of commands equal to the shell's table. §11.2's *Commands* takes two lines, word for
+    word. The line for `:help` becomes "`:help` lists the commands, each with a line of help,
+    and names the manual page." A line stands between `:help` and `:load`: "`:keys` lists the
+    keys the shell binds at a terminal, those that do the same on one line, each line with
+    its help."
+  - **The command.** `:keys` takes nothing and prints the same text at a terminal and in line
+    mode. Its line of `:help` is `the keys the shell binds at a terminal`. `:help` ends with a
+    line after its line on `it`: `The manual is man ern, the shell in its section 11.2.`
+  - **The list** is the log entry's, word for word, its help in the column the commands'
+    help stands in.
+  - **One table**, in `Ernest.Shell.Editor`, the module that binds the keys: each line's
+    keys and its help, and for each key the events a terminal sends for it, both characters
+    of `Enter` and of `Backspace` and every sequence of `Home` and `End` among them (§12.1).
+    `:keys` prints the table. The editor's dispatch stays as it is.
+  - **The test**, among the editor's own, holds the table to the editor both ways. Each key
+    of the table is bound: on some state, its events do other than nothing. Each key the
+    editor binds stands in the table: of the keys below, those that do other than nothing
+    on some state are the table's. The test is shown to fail on a key taken from the table
+    and on a key bound beside it.
+  - **The test's keys and states.** The keys are every control character, `Escape` and then
+    every character of ASCII but the two that begin a sequence, the four arrows, the
+    interrupt, and every sequence `Escape [` or `Escape O` begins that ends in one final
+    character or in a number and `~`. The states are an empty input, an input of several
+    lines with the cursor inside it, a kill held and the history walked back, and a search
+    under way. In a search any key that is not the search's own ends it, so there a key is
+    bound where it does other than end the search.
+  - **The documents.** The guide names `:keys` where it says the shell edits with Readline's
+    keys and where its chapter on tools lists the shell's commands.
+    [`design/shell.md`](design/shell.md)'s *Commands* says where the table stands and names
+    its test. `test/fixtures/session/basic.out` takes the new `:help`.
+  - **The checks.** `make test`, and `make test-full` before the commit that closes the
+    item.
 - **163. The known issues sorted**, the user's word on 2026-11-21. Each line of
   [`known_issues.md`](known_issues.md) is read against the code as it stands and given one
   of three verdicts, decided with the user a line at a time: dropped, the line going with
