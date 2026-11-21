@@ -4,6 +4,8 @@ Ernest is a functional language for concurrent programs, designed by the user (j
 
 This file holds what judgment cannot supply: what is the user's, who decides, and what the user wants of the work. Everything else is left to judgment. A document that a job needs is read when the job starts (*Read when the job starts*).
 
+A mistake adds no rule to this file. It gets an honest account when it happens, and a sentence here only where the user sees it come back.
+
 ## Authority
 
 - **The report is the only normative document**, in three files: `language.md`, `toolchain.md` and `library.md`. Nothing else in the repository overrides it.
@@ -48,13 +50,13 @@ Each fact has one owner, and every other document points at it.
 
 - **The session designs, reads and decides, and agents write the code.** A question about what the host or the code does is the session's own: it reads, and runs what the reading leaves open. [`docs/agents.md`](docs/agents.md) says how an agent is briefed, and is read before the first agent starts.
 - **What must run before an Ernest program can is Erlang.** Any other work that could be either is Ernest.
-- **Nothing routes around a defect or a gap.** A defect is fixed when found, or goes in the plan, or in the known issues where only a built corner shows it. A gap in the language or the library is said to the user at once, and nothing is written around it meanwhile.
+- **Nothing routes around a defect or a gap.** A defect that a first user meets is fixed when found, or is an item of the plan. A gap in the language or the library is said to the user at once, and nothing is written around it meanwhile.
+- **Before the launch stands what a first user meets.** It is asked of each item when it is written and before it starts. A corner that must be built on purpose to be met gets its line in [`docs/known_issues.md`](docs/known_issues.md), and becomes an item when the user takes it up.
+- **Nothing is left for its size or its difficulty.** What is left is what no first user meets, and it has its line in the known issues.
 - **Writing Ernest tests the language.** A workaround, a second way, a helper that belongs in the library or a form repeated at site after site is said at once, and gets its entry in [`docs/language_feedback.md`](docs/language_feedback.md).
 - **The log is searched before a finding is argued**, for the decision the finding may sharpen or reverse.
-- **Work in proportion.** Read the code before probing it. A probe or a measurement ends when its result stops deciding anything. The checks an item gets are sized to what it changes.
-- **Nothing is left for its size or its difficulty.** Work is left only where it would decide nothing and remove nothing.
+- **Work in proportion.** Read the code before running anything. What the reading shows to be deterministic is verified once, and only what is intermittent is run again. The checks an item gets are sized to what it changes.
 - **A published specification or a general-purpose engine is a library's work.** A program that finds itself writing one stops, and the user decides whether a library is written.
-- **Before the launch stands what a first user meets.** It is asked of each item when it is written and before it starts. A corner that must be built on purpose to be met gets its line in [`docs/known_issues.md`](docs/known_issues.md), and becomes an item when the user takes it up.
 - **`make test` runs before a commit**, `make test-docs` for documents alone, and `make test-full` before the commit that closes an item that changed code. Commit only after the check passes, on make's own exit status.
 - **Every report section has a test** whose comment cites it.
 - **The plan holds no stale sentence and no open question.** A step sweeps what it makes redundant in its own commit, and a question that waits for the user is a named decision in a milestone.
