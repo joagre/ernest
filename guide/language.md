@@ -3073,6 +3073,8 @@ A socket lives until `Tcp.close`, so the session closes it when its reader finds
 
 A socket `Tcp.connect` opens is owned the same way, by the process that connected. So a function that connects and may give up before it closes, as a block's `<-` gives up at a `Left`, runs under `Process.run` (§5.2): its process ends as the function returns, and closes what it opened.
 
+`Tcp.close` returns once the bytes written are sent or dropped, so a program that writes, closes and ends cuts nothing off. A process that cannot wait kills the socket, `kill(Process.fromAddress(socket))`: its bytes are sent the same way while the program runs (report Appendix E.18).
+
 `Tcp.listenTls` and `Tcp.connectTls` open a listener and a socket over TLS, which the same functions accept, read, write, give and close. A listener takes connections of its address's family alone, so a server for IPv4 and IPv6 opens `"0.0.0.0"` and `"::"` on one port (report Appendix E.18).
 
 ### 8.8 Prediction exercise

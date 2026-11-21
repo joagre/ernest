@@ -1905,7 +1905,10 @@ export fn main() : Unit = {
 %% A regression test, written after the code, of the close at a full table.
 %% It does not cover the reset where another process takes the writer's
 %% room before the closer is made, which no program can time, nor the
-%% linger's bounds at a full table, which ern_tcp_tests holds with room
+%% linger's bounds at a full table, which ern_tcp_tests holds with room.
+%% The far end is told to read before the close, which answers once the
+%% bytes are sent; a run in which it took every byte before the close
+%% holds only that the close answers
 full_table_close_lingers_test_() ->
     nodes_test({waits, 2}, fun full_table_close_lingers/1).
 
@@ -1954,7 +1957,8 @@ fn reader(port : Int) : Unit receiving ReaderMsg =
     }
 
 // The server writes more than the far end's buffers hold, fills the
-// table, closes, and tells the far end to read.
+// table, tells the far end to read, and closes.
+// The close returns once the bytes are sent, so the far end is told first.
 export fn main() : Unit receiving Down =
     match Tcp.listen(\"127.0.0.1\", 0) {
         Right(door) -> match Tcp.port(door) {
@@ -1966,8 +1970,8 @@ export fn main() : Unit receiving Down =
                         let _ = Tcp.write(socket, Bytes.repeat(<<65>>, size), waitMs());
                         filled(systemInfo(Foreign.atom(\"process_limit\"))
                                - systemInfo(Foreign.atom(\"process_count\")));
-                        Tcp.close(socket);
                         send(far, Go);
+                        Tcp.close(socket);
                         receive { _ -> Unit }
                     }
                   | Left(error) -> Io.println(\"accept: \" <> Io.show(error))

@@ -26,7 +26,9 @@
 /// `Left(Closed)`. The socket ends only with `close` or its owner's death, and
 /// a listener with `closeListener` or its owner's death. A read waiting when
 /// `close` ends the socket answers `Left(Closed)`, and a call after the end
-/// faults.
+/// faults. `close` returns once the bytes written, and over TLS the record
+/// that ends the connection, are with the kernel, or the bytes are dropped,
+/// so a program that writes, closes and ends cuts nothing off.
 ///
 /// **A wait that times out takes nothing.** The last argument of a function
 /// that waits is the milliseconds it waits, but for `acceptForever` and
@@ -118,7 +120,7 @@ export abstract type SocketMsg =
     Read(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
   | ReadForever(Reply(Either(Io.Error, Bytes)))
   | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
-  | Close
+  | Close(Reply(Unit))
   | Give(owner : Process)
   | Remote(Reply(Either(Io.Error, Endpoint)))
   | Local(Reply(Either(Io.Error, Endpoint)))
@@ -188,8 +190,9 @@ foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : a =
 
 // Report Appendix E.18, E.21: a call its callee never answers, which answers
 // `Unit` once the callee has ended, however it ends, and at once where it has
-// ended already, and whose wait `Process.status` reads as not limited, a
-// request that takes no time.
+// ended already, and where the callee is a socket, as `close` says, which
+// may wait for the process the socket makes as it ends; its wait
+// `Process.status` reads as not limited, a request that takes no time.
 foreign fn callUntilEnded(address : Address(m), request : (Reply(Unit)) -> m) : Unit =
     "ern_rt:call_until_ended/2"
 
@@ -490,17 +493,22 @@ export fn write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(I
     callLimited(socket, fn(reply) = Write(=bytes, =ms, =reply))
 
 /// Closes the connection and ends the socket's process, a read or a write the
-/// socket holds waiting answering `Left(Closed)`. On a socket that has ended
-/// already it does nothing.
+/// socket holds waiting answering `Left(Closed)`, and returns once the bytes
+/// the socket has taken and, over TLS, the record that ends the connection
+/// are with the kernel, or the bytes are dropped. It returns at once over TLS
+/// where the handshake has not ended, and on a socket that has ended already,
+/// where it does nothing.
 ///
 /// The bytes the socket has taken that the far end has not are sent on while
-/// the far end takes them. Those it has not taken 5 seconds after the close,
-/// or after the last bytes it took, or 3 minutes after the close, are dropped
-/// and the connection is reset. Over TLS the reset comes up to 10 seconds
-/// later, and a close that waits behind bytes the far end has not taken waits
-/// until it takes them or the program ends (report Appendix E.18).
+/// the far end takes them, and the close waits for them. Those it has not taken
+/// 5 seconds after the close, or after the last bytes it took, or 3 minutes
+/// after the close, are dropped and the connection is reset. Over TLS the
+/// reset comes up to 10 seconds later, and where the host's close waits behind
+/// bytes the far end has not taken, it waits until the far end takes them or
+/// the program ends. A process that must not wait kills the socket instead,
+/// whose bytes are sent the same way (report Appendix E.18).
 export fn close(socket : Address(SocketMsg)) : Unit =
-    send(socket, Close)
+    callUntilEnded(socket, Close)
 
 /// Makes `owner` the socket's owner, so that the socket is killed when `owner`
 /// dies, and no longer when the owner before did. Where `owner` has ended

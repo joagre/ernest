@@ -39,7 +39,7 @@
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [serve/2, counted_request/2, watched_request/3, opened/7, listener_loop/1,
                          listener_closed/1, socket_process/6, writing/3, handshake_failed/2,
-                         socket_loop/1, stop_writer/1, closer/1, lingering/5]}).
+                         socket_loop/1, stop_writer/1, closer/1, lingering/6]}).
 
 %% A listener's process: the TCP process, its transport, the host's socket,
 %% its owner's monitor, and the worker of each accept it has taken and not
@@ -200,7 +200,7 @@ watched_request(Work, Reply, Workers) ->
 %%
 %% It traps exits from its start, so that however it ends, by a kill, with
 %% the program or with the TCP process, a socket closes its host's socket
-%% itself (close_socket/2), while a listener ends with its own open, which
+%% itself (close_socket/3), while a listener ends with its own open, which
 %% the host closes as the process it is connected to dies (listener_loop/1).
 opened(Tcp, Transport, Socket, Made, Loop, Site, Owner) ->
     Opener = erlang:self(),
@@ -803,7 +803,7 @@ accepted(Result) ->
 %% it until one is given it, and is killed when its owner dies; a monitor of
 %% an owner that has already ended fires at once. Its writer is made with
 %% it, before its address is given out, and its closer at its end
-%% (close_socket/2).
+%% (close_socket/3).
 socket_process(Tcp, Transport, Socket, State, Owner, Site) ->
     Made = fun() ->
                Self = erlang:self(),
@@ -913,13 +913,20 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
         %% report Appendix E.18: its owner has died, and it is killed
         {'DOWN', MonitorRef, process, _, _} ->
             stop_writer(Writer),
-            close_socket(Transport, Socket),
+            close_socket(Transport, Socket, ending(Transport, State)),
             exit({ern, killed});
         %% report Appendix E.18: a read whose caller has ended before it
         %% was answered
         {'DOWN', ReadRef, process, _, _} ->
             socket_loop(dropped(ReadRef, Connection));
-        'Close' ->
+        %% report Appendix E.18: `close` answers once the socket's bytes
+        %% and, over TLS, the record that ends the connection are with the
+        %% kernel, or the bytes are dropped: as the socket ends where it
+        %% closed the host's socket itself, and else once the closer it made
+        %% has ended (ern_rt:call_until_ended/2). Over TLS where the
+        %% handshake has not ended, nothing was sent and no record can be,
+        %% and it answers as the socket ends.
+        {'Close', Closing} ->
             #connection{writes = Writes} = closed('Closed', Connection),
             stop_writer(Writer),
             %% report Appendix E.18: each write it holds answers `Left(Closed)`,
@@ -927,7 +934,10 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
             lists:foreach(fun(#write{reply = Reply}) ->
                               ern_rt:answer(Reply, {'Left', 'Closed'})
                           end, Writes),
-            close_socket(Transport, Socket),
+            case close_socket(Transport, Socket, ending(Transport, State)) of
+                none -> ok;
+                Closer -> ern_rt:finished_by(Closing, Closer)
+            end,
             %% report Appendix E.18: a call after the close faults its caller
             exit({ern, closed});
         %% the writer's exit, or the host's socket's when the far end has
@@ -937,7 +947,7 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
         %% report Appendix E.18: killed, or ended with the program
         {'EXIT', _, ExitReason} ->
             stop_writer(Writer),
-            close_socket(Transport, Socket),
+            close_socket(Transport, Socket, ending(Transport, State)),
             exit(ExitReason);
         {'Remote', Reply} ->
             Inet = inet_module(Transport),
@@ -968,6 +978,26 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
 inet_module(gen_tcp) -> inet;
 inet_module(ssl) -> ssl.
 
+%% Report Appendix E.18: how the socket ends the host's socket. Over TCP,
+%% `close`, its closer makes the host's close once the host holds none of
+%% the socket's bytes. Over TLS once the handshake has ended, `record`, the
+%% closer has the host write the record that ends the connection first, by
+%% its shutdown of both ways, after which the host's close waits for
+%% nothing the far end does. Over TLS where the handshake has not ended,
+%% `shaking`, the host ends the connection itself (close_socket/3). Read
+%% once the writer, which shakes hands, has ended, its word that the
+%% handshake ended then in the mailbox already.
+ending(gen_tcp, _) ->
+    close;
+ending(ssl, handshaking) ->
+    receive
+        {handshaken, _} -> record
+    after 0 ->
+        shaking
+    end;
+ending(ssl, _) ->
+    record.
+
 %% The writer is ended before the host's socket closes, so that it gives
 %% the host no more bytes; a write the host was holding back, the
 %% connection being behind, has given none.
@@ -997,15 +1027,29 @@ stop_writer(Writer) ->
 %% when the host's socket closes. A socket over TLS is not shut down: the
 %% host's shutdown writes no record that ends the connection, and once the
 %% writing side is shut ssl's close cannot write one, so the far end would
-%% read the connection cut short. Its connection ends by ssl's close, with
-%% the record, once the closer finds every byte taken.
+%% read the connection cut short. Its connection ends with the record once
+%% the closer finds every byte taken (lingering/6).
 %%
 %% The closer is made now, once the writer has ended (stop_writer/1), so
 %% that it takes the writer's room in the host's table of processes.
 %% Report Appendix E.18, §12.5: where the table has no room for it, the
 %% socket closes with a linger of no time, what the far end has not taken
 %% dropped and the connection reset.
-close_socket(Transport, Socket) ->
+%%
+%% It answers the closer given the host's socket, whose end a close waits
+%% for, or `none` where the host's socket closed here. Ending is what the
+%% closer does once the host holds none of the socket's bytes (ending/2).
+%%
+%% Report Appendix E.18: over TLS where the handshake has not ended the
+%% socket asks the host nothing, since the host's process of the
+%% connection may then answer only once it has ended the connection with
+%% an alert and waited for the far end, 5 seconds over TLS 1.3. Nothing was
+%% sent that a closer could send on, and as the socket's process, its
+%% owner, ends, the host's process ends the connection itself, with the
+%% alerts that cancel the handshake and close the connection and no wait.
+close_socket(ssl, _, shaking) ->
+    none;
+close_socket(Transport, Socket, Ending) ->
     Inet = inet_module(Transport),
     case Inet:getstat(Socket, [send_pend]) of
         {ok, [{send_pend, Pending}]} when Pending > 0; Transport =:= ssl ->
@@ -1019,56 +1063,76 @@ close_socket(Transport, Socket) ->
                             ssl -> ok
                         end,
                     case Transport:controlling_process(Socket, Closer) of
-                        ok -> Closer ! {close, Transport, Socket, Pending, Ended};
-                        {error, _} -> Transport:close(Socket)
+                        ok ->
+                            Closer ! {close, Transport, Socket, Ending, Pending, Ended},
+                            Closer;
+                        {error, _} ->
+                            closed_here(Transport, Socket)
                     end
             catch
                 error:system_limit ->
                     _ = Inet:setopts(Socket, [{linger, {true, 0}}]),
-                    Transport:close(Socket)
+                    closed_here(Transport, Socket)
             end;
         _ ->
-            Transport:close(Socket)
+            closed_here(Transport, Socket)
     end.
+
+%% The host's socket closed by the socket's process, which no closer
+%% finishes.
+closed_here(Transport, Socket) ->
+    _ = Transport:close(Socket),
+    none.
 
 %% Report Appendix E.18: a socket's closer, waiting for the host's socket,
 %% which the socket's process gives it with what the host held then
-%% (close_socket/2), or for that process's end, after which it holds
+%% (close_socket/3), or for that process's end, after which it holds
 %% nothing to close.
 closer(SocketProcess) ->
     MonitorRef = erlang:monitor(process, SocketProcess),
     receive
-        {close, Transport, Socket, Pending, Ended} ->
+        {close, Transport, Socket, Ending, Pending, Ended} ->
             erlang:demonitor(MonitorRef, [flush]),
-            lingering(Transport, Socket, Pending, Ended, Ended);
+            lingering(Transport, Socket, Ending, Pending, Ended, Ended);
         {'DOWN', MonitorRef, process, _, _} ->
             ok
     end.
 
 %% Report Appendix E.18: the closer looks at what the host still holds, at
-%% once and then every LINGER_CHECK. Nothing left closes the socket. Nothing
-%% taken for 5 seconds, or 3 minutes since the end, drops the rest and
-%% resets the connection, which the host's close does with a linger of no
-%% time.
-lingering(Transport, Socket, Pending, Moved, Ended) ->
+%% once and then every LINGER_CHECK. Nothing left closes the socket. Over
+%% TLS once the handshake has ended, nothing left first has the host write
+%% the record that ends the connection, by its shutdown of both ways, which
+%% returns at once only where the host holds none of the socket's bytes,
+%% and behind them waits 10 seconds of its own; the look then goes on at
+%% once, since a record written while the kernel's buffer is full waits in
+%% the host's queue as the bytes did, and the host's close comes once none
+%% of it is left. Nothing taken for 5 seconds, or 3 minutes since the end,
+%% drops the rest and resets the connection, which the host's close does
+%% with a linger of no time.
+lingering(Transport, Socket, Ending, Pending, Moved, Ended) ->
     Inet = inet_module(Transport),
     Now = erlang:monotonic_time(millisecond),
     InTime = Now - Ended < ?LINGER_LIMIT,
     case Inet:getstat(Socket, [send_pend]) of
+        {ok, [{send_pend, 0}]} when Ending =:= record ->
+            _ = ssl:shutdown(Socket, read_write),
+            lingering(Transport, Socket, close, Pending, Now, Ended);
         {ok, [{send_pend, 0}]} ->
             Transport:close(Socket);
         {ok, [{send_pend, Left}]} when Left < Pending, InTime ->
             receive after ?LINGER_CHECK -> ok end,
-            lingering(Transport, Socket, Left, Now, Ended);
+            lingering(Transport, Socket, Ending, Left, Now, Ended);
         {ok, _} when Now - Moved < ?LINGER_IDLE, InTime ->
             receive after ?LINGER_CHECK -> ok end,
-            lingering(Transport, Socket, Pending, Moved, Ended);
+            lingering(Transport, Socket, Ending, Pending, Moved, Ended);
         {ok, _} ->
             _ = Inet:setopts(Socket, [{linger, {true, 0}}]),
             Transport:close(Socket);
         {error, _} ->
             %% the far end has closed the connection, and the host's socket
-            %% has closed with it
+            %% has closed with it, or, after the host's shutdown, the host's
+            %% process of the connection has closed it or the shutdown has
+            %% failed and ended the connection
             ok
     end.
 

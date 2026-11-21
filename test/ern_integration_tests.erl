@@ -1531,6 +1531,132 @@ run_ends_over_an_unread_socket() ->
         end
     end.
 
+%% report Appendix E.18: a program that writes more than the host takes,
+%% closes its socket and ends cuts nothing off: `close` answers once the
+%% bytes are with the kernel, so a far end outside the program, which
+%% begins to read once the program says that it closes, takes every byte
+%% and then the connection's close, and the run ends with status 0.
+%%
+%% Written first, a regression test: the close that was a send answered at
+%% once, the run's halt cut what the host held, and the far end took a part
+%% of the bytes and then an orderly close, as neither end could see. Its
+%% steps: the build, the connection, the program's line, the far end's
+%% reads and the run's end.
+close_sends_before_the_run_ends_test_() ->
+    ern_nodes_tests:counted_test({waits, 5}, fun close_sends_before_the_run_ends/0).
+
+close_sends_before_the_run_ends() ->
+    Dir = close_sends_built("build/close_sends"),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Listen),
+    Megabytes = 64,
+    Program = close_sends_run(Dir, [Port, Megabytes]),
+    try
+        FarEnd = ern_nodes_tests:accepted(Listen),
+        ?assertEqual(ok, said_line(Program, <<"closing\n">>)),
+        ?assertEqual({Megabytes * 1048576, closed}, ern_nodes_tests:read_to_its_end(FarEnd)),
+        ?assertEqual({0, <<>>}, finished(Program)),
+        ok = gen_tcp:close(FarEnd)
+    after
+        gen_tcp:close(Listen),
+        killed(Program)
+    end.
+
+%% report Appendix E.18: over TLS too a program that writes more than the
+%% host takes, closes its socket and ends cuts nothing off: `close` answers
+%% once the bytes and the record that ends the connection are with the
+%% kernel, so a far end outside the program, of the host's own `ssl`, which
+%% begins to read once the program says that it closes, takes every byte
+%% and then the record, and the run ends with status 0. The far end tells
+%% the record by how its process of the connection ends: as the peer's
+%% close after the record, and as the transport's close without it.
+%%
+%% Written first, a regression test of the close that waits for the record
+%% alone: on the code before it, whose close waited for the host's close,
+%% it passed too. Its steps: the build, the program's line and the run's
+%% end.
+close_sends_its_record_before_the_run_ends_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun close_sends_its_record_before_the_run_ends/0).
+
+close_sends_its_record_before_the_run_ends() ->
+    Dir = close_sends_built("build/close_sends_tls"),
+    {ok, _} = application:ensure_all_started(ssl),
+    #{server := {Certificate, Key}} = ern_tcp_tests:pki(),
+    {ok, Listen} = ssl:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}},
+                                  {certfile, Certificate}, {keyfile, Key}]),
+    {ok, {_, Port}} = ssl:sockname(Listen),
+    Megabytes = 64,
+    Program = close_sends_run(Dir, [Port, Megabytes, tls]),
+    try
+        {ok, Handshaking} = ssl:transport_accept(Listen, 10000),
+        {ok, FarEnd} = ssl:handshake(Handshaking, 10000),
+        Connection = ern_tcp_tests:tls_connection_of(self()),
+        ConnectionRef = erlang:monitor(process, Connection),
+        ?assertEqual(ok, said_line(Program, <<"closing\n">>)),
+        ?assertEqual({Megabytes * 1048576, {error, closed}}, ern_tcp_tests:tls_taken(FarEnd, 0)),
+        ?assertEqual({shutdown, peer_close},
+                     receive {'DOWN', ConnectionRef, process, Connection, Why} -> Why end),
+        ?assertEqual({0, <<>>}, finished(Program))
+    after
+        ssl:close(Listen),
+        killed(Program)
+    end.
+
+%% The program of the two tests above, built in Dir, a directory of each
+%% test's own, since the two may run side by side.
+close_sends_built(Dir) ->
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/close_sends.ern", <<"
+// Report Appendix E.18: a program that connects to the port it is given,
+// over TLS where a third argument is given, writes the megabytes it is
+// given in one write, says that it closes, and closes the socket as its
+// last act.
+
+export fn main() : Unit =
+    match List.map(Os.arguments, String.toInt) {
+        [Some(port), Some(megabytes)] -> sent(Tcp.connect(\"127.0.0.1\", port, 10000), megabytes)
+      | [Some(port), Some(megabytes), _] ->
+            sent(Tcp.connectTls(\"127.0.0.1\", port, Tcp.Unverified, 10000), megabytes)
+      | _ -> Unit
+    }
+
+fn sent(connected : Either(Io.Error, Address(Tcp.SocketMsg)), megabytes : Int) : Unit =
+    match connected {
+        Right(socket) ->
+            match Tcp.write(socket, Bytes.repeat(<<120>>, megabytes * 1048576), 10000) {
+                Right(_) -> {
+                    Io.println(\"closing\");
+                    Tcp.close(socket)
+                }
+              | Left(error) ->
+                    Io.println(Io.show(error))
+            }
+      | Left(error) ->
+            Io.println(Io.show(error))
+    }
+">>),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/close_sends.ern"),
+    Dir.
+
+%% The program of close_sends_built/1 run with Arguments.
+close_sends_run(Dir, Arguments) ->
+    open_port({spawn_executable, filename:absname("../bin/ern")},
+              [{args, ["run", "close_sends.erc"]
+                      ++ [case Argument of
+                              tls -> "tls";
+                              _ -> integer_to_list(Argument)
+                          end || Argument <- Arguments]},
+               {cd, Dir}, exit_status, stderr_to_stdout, binary]).
+
+%% A run a failed step left, its port still open, killed by its process
+%% number.
+killed(Program) ->
+    case erlang:port_info(Program, os_pid) of
+        {os_pid, OsPid} -> os:cmd("kill -KILL " ++ integer_to_list(OsPid));
+        undefined -> ok
+    end.
+
 %% report §12.1: a program writing faster than its reader reads is held to
 %% the reader's pace, so what it has written and the reader has not taken
 %% is not held in the node. A regression test, written after the code: two

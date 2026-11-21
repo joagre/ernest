@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is what is left of MVP 4.16's item 100**: that a program which writes,
-closes and ends loses nothing, its form decided and then built.
+**The next item is what is left of MVP 4.16's item 100**: the build of a `Tcp.close` that
+answers once its socket's bytes are sent or dropped.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -107,15 +107,11 @@ MVP 4.5's item 68 (the log's *An Order Nobody Promised*).
   Left, the third question, placed with the user on 2026-11-19 (the log's *What a Program
   Can Wait On Before Its End*). Shown: a program that writes 8 MiB, closes and returns cuts
   what the host still held, the far end reads an orderly close, and OTP alone loses
-  nothing. The cut is to be ended, and its form is the item's last decision, which the
-  user left to the session.
-
-  A `Tcp.close` that answers once the host's socket has closed was drafted as E.18's
-  sentences and read cold once: it touches E.0's shape rule 8, §6.9 and E.21, and leaves a kill during the wait, a close during a TLS handshake and one case
-  over TLS unsaid. The other form leaves `close` as it is and has the program's end wait
-  for the sockets it closed. The form chosen is shown to the user as sentences before they
-  are written, and is built then. The closer's look once a second stays either way, one
-  mechanism over TCP and over TLS.
+  nothing. Decided with the user: `Tcp.close` answers once the socket's bytes and, over
+  TLS, the record that ends the connection are with the kernel, or the bytes are dropped,
+  the socket ending at the close as it did, and the closer's look once a second stays, one
+  mechanism over TCP and over TLS (the log's *A Close Answers Once Its Bytes Are Sent*).
+  E.18, E.0's shape rule 8 and the guide's §8.7 say it, and it is built.
 
   At its close MVP 4.5's item 122 takes what the probes showed of its case: a close drops
   the writes its writer still holds, those answered `Left(Timeout)` among them.

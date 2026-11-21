@@ -44,7 +44,8 @@
          is_never_given/1, is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3,
          spawn_root/2, spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, call_limited/2,
-         call_until_ended/2, compute/4, answer/2, refuse/2, reply_process/1, is_reply/1,
+         call_until_ended/2, finished_by/2, compute/4, answer/2, refuse/2, reply_process/1,
+         is_reply/1,
          monitor/2, monitor_service/2, demonitor/1, kill/1, killed/2, reason/1,
          peer_restarted/1, left_waiting/1, wait_for_deliveries/0, started_by/1,
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
@@ -83,8 +84,8 @@
                           restart_taken/1, end_with_program/0, waited_deliveries/1,
                           waited_reports/0, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
--receives({ernest_wait, [waited_answer/3, call_forever/4, call_until_ended/2, waited_evaluation/2,
-                         evaluated_lives/1, sleep_until/1]}).
+-receives({ernest_wait, [waited_answer/3, call_forever/4, call_until_ended/2, finished/1,
+                         waited_evaluation/2, evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, faults/1, ask_monitor/2, demonitor/1,
                               spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
                               evaluator_ended/2, captured/1, checker_for/3]}).
@@ -852,13 +853,16 @@ call_limited(Address, Request) ->
     call_forever(Address, Request, none, true).
 
 %% Report Appendix E.18, E.21, §8.6: the other call private to Tcp, which
-%% Tcp.closeListener makes. Its callee never answers it: it answers `Unit`
-%% once the callee has ended, however it ends, and at once where it has
-%% ended already, its monitor's Down then `noproc`. It waits as a call does,
-%% noted as one on its callee and read by Process.status as a call without
-%% a limit, so that the look reads it as callForever's wait. Report §3.11:
-%% a listener is of the caller's node; one that ended with the program ends
-%% its caller with it, as callForever's callee does.
+%% Tcp.close and Tcp.closeListener make. Its callee never answers it: it
+%% answers `Unit` once the callee has ended, however it ends, and at once
+%% where it has ended already, its monitor's Down then `noproc`; where the
+%% callee tells it that its end is finished by a process it made as it
+%% ends, a socket's closer, once that process has ended too
+%% (finished_by/2). It waits as a call does, noted as one on its callee
+%% and read by Process.status as a call without a limit, so that the look
+%% reads it as callForever's wait. Report §3.11: a listener and a socket
+%% are of the caller's node; one that ended with the program ends its
+%% caller with it, as callForever's callee does.
 -spec call_until_ended(address(), fun((reply()) -> term())) -> 'Unit'.
 call_until_ended(Address, Request) ->
     Since = monotonic(),
@@ -871,6 +875,7 @@ call_until_ended(Address, Request) ->
                      {'DOWN', Reply, process, _, CalleeExitReason} ->
                          closed(),
                          {ended, reason(CalleeExitReason)};
+                     {Reply, finished_by, Finisher} -> finished(Finisher);
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
                      '$ern_restart' -> restart;
@@ -887,6 +892,35 @@ call_until_ended(Address, Request) ->
         {thrown, Fault} -> throw(Fault);
         restart -> restart_now()
     end.
+
+%% Report Appendix E.18, E.21, §8.6: the wait for Finisher, which finishes
+%% the callee's end, until it has ended. The callee told the call so before
+%% it ended, and the host orders the two, so the callee's Down comes after,
+%% and is let go with the call (settled/1). The call stays noted on the
+%% callee: Process.status reads it as a call on the callee, and the look,
+%% once the reaper has taken the callee's end, as a call on a process with
+%% no row, which may deliver (calling_the_foreign/1). A restart asked for
+%% and a foreign message's fault are taken here, as at the callee's wait.
+finished(Finisher) ->
+    MonitorRef = erlang:monitor(process, Finisher),
+    receive
+        {'DOWN', MonitorRef, process, _, _} ->
+            {ended, normal};
+        '$ern_restart' ->
+            erlang:demonitor(MonitorRef, [flush]),
+            restart;
+        {'$ern_fault', ForeignFault} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            {thrown, ForeignFault}
+    end.
+
+%% Report Appendix E.18: the callee of a call_until_ended/2 tells its caller,
+%% before it ends, that its end is finished by Finisher, a process it made
+%% as it ends, so that the call answers once Finisher has ended too.
+-spec finished_by(reply(), pid()) -> 'Unit'.
+finished_by({Alias, _}, Finisher) ->
+    Alias ! {Alias, finished_by, Finisher},
+    ?UNIT.
 
 %% The call that waits for its answer however long it takes, Limited where
 %% the request gives its callee a time. Report §6.6, §7.4: the callee's
