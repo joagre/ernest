@@ -142,6 +142,8 @@ A node accepts a connection from a listed key alone, and nothing else is set up:
 
 `Peer.spawn` starts `count` on `foo` and answers `Right(address)`, or `Left(error)` with the reason it could not, an `Either`; `let far <-` binds the address inside a `Right`, as `<-` does in a block, and on a `Left` binds no name and shows the reason, which `it` then names, `Left(Io.NotListed)` where no peer is named `foo` (the guide's §2.7). The shell connected to `foo` as the spawn needed it, and `count` crossed with the spawn, since `foo` had no code of it. The counter there is then the counter of chapter 1: the same `send`, the same call, the same answer. That is *Why Ernest*'s claim *Code travels*: a process started on another node brings its code along, and nothing was installed first.
 
+One thing on the page is not promised: that the `Inc` reaches `foo`'s counter before the `Get`. Each input runs in a process of its own (the guide's §9.3), so the two are two senders' messages, and messages are ordered for one sender alone (the guide's §5.1, report §6.4). In chapter 1 the `send` had placed its message before the next input began; to another node it returns once the runtime has the message (the guide's §4.1 and §8.2). The page shows one order. A program that needs the order sends both from one process.
+
 Chapter 1's counter ended with its shell; this shell runs to the end of the tour. A shell started with `--config-dir` is a node like any other (the guide's §9.2 and §8.1).
 
 ## 3. The client

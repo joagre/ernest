@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is what is left of MVP 4.16's item 95**, a send and a call to another node
-in two inputs, which the session writes.
+**The next item is MVP 4.16's item 100**, when a close reaches the far end and what a read
+answers after one: its probes first, then a design discussion with the user.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -51,11 +51,11 @@ Build Order*).
 
 ### What is left
 
-Each item left stands alone. The items stand below in the order they are taken, in two
-groups: what is decided and waits for its build, then what needs the user. The order was
-decided with the user on 2026-11-15 (the log's *A Status Read Before the Watch*, its
-paragraph *The order of what is left*), and its first group, what the builds found, is done
-since 2026-11-20. An item planned since stands where its group's sentence says.
+Each item left stands alone. The items stand below in the order they are taken. The order
+was decided with the user on 2026-11-15 (the log's *A Status Read Before the Watch*, its
+paragraph *The order of what is left*). Of its groups, what the builds found is done since
+2026-11-20 and what was decided and waited for its build since 2026-11-21. What needs the
+user is left.
 
 Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
 and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
@@ -63,23 +63,6 @@ Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only
 corner shows it (the log's *Item 140 Stands After the Launch*). Items 135 and 136 moved
 there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch* and
 *Item 136 Stands After the Launch*).
-
-**What is decided and waits for its build** stands first. What is left of item 95 is a
-verdict on an order nobody promised. Item 101's rule read it again on 2026-11-20, and it
-stands (the log's *An Order Nobody Promised*).
-
-- **95. A shell session that shows more than the report promises**, decided with the user
-  on 2026-11-17 (the log's *The Outside Reviews Read*, its paragraph *Three shell
-  sessions*). The session writes it, and it closes on `make test`. Two of its three lines,
-  a move shown as done and the tour's restart limit, were written on 2026-11-20 (the log's
-  *Two Shell Sessions Written*). One is left:
-
-  - A send and a call to another node, in two inputs. Item 101's rule read the verdict
-    again on 2026-11-20, and it stands. The tour's chapter 2 says that each
-    input is a sender of its own, that the report orders one sender's messages alone
-    (§6.4), that the page shows one order, and that a program which needs the order sends
-    both from one process. The guide's §1.4 gains the same as a clause. The transcripts
-    stay as typed, and the README stays as it is.
 
 **What needs the user**, each a design discussion of its own. Item 142 is read on its date
 and orders nothing. Item 100, ernest-httpd's session's two lines on a close, is the rest,
@@ -277,6 +260,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 101 | What an order nobody promised gets: nothing, unless a sentence of the report or a sibling operation leads to it; then a mechanism where there is something to wait on, no rule breaks and the cost is a fraction, and otherwise a sentence; the seven verdicts, item 93 and item 95's line stand, the eighth case is item 154, and item 142 carries the rule to `CLAUDE.md`, with the user | 2026-11-20 | *An Order Nobody Promised* |
 | 154 | Messages one process sends through one check are received in sending order; a checked message takes one step more, in the check's process, need not be in its receiver's mailbox when the foreign function that sent it has returned, and can be passed by one sent the same receiver after it another way; foreign code sends as the process it runs in; shown by two probes, four tests, no code of the runtime changed, with the user | 2026-11-20 | §6.4, §8.4, §8.7; *The Order Through One Check* |
 | 93 | `Tcp.closeListener` answers once the listener has ended and its host socket has closed, each accept it held answered `Left(Closed)` first, by a second call private to `Tcp`; a held accept faults where the listener is killed or its owner dies; `Os.closeInput` answers once the close is made, under a terminal once the helper says the hangup is made, and faults on an ended process and where the helper has failed; the harness's write of nothing went, and two terminal tests build their fixtures into roots of their own; item 155 found, with the user | 2026-11-21 | Appendix E.18, E.23; *The Two Closes Answer* |
+| 95 | Three shell sessions that showed more than the report promises: the tour's chapter 8 lists a move after an answered `report`, and the deployment guide names what its listing rests on; the tour's restart limit is an hour; the tour's chapter 2 and the guide's §1.4 say that a send and a call to another node in two inputs are two senders' messages and that the page shows one order, the tour also why chapter 1's order holds; the transcripts as typed, with the user | 2026-11-21 | *The Outside Reviews Read*, *Two Shell Sessions Written*, *A Send and a Call in Two Inputs* |
 
 ---
 

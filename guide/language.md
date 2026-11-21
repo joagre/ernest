@@ -240,6 +240,8 @@ far : Address(Counter.CounterMsg)
 Some(5) : Optional(Int)
 ```
 
+Each input is a sender of its own (§9.3) and messages are ordered for one sender alone (§5.1), so the page shows one order in which the `Inc` and the `Get` reach `foo`; a program that needs the order sends both from one process.
+
 How the nodes are made and listed is §8.1, and the whole picture in an evening is [the tour](../tour/README.md), whose chapter 2 these lines are.
 
 ### 1.5 Prediction exercise
