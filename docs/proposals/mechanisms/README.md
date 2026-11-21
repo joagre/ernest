@@ -1,11 +1,12 @@
 # The mechanisms read against what they force
 
-Status: a reading under way, MVP 4.4's item 6 (the log's *The Mechanisms Read, Planned*). The rows are found and counted, and five of them are read, on 2026-11-21. The seven rows of the five readings are decided, and each stays. Nothing here is authoritative, and nothing in the report or the code changes by it.
+Status: a reading under way, MVP 4.4's item 6 (the log's *The Mechanisms Read, Planned*). The rows are found and counted, and five of them are read, on 2026-11-21. The seven rows of the five readings are decided, and each stays. The other thirty and the end's flush are read and recommended to stay. Nothing here is authoritative, and nothing in the report or the code changes by it.
 
 | File | What it is | Status |
 |---|---|---|
 | `README.md` | the measure, what a row is, how it is counted, and the rows ranked | the rows counted |
 | [`first_five.md`](first_five.md) | rows 10, 11, 18 with 24 and 33, 8 and 9: the log's reasons, the other forms, what a program loses by each, and what a second reader found | read and decided; each stays |
+| [`rows.md`](rows.md) | the other thirty rows and the end's flush: what each is for, the log's entry that weighed its simpler form, and the five decisions the rows stand on | read; each recommended to stay, none decided |
 | [`row_10.md`](row_10.md) | the check with no process: the report's sentences drafted, and their cold reading | read cold; decided, the checker stays |
 
 ## The measure
@@ -101,5 +102,5 @@ The argument names no other row. It leaves a deadlock out, so row 13 holds no cl
 ## What is not done
 
 - **Read.** §6 to §8, §10, §12 and Appendices E.15, E.18, E.21 to E.24, E.27 and E.28 were read whole, with the runtime's and the nodes' design notes. §11.2 was read to the shell's part. The rest of the report was searched by the patterns and not read.
-- **The argument of 30 rows**: the log's entries that decided the mechanism, the simpler way to hold the same promise, the narrower promise that would take the mechanism out, and what a program loses by it, the loss before the saving. [`first_five.md`](first_five.md) has it for the five read first.
-- **A row for the end's flush and its cut**, which row 9 counts with the subscribers' wait.
+- **The code of the other thirty rows.** [`rows.md`](rows.md) read their sentences and the log, and no code, and gave no row a second reader.
+- **The flush's count.** It is read in [`rows.md`](rows.md), its words counted and its code not counted apart from row 9's.
