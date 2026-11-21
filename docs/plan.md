@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 7**, `Crypto.sha256`,
-the first of the packages proposal's build order.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 8**, `ern unpack`,
+the second of the packages proposal's build order.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -57,16 +57,14 @@ Read for Build Order*). So the milestone ends with item 9.
 
 The packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
-No further cold reading of §11.9's diff runs: each of items 7 and 8 reads its own sentences of
-§11.9 against its build and its probes before it closes, as items 5 and 6 did, and a finding
-changes the report first (the log's *A Package and Its Manifest*).
+No further cold reading of §11.9's diff runs: item 8 reads its own sentences of §11.9 against
+its build and its probes before it closes, as items 5 and 6 did, and a finding changes the
+report first (the log's *A Package and Its Manifest*).
 
-- **7. `Crypto.sha256`**, its E.0 reading and its line of Appendix G first. Decided with the
-  user 2026-11-14 (the log's *An Archive Without Links*): no library over tar or gzip is
-  written, and none reads the tar format in Ernest.
 - **8. `ern unpack`**, in Ernest, over `Crypto.sha256` and the host's `erl_tar`. Its rules
   were decided with the user on 2026-11-14: a member's kind and the host's `erl_tar` in the
-  log's *An Archive Without Links*, and which rules stay in *The Trust Said Once*.
+  log's *An Archive Without Links*, and which rules stay in *The Trust Said Once*. No library
+  over tar or gzip is written, and none reads the tar format in Ernest.
 
   - **The report first.** The item rewrites §11.9's paragraphs on an archive: its paragraph
     on where a link may reach goes, and §11.9 states the rules of a member's name and kind
@@ -112,7 +110,8 @@ changes the report first (the log's *A Package and Its Manifest*).
 ### What is done
 
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
-shell's editing, was built after them, then item 52, item 54, item 160, and item 161 last.
+shell's editing, was built after them, then item 52, item 54, item 160 and item 161, and item
+7 last.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -126,6 +125,7 @@ shell's editing, was built after them, then item 52, item 54, item 160, and item
 | 54 | What item 49 left: a path in `--emit-erl`'s first line and in a page's last line is written as §11.5 writes one, a peer's name holds no control character, and a value a refusal quotes from a configuration is written as JSON writes it | 2026-11-21 | *Each Value in the Escape of Its Own Notation* |
 | 160 | What item 119's cold reading left in §11.2: the live region named once, the prompt, a command kept as an input is, the search's paragraph, a paste a terminal brackets, and the words that said another thing | 2026-11-21, sentences alone | *The Live Region Named Once* |
 | 161 | An input taller than the screen drawn through a window, the cursor's row in it, and the region's erase made no clear from the screen's corner, with `Ansi.clearRow` | 2026-11-21 | *A Window onto the Input* and *A Window onto the Input, Built* |
+| 7 | `Crypto.sha256`, a shim beside `sha1`, its E.0 reading and its line of Appendix G.9 first | 2026-11-21 | *SHA-256 Beside SHA-1* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---

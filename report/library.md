@@ -1254,10 +1254,11 @@ Base64.decode : (String) -> Optional(Bytes) // None for a text encode does not w
 
 ### Appendix G.9. `libs/crypto` (namespace `Crypto`)
 
-Two shims over the host's `crypto` (E.0 rule 1). `sha1` is the SHA-1 digest of the bytes, 20 bytes, as FIPS 180-4 defines it. `randomBytes(count)` is `count` bytes from the host's strong random source, the one a key or a cookie is drawn from; a count below 0 is 0, and where the host's source cannot give the bytes the caller faults with the host's reason (§7.4).
+Three shims over the host's `crypto` (E.0 rule 1). `sha1` is the SHA-1 digest of the bytes, 20 bytes, and `sha256` their SHA-256 digest, 32 bytes, each as FIPS 180-4 defines it. `randomBytes(count)` is `count` bytes from the host's strong random source, the one a key or a cookie is drawn from; a count below 0 is 0, and where the host's source cannot give the bytes the caller faults with the host's reason (§7.4).
 
 ```
 Crypto.sha1 : (Bytes) -> Bytes // the digest, 20 bytes
+Crypto.sha256 : (Bytes) -> Bytes // the digest, 32 bytes
 Crypto.randomBytes : (Int) -> Bytes // from the host's strong random source
 ```
 

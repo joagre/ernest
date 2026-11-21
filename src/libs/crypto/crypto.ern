@@ -1,11 +1,12 @@
-/// The SHA-1 digest of bytes, and bytes from the host's strong random source.
+/// The SHA-1 and SHA-256 digests of bytes, and bytes from the host's strong
+/// random source.
 ///
-/// Use `sha1` where a protocol names SHA-1, as WebSocket's opening handshake
-/// does (RFC 6455). Two inputs with one SHA-1 digest have been found, so a
-/// digest that a forger must not match is not SHA-1's to give. Use
-/// `randomBytes` for what must not be guessed, a key, a token or a cookie;
-/// numbers a program draws for a simulation or a test, which a seed
-/// repeats, are `Random`'s.
+/// Use `sha256` for a digest that a forger must not match, a downloaded
+/// file's checksum among them. Use `sha1` only where a protocol names SHA-1,
+/// as WebSocket's opening handshake does (RFC 6455), since two inputs with one
+/// SHA-1 digest have been found. Use `randomBytes` for what must not be
+/// guessed, a key, a token or a cookie; numbers a program draws for a
+/// simulation or a test, which a seed repeats, are `Random`'s.
 ///
 /// The library stands on every job's load path, so a program names it with
 /// no option (report Appendix G).
@@ -17,11 +18,18 @@
 ///
 /// ## Examples
 ///
-/// The digest of `abc`, FIPS 180-4's example, in hexadecimal:
+/// The SHA-1 digest of `abc`, FIPS 180-4's example, in hexadecimal:
 ///
 /// ```ernest
 /// Bytes.toHex(Crypto.sha1(String.toUtf8("abc")))
 /// // => "A9993E364706816ABA3E25717850C26C9CD0D89D"
+/// ```
+///
+/// Its SHA-256 digest, FIPS 180-4's example too:
+///
+/// ```ernest
+/// Bytes.toHex(Crypto.sha256(String.toUtf8("abc")))
+/// // => "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"
 /// ```
 ///
 /// A token of 16 random bytes, in hexadecimal, another at every call:
@@ -49,6 +57,20 @@
 export fn sha1(bytes : Bytes) : Bytes =
     hash(Foreign.atom("sha"), bytes)
 
+/// The SHA-256 digest of the bytes, 32 bytes, as FIPS 180-4 defines it.
+/// Empty bytes have one too.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.toHex(Crypto.sha256(<<>>))
+/// // => "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+/// ```
+///
+/// since 0.11.0
+export fn sha256(bytes : Bytes) : Bytes =
+    hash(Foreign.atom("sha256"), bytes)
+
 /// `count` bytes from the host's strong random source, each of the 256
 /// values as likely as any other. A count below 0 is 0, which answers no
 /// bytes (report §7.4).
@@ -73,18 +95,30 @@ export fn randomBytes(count : Int) : Bytes =
 // written with the code (report Appendix G.9).
 //
 
-// Report Appendix G.9: the digest of no bytes, and FIPS 180-4's two
-// examples for SHA-1, of one block and of two.
-let digests =
-    Test.Case(name = "the digests of no bytes and of FIPS 180-4's examples",
+// Report Appendix G.9: the SHA-1 digests of no bytes and of FIPS 180-4's
+// two examples, of one block and of two.
+let sha1Digests =
+    Test.Case(name = "the SHA-1 digests of no bytes and of FIPS 180-4's examples",
               run = fn() =
-                  Test.equal(List.map(["",
-                                       "abc",
-                                       "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"],
-                                      fn(text) = Bytes.toHex(sha1(String.toUtf8(text)))),
+                  Test.equal(List.map(examples, fn(text) = Bytes.toHex(sha1(String.toUtf8(text)))),
                              ["DA39A3EE5E6B4B0D3255BFEF95601890AFD80709",
                               "A9993E364706816ABA3E25717850C26C9CD0D89D",
                               "84983E441C3BD26EBAAE4AA1F95129E5E54670F1"]))
+
+// Report Appendix G.9: the SHA-256 digests of no bytes and of FIPS 180-4's
+// two examples, of one block and of two.
+let sha256Digests =
+    Test.Case(name = "the SHA-256 digests of no bytes and of FIPS 180-4's examples",
+              run = fn() =
+                  Test.equal(List.map(examples,
+                                      fn(text) = Bytes.toHex(sha256(String.toUtf8(text)))),
+                             ["E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                              "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
+                              "248D6A61D20638B8E5C026930C3E6039A33CE45964FF2167F6ECEDD419DB06C1"]))
+
+// No bytes, and the two texts FIPS 180-4's examples digest with each
+// algorithm.
+let examples = ["", "abc", "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"]
 
 // Report Appendix G.9: as many bytes as the count asks, and two draws that
 // differ: two draws of 16 bytes are equal once in 2^128 pairs.
