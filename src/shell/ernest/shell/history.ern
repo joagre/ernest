@@ -14,8 +14,8 @@ export let kept = 1000
 // How long to wait for the file system, which is a local file.
 let fileMs = 5000
 
-/// The person's directory, `.ernest` in the home directory, which holds
-/// the history and the person's startup file, and none where the
+/// Its user's directory, `.ernest` in the home directory, which holds
+/// the history and its user's startup file, and none where the
 /// environment names no home or one that is no absolute path, which would
 /// put them under whatever directory the shell starts in (report §11.2).
 export let directory : Optional(Path) =
@@ -24,13 +24,13 @@ export let directory : Optional(Path) =
       | _ -> None
     })
 
-/// The history's file in the person's directory.
+/// The history's file in its user's directory.
 export let file : Optional(Path) = Optional.map(directory, fn(path) = path <> Path("history"))
 
-/// The person's startup file in the person's directory (report §11.2).
+/// Its user's startup file in its user's directory (report §11.2).
 export let startup : Optional(Path) = Optional.map(directory, fn(path) = path <> Path("startup"))
 
-/// Report §11.2: the person's directory made its owner's alone to read,
+/// Report §11.2: its user's directory made its owner's alone to read,
 /// write and enter, where it is there, as the shell starts, so that no one
 /// else can change what a later session runs. One whose mode cannot be set
 /// is left as it stands.
@@ -45,12 +45,15 @@ export fn keepOwn() : Unit =
     }
 
 /// Report §11.2: why the history is not kept: the host refused to make its
-/// directory or to make it its owner's alone, or its file could not be
-/// read, or the file is a link, or anything else but a regular file, which
-/// the shell neither reads nor writes.
+/// directory or to make it its owner's alone, `Exists` where the directory
+/// is anything but a directory, or its file could not be read, `NotUtf8`
+/// where it is not UTF-8, or could not be written as it was trimmed, or the
+/// file is a link, or anything else but a regular file, which the shell
+/// neither reads nor writes.
 export type Unkept =
     Unmade(directory : Path, error : Io.Error)
   | Unreadable(Io.Error)
+  | Unwritable(Io.Error)
   | Linked
   | OtherKind
 
@@ -63,18 +66,20 @@ export fn read() : Either(Unkept, List(String)) =
       | Some(path) -> {
             let _ <- makeDirectory(path);
             let there <- inspect(path);
-            if there then Either.mapLeft(readFile(path), Unreadable) else Right([])
+            if there then readFile(path) else Right([])
         }
     }
 
 // Report §11.2: whether the history file is there, and one that is a
 // link, or anything else but a regular file, unkept, so that what is typed
 // goes nowhere but the directory made its owner's alone. No file yet is a
-// first session's.
+// first session's, and a link whose target is not UTF-8 is a link.
 fn inspect(path : Path) : Either(Unkept, Bool) =
     match Fs.readLink(path, fileMs) {
         Left(Io.NotFound) ->
             Right(false)
+      | Left(Io.NotUtf8(_)) ->
+            Left(Linked)
       | Left(error) ->
             Left(Unreadable(error))
       | Right(Some(_)) ->
@@ -86,15 +91,11 @@ fn inspect(path : Path) : Either(Unkept, Bool) =
             }
     }
 
-fn readFile(path : Path) : Either(Io.Error, List(String)) =
-    match Fs.read(path, fileMs) {
-        Left(error) ->
-            Left(error)
-      | Right(bytes) -> {
-            let decoded <- inputs(bytes);
-            trim(path, decoded)
-        }
-    }
+fn readFile(path : Path) : Either(Unkept, List(String)) = {
+    let bytes <- Either.mapLeft(Fs.read(path, fileMs), Unreadable);
+    let decoded <- Either.mapLeft(inputs(bytes), Unreadable);
+    trim(path, decoded)
+}
 
 // Report §11.2: the directory made where it is not there, as before a
 // first session, and its owner's alone to read, write and enter, so that no
@@ -123,14 +124,15 @@ fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
     }
 
 // Newest first is the order the editor walks; the file is oldest first,
-// as a person reading it expects.
-fn trim(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) = {
+// as one who reads it expects. Report §11.2: a trim that fails is a write
+// that fails.
+fn trim(path : Path, inputs : List(String)) : Either(Unkept, List(String)) = {
     let extra = List.size(inputs) - kept;
     if extra <= 0 then
         Right(List.reverse(inputs))
     else {
         let last = List.drop(inputs, extra);
-        let _ <- replace(path, String.toUtf8(text(last)), 1);
+        let _ <- Either.mapLeft(replace(path, String.toUtf8(text(last)), 1), Unwritable);
         Right(List.reverse(last))
     }
 }
@@ -215,6 +217,15 @@ let both =
               run = fn() = same("let s = \"\\\\\";\nlet t = 2"))
 
 let empty = Test.Case(name = "an empty input reads back empty", run = fn() = same(""))
+
+// Report §11.2: a history whose trim cannot be written is unkept as a file
+// that cannot be written, here one under a device, which is no directory.
+let unwritable =
+    Test.Case(name = "a trim that cannot be written leaves the history unwritable",
+              run = fn() =
+                  Test.equal(trim(Path("/dev/null/history"),
+                                  List.map(List.range(0, kept), Int.toString)),
+                             Left(Unwritable(Io.NotFound))))
 
 fn same(input : String) : Test.Result =
     Test.equal(decode(encode(input)), input)

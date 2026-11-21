@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 52**, what item 50's
-cold reading left in §11.2's *Startup and history*.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 54**, what item 49
+left to decide.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -56,25 +56,8 @@ Read for Build Order*). So the milestone ends with item 9.
 ### What is left
 
 What item 43's discussion decided is built first, each item changing the report first (the
-log's *The Trust Said Once*). Items 52 and 54 are left of it.
+log's *The Trust Said Once*). Item 54 is left of it.
 
-- **52. What item 50's cold reading left**, found 2026-11-14 in §11.2's *Startup and history*,
-  each older than the item's edit, and decided with the user the same day (the log's *The
-  Trust Said Once*, its paragraph *Four lines of the reading*).
-
-  - The shell says a host's refusal in the words every other job uses, `permission
-    denied`. The shell words fifteen errors of `Io` itself. The item first reads each
-    against §11's texts, and brings the table to the user before it is built.
-  - Each case of no history gets its line in §11.2: a history file that cannot be read or
-    written, and a `HOME` unset or relative.
-  - "The person's" becomes "its user's".
-  - §11.2 says that a link at `$HOME/.ernest` is followed. No guard is added.
-
-  Item 54's second line, how the shell names the history file, is decided with the
-  table, since both write the same lines of §11.2.
-
-  The report changes first. The build closes on `make test-shell` and
-  `make test`.
 - **54. What item 49 left to decide**, found 2026-11-15 by its survey and its build (the
   log's *A Refusal Holds No Control Character*). Each line is decided with the user, and
   carries the session's recommendation.
@@ -83,9 +66,6 @@ log's *The Trust Said Once*). Items 52 and 54 are left of it.
     raw, where a line feed in it ends the comment, and a page's last line writes it as
     `\u{1B}`. Recommended: both as `\xHH`, and the sentence in §11.5, since §11.1 and
     §11.4 say "as §11.5 writes one".
-  - The shell names the history file by its absolute path where it lies under the
-    working directory, and the startup file beside it from that directory. Recommended:
-    both as §11.5 names a file.
   - A text read from a file in a line that is no refusal: a peer's name in a reload's
     note is written raw. Recommended: the note is written as a refusal is. The host's
     log text and the text after `ern: internal error` are the host's, and stay. A line of
@@ -100,8 +80,7 @@ log's *The Trust Said Once*). Items 52 and 54 are left of it.
     Feedback*): the library stays. The shell names its hexadecimal once, in a private
     function that faults as `Http`'s `chunk` does, and `escapedChar` and `hexByte` call it.
 
-Then what the reading of §11.2's *Editing* left, beside item 52, which writes the same
-section.
+Then what the reading of §11.2's *Editing* left.
 
 - **160. What item 119's cold reading left**, found 2026-11-21 in §11.2 by the reading of
   *Editing*, each in a sentence older than the item (the log's *An Input Edited by Its
@@ -184,7 +163,7 @@ changes the report first (the log's *A Package and Its Manifest*).
 ### What is done
 
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
-shell's editing, was built after them.
+shell's editing, was built after them, and then item 52.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -194,6 +173,7 @@ shell's editing, was built after them.
 | 49 | A control character in a path a job writes: a refusal holds none, and §11 says so | 2026-11-15 | *A Refusal Holds No Control Character* |
 | 50 | The history file's owner | 2026-11-14 | *The Trust Said Once*, its paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third build* |
 | 119 | An input of several lines is edited by its lines, and the homepage's last clause | 2026-11-21 | *An Input Edited by Its Lines* |
+| 52 | The shell says a host's refusal in the jobs' words, each case of no history has its line, and the history file is named as §11.5 names one, which was item 54's second line | 2026-11-21 | *The Shell Says a Refusal in the Jobs' Words* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---

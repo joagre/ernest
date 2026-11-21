@@ -1223,11 +1223,13 @@ history_is_private() ->
 
 %% report §11.2: a history file that at start is a link, or then anything
 %% else but a regular file, is neither read nor written, and the session
-%% says so once and goes on; what the link leads to is left as it was. A
-%% regression test: the history was read and appended through a link, so
-%% what was typed went wherever it led
+%% says so once and goes on; what the link leads to is left as it was, and
+%% a link whose target is not UTF-8 is a link. A regression test: the
+%% history was read and appended through a link, so what was typed went
+%% wherever it led; and a link whose target is not UTF-8 was said as a file
+%% that could not be read
 history_kept_in_place_test_() ->
-    ern_nodes_tests:counted_test({waits, 6}, fun history_kept_in_place/0).
+    ern_nodes_tests:counted_test({waits, 9}, fun history_kept_in_place/0).
 
 history_kept_in_place() ->
     Unkept = fun(Plant, Said) ->
@@ -1250,6 +1252,7 @@ history_kept_in_place() ->
                           file:make_symlink(Elsewhere, History)
                       end, " is a link"),
     ?assertEqual({ok, <<"11 + 11\n">>}, file:read_file(filename:join(LinkHome, "elsewhere"))),
+    _ = Unkept(fun(_, History) -> file:make_symlink(<<"x", 16#FF>>, History) end, " is a link"),
     _ = Unkept(fun(_, History) -> file:make_dir(History) end, " is no regular file").
 
 %% report §11.2: where the host refuses to make `$HOME/.ernest`, a session
@@ -1273,10 +1276,168 @@ history_directory_refused() ->
                 ok = file:change_mode(Home, Mode)
             end,
     Said = iolist_to_binary(["the history is not kept, since ", Dir,
-                             " could not be made its owner's alone: permission was denied"]),
+                             " could not be made its owner's alone: permission denied"]),
     ?assertMatch({_, _}, binary:match(Bytes, Said)),
     ?assertEqual(1, length(binary:matches(Bytes, <<"the history is not kept">>))),
     ?assertEqual(false, filelib:is_file(Dir)).
+
+%% report §11.2: where `$HOME/.ernest` is anything but a directory, a
+%% regular file or a link that leads nowhere, a session at a terminal says
+%% once that the history is not kept, since it is no directory, and goes
+%% on; started in the home, the shell names the directory from there, as
+%% §11.5 names a source's file. A regression test: the line was `could not
+%% be made its owner's alone: the file exists already`
+history_not_a_directory_test_() ->
+    ern_nodes_tests:counted_test({waits, 9}, fun history_not_a_directory/0).
+
+history_not_a_directory() ->
+    Ern = filename:absname("../bin/ern"),
+    Said = fun(Plant, In, Named) ->
+               Home = fresh_home(),
+               Dir = filename:join(Home, ".ernest"),
+               ok = Plant(Dir),
+               Bytes = pty(In(Home) ++ "HOME=" ++ Home ++ " " ++ Ern ++ " shell",
+                           [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"},
+                            {send, "04"}]),
+               ?assertEqual(1, ern_pty:count(Bytes, <<"the history is not kept">>)),
+               ?assertMatch({_, _}, binary:match(Bytes, iolist_to_binary(
+                                                            ["the history is not kept, since ",
+                                                             Named(Dir), " is no directory"])))
+           end,
+    Here = fun(_) -> "" end,
+    Whole = fun(Dir) -> Dir end,
+    Said(fun(Dir) -> file:write_file(Dir, "a file\n") end, Here, Whole),
+    Said(fun(Dir) -> file:make_symlink("nowhere", Dir) end, Here, Whole),
+    Said(fun(Dir) -> file:write_file(Dir, "a file\n") end,
+         fun(Home) -> "cd " ++ Home ++ " && " end, fun(_) -> ".ernest" end).
+
+%% report §11.2: a link at `$HOME/.ernest` is followed: a session at a
+%% terminal keeps its history in the directory the link leads to, which it
+%% makes its owner's alone, and says nothing of the history
+history_through_linked_directory_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun history_through_linked_directory/0).
+
+history_through_linked_directory() ->
+    Home = fresh_home(),
+    Real = filename:join(Home, "real"),
+    ok = file:make_dir(Real),
+    ok = file:change_mode(Real, 8#755),
+    ok = file:make_symlink("real", filename:join(Home, ".ernest")),
+    Bytes = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+                [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}]),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"the history is not kept">>)),
+    ?assertEqual([<<"1 + 1">>], history_lines(filename:join(Real, "history"))),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Real),
+    ?assertEqual(8#700, Mode band 8#777).
+
+%% report §11.2: a session at a terminal whose `HOME` names a directory that
+%% is not there makes it, and its missing parents, as `Fs.makeDir` makes
+%% them (Appendix E.17), keeps the history in its `.ernest`, which is its
+%% owner's alone, and says nothing of the history
+history_home_made_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun history_home_made/0).
+
+history_home_made() ->
+    Home = filename:join([fresh_home(), "not", "there"]),
+    Dir = filename:join(Home, ".ernest"),
+    Bytes = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+                [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}]),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"the history is not kept">>)),
+    ?assertEqual([<<"1 + 1">>], history_lines(filename:join(Dir, "history"))),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Dir),
+    ?assertEqual(8#700, Mode band 8#777).
+
+%% report §11.2: a history file that is not UTF-8 is reported once, by its
+%% file, and is not written; started in the home, the shell names the file
+%% from there, as §11.5 names a source's file. A regression test: the line
+%% was `since it could not be read: the file is not UTF-8`, and the file
+%% was named by its absolute path under the working directory
+history_not_utf8_test_() ->
+    ern_nodes_tests:counted_test({waits, 6}, fun history_not_utf8/0).
+
+history_not_utf8() ->
+    Home = fresh_home(),
+    File = filename:join([Home, ".ernest", "history"]),
+    ok = filelib:ensure_dir(File),
+    ok = file:write_file(File, <<255, 254, "\n">>),
+    Ern = filename:absname("../bin/ern"),
+    Run = fun(In) ->
+              pty(In ++ "HOME=" ++ Home ++ " " ++ Ern ++ " shell",
+                  [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}])
+          end,
+    Whole = Run(""),
+    ?assertEqual(1, ern_pty:count(Whole, <<"the history is not kept">>)),
+    ?assertMatch({_, _}, binary:match(Whole, iolist_to_binary(["the history is not kept, since ",
+                                                               File, " is not UTF-8"]))),
+    Here = Run("cd " ++ Home ++ " && "),
+    ?assertMatch({_, _}, binary:match(Here, <<"the history is not kept, since"
+                                              " .ernest/history is not UTF-8">>)),
+    ?assertEqual({ok, <<255, 254, "\n">>}, file:read_file(File)).
+
+%% report §11.2: a history file that cannot be written as an input is
+%% appended is reported once, by its file and the host's reason, and the
+%% session goes on without it; one swapped for a directory after the start
+%% is no regular file. Each input changes the file before the next is
+%% appended, since the shell appends an input before it runs it. A
+%% regression test: the line was `the history is not kept: ` and the
+%% reason, a form of its own
+history_append_refused_test_() ->
+    ern_nodes_tests:counted_test({waits, 10}, fun history_append_refused/0).
+
+history_append_refused() ->
+    Refused = fun(Change, Said) ->
+                  Home = fresh_home(),
+                  File = filename:join([Home, ".ernest", "history"]),
+                  Screen = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+                               [{expect, "> "},
+                                {send, hex(Change(File) ++ "\r")},
+                                {expect, "Right(Unit)"},
+                                {send, hex("1 + 1\r")},
+                                {expect, "2 : Int"},
+                                {send, hex("2 + 2\r")},
+                                {expect, "4 : Int"},
+                                {send, "04"}]),
+                  ?assertEqual(1, ern_pty:count(Screen, <<"the history is not kept">>)),
+                  ?assertMatch({_, _},
+                               binary:match(Screen, iolist_to_binary(["the history is not kept,"
+                                                                      " since ", File, Said])))
+              end,
+    Refused(fun(File) -> "Fs.setMode(Path(\"" ++ File ++ "\"), 0o400, 5000)" end,
+            " could not be written: permission denied"),
+    Refused(fun(File) ->
+                "{ let _ = Fs.remove(Path(\"" ++ File ++ "\"), 5000);"
+                " Fs.makeDir(Path(\"" ++ File ++ "\"), 5000) }"
+            end, " is no regular file").
+
+%% report §11.2: a startup file that is no regular file, or that the shell
+%% cannot read, is reported with its file, and the host's reason for the
+%% second, and is not run; started in the home, the shell names the file
+%% from there, as §11.5 names a source's file. A regression test: a
+%% directory was said as `could not be read: the path names something that
+%% is not a file`, and a refusal as `permission was denied`
+startup_not_run_test_() ->
+    ern_nodes_tests:counted_test({waits, 3}, fun startup_not_run/0).
+
+startup_not_run() ->
+    Ern = filename:absname("../bin/ern"),
+    Run = fun(Plant, In, Said) ->
+              Home = fresh_home(),
+              File = filename:join([Home, ".ernest", "startup"]),
+              ok = Plant(File),
+              {0, Output} = fed(In(Home) ++ "HOME=" ++ Home ++ " " ++ Ern ++ " shell", "1\n"),
+              _ = file:change_mode(File, 8#600),
+              ?assertMatch({_, _}, binary:match(Output, iolist_to_binary(Said(File)))),
+              ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>))
+          end,
+    Here = fun(_) -> "" end,
+    Run(fun(File) -> filelib:ensure_path(File) end, Here,
+        fun(File) -> [File, " is no regular file\n"] end),
+    Run(fun(File) ->
+            startup_file(File, "Io.println(\"planted\")\n"),
+            file:change_mode(File, 8#000)
+        end, Here, fun(File) -> [File, " could not be read: permission denied\n"] end),
+    Run(fun(File) -> filelib:ensure_path(File) end, fun(Home) -> "cd " ++ Home ++ " && " end,
+        fun(_) -> ".ernest/startup is no regular file\n" end).
 
 %% report §11, §11.2, §2.1: at a terminal the line that says the history is
 %% not kept writes each control character of its file as its bytes in
@@ -1687,9 +1848,10 @@ history_trimmed_beside() ->
                      Error -> Error
                  end).
 
-%% report §11.2: a history file that cannot be read is reported once, and
-%% the session goes on without one. A regression test: a second report came
-%% at the first input, as the session tried to write it
+%% report §11.2: a history file that cannot be read is reported once, with
+%% the file and the host's reason, and the session goes on without one. A
+%% regression test: a second report came at the first input, as the session
+%% tried to write it, and the line named no file
 history_unreadable_test_() ->
     ern_nodes_tests:counted_test({waits, 4}, fun history_unreadable/0).
 
@@ -1708,8 +1870,9 @@ history_unreadable() ->
                   {send, "04"}]),
     ok = file:change_mode(File, 8#600),
     ?assertEqual(1, ern_pty:count(Screen, <<"the history is not kept">>)),
-    ?assertMatch({_, _},
-                 binary:match(Screen, <<"since it could not be read: permission was denied">>)).
+    ?assertMatch({_, _}, binary:match(Screen, iolist_to_binary(["the history is not kept, since ",
+                                                                 File, " could not be read:"
+                                                                 " permission denied"]))).
 
 history_lines(File) ->
     {ok, Text} = file:read_file(File),
@@ -2488,8 +2651,8 @@ input_fault_status() ->
 %% its report given to the session at the full table through its
 %% subscription's courier (Appendix E.21). The next input is typed after
 %% that: its append to the history answers the full table's value, and the
-%% shell says once that the history is not kept, and its compiler cannot
-%% start. A `:load` then says that its source could not be read.
+%% shell says once that the history file could not be written, and its
+%% compiler cannot start. A `:load` then says that its source could not be read.
 %%
 %% A regression test, written after the fix: the shell faulted, a failure
 %% of `ern` itself, at each. The report, the history and the load after the
@@ -2550,7 +2713,9 @@ input_at_a_full_table() ->
     Compiled = pty("HOME=" ++ filename:dirname(ConfigDir) ++ " " ++ Shell,
                    [{expect, "> "} | Steps], {30, 200}),
     ?assertEqual(nomatch, binary:match(Compiled, <<"2 : Int">>)),
-    ?assertEqual(1, ern_pty:count(Compiled, <<"the history is not kept: error:system_limit">>)),
+    Unwritten = iolist_to_binary(["the history is not kept, since ", ConfigDir,
+                                  "/history could not be written: error:system_limit"]),
+    ?assertEqual(1, ern_pty:count(Compiled, Unwritten)),
     ?assertEqual(nomatch, binary:match(Compiled, <<"foreign function">>)).
 
 %% report §2.3, §11.2, §7.4: an input a full table of processes leaves no

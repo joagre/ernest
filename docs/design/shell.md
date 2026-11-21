@@ -55,7 +55,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 `main` spawns the local half, which reads what the session needs and sends it, and `attach` is the local half itself. The two halves are ordered by what each step needs from the one before:
 
 1. Where the terminal answers a size, the local half holds it and waits until its subscription is granted or refused. A granted subscription means the terminal no longer echoes (§12.1 *Keys*), so nothing typed at an earlier prompt is echoed and read as a line.
-2. It makes the person's directory its owner's alone, and then reads the startup files and, at a terminal, the history.
+2. It makes its user's directory its owner's alone, and then reads the startup files and, at a terminal, the history.
 3. It gives the session what it read: as a message to a plain shell's session, or in the spawn on the peer (*The attached shell*).
 4. The session spawns its screen and, at a terminal, its reader, marks its own processes, and starts the front end's session, which writes the screen's row. It then tells the local half its process and the addresses the keys and the shell's own node's output go to, a call, so that the output is routed before the next step.
 5. It says the greeting, subscribes to `Process.faults`, and only then spawns the file's entry point, so that a fault in the entry point is reported; then it says what the local half had to say of the files it read.
@@ -176,7 +176,9 @@ The cut: the operator's machine is the terminal and the files, everything else i
 
 **The session's start.** The local half spawns on the peer, with what it read, a process whose mailbox type crosses (§3.11), monitored from the spawn: the root of the session's chain, which spawns the session and lives while it does, so that the monitor sees the node lost or ended while the session starts. The whole attach waits twice as long as a dial is waited for, the dial's time for the connection and as much again for the session, so that a node nothing answers is unreachable at the dial's end (§8.7; the log's *The Shell's Own Node*). The local half then monitors the session, and the session the local half.
 
-**The shell's units on the node.** A node holds the shell of its own build of `ern` from its start, so a session of that build ships nothing to it (§8.7, §11.2; the log's *A Node Holds the Shell*). A session of another build sends what the node lacks of it by the exchange, as a program's code crosses, once for each shell build that attaches (§8.7, §12.7), so a node of another release on the shell's floor runs it, and the start line names the node's release, which the session's `version()` answers there (§11.2 *Startup and history*). A node that could not compile or load it answers `Other(r)`, its reason, which the local half says as it is (`refusal`; the log's *Four Lines From the Deployment*, *The Shell Attaches as a Program Spawns*).
+**The shell's units on the node.** A node holds the shell of its own build of `ern` from its start, so a session of that build ships nothing to it (§8.7, §11.2; the log's *A Node Holds the Shell*). A session of another build sends what the node lacks of it by the exchange, as a program's code crosses, once for each shell build that attaches (§8.7, §12.7), so a node of another release on the shell's floor runs it, and the start line names the node's release, which the session's `version()` answers there (§11.2 *Startup and history*).
+
+A node that could not compile or load it answers `Other(r)`, its reason, which the local half says as it is, and one that lacks a module the shell calls answers `NotLoaded`, which it says in the same form (`refusal`; the log's *Four Lines From the Deployment*, *The Shell Attaches as a Program Spawns*, *The Shell Says a Refusal in the Jobs' Words*).
 
 The bindings the session's reach names are constants. Those that are not, its history's paths and `colorAllowed`, are the local half's, which no spawn's reach names, so a node holds them without values and no arrival links one. An end of the chain's root before the session began is the start's refusal (`startRefusal`).
 
@@ -279,7 +281,7 @@ The screen then holds where output goes, and has the local half append each `Wro
 
 `Ernest.Shell.History` is Ernest over `Os`, `Fs`, `String` and `List`, with no foreign function; where the file is and what it holds is §11.2 *Startup and history*. It decodes a line left to right, since `\\n` is a backslash and an `n`, which two passes of `String.replace` would read as a newline. It answers the inputs newest first, the order the editor walks.
 
-The local half reads the file at start, and the session hands the inputs to the reader. The reader has the local half append each input it takes and each `C-c` abandons, where the editor says the input is kept, and asks no more once an append has failed.
+The local half reads the file at start, and the session hands the inputs to the reader. The reader has the local half append each input it takes and each `C-c` abandons, where the editor says the input is kept, and asks no more once an append has failed. The file's name, as the shell names it, comes in the session's `Desk` and the reader's `Reading`, so that an attached reader names the file of the shell's own node without reading a binding there.
 
 ## Completion and documentation
 
@@ -327,7 +329,7 @@ A spawn site in an input's module is written as §11.2 *Faults* says, under the 
 
 ## Startup files
 
-The local half finds the paths in Ernest, on the shell's own node: the person's beside the history's file, under the same rule for a `HOME` that is no absolute path, and then the configuration directory's, which the runner computes (§11.2). The host answers only what it alone knows, the configuration directory's file and whether two paths are one file, by device and node (the log's *The Full Review's Questions, One by One*). Each file is named from the working directory (§11.5).
+The local half finds the paths in Ernest, on the shell's own node: its user's beside the history's file, under the same rule for a `HOME` that is no absolute path, and then the configuration directory's, which the runner computes (§11.2). The host answers only what it alone knows, the configuration directory's file and whether two paths are one file, by device and node (the log's *The Full Review's Questions, One by One*). Each startup file, the history file and `$HOME/.ernest` are named from the working directory (§11.5).
 
 The local half reads each file with `Fs`, held to no owner and no mode (§11, the log's *The Trust Said Once*), and takes its inputs from its lines by line mode's rule, each carrying its file and the line it begins on; what it has to say of a file, one it did not run, it gives the session to say after the greeting.
 

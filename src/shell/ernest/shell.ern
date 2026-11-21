@@ -127,14 +127,14 @@ type ScreenMsg =
 // terminal, and, once, that the first prompt is drawn (report §11.2).
 type ReaderMsg = Key(Terminal.Event) | Prompted
 
-// What the reader carries between keys: the line being edited, whether
-// the history file still takes what is typed, whether this session has
+// What the reader carries between keys: the line being edited, the
+// history file's name while it still takes what is typed, whether this session has
 // said how a multi-line input is run, what the key before did, whether
 // the shell colors, its local half, and the terminal's columns, which
 // documentation is rendered to the width of (report §11.2).
 type Reading =
     Reading(editing : Editor.Editing,
-            keeping : Bool,
+            historyFile : Optional(String),
             hinted : Bool,
             last : LastKey,
             color : Markdown.Output,
@@ -148,8 +148,8 @@ type LastKey = Ordinary | Tabbed | Documented
 // Report §11.2: what the local half holds and read for its session, on the
 // shell's own node: its own address; the terminal's size where the shell
 // reads keys, and none in line mode; whether the session colors; the inputs
-// of the sessions before this one, from the history file, and whether that
-// file takes what is typed; the lines to say of what it read, a startup
+// of the sessions before this one, from the history file, and that file's
+// name where it takes what is typed; the lines to say of what it read, a startup
 // file it did not run or a history it does not keep; the inputs of the
 // startup files, each with its file and the line it begins on; the source
 // root and the working directory, which are the operator's; whether the
@@ -160,7 +160,7 @@ type Desk =
          size : Optional(Terminal.Size),
          color : Markdown.Output,
          earlier : List(String),
-         keeping : Bool,
+         historyFile : Optional(String),
          notes : List(String),
          startup : List(#(String, Int, String)),
          sourceRoot : String,
@@ -391,7 +391,7 @@ fn startReader(shell : Address(ShellMsg),
               firstPrompt(shell,
                           screen,
                           Reading(editing = Editor.start(desk.earlier),
-                                  keeping = desk.keeping,
+                                  historyFile = desk.historyFile,
                                   hinted = false,
                                   last = Ordinary,
                                   color = desk.color,
@@ -428,44 +428,61 @@ fn endWithLocal(state : State, down : Down) : Unit =
 // environment's `NO_COLOR` is unset or empty, as that convention asks.
 let colorAllowed = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
 
-// Report §11.2: the inputs of the sessions before this one, whether the
-// history file takes what is typed, and what to say of it: a history that
-// cannot be read is said once, and not written, and so is a `HOME` that
-// names no place for it, unset or relative.
-fn readHistory() : #(List(String), Bool, List(String)) =
+// Report §11.2: the inputs of the sessions before this one, the history
+// file's name where it takes what is typed, and what to say of it: a
+// history that cannot be read is said once, and not written, and so is a
+// `HOME` that names no place for it, unset or relative. The name is the
+// local half's, since the file is the shell's own node's.
+fn readHistory() : #(List(String), Optional(String), List(String)) =
     match History.file {
         None -> {
             let why = match Os.environment("HOME") {
                 None -> "HOME is not set"
               | Some(_) -> "HOME is no absolute path"
             };
-            #([], false, ["the history is not kept, since " <> why])
+            #([], None, [unkept(why)])
         }
       | Some(path) ->
             match History.read() {
-                Right(inputs) ->
-                    #(inputs, true, [])
-              | Left(unkept) ->
-                    #([], false, ["the history is not kept, since " <> unkeptReason(unkept, path)])
+                Right(inputs) -> #(inputs, Some(named(path)), [])
+              | Left(reason) -> #([], None, [unkept(unkeptReason(reason, named(path)))])
             }
     }
 
+// Report §11.2: each case of no history is said in one form.
+fn unkept(why : String) : String =
+    "the history is not kept, since " <> why
+
 // Report §11.2: why the history is not kept, its directory named where the
-// host refused to make it its owner's alone, and its file where it is one
-// the shell does not read and write.
-fn unkeptReason(unkept : History.Unkept, path : Path) : String =
-    match unkept {
-        History.Unmade(=directory, =error) ->
-            pathText(directory) <> " could not be made its owner's alone: " <> trouble(error)
+// host refused to make it its owner's alone or it is no directory, and its
+// file, `file`, where it is one the shell does not read and write.
+fn unkeptReason(reason : History.Unkept, file : String) : String =
+    match reason {
+        History.Unmade(=directory, error = Io.Exists) ->
+            named(directory) <> " is no directory"
+      | History.Unmade(=directory, =error) ->
+            named(directory) <> " could not be made its owner's alone: " <> trouble(error)
       | History.Unreadable(error) ->
-            "it could not be read: " <> trouble(error)
+            historyTrouble(file, "read", error)
+      | History.Unwritable(error) ->
+            historyTrouble(file, "written", error)
       | History.Linked ->
-            pathText(path) <> " is a link"
+            file <> " is a link"
       | History.OtherKind ->
-            pathText(path) <> " is no regular file"
+            file <> " is no regular file"
     }
 
-// Report §11.2: where the startup files are, the person's first and then
+// Report §11.2: the history file `file` that could not be `done`: one
+// swapped for anything but a regular file since it was inspected is no
+// regular file, and one whose text is not UTF-8 is said so.
+fn historyTrouble(file : String, done : String, error : Io.Error) : String =
+    match error {
+        Io.NotAFile -> file <> " is no regular file"
+      | Io.NotUtf8(_) -> file <> " is not UTF-8"
+      | _ -> file <> " could not be " <> done <> ": " <> trouble(error)
+    }
+
+// Report §11.2: where the startup files are, its user's first and then
 // the configuration directory's, which runs only where `--config-dir`
 // names that directory; a file both paths name runs once. Whether each is
 // there, and what it holds, readFileInputs reads.
@@ -487,14 +504,21 @@ fn startupFiles() : List(String) =
 fn fromWorkingDirectory(path : Path) : String =
     Path.toString(Optional.withDefault(Path.from(path, Os.workingDirectory), path))
 
+// Report §11.2: a startup file, the history file and `$HOME/.ernest` are
+// named as §11.5 names a source's file, through `controlFree`.
+fn named(path : Path) : String =
+    controlFree(fromWorkingDirectory(path))
+
 // Report §11.2: the inputs of a startup file, read where it is found and
 // held to no owner and no mode (§11). A file that is not there is no
-// error; one that cannot be read, or is not UTF-8, is said, and the
-// session goes on. Each input carries the line it is on.
+// error; one that cannot be read, is no regular file or is not UTF-8 is
+// said, and the session goes on. Each input carries the line it is on.
 fn readFileInputs(file : String) : #(List(#(String, Int, String)), List(String)) =
     match Fs.read(Path(file), fileMs) {
         Left(Io.NotFound) ->
             #([], [])
+      | Left(Io.NotAFile) ->
+            #([], [controlFree(file) <> " is no regular file"])
       | Left(error) ->
             #([], [controlFree(file) <> " could not be read: " <> trouble(error)])
       | Right(bytes) ->
@@ -546,24 +570,18 @@ let screenMs = 5000
 fn localMs() : Int =
     fileMs + dialMs()
 
+// Report §11.2: the host's reason for a file the shell could not read,
+// write or make, in §11's words where it has them and the shell's own where
+// it has none; an error no file call of the shell's answers is shown as
+// `Io` shows it.
 fn trouble(error : Io.Error) : String =
     match error {
-        Io.NotFound -> "the file is not there"
-      | Io.Denied -> "permission was denied"
-      | Io.Refused -> "the file system refused"
-      | Io.Closed -> "the file was closed"
+        Io.NotFound -> "no such file"
+      | Io.Denied -> "permission denied"
       | Io.Timeout -> "the file system did not answer"
-      | Io.NotATerminal -> "standard input is not a terminal"
-      | Io.NotAFile -> "the path names something that is not a file"
-      | Io.Exists -> "the file exists already"
-      | Io.NotUtf8(_) -> "the file is not UTF-8"
       | Io.Invalid -> "the path is not one the host can take"
-      | Io.NotListed -> "no peer is listed for it"
-      | Io.Unreachable -> "the peer could not be reached"
-      | Io.NotOffered -> "the peer offers nothing under the name"
-      | Io.OtherType -> "the peer offers it at another type"
-      | Io.NotLoaded -> "the peer lacks a binding's value or a module the function calls"
       | Io.Other(text) -> text
+      | _ -> Io.show(error)
     }
 
 // Report §11.2: where a program's output goes. A path is a terminal or a
@@ -1570,7 +1588,7 @@ fn read(shell : Address(ShellMsg),
         screen : Address(ScreenMsg),
         reading : Reading,
         event : Terminal.Event) : Unit receiving ReaderMsg = {
-    let Reading(=editing, =keeping) = reading;
+    let Reading(=editing, =historyFile) = reading;
     match event {
         // report §11.2: the size the event carries is the terminal's on
         // the shell's own node, which the screen paints at and the reader
@@ -1591,27 +1609,27 @@ fn read(shell : Address(ShellMsg),
                     if continues(Editor.text(edited)) then
                         showing(shell, screen, reading, Editor.newline(edited))
                     else {
-                        let keeping = remember(screen, reading.local, edited, keeping);
+                        let historyFile = remember(screen, reading.local, edited, historyFile);
                         send(screen, Entered);
                         send(shell, Typed(Editor.text(edited)));
                         readLoop(shell,
                                  screen,
                                  Reading(..reading,
                                          editing = Editor.next(edited),
-                                         =keeping,
+                                         =historyFile,
                                          last = Ordinary))
                     }
               | Editor.Cancel -> {
                     // what was typed stays in the transcript, abandoned, and
                     // in the history to recall and mend
-                    let keeping = remember(screen, reading.local, editing, keeping);
+                    let historyFile = remember(screen, reading.local, editing, historyFile);
                     send(screen, Entered);
                     send(shell, Interrupted);
                     readLoop(shell,
                              screen,
                              Reading(..reading,
                                      editing = Editor.next(editing),
-                                     =keeping,
+                                     =historyFile,
                                      last = Ordinary))
                 }
               | Editor.ClearScreen(edited) -> {
@@ -1656,7 +1674,7 @@ fn matching(shell : Address(ShellMsg),
     }
 }
 
-// The screen is told what is being typed, and the person is told once,
+// The screen is told what is being typed, and the user is told once,
 // above the region, how a multi-line input is run.
 fn showing(shell : Address(ShellMsg),
            screen : Address(ScreenMsg),
@@ -1721,24 +1739,27 @@ fn rowBefore(input : String, cursor : Int) : String = {
 }
 
 // Report §11.2: an input the history keeps is appended as the shell
-// takes it, by the local half, which holds the history file.
+// takes it, by the local half, which holds the history file, `historyFile`
+// its name while it takes what is typed; one that cannot be written is
+// said once, and not written again.
 fn remember(screen : Address(ScreenMsg),
             local : Address(LocalMsg),
             editing : Editor.Editing,
-            keeping : Bool) : Bool = {
-    let line = Editor.text(editing);
-    if !keeping || !Editor.keeps(editing) then
-        keeping
-    else match addToHistory(local, line) {
-        Right(_) ->
-            true
-      | Left(error) -> {
-            // the reader's own note, which leaves the prompt where it is
-            send(screen, Noted("the history is not kept: " <> trouble(error)));
-            false
-        }
+            historyFile : Optional(String)) : Optional(String) =
+    match historyFile {
+        Some(file) when Editor.keeps(editing) ->
+            match addToHistory(local, Editor.text(editing)) {
+                Right(_) ->
+                    historyFile
+              | Left(error) -> {
+                    // the reader's own note, which leaves the prompt where it is
+                    send(screen, Noted(unkept(historyTrouble(file, "written", error))));
+                    None
+                }
+            }
+      | _ ->
+            historyFile
     }
-}
 
 // Report §11.2: the local half's append of an input to the history, as
 // `Ernest.Shell.History.add` answers on the shell's own node, or `Timeout` where
@@ -2009,22 +2030,22 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
         }
     };
     let color = if Optional.isSome(size) && colorAllowed then Markdown.Styled else Markdown.Plain;
-    // report §11.2: the person's directory made its owner's alone as the
+    // report §11.2: its user's directory made its owner's alone as the
     // shell starts, before a file of it is read, in line mode too, where
     // the history is not read
     History.keepOwn();
     let startup = startupFiles();
     let read = List.map(startup, readFileInputs);
-    let #(earlier, keeping, historyNotes) = match size {
+    let #(earlier, historyFile, historyNotes) = match size {
         Some(_) -> readHistory()
-      | None -> #([], false, [])
+      | None -> #([], None, [])
     };
     let desk =
         Desk(local = self(),
              =size,
              =color,
              =earlier,
-             =keeping,
+             =historyFile,
              notes = List.flatMap(read, fn(#(_, notes)) = notes) <> historyNotes,
              startup = List.flatMap(read, fn(#(inputs, _)) = inputs),
              sourceRoot = givenSourceRoot(),
@@ -2086,15 +2107,24 @@ fn holdKeys() : Optional(Terminal.Size) receiving LocalMsg =
 // Report §11.2, §11.8: an attach that fails is the job's refusal, naming
 // the spawn's `Io.Error` (Appendix E.27), and dials again never; a node
 // that could not compile or load the shell's definitions answers why
-// (§12.7), which the shell says as it is.
+// (§12.7), which the shell says as it is, and one that lacks a module the
+// shell calls answers `NotLoaded` (§8.7). An error the spawn cannot answer
+// is shown as `Io` shows it.
 fn refusal(name : String, error : Io.Error) : String = {
     let peer = "ern shell: the peer " <> controlFree(name);
     match error {
-        Io.NotListed -> peer <> " is not listed"
-      | Io.Unreachable -> peer <> " is unreachable"
-      | Io.Timeout -> peer <> " did not answer in time"
-      | Io.Other(text) -> nodeRefusal(name, "could not load the shell: " <> text)
-      | other -> peer <> ": " <> trouble(other)
+        Io.NotListed ->
+            peer <> " is not listed"
+      | Io.Unreachable ->
+            peer <> " is unreachable"
+      | Io.Timeout ->
+            peer <> " did not answer in time"
+      | Io.Other(text) ->
+            nodeRefusal(name, "could not load the shell: " <> text)
+      | Io.NotLoaded ->
+            nodeRefusal(name, "could not load the shell: it lacks a module the shell calls")
+      | other ->
+            peer <> ": " <> Io.show(other)
     }
 }
 
