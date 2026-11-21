@@ -1183,6 +1183,7 @@ Ansi.up : (Int) -> String // the cursor up that many rows; "" for a number below
 Ansi.down : (Int) -> String // the cursor down that many rows; "" for a number below 1
 Ansi.left : (Int) -> String // the cursor left that many columns; "" for a number below 1
 Ansi.right : (Int) -> String // the cursor right that many columns; "" for a number below 1
+Ansi.clearRow : String // erases the cursor's row
 Ansi.clearBelow : String // erases from the cursor to the end of the screen
 Ansi.clearScreen : String // erases the screen and puts the cursor at its top left
 ```

@@ -23,7 +23,7 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 161**, an input
-taller than the screen.
+taller than the screen: the report says it, and its build is left.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -59,19 +59,43 @@ What item 160's probe found in the live region comes first.
 
 - **161. An input taller than the screen, and the erase from the screen's corner**, found
   2026-11-21 by item 160's probe and decided with the user (the log's *The Live Region
-  Named Once*). The report changes first.
+  Named Once* and *A Window onto the Input*). The report says it: §11.2's *Editing*, its
+  paragraph on what `Tab` and `Shift-Tab` show, and Appendix G.3's `Ansi.clearRow`. The
+  build is left, one agent's, in `libs/ansi` and `Ernest.Shell.Region`, and no design is
+  open.
 
+  - **`Ansi.clearRow`**, `ESC [ 2 K`, a literal as `clearBelow` is, with its documentation
+    and its test.
   - **A window onto the input.** The region draws every row of an input, so one taller
     than the screen leaves copies of its top rows in the scrollback at each key, and a
-    cursor moved past the top is edited blind. §11.2's *Editing* gains: "Of an input taller
-    than the screen the shell draws the rows the screen has room for, the cursor's row among
-    them." The region keeps where its window begins and moves it only when the cursor leaves
-    it, which is the design note's. An entered input is written whole into the transcript.
-  - **The erase.** After `C-l` the region erases from the screen's top corner, which tmux
-    saves to the scrollback by its default `scroll-on-clear`, a row at each key. The erase
-    clears its first row and then the rest from one column in. A unit test of the region
-    holds the bytes, since no test runs tmux, and the design note says why. The report
-    gains no sentence.
+    cursor moved past the top is edited blind. The region gains where its window begins,
+    counted in the input's screen rows. A redraw moves it only as far as brings the
+    cursor's row inside, and back where the input no longer reaches the window's end. An
+    input that fits its window is drawn whole, as now. The row the cursor rests on is
+    counted from the window. An entered input is written whole into the transcript.
+  - **The window's rows.** The input and what is shown under it share the screen's rows
+    less the tail's. With nothing shown the window is all of them. With something shown
+    the window is what the shown lines leave, and at least half of the shared rows,
+    rounded up; what is shown takes the rest, counted as §11.2 says.
+  - **The erase.** After `C-l`, and under a window, the region's first row is the screen's
+    top, and an erase from that corner is saved to the scrollback by tmux's default
+    `scroll-on-clear`, a row at each key. The erase becomes a carriage return, the climb,
+    `Ansi.clearRow`, one column right, `Ansi.clearBelow` and a carriage return. A unit test
+    of the region holds the bytes, since no test runs tmux, and the design note says why.
+  - **The ending.** The bytes that take the region away clear from the column after the
+    prompt where the input's first row is drawn and a prompt stands, as now. Otherwise
+    they clear from the start of the first row of the input that is drawn, by the erase
+    above, and write no line feed.
+  - **The checks.** The region's tests hold each sentence: a window's rows and the
+    cursor's row in it, a cursor moved above and below it, an input made shorter, the
+    tail's rows kept, what is shown under a tall input and under one that fits, an entered
+    tall input, the erase's bytes, and the ending under a window. No redraw paints more
+    rows than the screen has. The session runs item 160's probe in tmux against the
+    build: no row of the input stands twice in the scrollback, after a paste and after
+    `C-l`.
+  - **What closes with it.** The design note's *Drawing* and *Rows* say the erase and the
+    window. The known issues gain one line: a screen of one row shows nothing under the
+    input, and one of one column erases from its corner.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
