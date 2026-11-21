@@ -1253,7 +1253,7 @@ The lines are the same at OTP-29.1.2 and at master (1d0578e). Master's line numb
 
 ## 25. A `'DOWN'` overtakes the message its process was sending to another node, where the exit's reason is an immediate term
 
-Found on 2026-11-18 by the probe of MVP 4.16's item 121; the log's *A Down Follows the Send*. Nothing of Ernest's runtime meets it, since every end it gives a program's process has a tuple for its reason but a return's `normal`, and a process that returns waits in no send. Foreign code that ends an Ernest process with the host's own exit and an immediate reason meets it, and such an end is the host's (§6.9, §12.2).
+Filed 2026-11-22 as [erlang/otp#12265](https://github.com/erlang/otp/issues/12265). Found on 2026-11-18 by the probe of MVP 4.16's item 121; the log's *A Down Follows the Send*. Nothing of Ernest's runtime meets it, since every end it gives a program's process has a tuple for its reason but a return's `normal`, and a process that returns waits in no send. Foreign code that ends an Ernest process with the host's own exit and an immediate reason meets it, and such an end is the host's (§6.9, §12.2).
 
 **Title:** A process killed while its send to another node waits at a busy buffer has its 'DOWN' arrive before the message, when the exit reason is an immediate term
 
@@ -1425,7 +1425,7 @@ No earlier report of this was found on the tracker.
 
 ## 26. `erlang:disconnect_node/1` holds `net_kernel`, and every connection's tick, while the connection's controller cannot take its exit
 
-Found on 2026-11-19 by the reading of MVP 4.16's item 108; the log's *What a Peer's Worker Waits On*. Ernest's nodes no longer meet it: a reload that removes a peer, a frame a node cannot read and the gateway's refusal at a full table of processes end the connection by `net_kernel:async_disconnect/1`, which does not wait (§12.5, §12.6), and the code's comment at each says why.
+Filed 2026-11-22 as [erlang/otp#12266](https://github.com/erlang/otp/issues/12266). Found on 2026-11-19 by the reading of MVP 4.16's item 108; the log's *What a Peer's Worker Waits On*. Ernest's nodes no longer meet it: a reload that removes a peer, a frame a node cannot read and the gateway's refusal at a full table of processes end the connection by `net_kernel:async_disconnect/1`, which does not wait (§12.5, §12.6), and the code's comment at each says why.
 
 **Title:** erlang:disconnect_node/1 blocks net_kernel, and every tick and connection with it, until the connection's controller handles its exit
 
@@ -1609,7 +1609,7 @@ The lines are the same at OTP-29.1.2 and at master (c81e92f). Master's line numb
 
 ## 27. The destructive update pass appends in place to a literal binary
 
-Found on 2026-11-20 by `make test-typed`; the log's *A Literal Binary Grown in Place*. Ernest no longer meets it: the emitter compiles every module with `no_ssa_opt_destructive_update`, and the code's comment at `ern_compile:compiled/2` says why.
+Filed 2026-11-22 as [erlang/otp#12267](https://github.com/erlang/otp/issues/12267). Found on 2026-11-20 by `make test-typed`; the log's *A Literal Binary Grown in Place*. Ernest no longer meets it: the emitter compiles every module with `no_ssa_opt_destructive_update`, and the code's comment at `ern_compile:compiled/2` says why.
 
 **Title:** Segfault: an append rewritten to `private_append` on a literal `<<>>` taken from a literal tuple
 
