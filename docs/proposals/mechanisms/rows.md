@@ -1,10 +1,10 @@
 # The other thirty rows, and the end's flush
 
-Status: read on 2026-11-21 at the session's usual effort. Each row is recommended to stay. None is decided.
+Status: read on 2026-11-21 at the session's usual effort, and decided with the user the same day: each row stays (the log's *The Mechanisms' Reading Closed*).
 
 ## How they were read
 
-Each row's sentences in the report were read, and the log was searched for the entries that decided the mechanism and for each simpler form or narrower promise it weighed. The code was not read, and no row had a second reader. A row whose simpler form the log has weighed and refused is recommended to stay with the entry named. A form that would replace a mechanism would be drafted and read cold first, as the plan's item has it, and no row reached that step.
+Each row's sentences in the report were read, and the log was searched for the entries that decided the mechanism and for each simpler form or narrower promise it weighed. The code was not read, and no row had a second reader. A row whose simpler form the log has weighed and refused stays, with the entry named. A form that would replace a mechanism would be drafted and read cold first, as the plan's item has it, and no row reached that step.
 
 ## What came of it
 

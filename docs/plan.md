@@ -21,9 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.4's item 6**, the mechanisms read against what they force, a
-reading and a proposal. It is taken first of the items left (the log's *The Mechanisms
-Read, Planned*). What is left of MVP 4.16's item 95 follows it.
+**The next item is what is left of MVP 4.16's item 95**, a send and a call to another node
+in two inputs, which the session writes.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -710,53 +709,15 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    around the launch come with a new floor, a restart either way, and nothing hands a
    listener over today (the log's *The Server's Answers*, its paragraph *New code under
    traffic*). What Ernest lacks for it is feedback 261, MVP 4.5's item 4.
-6. **The mechanisms read against what they force**, planned with the user on 2026-11-21
-   (the log's *The Mechanisms Read, Planned*). A reading and a proposal, and no change.
-   The measure is the user's: sound first, then the simplest thing that holds it.
-
-   The reading covers the report whole, then the code. A mechanism is what the runtime
-   does of its own that no program names: a process, a message between its processes, a
-   wait, a count or a table. Each one Ernest adds to keep a promise of the report's is a
-   row, the process that checks what foreign code sends (§8.4) and the process kept for an
-   adapted address (§6.5) among them. A mechanism that keeps no promise of the report's is
-   a row too, and its row says so.
-
-   A row holds what the mechanism forces: the report's sentences that exist because of it,
-   its lines of code and of tests, and the plan's items, closed and left, that name it.
-   Beside them stand the simpler way to hold the same promise, where there is one, and the
-   narrower promise that would take the mechanism out, with what a program loses by it.
-
-   No row trades one of the four claims of `docs/soundness.md`: where a mechanism holds
-   one, its row asks for a simpler way to hold it and never for its removal. Each row says
-   what a program loses by the narrower promise. A row whose loss no program can observe
-   is decided on its saving, and every other row is argued, the loss before the saving.
-
-   The session writes it as `docs/proposals/mechanisms/`, the rows ranked by what each
-   forces, and the user decides each row, one at a time. A row decided is an item of its
-   own, placed by the line before the launch.
-
-   The rows are found and counted at the session's usual effort, the searches by the
-   smallest model and the counts by script. The loss and the narrower promise of the rows
-   ranked first are a pass that must be right, made on the user's word. Each of those is
-   then read by a second reader, which is given the mechanism and the report's sections
-   and not the session's answer, and is asked for the case in which the row's simpler form
-   or narrower promise answers wrongly.
-
-   The reading is sized at two days. Where it runs past them it stops, says what it has
-   not read, and the user decides whether it goes on.
-
-   It is taken first of the items left, so that its verdicts have their time before the
-   launch and the full review reads the report they leave.
-
-   The rows were found and counted on 2026-11-21, 37 of them, and the proposal holds
-   them. Five were read first. Row 10, the process that checks what foreign code sends,
-   is decided: it stays, and MVP 4.5's items 113, 149 and 153 stand (the log's *The Check
-   Stays a Process*). Rows 11, 18 with 24 and 33, 8 and 9 are decided too, and
-   each stays. Left are the other 30 rows and a row for the end's flush and its cut. A
-   form that would replace a mechanism is drafted as the report's sentences and read cold
-   before its row is decided.
-
----
+7. **The mechanisms read against what they force**, read and closed with the user on
+   2026-11-21 (the log's *The Mechanisms Read, Planned*, *The Check Stays a Process*, *The
+   Mechanisms' Reading Closed*). The measure was the user's: sound first, then the simplest
+   thing that holds it. `docs/proposals/mechanisms/` holds 37 rows and the end's flush,
+   each with what it forces, the simpler forms weighed and the log's entries that weighed
+   them. Every row stays, and nothing in the report or the code changed. The form with no
+   process for the check of what foreign code sends was drafted as the report's sentences,
+   read cold and refused. What the readers read beside their questions is MVP 4.5's items
+   149 and 157.
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about two weeks, after the launch
 

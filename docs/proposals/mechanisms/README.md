@@ -1,12 +1,12 @@
 # The mechanisms read against what they force
 
-Status: a reading under way, MVP 4.4's item 6 (the log's *The Mechanisms Read, Planned*). The rows are found and counted, and five of them are read, on 2026-11-21. The seven rows of the five readings are decided, and each stays. The other thirty and the end's flush are read and recommended to stay. Nothing here is authoritative, and nothing in the report or the code changes by it.
+Status: closed on 2026-11-21, MVP 4.4's item 7 (the log's *The Mechanisms Read, Planned*, *The Check Stays a Process*, *The Mechanisms' Reading Closed*). The 37 rows and the end's flush are read and decided with the user, and each stays. Nothing here is authoritative, and nothing in the report or the code changed by it.
 
 | File | What it is | Status |
 |---|---|---|
 | `README.md` | the measure, what a row is, how it is counted, and the rows ranked | the rows counted |
 | [`first_five.md`](first_five.md) | rows 10, 11, 18 with 24 and 33, 8 and 9: the log's reasons, the other forms, what a program loses by each, and what a second reader found | read and decided; each stays |
-| [`rows.md`](rows.md) | the other thirty rows and the end's flush: what each is for, the log's entry that weighed its simpler form, and the five decisions the rows stand on | read; each recommended to stay, none decided |
+| [`rows.md`](rows.md) | the other thirty rows and the end's flush: what each is for, the log's entry that weighed its simpler form, and the five decisions the rows stand on | read and decided; each stays |
 | [`row_10.md`](row_10.md) | the check with no process: the report's sentences drafted, and their cold reading | read cold; decided, the checker stays |
 
 ## The measure
