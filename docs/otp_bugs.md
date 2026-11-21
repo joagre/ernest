@@ -1125,7 +1125,7 @@ The tracker's other reports of a lost `exit_status`, #11278 (fixed by #11285 and
 
 ## 24. A TLS distribution connection given up by the tick goes down 10 s later while its socket is full
 
-Filed 2026-11-17 as [erlang/otp#12235](https://github.com/erlang/otp/issues/12235). Answered on 2026-11-18 as a likely duplicate of #12212, with #12237 as its fix. It is half of one: the receiver stops with `{shutdown, net_tick_timeout}`, which #12237's `close_timeout/1` answers with 5000, so the alert's wait stays and only the wait for the peer's close goes. With #12237's source changes applied to ssl 11.7.8, this report's `sh repro.sh tls full 8` printed `nodedown` 5.001 s after the owner's end, and 10.002 s without them, on 2026-11-21. Found on 2026-11-17 by the diagnosis of MVP 4.16's item 98; the log's *A Connection That Cannot Drain*. Ernest's nodes meet it: §12.6 says that the loss is run once the host has closed the connection, and `docs/design/nodes.md`'s *A loss* says when the host does.
+Filed 2026-11-17 as [erlang/otp#12235](https://github.com/erlang/otp/issues/12235). Answered on 2026-11-18 as a likely duplicate of #12212, with #12237 as its fix. It is half of one: the receiver stops with `{shutdown, net_tick_timeout}`, which #12237's `close_timeout/1` answers with 5000, so the alert's wait stays and only the wait for the peer's close goes. With #12237's source changes applied to ssl 11.7.8, this report's `sh repro.sh tls full 8` printed `nodedown` 5.001 s after the owner's end, and 10.002 s without them, on 2026-11-21. Replied so on the issue the same day, asking whether the distribution's close can take a timeout of 0. Found on 2026-11-17 by the diagnosis of MVP 4.16's item 98; the log's *A Connection That Cannot Drain*. Ernest's nodes meet it: §12.6 says that the loss is run once the host has closed the connection, and `docs/design/nodes.md`'s *A loss* says when the host does.
 
 **Title:** nodedown comes 10 s after net_tick_timeout on a TLS distribution connection whose socket is full
 
@@ -1605,7 +1605,7 @@ The lines are the same at OTP-29.1.2 and at master (c81e92f). Master's line numb
 - `handle_info(tick, State)` sends `{self(), tick}` to each connection's owner (lines 1638 to 1644; 1639 to 1645), whose loop in `dist_util.erl` checks the peer's silence and ticks it at that message (line 651; 653).
 - `async_disconnect/1` casts `{async_disconnect, Node}` (lines 699 and 700; 700 and 701), which calls `do_disconnect(Node, State, true)` (lines 1355 to 1358; 1356 to 1359). `global.erl` calls it (lines 1115, 1521 and 1568; 1117, 1523 and 1570).
 
-#5708 met the same wait from another side: a `tls_sender` that ignored the exit while its handshake was not done held `net_kernel` until the connection closed. Its fix, #5711, has the sender assert the distribution's mode by another reference, and leaves `net_kernel`'s wait without a limit.
+#5708 met the same wait from another side: a `tls_sender` that ignored the exit while its handshake was not done held `net_kernel` until the connection closed. Its fix, #5711, has the sender assert the distribution's mode by another reference, and leaves `net_kernel`'s wait without a limit. #4931 met another of `net_kernel`'s waits for an `'EXIT'` with no limit, at an `accept_pending` whose old owner had ended already; its fix, #4934, skips that wait for an owner `net_kernel` no longer holds.
 
 ## 27. The destructive update pass appends in place to a literal binary
 
@@ -1672,6 +1672,6 @@ exception error: no match of right hand side value #{location => {"t.erl",4},arg
   in function  beam_ssa_destructive_update:fiv_track_value_in_fun/6 (beam_ssa_destructive_update.erl:390)
 ```
 
-#6851 met the same rewrite by another path, a fragment that could be other than a bitstring, and its fix has the pass rewrite only a fragment typed as a bitstring alone, which an empty literal is.
+#6851 met the same rewrite by another path, a fragment that could be other than a bitstring, and its fix has the pass rewrite only a fragment typed as a bitstring alone, which an empty literal is. #12249, open, is another fault of the pass at a literal tuple, which the compiler meets in `patch_literal_tuple/6` for a tuple a function returns; the module here compiles, and faults when it runs.
 
 Found by a generator of random well-typed programs in a compiler that emits Erlang, where a field selected from a record that a conditional builds became `element/2` of a `case` the compiler reduced to one literal tuple.
