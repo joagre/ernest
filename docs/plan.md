@@ -39,162 +39,6 @@ line in [`known_issues.md`](known_issues.md), and becomes an item when the user 
 
 ---
 
-## MVP 4.16 (a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found)
-
-Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*): two
-proposals built before the launch, so that the full review reads them and the launch shows them.
-It follows Ernest 0.10.0, and the checkout then works toward the launch's minor. Its item 11,
-the flake hunt, stands apart from the two.
-
-Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to 10, 23 and
-43, is MVP 4.17's, each under the number it had here (the log's *The Milestone Split*).
-Items 10 and 23 went on to MVP 4.4's item 4 on 2026-11-19 (the log's *The Plan Read for
-Build Order*).
-
-The milestone closed on 2026-11-21 with item 142, its last.
-
-Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
-and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
-Launch*). Item 140 moved to MVP 4.5 that day too, and items 135 and 136 on 2026-11-20 (the
-log's *Item 140 Stands After the Launch*, *Item 135 Stands After the Launch* and *Item 136
-Stands After the Launch*).
-
-### What is done
-
-Items 1 to 3 are the deadlock proposal's, read and swept by item 20. Items 4 to 6 are the first
-of the packages proposal's build order,
-[`proposals/package_manager/`](proposals/package_manager/README.md). Item 12, the feedback, was
-taken first. Items 30, 29, 31, 33, 26 to 28 and 34 came before items 5 and 6, decided with the
-user on 2026-11-13 (the log's *A Reading by Decisions*), and items 41, 42, 45 and 46 followed
-them. What an item decided is its log entry's, and the report's at the sections its row names.
-
-| Item | What | Done | The report's sections; the log's entries |
-|---|---|---|---|
-| 1 | A deadlock's claim given its scope | 2026-11-11 | *A Deadlock of the Whole Program* |
-| 2 | The callee in a deadlock's report | 2026-11-11 | *A Deadlock of the Whole Program* |
-| 3 | Who waits on whom | 2026-11-11 | *A Deadlock of the Whole Program* |
-| 4 | The report's sentences on a package | 2026-11-11 | *A Package and Its Manifest* |
-| 5 | The manifest read and the load path | 2026-11-14 | §11.2, §11.9, E.28; *The Root Package Read* |
-| 6 | `ern build`'s checks and the named packages built | 2026-11-14 | §11.1, §11.9; *The Named Packages Built* |
-| 11 | The flake hunt | 2026-11-15 | *The Flake Hunt* |
-| 12 | The feedback of the release review before 0.10.0, and the applications': feedback 237 to 247 and the applications' three lines, feedback 249 to 251, in one session; six build, items 14 to 19, and eight are dropped there | 2026-11-11 | *The Review's Feedback Decided* |
-| 13 | The checkout's manual pages | 2026-11-11 | *One Copy of the Pages* |
-| 14 | `Tcp.accept` at the limit of open files | 2026-11-11 | *The Review's Feedback Decided*, 249 |
-| 15 | `List.tryForEach` | 2026-11-11 | *The Review's Feedback Decided*, 239 |
-| 16 | `Bool.compare` | 2026-11-11 | *The Review's Feedback Decided*, 243 |
-| 17 | `Char`'s six class predicates | 2026-11-11 | *The Review's Feedback Decided*, 247 |
-| 18 | `Http.target` and the characters a browser sends raw | 2026-11-11 | *The Review's Feedback Decided*, 250 |
-| 19 | The help at `++` | 2026-11-11 | *The Review's Feedback Decided*, 251 |
-| 20 | The deadlock proposal's reading and sweep | 2026-11-11 | *A Deadlock of the Whole Program* |
-| 21 | Item 3's follow-up | 2026-11-11 | *A Deadlock of the Whole Program* |
-| 22 | ern(1)'s SYNOPSIS | 2026-11-11 | *The Synopsis's Rule* |
-| 24 | The flake of `reads_limited_test` | 2026-11-15 | E.21; *A Status Read Before the Watch* |
-| 25 | A second cold reading of §11.9 | 2026-11-11 | *A Package and Its Manifest* |
-| 26 | A module that hides a library another uses | 2026-11-13 | *A Hiding Module Refused* |
-| 27 | The ownership test's group bits | 2026-11-14 | §11.2, §12.5; *The Ownership Test Built* |
-| 28 | A given path opened as resolved, with the user | 2026-11-14 | §11; *A Given Path Resolved Once* |
-| 29 | A reading of MVP 4.16's design on the stronger model, with the user | 2026-11-13 | §11.9, §8.6; *The Proposal Held Against the Report* |
-| 30 | The root's modules, as the lookup and the loaders find them, with the user | 2026-11-13 | §4.2, §11.1, §11.2; *One Namespace at the Root* |
-| 31 | An independent reading's four points on a package, with the user | 2026-11-13 | §11, §11.2, §11.7, §11.9; *An Installed Program's Packages* |
-| 32 | The flake of `deadlock_line_on_a_test_test` | 2026-11-15 | §11.2, §8.6; *The Client's Line* |
-| 33 | What one `Tcp.read` answers, and what an unread socket holds, with the user | 2026-11-13 | E.18; *What One Read Answers* |
-| 34 | Regression tests of the sentences item 29 stated | 2026-11-14 | [`development.md`](development.md)'s *Building*; *The Sentences Held by Tests* |
-| 35 | A compiled module's dependency that has only a source | 2026-11-16 | §11.1, §11.2; *A Compiled Form's Sources* |
-| 36 | `ern doc src-dir` beside a module that fails | 2026-11-17 | §11.4; *A Document Beside a Module That Fails* |
-| 37 | The library's functions written in a program; the applications lose no function to the library | 2026-11-15 | E.14; *A Library's Function in a Program*, *The Sweep's Reading* |
-| 38 | ern(1) written again after `make doc` | 2026-11-15 | §11.4; *What the Toolchain's Page Is Made From* |
-| 39 | The README's top written again, with the user | 2026-11-16 | *The Front Page From Its Motive*, *The README's Top Comes First*, *The Front Page in the Announcement's Manner* |
-| 40 | The flake of `log_terminal_gone_test_` and three tests beside it | 2026-11-15 | §11.8, §8.6, E.23; *The Shell's Last Line* |
-| 41 | An independent reading of item 6's commit, `f9c5b972` | 2026-11-14 | *The Named Packages Read* |
-| 42 | The round of the reading's findings | 2026-11-14 | *The Reading's Round* |
-| 44 | A reading of `CLAUDE.md` for rules that contradict or repeat each other, with the user | 2026-11-15 | *The Rules Read Against Each Other* |
-| 45 | The milestone split in two | 2026-11-14 | *The Milestone Split* |
-| 46 | What item 42's round left to decide | 2026-11-14 | *No Module's Source*, *An Index That Is No File* |
-| 51 | The flake of `delivery_foreign_code_arranges_test` | 2026-11-16 | §6.9, §8.4, §8.6; *A Sender That Outlives Its Run* |
-| 55 | A reading of `CLAUDE.md` for clarity, with the user | 2026-11-15 | *The Rules Read for Clarity* |
-| 56 | A test canceled at its limit ends its host's later tests | 2026-11-15 | *A Limit Ends Its Own Test* |
-| 57 | The flakes of three tests of `ern_supervisor_tests` | 2026-11-16 | §6.4, §6.9, E.21, E.22; *Three Orders the Supervisor Tests Read* |
-| 58 | The flake of `adapted_is_not_a_process_test` | 2026-11-16 | §6.5, §6.9; *A Delivery Counted Before Its End* |
-| 59 | The flake of `write_given_no_time_test` | 2026-11-16 | E.18; *A Listener Closed Before Its Accept* |
-| 60 | What item 11 left: feedback 254 to 259, each decided with the user, and `Tcp`'s two closes probed | 2026-11-17 | E.0 rule 2; *Seven Entries of the Feedback* |
-| 61 | The flake of `load_beside_a_module_hiding_a_library` | 2026-11-16 | §6.4, §11.2; *A Program's Line Beside the Prompt* |
-| 62 | The flake of `signal_jobs_take_any_mode_test`, and two tests beside it | 2026-11-15 | §11.2, §12.5; *A Program Named Before It Runs* |
-| 63 | The flake of `subscribed_while_the_end_waits_test` | 2026-11-16 | §6.9, §8.6, E.23; *A Subscriber That Ends Beside Main* |
-| 64 | The flake of `ern_os_tests`' `terminal_test` | 2026-11-16 | E.23; *A Terminal's Echo Beside Its End* |
-| 65 | The flake of `ern_os_tests`' `resize_test` | 2026-11-16 | E.23; *A Signal Before the Pause* |
-| 66 | The flake of `ern_tcp_tests`' `write_holds_up_no_read` | 2026-11-16 | §8.6; *A Reaper That Outlives Its Runner* |
-| 67 | The flake of `shell_reload_terminal_gone`, closed as not reproducible | 2026-11-16 | *The Shell's Last Line*, *Two Hours for a Hunt* |
-| 69 | OTP's 22nd report: a termination sent to a port's program before it runs, reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 22; *A Termination Lost With OTP Alone* |
-| 70 | The look reads each checker as it reads a system process, so a message that waits at one is in flight | 2026-11-17 | §8.4, §8.6; *A Sender That Outlives Its Run*, *A Message at a Checker* |
-| 71 | The flake of `ern_cli_tests`' `node_limit_flags_test` | 2026-11-16 | §12, §12.5; *The First Start's Schedulers* |
-| 72 | A build with nothing to do, measured: `ern build` is not slow, and nothing is built, with the user | 2026-11-17 | *Twenty-Six Hosts Are the Cost* |
-| 73 | A child that waits to run again runs once the group is whole, with the user | 2026-11-17 | E.22; *Two Orders Stated*, *The Watcher Holds Who Waits* |
-| 74 | A process's end ends its deliveries of `Restarted` not yet placed, and no other delivery, with the user | 2026-11-17 | §6.9, §8.7; *No Restarted After a Death* |
-| 75 | The style test reads the export lists of the roots' test modules | 2026-11-16 | *The Style Test Reads the Roots' Tests* |
-| 76 | `Os.resize`'s example, told of the resize by the signal | 2026-11-16 | E.23; *The Resize Told by Its Signal* |
-| 77 | The review documents read against `CLAUDE.md` and `docs/agents.md`, with the user, and their lines carried to the template and its copies | 2026-11-16 | *The Review Documents Read Against the Rules* |
-| 78 | A reading of `reviews/principles.md`, `clean_room.md` and `memory_checks.md` against `CLAUDE.md` and `docs/agents.md`, with the user | 2026-11-16 | *Three Process Documents Read Against the Rules* |
-| 79 | Two tests wait for their subscriber's subscription before they end | 2026-11-16 | §6.2, §8.6, E.23; *Two Tests Wait for Their Subscriber* |
-| 80 | The hunt marks a record that follows a cancel in its host | 2026-11-16 | *A Record After a Cancel* |
-| 81 | `listen_of_one_family_test` tells another socket's port from the regression it holds | 2026-11-16 | E.18; *A Port Another Socket Holds* |
-| 82 | A host's start on a busy machine, measured: the busy wait stays, with the user | 2026-11-17 | *The Busy Wait Stays* |
-| 83 | What a load says of what it could not load, with the user | 2026-11-16 | §11.1, §11.2; *What a Load Could Not Load*, *Each Failure Once* |
-| 84 | The tests run side by side run in lanes, a test begun as soon as one ends: `make test-nodes` in 108 s for 209 s, with the user | 2026-11-17 | *Lanes in Place of Chunks* |
-| 85 | The sessions the shell's tests start in line mode, each form by one helper | 2026-11-16 | *One Way to Start a Line Session* |
-| 86 | E.18's sentence on a port still closing, narrowed, with the user | 2026-11-16 | E.18; *A Port Another Socket Holds*, *A Port Its Listener's Connections Left* |
-| 87 | `make test-shell` runs under a home of the run's own, with the user | 2026-11-18 | *A Home of the Run's Own* |
-| 88 | A test runs the hunt's rounds: the host's first cancel carried from one round to the next, and the record of a directory that cannot be removed | 2026-11-18 | *The Hunt's Rounds Tested* |
-| 90 | OTP's 23rd report: a write to a port whose program has ended loses its exit status, not stated by OTP and reproduced with OTP alone; filing is the user's | 2026-11-17 | [`otp_bugs.md`](otp_bugs.md), 23; *A Status Lost to a Write* |
-| 91 | The look reads each checker among the processes of its two reads | 2026-11-18 | §8.4, §8.6; *A Message at a Checker*, *A Checker Among the Processes* |
-| 94 | Two sentences on what crosses nodes, and their three tests: what waits for a peer in the host's buffer, and an adapted address that keeps nothing alive where it was made | 2026-11-17 | §6.2, §6.5, §8.7; *The Outside Reviews Read*, *What Waits for a Peer* |
-| 97 | What else waits where a `send` to a peer waits, and a gateway that waits on no peer | 2026-11-18 | §6.6, §6.7, §8.7, Appendix E.27; *What a Full Buffer Holds* |
-| 98 | A node whose program has ended ends while a lost peer's socket holds output; OTP's 24th report | 2026-11-17 | §12.6; [`otp_bugs.md`](otp_bugs.md), 24; *A Connection That Cannot Drain* |
-| 99 | A request's head read from a socket a piece to each read; the library's own cases held the rest, which the item's search had missed | 2026-11-19 | Appendix G.11; *A Head in Pieces, Tested* |
-| 102 | A node's lock on `ernest.pid` held until its process has ended, with the user | 2026-11-18 | §11.2, §12.5; *A Lock Held to the Process's End*, *A New OTP and Nothing Else New* |
-| 104 | The runtime's processes that serve the whole node wait on no peer, with the user | 2026-11-18 | §6.9, §8.7, §12.7; *The Runtime's Processes Wait on No Peer* |
-| 105 | A message for a peer is placed in the host's buffer in parts, with the user | 2026-11-18 | §8.7; *A Message Is Placed in Parts* |
-| 106 | What a program's helper holds for a program that does not read, with the user | 2026-11-18 | Appendix E.21, E.23; *What a Program's Helper Holds* |
-| 107 | `Process.status` says `Suspended` of a process the host holds, with the user | 2026-11-18 | §11.2, Appendix E.21; *What a Full Buffer Holds*, *Suspended Is the Host's Word* |
-| 108 | A peer's worker read whole; items 125 and 126 hold the fixes, with the user | 2026-11-19 | §6.5, §8.7, §12.6; *What a Peer's Worker Waits On* |
-| 109 | A test that holds Appendix E's `type` lines to the library | dropped 2026-11-19 on the user's word: `ern_prelude_tests` holds them, and Appendix G's | *The Type Lines Are Held* |
-| 110 | `test/Makefile` states the run's directory and its home once, for every area of the full run | 2026-11-19 | *The Run's Home Stated Once* |
-| 111 | A checker acts for its address's target, with the user | 2026-11-18 | §8.4, §10, §12.3; *A Checker Acts for the Target* |
-| 116 | The job halts without the host's flush, with the user | 2026-11-18 | §8.6, §11, E.18; *The Job Halts Without the Host's Flush* |
-| 117 | A termination once the end's wait is over ends the end at once | 2026-11-18 | §8.6, §11.2, §12.5; *A Termination Ends a Stalled Flush* |
-| 112 | A check stands through a loss of its target's node, and a fault goes straight to its target and can pass a message that takes §6.5's step, with the user | 2026-11-19 | §6.5, §8.4, §10; *A Check Stands Through a Loss* |
-| 121 | A process killed while what it sends waits has sent it, and its `Down` may wait on a third node, with the user | 2026-11-19 | §6.6, §6.9, §8.7; *A Down Follows the Send* |
-| 127 | The roots' unit tests run under the run's home, `AREA_RUN` in `test/run.mk` for both makefiles, with the user | 2026-11-19 | *The Roots' Unit Tests Under the Run's Home* |
-| 128 | A body read a piece to each read, a body that never ends, a close inside the trailers and a limit met in bytes from the socket, with the user | 2026-11-19 | Appendix G.11; *A Body, Tested* |
-| 129 | G.11 states what a client sends in a body; `Http` reads white space as spaces and tabs and a coding in ASCII case; `Char` and `String` gain `toAsciiLower` and `toAsciiUpper`, with the user | 2026-11-19 | Appendices E.0, E.5, E.6, G.11; *G.11 States What a Client Sends*, *An ASCII Case in the Library* |
-| 130 | `Http.header` and `Http.headers` compare a name in ASCII case, left to the session by the user | 2026-11-19 | Appendix G.11; *A Header's Name in ASCII Case* |
-| 131 | `Http.elements`, a list header's elements, a quoted string keeping its comma and nothing else, and a body's framing refuses a `Transfer-Encoding` whose quoted string does not end, feedback 267, with the user | 2026-11-19 | Appendix G.11; *A List Header's Elements* |
-| 114 | `Process.fromAddress` answers the process behind a check, and a fault to an adapted address over an address given back at another type is its target's, with the user | 2026-11-19 | §8.4, Appendix E.21; *The Process Behind a Check*, *The Process Behind a Check, Built* |
-| 132 | A bad message's fault to a foreign process the runtime did not start is sent as a fault in `f` is, an exit signal, and a foreign address gains no check of its own, with the user | 2026-11-19 | §6.5, §8.4, Appendix F; *A Bad Message's Fault to a Foreign Target* |
-| 115 | The wrap of a `monitor` in an adapted address's function, or in a wrap, answers no value, and a lambda refused where a function that receives nothing is expected has the use that makes it receive labeled, with the user | 2026-11-19 | §6.5, §6.9, §11.5; *A `monitor` in an Adapted Address's Function* |
-| 120 | The runner waits for no line of the end's wait, a termination during the flush ends the program without it, and one termination never both begins the end or cuts the wait and ends the flush, with the user | 2026-11-19 | §8.6, §11.2, §12.4; *The Runner Waits for No Line* |
-| 138 | The shell's flush ends at the end of standard output's process, and an end at once gives the terminal back without the end of its paste mode | 2026-11-19 | §8.6, §11.2, §12.1, §12.4; *The Shell Ends at Once* |
-| 139 | `ern test` ends by a termination or a hangup that cut short the end of a run, a module's tests' or an example's, and runs no launch after it, with the user | 2026-11-19 | §11, §11.8; *`ern test` Ends by a Signal That Cut an End* |
-| 141 | `the end was cut short` names each subscriber whose answer the end had not taken, a narrower sentence and no code, with the user | 2026-11-19 | §11.2; *A Subscriber Named Unanswered* |
-| 124 | A node's end waits for no send: what is not placed when the node tells a peer that it ends may be dropped, its watcher told `Unreachable`, and a peer that connects while the node stops is told nothing, narrower sentences and no code, with the user | 2026-11-20 | §6.9, §8.6, §8.7, §9.3, §12.6, Appendix E.1; *A Node's End Waits for No Send* |
-| 125 | A disconnect waits on no connection: a reload that removes a peer, a frame a node cannot read and the refusal at a full table end the connection by the host's cast; §12.5 says that a removed peer is served until the host has closed its connection; the line of a frame it cannot read says that the node ends the connection; `otp_bugs.md`'s report 26, with the user | 2026-11-20 | §12.5, §12.6; *The Disconnect Waits for Nothing* |
-| 126 | A worker waits on no third node: at a full table the worker sets the host's `async_dist` around the fault it sends an adapted address's process, and the `find` frame takes the `compute` frame's guard; the nodes' note names the send | 2026-11-20 | §6.5, §7.4, §8.7, §12.5, §12.6; *A Worker Waits on No Third Node* |
-| 133 | An address foreign code gave carries the process behind it, so `Process.fromAddress`, a `kill`, a `monitor`, a fault and a call name that process on another node, and a check in front of a process of another node comes back as the address that went out, with the user | 2026-11-20 | §6.4, §6.5, §6.6, §6.9, §8.4, §8.7, Appendix E.21; *An Address Given Back, on Another Node* |
-| 146 | An address of a recursive type gets one check whether it crosses alone or inside a value of its type, and comes back as the program's own either way; a function value's result check closes a type whose recursion passes through another | 2026-11-20 | §8.4, §12.3; *One Check for an Address of a Recursive Type* |
-| 147 | A fault taken at a wait names its `receive`'s line, as Appendix E.21 says: the showing counted a line wrong, and two tests of `ern_emitter_tests` now write the clause on a line of its own | 2026-11-20 | Appendix E.21; *A Fault at a Wait Names Its `receive`* |
-| 148 | `Io.show` writes a process as `<process.84>` and an address as `<address.84>`, and a process of another node with its peer's name before the number, `<process.store.84>`, or its key's digest where the node is not listed, with the user | 2026-11-20 | Appendix E.1; *A Process Printed with a Dot, Built* |
-| 150 | A check is found by its address and the hash of the type the address crossed at, so an address gets one check however its type is written, inside another type or from two modules, and comes back as the program's own; one check at each type, and a bad message's cause names the type as the module whose crossing made the check prints it, with the user | 2026-11-20 | §6.4, §8.4, §8.7, §12.3, Appendix H; *One Check by the Type's Hash* |
-| 152 | §8.4 says what the boundary trusts at a type variable: what foreign code gives there, where it gives back an address or a function that crossed at a type that holds one, that a value at one crosses as it is and is only handed on, and a call's answer at a variable; three holes each shown by a probe, no code changed, with the user | 2026-11-20 | §8.4, §8.7, Appendix H; *What the Boundary Trusts at a Type Variable* |
-| 137 | Three corners of a diagnostic: a literal against an annotation is reported whole, as built, and §11.5 says an element after the first; a type in parentheses spans its parentheses; a result annotation that ends in a `receiving` is labeled as the result type's, and its help writes the function's mailbox type after the result type in parentheses, with the user | 2026-11-20 | §11.5; *Three Corners of a Diagnostic* |
-| 92 | `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever` wait without a limit, each its twin without a time and without `Left(Timeout)`; a socket `acceptForever` opens has its own site; the examples, the flake hunt, two fixtures and the guide's §8.7 take them, and three tools name a file's time once, with the user | 2026-11-20 | Appendix E.0, E.18, E.23; *A Wait for a Life, Built* |
-| 101 | What an order nobody promised gets: nothing, unless a sentence of the report or a sibling operation leads to it; then a mechanism where there is something to wait on, no rule breaks and the cost is a fraction, and otherwise a sentence; the seven verdicts, item 93 and item 95's line stand, the eighth case is item 154, and the rule stays in the log, as item 142 decided, with the user | 2026-11-20 | *An Order Nobody Promised* |
-| 154 | Messages one process sends through one check are received in sending order; a checked message takes one step more, in the check's process, need not be in its receiver's mailbox when the foreign function that sent it has returned, and can be passed by one sent the same receiver after it another way; foreign code sends as the process it runs in; shown by two probes, four tests, no code of the runtime changed, with the user | 2026-11-20 | §6.4, §8.4, §8.7; *The Order Through One Check* |
-| 93 | `Tcp.closeListener` answers once the listener has ended and its host socket has closed, each accept it held answered `Left(Closed)` first, by a second call private to `Tcp`; a held accept faults where the listener is killed or its owner dies; `Os.closeInput` answers once the close is made, under a terminal once the helper says the hangup is made, and faults on an ended process and where the helper has failed; the harness's write of nothing went, and two terminal tests build their fixtures into roots of their own; item 155 found, with the user | 2026-11-21 | Appendix E.18, E.23; *The Two Closes Answer* |
-| 95 | Three shell sessions that showed more than the report promises: the tour's chapter 8 lists a move after an answered `report`, and the deployment guide names what its listing rests on; the tour's restart limit is an hour; the tour's chapter 2 and the guide's §1.4 say that a send and a call to another node in two inputs are two senders' messages and that the page shows one order, the tour also why chapter 1's order holds; the transcripts as typed, with the user | 2026-11-21 | *The Outside Reviews Read*, *Two Shell Sessions Written*, *A Send and a Call in Two Inputs* |
-| 100 | A socket over TCP shuts down its writing side as it ends, so the far end reads the close straight after the last byte; a write answered `Left(Closed)` loses what had arrived and no read had taken, and E.18 says so; `Tcp.close` answers once the socket's bytes and, over TLS, the record that ends the connection are with the kernel, or the bytes are dropped, and at once where a handshake has not ended; a socket whose TLS 1.3 handshake waits no longer holds its end 5 seconds; feedback 262 and 263, with the user | 2026-11-21 | Appendix E.0, E.18; *The Close Follows the Last Byte*, *A Failed Write Loses What Had Arrived*, *A Close Answers Once Its Bytes Are Sent* |
-| 142 | The short rules stay, the trial ended early: `CLAUDE.md` gains the first-user question's time, the known issues' list, the full run at an item's close, the busy loop, two lines of taste, the session's own answer to a question about the host, and a cold reading of a form that replaces a mechanism; the rows that cost nothing add no rule, item 101's rule stays in the log, the long file and the trial's list are retired, with the user | 2026-11-21 | *The Short Rules Stay* |
-
----
-
 ## MVP 4.17 (the shell's editing, what a job trusts, and the rest of packages: archives and the guide), about a week
 
 Split from MVP 4.16 with the user on 2026-11-14 (the log's *The Milestone Split*), so that MVP
@@ -273,9 +117,9 @@ log's *The Trust Said Once*). Items 52 and 54 are left of it.
     both as §11.5 names a file.
   - A text read from a file in a line that is no refusal: a peer's name in a reload's
     note is written raw. Recommended: the note is written as a refusal is. The host's
-    log text and the text after `ern: internal error` are the host's, and stay. MVP
-    4.5's item 151 weighs refusing such a name where it is read, and is weighed with
-    this line.
+    log text and the text after `ern: internal error` are the host's, and stay. A line of
+    [`known_issues.md`](known_issues.md) weighs refusing such a name where it is read, and
+    is weighed with this line.
   - A value a refusal quotes from a configuration is written with a control character
     below U+0020 as JSON's `\u001B`, and DEL and U+0080 to U+009F as `\x7F`.
     Recommended: the quoting writes every control character of §2.1 as JSON does.
@@ -636,14 +480,13 @@ MVP 4.5*): of its eight items one remains, three moved into MVP 4.0's shell, whe
 the operator's prompt is, and four were dropped with their verdicts in the log.
 
 On 2026-11-19 the milestone took what the line left after the launch (the log's *The Line
-Before the Launch*): six items of MVP 4.16, each under the number it had there, and feedback
-264 as item 5. An item number above 5 in their paragraphs is MVP 4.16's. Since 2026-11-21 a
-find judged to stand after the launch gets its line in [`known_issues.md`](known_issues.md)
-instead.
+Before the Launch*), each item under the number it had in MVP 4.16, and others were found
+later. On 2026-11-21 those that only a built corner, a test or the host alone shows became
+lines of [`known_issues.md`](known_issues.md), each naming the item it was (the log's *The
+Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 135, 136, 140, 143, 144, 145, 149, 153, 157, 158, 159, 151 and 5. Item 103 is last, since nothing of
-Ernest's meets it.
+1 to 4 follow, then items 68, 96, 113 and 158.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -670,13 +513,6 @@ Ernest's meets it.
    E.0's admission rules first, and then against ernest-httpd's proposal for new code while
    it serves, where that session writes one. Where neither comes, the item closes on a log
    line that drops the entry and says why.
-5. **Whether a program can wait for a peer's telling**, feedback 264, found 2026-11-17 by
-   the read-back of MVP 4.16's item 97 (the log's *What a Full Buffer Holds*). Four sites of
-   the tests read `Peer.utilizations` in a loop with a sleep of the teller's interval, since
-   a telling is the runtime's frame and no message shows that one came. A decision, and
-   nothing is built: a wait for a telling is read against E.0's admission rules. Where a
-   rule admits it, E.27 changes first. Where none does, the four sites keep their wait with
-   its reason beside it, and the item closes on a log line that drops the entry.
 
 What the line left, in the order it is taken:
 
@@ -745,235 +581,6 @@ What the line left, in the order it is taken:
 
   Weighed with it: since item 112 a check of a process on a node that never connects again
   stands until the program ends (the log's *A Check Stands Through a Loss*).
-- **134. The term of a fault a foreign process takes as a message**, found 2026-11-19 by
-  item 132's showing (the log's *A Bad Message's Fault to a Foreign Target*). A foreign
-  process on another node than the fault's sender takes a fault as a message (§6.5), and
-  the report gives that message no term. The code has two shapes: the cause alone from a
-  check, and the whole fault from a fault in `f`. §6.5 is true as it stands and silent
-  on the term, so by the line's test the item stands here.
-
-  The shape: §12.2 states one term, and the code sends one shape. §12.2 says three
-  things more of the exit signal a foreign process of the sender's node is sent: that a
-  process that traps exits takes it as a message, which process it comes from, and that
-  the trace of a bad message's fault is empty.
-- **135. A resource's process meets no fault**, found 2026-11-19 by the cold reading of
-  item 132's sentences (the log's *A Bad Message's Fault to a Foreign Target*), shown by
-  the reader's probe and the session's run. A listener is started by the runtime and has
-  no wait of Ernest's. After a fault in `f` and after a bad message through its check,
-  each fault stood unread in its mailbox, the listener answered its port, and the run
-  ended with status 0. By a reading a socket does the same.
-
-  §6.5 and §8.4 have the receiver fault at the wait that reaches it, and the listener
-  shows that false. Only a built corner shows it. The message type of a listener, a
-  socket and a program is abstract, so the function of an adapted address over one can
-  only fault or never finish, and a bad message needs foreign code that sends to a
-  resource's address. So the item moved here on the user's word on 2026-11-20 (the log's
-  *Item 135 Stands After the Launch*).
-
-  To decide with the user at its turn: whether the resource ends at the fault, or the
-  fault is dropped and a sentence says so. The shape, read from the code and not shown:
-  the resource ends. Its loop already traps exits, closes and ends with the exit's
-  reason, so the runtime sends it the fault as the exit signal that a foreign process it
-  did not start is sent, and §6.5's clause names every target with no wait of Ernest's
-  (principle 1). A fault dropped would be lost in silence (principle 3).
-
-  It follows item 134, which is of that exit signal's term in §12.2.
-- **136. A wrap's fault in the process kept for an address**, found 2026-11-19 by item
-  115's showing (the log's *A `monitor` in an Adapted Address's Function*), read from two
-  runs and not diagnosed. The target was on another node, and `f` made a `monitor` whose
-  wrap faults and then waited in a call. The wrap ran for the kept process, which ended
-  `Returned`. Neither node wrote a fault's line, and the target answered a call after it.
-
-  §6.9 has a wrap's fault be the fault of the process it delivers to, and the two runs
-  show that false. Only a built corner shows it: two nodes, an adapted address made on
-  one over a target on the other, a function that makes a `monitor` whose wrap faults,
-  and that function held in a call until the monitored process dies. So the item moved
-  here on the user's word on 2026-11-20 (the log's *Item 136 Stands After the Launch*).
-
-  An agent first shows where the fault goes. The shape, by §6.9 and §6.5 as they stand
-  and not diagnosed: the kept process meets the fault at its wait in `f`, and it is then
-  a fault in `f`, the target's, so the report stays and the code follows it. The
-  narrower sentence is weighed first.
-
-  It follows item 135, which is of a process the runtime started that meets no fault
-  too. Both may add to §6.5's sentence on a fault in `f`, so item 135's verdict is read
-  first.
-- **143. A standard input that cannot be read holds its reader**, found 2026-11-20 by
-  item 124's tests (the log's *A Node's End Waits for No Send*, its paragraph *Found
-  beside it*). With standard input a directory, `ern run p.erc < /tmp`, or a descriptor
-  not open for reading, `0>/dev/null`, `Io.readLine()` and `Io.read()` never answer, and
-  the program waits until it is killed. §12.1 has a standard input that cannot be read
-  as lines or bytes fault the entry process with the host's reason. Only a start built
-  so meets it, so the item stands here: `/dev/null` answers `None` and a pipe reads.
-
-  The shape: the read's failure reaches the runtime, which faults the entry process as
-  §12.1 says. An agent first shows what the host's read answers for each of the two.
-- **144. A removed peer's frames until its connection closes**, found 2026-11-20 by item
-  125's build (the log's *The Disconnect Waits for Nothing*, its paragraph *The window
-  after a reload*). A reload that removes a peer asks the host to end its connection, and
-  until the host has closed it the node serves the peer as a peer, which §12.5 states. A
-  spawn that a removed peer sent after the node had said the removal ran on the node, its
-  connection held back, 3 runs of 3. The host closes a sound connection within 2 ms, and
-  one to a peer that stands still about 84 s later.
-
-  By a reading of the host's tick, a peer that keeps sending and reads nothing keeps its
-  connection without limit. Only a peer built so meets that, one that could start code
-  on the node while it was listed, so the item stands here.
-
-  The shape: from the reload on, the gateway drops the runtime's frames of a node that is
-  no longer listed, and says so, as §12.6 has it of a frame that belongs to no
-  connection. What the host carries itself, a message, a monitor and an answer, crosses
-  until the close, and §12.5 then says that alone. An agent first shows the peer that
-  sends and reads nothing.
-- **145. A sender held at the buffer's limit, and its connection idle**, found 2026-11-20
-  by item 125's build (the log's *The Disconnect Waits for Nothing*, its paragraph *Found
-  beside it*), seen and not chased. A node sent a stopped peer one message of 16 MB, and
-  the host held the sender once the buffer passed its limit. In 1 poll of 11 the
-  connection's process then stood idle for about 4.8 s with the rest unsent, and in 1
-  run of 6 the connection was not full when a reload removed the peer. It is a reading
-  not yet made, of the host alone, so the item stands here.
-
-  The shape: an agent reproduces it with OTP alone. Shown, it is a report in
-  [`otp_bugs.md`](otp_bugs.md), and nothing of Ernest's changes: item 125's tests send
-  128 messages of 256 KB, which filled the connection in 15 runs of 15.
-- **140. An `Os.exit` once the end's wait is over**, found 2026-11-19 by item 120's
-  probes (the log's *The Runner Waits for No Line*, its paragraph *Found beside it*). On
-  a node, a process kept for an adapted address called `Os.exit(7)` while the flush was
-  stalled. Nothing read it: the node stayed alive, and ended with status 0 at a
-  termination, or once its reader went on.
-
-  §8.6 has an `Os.exit` once the end has begun end the program at once, with its status,
-  and the node shows that false. Only a built corner shows it: an adapted address whose
-  function calls `Os.exit`, a peer's send to it once the node's wait is over, and a flush
-  that lasts until the send arrives. A plain run cannot make it. So the item moved here
-  on the user's word on 2026-11-19 (the log's *Item 140 Stands After the Launch*).
-
-  The shape: once the wait is over the exit's status is the job's, and the flush goes on,
-  since only a termination ends a flush. An exit that ended it would lose a run's output
-  by timing where nothing is stalled (principle 1). Decided with the user: the exit's
-  status stands through a later termination.
-
-  It makes its case with the process kept for an address, as item 136 does, and needs
-  nothing of that item, which is of a wrap's fault there.
-- **149. A pid that foreign code names of a process it was not given**, found 2026-11-20
-  by item 133's build (the log's *An Address Given Back, on Another Node*), three
-  corners read from the code and not shown.
-
-  - A `Process` foreign code gives may be the pid of a check. On the check's node the
-    runtime takes it to the process behind the check, and on another node nothing leads
-    there. §8.4 and Appendix E.21 do not say which process it is.
-  - A check's pid that foreign code carries to another node by its own means, and gives
-    the program there as an address, is held as foreign and names the check.
-  - A pid of another node's process that foreign code invents and gives as an address is
-    held as foreign, where §8.4 has a process whose address foreign code was never given
-    be a bad value.
-
-  Each needs foreign code built for it, so the item stands here on the user's word on
-  2026-11-20. The shape: §8.4 says what a pid of another node is where foreign code
-  gives it, since a node holds no row of another's processes. The narrower sentence is
-  weighed first.
-
-  Found 2026-11-20 by item 148's build, read from the code: `Io.show` writes such a
-  `Process` by the check's number, and a pid of a host that is no node of Ernest's by
-  its host's name without its dots, where Appendix E.1 has a key's digest.
-
-  Found 2026-11-21 by the mechanisms' reading (the log's *The Check Stays a Process*),
-  two more read from the code and not shown. A `kill` of a `Process` that is a check's
-  pid ends the check and leaves the process, where a `monitor` of it watches the process
-  (`ern_rt.erl:1311`). A check traps no exit, so foreign code that links to the pid it
-  was given, or exits it, ends the check, and what it sends afterwards is lost while the
-  receiver lives (`ern_rt.erl:3248`), a silence §6.2 does not list.
-- **153. What foreign code gives back that §8.4 has no rule for**, found 2026-11-20 by the
-  cold reading of item 152's sentences (the log's *What the Boundary Trusts at a Type
-  Variable*), its first line shown by the session's probe and the rest read from the
-  text or the code.
-
-  - A function of the program's given back at another type known whole keeps its
-    check: called with a `String` at `Int`, it faulted `an argument of Probe.describe
-    from foreign code does not match Int`. §8.4's **Functions** checks what foreign
-    code calls it with, and has no rule for what the program calls it with.
-  - A `Reply` of the program's given back at another type is in no rule, and §8.4's "no
-    other answer is checked" leaves the program's answer to it unchecked. In the code
-    the caller checks it.
-  - §8.4 does not say which type a message to a foreign address, or an answer to a
-    foreign `Reply`, crosses at. In the code it is the type foreign code gave the
-    address or the `Reply` at.
-  - An address given at a type variable and given back at an address's type breaks
-    §8.4's promise, and the code has two outcomes: a bad value for a process's address,
-    and the address as it is for an adapted one.
-  - Four of wording. "Its parameter's type" in **Functions** reads as the function's
-    own or as that of the type it crossed at. The result of a function foreign code
-    called is not among what crosses into foreign code. No promise has foreign code
-    call a function in the calling process. §12.2 does not say how foreign code sends
-    to an address.
-  - §8.7's **Calls** excepts a request through an adapted address made on a third node,
-    and names no request through a check, which takes a step more too (§8.4). Found
-    2026-11-20 by the cold reading of item 154's sentences, read from the text and not
-    shown.
-
-  A regression test is written with it for §8.4's sentence on a call's answer at a type
-  variable, which no test holds. Item 152's probe showed it: a call written in a
-  function generic in its answer's type took a foreign answer of `"text"` at `Int`.
-
-  Each needs foreign code built for it, so the item stands here on the user's word on
-  2026-11-20. The shape: one sentence each in §8.4, the first three as the code is
-  built, each shown by a probe first. It follows item 149, which is of what foreign
-  code gives too. Item 134 names §12.2 for another line.
-- **151. A control character in a peer's name**, found 2026-11-20 by item 148's build
-  (the log's *A Process Printed with a Dot, Built*), shown by the agent's run.
-  `ernest.conf` takes any name that is not empty. `Io.show` writes a process of the peer
-  with the name as it stands, so a name that holds a bell and a line feed reaches the
-  terminal as they are, and §12.5's lines write it so too. A fault's line escapes it.
-
-  Appendix E.1 and §12.5 are true as they stand, and only a name written so on purpose
-  meets it, so the item stands here. To decide with the user at its turn, on the
-  session's recommendation: the node refuses to start where a peer's name holds a
-  control character, one rule where the name is read, and `ern config --peer-dir`
-  refuses a directory named so.
-
-  It follows MVP 4.17's item 54, whose third line decides how a reload's note writes a
-  peer's name. A name refused where it is read leaves that line nothing to escape, so
-  the two are weighed together at item 54's turn.
-- **155. A connection taken as its listener is killed**, found 2026-11-20 by item 93's
-  build (the log's *The Two Closes Answer*), read from the code and not shown. A worker
-  that has taken a connection as a kill ends its listener opens the socket and answers its
-  accept, whose caller has faulted with `callee was killed` by then. The socket is its
-  caller's: it ends with a caller that dies, and where a restart keeps the caller it lives
-  on with no address to reach it. It was so before item 93. Only a built corner shows it,
-  so it stands here on the user's word on 2026-11-21. The shape: the worker asks whether
-  its listener lives before it opens the socket's process, and closes the connection where
-  it does not.
-- **156. A process that waits until another waits**, feedback 269, found 2026-11-21 by
-  the read-back of item 93 (the log's *A Busy Loop in a Test*). A session typed into a
-  shell in `test/ern_nodes_tests.erl` polls `Process.status` in a loop until another
-  process waits in a call. A busy loop is forbidden, and nothing in the library waits for
-  that. Only a test meets it, so it stands here. The shape: a wait of `Test`'s weighed on
-  E.0's admission rules, or the test made without it, and the loop goes either way. It
-  follows item 5 of this milestone, feedback 264, a loop with a sleep over
-  `Peer.utilizations`, and the two are weighed together.
-- **157. Four suspicions the mechanisms' reading read from the code**, found 2026-11-21
-  by its second readers beside their questions (the log's *The Check Stays a Process*),
-  none shown. Each needs a program built for it, so the item stands here. The shape: a
-  program that shows each, and one that is shown is fixed or gets its sentence, and one
-  that is not is dropped with its reason in the log.
-
-  - `Process.current()` in an adapted address's function on arrival is the process kept
-    for the address. Sent on and killed, that process ends with the message it was
-    handed (`ern_gateway.erl:540`). Items 136 and 140 make their cases with the same
-    process.
-  - A sole subscriber's restart ends the end's wait, so its new run that subscribes again
-    may not be told (`ern_rt.erl:4524`), where Appendix E.23 has a restarted run told as
-    a new one. The log's *MVP 3.1 Read* has a subscriber that restarts while the end
-    waits on another told again, and says nothing of one that is alone.
-  - Across nodes a `Restarted` can follow the `Down` of a death where the watcher
-    monitors again at once (`ern_rt.erl:1854`), against §6.9's rule that item 74 built
-    (the log's *No Restarted After a Death*).
-  - `examples/lease_broker.ern`'s client acts on a call's answer from the broker's new
-    run before it reads the `Restarted` already in its mailbox. A call's answer does not
-    pass through the mailbox, so §6.9's order does not cover it, and the example or §6.9
-    says so.
-
-  It follows item 153.
 - **158. A socket ended with what its host holds dropped**, feedback 270, found
   2026-11-21 by ernest-httpd's session on 0.10.0 (the log's *A Close Answers Once Its
   Bytes Are Sent*, its paragraph *Left at the close*). Nothing in `Tcp` ends a socket and
@@ -983,25 +590,6 @@ What the line left, in the order it is taken:
   MiB to 225, outside its caps. E.18 is true and a kill does what 0.10.0's close did, so
   it stands here. The shape: a function of `Tcp` that ends a socket at once, its far end
   reading a reset, weighed on E.0's admission rules and decided with the user.
-- **159. `reload_waits_on_no_stopped_peer` failed once**, found 2026-11-21 by a full run
-  of item 100 (the log's *The Close Follows the Last Byte*, its paragraph *What it cost*).
-  The test of `ern_nodes_tests` failed in one full run of four that day: the maker said
-  the stopped third's loss, "it closed", before the asker's end, where the test has the
-  third's connection stand until the third runs again. Only the suite meets it, so it
-  stands here. The shape: the test is read against §7's sentences on a stopped peer, and
-  it or the runtime is mended.
-- **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
-  build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
-  its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
-  `{error, noconnection}` where it is called at once on the node's `nodeup`, since the host
-  sends that message before the connection counts as up: 40 of 1,000 connections with OTP
-  alone. `net_kernel:setopts(new, ...)` answers `{error, enotsup}` under TLS distribution,
-  since `inet_tls_dist` exports no `setopts/2`, which has no script with OTP alone yet.
-
-  Nothing of Ernest's meets either, since the carrier sets its sockets' options by boot
-  flags. An agent writes both as reports in [`otp_bugs.md`](otp_bugs.md)'s form, each
-  reproduced with OTP alone, and the session runs each script as placed. Filing is the
-  user's.
 
 ---
 
@@ -1057,7 +645,7 @@ What the line left, in the order it is taken:
 | MVP 4.2 | the website, built and live with MVP 4.4's item 6: what Ernest is, its characteristics, the three doors, the tour, the guide, the report and the library's pages, generated from a tag by `make site`, the projects' page, the live shell's page side, and the browser test that holds it | 2026-11-06 | | the design note `docs/design/site.md`; the log's *ehttpd and the Website*, *The Tour Written*, *The Generator Before MVP 4.15*, *A Node's Limits*, *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Generator's Third Stage*, *The Pages Read Against the Principles*, *A Release Carries No History*, *The Start Line's Length*, *The Client's Questions*, *The Site Goes Live With 1.0*, *The Mode's Brackets*, *Projects, a Page of Their Own*, *The Browser Test's Flake*, *The Site's Proposal Read* |
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
-| MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found | 2026-11-21 | | above |
+| MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found; `Tcp.close` answers once its bytes are sent; the short rules stay and the known issues' list begins | 2026-11-21 | | *A Deadlock of the Whole Program*, *A Package and Its Manifest*, *The Root Package Read*, *The Named Packages Built*, *The Flake Hunt*, *The Review's Feedback Decided*, *One Copy of the Pages*, *The Synopsis's Rule*, *A Status Read Before the Watch*, *A Hiding Module Refused*, *The Ownership Test Built*, *A Given Path Resolved Once*, *The Proposal Held Against the Report*, *One Namespace at the Root*, *An Installed Program's Packages*, *The Client's Line*, *What One Read Answers*, *Building*, *The Sentences Held by Tests*, *A Compiled Form's Sources*, *A Document Beside a Module That Fails*, *A Library's Function in a Program*, *The Sweep's Reading*, *What the Toolchain's Page Is Made From*, *The Front Page From Its Motive*, *The README's Top Comes First*, *The Front Page in the Announcement's Manner*, *The Shell's Last Line*, *The Named Packages Read*, *The Reading's Round*, *The Rules Read Against Each Other*, *The Milestone Split*, *No Module's Source*, *An Index That Is No File*, *A Sender That Outlives Its Run*, *The Rules Read for Clarity*, *A Limit Ends Its Own Test*, *Three Orders the Supervisor Tests Read*, *A Delivery Counted Before Its End*, *A Listener Closed Before Its Accept*, *Seven Entries of the Feedback*, *A Program's Line Beside the Prompt*, *A Program Named Before It Runs*, *A Subscriber That Ends Beside Main*, *A Terminal's Echo Beside Its End*, *A Signal Before the Pause*, *A Reaper That Outlives Its Runner*, *Two Hours for a Hunt*, *A Termination Lost With OTP Alone*, *A Message at a Checker*, *The First Start's Schedulers*, *Twenty-Six Hosts Are the Cost*, *Two Orders Stated*, *The Watcher Holds Who Waits*, *No Restarted After a Death*, *The Style Test Reads the Roots' Tests*, *The Resize Told by Its Signal*, *The Review Documents Read Against the Rules*, *Three Process Documents Read Against the Rules*, *Two Tests Wait for Their Subscriber*, *A Record After a Cancel*, *A Port Another Socket Holds*, *The Busy Wait Stays*, *What a Load Could Not Load*, *Each Failure Once*, *Lanes in Place of Chunks*, *One Way to Start a Line Session*, *A Port Its Listener's Connections Left*, *A Home of the Run's Own*, *The Hunt's Rounds Tested*, *A Status Lost to a Write*, *A Checker Among the Processes*, *The Outside Reviews Read*, *What Waits for a Peer*, *What a Full Buffer Holds*, *A Connection That Cannot Drain*, *A Head in Pieces, Tested*, *A Lock Held to the Process's End*, *A New OTP and Nothing Else New*, *The Runtime's Processes Wait on No Peer*, *A Message Is Placed in Parts*, *What a Program's Helper Holds*, *Suspended Is the Host's Word*, *What a Peer's Worker Waits On*, *The Type Lines Are Held*, *The Run's Home Stated Once*, *A Checker Acts for the Target*, *The Job Halts Without the Host's Flush*, *A Termination Ends a Stalled Flush*, *A Check Stands Through a Loss*, *A Down Follows the Send*, *The Roots' Unit Tests Under the Run's Home*, *A Body, Tested*, *G.11 States What a Client Sends*, *An ASCII Case in the Library*, *A Header's Name in ASCII Case*, *A List Header's Elements*, *The Process Behind a Check*, *The Process Behind a Check, Built*, *A Bad Message's Fault to a Foreign Target*, *A `monitor` in an Adapted Address's Function*, *The Runner Waits for No Line*, *The Shell Ends at Once*, *`ern test` Ends by a Signal That Cut an End*, *A Subscriber Named Unanswered*, *A Node's End Waits for No Send*, *The Disconnect Waits for Nothing*, *A Worker Waits on No Third Node*, *An Address Given Back, on Another Node*, *One Check for an Address of a Recursive Type*, *A Fault at a Wait Names Its `receive`*, *A Process Printed with a Dot, Built*, *One Check by the Type's Hash*, *What the Boundary Trusts at a Type Variable*, *Three Corners of a Diagnostic*, *A Wait for a Life, Built*, *An Order Nobody Promised*, *The Order Through One Check*, *The Two Closes Answer*, *Two Shell Sessions Written*, *A Send and a Call in Two Inputs*, *The Close Follows the Last Byte*, *A Failed Write Loses What Had Arrived*, *A Close Answers Once Its Bytes Are Sent*, *The Short Rules Stay* |
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide | | | above |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
