@@ -22,8 +22,9 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 163**, the known
-issues sorted with the user a line at a time. Item 164 follows it and ends the milestone.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 164**, the OTP
+defects read against their issues and the last three made ready to file. It ends the
+milestone.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -56,12 +57,6 @@ Read for Build Order*). Items 162 to 164 were added last, on the user's word of
 
 ### What is left
 
-- **163. The known issues sorted**, the user's word on 2026-11-21. Each line of
-  [`known_issues.md`](known_issues.md) is read against the code as it stands and given one
-  of three verdicts, decided with the user a line at a time: dropped, the line going with
-  its reason in the log; planned, as an item of MVP 4.5; or kept, a corner that must be
-  built on purpose to be met. A line the code no longer shows goes as fixed. The item
-  closes with `make test-docs`.
 - **164. The OTP defects read against their issues, and the last three filed**, the user's
   word on 2026-11-21. Read that day: of the 24 issues filed, two were answered after
   `otp_bugs.md` last recorded them. On #12212 OTP found the workaround behind `ssl:close/2`'s
@@ -85,7 +80,8 @@ Read for Build Order*). Items 162 to 164 were added last, on the user's word of
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
 shell's editing, was built after them, then item 52, item 54, item 160 and item 161, item 7,
 item 8, item 9, which ended the packages proposal's build order,
-[`proposals/package_manager/`](proposals/package_manager/README.md), and item 162 last.
+[`proposals/package_manager/`](proposals/package_manager/README.md), item 162, and item 163
+last.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -103,6 +99,7 @@ item 8, item 9, which ended the packages proposal's build order,
 | 8 | `ern unpack`, `Ernest.Unpack` in the shell's root over `erl_tar`, `Crypto.sha256` and the helper's waiting lock, §11.9's paragraphs on an archive first, and a package's `priv` found through `code:priv_dir` | 2026-11-21 | *An Archive Read by the Host* |
 | 9 | The guide's §9.6 on a package, typed along from a package made to a program started elsewhere under `--package-dir`, with what a digest promises; the faq's question on packages and no package manager; the site's sentence on how a program takes a library, which MVP 4.4's item 6 holds to ernest-epx's archive; the glossary's line on a package's verbs; and two tests, the section replayed and the phrase held to the faq | 2026-11-21 | *A Package in the Guide* |
 | 162 | `:keys` lists the keys the shell binds, from one table in `Ernest.Shell.Editor` that two of the editor's tests hold to its bindings both ways, and `:help` names the manual page, §11.2's two lines first | 2026-11-21 | *The Keys Listed by `:keys`* |
+| 163 | The known issues sorted: of 35 lines, two dropped as OTP's alone, two planned as MVP 4.5's items 165 and 166, and 29 kept | 2026-11-21 | *The Known Issues Sorted* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---
@@ -397,7 +394,7 @@ lines of [`known_issues.md`](known_issues.md), each naming the item it was (the 
 Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113 and 158.
+1 to 4 follow, then items 68, 96, 113, 158, 165 and 166.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -501,6 +498,20 @@ What the line left, in the order it is taken:
   MiB to 225, outside its caps. E.18 is true and a kill does what 0.10.0's close did, so
   it stands here. The shape: a function of `Tcp` that ends a socket at once, its far end
   reading a reset, weighed on E.0's admission rules and decided with the user.
+- **165. A test of the node's file that fails where `TMPDIR` is long**, from MVP 4.17's
+  item 163 (the log's *The Known Issues Sorted*). `ern_os_tests:unopened_node_file_test`
+  binds a Unix socket at the `ernest.pid` of a directory under `TMPDIR`, and fails with
+  `einval` where that path passes the 108 bytes the host holds, as a session's scratch
+  directory does. The failure is the test's, and says nothing of the code. The test's
+  directory is made where its path is short, and the test is run once under a long
+  `TMPDIR`.
+- **166. `reload_waits_on_no_stopped_peer` failed once**, from MVP 4.17's item 163 (the
+  log's *The Known Issues Sorted*), found by MVP 4.16's item 100's `make test-full` on
+  2026-11-21 (*A Close Answers Once Its Bytes Are Sent*; was item 159). In one full run of
+  four the maker said the stopped third's loss before the asker's end. Whether that order
+  is the code's, which §12.5's reload would then break, or the test's own is not known.
+  `make flakes` is run over the nodes' tests, and a failure is diagnosed; where none comes
+  in an hour, the item closes on a log line.
 
 ---
 
@@ -560,4 +571,4 @@ What the line left, in the order it is taken:
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide | | | above |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
-| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16 and a decision on a wait for a telling | | | above |
+| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, and a test and a flake from the known issues' sort | | | above |
