@@ -7,7 +7,7 @@ Each reading has the log's entries that decided the mechanism, the other forms i
 ## What came of it
 
 - **Two forms break a claim of `docs/soundness.md`**: foreign code's messages with no check at all, and an adapted address whose function crosses with it. Every other form holds the four claims, and gives up something a program can do, an order, or a fault.
-- **Row 10, the check, has a form with no process that holds the same claim.** It is to decide.
+- **Row 10, the check, has a form with no process that holds the same claim.** Its sentences were then drafted and read cold, and they grew exceptions of their own ([`row_10.md`](row_10.md)). It is recommended to stay.
 - **Rows 11, 18 with 24 and 33, 8 and 9 stay.** Each other form gives up a promise that the log chose on purpose, and the second reader found the program that shows it.
 - **Rows 18, 8 and 11 rest on two earlier decisions.** A function that receives nothing may still call and wait (the log's *Kill Darlings*), and a `receive` runs no code as it takes a message (*A Process's Addresses, Taught in Order*). So a function on a message's way needs a process of its own, that process must act for someone, and a restart that keeps its order must wait for it.
 
@@ -33,7 +33,9 @@ Each reading has the log's entries that decided the mechanism, the other forms i
 
 **Use.** No foreign function outside the standard library takes or gives an address: 77 foreign functions in nine libraries and ernest-epx. Principle 5 has such a count decide nothing.
 
-**Recommended:** the form with no process. The measure decides: it holds claim 2 as today with no process, no table of addresses and no exception to §6.4. Principle 5 is behind it, since the exceptions fall today on every reader of §6.4 and §8.7 for a use of foreign bindings alone. The cost is real and is the first loss above.
+**Recommended at first:** the form with no process, since it holds claim 2 with no process and no exception to §6.4. The user took it on one condition, that its sentences be read cold before any code.
+
+**Recommended since that reading:** the checker stays. [`row_10.md`](row_10.md) has the draft and what the reader found: a handle reaches Ernest code through a type variable, and an ordinary `send` to a foreign address on another node puts a handle where it cannot send.
 
 ## Row 11: the process kept for an adapted address
 
@@ -100,7 +102,7 @@ Read from the code by the second readers, and not run. Each is a suspicion until
 - Across nodes a `Restarted` can follow the `Down` of a death, where the watcher monitors again at once (`ern_rt.erl:1854`).
 - `examples/lease_broker.ern`'s client acts on a call's answer from the new run before it reads the `Restarted` already in its mailbox (lines 367 and 385). A call's answer does not pass through the mailbox, so §6.9's order does not cover it.
 
-The first two go with the checker if row 10's form is taken.
+The first two are the checker's, and join MVP 4.5's item 149 if it stays.
 
 ## What is left
 

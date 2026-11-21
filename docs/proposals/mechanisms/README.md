@@ -6,6 +6,7 @@ Status: a reading under way, MVP 4.4's item 6 (the log's *The Mechanisms Read, P
 |---|---|---|
 | `README.md` | the measure, what a row is, how it is counted, and the rows ranked | the rows counted |
 | [`first_five.md`](first_five.md) | rows 10, 11, 18 with 24 and 33, 8 and 9: the log's reasons, the other forms, what a program loses by each, and what a second reader found | read; none decided |
+| [`row_10.md`](row_10.md) | the check with no process: the report's sentences drafted, and their cold reading | read cold; the checker recommended to stay |
 
 ## The measure
 
