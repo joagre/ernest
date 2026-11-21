@@ -244,6 +244,7 @@ The names are [`guide/style.md`](../guide/style.md)'s, with the spellings its gl
 - **color**: whether the shell colors what it says, a `Markdown.Output`, in `Ernest.Shell` and `Ernest.Shell.Style`.
 - **ending**: the bytes that end what the screen drew where its last write left it, which an attached shell's local half writes at its node's end, in `Ernest.Shell` and `Ernest.Shell.Region`: the region's `ending`, and the field of `Write` and of `Serving`. Not `finish`, which is the session's end with its screen.
 - **rows**: the rows the live region's tail is given, which `:set rows n` sets, in `Ernest.Shell` and `Ernest.Shell.Region`: the setting, the region's field, `SetRows` and `rowsSized`. Not `height`, `outputRows`.
+- **window**: the input's screen rows the live region draws, all of an input that fits and the cursor's part of one that does not, in `Ernest.Shell.Region`: `windowStart` and `windowRows`. Not the terminal's, which is the `screen`.
 - **typedWord**: the word typed before the cursor, which completion completes, in `Ernest.Shell` and `Ernest.Shell.Complete`.
 
 And the names that recur across the site generator's modules, `Site` and those under it in `tools/site/`:

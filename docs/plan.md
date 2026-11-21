@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 161**, an input
-taller than the screen: the report says it, and its build is left.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 7**, `Crypto.sha256`,
+the first of the packages proposal's build order.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -55,49 +55,7 @@ Read for Build Order*). So the milestone ends with item 9.
 
 ### What is left
 
-What item 160's probe found in the live region comes first.
-
-- **161. An input taller than the screen, and the erase from the screen's corner**, found
-  2026-11-21 by item 160's probe and decided with the user (the log's *The Live Region
-  Named Once* and *A Window onto the Input*). The report says it: §11.2's *Editing*, its
-  paragraph on what `Tab` and `Shift-Tab` show, and Appendix G.3's `Ansi.clearRow`. The
-  build is left, one agent's, in `libs/ansi` and `Ernest.Shell.Region`, and no design is
-  open.
-
-  - **`Ansi.clearRow`**, `ESC [ 2 K`, a literal as `clearBelow` is, with its documentation
-    and its test.
-  - **A window onto the input.** The region draws every row of an input, so one taller
-    than the screen leaves copies of its top rows in the scrollback at each key, and a
-    cursor moved past the top is edited blind. The region gains where its window begins,
-    counted in the input's screen rows. A redraw moves it only as far as brings the
-    cursor's row inside, and back where the input no longer reaches the window's end. An
-    input that fits its window is drawn whole, as now. The row the cursor rests on is
-    counted from the window. An entered input is written whole into the transcript.
-  - **The window's rows.** The input and what is shown under it share the screen's rows
-    less the tail's. With nothing shown the window is all of them. With something shown
-    the window is what the shown lines leave, and at least half of the shared rows,
-    rounded up; what is shown takes the rest, counted as §11.2 says.
-  - **The erase.** After `C-l`, and under a window, the region's first row is the screen's
-    top, and an erase from that corner is saved to the scrollback by tmux's default
-    `scroll-on-clear`, a row at each key. The erase becomes a carriage return, the climb,
-    `Ansi.clearRow`, one column right, `Ansi.clearBelow` and a carriage return. A unit test
-    of the region holds the bytes, since no test runs tmux, and the design note says why.
-  - **The ending.** The bytes that take the region away clear from the column after the
-    prompt where the input's first row is drawn and a prompt stands, as now. Otherwise
-    they clear from the start of the first row of the input that is drawn, by the erase
-    above, and write no line feed.
-  - **The checks.** The region's tests hold each sentence: a window's rows and the
-    cursor's row in it, a cursor moved above and below it, an input made shorter, the
-    tail's rows kept, what is shown under a tall input and under one that fits, an entered
-    tall input, the erase's bytes, and the ending under a window. No redraw paints more
-    rows than the screen has. The session runs item 160's probe in tmux against the
-    build: no row of the input stands twice in the scrollback, after a paste and after
-    `C-l`.
-  - **What closes with it.** The design note's *Drawing* and *Rows* say the erase and the
-    window. The known issues gain one line: a screen of one row shows nothing under the
-    input, and one of one column erases from its corner.
-
-Then the packages proposal's build order,
+The packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
 No further cold reading of §11.9's diff runs: each of items 7 and 8 reads its own sentences of
 §11.9 against its build and its probes before it closes, as items 5 and 6 did, and a finding
@@ -154,7 +112,7 @@ changes the report first (the log's *A Package and Its Manifest*).
 ### What is done
 
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
-shell's editing, was built after them, then item 52, item 54, and item 160 last.
+shell's editing, was built after them, then item 52, item 54, item 160, and item 161 last.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -167,6 +125,7 @@ shell's editing, was built after them, then item 52, item 54, and item 160 last.
 | 52 | The shell says a host's refusal in the jobs' words, each case of no history has its line, and the history file is named as §11.5 names one, which was item 54's second line | 2026-11-21 | *The Shell Says a Refusal in the Jobs' Words* |
 | 54 | What item 49 left: a path in `--emit-erl`'s first line and in a page's last line is written as §11.5 writes one, a peer's name holds no control character, and a value a refusal quotes from a configuration is written as JSON writes it | 2026-11-21 | *Each Value in the Escape of Its Own Notation* |
 | 160 | What item 119's cold reading left in §11.2: the live region named once, the prompt, a command kept as an input is, the search's paragraph, a paste a terminal brackets, and the words that said another thing | 2026-11-21, sentences alone | *The Live Region Named Once* |
+| 161 | An input taller than the screen drawn through a window, the cursor's row in it, and the region's erase made no clear from the screen's corner, with `Ansi.clearRow` | 2026-11-21 | *A Window onto the Input* and *A Window onto the Input, Built* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---

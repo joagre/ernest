@@ -12,22 +12,29 @@
 ///
 /// The region never addresses a row, and does not know where on the screen
 /// it sits: it moves up from the line being typed to its first row, erases
-/// to the end of the screen, and paints again. Only `C-l` clears the screen.
-/// Nothing is written below the region, which is what makes the erase
-/// correct.
+/// that row and then the rest of the screen from one column in, and paints
+/// again. Only `C-l` clears the screen. Nothing is written below the
+/// region, which is what makes the erase correct.
+///
+/// The region is never taller than the screen. Of an input that has no
+/// room for all its rows it draws a window, the rows the screen has room
+/// for, the cursor's among them (report §11.2 *Editing*).
 
 /// What the region shows: the tail of what programs wrote, the part of a
 /// line that has arrived without its line feed, the prompt and the input
-/// being typed after it with the cursor in it, the rows shown under the
-/// input, the row the cursor was left on, how many rows the tail may take,
-/// and the terminal's size. Abstract (report §4.4): the region alone keeps
-/// the tail within its rows and the cursor within what is typed.
+/// being typed after it with the cursor in it, the first of the input's
+/// screen rows its window draws, the rows shown under the input, the row
+/// the cursor was left on, how many rows the tail may take, and the
+/// terminal's size. Abstract (report §4.4): the region alone keeps the tail
+/// within its rows, the cursor within what is typed and the cursor's row
+/// within the window.
 export abstract type Region =
     Region(tail : List(String),
            writing : String,
            prompt : String,
            typed : String,
            cursor : Int,
+           windowStart : Int,
            offered : List(String),
            resting : Int,
            rows : Int,
@@ -51,6 +58,7 @@ export fn new(size : Terminal.Size) : Region =
            prompt = "",
            typed = "",
            cursor = 0,
+           windowStart = 0,
            offered = [],
            resting = 0,
            rows = defaultRows,
@@ -76,7 +84,7 @@ export fn noted(region : Region, text : String) : #(Region, String) =
 /// What a program writes goes to the tail. A line the tail no longer has
 /// room for is committed as it leaves, so the terminal's scrollback holds
 /// every line in the order it was written. A line adds to the tail each
-/// row it fills at the window's width, as the terminal would wrap it, and
+/// row it fills at the screen's width, as the terminal would wrap it, and
 /// one not yet ended keeps its last row back, since only that row can
 /// still change; so the region holds a row of it at most.
 export fn wrote(region : Region, text : String) : #(Region, String) = {
@@ -99,9 +107,10 @@ export fn edited(region : Region,
                  offered : List(String)) : #(Region, String) =
     painted(Region(..region, typed = text, =cursor, =offered), [])
 
-/// The input is finished: it joins the transcript, a row for each of its
-/// lines with the prompt each was typed after, and the region stops
-/// drawing it and what was shown under it.
+/// The input is finished: it joins the transcript whole, a row for each of
+/// its lines with the prompt each was typed after, the rows its window did
+/// not draw among them, and the region stops drawing it and what was shown
+/// under it.
 export fn entered(region : Region) : #(Region, String) =
     match region {
         // nothing typed and no prompt, an input typed ahead and interrupted,
@@ -123,7 +132,7 @@ export fn taken(region : Region) : #(Region, String) =
     else
         painted(Region(..region, prompt = ""), [])
 
-/// The window has changed; the tail may no longer fit.
+/// The screen's size has changed; the tail and the input may no longer fit.
 export fn resized(region : Region, size : Terminal.Size) : #(Region, String) =
     aged(Region(..region, =size), [])
 
@@ -146,24 +155,28 @@ export fn cleared(region : Region) : #(Region, String) = {
 
 /// Report §11.2: the bytes that take the region away where its last paint
 /// left it, for a session that ends without its screen: what was typed
-/// after the prompt and the rows shown under it go, the tail and the
-/// prompt stay where they stand, and the cursor goes to a fresh line under
-/// them, or to the start of the input's row where no prompt stands there.
-export fn ending(region : Region) : String = {
-    let kept = Region(..region, typed = "", cursor = 0);
-    "\r"
-        <> Ansi.up(region.resting - resting(kept))
-        <> Ansi.right(column(kept) - 1)
-        <> Ansi.clearBelow
-        <> (if String.isEmpty(region.prompt) then "" else "\n")
-}
+/// after the prompt and the rows shown under it go, and the tail stays
+/// where it stands. Where the input's first row is drawn and a prompt
+/// stands on it, the prompt stays and the cursor goes to a fresh line
+/// under it. Otherwise the first row of the input that is drawn is erased
+/// as the region erases, and the cursor stays at its start.
+export fn ending(region : Region) : String =
+    if region.windowStart == 0 && !String.isEmpty(region.prompt) then {
+        let kept = Region(..region, typed = "", cursor = 0);
+        "\r"
+            <> Ansi.up(region.resting - resting(kept))
+            <> Ansi.right(column(kept) - 1)
+            <> Ansi.clearBelow
+            <> "\n"
+    } else
+        erase(region.resting - List.size(tailRowsOf(region)))
 
 //
 // Committing and drawing
 //
 
 // A line the tail no longer has room for is committed as it leaves, so
-// that a tail made shorter, or a window made smaller, loses nothing.
+// that a tail made shorter, or a screen made smaller, loses nothing.
 fn aged(region : Region, commits : List(String)) : #(Region, String) = {
     let Region(=tail) = region;
     let over = List.size(tail) - rowsGiven(region);
@@ -174,16 +187,25 @@ fn aged(region : Region, commits : List(String)) : #(Region, String) = {
 }
 
 // Erase the region, commit what has left it, paint it again: one write,
-// so that a redraw is never seen half done.
+// so that a redraw is never seen half done. The window is moved first,
+// since the rows painted and the row the cursor rests on are counted from
+// it.
 fn painted(region : Region, commits : List(String)) : #(Region, String) = {
+    let region = windowed(region);
     let rows = rowsOf(region);
     let row = resting(region);
     #(Region(..region, resting = row),
-      erase(region) <> written(commits) <> paint(rows, row, column(region)))
+      erase(region.resting) <> written(commits) <> paint(rows, row, column(region)))
 }
 
-fn erase(region : Region) : String =
-    "\r" <> Ansi.up(region.resting) <> Ansi.clearBelow
+// The erase climbs that many rows to the region's first, erases that row,
+// and erases the rest of the screen from one column in. tmux, by its
+// default `scroll-on-clear`, saves the screen to its scrollback at an
+// erase from the screen's top corner, where the region's first row stands
+// after `C-l` and under a window; this erase is never from that corner but
+// on a screen of one column (docs/design/shell.md *Drawing*).
+fn erase(climb : Int) : String =
+    "\r" <> Ansi.up(climb) <> Ansi.clearRow <> Ansi.right(1) <> Ansi.clearBelow <> "\r"
 
 fn written(lines : List(String)) : String =
     String.join(List.map(lines, fn(line) = line <> "\n"), "")
@@ -191,17 +213,49 @@ fn written(lines : List(String)) : String =
 fn paint(rows : List(String), row : Int, column : Int) : String =
     String.join(rows, "\n") <> Ansi.up(List.size(rows) - 1 - row) <> "\r" <> Ansi.right(column - 1)
 
-// The region's rows: the tail, the rows the input is typed on, and what
-// is shown under them. Each is painted with its tabs already spaces,
+// The region's rows: the tail, the input's rows its window draws, and
+// what is shown under them. Each is painted with its tabs already spaces,
 // since a row is placed by its columns and a tab's width depends on
 // where it falls.
 fn rowsOf(region : Region) : List(String) =
     List.map(tailRowsOf(region), fn(line) = clip(expand(line), region.size.columns))
-        <> screenInput(region)
+        <> drawnInput(region)
         <> offeredRows(region)
 
+// Report §11.2 *Editing*: the input's screen rows the region draws, its
+// window's.
+fn drawnInput(region : Region) : List(String) =
+    List.take(List.drop(screenInput(region), region.windowStart), windowRows(region))
+
+// Report §11.2: the rows the input and what is shown under it share, the
+// screen's less the tail's.
+fn sharedRows(region : Region) : Int =
+    region.size.rows - List.size(tailRowsOf(region))
+
+// Report §11.2: the rows of the input's window. With nothing shown under
+// the input it is every shared row. With something shown it is what the
+// shown lines leave, and at least half the shared rows, rounded up, so
+// that a long list gives way to the input and not the input to it. It is
+// never less than one row, the cursor's.
+fn windowRows(region : Region) : Int = {
+    let shared = sharedRows(region);
+    let shown = List.size(List.flatMap(offeredLines(region), fn(rows) = rows));
+    Int.max(1, Int.max((shared + 1) / 2, shared - shown))
+}
+
+// Report §11.2 *Editing*: the window moves only as far as brings the
+// cursor's row inside it, and back where the input no longer reaches the
+// window's end, so an input that fits its window is drawn whole.
+fn windowed(region : Region) : Region = {
+    let rows = windowRows(region);
+    let row = cursorRow(region);
+    let start = Int.min(Int.max(region.windowStart, row - rows + 1), row);
+    let last = List.size(screenInput(region)) - rows;
+    Region(..region, windowStart = Int.max(0, Int.min(start, last)))
+}
+
 // Report §11.2: the rows the input takes on the screen. Each of its lines
-// wraps at the window's edge, so what is typed past it stays in sight; a
+// wraps at the screen's edge, so what is typed past it stays in sight; a
 // line that fills the width exactly takes an empty row after it, where
 // the cursor goes on.
 fn screenInput(region : Region) : List(String) =
@@ -213,13 +267,13 @@ fn onScreen(line : String, width : Int) : List(String) = {
     if width > 0 && Terminal.width(last) >= width then rows <> [""] else rows
 }
 
-// Report §11.2: what is shown under the input wraps at the window's
-// edge, since a name's type or a sentence cut short says less than it
-// did, and takes the rows the screen has left. A line with no room is
+// Report §11.2: what is shown under the input wraps at the screen's edge,
+// since a name's type or a sentence cut short says less than it did, and
+// takes the shared rows the input's window leaves. A line with no room is
 // counted on the last row instead.
 fn offeredRows(region : Region) : List(String) = {
-    let room = region.size.rows - List.size(tailRowsOf(region)) - List.size(screenInput(region));
-    let lines = List.map(region.offered, fn(line) = wrapped(line, region.size.columns));
+    let room = sharedRows(region) - List.size(drawnInput(region));
+    let lines = offeredLines(region);
     let all = List.flatMap(lines, fn(rows) = rows);
     if List.size(all) <= room then
         all
@@ -232,6 +286,10 @@ fn offeredRows(region : Region) : List(String) = {
     }
 }
 
+// What is shown under the input, each line its rows at the screen's width.
+fn offeredLines(region : Region) : List(List(String)) =
+    List.map(region.offered, fn(line) = wrapped(line, region.size.columns))
+
 // The lines, each its rows, that fit in that many rows, from the first.
 fn fitting(lines : List(List(String)), room : Int) : List(List(String)) =
     match lines {
@@ -241,7 +299,7 @@ fn fitting(lines : List(List(String)), room : Int) : List(List(String)) =
             if List.size(rows) > room then [] else rows :: fitting(rest, room - List.size(rows))
     }
 
-// A line cut into rows of the window's width, each tab drawn to the next
+// A line cut into rows of the screen's width, each tab drawn to the next
 // stop of its own row, as the terminal draws it. Each continuation begins
 // with every escape sequence the rows before it held, in order, so that
 // it is painted as it would have been unbroken.
@@ -261,7 +319,7 @@ fn wrapped(line : String, width : Int) : List(String) = {
 
 // The escape sequences among the first columns of a row, and the row
 // after them. A grapheme wider than what is left ends the row, but for
-// the first, which a row always takes, so a narrow window moves on; a tab
+// the first, which a row always takes, so a narrow screen moves on; a tab
 // takes the columns to its stop and never passes the edge.
 fn past(graphemes : List(String),
         width : Int,
@@ -364,15 +422,21 @@ fn picture(char : Char) : String = {
 fn rowsGiven(region : Region) : Int =
     Int.min(region.rows, Int.max(0, region.size.rows / 2 - 1))
 
-// The row of the region the cursor rests on: the tail's rows, the screen
-// rows of the input's lines before the cursor's, and the rows the cursor's
-// own line wraps onto before it.
-fn resting(region : Region) : Int = {
+// The row of the region the cursor rests on, counted from the region's
+// first: the tail's rows, and the rows of the input's window before the
+// cursor's.
+fn resting(region : Region) : Int =
+    List.size(tailRowsOf(region)) + cursorRow(region) - region.windowStart
+
+// The input's screen row the cursor is on: the screen rows of the input's
+// lines before the cursor's, and the rows the cursor's own line wraps onto
+// before it.
+fn cursorRow(region : Region) : Int = {
     let lineIndex = List.size(String.split(String.slice(region.typed, 0, region.cursor), "\n")) - 1;
     let earlier =
         List.flatMap(List.take(inputRows(region), lineIndex),
                      fn(row) = onScreen(row, region.size.columns));
-    List.size(tailRowsOf(region)) + List.size(earlier) + List.size(headRows(region)) - 1
+    List.size(earlier) + List.size(headRows(region)) - 1
 }
 
 // The column the cursor rests in, on the row its line wraps onto: what the
@@ -409,7 +473,7 @@ fn expanding(graphemes : List(String), acc : String) : String =
             expanding(rest, acc <> grapheme)
     }
 
-// A row cut to the window's width keeps its escape sequences whole, and
+// A row cut to the screen's width keeps its escape sequences whole, and
 // one cut short after a sequence ends with the reset, so the color of
 // what was cut off does not run on into the next row: the sequences cut
 // may be any, and the reset is the one sequence that ends them all.
@@ -436,7 +500,7 @@ fn clipping(graphemes : List(String),
             }
     }
 
-// The rows a line fills at the window's width, as the terminal wraps it,
+// The rows a line fills at the screen's width, as the terminal wraps it,
 // and what is left of it. A grapheme wider than what is left of a row
 // begins the next, and a tab takes the columns to its stop and never
 // passes the edge. A row after the first begins with the escape sequences
@@ -573,16 +637,17 @@ let restsAfterATab =
 
 let paintsTheLine = Test.Case(name = "typing erases the region and paints it again", run = fn() = {
     let #(_, bytes) = edited(prompted(), "hi", 2, []);
-    // the region is one row, so nothing is climbed; the cursor is put
-    // after the prompt and what is typed
-    Test.equal(bytes, "\r\u{1b}[J> hi\r\u{1b}[4C")
+    // the region is one row, so nothing is climbed: its row is erased and
+    // the rest from one column in, and the cursor is put after the prompt
+    // and what is typed
+    Test.equal(bytes, "\r\u{1b}[2K\u{1b}[1C\u{1b}[J\r> hi\r\u{1b}[4C")
 })
 
 let commitsWhatIsEntered =
     Test.Case(name = "an input entered joins the transcript, a row a line", run = fn() = {
         let #(typed, _) = edited(prompted(), "a\nb", 3, []);
         let #(_, bytes) = entered(typed);
-        Test.equal(bytes, "\r\u{1b}[1A\u{1b}[J> a\n... b\n\r")
+        Test.equal(bytes, "\r\u{1b}[1A\u{1b}[2K\u{1b}[1C\u{1b}[J\r> a\n... b\n\r")
     })
 
 let offersUnderTheInput =
@@ -594,7 +659,8 @@ let offersUnderTheInput =
     })
 
 // What typing "Li" writes with two rows offered under it.
-let offeredBytes = "\r\u{1b}[J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C"
+let offeredBytes =
+    "\r\u{1b}[2K\u{1b}[1C\u{1b}[J\r> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C"
 
 let nextKeyTakesItAway = Test.Case(name = "the next key takes away what Tab showed", run = fn() = {
     let #(region, _) = edited(prompted(), "Li", 2, ["List.map : a"]);
@@ -676,7 +742,7 @@ let wrappedTab =
                    #(["> abcdefgh", "ij      x"], 1, 10))
     })
 
-// A regression test: an ended line was cut off at the window's edge.
+// A regression test: an ended line was cut off at the screen's edge.
 let endedRows = Test.Case(name = "an ended line gives the tail each row it fills", run = fn() = {
     let #(region, _) =
         wrote(new(Terminal.Size(rows = 24, columns = 10)), "abcdefghijklmnopqrstuvwxy\nz\n");
@@ -717,14 +783,208 @@ let endsUnderThePrompt =
 let endsOnTheInputsRow =
     Test.Case(name = "with no prompt the region ends at its input's row", run = fn() = {
         let #(region, _) = entered(typed("abc", 3));
-        Test.equal(ending(region), "\r\u{1b}[J")
+        Test.equal(ending(region), "\r\u{1b}[2K\u{1b}[1C\u{1b}[J\r")
     })
 
+// Report §11.2 *Editing*: of an input taller than the screen the region
+// draws the rows the screen has, the cursor's among them.
+let drawsAWindow =
+    Test.Case(name = "an input taller than the screen draws the rows the screen has", run = fn() = {
+        let #(region, _) = edited(promptedOn(6, 80), numbered(8), 15, []);
+        Test.equal(#(rowsOf(region), region.windowStart, resting(region), column(region)),
+                   #(["... 3", "... 4", "... 5", "... 6", "... 7", "... 8"], 2, 5, 6))
+    })
+
+// Report §11.2 *Editing*: the window moves only as far as brings the
+// cursor's row in.
+let cursorAboveTheWindow =
+    Test.Case(name = "a cursor moved above the window takes it up to its row", run = fn() = {
+        let #(region, _) = edited(promptedOn(6, 80), numbered(8), 15, []);
+        let #(inside, _) = edited(region, numbered(8), 4, []);
+        let #(above, _) = edited(inside, numbered(8), 2, []);
+        Test.equal(#(inside.windowStart,
+                     resting(inside),
+                     above.windowStart,
+                     resting(above),
+                     List.take(rowsOf(above), 1)),
+                   #(2, 0, 1, 0, ["... 2"]))
+    })
+
+// Report §11.2 *Editing*.
+let cursorBelowTheWindow =
+    Test.Case(name = "a cursor moved below the window takes it down to its row", run = fn() = {
+        let #(region, _) = edited(promptedOn(6, 80), numbered(8), 0, []);
+        let #(below, _) = edited(region, numbered(8), 12, []);
+        Test.equal(#(region.windowStart, resting(region), below.windowStart, resting(below)),
+                   #(0, 0, 1, 5))
+    })
+
+// Report §11.2 *Editing*: the window moves back where the input no longer
+// reaches its end, and an input that fits is drawn whole.
+let shorterInput = Test.Case(name = "an input made shorter moves the window back", run = fn() = {
+    let #(region, _) = edited(promptedOn(6, 80), numbered(8), 15, []);
+    let #(region, _) = edited(region, numbered(8), 6, []);
+    let #(shorter, _) = edited(region, numbered(7), 6, []);
+    let #(fits, _) = edited(shorter, numbered(5), 6, []);
+    Test.equal(#(region.windowStart,
+                 shorter.windowStart,
+                 resting(shorter),
+                 fits.windowStart,
+                 rowsOf(fits)),
+               #(2, 1, 2, 0, ["> 1", "... 2", "... 3", "... 4", "... 5"]))
+})
+
+// Report §11.2 *Editing*, *Printing*: the window takes the rows under what
+// programs have written.
+let keepsTheTail =
+    Test.Case(name = "what programs wrote keeps its rows above the window", run = fn() = {
+        let #(region, _) = edited(tailed(), numbered(10), 20, []);
+        Test.equal(#(rowsOf(region), resting(region)),
+                   #(["t1", "t2", "t3", "t4", "t5"]
+                         <> ["... 4", "... 5", "... 6", "... 7", "... 8", "... 9", "... 10"],
+                     11))
+    })
+
+// Report §11.2: what `Tab` shows takes rows from an input that leaves it
+// too few, and leaves the input at least half the rows, which a short list
+// does not take.
+let offersUnderATallInput =
+    Test.Case(name = "what Tab shows under a tall input leaves it half the rows", run = fn() = {
+        let #(many, _) = edited(promptedOn(10, 80), numbered(12), 26, listed(20));
+        let #(few, _) = edited(promptedOn(10, 80), numbered(12), 26, listed(2));
+        Test.equal(#(rowsOf(many), resting(many), rowsOf(few), resting(few)),
+                   #(["... 8", "... 9", "... 10", "... 11", "... 12"]
+                         <> ["o1", "o2", "o3", "o4", "and 16 more"],
+                     4,
+                     ["... 5", "... 6", "... 7", "... 8", "... 9", "... 10", "... 11", "... 12"]
+                         <> ["o1", "o2"],
+                     7))
+    })
+
+// Report §11.2: an input that fits is drawn whole under a list, and one
+// the list's rows leave too few is drawn through its window until the
+// next key takes the list away.
+let offersUnderAnInputThatFits =
+    Test.Case(name = "what Tab shows under an input that fits takes the rows left", run = fn() = {
+        let #(short, _) = edited(promptedOn(10, 80), numbered(3), 5, listed(20));
+        let #(tall, _) = edited(promptedOn(10, 80), numbered(8), 15, listed(20));
+        let #(whole, _) = edited(tall, numbered(8), 15, []);
+        Test.equal(#(rowsOf(short), tall.windowStart, whole.windowStart, List.size(rowsOf(whole))),
+                   #(["> 1", "... 2", "... 3", "o1", "o2", "o3", "o4", "o5", "o6", "and 14 more"],
+                     3,
+                     0,
+                     8))
+    })
+
+// Report §11.2: an entered input is written whole into the transcript,
+// the rows its window did not draw among them.
+let entersATallInputWhole =
+    Test.Case(name = "an input taller than the screen joins the transcript whole", run = fn() = {
+        let #(region, _) = edited(promptedOn(6, 80), numbered(8), 15, []);
+        let #(_, bytes) = entered(region);
+        Test.equal(bytes,
+                   "\r\u{1b}[5A\u{1b}[2K\u{1b}[1C\u{1b}[J\r"
+                       <> "> 1\n... 2\n... 3\n... 4\n... 5\n... 6\n... 7\n... 8\n\r")
+    })
+
+// Report §11.2, Appendix G.3: the region erases its first row and then the
+// rest of the screen from one column in, so that no erase is from the
+// screen's top corner, where it stands after `C-l` and under a window and
+// where tmux's default `scroll-on-clear` saves the screen to its
+// scrollback. No test runs tmux, so this one holds the bytes.
+let erasesFromOneColumnIn =
+    Test.Case(name = "the region erases its first row, then the rest from one column in",
+              run = fn() = {
+                  let #(region, _) = edited(promptedOn(6, 80), numbered(8), 15, []);
+                  let #(_, key) = edited(region, numbered(8), 14, []);
+                  let #(_, clean) = cleared(typed("a", 1));
+                  Test.equal(#(Ansi.clearRow, key, clean),
+                             #("\u{1b}[2K",
+                               "\r\u{1b}[5A\u{1b}[2K\u{1b}[1C\u{1b}[J\r"
+                                   <> "... 3\n... 4\n... 5\n... 6\n... 7\n... 8\r\u{1b}[4C",
+                               "\u{1b}[2J\u{1b}[H\r\u{1b}[2K\u{1b}[1C\u{1b}[J\r> a\r\u{1b}[3C"))
+              })
+
+// Report §11.2: under a window the input's first row is not drawn, so the
+// region ends at the start of the first row of the input that is, which it
+// erases as it erases itself, and the tail stays.
+let endsUnderAWindow =
+    Test.Case(name = "under a window the region ends at its first row of the input", run = fn() = {
+        let #(region, _) = edited(tailed(), numbered(10), 20, []);
+        Test.equal(ending(region), "\r\u{1b}[6A\u{1b}[2K\u{1b}[1C\u{1b}[J\r")
+    })
+
+// Report §11.2 *Editing*: whatever the screen's size, the input and what
+// is shown under it, no redraw paints more rows than the screen has, and
+// the cursor rests on one of the rows painted.
+let neverTallerThanTheScreen =
+    Test.Case(name = "no redraw paints more rows than the screen has", run = fn() = {
+        let failed =
+            List.flatMap([1, 2, 3, 5, 8, 13],
+                         fn(rows) =
+                             List.flatMap([1, 2, 5, 13, 80],
+                                          fn(columns) = overScreen(rows, columns)));
+        if List.isEmpty(failed) then Test.Passed else Test.Failed(String.join(failed, "; "))
+    })
+
+// The inputs on a screen of that size whose redraw paints more rows than
+// the screen has, or rests the cursor on none of them, each as its case.
+fn overScreen(rows : Int, columns : Int) : List(String) = {
+    let texts = [numbered(3), numbered(30), "abcdefghijklmnopqrstuvwxyz\nb\n\tc"];
+    List.flatMap(texts, fn(text) = overInput(rows, columns, text))
+}
+
+// The cases of that input that paint past the screen, the cursor at its
+// start, its middle and its end, under nothing shown, a short list and a
+// long one.
+fn overInput(rows : Int, columns : Int, text : String) : List(String) =
+    List.flatMap([0, String.size(text) / 2, String.size(text)],
+                 fn(cursor) =
+                     List.filterMap([[], listed(2), listed(40)],
+                                    fn(shown) = paintedOver(rows, columns, text, cursor, shown)))
+
+// The case, where the redraws of that input under what programs wrote,
+// the cursor at its end and then where given, do not each paint within
+// the screen.
+fn paintedOver(rows : Int,
+               columns : Int,
+               text : String,
+               cursor : Int,
+               shown : List(String)) : Optional(String) = {
+    let #(region, _) = wrote(promptedOn(rows, columns), "t1\nt2\nt3\n");
+    let #(atEnd, _) = edited(region, text, String.size(text), shown);
+    let #(moved, _) = edited(atEnd, text, cursor, shown);
+    let within = List.all([atEnd, moved], fn(drawn) = {
+        let painted = List.size(rowsOf(drawn));
+        painted <= rows && resting(drawn) >= 0 && resting(drawn) < painted
+    });
+    if within then None else Some(Io.show(#(rows, columns, text, cursor, List.size(shown))))
+}
+
 // A region with a prompt written, which is where an input is typed.
-fn prompted() : Region = {
-    let #(region, _) = said(new(Terminal.Size(rows = 24, columns = 80)), "> ");
+fn prompted() : Region =
+    promptedOn(24, 80)
+
+// A region of that size with a prompt written.
+fn promptedOn(rows : Int, columns : Int) : Region = {
+    let #(region, _) = said(new(Terminal.Size(=rows, =columns)), "> ");
     region
 }
+
+// A region of twelve rows with a prompt written and five rows of what
+// programs wrote, all the tail is given there.
+fn tailed() : Region = {
+    let #(region, _) = wrote(promptedOn(12, 80), "t1\nt2\nt3\nt4\nt5\n");
+    region
+}
+
+// An input of that many lines, each its number.
+fn numbered(count : Int) : String =
+    String.join(List.map(List.range(1, count), Int.toString), "\n")
+
+// That many lines to show under the input, `o1` and on.
+fn listed(count : Int) : List(String) =
+    List.map(List.range(1, count), fn(number) = "o" <> Int.toString(number))
 
 // A region with an input being typed in it, without the bytes that drew
 // it: the geometry is what these tests read.

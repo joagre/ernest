@@ -206,19 +206,21 @@ A line the shell has finished with is committed: written into the terminal, scro
 
 Nothing is ever written below the region, which is what makes the erase correct. The region never addresses a row: it does not know where on the screen it sits, and never asks.
 
-`Ernest.Shell.Region` is pure (the log's *The Region Is a Pure Function*). Each event takes the region and answers the region after it and the bytes to write, which the screen writes. The region is abstract (§4.4), so its module alone keeps the tail within its rows and the cursor within the input. Beside what it shows, it holds the row the cursor rests on, the terminal's size, and the rows the tail may take.
+`Ernest.Shell.Region` is pure (the log's *The Region Is a Pure Function*). Each event takes the region and answers the region after it and the bytes to write, which the screen writes. The region is abstract (§4.4), so its module alone keeps the tail within its rows and the cursor within the input. Beside what it shows, it holds where its window onto the input begins, the row the cursor rests on, the terminal's size, and the rows the tail may take.
 
 ### Drawing
 
 Each event's bytes are one write, so a redraw is never seen half done. The write has three parts:
 
-- *erase*: `\r`, up by the row the cursor rests on, and a clear of the region and everything below it;
+- *erase*: `\r`, up by the row the cursor rests on, `Ansi.clearRow`, right by one column, `Ansi.clearBelow` and `\r`, which clears the region's first row and then the rest of the screen;
 - *commit*: each line that leaves the region, with its line feed;
 - *paint*: the region's rows joined by line feeds, then up from the last row painted to the row the cursor rests on, `\r`, and right to its column.
 
-The row the cursor rests on is counted from the region's first: the tail's rows, the screen rows of the input's lines before the cursor's, and the rows the cursor's own line wraps onto before it. The next erase climbs by it. Between messages the cursor rests where the caret belongs (the log's *What the Live Region Cost to Build*).
+The row the cursor rests on is counted from the region's first: the tail's rows, and the rows of the input's window before the cursor's. The next erase climbs by it. Between messages the cursor rests where the caret belongs (the log's *What the Live Region Cost to Build*).
 
-Only `C-l` clears the screen, and paints the region at the top.
+Only `C-l` clears the screen, and paints the region at the top. After it, and under a window, the region's first row is the screen's top. tmux, by its default `scroll-on-clear`, saves the screen to its scrollback at a clear from that corner, a row at each key. So the erase clears the first row by itself and the rest from one column in, which is no clear from the corner (the log's *The Live Region Named Once*). No test runs tmux, so a unit test of the region holds the erase's bytes.
+
+`ending` clears from the column after the prompt and writes a line feed where the input's first row is drawn and a prompt stands on it. Otherwise it climbs to the first row of the input that is drawn, erases there as the region erases, and writes no line feed.
 
 ### What is committed
 
@@ -233,7 +235,9 @@ Only `C-l` clears the screen, and paints the region at the top.
 
 The tail takes at most the rows `:set rows` gives it, and at most half the screen less a row, so that the input has room. A line takes the rows it fills at the screen's width, each a line of the tail. A line not yet ended keeps its last row back, so the region holds one row of it at most, and the scrollback holds the rest as the rows the terminal would have wrapped it into (the log's *An Unfinished Line Leaves the Region a Row at a Time*).
 
-Each of the input's lines is its prompt and its text, wrapped at the screen's width. A line whose width is a multiple of the screen's takes an empty row after it, where the cursor goes on. The rows under the input take the rows left, and the last counts the lines that did not fit (§11.2).
+Each of the input's lines is its prompt and its text, wrapped at the screen's width. A line whose width is a multiple of the screen's takes an empty row after it, where the cursor goes on.
+
+The input and the rows under it share the screen's rows less the tail's. The input is drawn through a window of them, which the region holds as the first of the input's screen rows it draws (§11.2 *Editing*). With nothing under the input the window is every shared row. With something under it the window is what those rows leave, and at least half the shared rows, rounded up. A redraw moves the window only as far as brings the cursor's row inside, and back where the input no longer reaches its end, so an input that fits is drawn whole. The rows under the input take the shared rows the input leaves, and the last counts the lines that did not fit (§11.2). An entered input is committed whole, the rows its window did not draw among them (the log's *A Window onto the Input*).
 
 ### Width
 

@@ -144,10 +144,23 @@ export fn right(count : Int) : String =
 fn move(count : Int, direction : String) : String =
     if count < 1 then "" else sequence(Int.toString(count) <> direction)
 
-// `clearBelow` and `clearScreen` are literals, not calls of `sequence`, so
-// that each is a constant (report §4.6), which crosses to another node with
-// the code that names it (the log's *The Shell Attaches as a Program
-// Spawns*).
+// `clearRow`, `clearBelow` and `clearScreen` are literals, not calls of
+// `sequence`, so that each is a constant (report §4.6), which crosses to
+// another node with the code that names it (the log's *The Shell Attaches
+// as a Program Spawns*).
+
+/// The sequence that erases the cursor's row, whatever its column, and leaves
+/// the cursor where it is.
+///
+/// ### Examples
+///
+/// ```ernest
+/// "\r" <> Ansi.clearRow
+/// // => "\r\u{1B}[2K"
+/// ```
+///
+/// since 0.11.0
+export let clearRow = "\u{1b}[2K"
 
 /// The sequence that erases from the cursor to the end of the screen.
 ///
