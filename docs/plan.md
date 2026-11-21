@@ -51,8 +51,8 @@ Editing Planned*).
 
 Items 10 and 23, the other repositories and the packages proposal's sweep, moved to MVP 4.4's
 item 4 on 2026-11-19, since the manifests' write is the floors' rise (the log's *The Plan
-Read for Build Order*). Items 162 and 163 were added last, on the user's word of
-2026-11-21. So the milestone ends with item 163.
+Read for Build Order*). Items 162 to 164 were added last, on the user's word of
+2026-11-21. So the milestone ends with item 164.
 
 ### What is left
 
@@ -97,6 +97,23 @@ The packages proposal's build order,
   its reason in the log; planned, as an item of MVP 4.5; or kept, a corner that must be
   built on purpose to be met. A line the code no longer shows goes as fixed. The item
   closes with `make test-docs`.
+- **164. The OTP defects read against their issues, and the last three filed**, the user's
+  word on 2026-11-21. Read that day: of the 24 issues filed, two were answered after
+  `otp_bugs.md` last recorded them. On #12212 OTP found the workaround behind `ssl:close/2`'s
+  two waits needed on no supported platform, and proposes pull request #12237, against
+  `maint` and open, which stops waiting for the peer's close and has the wait for the close
+  alert take the time `ssl:close/2` is given. #12235 was answered as a likely duplicate of
+  #12212, with #12237 as its fix. The others stand as recorded, with the labels OTP gave
+  them since, `stalled` on seven.
+  - **The record.** Each report's first line takes its issue's answer, and Ernest's
+    comment at each place that meets #12212 or #12235 is read against #12237. Whether
+    #12235 is a duplicate is read against its own report and said to the user, with
+    whether Ernest's §12.6 or `docs/design/nodes.md` would change once #12237 is in a
+    release Ernest requires.
+  - **The last three.** Reports 25, 26 and 27 are not filed. Each is reproduced again with
+    OTP alone on the host's current release, its title and text read as OTP's tracker
+    reads them, and given to the user. Filing is the user's, and each report's first line
+    names its issue once it is filed.
 
 ### What is done
 
