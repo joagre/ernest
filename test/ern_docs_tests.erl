@@ -653,6 +653,34 @@ user_text_timeline_test() ->
     ?assertEqual([], Read(ern_repository:modules() ++ shell(),
                           "\"[^\"]*(" ++ Timeline ++ ")[^\"]*\"")).
 
+%% The log's *Packages and No Manager*: what a user reads says "package
+%% manager" only where it says that Ernest has none, which is guide/faq.md
+%% alone (docs/code_style.md's glossary, *names, unpacks, stands*): no
+%% tracked file of the report, the guides, the tour or the site, nor
+%% README.md or release/README.md, holds the phrase, its first letter in
+%% either case and a line break allowed between its words, but
+%% guide/faq.md, which does. Written with the rule, when guide/faq.md
+%% alone held the phrase; the verbs the entry gives no package,
+%% "install", "add", "fetch" and "publish", escape it, since "install"
+%% has its rightful use, and so does the phrase in other words
+user_text_package_manager_test() ->
+    Phrase = "\\b[Pp]ackage\\s+manager",
+    Documents = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files report"
+                                                       " guide tour site README.md"
+                                                       " release/README.md"), "\n"),
+                         filelib:is_regular(filename:join(?ROOT, File))],
+    ?assert(length(Documents) > 20),
+    Held = [{File, Number}
+            || File <- Documents,
+               Text <- [ern_repository:read(File)],
+               {Offset, _} <- case re:run(Text, Phrase, [global]) of
+                                  {match, Matches} -> lists:append(Matches);
+                                  nomatch -> []
+                              end,
+               Number <- [length(lines(binary:part(Text, 0, Offset)))]],
+    ?assertEqual([], [Place || {File, _} = Place <- Held, File =/= "guide/faq.md"]),
+    ?assert(lists:keymember("guide/faq.md", 1, Held)).
+
 %% docs/reviews/release.md, of CHANGES.md: a release's note says what the release
 %% is and where each change is read. Below its title it names no date but
 %% in a release's heading, no log entry, no review and no step of the plan;

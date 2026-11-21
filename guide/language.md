@@ -3175,6 +3175,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5); the toolchain's libraries are on the load path already, after it.
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`: one flag where a program's foreign functions call several of them (report §11.2).
+- `--package-dir dir` names the program's root package where the program is started from another directory (§9.6).
 - `ern test module.erc` runs the module's tests, and `ern test dir` those of every module compiled under the directory; it exits with status 1 unless every case passed and no process faulted during the run, apart from those §7.1 excepts. The module's top-level bindings are evaluated first, so a service binding starts its service under `ern test` as under `ern run`.
 - `ern shell`, with or without a file, starts the shell (§1.2). A file's `main`, or the function `--main` names, runs beside it; a file without either is loaded with nothing running. `--source-root dir` names where `:load` finds a module's source, and `--config-dir dir` the configuration directory.
 - `ern shell --config-dir dir --attach name` attaches the shell to the peer `name` that `dir` lists: the session runs on that node, every module of its build in scope, and `:load` and `:reload` send a module's source there as text, or `:load` takes the node's own compiled form where its load path holds one; the terminal and the files stay with the shell's own node, started from `dir`, which `name` lists without an address. `:quit` leaves, and what the session started runs on (§8.9, report §11.2); the deployment guide's §6 is the operator's use of it.
@@ -3215,6 +3216,110 @@ At a terminal the history is kept in `$HOME/.ernest/history`. When the shell sta
 ### 9.5 Running a program as a service
 
 A program meant to keep running is left to the operating system's service manager, which starts it, restarts it and keeps what it writes; a service here is the operating system's, not §6.5's. The deployment guide, *Running Ernest*, teaches it in its [section 1.5](deployment.md#15-under-a-service-manager): a unit for systemd, the journal that keeps both streams, a stop, a reload and a restart, and the statuses a manager reads.
+
+### 9.6 Packages
+
+A *package* is a directory that holds a *manifest*, the file `package.conf`, with its Ernest under `src` and its version in the file `VERSION`. A program that uses another package's modules names that package in its own manifest, and `ern unpack` unpacks the package's archive under the program's `lib` (report §11.9).
+
+**A package.** `leaf` is a library of one module, at version 1.2.0:
+
+```console
+$ mkdir -p leaf-1.2.0/src
+$ echo 1.2.0 > leaf-1.2.0/VERSION
+$ echo '{"ernest": "0.11.0", "packages": []}' > leaf-1.2.0/package.conf
+```
+
+```ernest
+// leaf-1.2.0/src/leaf.ern  (namespace Leaf)
+/// The words of a text, each once, in the order they first stand.
+export fn words(text : String) : List(String) =
+    List.unique(String.words(text))
+```
+
+The manifest's `ernest` is the least release of Ernest the package is written for, and its `packages` names the packages its modules use, here none. The package `leaf` provides the namespace `Leaf` and what stands under it, and no other: its modules are `src/leaf.ern` and those under `src/leaf/`.
+
+A package travels as an archive named by the package's name, `-` and its version, which holds one directory of that name:
+
+```console
+$ tar -czf leaf-1.2.0.tar.gz leaf-1.2.0
+$ sha256sum leaf-1.2.0.tar.gz
+bbba7f66…  leaf-1.2.0.tar.gz
+```
+
+The digest is 64 hexadecimal digits, cut short on this page. Yours differs, since `tar` records each file's time and owner.
+
+**A program that names it.** `chart` is a program, and a package too, since it holds a manifest. Its manifest, `chart/package.conf`, names `leaf`:
+
+```console
+$ mkdir -p chart/src
+```
+
+```json
+{
+  "ernest": "0.11.0",
+  "packages": [
+    {
+      "name": "leaf",
+      "version": "1.2.0",
+      "url": "https://example.org/leaf/leaf-1.2.0.tar.gz",
+      "sha256": "bbba7f66…"
+    }
+  ]
+}
+```
+
+```ernest
+// chart/src/main.ern  (namespace Main)
+export fn main() : Unit =
+    Io.println(String.join(Leaf.words("to be or not to be"), " "))
+```
+
+An entry's `version` is the version the program is built with. Its `url` says where the archive is downloaded from, and its `sha256` is the archive's digest, written whole. `ern unpack` alone reads the two, and refuses an entry without a `sha256` in a line that gives the archive's.
+
+A job started in `chart` reads its manifest. `chart` is then the job's *root package* and `leaf` a *named package*, which stands under the root package's `lib`. A job refuses one that is not there:
+
+```console
+$ cd chart
+$ ern build src
+ern build: package.conf: leaf 1.2.0 is not under lib; ern unpack puts it there
+$ ern unpack
+ern unpack: package.conf: leaf 1.2.0 is not under lib; download https://example.org/leaf/leaf-1.2.0.tar.gz to lib/leaf-1.2.0.tar.gz
+```
+
+`ern unpack` reads no network: it says what to download and where to put it. Here the archive made above stands in for the download:
+
+```console
+$ mkdir lib
+$ cp ../leaf-1.2.0.tar.gz lib
+$ ern unpack
+$ ern build src
+$ ern run build/main.erc
+to be or not
+```
+
+`ern unpack` checks the archive's SHA-256 against its entry's, unpacks it as `lib/leaf`, and says nothing. `ern build` builds each named package into its own `build`, `lib/leaf/build`, and then the program's `src` into `build`. `ern run`, `ern test` and `ern shell` find a named package's modules there.
+
+A package's Erlang (§8.5) stands compiled under its `ebin`, with its `priv` beside it. No job compiles it, and `ern run`, `ern test` and `ern shell` put that `ebin` on the load path.
+
+**Every package is named in the root.** The root package's manifest names every package the program loads, those a named package uses among them. An entry of a named package's manifest says the least version that package works with, and the root package's entry of that name says that version or a later one. `ern build` refuses a build where it does not: `ern build: package.conf: mid 0.4.0 needs leaf from 1.3.0, and the entry for leaf says 1.2.0`.
+
+No job chooses a version. A new version of a package is an edit of its entry, and a job then refuses what stands under `lib`: `ern build: package.conf: the entry for leaf says 1.3.0, and lib/leaf holds 1.2.0; remove it, and ern unpack puts 1.3.0 there`.
+
+**What a digest promises.** `ern unpack` unpacks only an archive whose SHA-256 is its entry's, so what it puts under `lib` is what that archive holds. The digest promises nothing of a `lib` filled by hand or changed since. A build reads `lib` as it stands and holds a named package to its `VERSION` alone, and `ern unpack` passes by a package that stands at its entry's version.
+
+So a checkout linked at `lib/leaf`, a package worked on beside its program, is built as it stands, and so is a file changed after it was unpacked. Removing `lib/leaf` and running `ern unpack` checks the digest again.
+
+**Started from another directory.** A job reads the manifest of the directory it is started in, and looks for none in a directory above. Started elsewhere, the program finds no named package:
+
+```console
+$ cd ..
+$ ern run chart/build/main.erc
+ern run: cannot find module Leaf (leaf.erc), which Main needs, on the load path
+$ ern run --package-dir chart chart/build/main.erc
+to be or not
+```
+
+`--package-dir dir`, of `ern run`, `ern test` and `ern shell`, names the root package in place of the directory the job is started in. A program installed on a machine is started so, its launcher or its service manager's unit naming the directory that holds its `package.conf` and its `lib` (the deployment guide's [section 1.5](deployment.md#15-under-a-service-manager)).
 
 ## 10. From Erlang
 

@@ -128,6 +128,8 @@ TimeoutStopSec=90
 WantedBy=multi-user.target
 ```
 
+A program that names packages reads its manifest from the directory it is started in, here `WorkingDirectory`'s. Started from another, it is given that directory with `--package-dir /srv/counter` (the language guide's §9.6, report §11.9).
+
 `ern` runs the `erl` it finds on the path, and systemd's path holds `/usr/local/bin` and `/usr/bin` and no directory of a version manager's. For an OTP installed elsewhere, as kerl installs it, `[Service]` names its `bin` first on the path: `Environment=PATH=dir/bin:/usr/local/bin:/usr/bin:/bin`, `dir` the directory OTP was installed in.
 
 systemd keeps both streams in its journal, which stamps every line, and `journalctl -u counter-b` reads them. `systemctl reload counter-b` runs the reload, and `systemctl stop counter-b` sends the termination signal and waits `TimeoutStopSec` for the orderly end, after which it kills what still runs; set it to the 85 seconds for which a silent peer can hold the end (section 1.3), and the slowest subscriber's answer above them. `Restart=on-failure` starts the node again after a crash and after an `Os.exit` with a status other than 0, and not after `ern stop`.

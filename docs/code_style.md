@@ -254,6 +254,7 @@ And the names of `ern unpack`'s, `Ernest.Unpack`, and its host half, `ern_unpack
 - **Standing**: what stands at an entry's name under `lib`, its package at the entry's version, nothing, a link the unpacking replaces, or what is refused, `Ernest.Unpack.Standing`.
 - **Judged**: an entry with what stands at its name, its archive where it was read and its refusals, `Ernest.Unpack.Judged`; an `Archive` is one whose digest held, with what it unpacks, `Unpacked`, the last member of each name, and its `ebin`'s `.beam` files.
 - **staging**: `lib/.<name>-<version>`, where an archive is unpacked before it is renamed to its name, and **leftovers**, each name in `lib` that begins with `.<name>-`, which a run left beside it. Not `tmp`, `scratch`.
+- **names, unpacks, stands**: a package's verbs in every text, which are the report's (§11.9): a manifest names a package, `ern unpack` unpacks its archive, and the package stands under `lib`. Not `installs`, `adds`, `fetches`, `publishes`: what is installed is a program, by `make install`. *Package manager* is said only where a text says that Ernest has none, which among a user's texts is `guide/faq.md`.
 
 And the names that recur across the site generator's modules, `Site` and those under it in `tools/site/`:
 

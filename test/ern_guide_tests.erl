@@ -40,6 +40,11 @@
 %% and any other, is a fragment, which nothing checks; a console whose `$
 %% ern run` names `--config-dir` runs on nodes, and those of the language
 %% guide's §8.1 and §8.2 are tests of their own.
+%%
+%% The language guide's §9.6 makes two packages in a reader's directory,
+%% each block a file of one or a console of commands beside `ern`: a test
+%% of its own replays it (packages/0), and the check above passes over
+%% every block under its heading.
 -module(ern_guide_tests).
 
 %% EUnit's captured output, asked of the test's group leader, which is
@@ -65,6 +70,16 @@
 %% Report §11.2: the time before a line a node writes where its stream is
 %% no terminal, which the guide leaves out.
 -define(STAMP, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ").
+%% The language guide's section that packages/0 replays.
+-define(PACKAGES, <<"### 9.6 ">>).
+%% A digest the guide cuts short, its first digits and `…`.
+-define(CUT_DIGEST, "[0-9a-f]+\\x{2026}").
+
+%% The state of a replay of the guide's §9.6 (packages/0): the directory
+%% the replay began in, the one its last command left, the `PATH` each
+%% command is given, and each cut digest with the digest the run printed
+%% for it.
+-record(replay, {start, dir, path, digests = #{}}).
 
 %% A fenced block of a document: the line its fence opens on, the word
 %% after the fence, the heading it stands under, and its lines.
@@ -274,6 +289,136 @@ services_across_nodes(Base) ->
     ?assertEqual([binary:replace(Line, <<"127.0.0.1:8655">>, Listen) || Line <- StoreShown],
                  stamped(Err)).
 
+%% guide/language.md §9.6; report §11.1, §11.7, §11.9: the section replayed
+%% in an empty directory as a reader follows it, its blocks in order. Each
+%% `$` line of its consoles is run as shown by `sh`, this checkout's `bin`
+%% first on the `PATH`, in the directory the commands before it left, and
+%% prints the lines the console shows after it, standard output and
+%% standard error together; it exits with status 1 where those lines begin
+%% with its `ern` job's refusal, `ern build: `, and with 0 otherwise. Each
+%% `ernest` block is written at the path its first line names, and the
+%% `json` block at `chart/package.conf`, when the section reaches it.
+%%
+%% The page cuts a digest short, `bbba7f66…`, and each run's archive has a
+%% digest of its own, since `tar` records times and owners: a digest shown
+%% cut stands for any 64 lowercase hexadecimal digits, and the manifest is
+%% written with the digest the run printed in place of the cut one it
+%% shows, which must be one the run printed.
+%%
+%% A regression test, written after the section; it does not cover what
+%% the prose quotes outside a console, a named package's least version and
+%% a changed entry's refusals among it, nor `--package-dir` of `ern test`
+%% and `ern shell`. Its limit is the sum of its commands' waits, one each
+packages_test_() ->
+    Commands = [Command || #block{info = <<"console">>, code = Code} <- section_blocks(?PACKAGES),
+                           Command <- replayed_commands(Code)],
+    ern_nodes_tests:counted_test({waits, length(Commands)}, fun packages/0).
+
+packages() ->
+    Base = tmp(),
+    Start = filename:join(Base, "section"),
+    ok = filelib:ensure_path(Start),
+    Path = filename:absname("../bin") ++ ":" ++ os:getenv("PATH"),
+    Blocks = section_blocks(?PACKAGES),
+    ?assertNotEqual([], Blocks),
+    lists:foldl(fun replayed/2, #replay{start = Start, dir = Start, path = Path}, Blocks),
+    ok = file:del_dir_r(Base).
+
+%% A block of §9.6 replayed: a console's commands run, a module and the
+%% manifest written.
+replayed(#block{info = <<"console">>, code = Code}, Replay) ->
+    lists:foldl(fun ran_as_shown/2, Replay, replayed_commands(Code));
+replayed(#block{info = <<"ernest">>, code = [First | _] = Code}, #replay{start = Start} = Replay) ->
+    {match, [File]} = re:run(First, "^// (\\S+\\.ern)(?:\\s|$)", [{capture, all_but_first, list}]),
+    ok = write(filename:join(Start, File), join(Code)),
+    Replay;
+replayed(#block{info = <<"json">>, code = Code},
+         #replay{start = Start, digests = Digests} = Replay) ->
+    Manifest = join(Code),
+    Cut = cut_digests(Manifest),
+    %% the manifest cuts the digest that the page's `sha256sum` printed
+    ?assertNotEqual([], Cut),
+    ?assertEqual([], [unicode:characters_to_list(Digest) || Digest <- Cut -- maps:keys(Digests)]),
+    Whole = lists:foldl(fun(Digest, Text) ->
+                            binary:replace(Text, Digest, maps:get(Digest, Digests), [global])
+                        end, Manifest, Cut),
+    ok = write(filename:join(Start, "chart/package.conf"), Whole),
+    Replay;
+replayed(#block{line = Line, info = Info}, _) ->
+    error({unreplayed_block, Line, Info}).
+
+%% A command run as the console shows it, by `sh` in the directory the
+%% commands before it left, which it leaves in turn: its status and the
+%% lines it printed, standard error among them, those the console shows.
+ran_as_shown({Command, Shown}, #replay{start = Start, dir = Dir, path = Path,
+                                       digests = Digests} = Replay) ->
+    Left = filename:join(filename:dirname(Start), "left"),
+    Script = [Command, "\nstatus=$?\npwd > '", Left, "'\nexit $status\n"],
+    Port = open_port({spawn_executable, "/bin/sh"},
+                     [{args, ["-c", iolist_to_binary(Script)]}, {cd, Dir},
+                      {env, [{"PATH", Path}]}, exit_status, stderr_to_stdout, binary]),
+    {Status, Printed} = ern_nodes_tests:collected(Port, 1),
+    {Written, Read} = as_shown(Shown, lines(string:trim(Printed, trailing)), Digests),
+    %% compared as text, which a failure prints whole, where it cuts a binary
+    Text = fun(Lines) -> [unicode:characters_to_list(Line) || Line <- Lines] end,
+    ?assertEqual({Text([Command]), shown_status(Command, Shown), Text(Shown)},
+                 {Text([Command]), Status, Text(Written)}),
+    {ok, Cwd} = file:read_file(Left),
+    Replay#replay{dir = binary_to_list(string:trim(Cwd, trailing)), digests = Read}.
+
+%% A console's commands, each `$` line's command with the lines the console
+%% shows after it.
+replayed_commands([<<"$ ", Command/binary>> | Lines]) ->
+    {Shown, Rest} = lists:splitwith(fun(Line) -> not lists:prefix("$ ", binary_to_list(Line)) end,
+                                    Lines),
+    [{Command, Shown} | replayed_commands(Rest)];
+replayed_commands([]) ->
+    [].
+
+%% Report §11.8: the status a command exits with, 1 for an `ern` job whose
+%% lines begin with its refusal, `ern build: `, and 0 for every other.
+shown_status(<<"ern ", Words/binary>>, [First | _]) ->
+    [Job | _] = binary:split(Words, <<" ">>),
+    case string:prefix(First, [<<"ern ">>, Job, <<": ">>]) of
+        nomatch -> 0;
+        _ -> 1
+    end;
+shown_status(_, _) ->
+    0.
+
+%% The lines a command printed, each that matches its shown line's cut
+%% digests, each standing for 64 lowercase hexadecimal digits, taken as the
+%% shown line; and Digests with the digest printed for each cut one.
+as_shown([Shown | ShownRest], [Printed | PrintedRest], Digests) ->
+    {Line, Read} = case cut_digests(Shown) of
+                       [] ->
+                           {Printed, Digests};
+                       Cut ->
+                           Parts = re:split(Shown, ?CUT_DIGEST, [unicode, {return, binary}]),
+                           Pattern = ["^", lists:join("([0-9a-f]{64})",
+                                                      [["\\Q", Part, "\\E"] || Part <- Parts]),
+                                      "$"],
+                           case re:run(Printed, iolist_to_binary(Pattern),
+                                       [unicode, {capture, all_but_first, binary}]) of
+                               {match, Whole} ->
+                                   Found = maps:from_list(lists:zip(Cut, Whole)),
+                                   {Shown, maps:merge(Digests, Found)};
+                               nomatch ->
+                                   {Printed, Digests}
+                           end
+                   end,
+    {Lines, Last} = as_shown(ShownRest, PrintedRest, Read),
+    {[Line | Lines], Last};
+as_shown(_, Printed, Digests) ->
+    {Printed, Digests}.
+
+%% The digests a text cuts short, `bbba7f66…`, in order.
+cut_digests(Text) ->
+    case re:run(Text, ?CUT_DIGEST, [global, unicode, {capture, first, binary}]) of
+        {match, Matches} -> [Digest || [Digest] <- Matches];
+        nomatch -> []
+    end.
+
 %% The files of the guide's source tree that holds File.
 tree_of(File) ->
     [Files] = [Files || {modules, #{files := Files}} <- units(?GUIDE),
@@ -288,11 +433,19 @@ built(Base, Files) ->
 %% The commands of each console under the guide's heading that begins with
 %% Heading whose first command starts a node, `$ ern run --config-dir`.
 node_consoles(Heading) ->
-    [commands(Code) || #block{info = <<"console">>, heading = Under,
+    [commands(Code) || #block{info = <<"console">>,
                               code = [<<"$ ern run --config-dir ", _/binary>> | _] = Code}
-                           <- blocks(numbered(?GUIDE), none, []),
-                       is_binary(Under),
-                       lists:prefix(binary_to_list(Heading), binary_to_list(Under))].
+                           <- section_blocks(Heading)].
+
+%% The blocks under the guide's heading that begins with Heading, in order.
+section_blocks(Heading) ->
+    [Block || #block{heading = Under} = Block <- blocks(numbered(?GUIDE), none, []),
+              is_under(Heading, Under)].
+
+%% Whether a block's heading, Under, begins with Heading; a block before
+%% any heading has none.
+is_under(Heading, Under) ->
+    is_binary(Under) andalso string:prefix(Under, Heading) =/= nomatch.
 
 %% A document's lines, each with its number.
 numbered(Document) ->
@@ -511,8 +664,13 @@ units([First | _] = Documents) when is_list(First) ->
 units(Document) ->
     {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
-    Blocks = blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
+    Blocks = [Block || Block <- blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
+                       not is_replayed(Document, Block)],
     group(continued(Blocks, []), #{}).
+
+%% Whether a block is the language guide's §9.6, which packages/0 replays.
+is_replayed(?GUIDE, #block{heading = Heading}) -> is_under(?PACKAGES, Heading);
+is_replayed(_, _) -> false.
 
 %% Every fenced block, a #block{}.
 blocks([], _, Acc) ->

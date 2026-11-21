@@ -14,7 +14,7 @@ Gleam's `Result(value, error)` is `Either(e, a)`, its parameters the other way r
 
 Nodes are the language too: a node lists its peers by their public keys, a spawn on a peer sends it the definitions it lacks, each known by a hash of its content, and a module keeps every version it has had (the guide's §8, report §8.7, report §11.2). A function generic in a type names what it needs of that type, `needs a.compare` (the guide's §7.3).
 
-Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. What Gleam has that Ernest lacks: a JavaScript target, packages from hex through `gleam add`, labeled arguments on a function, `use`, type aliases, a pattern on a string's prefix, `"inc " <> rest`, and a language server; its opaque type is Ernest's abstract type, and its record of functions the operations record. Gleam's author is named in the acknowledgments.
+Ernest compiles to the Erlang runtime, OTP 29, and to nothing else. What Gleam has that Ernest lacks: a JavaScript target, a package manager, `gleam add` with hex behind it (the question on packages, below), labeled arguments on a function, `use`, type aliases, a pattern on a string's prefix, `"inc " <> rest`, and a language server; its opaque type is Ernest's abstract type, and its record of functions the operations record. Gleam's author is named in the acknowledgments.
 
 ### Where are `gen_server` and the supervisors?
 
@@ -119,6 +119,20 @@ A table is the library `Ets`, the host's table with Ernest types on it, owned by
 In place of `global`, a service has one holder on each node that offers it, and a find answers the address offered by the first peer that offers it, in the order the configuration lists them (the guide's §8.2). In place of `pg`, a group of processes across nodes is the program's own, a process that keeps their addresses.
 
 A mailbox is unbounded, as Erlang's is, and back pressure is the program's, a credit the receiver grants or a call, since a full mailbox that held a sender would hold a caller waiting on that sender's reply, and the two would wait for good. A release of a program is its `.erc` files beside `ern`, which `ern build` writes and the deployment guide's §1 and §5 run.
+
+### Why does Ernest have packages and no package manager?
+
+A package is a directory with a manifest, and a program's manifest names the packages the program uses. Each travels as an archive, which `ern unpack` unpacks under the program's `lib` (the guide's §9.6). No job resolves a version, and there is no lockfile and no registry (report §11.9).
+
+Three things then hold of every program, and its files show each. The program's manifest names every package the program loads, those reached through another package among them, each at the version it is built with. So a package that brings a thousand others costs its user a thousand entries.
+
+Nothing chooses a version. `ern build` holds the manifests to each other, and refuses a package that needs a later version of another than the program's entry says.
+
+No job runs code of a package while it unpacks or builds it. `ern unpack` reads no network, and a package's code first runs under `ern run`, `ern test` or `ern shell`.
+
+The cost stands beside them: a new version of a package that other packages use is an edit by hand in the program's manifest, since nothing resolves it.
+
+None of this makes a package safe to run. A named package's `ebin` holds compiled Erlang, and `--libs-dir` lets in any library of the host's. What holds is that no package is loaded unnamed.
 
 ### Why `fn(x) = ...` for a lambda, and not `x -> ...`?
 
