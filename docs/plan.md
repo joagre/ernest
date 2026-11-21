@@ -51,7 +51,8 @@ Editing Planned*).
 
 Items 10 and 23, the other repositories and the packages proposal's sweep, moved to MVP 4.4's
 item 4 on 2026-11-19, since the manifests' write is the floors' rise (the log's *The Plan
-Read for Build Order*). So the milestone ends with item 9.
+Read for Build Order*). Items 162 and 163 were added last, on the user's word of
+2026-11-21. So the milestone ends with item 163.
 
 ### What is left
 
@@ -75,6 +76,27 @@ The packages proposal's build order,
   Order*). `site/projects.md` says in one sentence how a project is taken, an entry in
   `package.conf` and `ern unpack`. It is written before the tag, since the site is built
   from the tag and goes live after the three other releases, and MVP 4.4's item 6 holds it.
+- **162. `:help` lists the key bindings, and the shell's manual page**, the user's word on
+  2026-11-21. Today `:help` lists the commands alone, as §11.2 says, and the keys stand
+  only in the prose of §11.2's *Editing* and its search's paragraph.
+  - **The report first.** §11.2's line for `:help` says that it lists the commands and
+    then every key the shell binds, each with a line of help. How the keys are grouped
+    and worded is decided as the item opens. A key the shell binds and §11.2 does not
+    name is said to the user before it is listed.
+  - **One table.** The keys `:help` lists stand once, in the module that binds them, and a
+    test holds that each key the editor binds stands in the table, and each key in the
+    table is bound.
+  - **The manual page.** Read on 2026-11-21: the shell has no page of its own. ern(1),
+    which `make install` installs as `share/man/man1/ern.1`, renders §11 whole, so §11.2
+    stands in its DESCRIPTION, *Editing*'s keys among it, and `man ern` shows them.
+    **Decision:** whether that page is the shell's manual, `:help` naming `man ern` in its
+    last line, or the shell gains a page of its own.
+- **163. The known issues sorted**, the user's word on 2026-11-21. Each line of
+  [`known_issues.md`](known_issues.md) is read against the code as it stands and given one
+  of three verdicts, decided with the user a line at a time: dropped, the line going with
+  its reason in the log; planned, as an item of MVP 4.5; or kept, a corner that must be
+  built on purpose to be met. A line the code no longer shows goes as fixed. The item
+  closes with `make test-docs`.
 
 ### What is done
 
