@@ -44,9 +44,9 @@
          is_never_given/1, is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3,
          spawn_root/2, spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, call_limited/2,
-         compute/4, answer/2, refuse/2, reply_process/1, is_reply/1, monitor/2, monitor_service/2,
-         demonitor/1, kill/1, killed/2, reason/1, peer_restarted/1, left_waiting/1,
-         wait_for_deliveries/0, started_by/1,
+         call_until_ended/2, compute/4, answer/2, refuse/2, reply_process/1, is_reply/1,
+         monitor/2, monitor_service/2, demonitor/1, kill/1, killed/2, reason/1,
+         peer_restarted/1, left_waiting/1, wait_for_deliveries/0, started_by/1,
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
          writes_through/1, faults/1, termination/1,
@@ -83,7 +83,7 @@
                           restart_taken/1, end_with_program/0, waited_deliveries/1,
                           waited_reports/0, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
--receives({ernest_wait, [waited_answer/3, call_forever/4, waited_evaluation/2,
+-receives({ernest_wait, [waited_answer/3, call_forever/4, call_until_ended/2, waited_evaluation/2,
                          evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, faults/1, ask_monitor/2, demonitor/1,
                               spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
@@ -850,6 +850,43 @@ call_forever(Address, Request, Check) ->
 -spec call_limited(address(), fun((reply()) -> term())) -> term().
 call_limited(Address, Request) ->
     call_forever(Address, Request, none, true).
+
+%% Report Appendix E.18, E.21, §8.6: the other call private to Tcp, which
+%% Tcp.closeListener makes. Its callee never answers it: it answers `Unit`
+%% once the callee has ended, however it ends, and at once where it has
+%% ended already, its monitor's Down then `noproc`. It waits as a call does,
+%% noted as one on its callee and read by Process.status as a call without
+%% a limit, so that the look reads it as callForever's wait. Report §3.11:
+%% a listener is of the caller's node; one that ended with the program ends
+%% its caller with it, as callForever's callee does.
+-spec call_until_ended(address(), fun((reply()) -> term())) -> 'Unit'.
+call_until_ended(Address, Request) ->
+    Since = monotonic(),
+    {Callee, Reply} = watched(Address),
+    Answer = try
+                 Way = adapted_way(Address, Request({Reply, current()})),
+                 pending(#call{callee = Callee, reply = Reply, since = Since, limited = false}),
+                 sent(Way),
+                 receive
+                     {'DOWN', Reply, process, _, CalleeExitReason} ->
+                         closed(),
+                         {ended, reason(CalleeExitReason)};
+                     %% report §6.9: a restart asked for is taken at a call's
+                     %% wait
+                     '$ern_restart' -> restart;
+                     %% report §8.4, §6.5: a foreign message's fault, or one
+                     %% met on a message's way, taken there too
+                     {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
+                 end
+             after
+                 settled(Reply)
+             end,
+    case Answer of
+        {ended, 'ProgramEnd'} -> end_with_program();
+        {ended, _} -> ?UNIT;
+        {thrown, Fault} -> throw(Fault);
+        restart -> restart_now()
+    end.
 
 %% The call that waits for its answer however long it takes, Limited where
 %% the request gives its callee a time. Report §6.6, §7.4: the callee's

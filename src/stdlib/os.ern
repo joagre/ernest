@@ -131,7 +131,7 @@ export abstract type ProgramMsg =
   | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | Resize(size : Terminal.Size, reply : Reply(Either(Io.Error, Unit)))
   | SendSignal(signal : Signal, reply : Reply(Either(Io.Error, Unit)))
-  | CloseInput
+  | CloseInput(Reply(Unit))
   | Give(owner : Process)
 
 // What Os's system process takes: a program to start, with pipes or under a
@@ -626,15 +626,23 @@ export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either
 export fn signal(program : Address(ProgramMsg), signal : Signal) : Either(Io.Error, Unit) =
     Address.callForever(program, fn(reply) = SendSignal(=signal, =reply))
 
-/// Ends the program's input, once what it was given before is written. A
-/// program that reads to the end of its input then sees the end.
+/// Ends the program's input after what it was given before, and returns once
+/// the end stands behind it: a program that reads to the end of its input sees
+/// every byte written before, and then the end. On a program whose input is
+/// closed already, or that has exited, it returns at once.
 ///
-/// On a program `startTerminal` started it hangs the terminal up at once, as
-/// closing a terminal window does: the program is sent the hangup, what it was
-/// given and has not taken is dropped, nothing more it writes arrives, and
-/// `read` answers its exit once it has exited. A read of the terminal the
-/// program is waiting in ends before the hangup is sent, so a program that
-/// exits when its input ends may exit so and never take the hangup.
+/// On a program `startTerminal` started it hangs the terminal up, as closing a
+/// terminal window does, and returns once the terminal is hung up: the program
+/// is sent the hangup, what it was given and has not taken is dropped, nothing
+/// more it writes arrives, and `read` answers its exit once it has exited. A
+/// read of the terminal the program is waiting in ends before the hangup is
+/// sent, so a program that exits when its input ends may exit so and never
+/// take the hangup.
+///
+/// ### Errors
+///
+/// Faults where the runtime's helper fails, as `start` does, and where the
+/// program's process has ended, as `read` does.
 ///
 /// ### Examples
 ///
@@ -650,7 +658,7 @@ export fn signal(program : Address(ProgramMsg), signal : Signal) : Either(Io.Err
 /// // => Right("2")
 /// ```
 export fn closeInput(program : Address(ProgramMsg)) : Unit =
-    send(program, CloseInput)
+    Address.callForever(program, CloseInput)
 
 /// Makes `owner` the program's owner, in place of the process that started it
 /// or was given it before. The program is killed when its owner dies, and at

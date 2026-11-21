@@ -61,10 +61,8 @@
 // answer and the program's end come by two ways, and the put may be what
 // ends the program, so the end does not decide the put.
 //
-// A hangup is a message to the program's process, which hangs the terminal
-// up as it takes it (Appendix E.23), so the step that follows could reach
-// the program first. The step waits for a write after the hangup, which
-// that process takes after it and answers that the input is closed.
+// A hangup is `Os.closeInput`, which returns once the terminal is hung up
+// (Appendix E.23), so the step that follows comes after it.
 //
 
 type Step =
@@ -297,7 +295,7 @@ fn take(run : Run, step : Step) : Stepped receiving HarnessMsg =
         }
       | Hangup -> {
             Os.closeInput(run.program);
-            hungUp(run)
+            Met(run)
         }
       | Signal(signal) ->
             match Os.signal(run.program, signal) {
@@ -310,15 +308,6 @@ fn take(run : Run, step : Step) : Stepped receiving HarnessMsg =
         }
       | Release ->
             Met(Run(..run, reader = reading(run.program)))
-    }
-
-// Report Appendix E.23: the hangup made, which a write of nothing after it
-// shows: the program's process takes the write once it has hung the
-// terminal up, and answers `Left(Closed)`, the input it would take gone.
-fn hungUp(run : Run) : Stepped =
-    match Os.write(run.program, <<>>, remaining(run)) {
-        Left(Io.Closed) -> Met(run)
-      | _ -> Unmet(run)
     }
 
 // An expect: the text found after the cursor, which moves past it, and the

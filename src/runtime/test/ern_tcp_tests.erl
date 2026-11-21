@@ -26,6 +26,13 @@
 %% full buffers, unless the host is too loaded to run the writer so long.
 -define(HELD, 100).
 
+%% Report Appendix E.18: the rounds of a close followed at once by a listen
+%% on its port and a `port` of the listener, over TCP and over TLS, and of
+%% an accept held by a listener that is killed or whose owner dies.
+-define(CLOSE_ROUNDS, 2000).
+-define(TLS_CLOSE_ROUNDS, 500).
+-define(KILL_ROUNDS, 10).
+
 %% Appendix E.18, E.0 shape rule 8: a read given no time, 0 or below, has
 %% run out as it begins and answers `Left(Timeout)`, whatever has arrived,
 %% and takes nothing: the far end's bytes go to the read with time after it,
@@ -201,7 +208,7 @@ closed_listener_exit_term_test() ->
            fun() ->
                {'Right', Listener} = listen(0),
                MonitorRef = erlang:monitor(process, Listener),
-               Listener ! 'CloseListener',
+               'Unit' = close_listener(Listener),
                receive {'DOWN', MonitorRef, process, _, ExitReason} -> Self ! {ended, ExitReason}
                end
            end, <<"main">>, quiet()),
@@ -280,13 +287,495 @@ close_listener_test() ->
                                 end),
                %% waits in a test's code, the host's to the deadlock detector
                receive sent -> ok end,
-               MonitorRef = erlang:monitor(process, Pid),
-               ern_rt:send(Listener, 'CloseListener'),
-               receive {'DOWN', MonitorRef, _, _, _} -> ok end,
+               'Unit' = close_listener(Listener),
                Self ! {alive, erlang:is_process_alive(Pid)}
            end, <<"main">>, quiet()),
     ?assertEqual({'Left', 'Closed'}, wait(accepted)),
     ?assertEqual(false, wait(alive)).
+
+%% Appendix E.18, report §6.6: `closeListener` answers once the listener
+%% has ended and its host socket has closed, so that a listen on its port
+%% straight after is not refused for the port being held, and a `port`
+%% straight after faults with `callee had ended`, each first in every
+%% other round. Written first: the close that was a send lost 1,001 rounds
+%% of 2,000, the listen refused `address already in use` 3 times and the
+%% port faulting `callee was closed` 1,000 times
+close_listener_frees_the_port_test_() ->
+    {timeout, 60,
+     fun() ->
+         ?assertEqual(#{{listened, <<"callee had ended">>} => ?CLOSE_ROUNDS},
+                      closed_rounds(none, ?CLOSE_ROUNDS))
+     end}.
+
+%% The same over TLS. Written first: the close that was a send lost 250
+%% rounds of 500, the port faulting `callee was closed`, and no listen was
+%% refused
+close_listener_frees_the_port_over_tls_test_() ->
+    {timeout, 60,
+     fun() ->
+         ?assertEqual(#{{listened, <<"callee had ended">>} => ?TLS_CLOSE_ROUNDS},
+                      closed_rounds(pki(), ?TLS_CLOSE_ROUNDS))
+     end}.
+
+%% What a listen on the port and a `port` straight after a close give,
+%% over Rounds, counted.
+closed_rounds(Keys, Rounds) ->
+    Self = self(),
+    ok = ern_rt:run_main(fun() -> Self ! {rounds, closed_rounds(Keys, Rounds, #{})} end,
+                         <<"main">>, quiet()),
+    wait(rounds).
+
+closed_rounds(_, 0, Counts) ->
+    Counts;
+closed_rounds(Keys, Left, Counts) ->
+    {'Right', Listener} = listening(Keys, 0),
+    {'Right', Port} = port(Listener),
+    'Unit' = close_listener(Listener),
+    Key = straight_after(Keys, Port, Listener, Left rem 2),
+    closed_rounds(Keys, Left - 1, maps:update_with(Key, fun(Count) -> Count + 1 end, 1, Counts)).
+
+%% A listen on Port and a `port` of Listener, the listen first or second.
+straight_after(Keys, Port, Listener, 0) ->
+    Again = listened(listening(Keys, Port)),
+    {Again, asked(Listener)};
+straight_after(Keys, Port, Listener, 1) ->
+    Asked = asked(Listener),
+    {listened(listening(Keys, Port)), Asked}.
+
+listened({'Right', Listener}) ->
+    'Unit' = close_listener(Listener),
+    listened;
+listened({'Left', Error}) ->
+    Error.
+
+%% A `port` asked of Listener: answered, or the cause it faults with.
+asked(Listener) ->
+    try port(Listener) of
+        {'Right', _} -> answered
+    catch
+        throw:{ern, fault, Cause} -> Cause
+    end.
+
+listening(none, Port) -> listen(Port);
+listening(#{server := Keys}, Port) -> listen_tls(Port, Keys).
+
+%% Appendix E.18: `closeListener` answers `Unit` at once on a listener that
+%% has ended already, by an earlier `closeListener`, by a kill or by its
+%% owner's death, and does not fault. Written first, a regression test: the
+%% close that was a send did nothing there either
+close_listener_on_an_ended_listener_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Closed} = listen(0),
+               'Unit' = close_listener(Closed),
+               {'Right', Killed} = listen(0),
+               ok = ended_by(Killed, fun() -> ern_rt:kill(ern_rt:process_of(Killed)) end),
+               Main = self(),
+               _ = erlang:spawn(fun() -> Main ! {orphaned, listen(0)} end),
+               {'Right', Orphaned} = receive {orphaned, Answer} -> Answer end,
+               ok = ended_by(Orphaned, fun() -> ok end),
+               Self ! {closes, [close_listener(Ended) || Ended <- [Closed, Killed, Orphaned]]}
+           end, <<"main">>, quiet()),
+    ?assertEqual(['Unit', 'Unit', 'Unit'], wait(closes)).
+
+%% Until Listener has ended, once End has run.
+ended_by(Listener, End) ->
+    MonitorRef = erlang:monitor(process, ern_rt:process_of(Listener)),
+    End(),
+    receive {'DOWN', MonitorRef, process, _, _} -> ok end.
+
+%% Appendix E.18, E.21: `closeListener` answers an accept the listener has
+%% taken and holds waiting with `Left(Closed)`, and returns only once the
+%% accept is answered and its worker has ended; meanwhile `Process.status`
+%% shows the close as a call on the listener without a limit. The
+%% accept's worker is held in the host's accept until the close waits.
+%% Written first: the close that was a send returned at once, before it
+%% could be seen waiting
+close_listener_waits_for_a_held_accept_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               Pid = ern_rt:process_of(Listener),
+               Main = self(),
+               {_, Worker} = held_accept(Listener, Main),
+               true = erlang:suspend_process(Worker),
+               Closer = ern_rt:spawn(fun() ->
+                                         Closed = close_listener(Listener),
+                                         Main ! {closed, {Closed, erlang:is_process_alive(Worker)}}
+                                     end, <<"closer">>),
+               Calling = ern_waits:calling(ern_rt:process_of(Closer)),
+               Status = ern_rt:status(ern_rt:process_of(Closer)),
+               true = erlang:resume_process(Worker),
+               Closed = receive {closed, C} -> C end,
+               Self ! {held, {Pid, Calling, Status, Closed, accepted()}}
+           end, <<"main">>, quiet()),
+    {Pid, Calling, Status, Closed, Accepted} = wait(held),
+    ?assertEqual(ok, Calling),
+    ?assertMatch({'Some', {'Status', _, _, {'Calling', {'Some', Pid}, false, _}, _}}, Status),
+    ?assertEqual({'Left', 'Closed'}, Accepted),
+    ?assertEqual({'Unit', false}, Closed).
+
+%% What the accept held_accept/2 started answered, or the cause it faulted
+%% with: its end is told after its answer.
+accepted() ->
+    receive
+        {acceptor, {'Down', _, {'Fault', Cause}, _}} -> {fault, Cause};
+        {acceptor, {'Down', _, _, _}} -> receive {accepted, Answer} -> Answer end
+    end.
+
+%% Appendix E.18: an accept whose worker has taken a connection as
+%% `closeListener` comes answers that connection's socket, which its caller
+%% owns and reads, and is answered once; the close returns once the worker
+%% has ended. The worker is held as the socket it opens is adopted, the
+%% reaper held, until the close waits on the listener. Written first: the
+%% close that was a send ended the listener at once, and the accept
+%% faulted with `callee was closed` while its worker opened the socket
+close_listener_answers_a_taken_connection_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               {'Right', Port} = port(Listener),
+               Pid = ern_rt:process_of(Listener),
+               {ok, Client} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+               ok = gen_tcp:send(Client, <<"x">>),
+               Acceptor = ern_rt:spawn_monitored(
+                            fun() ->
+                                receive go -> ok end,
+                                Accepted = accept_forever(Listener),
+                                Self ! {accepted, side(Accepted)},
+                                {'Right', Socket} = Accepted,
+                                Self ! {read, read(Socket, 2000)}
+                            end, fun(Down) -> {acceptor, Down} end, <<"acceptor">>),
+               Main = self(),
+               Closer = ern_rt:spawn(fun() ->
+                                         receive go -> ok end,
+                                         Main ! {closed, close_listener(Listener)}
+                                     end, <<"closer">>),
+               Reaper = ern_rt:launch_reaper(),
+               erlang:trace(Pid, true, [procs]),
+               true = erlang:suspend_process(Reaper),
+               Acceptor ! go,
+               Worker = spawned(Pid),
+               %% the worker has taken the connection, and waits as the reaper
+               %% adopts the socket it opens
+               ok = waiting_in(Worker, ern_rt),
+               ern_rt:process_of(Closer) ! go,
+               Calling = ern_waits:calling(ern_rt:process_of(Closer)),
+               WorkerHeld = erlang:is_process_alive(Worker),
+               true = erlang:resume_process(Reaper),
+               {acceptor, {'Down', _, Reason, _}} = receive {acceptor, _} = Down -> Down end,
+               Closed = receive {closed, C} -> C end,
+               Self ! {held, {Calling, WorkerHeld, Reason, Closed}},
+               gen_tcp:close(Client)
+           end, <<"main">>, quiet()),
+    ?assertEqual({ok, true, 'Returned', 'Unit'}, wait(held)),
+    ?assertEqual('Right', wait(accepted)),
+    ?assertEqual({'Right', <<"x">>}, wait(read)).
+
+%% Appendix E.18, report §6.6: an accept a killed listener holds waiting
+%% faults with `callee was killed`, as a call does whose callee is killed,
+%% and is never answered `Left(Closed)`. Each listener is killed once the
+%% accept's worker waits in the host's accept. Written first: the listener
+%% closed its host socket before it ended, and the worker answered
+%% `Left(Closed)` in 10 rounds of 10
+killed_listener_faults_a_held_accept_test_() ->
+    {timeout, 60,
+     fun() ->
+         ?assertEqual(#{{fault, <<"callee was killed">>} => ?KILL_ROUNDS},
+                      held_rounds(kill, ?KILL_ROUNDS))
+     end}.
+
+%% Appendix E.18, report §6.6, §6.9: the same of a listener whose owner
+%% dies, which kills it. Written first: the worker answered `Left(Closed)`
+%% in 10 rounds of 10
+orphaned_listener_faults_a_held_accept_test_() ->
+    {timeout, 60,
+     fun() ->
+         ?assertEqual(#{{fault, <<"callee was killed">>} => ?KILL_ROUNDS},
+                      held_rounds(owner, ?KILL_ROUNDS))
+     end}.
+
+%% The kill over TLS, whose worker waits in the host's accept as one over
+%% TCP does. Written after the code: on the listener that closed its host
+%% socket before it ended, the worker answered `Left(Closed)` in 10 rounds
+%% of 10
+killed_tls_listener_faults_a_held_accept_test_() ->
+    {timeout, 60,
+     fun() ->
+         ?assertEqual(#{{fault, <<"callee was killed">>} => ?KILL_ROUNDS},
+                      held_rounds(kill, pki(), ?KILL_ROUNDS))
+     end}.
+
+%% Appendix E.18, report §6.9, §6.6: a listener the host ends by an exit no
+%% process traps, as foreign code may, ends with its host socket open,
+%% which the host closes as it dies, and the host's accept of each worker
+%% then answers `closed`. The worker answers nothing, since the listener's
+%% end has begun, and the accept's caller faults with the host's term of
+%% the end, `killed`. Two accepts are held: one by a process of the run's,
+%% whose fault is read, and one by a host process outside the run, which
+%% watches its worker and reads, once the worker has ended, whether it was
+%% answered, the answer and the worker's end coming from one sender, so in
+%% order. Written after the code: on the listener that closed its host
+%% socket before it ended, the second worker answered `Left(Closed)`
+untrappable_kill_faults_a_held_accept_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               Main = self(),
+               _ = held_accept(Listener, Main),
+               _ = held_accept_watched(Listener, Main),
+               ok = ended_by(Listener, fun() -> exit(ern_rt:process_of(Listener), kill) end),
+               Answered = receive {answered, A} -> A end,
+               Self ! {killed, {accepted(), Answered}}
+           end, <<"main">>, quiet()),
+    ?assertEqual({{fault, <<"killed">>}, none}, wait(killed)).
+
+%% An `acceptForever` on Listener by a process of the host's, outside the
+%% run, which watches the worker the listener answers it by, once the worker
+%% waits in the host's accept, and tells Tell, once the worker has ended,
+%% what the worker answered, or `none`.
+held_accept_watched(Listener, Tell) ->
+    Pid = ern_rt:process_of(Listener),
+    Accept = fun() ->
+                 Reply = erlang:alias(),
+                 Pid ! {'AcceptForever', self(), {Reply, self()}},
+                 WorkerRef = erlang:monitor(process, receive {worker, W} -> W end),
+                 Tell ! watching,
+                 receive {'DOWN', WorkerRef, process, _, _} -> ok end,
+                 Tell ! {answered, receive {Reply, answered, Value} -> Value after 0 -> none end}
+             end,
+    {Acceptor, Worker} = held_by_a_worker(Listener, fun() -> erlang:spawn(Accept) end),
+    Acceptor ! {worker, Worker},
+    receive watching -> ok end.
+
+%% How Rounds accepts held by a listener ended How end, counted, the
+%% listener over TCP, or over TLS with Keys.
+held_rounds(How, Rounds) ->
+    held_rounds(How, none, Rounds).
+
+held_rounds(How, Keys, Rounds) ->
+    Self = self(),
+    ok = ern_rt:run_main(fun() -> Self ! {rounds, held_rounds(How, Keys, Rounds, #{})} end,
+                         <<"main">>, quiet()),
+    wait(rounds).
+
+held_rounds(_, _, 0, Counts) ->
+    Counts;
+held_rounds(How, Keys, Left, Counts) ->
+    {Listener, End} = owned_listener(How, Keys),
+    Main = self(),
+    _ = held_accept(Listener, Main),
+    End(),
+    Key = accepted(),
+    held_rounds(How, Keys, Left - 1,
+                maps:update_with(Key, fun(Count) -> Count + 1 end, 1, Counts)).
+
+%% A listener and what ends it: a kill, or its owner's end, the owner a
+%% process of its own that listens and waits for its end; over TCP, or
+%% over TLS with Keys.
+owned_listener(How) ->
+    owned_listener(How, none).
+
+owned_listener(kill, Keys) ->
+    {'Right', Listener} = listening(Keys, 0),
+    {Listener, fun() -> ern_rt:kill(ern_rt:process_of(Listener)) end};
+owned_listener(owner, Keys) ->
+    Main = self(),
+    Owner = erlang:spawn(fun() ->
+                             Main ! {owned, listening(Keys, 0)},
+                             receive done -> ok end
+                         end),
+    {'Right', Listener} = receive {owned, Answer} -> Answer end,
+    {Listener, fun() -> Owner ! done end}.
+
+%% Appendix E.18: a kill of a listener whose close waits for an accept it
+%% holds, or its owner's death then, ends it at once, and the close
+%% answers then, the accept's worker still held; the accept's caller faults
+%% with `callee was killed`, its worker let go only once the listener has
+%% ended. Written with the code, a test of a place E.18 is silent on; the
+%% close that was a send returned before it could be seen waiting
+ended_while_closing_test() ->
+    [?assertEqual({{'Unit', true}, {fault, <<"callee was killed">>}}, ended_while_closing(How))
+     || How <- [kill, owner]].
+
+ended_while_closing(How) ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {Listener, End} = owned_listener(How),
+               Pid = ern_rt:process_of(Listener),
+               Main = self(),
+               {_, Worker} = held_accept(Listener, Main),
+               true = erlang:suspend_process(Worker),
+               Closer = ern_rt:spawn(fun() ->
+                                         Closed = close_listener(Listener),
+                                         Main ! {closed, {Closed, erlang:is_process_alive(Worker)}}
+                                     end, <<"closer">>),
+               ok = ern_waits:calling(ern_rt:process_of(Closer)),
+               ok = ern_waits:waiting(Pid),
+               End(),
+               Closed = receive {closed, C} -> C end,
+               true = erlang:resume_process(Worker),
+               Self ! {ended, {Closed, accepted()}}
+           end, <<"main">>, quiet()),
+    wait(ended).
+
+%% Report Appendix E.18, §8.6: a program whose last act is `closeListener`
+%% ends, and the runtime, which looks for a deadlock twice while the close
+%% waits on an accept the listener holds, finds none, and the accept
+%% answers `Left(Closed)`. Written first, a regression test: the close that
+%% was a send ended the program too; the accept's answer was asked with the
+%% code
+close_listener_is_no_deadlock_test() ->
+    Self = self(),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    {'Right', Listener} = listen(0),
+                    %% the accept's answer is told after the run's end
+                    {_, Worker} = held_accept_outside(Listener, Self),
+                    %% the process that holds the worker still lets it go
+                    Main = self(),
+                    _ = erlang:spawn(fun() ->
+                                         true = erlang:suspend_process(Worker),
+                                         Main ! held,
+                                         ok = ern_waits:looked(2),
+                                         erlang:resume_process(Worker)
+                                     end),
+                    receive held -> ok end,
+                    close_listener(Listener)
+                end, <<"main">>, quiet()),
+    ?assertEqual(ok, Outcome),
+    ?assertEqual({'Left', 'Closed'}, wait(accepted)).
+
+%% Report §6.9, Appendix E.18, E.22: a restart asked of a process that waits
+%% in `closeListener` is taken at that wait, as at a call's: the process
+%% restarts, the cause of its new start `Asked`, and its call is noted on
+%% the listener no longer; the listener, asked to close, still closes, and
+%% the accept it holds answers `Left(Closed)`. The accept's worker is held
+%% in the host's accept, so that the close waits. Written after the code, a
+%% test of a path call_until_ended/2 takes from callForever's
+close_listener_takes_a_restart_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               Pid = ern_rt:process_of(Listener),
+               Main = self(),
+               {_, Worker} = held_accept(Listener, Main),
+               true = erlang:suspend_process(Worker),
+               Closing = ern_rt:restarting(
+                           'Unlimited',
+                           fun() ->
+                               case ern_rt:start_cause() of
+                                   'First' ->
+                                       Main ! {closed, close_listener(Listener)};
+                                   Cause ->
+                                       Noted = ets:member(ern_callees, {Pid, erlang:self()}),
+                                       Main ! {restarted, {Cause, Noted}}
+                                   end
+                           end),
+               Closer = ern_rt:spawn(Closing, <<"closer">>),
+               ok = ern_waits:calling(ern_rt:process_of(Closer)),
+               true = ern_rt:ask_restart(ern_rt:process_of(Closer)),
+               Restarted = receive
+                               {restarted, Started} -> Started;
+                               {closed, _} = Closed -> Closed
+                           end,
+               true = erlang:resume_process(Worker),
+               ok = ended_by(Listener, fun() -> ok end),
+               Self ! {restarted, {Restarted, accepted()}}
+           end, <<"main">>, quiet()),
+    ?assertEqual({{'Asked', false}, {'Left', 'Closed'}}, wait(restarted)).
+
+%% Report §8.4, §6.5, Appendix E.18: a bad message foreign code sends
+%% through a check to a process that waits in `closeListener` faults it at
+%% that wait, as at a call's; the listener, asked to close, still closes,
+%% and the accept it holds answers `Left(Closed)`. The accept's worker is
+%% held in the host's accept, so that the close waits and cannot end the
+%% wait first. Written after the code, a test of a path call_until_ended/2
+%% takes from callForever's
+close_listener_takes_a_foreign_fault_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               Main = self(),
+               {_, Worker} = held_accept(Listener, Main),
+               true = erlang:suspend_process(Worker),
+               Closer = ern_rt:spawn_monitored(fun() -> close_listener(Listener) end,
+                                               fun(Down) -> {closer, Down} end, <<"closer">>),
+               ok = ern_waits:calling(ern_rt:process_of(Closer)),
+               Int = {address, int, <<"message does not match Int">>, <<"the hash of Int">>},
+               ern_boundary:expose(Int, Closer) ! <<"no Int">>,
+               Faulted = receive {closer, {'Down', _, Reason, _}} -> Reason end,
+               true = erlang:resume_process(Worker),
+               ok = ended_by(Listener, fun() -> ok end),
+               Self ! {faulted, {Faulted, accepted()}}
+           end, <<"main">>, quiet()),
+    ?assertEqual({{'Fault', <<"message does not match Int">>}, {'Left', 'Closed'}},
+                 wait(faulted)).
+
+%% An `acceptForever` on Listener by a process of the run's, whose answer it
+%% tells Tell as `accepted` and whose end it tells as `acceptor`, and the
+%% worker the listener answers it by, once the worker waits in the host's
+%% accept: the listener has taken the accept. The worker is found as the
+%% listener spawns it, which the host traces.
+held_accept(Listener, Tell) ->
+    Accept = fun() -> Tell ! {accepted, accept_forever(Listener)} end,
+    Start = fun() ->
+                ern_rt:spawn_monitored(Accept, fun(Down) -> {acceptor, Down} end, <<"acceptor">>)
+            end,
+    held_by_a_worker(Listener, Start).
+
+%% The same by a process of the host's, outside the run, which tells Tell
+%% its answer whether or not the run has ended by then.
+held_accept_outside(Listener, Tell) ->
+    Pid = ern_rt:process_of(Listener),
+    Accept = fun() ->
+                 Reply = erlang:alias(),
+                 Pid ! {'AcceptForever', self(), {Reply, self()}},
+                 Tell ! {accepted, receive {Reply, answered, Value} -> Value end}
+             end,
+    held_by_a_worker(Listener, fun() -> erlang:spawn(Accept) end).
+
+%% The acceptor Start starts on Listener, and the worker the listener
+%% answers it by, once the worker waits in the host's accept.
+held_by_a_worker(Listener, Start) ->
+    Pid = ern_rt:process_of(Listener),
+    erlang:trace(Pid, true, [procs]),
+    Acceptor = Start(),
+    Worker = spawned(Pid),
+    ok = waiting_in(Worker, prim_inet),
+    {Acceptor, Worker}.
+
+%% Until Pid waits in a function of Module, or has ended.
+waiting_in(Pid, Module) ->
+    ern_waits:until(Pid, fun() ->
+                             case erlang:process_info(Pid, [status, current_function]) of
+                                 [{status, waiting}, {current_function, {Module, _, _}}] -> true;
+                                 _ -> false
+                             end
+                         end).
+
+%% The next process Pid spawns, which the host traces, and Pid's tracing
+%% then off, its trace messages taken out.
+spawned(Pid) ->
+    Worker = receive {trace, Pid, spawn, Spawned, _} -> Spawned end,
+    _ = erlang:trace(Pid, false, [procs]),
+    untraced(Pid),
+    Worker.
+
+untraced(Pid) ->
+    receive
+        {trace, Pid, _, _} -> untraced(Pid);
+        {trace, Pid, _, _, _} -> untraced(Pid)
+    after 0 ->
+        ok
+    end.
 
 %% Appendix E.18, report §12: at the operating system's limit of open
 %% files an accept with no connection waiting answers the host's refusal,
@@ -391,9 +880,7 @@ filled(Listeners) ->
 
 %% A listener closed and ended, its file given back.
 closed(Listener) ->
-    MonitorRef = erlang:monitor(process, ern_rt:process_of(Listener)),
-    ern_rt:send(Listener, 'CloseListener'),
-    receive {'DOWN', MonitorRef, _, _, _} -> ok end.
+    'Unit' = close_listener(Listener).
 
 %% report §6.6, Appendix E.18: an accept that waits as the listener's close
 %% ends it faults with `callee was closed`. A regression test of the rule;
@@ -406,7 +893,7 @@ accept_meets_the_close_test() ->
                {'Right', Listener} = listen(0),
                Pid = ern_rt:process_of(Listener),
                erlang:suspend_process(Pid),
-               ern_rt:send(Listener, 'CloseListener'),
+               ok = close_sent(Listener),
                Acceptor = ern_rt:spawn_monitored(fun() -> accept(Listener, 1000) end,
                                                  fun(Down) -> {down, Down} end, <<"acceptor">>),
                %% the acceptor waits once it has sent its accept
@@ -465,7 +952,7 @@ close_answers_the_waits_without_a_time_test() ->
                                                  end, fun(Down) -> {ended, Down} end,
                                                  <<"acceptor">>),
                ok = ern_waits:calling(ern_rt:process_of(Acceptor)),
-               ern_rt:send(Listener, 'CloseListener'),
+               'Unit' = close_listener(Listener),
                {'Right', Socket} = connect(FarPort, 2000),
                Reader = ern_rt:spawn_monitored(fun() -> Self ! {read, read_forever(Socket)} end,
                                                fun(Down) -> {ended, Down} end, <<"reader">>),
@@ -492,9 +979,10 @@ waits_without_a_time_meet_the_close_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(0),
-               Self ! {listener, met_the_close(Listener, 'CloseListener', fun accept_forever/1)},
+               Self ! {listener, met_the_close(Listener, fun close_sent/1, fun accept_forever/1)},
                {'Right', Socket} = connect(FarPort, 2000),
-               Self ! {socket, met_the_close(Socket, 'Close', fun read_forever/1)}
+               Close = fun(Address) -> ern_rt:send(Address, 'Close') end,
+               Self ! {socket, met_the_close(Socket, Close, fun read_forever/1)}
            end, <<"main">>, quiet()),
     Peer ! done,
     gen_tcp:close(Listen),
@@ -502,12 +990,12 @@ waits_without_a_time_meet_the_close_test() ->
                    {'Down', _, {'Fault', <<"callee had ended">>}, _}}, wait(Tag))
      || Tag <- [listener, socket]].
 
-%% How a caller of Call on Address ends where Close ends it while the call
-%% waits in its mailbox, and how a caller after it ends.
+%% How a caller of Call on Address ends where the close Close sends ends it
+%% while the call waits in its mailbox, and how a caller after it ends.
 met_the_close(Address, Close, Call) ->
     Pid = ern_rt:process_of(Address),
     erlang:suspend_process(Pid),
-    ern_rt:send(Address, Close),
+    Close(Address),
     Caller = ern_rt:spawn_monitored(fun() -> Call(Address) end, fun(Down) -> {down, Down} end,
                                     <<"caller">>),
     ok = ern_waits:calling(ern_rt:process_of(Caller)),
@@ -792,7 +1280,7 @@ beside(First, Second) ->
         {'Right', Beside} ->
             {'Right', {Listener, Beside, Port}};
         {'Left', {'Other', <<"address already in use">>}} = Refused ->
-            ern_rt:send(Listener, 'CloseListener'),
+            'Unit' = close_listener(Listener),
             case takes_ipv4() of
                 true -> Refused;
                 false -> beside(First, Second)
@@ -817,7 +1305,7 @@ takes_ipv4() ->
                 {'Left', _} ->
                     false
             end,
-    ern_rt:send(Six, 'CloseListener'),
+    'Unit' = close_listener(Six),
     Taken.
 
 %% Appendix E.18: an IPv4 address written as IPv6's, ::ffff:127.0.0.1, is
@@ -863,12 +1351,11 @@ listen_again_while_closing_test() ->
                               end),
                {'Right', Socket} = accept(Listener, 2000),
                receive {client, {'Right', _}} -> ok end,
-               Closed = [erlang:monitor(process, ern_rt:process_of(Ended))
-                         || Ended <- [Socket, Listener]],
+               MonitorRef = erlang:monitor(process, ern_rt:process_of(Socket)),
                ern_rt:send(Socket, 'Close'),
-               ern_rt:send(Listener, 'CloseListener'),
+               'Unit' = close_listener(Listener),
                ern_rt:timed(),
-               [receive {'DOWN', MonitorRef, process, _, _} -> ok end || MonitorRef <- Closed],
+               receive {'DOWN', MonitorRef, process, _, _} -> ok end,
                ern_rt:untimed(),
                Self ! {again, side(listen(Port))},
                Client ! done
@@ -2461,6 +2948,17 @@ port(Listener) ->
 accept(Listener, Ms) ->
     Owner = self(),
     ern_rt:call_forever(Listener, fun(Reply) -> {'Accept', Ms, Owner, Reply} end).
+
+%% Report Appendix E.18: `Tcp.closeListener`, the call that answers once the
+%% listener has ended.
+close_listener(Listener) ->
+    ern_rt:call_until_ended(Listener, fun(Reply) -> {'CloseListener', Reply} end).
+
+%% A close of Listener under way, its caller a process of the run's that
+%% waits in its call, the request in the listener's mailbox.
+close_sent(Listener) ->
+    Closer = ern_rt:spawn(fun() -> close_listener(Listener) end, <<"closer">>),
+    ok = ern_waits:calling(ern_rt:process_of(Closer)).
 
 write(Socket, Bytes) ->
     write(Socket, Bytes, 60000).

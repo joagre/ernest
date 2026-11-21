@@ -98,7 +98,7 @@ export abstract type ListenerMsg =
     Accept(ms : Int, owner : Process, reply : Reply(Either(Io.Error, Address(SocketMsg))))
   | AcceptForever(owner : Process, reply : Reply(Either(Io.Error, Address(SocketMsg))))
   | Port(Reply(Either(Io.Error, Int)))
-  | CloseListener
+  | CloseListener(Reply(Unit))
 
 /// What a connected socket's process takes. Its constructors are hidden, so a
 /// program uses `Tcp.read`, `Tcp.readForever`, `Tcp.write`, `Tcp.close`,
@@ -186,6 +186,13 @@ foreign fn system(name : Foreign.Term) : Address(Msg) =
 foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : a =
     "ern_rt:call_limited/2"
 
+// Report Appendix E.18, E.21: a call its callee never answers, which answers
+// `Unit` once the callee has ended, however it ends, and at once where it has
+// ended already, and whose wait `Process.status` reads as not limited, a
+// request that takes no time.
+foreign fn callUntilEnded(address : Address(m), request : (Reply(Unit)) -> m) : Unit =
+    "ern_rt:call_until_ended/2"
+
 /// Listens for connections on `port` of the interface `host` names, and answers
 /// the listener's address.
 ///
@@ -243,8 +250,9 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) =
 /// ### Errors
 ///
 /// Faults where the listener has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, or `callee was closed` where `closeListener` ended
-/// it as the call was made.
+/// cause `callee had ended`, `callee was closed` where `closeListener` ended
+/// it as the call was made, or `callee was killed` where it is killed or its
+/// owner dies while the accept waits.
 ///
 /// ### Examples
 ///
@@ -275,8 +283,9 @@ export fn accept(listener : Address(ListenerMsg),
 /// ### Errors
 ///
 /// Faults where the listener has ended, as `accept` does: with the cause
-/// `callee had ended`, or `callee was closed` where `closeListener` ended it as
-/// the call was made.
+/// `callee had ended`, `callee was closed` where `closeListener` ended it as
+/// the call was made, or `callee was killed` where it is killed or its owner
+/// dies while the accept waits.
 ///
 /// ### Examples
 ///
@@ -525,9 +534,12 @@ export fn give(socket : Address(SocketMsg), owner : Process) : Unit =
     send(socket, Give(=owner))
 
 /// Stops the listener and ends its process. An `accept` waiting on it answers
-/// `Left(Closed)`. On a listener that has ended already it does nothing.
+/// `Left(Closed)`, and it returns once each such accept is answered, the
+/// listener has ended and its host socket has closed, so that a `listen` on
+/// its port straight after is not refused for it. On a listener that has ended
+/// already it does nothing.
 export fn closeListener(listener : Address(ListenerMsg)) : Unit =
-    send(listener, CloseListener)
+    callUntilEnded(listener, CloseListener)
 
 /// The far end of the connection, or `Left(Closed)` once the connection has
 /// closed.

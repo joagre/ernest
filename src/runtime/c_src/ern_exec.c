@@ -67,7 +67,8 @@
  *   the input it has not taken is dropped, no more of its output is read,
  *   and 'x' comes once it has exited. A terminal that no process holds
  *   open any longer ends its input as the hangup does, since nothing can
- *   read it.
+ *   read it. Each 'e' is answered 'h' once the terminal is hung up, by it
+ *   or before it, ahead of the 'x' that may follow.
  *
  * With no argument, the helper writes what the host says of the program as
  * it starts: a 'u' frame, the user it runs as in four bytes, big-endian,
@@ -1177,7 +1178,7 @@ int main(int argc, char **argv)
         size_t head_got = 0, data_size = 0, data_got = 0;
         int into_input = 0;
         unsigned char kept[4];
-        int input_ended = 0;
+        int input_ended = 0, hangup_owed = 0;
         size_t wanted = 0;
         unsigned char buffer[CHUNK];
 
@@ -1291,8 +1292,10 @@ int main(int argc, char **argv)
                         else
                             frame('d', NULL, 0);
                     }
-                    else if (head[4] == 'e')
+                    else if (head[4] == 'e') {
                         input_ended = 1;
+                        hangup_owed = terminal;
+                    }
                     else if (head[4] == 'n')
                         wanted++;
                     else if (data_size == 4 && head[4] == 'w' && terminal)
@@ -1358,6 +1361,14 @@ int main(int argc, char **argv)
                 close(program_out);
                 program_out = -1;
                 drop_input(&program_in);
+            }
+            /* Report Appendix E.23: the hangup made, or made before by a
+               terminal no process held open, answered after the 'd' of
+               each input it dropped, so that closeInput returns once the
+               terminal is hung up */
+            if (hangup_owed) {
+                frame('h', NULL, 0);
+                hangup_owed = 0;
             }
         }
     }

@@ -7,16 +7,22 @@
 %% The size a terminal of the tests begins with, `Terminal.Size(24, 80)`.
 -define(SIZE, {'Size', 24, 80}).
 
+%% A shell under a terminal that ignores the hangup, which its `sleep`
+%% inherits, and says `ready` once it has set that.
+-define(IGNORING_HANGUP, <<"trap '' HUP; echo ready; exec sleep 1000">>).
+
 %% Appendix E.23, report §7.4: a write, a read, a read without a time, a
-%% signal and a resize that wait while the helper ends fault their callers,
-%% the runtime's own failure, and a resize to a size the host cannot take
-%% answers `Left(Invalid)` as it does while the helper runs; a read without
-%% a time after the failure faults too. A regression test: the process gave
-%% them to the port the helper's end had closed, and crashed with badarg;
-%% and of the rule, before which they were answered `Left(Other(...))`. The
-%% resize's fault is not a regression test: it was written before the
-%% resize waited on the helper, which it answered `Right(Unit)` without;
-%% nor are the reads without a time, written with the request
+%% signal, a resize and a `closeInput` that wait while the helper ends fault
+%% their callers, the runtime's own failure, and a resize to a size the host
+%% cannot take answers `Left(Invalid)` as it does while the helper runs; a
+%% read without a time and a `closeInput` after the failure fault too. A
+%% regression test: the process gave them to the port the helper's end had
+%% closed, and crashed with badarg; and of the rule, before which they were
+%% answered `Left(Other(...))`. The resize's fault is not a regression
+%% test: it was written before the resize waited on the helper, which it
+%% answered `Right(Unit)` without; nor are the reads without a time,
+%% written with the request. The closes were written after the code, the
+%% first waiting for a hangup the failed helper never makes
 helper_ends_under_a_write_and_a_read_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -39,6 +45,8 @@ helper_ends_under_a_write_and_a_read_test() ->
                Program ! {'Resize', {'Size', 30, 100}, {ResizeReply, self()}},
                InvalidReply = alias(),
                Program ! {'Resize', {'Size', 65536, 80}, {InvalidReply, self()}},
+               CloseReply = alias(),
+               Program ! {'CloseInput', {CloseReply, self()}},
                PortRef = erlang:monitor(port, Helper),
                _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
                %% the port closes once the host has seen the helper end
@@ -51,9 +59,13 @@ helper_ends_under_a_write_and_a_read_test() ->
                Self ! {signal, answer(SignalReply)},
                Self ! {resize, answer(ResizeReply)},
                Self ! {invalid, answer(InvalidReply)},
+               Self ! {close, answer(CloseReply)},
                LaterReply = alias(),
                Program ! {'ReadForever', {LaterReply, self()}},
-               Self ! {later, answer(LaterReply)}
+               Self ! {later, answer(LaterReply)},
+               LaterCloseReply = alias(),
+               Program ! {'CloseInput', {LaterCloseReply, self()}},
+               Self ! {later_close, answer(LaterCloseReply)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Failed = {fault, <<"the runtime's helper ern_exec failed">>},
     ?assertEqual(Failed, wait(write)),
@@ -62,7 +74,9 @@ helper_ends_under_a_write_and_a_read_test() ->
     ?assertEqual(Failed, wait(later)),
     ?assertEqual(Failed, wait(signal)),
     ?assertEqual(Failed, wait(resize)),
-    ?assertEqual({'Left', 'Invalid'}, wait(invalid)).
+    ?assertEqual({'Left', 'Invalid'}, wait(invalid)),
+    ?assertEqual(Failed, wait(close)),
+    ?assertEqual(Failed, wait(later_close)).
 
 %% Appendix E.23: the helper answers each 'i' in order, one taken after the
 %% input's end among them, so that a write returns only once the program
@@ -429,7 +443,7 @@ write_given_no_time_test() ->
                {'Right', Cat} = start(<<"cat">>, []),
                Writes = [write(Cat, <<"x\n">>, 0), write(Cat, <<"y\n">>, -1),
                          write(Cat, <<"z\n">>, 5000)],
-               Cat ! 'CloseInput',
+               'Unit' = close_input(Cat),
                Ran = read_to_end(Cat, <<>>),
                Self ! {ran, {Writes, Ran, write(Cat, <<"w">>, 0), write(Cat, <<"w">>, 5000)}}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -574,13 +588,13 @@ write_after_close_input_closed_test() ->
                {'Right', Cat} = start(<<"sh">>, [<<"-c">>, behind(<<"exec cat">>)]),
                Number = first_line(Cat),
                {'Left', 'Timeout'} = write(Cat, Input, 1),
-               Cat ! 'CloseInput',
+               'Unit' = close_input(Cat),
                Late = write(Cat, <<"late">>, 2000),
                signaled(Number, "USR1"),
                Self ! {piped, {Late, read_to_end(Cat, <<>>)}},
                ern_rt:kill(Cat),
                {'Right', Terminal} = start_terminal(<<"cat">>, [], ?SIZE),
-               Terminal ! 'CloseInput',
+               'Unit' = close_input(Terminal),
                Self ! {hung_up, write(Terminal, <<"late">>, 2000)},
                ern_rt:kill(Terminal)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -1034,13 +1048,13 @@ resize_answers_in_order_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Cat} = start(<<"cat">>, []),
-               Cat ! 'CloseInput',
+               'Unit' = close_input(Cat),
                {<<>>, 0} = read_to_end(Cat, <<>>),
                {'Right', Held} = start_terminal(<<"sh">>,
                                                 [<<"-c">>, <<"trap '' HUP; echo ready;"
                                                              " exec sleep 1000">>], ?SIZE),
                _ = read_until(Held, <<"ready\r\n">>, <<>>),
-               Held ! 'CloseInput',
+               'Unit' = close_input(Held),
                HungUp = [resize(Held, Wrong), resize(Held, ?SIZE)],
                ern_rt:kill(Held),
                {'Right', True} = start_terminal(<<"true">>, [], ?SIZE),
@@ -1065,10 +1079,182 @@ close_input_hangs_up_test() ->
                                                  [<<"-c">>, <<"echo ready; exec sleep 1000">>],
                                                  ?SIZE),
                _ = read_until(Sleep, <<"ready\r\n">>, <<>>),
-               Sleep ! 'CloseInput',
+               'Unit' = close_input(Sleep),
                Self ! {ended, read_to_end(Sleep, <<>>)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({<<>>, 129}, wait(ended)).
+
+%% report Appendix E.23: under a terminal `closeInput` answers once the
+%% terminal is hung up, so that what its caller does next, by whatever way,
+%% comes after the hangup: once it has returned, the helper holds no
+%% descriptor of the terminal's master, whose last close is the hangup, as
+%% the host shows it. The program ignores the hangup and runs on. Written
+%% before the code, under which `closeInput` was a send: the helper still
+%% held the master in 6 rounds of 101, and in 20 of 20 where a scratch
+%% copy's helper waited 20 ms before each hangup, which the new code passed
+close_input_answers_once_hung_up_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, ?IGNORING_HANGUP], ?SIZE),
+               _ = read_until(Sh, <<"ready\r\n">>, <<>>),
+               Helper = helper_number(Sh),
+               Before = masters(Helper),
+               'Unit' = close_input(Sh),
+               Self ! {masters, {Before > 0, masters(Helper)}},
+               ern_rt:kill(Sh)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({true, 0}, wait(masters)).
+
+%% report Appendix E.23: `closeInput` answers at once where the input is
+%% closed already or the program has exited. With its helper stopped by the
+%% host, a second `closeInput` under a terminal answers, and so does a first
+%% under pipes, whose end stands behind what was written before once the
+%% program's process has given it to the helper, a write after it answering
+%% `Left(Closed)` too; the end reaches `cat` after the byte written before,
+%% once the helper goes on. Once the exit is read, `closeInput` answers with
+%% no helper left. Written before the code, under which `closeInput` was a
+%% send that answered at once always, and passed there
+close_input_answers_at_once_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, ?IGNORING_HANGUP], ?SIZE),
+               _ = read_until(Sh, <<"ready\r\n">>, <<>>),
+               'Unit' = close_input(Sh),
+               Again = stopped(Sh, fun() -> close_input(Sh) end),
+               ern_rt:kill(Sh),
+               {'Right', Cat} = start(<<"cat">>, []),
+               {'Right', 'Unit'} = write(Cat, <<"x">>, 5000),
+               Piped = stopped(Cat, fun() -> {close_input(Cat), write(Cat, <<"y">>, 5000)} end),
+               Ran = read_to_end(Cat, <<>>),
+               Self ! {answers, {Again, Piped, Ran, close_input(Cat)}},
+               ern_rt:kill(Cat)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Unit', {'Unit', {'Left', 'Closed'}}, {<<"x">>, 0}, 'Unit'}, wait(answers)).
+
+%% report Appendix E.23: a `closeInput` that comes while the terminal's
+%% hangup is owed waits for that hangup too, the input closed only once it
+%% is made, so that each close returns once the terminal is hung up. With
+%% the helper stopped by the host, two closers wait in their calls once the
+%% program's process has taken both requests, neither answered, and once
+%% the helper goes on each answers with no descriptor of the master left.
+%% Written after the code, a regression test; under the old code, whose
+%% close was a send, the closers had returned, and it failed 50 rounds of 50
+close_input_waits_while_the_hangup_is_owed_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, ?IGNORING_HANGUP], ?SIZE),
+               _ = read_until(Sh, <<"ready\r\n">>, <<>>),
+               Main = self(),
+               Helper = helper_number(Sh),
+               Closing = fun(Tag) ->
+                                 Close = fun() ->
+                                                 Main ! {Tag, close_input(Sh), masters(Helper)}
+                                         end,
+                                 ern_rt:process_of(ern_rt:spawn_monitored(
+                                                     Close, fun(Down) -> {Tag, Down} end,
+                                                     <<"closer">>))
+                         end,
+               Unanswered = stopped(Sh, fun() ->
+                                            Closers = [Closing(first), Closing(second)],
+                                            [ok = ern_waits:calling(Closer) || Closer <- Closers],
+                                            ok = ern_waits:waiting(Sh),
+                                            [process_info(Closer, message_queue_len)
+                                             || Closer <- Closers]
+                                        end),
+               Answered = [receive {Tag, Answer, Masters} -> {Answer, Masters} end
+                           || Tag <- [first, second]],
+               Self ! {closes, {Unanswered, Answered}},
+               ern_rt:kill(Sh)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({[{message_queue_len, 0}, {message_queue_len, 0}], [{'Unit', 0}, {'Unit', 0}]},
+                 wait(closes)).
+
+%% report Appendix E.23, §6.6: `closeInput` on a program whose process has
+%% ended faults as a read does, as `Address.callForever` does on an ended
+%% process: one that waits for the hangup as the program is killed with
+%% `callee was killed`, and one after with `callee had ended`. The helper is
+%% stopped by the host, so that the first waits, and the kill comes once the
+%% closer waits in its call and the program's process has taken its
+%% request. Written before the code, under which `closeInput` was a send
+%% and did nothing there, and the test failed 50 rounds of 50
+close_input_on_an_ended_program_faults_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, ?IGNORING_HANGUP], ?SIZE),
+               _ = read_until(Sh, <<"ready\r\n">>, <<>>),
+               Waiting = stopped(Sh, fun() ->
+                                         Closer = closer(Sh, waiting),
+                                         _ = ern_waits:calling(ern_rt:process_of(Closer)),
+                                         ok = ern_waits:waiting(Sh),
+                                         ern_rt:kill(Sh),
+                                         receive {waiting, Down} -> Down end
+                                     end),
+               _ = closer(Sh, later),
+               Self ! {downs, {Waiting, receive {later, Later} -> Later end}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Waiting, Later} = wait(downs),
+    ?assertMatch({'Down', _, {'Fault', <<"callee was killed">>}, _}, Waiting),
+    ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, Later).
+
+%% report §8.6, Appendix E.23: a run whose one process waits in `closeInput`
+%% for the terminal's hangup is no deadlock: the reaper's look answers that
+%% something can still deliver, the program counting as a computation whose
+%% completion would, and once the helper, stopped by the host until the
+%% look, goes on, the close answers and the run ends. Written before the
+%% code, under which the close was a send that waited for nothing, and the
+%% observer found the run ended in 50 rounds of 50
+close_input_waiting_is_no_deadlock_test_() ->
+    {timeout, 30, fun close_input_waiting_is_no_deadlock/0}.
+
+close_input_waiting_is_no_deadlock() ->
+    Self = self(),
+    Observer = spawn(fun() ->
+                         receive {closing, Main, Number} ->
+                             try
+                                 ok = ern_waits:calling(Main),
+                                 Self ! {looked, next_look()}
+                             after
+                                 os:cmd("kill -CONT " ++ Number)
+                             end
+                         end
+                     end),
+    Outcome = ern_rt:run_main(
+                fun() ->
+                    {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, ?IGNORING_HANGUP], ?SIZE),
+                    _ = read_until(Sh, <<"ready\r\n">>, <<>>),
+                    Number = integer_to_list(helper_number(Sh)),
+                    [] = os:cmd("kill -STOP " ++ Number),
+                    Observer ! {closing, self(), Number},
+                    close_input(Sh)
+                end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(delivering, wait(looked)),
+    ?assertEqual(ok, Outcome).
+
+%% A process that closes Program's input, whose `Down` comes to the caller
+%% tagged Tag.
+closer(Program, Tag) ->
+    ern_rt:spawn_monitored(fun() -> close_input(Program) end, fun(Down) -> {Tag, Down} end,
+                           <<"closer">>).
+
+%% What Then answers while the helper of Program is stopped by the host, so
+%% that what it answers comes without the helper.
+stopped(Program, Then) ->
+    Number = integer_to_list(helper_number(Program)),
+    [] = os:cmd("kill -STOP " ++ Number),
+    try Then() after os:cmd("kill -CONT " ++ Number) end.
+
+%% How many descriptors of a terminal's master the process of Number holds,
+%% each named by its link as the host's device of masters.
+masters(Number) ->
+    Descriptors = "/proc/" ++ integer_to_list(Number) ++ "/fd",
+    {ok, Names} = file:list_dir(Descriptors),
+    length([Name || Name <- Names,
+                    {ok, Link} <- [file:read_link(filename:join(Descriptors, Name))],
+                    lists:member(Link, ["/dev/ptmx", "/dev/pts/ptmx"])]).
 
 %% report Appendix E.23: a read the program waits in ends before the hangup
 %% is sent, so `sh` waiting on a line ends either way, by the hangup or
@@ -1081,7 +1267,7 @@ read_ends_before_the_hangup_test() ->
                {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, <<"echo ready; read line">>],
                                               ?SIZE),
                _ = read_until(Sh, <<"ready\r\n">>, <<>>),
-               Sh ! 'CloseInput',
+               'Unit' = close_input(Sh),
                Self ! {ended, read_to_end(Sh, <<>>)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Output, Status} = wait(ended),
@@ -1352,11 +1538,11 @@ signal_after_the_exit_and_handled_test() ->
 %% report Appendix E.23, §6.6: a program's process lives on after the
 %% program has exited: each read after the one that answered `Exited`
 %% answers it again, a write `Left(Closed)`, a resize `Left(Closed)` too,
-%% and `closeInput` does nothing; a monitor sees its end only at its kill,
-%% after which a resize faults as `Address.callForever` does on an ended
-%% process. A regression test: before the rules, the process ended once a
-%% read had answered `Exited`, and the resize answered `Right(Unit)`; a give
-%% after the exit, and the owner's death then, are not covered
+%% and `closeInput` `Unit`; a monitor sees its end only at its kill, after
+%% which a resize faults as `Address.callForever` does on an ended process.
+%% A regression test: before the rules, the process ended once a read had
+%% answered `Exited`, and the resize answered `Right(Unit)`; a give after
+%% the exit, and the owner's death then, are not covered
 exited_program_lives_on_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -1364,8 +1550,8 @@ exited_program_lives_on_test() ->
                {'Right', True} = start_terminal(<<"true">>, [], ?SIZE),
                MonitorRef = erlang:monitor(process, ern_rt:process_of(True)),
                {<<>>, 0} = read_to_end(True, <<>>),
-               Answers = [read(True, 5000), write(True, <<"x">>, 5000), resize(True, ?SIZE)],
-               True ! 'CloseInput',
+               Answers = [read(True, 5000), write(True, <<"x">>, 5000), resize(True, ?SIZE),
+                          close_input(True)],
                Self ! {after_the_exit, {Answers, read(True, 5000)}},
                ern_rt:kill(True),
                receive {'DOWN', MonitorRef, process, _, ExitReason} -> Self ! {ended, ExitReason}
@@ -1374,7 +1560,7 @@ exited_program_lives_on_test() ->
                                           fun(Down) -> {later, Down} end, <<"resizer">>),
                receive {later, Down} -> Self ! {later, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({[{'Right', {'Exited', 0}}, {'Left', 'Closed'}, {'Left', 'Closed'}],
+    ?assertEqual({[{'Right', {'Exited', 0}}, {'Left', 'Closed'}, {'Left', 'Closed'}, 'Unit'],
                   {'Right', {'Exited', 0}}},
                  wait(after_the_exit)),
     ?assertEqual({ern, killed}, wait(ended)),
@@ -1396,7 +1582,7 @@ read_of_an_ended_caller_dropped_test() ->
                {'Right', 'Unit'} = write(Cat, <<"x\n">>, 5000),
                Piece = read(Cat, 5000),
                killed_in_a_read(Cat),
-               Cat ! 'CloseInput',
+               'Unit' = close_input(Cat),
                Self ! {reads, {Piece, read(Cat, 5000)}},
                ern_rt:kill(Cat)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -1418,7 +1604,7 @@ read_forever_answers_what_comes_later_test() ->
                ok = ern_waits:watching(Cat, ern_rt:process_of(Reader)),
                {'Right', 'Unit'} = write(Cat, <<"x\n">>, 5000),
                Piece = receive {piece, Read} -> Read end,
-               Cat ! 'CloseInput',
+               'Unit' = close_input(Cat),
                Exited = read_forever(Cat),
                Self ! {reads, [Piece, Exited, read_forever(Cat), read(Cat, 5000)]},
                ern_rt:kill(Cat)
@@ -1462,7 +1648,7 @@ read_forever_of_an_ended_caller_dropped_test() ->
                {'Right', 'Unit'} = write(Cat, <<"x\n">>, 5000),
                Piece = read_forever(Cat),
                killed_in_a_read(Cat, fun read_forever/1),
-               Cat ! 'CloseInput',
+               'Unit' = close_input(Cat),
                Self ! {reads, {Piece, read_forever(Cat)}},
                ern_rt:kill(Cat)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -1769,7 +1955,7 @@ ended_so(End, Program, Owner) when End =:= kill; End =:= owner ->
 ended_so(exit_read, Program, _) ->
     {<<>>, 0} = read_to_end(Program, <<>>);
 ended_so(close_input, Program, _) ->
-    Program ! 'CloseInput',
+    'Unit' = close_input(Program),
     {_, _} = read_to_end(Program, <<>>);
 ended_so(helper_failed, Program, _) ->
     Helper = helper_number(Program),
@@ -1901,6 +2087,10 @@ signal(Program, Signal) ->
 
 resize(Program, Size) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Resize', Size, Reply} end).
+
+%% Report Appendix E.23: `Os.closeInput`, as a program calls it.
+close_input(Program) ->
+    (ern_named:function('ern@os', closeInput))(Program).
 
 %% What the program wrote, read until it holds Text, each piece `Stdout`.
 read_until(Program, Text, Output) ->

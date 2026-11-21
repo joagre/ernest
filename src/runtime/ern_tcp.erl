@@ -37,9 +37,14 @@
 -dialyzer({nowarn_function, opened/7}).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
--receives({own_process, [serve/2, counted_request/2, opened/7, listener_loop/4, socket_process/6,
-                         writing/3, handshake_failed/2, socket_loop/1, stop_writer/1,
-                         closer/1, lingering/5]}).
+-receives({own_process, [serve/2, counted_request/2, watched_request/3, opened/7, listener_loop/1,
+                         listener_closed/1, socket_process/6, writing/3, handshake_failed/2,
+                         socket_loop/1, stop_writer/1, closer/1, lingering/5]}).
+
+%% A listener's process: the TCP process, its transport, the host's socket,
+%% its owner's monitor, and the worker of each accept it has taken and not
+%% yet seen end, by the worker's monitor.
+-record(listener, {tcp, transport, socket, monitor_ref, workers = #{}}).
 
 %% A socket's process: its transport, the host's socket, the writer that
 %% writes to it, its owner and the owner's monitor, the reads with no bytes
@@ -168,18 +173,35 @@ counted_request(Work, Reply) ->
         error:system_limit -> ern_rt:answer(Reply, {'Left', ern_io:limited()})
     end.
 
+%% The same for an accept, its worker watched by the listener, whose close
+%% waits for each to end (listener_closed/1): Workers with it.
+watched_request(Work, Reply, Workers) ->
+    try erlang:spawn_monitor(fun() -> receive go -> Work() end end) of
+        {Worker, MonitorRef} ->
+            ern_rt:source_begin(Worker),
+            Worker ! go,
+            Workers#{MonitorRef => Worker}
+    catch
+        error:system_limit ->
+            ern_rt:answer(Reply, {'Left', ern_io:limited()}),
+            Workers
+    end.
+
 %% A listener or a socket, linked to the TCP process and recorded as opened
 %% before its address is given out (report §8.6), under the function that
 %% opened it, and as started by its owner (Appendix E.18), whom it watches
 %% from before then too, so that what an owner holds is what watches it
 %% (ern_rt:evaluate/2); Loop is given the monitor, and what Made made in
 %% the process before its address is given out, a socket's writer, once the
-%% host's socket is the process's. It traps exits from its start, so that
-%% however it ends, by a kill, with the program or with the TCP process, it
-%% closes its host's socket itself (close_socket/2). Report §7.4, §12.5:
-%% where the host's table of processes is full, so that the process or what
-%% Made makes cannot be made, the host's error is raised here, before the
-%% address is given out (held_open/3).
+%% host's socket is the process's. Report §7.4, §12.5: where the host's
+%% table of processes is full, so that the process or what Made makes
+%% cannot be made, the host's error is raised here, before the address is
+%% given out (held_open/3).
+%%
+%% It traps exits from its start, so that however it ends, by a kill, with
+%% the program or with the TCP process, a socket closes its host's socket
+%% itself (close_socket/2), while a listener ends with its own open, which
+%% the host closes as the process it is connected to dies (listener_loop/1).
 opened(Tcp, Transport, Socket, Made, Loop, Site, Owner) ->
     Opener = erlang:self(),
     Pid = erlang:spawn(fun() ->
@@ -227,7 +249,9 @@ listen(Tcp, Host, Port, Kind, Owner, Reply) ->
                              %% report §6.9, Appendix E.18: owned by the
                              %% process that opened it, with which it ends
                              Loop = fun(MonitorRef, none) ->
-                                        listener_loop(Tcp, Transport, Socket, MonitorRef)
+                                        listener_loop(#listener{tcp = Tcp, transport = Transport,
+                                                                socket = Socket,
+                                                                monitor_ref = MonitorRef})
                                     end,
                              Open = fun(Listening) ->
                                         opened(Tcp, Transport, Listening, fun() -> none end,
@@ -359,7 +383,7 @@ connect(Tcp, Host, Port, Kind, Deadline, Owner, Reply) ->
                       end
                   end,
             Open = fun(Socket) -> socket_process(Tcp, Transport, Socket, open, Owner, Site) end,
-            attempt(Transport, Try, Open, Deadline, Reply)
+            end_source(Reply, attempt(Transport, Try, Open, Deadline))
     end.
 
 %% Report Appendix E.18: what a connect's kind adds, its transport, its site
@@ -568,11 +592,11 @@ held(File) ->
     end.
 
 %% Report Appendix E.18: a connect or an accept, tried again after the
-%% host's timeout until the deadline has passed, and its answer given: the
+%% host's timeout until the deadline has passed, and its answer: the
 %% socket's process, which Open starts, owned by the process that asked,
 %% Timeout, or why it failed. An accept without a time has no deadline,
 %% and the host waits for it without one.
-attempt(Transport, Try, Open, Deadline, Reply) ->
+attempt(Transport, Try, Open, Deadline) ->
     Answer = case Try() of
                  {ok, Socket} ->
                      held_open(Open, Transport, Socket);
@@ -587,8 +611,8 @@ attempt(Transport, Try, Open, Deadline, Reply) ->
                      {'Left', 'Invalid'}
              end,
     case Answer of
-        again -> attempt(Transport, Try, Open, Deadline, Reply);
-        _ -> end_source(Reply, Answer)
+        again -> attempt(Transport, Try, Open, Deadline);
+        _ -> Answer
     end.
 
 %% Report §7.4, §12.5: a request's failure, its `Io.Error`, which is the
@@ -612,49 +636,88 @@ end_source(Reply, Answer) ->
     ern_rt:source_end().
 
 %% A listener answers each Accept by a worker of its own, so that a slow
-%% accept does not hold up the next request, and ends at CloseListener,
-%% whose close of the socket answers each accept still waiting. E.0 shape
-%% rule 8: an accept given no time has run out as it begins, and takes no
-%% connection the host holds. Report Appendix E.18: an AcceptForever is an
-%% accept without a time, its worker counted as a timed one's is, and the
-%% socket it opens has its own site, the function that opened it.
-listener_loop(Tcp, Transport, Socket, MonitorRef) ->
+%% accept does not hold up the next request, and watches the worker until
+%% it ends. E.0 shape rule 8: an accept given no time has run out as it
+%% begins, and takes no connection the host holds. Report Appendix E.18: an
+%% AcceptForever is an accept without a time, its worker counted as a
+%% timed one's is, and the socket it opens has its own site, the function
+%% that opened it.
+%%
+%% Report Appendix E.18, §6.6: a kill, the owner's death and the program's
+%% end end the listener at once, with its host's socket open, which the
+%% host closes as the listener dies, each accept it holds left unanswered
+%% (accept_closed/2), so that its caller faults as a call does whose callee
+%% ends so, `callee was killed` at a kill.
+listener_loop(#listener{transport = Transport, socket = Socket, monitor_ref = MonitorRef,
+                        workers = Workers} = Listener) ->
     receive
         {'Accept', Ms, _, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
-            listener_loop(Tcp, Transport, Socket, MonitorRef);
+            listener_loop(Listener);
         {'Accept', Ms, Owner, Reply} ->
-            counted_request(fun() ->
-                                accept(Tcp, Transport, Socket, ern_rt:deadline(Ms),
-                                       <<"Tcp.accept">>, Owner, Reply)
-                            end, Reply),
-            listener_loop(Tcp, Transport, Socket, MonitorRef);
+            listener_loop(accepting(Listener, ern_rt:deadline(Ms), <<"Tcp.accept">>, Owner,
+                                    Reply));
         {'AcceptForever', Owner, Reply} ->
-            counted_request(fun() ->
-                                accept(Tcp, Transport, Socket, none, <<"Tcp.acceptForever">>,
-                                       Owner, Reply)
-                            end, Reply),
-            listener_loop(Tcp, Transport, Socket, MonitorRef);
+            listener_loop(accepting(Listener, none, <<"Tcp.acceptForever">>, Owner, Reply));
         {'Port', Reply} ->
             ern_rt:answer(Reply, case port(Transport, Socket) of
                                      {ok, Port} -> {'Right', Port};
                                      {error, Error} -> {'Left', io_error(Transport, Error)}
                                  end),
-            listener_loop(Tcp, Transport, Socket, MonitorRef);
+            listener_loop(Listener);
+        %% an accept's worker has ended, its accept answered
+        {'DOWN', WorkerRef, process, _, _} when is_map_key(WorkerRef, Workers) ->
+            listener_loop(Listener#listener{workers = maps:remove(WorkerRef, Workers)});
         %% report Appendix E.18: its owner has died, and it is killed
         {'DOWN', MonitorRef, process, _, _} ->
-            Transport:close(Socket),
             exit({ern, killed});
-        'CloseListener' ->
-            Transport:close(Socket),
-            %% report Appendix E.18: a call after the close faults its caller
-            exit({ern, closed});
+        {'CloseListener', _} ->
+            close_listener(Listener);
         %% the host's socket's own exit, which ends nothing
         {'EXIT', _, normal} ->
-            listener_loop(Tcp, Transport, Socket, MonitorRef);
+            listener_loop(Listener);
         %% report Appendix E.18: killed, or ended with the program
         {'EXIT', _, ExitReason} ->
-            Transport:close(Socket),
+            exit(ExitReason)
+    end.
+
+%% The listener with an accept's worker started, which answers Reply.
+accepting(#listener{tcp = Tcp, transport = Transport, socket = Socket,
+                    workers = Workers} = Listener, Deadline, Site, Owner, Reply) ->
+    Self = erlang:self(),
+    Work = fun() -> accept(Tcp, Self, Transport, Socket, Deadline, Site, Owner, Reply) end,
+    Listener#listener{workers = watched_request(Work, Reply, Workers)}.
+
+%% Report Appendix E.18: `closeListener` answers each accept the listener
+%% holds `Left(Closed)`, and answers once the listener has ended and its
+%% host socket has closed, which the listener does once each accept's worker
+%% has ended. The listener closes its host's socket and lives on, so that
+%% each worker its host's accept answers `closed` finds it living
+%% (accept_closed/2); one that has taken a connection as the close comes
+%% answers its socket, which its caller owns, and the close waits for it
+%% too. The request's reply is never answered: closeListener's call answers
+%% at the listener's end (ern_rt:call_until_ended/2).
+close_listener(#listener{transport = Transport, socket = Socket} = Listener) ->
+    Transport:close(Socket),
+    listener_closed(Listener).
+
+%% Report Appendix E.18: a closed listener ends once its last worker has,
+%% and at once where it is killed, its owner dies or the program ends
+%% meanwhile, a worker that finds it ended so answering nothing
+%% (accept_closed/2). A request that comes meanwhile stays in its mailbox,
+%% and its caller faults with `callee was closed` at the end, as one that
+%% comes as a close ends a listener does (§6.6); a second close answers then.
+listener_closed(#listener{workers = Workers}) when map_size(Workers) =:= 0 ->
+    exit({ern, closed});
+listener_closed(#listener{monitor_ref = MonitorRef, workers = Workers} = Listener) ->
+    receive
+        {'DOWN', WorkerRef, process, _, _} when is_map_key(WorkerRef, Workers) ->
+            listener_closed(Listener#listener{workers = maps:remove(WorkerRef, Workers)});
+        {'DOWN', MonitorRef, process, _, _} ->
+            exit({ern, killed});
+        {'EXIT', _, normal} ->
+            listener_closed(Listener);
+        {'EXIT', _, ExitReason} ->
             exit(ExitReason)
     end.
 
@@ -674,16 +737,50 @@ port(ssl, Socket) ->
 %% up no accept; the host's accept starts the connection's processes, and
 %% raises where it cannot (failed/2). The socket is opened under Site,
 %% the function that opened it (§6.9).
-accept(Tcp, gen_tcp, Socket, Deadline, Site, Owner, Reply) ->
+accept(Tcp, Listener, gen_tcp, Socket, Deadline, Site, Owner, Reply) ->
     Open = fun(Accepted) -> socket_process(Tcp, gen_tcp, Accepted, open, Owner, Site) end,
-    attempt(gen_tcp, fun() -> accepted(gen_tcp:accept(Socket, host_wait(Deadline))) end,
-            Open, Deadline, Reply);
-accept(Tcp, ssl, Socket, Deadline, Site, Owner, Reply) ->
+    Try = fun() -> accepted(gen_tcp:accept(Socket, host_wait(Deadline))) end,
+    answer_accept(Listener, Reply, attempt(gen_tcp, Try, Open, Deadline));
+accept(Tcp, Listener, ssl, Socket, Deadline, Site, Owner, Reply) ->
     Open = fun(Accepted) -> socket_process(Tcp, ssl, Accepted, handshaking, Owner, Site) end,
     Try = fun() ->
               accepted(guarded(fun() -> ssl:transport_accept(Socket, host_wait(Deadline)) end))
           end,
-    attempt(ssl, Try, Open, Deadline, Reply).
+    answer_accept(Listener, Reply, attempt(ssl, Try, Open, Deadline)).
+
+answer_accept(Listener, Reply, {'Left', 'Closed'}) ->
+    accept_closed(Listener, Reply);
+answer_accept(_, Reply, Answer) ->
+    end_source(Reply, Answer).
+
+%% Report Appendix E.18, §6.6, §6.9: an accept the host answers `closed`
+%% has met its listener's host socket closed (accepted/1). It answers
+%% `Left(Closed)` where the listener lives, and nothing where the
+%% listener's end has begun, so that its caller faults as a call does whose
+%% callee ended so. The host answers whether the listener lives once, and
+%% for a process whose end has begun answers once that end is done
+%% (erlang:is_process_alive/1). The answer is right however the socket
+%% closed:
+%%
+%% - a close: the listener closes the socket and lives until each worker
+%%   has ended (listener_closed/1), so it lives;
+%% - a trapped end, a kill, its owner's death, the program's end or the TCP
+%%   process's: the listener ends with the socket open, and the host closes
+%%   it as the listener dies, the listener's end begun;
+%% - an end no process traps, the host's kill by foreign code, or a fault
+%%   in the listener's own code: the same;
+%% - foreign code that closes the socket while the listener lives: it
+%%   lives, and the accept answers as at a close, rather than wait for an
+%%   end that may never come.
+%%
+%% A kill during a close's wait ends the listener at once: a worker that
+%% asks before then answers `Left(Closed)`, one that asks after answers
+%% nothing, and each accept has one outcome.
+accept_closed(Listener, Reply) ->
+    case erlang:is_process_alive(Listener) of
+        true -> end_source(Reply, {'Left', 'Closed'});
+        false -> ern_rt:source_end()
+    end.
 
 %% The host's next wait towards the deadline, and for a request without a
 %% time the host's wait without a limit.
@@ -693,10 +790,10 @@ host_wait(Deadline) ->
     ern_rt:remaining(Deadline).
 
 %% Report Appendix E.18: an accept the listener's close answers is
-%% `Closed`. The host answers `closed` to an accept waiting when the close
-%% comes, and `einval` to one that meets the close under way; the socket
-%% listens from its start until the listener closes it, so `einval` is
-%% that close.
+%% `Closed`. The host answers `closed` to an accept waiting when the socket
+%% closes, and `einval` to one that meets it closed or closing; the socket
+%% listens from its start until it closes, so `einval` is that close. Any
+%% other failure of the host's accept comes as its own error.
 accepted({error, einval}) ->
     {error, closed};
 accepted(Result) ->

@@ -251,13 +251,13 @@ full_port_table_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun full_port_table/0).
 
 full_port_table() ->
-    ok = build("fixtures/terminal/limited.ern", "fixtures/terminal"),
+    Program = on_node("fixtures/terminal/limited.ern"),
     Base = filename:join(ern_pty:run_dir(), "terminal_limited_" ++ os:getpid()),
     ok = filelib:ensure_path(Base),
     Node = ern_nodes_tests:made(Base, "node", none),
     ern_nodes_tests:edit(Node, fun(Conf) -> Conf#{<<"limits">> => #{<<"ports">> => 1024}} end),
     {0, Screen} = pty("../bin/ern run --config-dir " ++ Node
-                      ++ " build/terminal/limited.erc; echo status $?; stty -a",
+                      ++ " " ++ Program ++ "; echo status $?; stty -a",
                       [{expect, "Right(Unit)"}]),
     [Refused, RefusedAgain, Granted | _] = lines(Screen),
     Refusal = <<"Left(Io.Other(\"a system limit was hit, probably not enough ports\"))">>,
@@ -326,14 +326,14 @@ write_terminal_gone_test_() ->
     ern_nodes_tests:counted_test({waits, 3}, fun write_terminal_gone/0).
 
 write_terminal_gone() ->
-    ok = build("fixtures/terminal/writes.ern", "fixtures/terminal"),
+    Program = on_node("fixtures/terminal/writes.ern"),
     Base = filename:join(ern_pty:run_dir(), "terminal_write_gone_" ++ os:getpid()),
     ok = filelib:ensure_path(Base),
     Node = ern_nodes_tests:made(Base, "node", none),
     Pipe = filename:join(Base, "written.pipe"),
     [] = os:cmd("mkfifo " ++ Pipe),
     Err = filename:join(Base, "node.err"),
-    {129, _} = pty("exec ../bin/ern run --config-dir " ++ Node ++ " build/terminal/writes.erc "
+    {129, _} = pty("exec ../bin/ern run --config-dir " ++ Node ++ " " ++ Program ++ " "
                    ++ Pipe ++ " " ++ ern_nodes_tests:wait_ms_text() ++ " 2> " ++ Err,
                    [{expect, "ready"}, hangup, {put, Pipe}]),
     {ok, Said} = file:read_file(Err),
@@ -484,11 +484,25 @@ head(Frame) ->
                               {Column, _} <- [binary:match(Row, <<"@">>)]]).
 
 build(Source, SourceRoot) ->
+    build(Source, SourceRoot, "build/" ++ filename:basename(SourceRoot)).
+
+build(Source, SourceRoot, BuildRoot) ->
     {0, _} = ern_pty:sh(
         "../bin/ern build --source-root " ++ SourceRoot
-        ++ " --build-root build/"
-        ++ filename:basename(SourceRoot) ++ " " ++ Source),
+        ++ " --build-root " ++ BuildRoot ++ " " ++ Source),
     ok.
+
+%% Report §11.2: a fixture of fixtures/terminal built for a run on a node,
+%% the path of its compiled form. A node reads every module of its load
+%% path, the program's root among it, and refuses one compiled against
+%% another standard library, so the program has a root of its own: in
+%% build/terminal, which each test builds one fixture into, another test's
+%% fixture built before the library changed would end the run.
+on_node(Source) ->
+    Name = filename:basename(Source, ".ern"),
+    Root = "build/on_node/" ++ Name,
+    ok = build(Source, "fixtures/terminal", Root),
+    filename:join(Root, Name ++ ".erc").
 
 %% A command with a terminal of its own: {exit status, the screen}.
 pty(Command, Steps) ->

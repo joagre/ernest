@@ -849,7 +849,7 @@ evaluator_ends_with_what_it_owns_test() ->
                    {'Right', Cat} = (Os(start))({'Command', <<"cat">>, [], <<>>, [], here()}),
                    'Unit' = (Os(give))(Cat, Evaluator),
                    ok = ern_waits:watching(Cat, Evaluator),
-                   ern_rt:send(Listener, 'CloseListener'),
+                   'Unit' = ((ern_named:functions('ern@tcp'))(closeListener))(Listener),
                    %% the evaluator has read what it owns again once it
                    %% watches the program
                    ok = ern_waits:watching(Evaluator, Cat),

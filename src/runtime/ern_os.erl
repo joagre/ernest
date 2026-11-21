@@ -41,12 +41,13 @@
 %% monitor, the inputs the helper has yet to answer
 %% and the timers of the writes still waiting, the signals and the resizes
 %% it has been asked for and has yet to answer, whether the program runs
-%% under a terminal, which a resize needs, and whether `closeInput` has
-%% ended its input.
+%% under a terminal, which a resize needs, whether `closeInput` has ended
+%% its input, and the replies of the closes that wait for the terminal's
+%% hangup, newest first.
 -record(program, {helper :: port(), writer :: pid(), owner :: pid(), monitor_ref :: reference(),
                   writes :: queue:queue(), timers = #{} :: #{term() => reference()},
                   asked = queue:new() :: queue:queue(), terminal :: boolean(),
-                  input_closed = false :: boolean()}).
+                  input_closed = false :: boolean(), hangups = [] :: [term()]}).
 
 %% A read waiting: its reply, the reference of its caller's monitor and its
 %% timer, the read named to both by its place among the reads (read/6), and
@@ -410,8 +411,18 @@ starting(#program{helper = Helper} = Running, Directory, Reply) ->
 %% kept in the program's `asked`: the program's process cannot know the
 %% exit before the helper reads it, which a signal that reached nothing and
 %% a size that told nothing must not hide (E.23).
+%%
+%% A `closeInput` answers once the close is made (E.23). Under pipes that is
+%% once the end is given the writer, after every input before it, which the
+%% helper takes in order, so it answers at once. Under a terminal it is the
+%% hangup, which the helper says it has made, `h`, and a close that comes
+%% while the hangup is owed waits for it too. One that comes once it is
+%% made, and every one under pipes after the first, answers at once. The
+%% closes still waiting are answered at the program's exit, and fault where
+%% the helper fails.
 running(#program{helper = Helper, writer = Writer, writes = Writes, timers = Timers,
-                 asked = Asked, input_closed = InputClosed} = Running, Waiting, Owed, Kept) ->
+                 asked = Asked, terminal = Terminal, input_closed = InputClosed,
+                 hangups = Hangups} = Running, Waiting, Owed, Kept) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
@@ -455,9 +466,21 @@ running(#program{helper = Helper, writer = Writer, writes = Writes, timers = Tim
             end;
         %% report Appendix E.23: under a terminal the end of the input is
         %% the terminal's hangup, which the helper makes at once
-        'CloseInput' ->
+        {'CloseInput', Reply} when InputClosed, Hangups =:= [] ->
+            ern_rt:answer(Reply, 'Unit'),
+            running(Running, Waiting, Owed, Kept);
+        {'CloseInput', Reply} when InputClosed ->
+            running(Running#program{hangups = [Reply | Hangups]}, Waiting, Owed, Kept);
+        {'CloseInput', Reply} when Terminal ->
             give(Writer, <<"e">>),
+            running(Running#program{input_closed = true, hangups = [Reply]}, Waiting, Owed, Kept);
+        {'CloseInput', Reply} ->
+            give(Writer, <<"e">>),
+            ern_rt:answer(Reply, 'Unit'),
             running(Running#program{input_closed = true}, Waiting, Owed, Kept);
+        {Helper, {data, <<"h">>}} ->
+            hung_up(Hangups, 'Unit'),
+            running(Running#program{hangups = []}, Waiting, Owed, Kept);
         {'Give', Owner} ->
             running(given_to(Owner, Running), Waiting, Owed, Kept);
         {Helper, {data, <<"x", Status:32>>}} ->
@@ -465,6 +488,7 @@ running(#program{helper = Helper, writer = Writer, writes = Writes, timers = Tim
             %% dropped, and its exit status is the last answer
             stop(Running),
             unanswered(Running, {'Left', 'Closed'}),
+            hung_up(Hangups, 'Unit'),
             given(Running, {'Right', {'Exited', Status}}, Waiting, Owed - 1, Kept);
         {Helper, {data, <<Tag, Bytes/binary>>}} ->
             given(Running, {'Right', piece(Tag, Bytes)}, Waiting, Owed - 1, Kept);
@@ -510,12 +534,13 @@ read(Deadline, Reply, #program{writer = Writer} = Running, Waiting, Owed, Kept) 
             end
     end.
 
-%% The helper ended with no status to send: it failed, and each write and
-%% each read waiting is answered so. Report Appendix E.28: the program is
-%% no longer known to run, and the process is spent.
-failed(#program{owner = Owner} = Running, Waiting) ->
+%% The helper ended with no status to send: it failed, and each write, each
+%% read and each close waiting is answered so. Report Appendix E.28: the
+%% program is no longer known to run, and the process is spent.
+failed(#program{owner = Owner, hangups = Hangups} = Running, Waiting) ->
     stop(Running),
     unanswered(Running, helper_failed()),
+    hung_up(Hangups, helper_failed()),
     ern_rt:source_end(),
     ern_rt:spent(Owner),
     lists:foreach(fun(Read) -> answered_read(Read, helper_failed()) end, gb_trees:values(Waiting)),
@@ -585,8 +610,8 @@ dropped(Place, Waiting) ->
 %% which stays for every read after it, a read given no time excepted, and
 %% a read without a time among them; a write, a resize and a signal are
 %% answered as to a program that has exited, a write given no time
-%% excepted, and `closeInput` does nothing. The helper's port, closed as
-%% the exit came, ends as one that returned.
+%% excepted, and `closeInput` at once. The helper's port, closed as the
+%% exit came, ends as one that returned.
 exited(Kept, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
@@ -607,6 +632,9 @@ exited(Kept, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
             exited(Kept, Running);
         {'SendSignal', _, Reply} ->
             ern_rt:answer(Reply, {'Left', 'Closed'}),
+            exited(Kept, Running);
+        {'CloseInput', Reply} ->
+            ern_rt:answer(Reply, 'Unit'),
             exited(Kept, Running);
         {'Give', Owner} ->
             exited(Kept, given_to(Owner, Running));
@@ -720,6 +748,12 @@ unanswered(#program{timers = Timers, asked = Asked}, Answer) ->
     maps:foreach(fun(Reply, Timer) -> let_go(Timer), respond(Reply, Answer) end, Timers),
     lists:foreach(fun(Reply) -> respond(Reply, Answer) end, queue:to_list(Asked)).
 
+%% Report Appendix E.23: the closes that waited for the terminal's hangup,
+%% answered Answer in the order they came: `Unit` once it is made or the
+%% program has exited, and the runtime's failure where the helper failed.
+hung_up(Hangups, Answer) ->
+    lists:foreach(fun(Reply) -> respond(Reply, Answer) end, lists:reverse(Hangups)).
+
 piece($o, Bytes) -> {'Stdout', Bytes};
 piece($r, Bytes) -> {'Stderr', Bytes}.
 
@@ -746,12 +780,12 @@ resize(Size, Reply, Running, Answer) ->
         Refused -> ern_rt:answer(Reply, Refused)
     end.
 
-%% A program whose helper failed: each read, write and signal to come
-%% faults its caller, a read without a time among them and a read or a
-%% write given no time excepted, and each resize of its terminal whose size
-%% the host takes. Its owner may still die first, which ends this process
-%% as it would have ended the program. The helper's port has ended, and
-%% whatever it ends with ends nothing more.
+%% A program whose helper failed: each read, write, signal and `closeInput`
+%% to come faults its caller, a read without a time among them and a read
+%% or a write given no time excepted, and each resize of its terminal whose
+%% size the host takes. Its owner may still die first, which ends this
+%% process as it would have ended the program. The helper's port has
+%% ended, and whatever it ends with ends nothing more.
 over(Answer, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
     receive
         {'Read', Ms, Reply} when Ms =< 0 ->
@@ -764,6 +798,7 @@ over(Answer, #program{helper = Helper, monitor_ref = MonitorRef} = Running) ->
         {'ReadForever', Reply} -> respond(Reply, Answer), over(Answer, Running);
         {'Write', _, _, WriteReply} -> respond(WriteReply, Answer), over(Answer, Running);
         {'SendSignal', _, SignalReply} -> respond(SignalReply, Answer), over(Answer, Running);
+        {'CloseInput', CloseReply} -> respond(CloseReply, Answer), over(Answer, Running);
         {'Resize', Size, ResizeReply} ->
             resize(Size, ResizeReply, Running, Answer),
             over(Answer, Running);

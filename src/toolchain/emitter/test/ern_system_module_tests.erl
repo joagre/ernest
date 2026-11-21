@@ -278,6 +278,77 @@ os_start_write_then_close_test() ->
         "}\n"]),
     ?assertEqual(<<"#(Right(Unit), Left(Io.Closed), Some(\"ab\"))\n">>, Output).
 
+%% Appendix E.23: under pipes `closeInput` returns once the end of the input
+%% stands behind the bytes written before: `cat`, behind on a megabyte whose
+%% write may time out first, writes back every byte of it, and a write after
+%% the close answers Left(Closed), from the closer and from a process it
+%% starts once the close has returned. Written before the code, a regression
+%% test, which the old code passed
+os_close_input_under_pipes_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        "type Msg = Written(Either(Io.Error, Unit))\n"
+        "fn size(p : Address(Os.ProgramMsg), count : Int) : Int = match Os.read(p, 5000) {\n"
+        "    Right(Os.Stdout(b)) -> size(p, count + Bytes.size(b))\n"
+        "  | _ -> count\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = match Os.start(Os.command(\"cat\", [])) {\n"
+        "    Right(p) -> {\n"
+        "        let _ = Os.write(p, Bytes.repeat(<<120>>, 1048576), 1);\n"
+        "        Os.closeInput(p);\n"
+        "        let closer = Os.write(p, <<121>>, 5000);\n"
+        "        let me = self();\n"
+        "        let _ = spawn(fn() = send(me, Written(Os.write(p, <<122>>, 5000))));\n"
+        "        let other = receive { Written(written) -> written };\n"
+        "        Io.println(Io.show(#(closer, other, size(p, 0))))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"),
+    ?assertEqual(<<"#(Left(Io.Closed), Left(Io.Closed), 1048576)\n">>, Output).
+
+%% Appendix E.23: under a terminal `closeInput` returns once the terminal is
+%% hung up, so that what follows it by another way comes after the hangup:
+%% the termination another program sends straight after reaches the program
+%% after the hangup, which has ended it, its status 129 and not 143. Written
+%% before the code, under which `closeInput` was a send: in a scratch copy
+%% whose helper waited 20 ms before each hangup, the old code ended 143 in
+%% 20 runs of 20, and the new 129 in 20 of 20; without the wait the old
+%% code ended 129 in 55 runs of 55
+os_close_input_hangs_up_first_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        [rest(), read_to(),
+         "export fn main() : Unit =\n"
+         "    match Os.startTerminal(Os.command(\"sh\", [\"-c\", \"echo $$; exec sleep 1000\"]),\n"
+         "                           Terminal.Size(rows = 24, columns = 80)) {\n"
+         "        Right(p) -> {\n"
+         "            let number = String.trim(readTo(p, \"\\r\\n\", \"\"));\n"
+         "            Os.closeInput(p);\n"
+         "            let _ = Os.run(Os.command(\"kill\", [\"-TERM\", number]), 5000);\n"
+         "            Io.println(rest(p, \"\"))\n"
+         "        }\n"
+         "      | Left(e) -> Io.println(Io.show(e))\n"
+         "    }\n"]),
+    ?assertEqual(<<"exit 129\n">>, Output).
+
+%% Appendix E.23, report §8.6: a program whose last act is `closeInput`
+%% ends, under pipes and under a terminal, where the close waits for the
+%% hangup, and no deadlock is found. Written before the code, a regression
+%% test, which the old code passed, its close a send; the runtime's look
+%% while the close waits is ern_os_tests'
+os_last_act_closes_input_test() ->
+    ?assertEqual({ok, <<>>}, ern_emitter_tests:run(
+        "export fn main() : Unit = match Os.start(Os.command(\"cat\", [])) {\n"
+        "    Right(cat) ->\n"
+        "        match Os.startTerminal(Os.command(\"cat\", []),\n"
+        "                               Terminal.Size(rows = 24, columns = 80)) {\n"
+        "            Right(terminal) -> {\n"
+        "                Os.closeInput(cat);\n"
+        "                Os.closeInput(terminal)\n"
+        "            }\n"
+        "          | Left(_) -> Unit\n"
+        "        }\n"
+        "  | Left(_) -> Unit\n"
+        "}\n")).
+
 %% Appendix E.23, report §6.9: a running program is a process, which
 %% `monitor` watches and `kill` stops, the program and its process group
 %% with it; one that has answered its exit status lives on, answering it
@@ -749,6 +820,30 @@ socket_owner_test() ->
         "}\n"),
     ?assertEqual(<<"opener's: ended\ngiven, giver gone: alive\ngiven, keeper gone: ended\n"
                    "given to the dead: ended\n">>, Output).
+
+%% report Appendix E.18, §8.6: a program whose last act is `closeListener`
+%% on a listener an `acceptForever` waits on ends, its close a call on the
+%% listener that answers once the accept is answered and the listener has
+%% ended, and no deadlock is found. The close is made once the acceptor
+%% waits in its call, its accept sent before it. Written with the code, a
+%% regression test; the runtime's look during the close is ern_tcp_tests'
+last_act_closes_the_listener_test() ->
+    ?assertEqual({ok, <<>>}, ern_emitter_tests:run(
+        "fn calling(p : Process) : Unit = match Process.status(p) {\n"
+        "    Some(Process.Status(activity = Process.Calling())) -> Unit\n"
+        "  | _ -> calling(p)\n"
+        "}\n"
+        "export fn main() : Unit = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "    Right(listener) -> {\n"
+        "        let acceptor = spawn(fn() = {\n"
+        "            let _ = Tcp.acceptForever(listener);\n"
+        "            Unit\n"
+        "        });\n"
+        "        calling(Process.fromAddress(acceptor));\n"
+        "        Tcp.closeListener(listener)\n"
+        "    }\n"
+        "  | Left(_) -> Unit\n"
+        "}\n")).
 
 %% report Appendix E.18: over TLS from Ernest, `listenTls` and `connectTls`
 %% answer the addresses `listen` and `connect` answer, which `accept`,

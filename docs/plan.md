@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 93**, a close that answers once it is made. E.18 and
-E.23 change first.
+**The next item is what is left of MVP 4.16's item 95**, a send and a call to another node
+in two inputs, which the session writes.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -64,37 +64,10 @@ corner shows it (the log's *Item 140 Stands After the Launch*). Items 135 and 13
 there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch* and
 *Item 136 Stands After the Launch*).
 
-**What is decided and waits for its build** stands first. Item 93 and what is left
-of item 95 are each a verdict on an order nobody promised. Item 101's rule read both again
-on 2026-11-20, and both stand (the log's *An Order Nobody Promised*).
+**What is decided and waits for its build** stands first. What is left of item 95 is a
+verdict on an order nobody promised. Item 101's rule read it again on 2026-11-20, and it
+stands (the log's *An Order Nobody Promised*).
 
-- **93. A close answers once it is made**, decided with the user on 2026-11-17 (the log's
-  *Seven Entries of the Feedback*, feedback 258). `Os.closeInput` and `Tcp.closeListener`
-  are sends, and a caller that acts at once after one may act before it. The terminal
-  harness did, and a listen on a port right after its listener's `closeListener` was
-  refused in 21 of 5,000 rounds of the session's probe.
-
-  Decided: `closeInput` answers `Unit` once the close is made, under a terminal once it is
-  hung up and under pipes once the end is placed behind the bytes already written. It takes
-  no time, as `signal` takes none, and on a program whose process has ended it faults as a
-  read does. `closeListener` answers `Unit` once the listener has ended, and at once on one
-  that has ended already. `Tcp.close` stays a send, and E.18 says that it answers before
-  the connection has closed.
-
-  E.18 and E.23 change first. An agent builds the two, each with a test that acts at once
-  after the close, and the terminal harness's write of nothing goes. Item 101's rule read
-  the verdict again on 2026-11-20, and it stands.
-
-  A second order joins it, found 2026-11-20 by item 92's reading (the log's *A Wait for a
-  Life, Built*). `closeListener` answers an accept the listener holds with `Left(Closed)`
-  through the accept's worker, and the caller's watch of the listener, which ends at once,
-  faults it with `callee was closed`; nothing orders the two. A probe met the fault in
-  about 30 of 20,000 rounds where the close came twenty calls after the accept, and in
-  none two hundred calls after, and cannot tell a call taken from one still in the
-  mailbox. The build shows first whether an accept the listener has taken can meet the
-  fault. Where it can, the listener ends only once each accept it holds is answered. It
-  rides with this item's build, which changes how the listener ends; alone it would be
-  MVP 4.5's, since no program has shown E.18's sentence false.
 - **95. A shell session that shows more than the report promises**, decided with the user
   on 2026-11-17 (the log's *The Outside Reviews Read*, its paragraph *Three shell
   sessions*). The session writes it, and it closes on `make test`. Two of its three lines,
@@ -303,6 +276,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 92 | `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever` wait without a limit, each its twin without a time and without `Left(Timeout)`; a socket `acceptForever` opens has its own site; the examples, the flake hunt, two fixtures and the guide's §8.7 take them, and three tools name a file's time once, with the user | 2026-11-20 | Appendix E.0, E.18, E.23; *A Wait for a Life, Built* |
 | 101 | What an order nobody promised gets: nothing, unless a sentence of the report or a sibling operation leads to it; then a mechanism where there is something to wait on, no rule breaks and the cost is a fraction, and otherwise a sentence; the seven verdicts, item 93 and item 95's line stand, the eighth case is item 154, and item 142 carries the rule to `CLAUDE.md`, with the user | 2026-11-20 | *An Order Nobody Promised* |
 | 154 | Messages one process sends through one check are received in sending order; a checked message takes one step more, in the check's process, need not be in its receiver's mailbox when the foreign function that sent it has returned, and can be passed by one sent the same receiver after it another way; foreign code sends as the process it runs in; shown by two probes, four tests, no code of the runtime changed, with the user | 2026-11-20 | §6.4, §8.4, §8.7; *The Order Through One Check* |
+| 93 | `Tcp.closeListener` answers once the listener has ended and its host socket has closed, each accept it held answered `Left(Closed)` first, by a second call private to `Tcp`; a held accept faults where the listener is killed or its owner dies; `Os.closeInput` answers once the close is made, under a terminal once the helper says the hangup is made, and faults on an ended process and where the helper has failed; the harness's write of nothing went, and two terminal tests build their fixtures into roots of their own; item 155 found, with the user | 2026-11-21 | Appendix E.18, E.23; *The Two Closes Answer* |
 
 ---
 
@@ -1035,6 +1009,15 @@ What the line left, in the order it is taken:
   It follows MVP 4.17's item 54, whose third line decides how a reload's note writes a
   peer's name. A name refused where it is read leaves that line nothing to escape, so
   the two are weighed together at item 54's turn.
+- **155. A connection taken as its listener is killed**, found 2026-11-20 by item 93's
+  build (the log's *The Two Closes Answer*), read from the code and not shown. A worker
+  that has taken a connection as a kill ends its listener opens the socket and answers its
+  accept, whose caller has faulted with `callee was killed` by then. The socket is its
+  caller's: it ends with a caller that dies, and where a restart keeps the caller it lives
+  on with no address to reach it. It was so before item 93. Only a built corner shows it,
+  so it stands here on the user's word on 2026-11-21. The shape: the worker asks whether
+  its listener lives before it opens the socket's process, and closes the connection where
+  it does not.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
