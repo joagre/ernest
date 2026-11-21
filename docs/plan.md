@@ -746,8 +746,13 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    not read, and the user decides whether it goes on.
 
    It is taken first of the items left, so that its verdicts have their time before the
-   launch and the full review reads the report they leave. Until a row is decided, MVP
-   4.5's items 113, 149 and 153 stand as they are.
+   launch and the full review reads the report they leave.
+
+   The rows were found and counted on 2026-11-21, 37 of them, and the proposal holds
+   them. Five were read first. Row 10, the process that checks what foreign code sends,
+   is decided: it stays, and MVP 4.5's items 113, 149 and 153 stand (the log's *The Check
+   Stays a Process*). Rows 11, 18 with 24 and 33, 8 and 9 are read and recommended to
+   stay. Left are the other 32 rows and a row for the end's flush and its cut.
 
 ---
 
@@ -765,7 +770,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 135, 136, 140, 143, 144, 145, 149, 153, 151 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 135, 136, 140, 143, 144, 145, 149, 153, 157, 151 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -997,6 +1002,13 @@ What the line left, in the order it is taken:
   Found 2026-11-20 by item 148's build, read from the code: `Io.show` writes such a
   `Process` by the check's number, and a pid of a host that is no node of Ernest's by
   its host's name without its dots, where Appendix E.1 has a key's digest.
+
+  Found 2026-11-21 by the mechanisms' reading (the log's *The Check Stays a Process*),
+  two more read from the code and not shown. A `kill` of a `Process` that is a check's
+  pid ends the check and leaves the process, where a `monitor` of it watches the process
+  (`ern_rt.erl:1311`). A check traps no exit, so foreign code that links to the pid it
+  was given, or exits it, ends the check, and what it sends afterwards is lost while the
+  receiver lives (`ern_rt.erl:3248`), a silence §6.2 does not list.
 - **153. What foreign code gives back that §8.4 has no rule for**, found 2026-11-20 by the
   cold reading of item 152's sentences (the log's *What the Boundary Trusts at a Type
   Variable*), its first line shown by the session's probe and the rest read from the
@@ -1065,6 +1077,26 @@ What the line left, in the order it is taken:
   E.0's admission rules, or the test made without it, and the loop goes either way. It
   follows item 5 of this milestone, feedback 264, a loop with a sleep over
   `Peer.utilizations`, and the two are weighed together.
+- **157. Four suspicions the mechanisms' reading read from the code**, found 2026-11-21
+  by its second readers beside their questions (the log's *The Check Stays a Process*),
+  none shown. Each needs a program built for it, so the item stands here. The shape: a
+  program that shows each, and one that is shown is fixed or gets its sentence, and one
+  that is not is dropped with its reason in the log.
+
+  - `Process.current()` in an adapted address's function on arrival is the process kept
+    for the address. Sent on and killed, that process ends with the message it was
+    handed (`ern_gateway.erl:540`).
+  - A sole subscriber's restart ends the end's wait, so its new run that subscribes again
+    may not be told (`ern_rt.erl:4524`), where Appendix E.23 has a restarted run told as
+    a new one.
+  - Across nodes a `Restarted` can follow the `Down` of a death where the watcher
+    monitors again at once (`ern_rt.erl:1854`), against §6.9.
+  - `examples/lease_broker.ern`'s client acts on a call's answer from the broker's new
+    run before it reads the `Restarted` already in its mailbox. A call's answer does not
+    pass through the mailbox, so §6.9's order does not cover it, and the example or §6.9
+    says so.
+
+  It follows item 153.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers

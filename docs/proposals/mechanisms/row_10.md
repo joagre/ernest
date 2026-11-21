@@ -1,6 +1,6 @@
 # Row 10: the check with no process
 
-Status: decided with the user on 2026-11-21 that the checker goes, on one condition: the sentences below are read cold first, and where they grow exceptions of their own the checker stays. They were read the same day, and they do: *The cold reading* has what it found. Recommended since: the checker stays. The user's word is waited for. Nothing here is in the report.
+Status: decided with the user on 2026-11-21 that the checker goes, on one condition: the sentences below are read cold first, and where they grow exceptions of their own the checker stays. They were read the same day, and they do: *The cold reading* has what it found. Decided with the user since: the checker stays (the log's *The Check Stays a Process*). Nothing here is in the report.
 
 [`first_five.md`](first_five.md) has why, and what a program loses.
 
@@ -15,7 +15,7 @@ A reader was given the report with the sentences applied, and neither the log no
 
 **Against the condition.** The 98 words the draft saves are spent by these sentences, and the first two holes are answered by a narrower promise or a new mechanism, not by a sentence. A pid is the one value the host's world already sends to, compares, monitors and carries between nodes, and Ernest's own `send` takes it. A handle has each of those made for it again.
 
-**Recommended:** the checker stays (principle 1: a reader who knows Erlang's processes is given a process). MVP 4.5's items 113, 149 and 153 stand, and the two suspicions of [`first_five.md`](first_five.md) on a checker's pid join item 149.
+**Decided:** the checker stays (principle 1: a reader who knows Erlang's processes is given a process). MVP 4.5's items 113, 149 and 153 stand, and the two suspicions of [`first_five.md`](first_five.md) on a checker's pid joined item 149.
 
 The rest of this file is the draft as it was read.
 
