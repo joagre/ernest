@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 9**, the guide's
-section on a package, the last of the milestone.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 162**, the keys in
+`:help` and the shell's manual page. Items 163 and 164 follow it and end the milestone.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -56,26 +56,6 @@ Read for Build Order*). Items 162 to 164 were added last, on the user's word of
 
 ### What is left
 
-The packages proposal's build order,
-[`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
-
-- **9. The guide's section on a package.** It says what an entry's digest promises: the archive
-  that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
-  log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
-  started from another directory.
-
-  Decided with the user 2026-11-17 (the log's *Packages and No Manager*): the item also
-  writes `guide/faq.md`'s question on why Ernest has packages and no package manager, its
-  answer the entry's three claims and their cost, and reads the faq's sentence on `gleam
-  add` again. Both texts use the report's verbs, which get their line in the glossary.
-  Whether a test holds the phrase out of the user-facing texts is decided as the item
-  opens.
-
-  The item writes the site's sentence too, decided with the user 2026-11-17 and moved here
-  from item 10 on 2026-11-19 (the log's *Packages and No Manager*, *The Plan Read for Build
-  Order*). `site/projects.md` says in one sentence how a project is taken, an entry in
-  `package.conf` and `ern unpack`. It is written before the tag, since the site is built
-  from the tag and goes live after the three other releases, and MVP 4.4's item 6 holds it.
 - **162. `:help` lists the key bindings, and the shell's manual page**, the user's word on
   2026-11-21. Today `:help` lists the commands alone, as §11.2 says, and the keys stand
   only in the prose of §11.2's *Editing* and its search's paragraph.
@@ -119,7 +99,8 @@ The packages proposal's build order,
 
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
 shell's editing, was built after them, then item 52, item 54, item 160 and item 161, item 7,
-and item 8 last.
+item 8, and item 9 last, which ended the packages proposal's build order,
+[`proposals/package_manager/`](proposals/package_manager/README.md).
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -135,6 +116,7 @@ and item 8 last.
 | 161 | An input taller than the screen drawn through a window, the cursor's row in it, and the region's erase made no clear from the screen's corner, with `Ansi.clearRow` | 2026-11-21 | *A Window onto the Input* and *A Window onto the Input, Built* |
 | 7 | `Crypto.sha256`, a shim beside `sha1`, its E.0 reading and its line of Appendix G.9 first | 2026-11-21 | *SHA-256 Beside SHA-1* |
 | 8 | `ern unpack`, `Ernest.Unpack` in the shell's root over `erl_tar`, `Crypto.sha256` and the helper's waiting lock, §11.9's paragraphs on an archive first, and a package's `priv` found through `code:priv_dir` | 2026-11-21 | *An Archive Read by the Host* |
+| 9 | The guide's §9.6 on a package, typed along from a package made to a program started elsewhere under `--package-dir`, with what a digest promises; the faq's question on packages and no package manager; the site's sentence on how a program takes a library, which MVP 4.4's item 6 holds to ernest-epx's archive; the glossary's line on a package's verbs; and two tests, the section replayed and the phrase held to the faq | 2026-11-21 | *A Package in the Guide* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---
