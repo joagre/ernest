@@ -1,6 +1,6 @@
 # The five rows read first
 
-Status: read on 2026-11-21, the pass that must be right, on rows 10, 11, 18 with 24 and 33, 8 and 9 of [`README.md`](README.md). Row 10 is decided: the checker stays. The other four are recommended to stay and not decided. Each is the user's, one at a time.
+Status: read on 2026-11-21, the pass that must be right, on rows 10, 11, 18 with 24 and 33, 8 and 9 of [`README.md`](README.md). All are decided with the user, and each stays (the log's *The Check Stays a Process*).
 
 Each reading has the log's entries that decided the mechanism, the other forms it could take, what a program loses by each, and what would go. A second reader then read each cold. It was given the mechanism, the report's sections and the forms, and neither the log nor this reading, and was asked for the case in which a form answers wrongly.
 
@@ -8,7 +8,7 @@ Each reading has the log's entries that decided the mechanism, the other forms i
 
 - **Two forms break a claim of `docs/soundness.md`**: foreign code's messages with no check at all, and an adapted address whose function crosses with it. Every other form holds the four claims, and gives up something a program can do, an order, or a fault.
 - **Row 10, the check, has a form with no process that holds the same claim.** Its sentences were then drafted and read cold, and they grew exceptions of their own ([`row_10.md`](row_10.md)). It stays, decided with the user (the log's *The Check Stays a Process*).
-- **Rows 11, 18 with 24 and 33, 8 and 9 are recommended to stay.** Each other form gives up a promise that the log chose on purpose, and the second reader found the program that shows it.
+- **Rows 11, 18 with 24 and 33, 8 and 9 stay.** Each other form gives up a promise that the log chose on purpose, and the second reader found the program that shows it.
 - **Rows 18, 8 and 11 rest on two earlier decisions.** A function that receives nothing may still call and wait (the log's *Kill Darlings*), and a `receive` runs no code as it takes a message (*A Process's Addresses, Taught in Order*). So a function on a message's way needs a process of its own, that process must act for someone, and a restart that keeps its order must wait for it.
 
 ## Row 10: the check of what foreign code sends
@@ -49,7 +49,7 @@ Each reading has the log's entries that decided the mechanism, the other forms i
 
 **What is the mechanism's and what is the promise's.** The step more and "keeps nothing alive", 512 words, are forced by a function applied on the node that made it, under any mechanism. The process alone forces 221 words and buys the isolation.
 
-**Recommended:** stays. The second reader named one narrowing inside it, not weighed: on arrival the function acts for no process, and §6.5's three owners become two.
+**Decided:** stays. The second reader named one narrowing inside it, not weighed: on arrival the function acts for no process, and §6.5's three owners become two.
 
 ## Rows 18, 24 and 33: a function applied on a message's way
 
@@ -64,7 +64,7 @@ Each reading has the log's entries that decided the mechanism, the other forms i
 
 **Use.** Every wrap in the repository's own Ernest is a constructor or a lambda that builds a constant. By principle 5 that decides nothing.
 
-**Recommended:** stay. No form keeps the five promises.
+**Decided:** stay. No form keeps the five promises.
 
 ## Row 8: a restart told and waited for
 
@@ -76,7 +76,7 @@ Each reading has the log's entries that decided the mechanism, the other forms i
 - **Told to no one.** `Process.run` cannot keep E.21's "killed where the caller ends or restarts", and a broker cannot watch a client it knows by `Reply.process`.
 - **The restarting process sends the word itself.** It rests on the recipient applying its wrap, which the rows above refuse. It also keeps the order between the two processes alone, where the example rests on more.
 
-**Recommended:** stays. Its 772 words of waits follow from row 18, not from its promise.
+**Decided:** stays. Its 772 words of waits follow from row 18, not from its promise.
 
 ## Row 9: the end's wait
 
@@ -89,7 +89,7 @@ Each reading has the log's entries that decided the mechanism, the other forms i
 - **A termination alone is told.** A `main` that returns or faults, and an `Os.exit`, end a store with its state unwritten.
 - **A subscription made while the end waits is not told.** A store that faults as it writes, restarts and subscribes again is not told, the defect *MVP 3.1 Read* closed.
 
-**Recommended:** stays. The row holds two things, the subscribers' wait at 763 words and the end's flush with its cut at 496, and five of its eight items are the second's. The flush and its cut are a row of their own, to be read with the rest.
+**Decided:** stays. The row holds two things, the subscribers' wait at 763 words and the end's flush with its cut at 496, and five of its eight items are the second's. The flush and its cut are a row of their own, to be read with the rest.
 
 ## Found beside the reading
 
@@ -106,4 +106,4 @@ The first two are the checker's and joined MVP 4.5's item 149. The other four ar
 
 ## What is left
 
-The other 32 rows, at the session's usual effort, and the flush as a thirty-eighth.
+The other 30 rows, at the session's usual effort, and the flush as a thirty-eighth.

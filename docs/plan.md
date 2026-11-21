@@ -751,8 +751,10 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    The rows were found and counted on 2026-11-21, 37 of them, and the proposal holds
    them. Five were read first. Row 10, the process that checks what foreign code sends,
    is decided: it stays, and MVP 4.5's items 113, 149 and 153 stand (the log's *The Check
-   Stays a Process*). Rows 11, 18 with 24 and 33, 8 and 9 are read and recommended to
-   stay. Left are the other 32 rows and a row for the end's flush and its cut.
+   Stays a Process*). Rows 11, 18 with 24 and 33, 8 and 9 are decided too, and
+   each stays. Left are the other 30 rows and a row for the end's flush and its cut. A
+   form that would replace a mechanism is drafted as the report's sentences and read cold
+   before its row is decided.
 
 ---
 
