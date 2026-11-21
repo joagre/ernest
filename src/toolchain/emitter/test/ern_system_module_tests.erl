@@ -822,27 +822,15 @@ socket_owner_test() ->
                    "given to the dead: ended\n">>, Output).
 
 %% report Appendix E.18, §8.6: a program whose last act is `closeListener`
-%% on a listener an `acceptForever` waits on ends, its close a call on the
-%% listener that answers once the accept is answered and the listener has
-%% ended, and no deadlock is found. The close is made once the acceptor
-%% waits in its call, its accept sent before it. Written with the code, a
-%% regression test; the runtime's look during the close is ern_tcp_tests'
+%% ends, its close a call on the listener that answers once the listener
+%% has ended, and no deadlock is found. Written with the code, a regression
+%% test; a close that waits on an accept the listener holds, and the
+%% runtime's look during it, are ern_tcp_tests'
 last_act_closes_the_listener_test() ->
     ?assertEqual({ok, <<>>}, ern_emitter_tests:run(
-        "fn calling(p : Process) : Unit = match Process.status(p) {\n"
-        "    Some(Process.Status(activity = Process.Calling())) -> Unit\n"
-        "  | _ -> calling(p)\n"
-        "}\n"
         "export fn main() : Unit = match Tcp.listen(\"127.0.0.1\", 0) {\n"
-        "    Right(listener) -> {\n"
-        "        let acceptor = spawn(fn() = {\n"
-        "            let _ = Tcp.acceptForever(listener);\n"
-        "            Unit\n"
-        "        });\n"
-        "        calling(Process.fromAddress(acceptor));\n"
-        "        Tcp.closeListener(listener)\n"
-        "    }\n"
-        "  | Left(_) -> Unit\n"
+        "    Right(listener) -> Tcp.closeListener(listener)\n"
+        "  | Left(error) -> Io.println(Io.show(error))\n"
         "}\n")).
 
 %% report Appendix E.18: over TLS from Ernest, `listenTls` and `connectTls`

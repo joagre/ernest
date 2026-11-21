@@ -1057,6 +1057,14 @@ What the line left, in the order it is taken:
   so it stands here on the user's word on 2026-11-21. The shape: the worker asks whether
   its listener lives before it opens the socket's process, and closes the connection where
   it does not.
+- **156. A process that waits until another waits**, feedback 269, found 2026-11-21 by
+  the read-back of item 93 (the log's *A Busy Loop in a Test*). A session typed into a
+  shell in `test/ern_nodes_tests.erl` polls `Process.status` in a loop until another
+  process waits in a call. A busy loop is forbidden, and nothing in the library waits for
+  that. Only a test meets it, so it stands here. The shape: a wait of `Test`'s weighed on
+  E.0's admission rules, or the test made without it, and the loop goes either way. It
+  follows item 5 of this milestone, feedback 264, a loop with a sleep over
+  `Peer.utilizations`, and the two are weighed together.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
