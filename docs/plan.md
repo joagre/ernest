@@ -22,11 +22,10 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 164**, the OTP
-defects read against their issues and the last three made ready to file. It ends the
-milestone.
+**MVP 4.17 is done since 2026-11-21. The next item is MVP 4.6's item 2**, Ernest's side,
+built against the rehearsal's server.
 
-The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
+The milestones to come, in order: MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
 log entry that placed it.
 
@@ -37,70 +36,6 @@ and a report against OTP stand in MVP 4.5. Each item is judged against that test
 written and before it starts. Since 2026-11-21 a find that only a built corner shows gets its
 line in [`known_issues.md`](known_issues.md), and becomes an item when the user takes it up
 (the log's *The Short Rules Stay*).
-
----
-
-## MVP 4.17 (the shell's editing, what a job trusts, and the rest of packages: archives and the guide), about a week
-
-Split from MVP 4.16 with the user on 2026-11-14 (the log's *The Milestone Split*), so that MVP
-4.16 ends with its small items, and the discussion of §11.9 opens a milestone, where it can
-change what is built. Its items keep the numbers they had in MVP 4.16, since the log cites
-them by number. It follows MVP 4.16, and comes before MVP 4.6, as its items
-did. Item 43 added items 47 to 49 and cut what item 8 builds. Item 119, the shell's editing,
-was placed first in it with the user on 2026-11-18 (the log's *The Homepage and the Shell's
-Editing Planned*).
-
-Items 10 and 23, the other repositories and the packages proposal's sweep, moved to MVP 4.4's
-item 4 on 2026-11-19, since the manifests' write is the floors' rise (the log's *The Plan
-Read for Build Order*). Items 162 to 164 were added last, on the user's word of
-2026-11-21. So the milestone ends with item 164.
-
-### What is left
-
-- **164. The OTP defects read against their issues, and the last three filed**, the user's
-  word on 2026-11-21. Read that day: of the 24 issues filed, two were answered after
-  `otp_bugs.md` last recorded them. On #12212 OTP found the workaround behind `ssl:close/2`'s
-  two waits needed on no supported platform, and proposes pull request #12237, against
-  `maint` and open, which stops waiting for the peer's close and has the wait for the close
-  alert take the time `ssl:close/2` is given. #12235 was answered as a likely duplicate of
-  #12212, with #12237 as its fix. The others stand as recorded, with the labels OTP gave
-  them since, `stalled` on seven.
-  - **The record.** Each report's first line takes its issue's answer, and Ernest's
-    comment at each place that meets #12212 or #12235 is read against #12237. Whether
-    #12235 is a duplicate is read against its own report and said to the user, with
-    whether Ernest's §12.6 or `docs/design/nodes.md` would change once #12237 is in a
-    release Ernest requires.
-  - **The last three.** Reports 25, 26 and 27 are not filed. Each is reproduced again with
-    OTP alone on the host's current release, its title and text read as OTP's tracker
-    reads them, and given to the user. Filing is the user's, and each report's first line
-    names its issue once it is filed.
-
-### What is done
-
-The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
-shell's editing, was built after them, then item 52, item 54, item 160 and item 161, item 7,
-item 8, item 9, which ended the packages proposal's build order,
-[`proposals/package_manager/`](proposals/package_manager/README.md), item 162, and item 163
-last.
-
-| Item | What | Done | The log's entries |
-|---|---|---|---|
-| 43 | Whether §11.9 can promise less | decided 2026-11-14 | *The Trust Said Once* |
-| 47 | The trust said once, and the defenses that go | 2026-11-14, in two builds | *The Trust Said Once*, its paragraphs *The first build* and *The second build* |
-| 48 | One paragraph on a name that reaches no regular file | 2026-11-15, in two builds | *The Trust Said Once*, its paragraphs *The fourth build's sentences* to *The corner closed* |
-| 49 | A control character in a path a job writes: a refusal holds none, and §11 says so | 2026-11-15 | *A Refusal Holds No Control Character* |
-| 50 | The history file's owner | 2026-11-14 | *The Trust Said Once*, its paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third build* |
-| 119 | An input of several lines is edited by its lines, and the homepage's last clause | 2026-11-21 | *An Input Edited by Its Lines* |
-| 52 | The shell says a host's refusal in the jobs' words, each case of no history has its line, and the history file is named as §11.5 names one, which was item 54's second line | 2026-11-21 | *The Shell Says a Refusal in the Jobs' Words* |
-| 54 | What item 49 left: a path in `--emit-erl`'s first line and in a page's last line is written as §11.5 writes one, a peer's name holds no control character, and a value a refusal quotes from a configuration is written as JSON writes it | 2026-11-21 | *Each Value in the Escape of Its Own Notation* |
-| 160 | What item 119's cold reading left in §11.2: the live region named once, the prompt, a command kept as an input is, the search's paragraph, a paste a terminal brackets, and the words that said another thing | 2026-11-21, sentences alone | *The Live Region Named Once* |
-| 161 | An input taller than the screen drawn through a window, the cursor's row in it, and the region's erase made no clear from the screen's corner, with `Ansi.clearRow` | 2026-11-21 | *A Window onto the Input* and *A Window onto the Input, Built* |
-| 7 | `Crypto.sha256`, a shim beside `sha1`, its E.0 reading and its line of Appendix G.9 first | 2026-11-21 | *SHA-256 Beside SHA-1* |
-| 8 | `ern unpack`, `Ernest.Unpack` in the shell's root over `erl_tar`, `Crypto.sha256` and the helper's waiting lock, §11.9's paragraphs on an archive first, and a package's `priv` found through `code:priv_dir` | 2026-11-21 | *An Archive Read by the Host* |
-| 9 | The guide's §9.6 on a package, typed along from a package made to a program started elsewhere under `--package-dir`, with what a digest promises; the faq's question on packages and no package manager; the site's sentence on how a program takes a library, which MVP 4.4's item 6 holds to ernest-epx's archive; the glossary's line on a package's verbs; and two tests, the section replayed and the phrase held to the faq | 2026-11-21 | *A Package in the Guide* |
-| 162 | `:keys` lists the keys the shell binds, from one table in `Ernest.Shell.Editor` that two of the editor's tests hold to its bindings both ways, and `:help` names the manual page, §11.2's two lines first | 2026-11-21 | *The Keys Listed by `:keys`* |
-| 163 | The known issues sorted: of 35 lines, two dropped as OTP's alone, two planned as MVP 4.5's items 165 and 166, and 29 kept | 2026-11-21 | *The Known Issues Sorted* |
-| 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---
 
@@ -568,7 +503,7 @@ What the line left, in the order it is taken:
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found; `Tcp.close` answers once its bytes are sent; the short rules stay and the known issues' list begins | 2026-11-21 | | *A Deadlock of the Whole Program*, *A Package and Its Manifest*, *The Root Package Read*, *The Named Packages Built*, *The Flake Hunt*, *The Review's Feedback Decided*, *One Copy of the Pages*, *The Synopsis's Rule*, *A Status Read Before the Watch*, *A Hiding Module Refused*, *The Ownership Test Built*, *A Given Path Resolved Once*, *The Proposal Held Against the Report*, *One Namespace at the Root*, *An Installed Program's Packages*, *The Client's Line*, *What One Read Answers*, *Building*, *The Sentences Held by Tests*, *A Compiled Form's Sources*, *A Document Beside a Module That Fails*, *A Library's Function in a Program*, *The Sweep's Reading*, *What the Toolchain's Page Is Made From*, *The Front Page From Its Motive*, *The README's Top Comes First*, *The Front Page in the Announcement's Manner*, *The Shell's Last Line*, *The Named Packages Read*, *The Reading's Round*, *The Rules Read Against Each Other*, *The Milestone Split*, *No Module's Source*, *An Index That Is No File*, *A Sender That Outlives Its Run*, *The Rules Read for Clarity*, *A Limit Ends Its Own Test*, *Three Orders the Supervisor Tests Read*, *A Delivery Counted Before Its End*, *A Listener Closed Before Its Accept*, *Seven Entries of the Feedback*, *A Program's Line Beside the Prompt*, *A Program Named Before It Runs*, *A Subscriber That Ends Beside Main*, *A Terminal's Echo Beside Its End*, *A Signal Before the Pause*, *A Reaper That Outlives Its Runner*, *Two Hours for a Hunt*, *A Termination Lost With OTP Alone*, *A Message at a Checker*, *The First Start's Schedulers*, *Twenty-Six Hosts Are the Cost*, *Two Orders Stated*, *The Watcher Holds Who Waits*, *No Restarted After a Death*, *The Style Test Reads the Roots' Tests*, *The Resize Told by Its Signal*, *The Review Documents Read Against the Rules*, *Three Process Documents Read Against the Rules*, *Two Tests Wait for Their Subscriber*, *A Record After a Cancel*, *A Port Another Socket Holds*, *The Busy Wait Stays*, *What a Load Could Not Load*, *Each Failure Once*, *Lanes in Place of Chunks*, *One Way to Start a Line Session*, *A Port Its Listener's Connections Left*, *A Home of the Run's Own*, *The Hunt's Rounds Tested*, *A Status Lost to a Write*, *A Checker Among the Processes*, *The Outside Reviews Read*, *What Waits for a Peer*, *What a Full Buffer Holds*, *A Connection That Cannot Drain*, *A Head in Pieces, Tested*, *A Lock Held to the Process's End*, *A New OTP and Nothing Else New*, *The Runtime's Processes Wait on No Peer*, *A Message Is Placed in Parts*, *What a Program's Helper Holds*, *Suspended Is the Host's Word*, *What a Peer's Worker Waits On*, *The Type Lines Are Held*, *The Run's Home Stated Once*, *A Checker Acts for the Target*, *The Job Halts Without the Host's Flush*, *A Termination Ends a Stalled Flush*, *A Check Stands Through a Loss*, *A Down Follows the Send*, *The Roots' Unit Tests Under the Run's Home*, *A Body, Tested*, *G.11 States What a Client Sends*, *An ASCII Case in the Library*, *A Header's Name in ASCII Case*, *A List Header's Elements*, *The Process Behind a Check*, *The Process Behind a Check, Built*, *A Bad Message's Fault to a Foreign Target*, *A `monitor` in an Adapted Address's Function*, *The Runner Waits for No Line*, *The Shell Ends at Once*, *`ern test` Ends by a Signal That Cut an End*, *A Subscriber Named Unanswered*, *A Node's End Waits for No Send*, *The Disconnect Waits for Nothing*, *A Worker Waits on No Third Node*, *An Address Given Back, on Another Node*, *One Check for an Address of a Recursive Type*, *A Fault at a Wait Names Its `receive`*, *A Process Printed with a Dot, Built*, *One Check by the Type's Hash*, *What the Boundary Trusts at a Type Variable*, *Three Corners of a Diagnostic*, *A Wait for a Life, Built*, *An Order Nobody Promised*, *The Order Through One Check*, *The Two Closes Answer*, *Two Shell Sessions Written*, *A Send and a Call in Two Inputs*, *The Close Follows the Last Byte*, *A Failed Write Loses What Had Arrived*, *A Close Answers Once Its Bytes Are Sent*, *The Short Rules Stay* |
-| MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide | | | above |
+| MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide; `:keys`, the known issues sorted, and the OTP defects read against their issues | 2026-11-21 | | *The Milestone Split*, *The Homepage and the Shell's Editing Planned*, *The Plan Read for Build Order*, *The Trust Said Once*, *A Refusal Holds No Control Character*, *An Input Edited by Its Lines*, *The Shell Says a Refusal in the Jobs' Words*, *Each Value in the Escape of Its Own Notation*, *The Live Region Named Once*, *A Window onto the Input*, *A Window onto the Input, Built*, *SHA-256 Beside SHA-1*, *An Archive Read by the Host*, *A Package in the Guide*, *The Keys Listed by `:keys`*, *The Known Issues Sorted*, *The OTP Defects Read Against Their Issues* |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, and a test and a flake from the known issues' sort | | | above |
