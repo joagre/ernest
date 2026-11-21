@@ -257,11 +257,15 @@ The screen then holds where output goes, and has the local half append each `Wro
 
 ## The editor
 
-`Ernest.Shell.Editor` is a pure function from the state being edited and a `Terminal.Event` to an `Edit`, which tells the reader what to do. It writes nothing and knows no names: the reader completes and documents, and puts the line back. The state, `Editing`, is abstract (§4.4), so the editor alone keeps the cursor inside the line and a search inside the history. Its one kill outlives the line.
+`Ernest.Shell.Editor` is a pure function from the state being edited and a `Terminal.Event` to an `Edit`, which tells the reader what to do. It writes nothing and knows no names: the reader completes and documents, and puts the line back. The state, `Editing`, is abstract (§4.4), so the editor alone keeps the cursor inside the input and a search inside the history. What it last killed outlives the input.
 
-**Sequences.** §12.1 delivers a sequence it does not name as `Escape` and its characters. So `Escape` and a key is that key's Meta binding, and `Escape [ Z` is `Shift-Tab`. The reader keeps its record of the key before while a sequence is begun, so that `Shift-Tab` twice is two presses and not six keys.
+**Lines.** A line is what stands between two line feeds of the input, however many rows it wraps onto, so the editor needs no size of the screen. The column a move between lines keeps is counted in graphemes from the line's start. The screen's column would need the prompt, which only the screen knows (the log's *An Input Edited by Its Lines*).
 
-**History.** The walk at 0 is the line being typed, kept while the walk is away from it. A search shows Readline's search prompt with its match in place of the line.
+**The key before.** The state holds what the key before did: a kill, a move between lines with the column it kept, or anything else. A kill reads it to join the kill before it, and a move between lines to keep that column. Every other key forgets it. A resize, which is no key, and the `Escape` and the characters that begin a key pass it on.
+
+**Sequences.** §12.1 delivers a sequence it does not name as `Escape` and its characters. So `Escape` and a key is that key's Meta binding. The editor holds the characters of a sequence begun by `Escape [` or `Escape O` until the one that ends it, and names the key from them: `[Z` is `Shift-Tab`; `[H`, `OH`, `[1~` and `[7~` are `Home`; `[F`, `OF`, `[4~` and `[8~` are `End`; and `[3~` is `Delete`. Any other sequence does nothing, one with a modifier among them. The reader keeps its record of the key before while a sequence is begun, so that `Shift-Tab` twice is two presses and not six keys.
+
+**History.** The walk stands at a place, 0 being the input being typed. Each place it leaves keeps the text it was left with, in a map by place, and one function answers what a place shows, to a walk and to a search alike: the text being edited, the text kept, or the history's. The kept texts go when an input is entered or abandoned, so the history is never changed. A search shows Readline's search prompt with its match in place of the input.
 
 **Submit.** `Enter` asks whether the input continues: its text and its last line are not blank, and the parser ran out of input. The parser marks its diagnostic `incomplete`, and the front end tries the text as an expression, as declarations and as a statement, since an input that could still become any of them is unfinished (the log's *An Input That Spans Lines*).
 

@@ -108,28 +108,6 @@ The rule holds only while the panel is beside. With the panel closed or below, t
 
 The page's one action is the shell, which wants a keyboard. A phone's visitor reads the claim and the example, and runs it later. So the first screen is designed for the laptop, and a phone gets no page of its own yet.
 
-## The shell's editing
-
-It was found by trying whether a visitor can change the counter that Try it puts into the shell.
-
-The page says that `foo` holds none of the counter's code. The session shows a spawn, a send and `Some(5)`, which is what an Erlang reader expects of `spawn(Node, Fun)` on a node that has the module. Nothing printed tells the two cases apart.
-
-An absence cannot be shown. A narrower promise can: `foo` runs what the visitor types. Code typed a moment ago in the visitor's own browser cannot have been installed on `foo` beforehand. A visitor who makes the counter count by twos and gets `Some(10)` from `foo` has shown themselves what "bare" means.
-
-That needs the counter to be edited in the shell. It can be, and no visitor would: no key moves between the lines of an input. A first try assumed that the up arrow moves up a line; the edit landed before the last brace, and the input was refused with a type error. A visitor with history would see the counter vanish at that key.
-
-**The argument for the arrows** is principle 1: a reader whose cursor stands in a block of lines predicts that up goes up a line. Readline has no input of several lines, so its rule for the arrows was not made for this case. fish and IPython move within the input and walk the history from its first and last line.
-
-**For the five things to decide:**
-
-1. §11.2 has `C-p` and `C-n` as the arrows' keys today, and in Emacs `C-p` is the line above.
-2. Once the arrows move by line, a `C-a` that leaves the line would surprise.
-3. The report is silent on the column, and a user meets it.
-4. Walking the history should take one press an entry. fish's way, where the arrows keep walking until another key is pressed, is a mode the screen does not show.
-5. The arrows already stand beside `C-b` and `C-f`, and `Backspace` beside `C-h`. A visitor's keyboard has `Home`, `End` and `Delete`.
-
-Two searches of the log found no entry that weighed the arrows in an input of several lines. For the three keys they found one entry, of 2026-09-30, which stopped an unbound key from typing its escape sequence and did not weigh binding it.
-
 ## Tried and set aside
 
 **Another layout.** It put the example beside the heading and the claims under the button. Over eight pages of the mock it gained the counter above the session, a small text above each block, an invitation under the session and an opening that set the scene. Set beside the rehearsal at the end, the rehearsal's layout was liked better. What it taught was kept:

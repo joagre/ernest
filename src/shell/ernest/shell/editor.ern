@@ -8,33 +8,42 @@
 /// and reads it through the functions here, since its constructor is this
 /// module's.
 
-/// What is being edited: the line and the cursor, what was last killed,
-/// what the keys before this one have begun, the inputs before this one
-/// with how far back through them the person has walked, the line they
-/// were typing when they began to walk, and the search when one is
-/// running. Abstract (report §4.4): the editor alone keeps the cursor
-/// inside the line and a search's place inside the history.
+/// What is being edited: the input and the cursor, what was last killed,
+/// what the key before this one did, what the keys before this one have
+/// begun, the inputs before this one with how far back through them the
+/// person has walked, the text each place the walk left was left with,
+/// and the search when one is running. Abstract (report §4.4): the editor
+/// alone keeps the cursor inside the input and a search's place inside
+/// the history.
 export abstract type Editing =
     Editing(text : String,
             cursor : Int,
             killed : String,
+            previous : Previous,
             pending : Pending,
             history : List(String),
             back : Int,
-            saved : String,
+            kept : Map(Int, String),
             search : Optional(Search))
+
+// Report §11.2: what the key before this one did, which a kill reads to
+// join the kill before it and a move between lines reads for the column
+// it keeps, a `LineKey`'s column. A resize is no key, and the `Escape`
+// that begins a Meta key or a sequence is part of that key, so neither
+// changes it.
+type Previous = OtherKey | KillKey | LineKey(Int)
 
 // Report §12.1: a sequence the terminal sends that `Terminal.Event` does
 // not name (Appendix E.16) arrives as `Escape` and the characters after
 // it, so the editor reads one: `Escape` begins a Meta key, and `Escape [`
-// and `Escape O` begin the rest of a sequence, of which `Escape [ Z` is
-// `Shift-Tab`. After the first character of the rest come its parameters.
-type Pending = Plain | Meta | Bracket | Parameters
+// and `Escape O` begin a sequence, whose characters after the `Escape`
+// it holds until one ends it.
+type Pending = Plain | Meta | Sequence(String)
 
 // An incremental search: what has been typed to search for, where in the
-// history the match is, where the walk stood and what was being typed
-// when the search began, and its direction.
-type Search = Search(query : String, back : Int, origin : Int, saved : String, forward : Bool)
+// history the match is, where the walk stood when the search began, and
+// its direction.
+type Search = Search(query : String, back : Int, origin : Int, forward : Bool)
 
 /// What the reader does after a key: go on with what is being edited,
 /// show the bracket a closing one just typed closes, submit the line,
@@ -50,28 +59,33 @@ export type Edit =
   | Documenting(Editing)
   | Quit
 
-// Nothing typed yet and nothing behind it.
-let fresh =
+// Nothing typed yet and nothing behind it. A function and no `let`,
+// since `Map.empty` is no constant (report §4.6): an attached session runs
+// on its node, where the bindings the session's reach names must be
+// constants (§8.7, docs/design/shell.md *The attached shell*).
+fn fresh() : Editing =
     Editing(text = "",
             cursor = 0,
             killed = "",
+            previous = OtherKey,
             pending = Plain,
             history = [],
             back = 0,
-            saved = "",
+            kept = Map.empty,
             search = None)
 
 /// A session's first line, after the inputs of the sessions before it,
 /// newest first.
 export fn start(history : List(String)) : Editing =
-    Editing(..fresh, =history)
+    Editing(..fresh(), =history)
 
-/// The state to type the next line in: the line just taken joins the
-/// history, which keeps the last inputs as the file does (report §11.2),
-/// and what was killed outlives the line it was killed from, as Readline's
-/// does.
+/// The state to type the next input in, once one is entered or
+/// abandoned: the input just taken joins the history, which keeps the
+/// last inputs as the file does, the texts the walk kept go (report
+/// §11.2), and what was killed outlives the input it was killed from, as
+/// Readline's does.
 export fn next(state : Editing) : Editing =
-    Editing(..fresh,
+    Editing(..fresh(),
             killed = state.killed,
             history = if keeps(state) then
                 List.take(state.text :: state.history, History.kept)
@@ -84,21 +98,22 @@ export fn keeps(state : Editing) : Bool =
     !String.isEmpty(String.trim(state.text)) && List.get(state.history, 0) != Some(state.text)
 
 /// Report §11.2: another line of the same input, which `M-Enter` asks
-/// for and `Enter` does where the parser cannot finish what is typed.
+/// for and `Enter` does where the parser cannot finish what is typed,
+/// taken at the cursor: what stands after it goes to the new line.
 export fn newline(state : Editing) : Editing =
     insert(state, "\n")
 
-/// The line and the cursor a completion left, which the reader puts
+/// The input and the cursor a completion left, which the reader puts
 /// back; the editor knows no names and does no completing of its own. The
-/// cursor is kept inside the line, whatever it is given.
+/// cursor is kept inside the input, whatever it is given.
 export fn withLine(state : Editing, text : String, cursor : Int) : Editing =
     Editing(..state, =text, cursor = Int.max(0, Int.min(String.size(text), cursor)))
 
-/// The line being edited, a search aside.
+/// The input being edited, a search aside.
 export fn text(state : Editing) : String =
     state.text
 
-/// The cursor in the line being edited, a search aside.
+/// The cursor in the input being edited, a search aside.
 export fn cursor(state : Editing) : Int =
     state.cursor
 
@@ -110,8 +125,8 @@ export fn isMidSequence(state : Editing) : Bool =
       | _ -> true
     }
 
-/// What the reader shows on the line and where the cursor stands in it:
-/// the line itself, or, while a search runs, Readline's search prompt
+/// What the reader shows and where the cursor stands in it: the input
+/// itself, or, while a search runs, Readline's search prompt
 /// with the match after it.
 export fn shown(state : Editing) : String =
     match state {
@@ -142,88 +157,103 @@ fn direction(forward : Bool) : String =
 
 /// What a key does to what is being edited, and what the reader does
 /// next.
-export fn edit(state : Editing, event : Terminal.Event) : Edit =
+export fn edit(state : Editing, event : Terminal.Event) : Edit = {
+    // report §11.2: every key forgets what the key before it did but a
+    // kill and a move between lines, which read it; a resize, which is no
+    // key, and an `Escape` or a sequence begun, which is part of the key it
+    // begins, keep it
+    let before = state.previous;
+    let keyed = Editing(..state, previous = OtherKey);
     match state {
         Editing(search = Some(search)) ->
-            searching(Editing(..state, pending = Plain), search, event)
+            searching(Editing(..keyed, pending = Plain), search, event)
       | Editing(pending = Meta) ->
-            meta(Editing(..state, pending = Plain), event)
-      | Editing(pending = Bracket) ->
-            bracket(Editing(..state, pending = Plain), event)
-      | Editing(pending = Parameters) ->
-            sequence(Editing(..state, pending = Plain), event)
+            meta(Editing(..keyed, pending = Plain), before, event)
+      | Editing(pending = Sequence(begun)) ->
+            sequence(Editing(..keyed, pending = Plain), before, begun, event)
       | Editing(pending = Plain) ->
-            plain(state, event)
+            plain(keyed, before, event)
     }
+}
 
-// Report §11.2: `Shift-Tab`, which the terminal sends as `Escape [ Z`,
-// shows what the name at the cursor is.
-fn bracket(state : Editing, event : Terminal.Event) : Edit =
-    match event {
-        Terminal.Key('Z') -> Documenting(state)
-      | other -> sequence(state, other)
-    }
-
-// Report §11.2: every other sequence does nothing, `Delete` as `Escape [
-// 3 ~`, `Home` as `Escape [ H` and `F1` as `Escape O P` among them. Its
-// parameters are characters from U+0020 to U+003F, and one from U+0040
-// to U+007E ends it, as ECMA-48 writes a control sequence; anything else
-// ends it unread, and does what it does.
-fn sequence(state : Editing, event : Terminal.Event) : Edit =
+// Report §12.1: a sequence's parameters are characters from U+0020 to
+// U+003F, and one from U+0040 to U+007E ends it, as ECMA-48 writes a
+// control sequence; anything else ends it unread, and does what it does.
+fn sequence(state : Editing, before : Previous, begun : String, event : Terminal.Event) : Edit =
     match event {
         Terminal.Key(char) ->
             if char >= ' ' && char <= '?' then
-                Edited(Editing(..state, pending = Parameters))
+                Edited(Editing(..state,
+                               pending = Sequence(begun <> Char.toString(char)),
+                               previous = before))
             else if char >= '@' && char <= '~' then
-                Edited(state)
+                named(state, begun <> Char.toString(char))
             else
-                plain(state, event)
+                plain(state, before, event)
       | other ->
-            plain(state, other)
+            plain(state, before, other)
     }
 
-fn plain(state : Editing, event : Terminal.Event) : Edit =
+// Report §11.2: the keys the terminal sends as sequences that the editor
+// binds, by what follows the `Escape`: `Shift-Tab` shows what the name at
+// the cursor is, and `Home`, `End` and `Delete` do as `C-a`, `C-e` and
+// `C-d`, but `Delete` on an empty input does nothing. Every other
+// sequence does nothing, `Escape [ 1 ; 5 H` and `F1` as `Escape O P`
+// among them.
+fn named(state : Editing, sequence : String) : Edit = {
+    let Editing(=text, =cursor) = state;
+    match sequence {
+        "[Z" -> Documenting(state)
+      | "[H" or "OH" or "[1~" or "[7~" -> Edited(Editing(..state, cursor = lineStart(text, cursor)))
+      | "[F" or "OF" or "[4~" or "[8~" -> Edited(Editing(..state, cursor = lineEnd(text, cursor)))
+      | "[3~" -> Edited(deleteAt(state, cursor))
+      | _ -> Edited(state)
+    }
+}
+
+// A key with no `Escape` before it, `before` what the key before it did.
+fn plain(state : Editing, before : Previous, event : Terminal.Event) : Edit =
     match event {
         Terminal.Interrupt ->
             Cancel
       | Terminal.Escape ->
-            Edited(Editing(..state, pending = Meta))
+            Edited(Editing(..state, pending = Meta, previous = before))
       | Terminal.ArrowLeft ->
             Edited(Editing(..state, cursor = Int.max(0, state.cursor - 1)))
       | Terminal.ArrowRight ->
             Edited(Editing(..state, cursor = Int.min(String.size(state.text), state.cursor + 1)))
       | Terminal.ArrowUp ->
-            Edited(walk(state, 1))
+            Edited(up(state, before))
       | Terminal.ArrowDown ->
-            Edited(walk(state, -1))
+            Edited(down(state, before))
       | Terminal.Resized(_) ->
-            Edited(state)
+            Edited(Editing(..state, previous = before))
       // report §11.2: a paste goes in at the cursor, line feeds and all
       | Terminal.Pasted(text) ->
             Edited(insert(state, text))
       | Terminal.Key(char) ->
-            character(state, char)
+            character(state, before, char)
     }
 
 // A character typed, which is Readline's control key where it is one.
-fn character(state : Editing, char : Char) : Edit = {
+fn character(state : Editing, before : Previous, char : Char) : Edit = {
     let Editing(=text, =cursor, =killed) = state;
     match char {
         '\r' or '\n' -> Submit(state) // Enter
-      | '\u{1}' -> Edited(Editing(..state, cursor = 0)) // C-a
-      | '\u{5}' -> Edited(Editing(..state, cursor = String.size(text))) // C-e
+      | '\u{1}' -> Edited(Editing(..state, cursor = lineStart(text, cursor))) // C-a
+      | '\u{5}' -> Edited(Editing(..state, cursor = lineEnd(text, cursor))) // C-e
       | '\u{2}' -> Edited(Editing(..state, cursor = Int.max(0, cursor - 1))) // C-b
       | '\u{6}' -> Edited(Editing(..state, cursor = Int.min(String.size(text), cursor + 1))) // C-f
       | '\u{4}' -> if String.isEmpty(text) then Quit else Edited(deleteAt(state, cursor)) // C-d
       | '\u{8}' or '\u{7f}' -> Edited(deleteBefore(state)) // Backspace and C-h
-      | '\u{b}' -> Edited(killForwardTo(state, String.size(text))) // C-k
-      | '\u{15}' -> Edited(killBackTo(state, 0)) // C-u
-      | '\u{17}' -> Edited(killBackTo(state, wordLeft(text, cursor, unspaced))) // C-w
+      | '\u{b}' -> Edited(killForwardTo(state, before, lineKillEnd(text, cursor))) // C-k
+      | '\u{15}' -> Edited(killBackTo(state, before, lineStart(text, cursor))) // C-u
+      | '\u{17}' -> Edited(killBackTo(state, before, wordLeft(text, cursor, unspaced))) // C-w
       | '\u{19}' -> Edited(insert(state, killed)) // C-y
       | '\u{c}' -> ClearScreen(state) // C-l
       | '\t' -> Completing(state) // the reader has the names to complete against
-      | '\u{10}' -> Edited(walk(state, 1)) // C-p
-      | '\u{e}' -> Edited(walk(state, -1)) // C-n
+      | '\u{10}' -> Edited(up(state, before)) // C-p
+      | '\u{e}' -> Edited(down(state, before)) // C-n
       | '\u{12}' -> Edited(search(state, false)) // C-r
       | '\u{13}' -> Edited(search(state, true)) // C-s
       // report §11.2: the reader shows the bracket it closes
@@ -234,7 +264,7 @@ fn character(state : Editing, char : Char) : Edit = {
 }
 
 // `Escape` and then the key: Readline's Meta bindings.
-fn meta(state : Editing, event : Terminal.Event) : Edit = {
+fn meta(state : Editing, before : Previous, event : Terminal.Event) : Edit = {
     let Editing(=text, =cursor) = state;
     match event {
         // report §11.2: another line, though the parser could run what
@@ -242,12 +272,11 @@ fn meta(state : Editing, event : Terminal.Event) : Edit = {
         Terminal.Key('\r') or Terminal.Key('\n') ->
             Edited(newline(state))
       // report §12.1: `Escape [` and `Escape O` begin a sequence
-      // `Terminal.Event` does not name (Appendix E.16), of which `Escape [
-      // Z` is `Shift-Tab`
+      // `Terminal.Event` does not name (Appendix E.16)
       | Terminal.Key('[') ->
-            Edited(Editing(..state, pending = Bracket))
+            Edited(Editing(..state, pending = Sequence("["), previous = before))
       | Terminal.Key('O') ->
-            Edited(Editing(..state, pending = Parameters))
+            Edited(Editing(..state, pending = Sequence("O"), previous = before))
       | Terminal.Key('<') ->
             Edited(walkTo(state, List.size(state.history)))
       | Terminal.Key('>') ->
@@ -257,36 +286,128 @@ fn meta(state : Editing, event : Terminal.Event) : Edit = {
       | Terminal.Key('f') ->
             Edited(Editing(..state, cursor = wordRight(text, cursor, alphanumeric)))
       | Terminal.Key('d') ->
-            Edited(killForwardTo(state, wordRight(text, cursor, alphanumeric)))
+            Edited(killForwardTo(state, before, wordRight(text, cursor, alphanumeric)))
       | Terminal.Key('\u{8}') or Terminal.Key('\u{7f}') ->
-            Edited(killBackTo(state, wordLeft(text, cursor, alphanumeric)))
+            Edited(killBackTo(state, before, wordLeft(text, cursor, alphanumeric)))
       | Terminal.Key(_) ->
             Edited(state) // an unbound Meta key does nothing
       // every other key does what it does, `Escape` before it or not
       | other ->
-            plain(state, other)
+            plain(state, before, other)
     }
 }
 
 //
-// Walking the history: the inputs before this one, newest first, with
-// `back` how far through them the walk stands, 0 being the line being
-// typed, which is kept while the walk is away from it.
+// Moving between the input's lines: a line is what stands between line
+// feeds, however many rows it wraps onto, and the up and down keys walk
+// the history from the input's first line and its last.
 //
 
-fn walk(state : Editing, stride : Int) : Editing =
-    walkTo(state, state.back + stride)
+// Report §11.2: the up arrow and `C-p` move the cursor to the line
+// above, and from the input's first line walk the history back.
+fn up(state : Editing, before : Previous) : Editing = {
+    let Editing(=text, =cursor) = state;
+    let start = lineStart(text, cursor);
+    if start == 0 then
+        walkTo(state, state.back + 1)
+    else
+        toLine(state, lineStart(text, start - 1), goalColumn(before, cursor - start))
+}
 
-fn walkTo(state : Editing, back : Int) : Editing =
-    if back < 0 || back > List.size(state.history) then
-        state
-    else {
-        let typed = if state.back == 0 then state.text else state.saved;
-        let recalled = if back == 0 then typed else entry(state.history, back);
-        Editing(..state, text = recalled, cursor = String.size(recalled), saved = typed, =back)
+// Report §11.2: the down arrow and `C-n` move the cursor to the line
+// below, and from the input's last line walk the history forward.
+fn down(state : Editing, before : Previous) : Editing = {
+    let Editing(=text, =cursor) = state;
+    let end = lineEnd(text, cursor);
+    if end == String.size(text) then
+        walkTo(state, state.back - 1)
+    else
+        toLine(state, end + 1, goalColumn(before, cursor - lineStart(text, cursor)))
+}
+
+// Report §11.2: the cursor on the line that begins at `start`, at the
+// column it keeps, or at the line's end where the line is shorter; the
+// column is remembered for the next such move.
+fn toLine(state : Editing, start : Int, column : Int) : Editing =
+    Editing(..state,
+            cursor = Int.min(start + column, lineEnd(state.text, start)),
+            previous = LineKey(column))
+
+// The column a move between lines keeps: the one the move before it kept,
+// or else the cursor's, counted in characters from its line's start.
+fn goalColumn(before : Previous, current : Int) : Int =
+    match before {
+        LineKey(column) -> column
+      | _ -> current
     }
 
-// The input `back` places back, 1 being the one before this line.
+// The start of the cursor's line, after the line feed before it.
+fn lineStart(text : String, cursor : Int) : Int =
+    match String.lastIndexOf(String.slice(text, 0, cursor), "\n") {
+        None -> 0
+      | Some(index) -> index + 1
+    }
+
+// The end of the cursor's line, at the line feed after it or the input's
+// end.
+fn lineEnd(text : String, cursor : Int) : Int =
+    match String.indexOf(String.drop(text, cursor), "\n") {
+        None -> String.size(text)
+      | Some(index) -> cursor + index
+    }
+
+// Report §11.2: where `C-k` kills to, the end of the cursor's line, and
+// at a line's end past its line feed.
+fn lineKillEnd(text : String, cursor : Int) : Int = {
+    let end = lineEnd(text, cursor);
+    if end == cursor then Int.min(String.size(text), cursor + 1) else end
+}
+
+//
+// Walking the history: the inputs before this one, newest first, with
+// `back` how far through them the walk stands, 0 being the input being
+// typed. Each place the walk leaves keeps the text it was left with, the
+// input being typed among them, until an input is entered or abandoned
+// (`next`); the history itself is never changed.
+//
+
+// Report §11.2: the walk to the place `back`, an input a walk back
+// recalls shown with the cursor at the end of its first line and one a
+// walk forward recalls at the end of its last. A walk with nowhere to go,
+// past an end of the history or to where it stands, goes nowhere.
+fn walkTo(state : Editing, back : Int) : Editing =
+    if back < 0 || back > List.size(state.history) || back == state.back then
+        state
+    else {
+        let walked = standAt(state, back);
+        let Editing(=text) = walked;
+        Editing(..walked,
+                cursor = if back > state.back then lineEnd(text, 0) else String.size(text))
+    }
+
+// The walk standing at `back`, the text it leaves kept under the place it
+// leaves; the cursor is the caller's to place.
+fn standAt(state : Editing, back : Int) : Editing =
+    if back == state.back then
+        state
+    else
+        Editing(..state,
+                text = textAt(state, back),
+                kept = Map.put(state.kept, state.back, state.text),
+                =back)
+
+// What the place `back` shows, to a walk and a search alike: the text
+// being edited where the walk stands, the text a walk left elsewhere, or
+// else the input the history holds there.
+fn textAt(state : Editing, back : Int) : String =
+    if back == state.back then
+        state.text
+    else match Map.get(state.kept, back) {
+        Some(text) -> text
+      | None -> entry(state.history, back)
+    }
+
+// The input `back` places back, 1 being the one before this input.
 fn entry(history : List(String), back : Int) : String =
     Optional.withDefault(List.get(history, back - 1), "")
 
@@ -294,17 +415,14 @@ fn entry(history : List(String), back : Int) : String =
 // Searching the history: `C-r` back and `C-s` forward, each character
 // typed narrowing the search, `C-g` putting back what the search began
 // from, and every other key ending the search and then doing what it
-// does. A search that matches nothing keeps the line it last matched and
-// says so in its prompt.
+// does. A search that matches nothing keeps the input it last matched and
+// says so in its prompt. It reads each place as the walk left it, and
+// keeps the text it leaves as the walk does.
 //
 
 fn search(state : Editing, forward : Bool) : Editing =
     Editing(..state,
-            search = Some(Search(query = "",
-                                 back = state.back,
-                                 origin = state.back,
-                                 saved = state.text,
-                                 =forward)))
+            search = Some(Search(query = "", back = state.back, origin = state.back, =forward)))
 
 fn searching(state : Editing, search : Search, event : Terminal.Event) : Edit =
     match event {
@@ -332,7 +450,7 @@ fn searching(state : Editing, search : Search, event : Terminal.Event) : Edit =
 // The next match in the direction, the search standing where it was when
 // there is none.
 fn seek(state : Editing, search : Search, stride : Int) : Editing =
-    match find(state.history, search.query, search.back + stride, stride) {
+    match find(state, search.query, search.back + stride, stride) {
         Some(found) -> matched(state, search, found)
       | None -> Editing(..state, search = Some(search))
     }
@@ -343,7 +461,7 @@ fn narrow(state : Editing, search : Search, char : Char) : Editing = {
     let Search(=query, =back) = search;
     let narrower = Search(..search, query = query <> Char.toString(char));
     let first = if back == 0 then back + stride(search) else back;
-    match find(state.history, query <> Char.toString(char), first, stride(search)) {
+    match find(state, query <> Char.toString(char), first, stride(search)) {
         Some(found) -> matched(state, narrower, found)
       | None -> Editing(..state, search = Some(narrower))
     }
@@ -353,52 +471,49 @@ fn narrow(state : Editing, search : Search, char : Char) : Editing = {
 // again from where it started, so that a shorter query may match a
 // nearer input.
 fn shorten(state : Editing, search : Search) : Editing = {
-    let Search(=query, =origin, =saved) = search;
+    let Search(=query, =origin) = search;
     let shorter = String.slice(query, 0, Int.max(0, String.size(query) - 1));
     let shortened = Search(..search, query = shorter, back = origin);
     if String.isEmpty(shorter) then
-        Editing(..state,
-                text = saved,
-                cursor = String.size(saved),
-                back = origin,
-                search = Some(shortened))
-    else match find(state.history, shorter, origin + stride(search), stride(search)) {
+        Editing(..returned(state, origin), search = Some(shortened))
+    else match find(state, shorter, origin + stride(search), stride(search)) {
         Some(found) -> matched(state, shortened, found)
       | None -> Editing(..state, search = Some(shortened))
     }
 }
 
-// `C-g`: the line the search began from comes back.
+// Report §11.2: `C-g` leaves a search for the input it began from.
 fn abandon(state : Editing, search : Search) : Editing =
-    Editing(..state,
-            text = search.saved,
-            cursor = String.size(search.saved),
-            back = search.origin,
-            search = None)
+    Editing(..returned(state, search.origin), search = None)
+
+// The input the search began from, as it was left, with the cursor at
+// its end.
+fn returned(state : Editing, origin : Int) : Editing = {
+    let walked = standAt(state, origin);
+    Editing(..walked, cursor = String.size(walked.text))
+}
 
 // The search ends and the input it found stays.
 fn stop(state : Editing) : Editing =
     Editing(..state, search = None)
 
 fn matched(state : Editing, search : Search, back : Int) : Editing = {
-    let text = entry(state.history, back);
-    Editing(..state,
-            =text,
-            cursor = matchAt(text, search.query),
-            =back,
+    let walked = standAt(state, back);
+    Editing(..walked,
+            cursor = matchAt(walked.text, search.query),
             search = Some(Search(..search, =back)))
 }
 
 fn matchAt(text : String, query : String) : Int =
     Optional.withDefault(String.indexOf(text, query), String.size(text))
 
-fn find(history : List(String), query : String, back : Int, stride : Int) : Optional(Int) =
-    if back < 1 || back > List.size(history) then
+fn find(state : Editing, query : String, back : Int, stride : Int) : Optional(Int) =
+    if back < 1 || back > List.size(state.history) then
         None
-    else if String.indexOf(entry(history, back), query) != None then
+    else if String.contains(textAt(state, back), query) then
         Some(back)
     else
-        find(history, query, back + stride, stride)
+        find(state, query, back + stride, stride)
 
 fn stride(search : Search) : Int =
     if search.forward then -1 else 1
@@ -436,34 +551,54 @@ fn deleteAt(state : Editing, index : Int) : Editing = {
         Editing(..state, text = String.slice(text, 0, index) <> String.drop(text, index + 1))
 }
 
-// Kill back to `index`, keeping what was killed for `C-y`; a kill of
-// nothing leaves the last kill as it was, as Readline's does.
-fn killBackTo(state : Editing, index : Int) : Editing = {
+// Kill back to `index`, keeping what was killed for `C-y`. Report §11.2:
+// kills made one after another are one kill, so where the key before was
+// a kill too, what this one takes joins the front of what `C-y` holds, as
+// Readline joins them.
+fn killBackTo(state : Editing, before : Previous, index : Int) : Editing = {
     let Editing(=text, =cursor) = state;
     if index >= cursor then
-        state
+        unbroken(state, before)
     else
         Editing(..state,
                 text = String.slice(text, 0, index) <> String.drop(text, cursor),
                 cursor = index,
-                killed = String.slice(text, index, cursor))
+                killed = String.slice(text, index, cursor) <> joined(state, before),
+                previous = KillKey)
 }
 
-// Kill forward to `index`, as `killBackTo` kills back.
-fn killForwardTo(state : Editing, index : Int) : Editing = {
+// Kill forward to `index`, as `killBackTo` kills back, what it takes
+// joining the end of what `C-y` holds.
+fn killForwardTo(state : Editing, before : Previous, index : Int) : Editing = {
     let Editing(=text, =cursor) = state;
     if index <= cursor then
-        state
+        unbroken(state, before)
     else
         Editing(..state,
                 text = String.slice(text, 0, cursor) <> String.drop(text, index),
-                killed = String.slice(text, cursor, index))
+                killed = joined(state, before) <> String.slice(text, cursor, index),
+                previous = KillKey)
 }
+
+// What a kill joins: the last kill, where the key before was a kill too.
+fn joined(state : Editing, before : Previous) : String =
+    match before {
+        KillKey -> state.killed
+      | _ -> ""
+    }
+
+// A kill of nothing leaves the last kill as it was, as Readline's does,
+// and leaves a run of kills unbroken, beginning none.
+fn unbroken(state : Editing, before : Previous) : Editing =
+    match before {
+        KillKey -> Editing(..state, previous = KillKey)
+      | _ -> state
+    }
 
 // report §11.2: the start of the word before the cursor, over what is not
 // in a word and then over the word itself; `inWord` says what a word is,
-// a run of letters and digits for the Meta keys and anything but a space
-// or a tab for C-w, as in Readline.
+// a run of letters and digits for the Meta keys and anything but a space,
+// a tab or a line feed for C-w, as in Readline.
 fn wordLeft(text : String, cursor : Int, inWord : (String, Int) -> Bool) : Int =
     over(text, over(text, cursor, -1, fn(line, index) = !inWord(line, index)), -1, inWord)
 
@@ -487,7 +622,7 @@ fn isBeyond(text : String, index : Int, stride : Int) : Bool =
 
 fn unspaced(text : String, index : Int) : Bool = {
     let grapheme = String.slice(text, index, index + 1);
-    grapheme != " " && grapheme != "\t"
+    grapheme != " " && grapheme != "\t" && grapheme != "\n"
 }
 
 // A grapheme is judged by its first code point, which is what Char's
@@ -651,10 +786,11 @@ let cancels =
               })
 
 let leaves =
-    Test.Case(name = "C-d on an empty line leaves the shell", run = fn() = match play([ctrl('d')]) {
-        Quit -> Test.Passed
-      | other -> Test.Failed(said(other))
-    })
+    Test.Case(name = "C-d on an empty input leaves the shell",
+              run = fn() = match play([ctrl('d')]) {
+                  Quit -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
 
 let clears =
     Test.Case(name = "C-l clears the screen and keeps the line",
@@ -677,6 +813,275 @@ let pastes =
                         "ax\nyb",
                         4))
 
+// report §11.2: a line is taken at the cursor, and what stands after the
+// cursor on its line goes to the new one; `Enter` hands the reader the
+// cursor, and the reader's `newline` takes the line there
+let takesLineAtCursor =
+    Test.Case(name = "Enter takes a line at the cursor",
+              run = fn() =
+                  match play(keys("abcd")
+                                 <> [Terminal.ArrowLeft, Terminal.ArrowLeft, Terminal.Key('\r')]) {
+                      Submit(state) -> reads(Edited(newline(state)), "ab\ncd", 3)
+                    | other -> Test.Failed(said(other))
+                  })
+
+//
+// Report §11.2: the input's lines, which a line feed parts.
+//
+
+// The text of three lines the column tests move through, its first and
+// last of eight characters and its middle of one: 0 to 8, 9 to 10, and
+// 11 to 19.
+let threeLines = Terminal.Pasted("abcdefgh\nx\nabcdefgh")
+
+let upByLine =
+    Test.Case(name = "the up arrow moves to the line above, keeping the column",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abcd\nxy"), Terminal.ArrowLeft, Terminal.ArrowUp]),
+                        "abcd\nxy",
+                        1))
+
+let downByLine =
+    Test.Case(name = "the down arrow moves to the line below, keeping the column",
+              run = fn() =
+                  reads(play([Terminal.Pasted("ab\ncd"),
+                              Terminal.ArrowUp,
+                              Terminal.ArrowLeft,
+                              Terminal.ArrowDown]),
+                        "ab\ncd",
+                        4))
+
+let linesByKey =
+    Test.Case(name = "C-p and C-n move between lines as the arrows do",
+              run = fn() =
+                  reads(play([Terminal.Pasted("ab\ncd\nef"), ctrl('p'), ctrl('p'), ctrl('n')]),
+                        "ab\ncd\nef",
+                        5))
+
+let upWalksFromFirstLine =
+    Test.Case(name = "the up arrow on the input's first line walks the history back",
+              run = fn() =
+                  reads(plays(start(["old"]),
+                              [Terminal.Pasted("ab\ncd"), Terminal.ArrowUp, Terminal.ArrowUp]),
+                        "old",
+                        3))
+
+let downWalksFromLastLine =
+    Test.Case(name = "the down arrow on the input's last line walks the history forward",
+              run = fn() =
+                  reads(plays(start(["x\nyz"]),
+                              [Terminal.ArrowUp, Terminal.ArrowDown, Terminal.ArrowDown]),
+                        "",
+                        0))
+
+let shorterLine =
+    Test.Case(name = "the cursor stands at the end of a line shorter than its column",
+              run = fn() = reads(play([Terminal.Pasted("x\nabc"), Terminal.ArrowUp]), "x\nabc", 1))
+
+let emptyLine =
+    Test.Case(name = "an empty line inside an input is a line, and the column passes it",
+              run = fn() = {
+                  let typed = Terminal.Pasted("abc\n\ndef");
+                  Test.equal(#(cursorAfter([typed, Terminal.ArrowUp]),
+                               cursorAfter([typed, Terminal.ArrowUp, Terminal.ArrowUp])),
+                             #(4, 3))
+              })
+
+let columnRememberedUp =
+    Test.Case(name = "the column is remembered up through a shorter line",
+              run = fn() =
+                  reads(play([threeLines, Terminal.ArrowUp, Terminal.ArrowUp]),
+                        "abcdefgh\nx\nabcdefgh",
+                        8))
+
+let columnRememberedDown =
+    Test.Case(name = "the column is remembered down through a shorter line",
+              run = fn() =
+                  reads(play([threeLines, ctrl('p'), ctrl('p'), ctrl('n'), ctrl('n')]),
+                        "abcdefgh\nx\nabcdefgh",
+                        19))
+
+let columnForgottenByKey =
+    Test.Case(name = "any other key forgets the column",
+              run = fn() =
+                  reads(play([threeLines, Terminal.ArrowUp, ctrl('e'), Terminal.ArrowUp]),
+                        "abcdefgh\nx\nabcdefgh",
+                        1))
+
+let columnForgottenByWalk =
+    Test.Case(name = "a walk forgets the column",
+              run = fn() =
+                  reads(plays(start(["q\nrstuvwxyz"]),
+                              [Terminal.Pasted("abcdefgh\nabcdefgh"),
+                               Terminal.ArrowUp,
+                               Terminal.ArrowUp,
+                               Terminal.ArrowDown]),
+                        "q\nrstuvwxyz",
+                        3))
+
+let columnThroughResize =
+    Test.Case(name = "a resize forgets no column",
+              run = fn() =
+                  reads(play([threeLines,
+                              Terminal.ArrowUp,
+                              Terminal.Resized(Terminal.Size(rows = 24, columns = 80)),
+                              Terminal.ArrowUp]),
+                        "abcdefgh\nx\nabcdefgh",
+                        8))
+
+// the `Escape` before a key is part of that key
+let columnThroughEscape =
+    Test.Case(name = "an Escape before an arrow forgets no column",
+              run = fn() =
+                  reads(play([threeLines, Terminal.ArrowUp, Terminal.Escape, Terminal.ArrowUp]),
+                        "abcdefgh\nx\nabcdefgh",
+                        8))
+
+let lineEnds =
+    Test.Case(name = "C-a and C-e go to the ends of the cursor's line",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abc\ndef"), Terminal.ArrowUp, ctrl('a')]
+                                 <> keys("X")
+                                 <> [ctrl('e')]
+                                 <> keys("Y")),
+                        "XabcY\ndef",
+                        5))
+
+let lastLineStart =
+    Test.Case(name = "C-a on the last line goes to its start",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abc\ndef"), ctrl('a')] <> keys("X")),
+                        "abc\nXdef",
+                        5))
+
+let killToLineEnd =
+    Test.Case(name = "C-k kills to the end of the cursor's line",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abc\ndef"), Terminal.ArrowUp, ctrl('a'), ctrl('k')]),
+                        "\ndef",
+                        0))
+
+let killLineFeed =
+    Test.Case(name = "C-k at a line's end kills its line feed",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abc\ndef"), Terminal.ArrowUp, ctrl('k')]),
+                        "abcdef",
+                        3))
+
+let killAtInputEnd =
+    Test.Case(name = "C-k at the input's end kills nothing",
+              run = fn() = reads(play([Terminal.Pasted("abc\ndef"), ctrl('k')]), "abc\ndef", 7))
+
+let killToLineStart =
+    Test.Case(name = "C-u kills back to the start of the cursor's line",
+              run = fn() = reads(play([Terminal.Pasted("abc\ndef"), ctrl('u')]), "abc\n", 4))
+
+let killAtLineStart =
+    Test.Case(name = "C-u at a line's start kills nothing",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abc\ndef"), ctrl('a'), ctrl('u')]), "abc\ndef", 4))
+
+let killWordToLineFeed =
+    Test.Case(name = "C-w kills back to a line feed",
+              run = fn() = reads(play([Terminal.Pasted("abc\ndef"), ctrl('w')]), "abc\n", 4))
+
+let deleteBeforeLine =
+    Test.Case(name = "Backspace at a line's start deletes the line feed before it",
+              run = fn() =
+                  reads(play([Terminal.Pasted("ab\ncd"), ctrl('a'), Terminal.Key('\u{7f}')]),
+                        "abcd",
+                        2))
+
+let wordBackPastLine =
+    Test.Case(name = "M-b at a line's start goes to the word on the line before",
+              run = fn() =
+                  reads(play([Terminal.Pasted("ab\ncd"), ctrl('a'), Terminal.Escape] <> keys("b")),
+                        "ab\ncd",
+                        0))
+
+let killWordPastLine =
+    Test.Case(name = "C-w at a line's start kills the line feed and the word before it",
+              run = fn() = reads(play([Terminal.Pasted("ab\ncd"), ctrl('a'), ctrl('w')]), "cd", 0))
+
+// report §11.2: a character is a grapheme, and the column counts them
+let columnInGraphemes =
+    Test.Case(name = "the column counts graphemes",
+              run = fn() =
+                  reads(play([Terminal.Pasted("e\u{301}xyz\nab"), Terminal.ArrowUp] <> keys("!")),
+                        "e\u{301}x!yz\nab",
+                        3))
+
+//
+// Report §11.2: kills made one after another are one kill.
+//
+
+let killsJoinForward =
+    Test.Case(name = "kills forward one after another are one kill",
+              run = fn() =
+                  reads(play([Terminal.Pasted("one two three"), ctrl('a'), Terminal.Escape]
+                                 <> keys("d")
+                                 <> [Terminal.Escape]
+                                 <> keys("d")
+                                 <> [ctrl('y')]),
+                        "one two three",
+                        7))
+
+let killsJoinBack =
+    Test.Case(name = "kills back one after another are one kill",
+              run = fn() =
+                  reads(play([Terminal.Pasted("one two three"), ctrl('w'), ctrl('w'), ctrl('y')]),
+                        "one two three",
+                        13))
+
+let killsJoinBothWays =
+    Test.Case(name = "a kill back after a kill forward joins its front",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abc def"),
+                              Terminal.ArrowLeft,
+                              Terminal.ArrowLeft,
+                              ctrl('k'),
+                              ctrl('u'),
+                              ctrl('y')]),
+                        "abc def",
+                        7))
+
+let killRunEnded =
+    Test.Case(name = "a key between two kills makes them two",
+              run = fn() =
+                  reads(play([Terminal.Pasted("one two three"),
+                              ctrl('w'),
+                              ctrl('e'),
+                              ctrl('w'),
+                              ctrl('y')]),
+                        "one two ",
+                        8))
+
+// Report §11.2, as in Readline: a kill that takes nothing is a kill still,
+// so the kills on either side of it are one, but it begins no run with
+// the kill before another key.
+let killOfNothingInRun =
+    Test.Case(name = "a kill of nothing between two kills leaves them one",
+              run = fn() =
+                  reads(play([Terminal.Pasted("ab cd"),
+                              ctrl('w'),
+                              ctrl('k'),
+                              ctrl('w'),
+                              ctrl('y')]),
+                        "ab cd",
+                        5))
+
+let killOfNothingBeginsNoRun =
+    Test.Case(name = "a kill of nothing begins no run with the last kill",
+              run = fn() =
+                  reads(play([Terminal.Pasted("ab cd"),
+                              ctrl('w'),
+                              ctrl('e'),
+                              ctrl('k'),
+                              ctrl('w'),
+                              ctrl('y')]),
+                        "ab ",
+                        3))
+
 let asksToComplete =
     Test.Case(name = "Tab asks the reader to complete",
               run = fn() = match play(keys("Li") <> [Terminal.Key('\t')]) {
@@ -692,12 +1097,54 @@ let asksToDocument =
               })
 
 // report §11.2. A regression test: the rest of a sequence but `Shift-Tab`
-// was typed into the line, `a3~` for `Delete`
+// was typed into the line, `a3~` for `Delete`. `Escape [ 1 ; 5 H` and
+// `Escape [ 5 ~` hold the characters of `Home` and of `Delete` with other
+// parameters.
 let unboundSequences = Test.Case(name = "a sequence that is not bound does nothing", run = fn() = {
-    let sequences = ["[3~", "[H", "[F", "[5~", "[1;5C", "OP", "[15~"];
+    let sequences = ["[5~", "[1;5C", "[1;5H", "[2~", "OP", "[15~"];
     let typed = List.flatMap(sequences, fn(rest) = [Terminal.Escape] <> keys(rest));
-    reads(play(keys("a") <> typed <> keys("b")), "ab", 2)
+    reads(play(keys("ab") <> [Terminal.ArrowLeft] <> typed <> keys("c")), "acb", 2)
 })
+
+// report §11.2: `Home` does as `C-a`, by each sequence a terminal sends
+// for it
+let homeKey = Test.Case(name = "Home goes to the start of the cursor's line", run = fn() = {
+    let typed = [Terminal.Pasted("abc\ndef"), Terminal.ArrowLeft];
+    Test.equal(List.map(["[H", "OH", "[1~", "[7~"],
+                        fn(rest) = cursorAfter(typed <> [Terminal.Escape] <> keys(rest))),
+               [4, 4, 4, 4])
+})
+
+// report §11.2: `End` does as `C-e`
+let endKey = Test.Case(name = "End goes to the end of the cursor's line", run = fn() = {
+    let typed = [Terminal.Pasted("abc\ndef"), Terminal.ArrowUp, ctrl('a')];
+    Test.equal(List.map(["[F", "OF", "[4~", "[8~"],
+                        fn(rest) = cursorAfter(typed <> [Terminal.Escape] <> keys(rest))),
+               [3, 3, 3, 3])
+})
+
+// report §11.2: `Delete` does as `C-d`
+let deleteKey =
+    Test.Case(name = "Delete deletes the character at the cursor",
+              run = fn() =
+                  reads(play([Terminal.Pasted("abc"), ctrl('a'), Terminal.Escape] <> keys("[3~")),
+                        "bc",
+                        0))
+
+// report §11.2: a line feed is a character
+let deleteLineFeed =
+    Test.Case(name = "Delete at a line's end deletes its line feed",
+              run = fn() =
+                  reads(play([Terminal.Pasted("ab\ncd"), Terminal.ArrowUp, Terminal.Escape]
+                                 <> keys("[3~")),
+                        "abcd",
+                        2))
+
+// report §11.2: `Delete` on an empty input does nothing, where `C-d`
+// leaves the shell
+let deleteOnEmpty =
+    Test.Case(name = "Delete on an empty input does nothing",
+              run = fn() = reads(play([Terminal.Escape] <> keys("[3~")), "", 0))
 
 let sequenceEndsUnread =
     Test.Case(name = "a key that is no part of a sequence ends it and does what it does",
@@ -737,6 +1184,113 @@ let walksToEnds =
                   reads(plays(start(["two", "one"]),
                               [Terminal.Escape] <> keys("<") <> [Terminal.Escape] <> keys(">")),
                         "",
+                        0))
+
+// Report §11.2: a walk keeps each input as it was left, changed or not,
+// the one being typed among them, until an input is entered or abandoned.
+let keepsWhatItLeaves =
+    Test.Case(name = "a walk keeps a recalled input as it was left",
+              run = fn() =
+                  reads(plays(start(["old"]),
+                              keys("new")
+                                  <> [Terminal.ArrowUp]
+                                  <> keys("!")
+                                  <> [Terminal.ArrowDown, Terminal.ArrowUp]),
+                        "old!",
+                        4))
+
+// The reader answers `C-c` with `next` too, so this holds an input
+// abandoned as well as one entered.
+let keptUntilEntered =
+    Test.Case(name = "the kept inputs go once an input is entered",
+              run = fn() =
+                  match plays(start(["old"]),
+                              [Terminal.ArrowUp]
+                                  <> keys("!")
+                                  <> [Terminal.ArrowDown]
+                                  <> keys("x")
+                                  <> [Terminal.Key('\r')]) {
+                      Submit(state) -> {
+                          let entered = next(state);
+                          Test.equal(#(entered.history,
+                                       shows(plays(entered, [Terminal.ArrowUp, Terminal.ArrowUp]))),
+                                     #(["x", "old"], "old"))
+                      }
+                    | other ->
+                          Test.Failed(said(other))
+                  })
+
+// Report §11.2: an input a walk back recalls shows with the cursor at the
+// end of its first line, and one a walk forward recalls at the end of its
+// last.
+let recalledBack =
+    Test.Case(name = "a walk back shows the cursor at the end of the first line",
+              run = fn() = reads(plays(start(["ab\ncd"]), [Terminal.ArrowUp]), "ab\ncd", 2))
+
+let recalledForward =
+    Test.Case(name = "a walk forward shows the cursor at the end of the last line",
+              run = fn() =
+                  reads(plays(start(["ab\ncd", "x\nyz"]),
+                              [Terminal.ArrowUp,
+                               Terminal.ArrowUp,
+                               Terminal.ArrowDown,
+                               Terminal.ArrowDown]),
+                        "ab\ncd",
+                        5))
+
+// Report §11.2: `M-<` walks to the history's first input and `M->` to the
+// input being typed, from any line.
+let firstFromAnyLine =
+    Test.Case(name = "M-< walks to the oldest input from the last line",
+              run = fn() =
+                  reads(plays(start(["ab\ncd", "x\nyz"]),
+                              [Terminal.Pasted("p\nq"), Terminal.Escape] <> keys("<")),
+                        "x\nyz",
+                        1))
+
+let typedFromAnyLine =
+    Test.Case(name = "M-> walks back to the input being typed from the first line",
+              run = fn() =
+                  reads(plays(start(["ab\ncd", "x\nyz"]),
+                              [Terminal.Pasted("p\nq"), Terminal.Escape]
+                                  <> keys("<")
+                                  <> [Terminal.Escape]
+                                  <> keys(">")),
+                        "p\nq",
+                        3))
+
+// Report §11.2: at an end of the history a walk goes nowhere, and moves
+// no cursor.
+let nowhereBack =
+    Test.Case(name = "the up arrow at the oldest input goes nowhere",
+              run = fn() =
+                  reads(plays(start(["old"]),
+                              [Terminal.ArrowUp, Terminal.ArrowLeft, Terminal.ArrowUp]),
+                        "old",
+                        2))
+
+let nowhereForward =
+    Test.Case(name = "the down arrow at the input being typed goes nowhere",
+              run = fn() =
+                  reads(plays(start(["old"]),
+                              keys("ab") <> [Terminal.ArrowLeft, Terminal.ArrowDown]),
+                        "ab",
+                        1))
+
+let alreadyFirst =
+    Test.Case(name = "M-< at the oldest input goes nowhere",
+              run = fn() =
+                  reads(plays(start(["old"]),
+                              [Terminal.ArrowUp, ctrl('a'), Terminal.Escape] <> keys("<")),
+                        "old",
+                        0))
+
+let alreadyTyped =
+    Test.Case(name = "M-> at the input being typed goes nowhere",
+              run = fn() =
+                  reads(plays(start(["old"]),
+                              keys("ab") <> [ctrl('a'), Terminal.Escape] <> keys(">")),
+                        "ab",
                         0))
 
 let searches =
@@ -794,6 +1348,32 @@ let searchLeft =
                         "print two",
                         0))
 
+// Report §11.2: a search reads the inputs as the walk left them.
+let searchesKept =
+    Test.Case(name = "C-r finds a recalled input as it was left",
+              run = fn() =
+                  reads(plays(start(["print two"]),
+                              [Terminal.ArrowUp]
+                                  <> keys(" more")
+                                  <> [Terminal.ArrowDown, ctrl('r')]
+                                  <> keys("more")),
+                        "print two more",
+                        10))
+
+// Report §11.2: `C-g` leaves a search for the input it began from, as the
+// walk left it.
+let searchAbandonedKept =
+    Test.Case(name = "C-g puts back a recalled input as it was left",
+              run = fn() =
+                  reads(plays(start(["print two", "print one"]),
+                              [Terminal.ArrowUp]
+                                  <> keys("!")
+                                  <> [ctrl('r')]
+                                  <> keys("one")
+                                  <> [ctrl('g')]),
+                        "print two!",
+                        10))
+
 let joinsHistory =
     Test.Case(name = "the line just taken joins the history",
               run = fn() =
@@ -831,13 +1411,21 @@ fn ctrl(letter : Char) : Terminal.Event =
 // The events in order, from a fresh line; an event after the line ended
 // changes nothing, so the first ending is what a test reads.
 fn play(events : List(Terminal.Event)) : Edit =
-    plays(fresh, events)
+    plays(fresh(), events)
 
 fn plays(initial : Editing, events : List(Terminal.Event)) : Edit =
     List.foldLeft(events, Edited(initial), fn(edited, event) = match edited {
         Edited(state) or Matching(state) -> edit(state, event)
       | ended -> ended
     })
+
+// Where the cursor stands after the events, from a fresh input, or -1
+// where they ended the input.
+fn cursorAfter(events : List(Terminal.Event)) : Int =
+    match play(events) {
+        Edited(state) -> state.cursor
+      | _ -> -1
+    }
 
 fn reads(edited : Edit, text : String, cursor : Int) : Test.Result =
     match edited {

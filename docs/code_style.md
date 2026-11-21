@@ -239,7 +239,7 @@ An entry gives the name, what it names and where the code holds it. The mechanis
 
 The names are [`guide/style.md`](../guide/style.md)'s, with the spellings its glossary refuses; one met in the repository's Ernest is corrected to the guide's name. Beside them, the names that recur across the shell's modules:
 
-- **cursor**: the place in the line being typed, in `Ernest.Shell`, `Ernest.Shell.Editor`, `Ernest.Shell.Region` and `Ernest.Shell.Complete`. Not `at`.
+- **cursor**: the place in the input being typed, in `Ernest.Shell`, `Ernest.Shell.Editor`, `Ernest.Shell.Region` and `Ernest.Shell.Complete`. Not `at`.
 - **serial**: the number the shell gives an input, which its outcome carries, in `Ernest.Shell` and in its front end, `ern_shell`'s `Serial`. Not `run`, `n`.
 - **color**: whether the shell colors what it says, a `Markdown.Output`, in `Ernest.Shell` and `Ernest.Shell.Style`.
 - **ending**: the bytes that end what the screen drew where its last write left it, which an attached shell's local half writes at its node's end, in `Ernest.Shell` and `Ernest.Shell.Region`: the region's `ending`, and the field of `Write` and of `Serving`. Not `finish`, which is the session's end with its screen.

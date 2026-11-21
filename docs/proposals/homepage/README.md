@@ -1,6 +1,6 @@
 # The homepage and the blocks' tools
 
-What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6's items 3 and 4, since 2026-11-18. Item 3, the homepage and the tools, is built since 2026-11-19, ahead of its milestone (the log's *The Homepage Built*), and stays here as the record of its design until the milestone's release. Of the proposal's *Open*, 2 and 3 are done and 1 is MVP 4.17's item 119, and the page stays without a line above a block. Item 4, the stylesheet's units, is not built. Nothing in it is authoritative: what is built is the site's design note's, [`docs/design/site.md`](../../design/site.md).
+What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6's items 3 and 4, since 2026-11-18. Item 3, the homepage and the tools, is built since 2026-11-19, ahead of its milestone (the log's *The Homepage Built*), and stays here as the record of its design until the milestone's release. The proposal's *Open* is done, its 1 with MVP 4.17's item 119 on 2026-11-21 (the log's *An Input Edited by Its Lines*), and the page stays without a line above a block. Item 4, the stylesheet's units, is not built. Nothing in it is authoritative: what is built is the site's design note's, [`docs/design/site.md`](../../design/site.md).
 
 | File | What it is | Status |
 |---|---|---|
@@ -9,6 +9,6 @@ What each file here is, and which is current. The proposal is decided and planne
 
 The need: on a laptop the rehearsal's first screen held the heading, the opening, the claims and the top of the example, with the session's end and Try it below it. The page's claim is one the visitor runs, and the first screen was the telling.
 
-The shell's editing was found on the way, and is MVP 4.17's item 119. Its reasons stand in `reasons.md` until it is built.
+The shell's editing was found on the way, and was built as MVP 4.17's item 119. Its reasons are the log's *An Input Edited by Its Lines*.
 
 The mock is not in the repository. The proposal holds the markup and the rules that make the chosen page again.

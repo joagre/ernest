@@ -434,7 +434,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the runtime | `make test`, `make test-integration` |
 | nodes, or the deployment guide | `make test`, `make test-nodes`, `make test-deployment` |
 | the standard library, or a library under `src/libs/` | `make test-library`, then `make test`, `make test-integration` |
-| the shell | `make test`, `make test-shell` |
+| the shell | `make test`, `make test-shell`, and `make test-nodes`, which runs the attached shell |
 | the installation, the release, or the manual pages | `make test-install`, which runs `test-manual` first; the pages alone `make test-manual` |
 | the Emacs mode | `make test-emacs` |
 | the language guide, the report, the README, `docs/diagnostics.md` or `docs/module_doc_template.md` | `make test`, `make test-guide`; report Appendix A `make test-grammar` too, report §11 `make test-manual` and `make test-shell` |

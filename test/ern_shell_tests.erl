@@ -1518,8 +1518,8 @@ editor() ->
 
 %% report §11.2: the editor through the terminal, which is the wiring the
 %% pure tests cannot reach: `C-w` kills the word before the cursor, `C-a`
-%% and `C-e` go to the ends of the line, and what is typed goes in at the
-%% cursor rather than at the end
+%% and `C-e` go to the ends of the cursor's line, and what is typed goes in
+%% at the cursor rather than at the end
 editing_test_() ->
     ern_nodes_tests:counted_test({waits, 7}, fun editing/0).
 
@@ -1542,6 +1542,52 @@ editing() ->
     ?assertMatch({_, _}, binary:match(Screen, <<"42 : Int">>)),
     %% the word was killed rather than the line: `1 + ` stayed
     ?assertEqual(nomatch, binary:match(Screen, <<"1 + 22222\r\n">>)).
+
+%% report §11.2: an input of several lines is edited by its lines, through
+%% the terminal and the runtime to the editor: the up arrow recalls an
+%% input of three lines, the down arrow moves into its second line, and the
+%% input changed there runs, the history keeping it beside the one
+%% recalled; `Home`, `End` and `Delete`, sent as the sequences a terminal
+%% sends, do as `C-a`, `C-e` and `C-d`; and `Enter` with the cursor on the
+%% input's first line runs what there is where its last line is blank
+lines_edited_test_() ->
+    ern_nodes_tests:counted_test({waits, 11}, fun lines_edited/0).
+
+lines_edited() ->
+    Home = fresh_home(),
+    Screen = screen("HOME=" ++ Home ++ " ../bin/ern shell",
+                    [{expect, "> "},
+                     {send, hex("[1,\r")},
+                     {expect, "... "},
+                     {send, hex("2,\r")},
+                     {expect, "... "},
+                     {send, hex("3]\r")},
+                     {expect, "[1, 2, 3] : List(Int)"},
+                     {send, "1b5b41"},                    % ArrowUp: the input back
+                     {expect, "3]"},
+                     %% ArrowDown to the end of `2,`, ArrowLeft, Backspace and
+                     %% a 5 in the 2's place
+                     {send, "1b5b42" ++ "1b5b44" ++ "7f" ++ hex("5")},
+                     {expect, "5,"},
+                     {send, hex("\r")},
+                     {expect, "[1, 5, 3] : List(Int)"},
+                     %% Home, Delete and End: `1234` becomes `2340`
+                     {send, hex("1234") ++ "1b5b48" ++ "1b5b337e" ++ "1b5b46" ++ hex("0\r")},
+                     {expect, "2340 : Int"},
+                     {send, hex("fn f(\r")},
+                     {expect, "... "},
+                     %% ArrowUp to the first line, and Enter there
+                     {send, "1b5b41" ++ hex("\r")},
+                     {expect, "expected a pattern"},
+                     {send, "04"}],
+                    {24, 60}),
+    Text = iolist_to_binary(screen_lines(Screen)),
+    ?assertEqual(1, ern_pty:count(Text, <<"[1, 5, 3] : List(Int)">>)),
+    ?assertEqual(1, ern_pty:count(Text, <<"2340 : Int">>)),
+    %% the edit changed the input recalled and not the history, which holds
+    %% both
+    ?assertEqual([<<"[1,\\n2,\\n3]">>, <<"[1,\\n5,\\n3]">>, <<"2340">>, <<"fn f(\\n">>],
+                 history_lines(filename:join([Home, ".ernest", "history"]))).
 
 %% report §11.2: `C-l` gives a clean screen and keeps the line being
 %% typed; what was committed before it is the terminal's scrollback and
@@ -1672,7 +1718,8 @@ history_lines(File) ->
 %% report §11.2: at a terminal an input may span lines. `Enter` takes
 %% another line where the parser cannot finish the input and runs it
 %% where it can, `M-Enter` takes one whatever the parser says, and
-%% `Enter` on an empty line runs what there is, error and all. The first
+%% `Enter` runs what there is where the input's last line is blank, error
+%% and all. The first
 %% such input of a session says how it is run, once, above the region.
 %% The rows after the first are prompted `... `, `Tab` indents where
 %% there is nothing to complete, and a multi-line input comes back from
@@ -1701,7 +1748,7 @@ multiline() ->
                      {expect, "expected a pattern"},
                      {send, "1b5b41"},                    % ArrowUp: the input back, whole
                      {expect, "fn f("},
-                     %% C-d leaves only on an empty line: C-c cancels the
+                     %% C-d leaves only on an empty input: C-c cancels the
                      %% input brought back, so the session ends rather than
                      %% waiting out the harness's timeout
                      {send, "03"},

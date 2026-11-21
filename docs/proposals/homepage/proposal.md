@@ -235,12 +235,12 @@ Every render was made in a headless Chromium, which reports no mouse. The mouse'
 
 - The tools are always shown on every page.
 - No page of its own for a phone, yet.
-- The shell's editing is changed before the launch. It is a change to report §11.2, and the plan's item for it holds it: in an input of several lines the up and down arrows move between its lines.
+- The shell's editing is changed before the launch. It is a change to report §11.2, built as MVP 4.17's item 119: in an input of several lines the up and down arrows move between its lines.
 - The homepage is built first and tried on the rehearsal, with a shell that runs and on real screens. Its last clause comes with the shell's editing.
 
 ## Open
 
-1. **The homepage's last clause.** The page says that `foo` is bare and does not show it. Once the shell's editing is made, the opening's second paragraph gains: change the counter, and `foo` runs your change.
+1. **The homepage's last clause.** The page said that `foo` is bare and did not show it. With the shell's editing made, the opening's second paragraph ends: "Change the counter, and `foo` runs your change." Done 2026-11-21.
 2. **Two sentences of Why's *Code travels***, below.
 3. **A live shell.** Try it was not pressed on the chosen markup with a shell that runs.
 

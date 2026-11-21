@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 119**, an input of
-several lines edited by its lines.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 52**, what item 50's
+cold reading left in §11.2's *Startup and history*.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -55,36 +55,7 @@ Read for Build Order*). So the milestone ends with item 9.
 
 ### What is left
 
-The shell's editing is built first.
-
-- **119. An input of several lines is edited by its lines**, found 2026-11-17 on the
-  rehearsal, with the homepage's counter waiting in the shell. No key moves between the
-  lines of an input, and the up arrow puts the last input in their place. The reasons are
-  [`proposals/homepage/reasons.md`](proposals/homepage/reasons.md)'s *The shell's
-  editing*. Each line below was decided with the user on 2026-11-18. §11.2's *Editing*
-  changes first, after one cold reading of its sentences.
-
-  - In an input of several lines the up and down arrows move between its lines. From its
-    first line the up arrow walks the history back, and from its last line the down arrow
-    walks it forward. An input of one line behaves as it does today.
-  - `C-p` and `C-n` follow the arrows.
-  - `C-a` and `C-e` go to the start and the end of the cursor's line.
-  - The cursor keeps its column on the new line, and stands at the line's end where the
-    line is shorter.
-  - An input recalled by the up arrow shows with the cursor on its first line, and one
-    recalled by the down arrow with the cursor on its last, so that walking the history
-    takes one press an entry.
-  - `Home`, `End` and `Delete` are bound as `C-a`, `C-e` and `C-d`.
-
-  Then the shell's design note, the shell's Ernest, the documents that restate the keys
-  and the terminal harness's tests change. None of them was read for the item but §11.2.
-  The build closes on `make test-shell` and `make test`.
-
-  The homepage's opening then gains its last clause, which MVP 4.6's item 3 left for this
-  item (the proposal [`proposals/homepage/`](proposals/homepage/README.md), *Open*, 1).
-  That step closes on `make test-browser`, which holds the page's first screen.
-
-What item 43's discussion decided is built next, each item changing the report first (the
+What item 43's discussion decided is built first, each item changing the report first (the
 log's *The Trust Said Once*). Items 52 and 54 are left of it.
 
 - **52. What item 50's cold reading left**, found 2026-11-14 in §11.2's *Startup and history*,
@@ -128,6 +99,33 @@ log's *The Trust Said Once*). Items 52 and 54 are left of it.
   - Feedback 253, decided with the user on 2026-11-17 (the log's *Seven Entries of the
     Feedback*): the library stays. The shell names its hexadecimal once, in a private
     function that faults as `Http`'s `chunk` does, and `escapedChar` and `hexByte` call it.
+
+Then what the reading of §11.2's *Editing* left, beside item 52, which writes the same
+section.
+
+- **160. What item 119's cold reading left**, found 2026-11-21 in §11.2 by the reading of
+  *Editing*, each in a sentence older than the item (the log's *An Input Edited by Its
+  Lines*). Each is decided with the user, by the line before MVP 4.4: a sentence a program
+  shows false is mended, and one that is only thin is mended, gets its line in the known
+  issues or is dropped.
+
+  - "The live region" means three things: above the input in *Printing*, around it in the
+    glossary, and the input, programs' output and what `Tab` shows in *Editing*.
+  - The prompt of an input's first line is given nowhere, and `... ` is said for `Enter`
+    alone.
+  - A command is "an input" in *Startup and history* and not in *Inputs*: whether the
+    history keeps a command, and that `Enter` always runs one, is said nowhere in *Editing*.
+  - The search: that it is incremental, what it shows, what `Enter`, `Backspace` and a
+    second `C-r` do in it, and where the cursor then stands.
+  - A paste runs nothing only where the terminal brackets it (§12.1).
+  - "At a terminal an input may span lines", where line mode's input spans lines too; and
+    the hint line, which says neither that it is a terminal's nor where it is written.
+  - A control character "typed", where no key types one, and a line feed, which is one
+    (§2.1) and is not drawn as its picture.
+  - A line "wraps as it is typed", a recalled one too; an input taller than the screen, a
+    resize while an input stands, and what `C-l` draws again are not said.
+  - "Row" for a line in `Tab`'s indent, and "character" for a character literal in the
+    bracket's paragraph.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
@@ -185,7 +183,8 @@ changes the report first (the log's *A Package and Its Manifest*).
 
 ### What is done
 
-The discussion came first, item 43, and items 47 to 50 built what it decided.
+The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
+shell's editing, was built after them.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -194,6 +193,7 @@ The discussion came first, item 43, and items 47 to 50 built what it decided.
 | 48 | One paragraph on a name that reaches no regular file | 2026-11-15, in two builds | *The Trust Said Once*, its paragraphs *The fourth build's sentences* to *The corner closed* |
 | 49 | A control character in a path a job writes: a refusal holds none, and §11 says so | 2026-11-15 | *A Refusal Holds No Control Character* |
 | 50 | The history file's owner | 2026-11-14 | *The Trust Said Once*, its paragraphs *A fourth test*, *A directory the shell cannot make its own* and *The third build* |
+| 119 | An input of several lines is edited by its lines, and the homepage's last clause | 2026-11-21 | *An Input Edited by Its Lines* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---
@@ -223,15 +223,16 @@ on a path the rehearsal has walked.
    `make test-browser`.
 3. **The homepage and the blocks' tools**, done on 2026-11-19, ahead of this milestone (the
    log's *The Homepage Built*), the proposal
-   [`proposals/homepage/`](proposals/homepage/README.md). The opening's last clause is
-   MVP 4.17's item 119, and item 2 reads the site's design note as this item left it.
+   [`proposals/homepage/`](proposals/homepage/README.md). The opening's last clause came
+   with MVP 4.17's item 119, on 2026-11-21, and item 2 reads the site's design note as
+   this item left it.
 4. **The stylesheet's units**, after item 3 (the proposal's *The stylesheet's units*).
    `:root`'s size follows the reader's, and the widths at which the layout changes and the
    page's width leave the pixel, together or not at all. The first screen's three sizes
    are measured again, and the page is looked at with the browser's font size at 20 and at
    24 pixels.
-5. **The proposals' reading and sweep**, once items 2 and 4 and MVP 4.17's item 119 are
-   done, and before MVP 4.4's release. [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md)
+5. **The proposals' reading and sweep**, once items 2 and 4 are done, and before MVP 4.4's
+   release. [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md)
    and [`proposals/homepage/`](proposals/homepage/README.md) are read for what they hold
    that no owner has yet, in a reading decided with the user. That goes to the site's
    design note or the log. The item removes each directory once this milestone's row names
