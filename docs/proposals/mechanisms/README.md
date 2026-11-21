@@ -1,10 +1,11 @@
 # The mechanisms read against what they force
 
-Status: a reading under way, MVP 4.4's item 6 (the log's *The Mechanisms Read, Planned*). The rows are found and counted, on 2026-11-21. No row has its loss or its narrower promise written, and no row is decided. Nothing here is authoritative, and nothing in the report or the code changes by it.
+Status: a reading under way, MVP 4.4's item 6 (the log's *The Mechanisms Read, Planned*). The rows are found and counted, and five of them are read, on 2026-11-21. No row is decided. Nothing here is authoritative, and nothing in the report or the code changes by it.
 
 | File | What it is | Status |
 |---|---|---|
-| `README.md` | the measure, what a row is, how it is counted, and the rows ranked | the rows counted; the argument of each row not begun |
+| `README.md` | the measure, what a row is, how it is counted, and the rows ranked | the rows counted |
+| [`first_five.md`](first_five.md) | rows 10, 11, 18 with 24 and 33, 8 and 9: the log's reasons, the other forms, what a program loses by each, and what a second reader found | read; none decided |
 
 ## The measure
 
@@ -99,5 +100,5 @@ The argument names no other row. It leaves a deadlock out, so row 13 holds no cl
 ## What is not done
 
 - **Read.** §6 to §8, §10, §12 and Appendices E.15, E.18, E.21 to E.24, E.27 and E.28 were read whole, with the runtime's and the nodes' design notes. §11.2 was read to the shell's part. The rest of the report was searched by the patterns and not read.
-- **Each row's argument**: the log's entries that decided the mechanism, the simpler way to hold the same promise, the narrower promise that would take the mechanism out, and what a program loses by it, the loss before the saving.
-- **The second reader** of the rows whose loss must be right.
+- **The argument of 32 rows**: the log's entries that decided the mechanism, the simpler way to hold the same promise, the narrower promise that would take the mechanism out, and what a program loses by it, the loss before the saving. [`first_five.md`](first_five.md) has it for the five read first.
+- **A row for the end's flush and its cut**, which row 9 counts with the subscribers' wait.
