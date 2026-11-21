@@ -8,8 +8,9 @@ to [`development.md`](development.md).
 
 Read "Where we are" first, then the milestones to come, in order; the table of every milestone
 ends the file. A gap stands in the milestone whose item closes it, a defect of OTP's in
-[`otp_bugs.md`](otp_bugs.md), and a feature declined in a dated entry of the log; nothing stands
-between.
+[`otp_bugs.md`](otp_bugs.md), a corner that only a built program meets in
+[`known_issues.md`](known_issues.md), and a feature declined in a dated entry of the log; nothing
+stands between.
 
 ---
 
@@ -21,19 +22,20 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is MVP 4.16's item 142**, whether the short rules stay, the milestone's
-last.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 119**, an input of
+several lines edited by its lines.
 
-The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
+The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
 log entry that placed it.
 
 **A line stands before MVP 4.4**, drawn on 2026-11-19 (the log's *The Line Before the
 Launch*). A sentence of the report that a program shows false is mended before MVP 4.4, by a
 narrower sentence first. A reading not yet made, a cost, a question where the report is true
-and a report against OTP stand in MVP 4.5. Each new item is judged against that test when it
-is written into the plan, and its paragraph says which side it stands on and why. One that
-goes to MVP 4.5 keeps its date and its fix's shape.
+and a report against OTP stand in MVP 4.5. Each item is judged against that test when it is
+written and before it starts. Since 2026-11-21 a find that only a built corner shows gets its
+line in [`known_issues.md`](known_issues.md), and becomes an item when the user takes it up
+(the log's *The Short Rules Stay*).
 
 ---
 
@@ -49,48 +51,13 @@ Split with the user on 2026-11-14: the rest of the packages proposal, items 7 to
 Items 10 and 23 went on to MVP 4.4's item 4 on 2026-11-19 (the log's *The Plan Read for
 Build Order*).
 
-### What is left
-
-Each item left stands alone. The items stand below in the order they are taken. The order
-was decided with the user on 2026-11-15 (the log's *A Status Read Before the Watch*, its
-paragraph *The order of what is left*). Of its groups, what the builds found is done since
-2026-11-20 and what was decided and waited for its build since 2026-11-21. What needs the
-user is left.
+The milestone closed on 2026-11-21 with item 142, its last.
 
 Six items moved to MVP 4.5 on 2026-11-19, each under its number: items 68, 96, 103, 113, 118
 and 122. Item 123 moved to MVP 4.4's item 2 the same day (the log's *The Line Before the
-Launch*). Item 140 moved to MVP 4.5 that day too, on the user's word, since only a built
-corner shows it (the log's *Item 140 Stands After the Launch*). Items 135 and 136 moved
-there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch* and
-*Item 136 Stands After the Launch*).
-
-**What needs the user.** Item 142 is the last, and it orders nothing. Item 101's rule is
-the measure of MVP 4.5's item 68 (the log's *An Order Nobody Promised*).
-
-- **142. Whether the short rules stay**, to decide with the user on 2026-11-24 (the log's
-  *The Rules Cut for a Trial*). The root's `CLAUDE.md` is a short file on trial from
-  2026-11-20 through 2026-11-23, and
-  [`proposals/short_rules/`](proposals/short_rules/README.md) holds what is watched and
-  the list of lapses. The plan is not sorted anew for it. An item is asked that file's
-  question, whether a first user meets it, when it comes up to be worked, and one that
-  only a built corner shows moves to MVP 4.5 on the user's word.
-
-  The milestone does not wait on it: where its other items close before that date, this
-  one moves to MVP 4.17 under its number.
-
-  Decided with the user on 2026-11-19, for that day: `CLAUDE.md`'s rule on the test runs
-  becomes one, `make test-full` before the commit that closes an item that changed code,
-  and its clause on the runtime, the nodes and the emitter goes (the README's list, its
-  first row). Until then the session's memory carries it.
-
-  Decided with the user on 2026-11-20, for that day: `CLAUDE.md` gains item 101's rule
-  under *Who decides*, after the rule for where the report is silent (the log's *An Order
-  Nobody Promised*). Until then the session's memory carries it. Its words:
-
-  > **An order the report does not give gets nothing, unless a sentence of the report or a
-  > sibling operation leads to it.** Then Ernest keeps it where there is something to wait
-  > on, no rule breaks and the cost is a fraction, and otherwise the report states the
-  > host's order.
+Launch*). Item 140 moved to MVP 4.5 that day too, and items 135 and 136 on 2026-11-20 (the
+log's *Item 140 Stands After the Launch*, *Item 135 Stands After the Launch* and *Item 136
+Stands After the Launch*).
 
 ### What is done
 
@@ -219,11 +186,12 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 152 | §8.4 says what the boundary trusts at a type variable: what foreign code gives there, where it gives back an address or a function that crossed at a type that holds one, that a value at one crosses as it is and is only handed on, and a call's answer at a variable; three holes each shown by a probe, no code changed, with the user | 2026-11-20 | §8.4, §8.7, Appendix H; *What the Boundary Trusts at a Type Variable* |
 | 137 | Three corners of a diagnostic: a literal against an annotation is reported whole, as built, and §11.5 says an element after the first; a type in parentheses spans its parentheses; a result annotation that ends in a `receiving` is labeled as the result type's, and its help writes the function's mailbox type after the result type in parentheses, with the user | 2026-11-20 | §11.5; *Three Corners of a Diagnostic* |
 | 92 | `Tcp.acceptForever`, `Tcp.readForever` and `Os.readForever` wait without a limit, each its twin without a time and without `Left(Timeout)`; a socket `acceptForever` opens has its own site; the examples, the flake hunt, two fixtures and the guide's §8.7 take them, and three tools name a file's time once, with the user | 2026-11-20 | Appendix E.0, E.18, E.23; *A Wait for a Life, Built* |
-| 101 | What an order nobody promised gets: nothing, unless a sentence of the report or a sibling operation leads to it; then a mechanism where there is something to wait on, no rule breaks and the cost is a fraction, and otherwise a sentence; the seven verdicts, item 93 and item 95's line stand, the eighth case is item 154, and item 142 carries the rule to `CLAUDE.md`, with the user | 2026-11-20 | *An Order Nobody Promised* |
+| 101 | What an order nobody promised gets: nothing, unless a sentence of the report or a sibling operation leads to it; then a mechanism where there is something to wait on, no rule breaks and the cost is a fraction, and otherwise a sentence; the seven verdicts, item 93 and item 95's line stand, the eighth case is item 154, and the rule stays in the log, as item 142 decided, with the user | 2026-11-20 | *An Order Nobody Promised* |
 | 154 | Messages one process sends through one check are received in sending order; a checked message takes one step more, in the check's process, need not be in its receiver's mailbox when the foreign function that sent it has returned, and can be passed by one sent the same receiver after it another way; foreign code sends as the process it runs in; shown by two probes, four tests, no code of the runtime changed, with the user | 2026-11-20 | §6.4, §8.4, §8.7; *The Order Through One Check* |
 | 93 | `Tcp.closeListener` answers once the listener has ended and its host socket has closed, each accept it held answered `Left(Closed)` first, by a second call private to `Tcp`; a held accept faults where the listener is killed or its owner dies; `Os.closeInput` answers once the close is made, under a terminal once the helper says the hangup is made, and faults on an ended process and where the helper has failed; the harness's write of nothing went, and two terminal tests build their fixtures into roots of their own; item 155 found, with the user | 2026-11-21 | Appendix E.18, E.23; *The Two Closes Answer* |
 | 95 | Three shell sessions that showed more than the report promises: the tour's chapter 8 lists a move after an answered `report`, and the deployment guide names what its listing rests on; the tour's restart limit is an hour; the tour's chapter 2 and the guide's §1.4 say that a send and a call to another node in two inputs are two senders' messages and that the page shows one order, the tour also why chapter 1's order holds; the transcripts as typed, with the user | 2026-11-21 | *The Outside Reviews Read*, *Two Shell Sessions Written*, *A Send and a Call in Two Inputs* |
 | 100 | A socket over TCP shuts down its writing side as it ends, so the far end reads the close straight after the last byte; a write answered `Left(Closed)` loses what had arrived and no read had taken, and E.18 says so; `Tcp.close` answers once the socket's bytes and, over TLS, the record that ends the connection are with the kernel, or the bytes are dropped, and at once where a handshake has not ended; a socket whose TLS 1.3 handshake waits no longer holds its end 5 seconds; feedback 262 and 263, with the user | 2026-11-21 | Appendix E.0, E.18; *The Close Follows the Last Byte*, *A Failed Write Loses What Had Arrived*, *A Close Answers Once Its Bytes Are Sent* |
+| 142 | The short rules stay, the trial ended early: `CLAUDE.md` gains the first-user question's time, the known issues' list, the full run at an item's close, the busy loop, two lines of taste, the session's own answer to a question about the host, and a cold reading of a form that replaces a mechanism; the rows that cost nothing add no rule, item 101's rule stays in the log, the long file and the trial's list are retired, with the user | 2026-11-21 | *The Short Rules Stay* |
 
 ---
 
@@ -481,12 +449,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
    - **Eve beside nike**, to decide with the user, raised 2026-11-19. The review's clone
      builds and runs `make test-full` on committed code while the readers read, and eve,
-     alone of the other machines, could run it beside nike. CLAUDE.md's *The repository* keeps another machine to tests
+     alone of the other machines, could run it beside nike. CLAUDE.md's *What is the user's* keeps another machine to tests
      of nodes across a network, so that rule changes first, in the template, or the clone
      stays on nike. Recommended: eve runs the clone, which needs committed code alone. A
      second machine was weighed for an item's build the same day and helped nothing there.
    - **The tools weighed.** `tools/paragraphs.sh`, `tools/comments.sh` and
-     `tools/unicode_width.escript` are weighed against CLAUDE.md's *Ernest or Erlang*, each
+     `tools/unicode_width.escript` are weighed against CLAUDE.md's *The work*, each
      written in Ernest or its reason to stay stated (the log's *The Layout's Proposal Read*).
    - **The argument recut**, decided 2026-11-07. `docs/soundness.md`'s section 7 is recut: its
      paragraphs cut at their turns and ordered by claim, not by the history of the rules that
@@ -669,8 +637,9 @@ the operator's prompt is, and four were dropped with their verdicts in the log.
 
 On 2026-11-19 the milestone took what the line left after the launch (the log's *The Line
 Before the Launch*): six items of MVP 4.16, each under the number it had there, and feedback
-264 as item 5. An item number above 5 in their paragraphs is MVP 4.16's. An item found later
-and judged to stand here is added the same way, with its date and its fix's shape.
+264 as item 5. An item number above 5 in their paragraphs is MVP 4.16's. Since 2026-11-21 a
+find judged to stand after the launch gets its line in [`known_issues.md`](known_issues.md)
+instead.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
 1 to 4 follow, then items 68, 96, 113, 134, 135, 136, 140, 143, 144, 145, 149, 153, 157, 158, 159, 151 and 5. Item 103 is last, since nothing of
@@ -1088,7 +1057,7 @@ What the line left, in the order it is taken:
 | MVP 4.2 | the website, built and live with MVP 4.4's item 6: what Ernest is, its characteristics, the three doors, the tour, the guide, the report and the library's pages, generated from a tag by `make site`, the projects' page, the live shell's page side, and the browser test that holds it | 2026-11-06 | | the design note `docs/design/site.md`; the log's *ehttpd and the Website*, *The Tour Written*, *The Generator Before MVP 4.15*, *A Node's Limits*, *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Generator's Third Stage*, *The Pages Read Against the Principles*, *A Release Carries No History*, *The Start Line's Length*, *The Client's Questions*, *The Site Goes Live With 1.0*, *The Mode's Brackets*, *Projects, a Page of Their Own*, *The Browser Test's Flake*, *The Site's Proposal Read* |
 | MVP 4.15 | what the server taught: a node at the host's limits, of processes, of ports and of open files; nothing at the wait and memory shown; `kill` on a `Process`; text from bytes that are not all UTF-8; a worker's value or its end; a program's environment and a signal named; `libs/http`'s values and `libs/uri`; an error across a library; the libraries' shims read against E.0 rule 1; what a lambda's reach finds on a peer; relative names; a terminal that is gone and the host's warnings on standard error; the compiled modules the host cannot read or load, and a load past its limits; four refusals before the review; a listener's backlog; 48 items, the repository's layout between the first two, and the release review before 0.10.0 | 2026-11-10 | Ernest 0.10.0, tag `v0.10.0` | the proposals `docs/proposals/relative_names/` and `docs/proposals/errors_across_libraries/`, gone with item 15 (the log's *A Built Proposal's Sweep Is an Item*); the log's *What the Server Taught*, *The Items Left Read Again*, *Lean at the Limits*, *What `running` Finds*, *The Shell at a Full Table*, *A Terminal That Is Gone*, *The Host Says Running*, *Relative Names*, *A Built Proposal's Sweep Is an Item*, *Nothing at the Wait*, *Both Applications at the Milestone's End*, *The Floors and the Releases*, *Relative Names, Built*, *The Repository's Layout*, *The Layout Built*, *One Stop for the Layout*, *The Other Repositories' Shape*, *CLAUDE.md Redrafted*, *The Template Cut Again*, *The Layout's Proposal Read*, *A Node's Limits*, *A Node's Schedulers*, *The Hangup's Order*, *ernest-httpd's Lines 18 to 21*, *Nothing at the Wait Built*, *Memory Shown*, *`kill` Takes a `Process`*, *Text from Bytes*, *A Text after Its Prefix*, *A Worker's Value or Its End*, *A Worker's Value or Its End Built*, *A Test's Scratch, and JSON on One Line*, *A Case's Standard Error*, *A Program's Environment, and a Signal Named*, *A Program's Environment, and a Signal Named Built*, *`libs/http`'s Values*, *`libs/uri`*, *`libs/uri` Built*, *A Process Owns What It Opens*, *An Error Across a Library*, *The Libraries' Shims Read Against E.0 Rule 1*, *What a Lambda's Reach Finds on a Peer*, *A Top-Level Binding Stays the Node's*, *The Shell Attaches as a Program Spawns*, *An `or` Stands Between Patterns*, *An `or` Inside a Pattern Refused*, *A Node's Own Processes at a Full Table*, *A Terminal That Is Gone, Built*, *The Runtime at the Limit of Open Files*, *What `running` Finds, Built*, *The Sockets Load on One Scheduler*, *A Capture Written Back at the End*, *`Float.atan2` at the Origin*, *The Shell Attaches as a Program Spawns Built*, *A Node Holds the Shell*, *A Waiting Process Collected*, *A Full Table's Answers, Built*, *The Carrier's Acceptor at a Full Table*, *A Program's TLS at a Full Table*, *The Flake of `broken_exchange_test_`*, *TLS as the Host Loads It*, *A Write to a Terminal That Is Gone*, *A Write to a Terminal That Is Gone, Built*, *A Write to a Terminal That Is Gone, Swept*, *The Host's Log Handler at a Terminal That Is Gone, Built*, *The Host's Log Handler at a Terminal That Is Gone, Swept*, *A Pipe Into a Parenthesized Pipe*, *Where the Host's Warnings Go*, *The Flake of `shell_write_terminal_gone_test_`*, *A Compiled Module the Host Cannot Read*, *A Compiled Module the Host Cannot Load*, *A Load Past the Host's Limits*, *The Flake of `os_signal_after_an_unread_exit_test`*, *A Write and a Resize after an Unread Exit*, *The Listings Before a Review*, *The Refusals Before the Release Review, Built*, *One Name for xref*, *A Listener's Backlog*, *The Release Review Before 0.10.0* |
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
-| MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found | | | above |
+| MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found | 2026-11-21 | | above |
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide | | | above |
 | MVP 4.6 | the server owning both ends of its socket, and the homepage | | | above |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |

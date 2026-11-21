@@ -1,6 +1,6 @@
 # The review before a release
 
-What a release runs to be ready, and nothing else. Between releases an item closes on the check CLAUDE.md's *Tests* gives it. A review runs before a release, and when the user asks; each finding is fixed, planned, or dropped, and the commit messages say which. A full review, every reader over the whole of its area, runs seldom, as [`full.md`](full.md) says.
+What a release runs to be ready, and nothing else. Between releases an item closes on the check CLAUDE.md's *The work* gives it. A review runs before a release, and when the user asks; each finding is fixed, planned, or dropped, and the commit messages say which. A full review, every reader over the whole of its area, runs seldom, as [`full.md`](full.md) says.
 
 1. **A fresh clone builds and passes:** `git clone`, then `make` and `make test-full`, in a directory of its own, on a machine running nothing else, before the readers start. `make test-full` installs into a scratch prefix and from the release archive, and runs from there (`installation_test_`, [`design/install.md`](../design/install.md)).
 2. **Six checks**, over the commit the review starts on; once the findings are made, `make sections` and `make bench` run again over the release's commit, `make load` where the round changed the runtime and `make sanitize` where it changed the helper; dialyzer runs in the clone's full run:
@@ -18,7 +18,7 @@ What a release runs to be ready, and nothing else. Between releases an item clos
    - **The guide:** U, when a rule of the report changed since the last release, over the sections of the guide that teach what changed.
    - **The argument:** K, when a rule [`soundness.md`](../soundness.md) covers changed since the last release, over the argument's paragraphs for those rules beside the report's sections: every step that does not follow from the rule it cites.
    - **The round:** K, once the findings are made, over the diff from the commit the review started on to the release's commit of the report, the guide, the tour and `README.md`, the lines the review's own rounds wrote and no reader has read (the log's *The Release Review Read Back*).
-4. **The findings:** the lines are sorted as [`full.md`](full.md)'s *The findings* says, with one difference: a matter of clarity that is not `fix` is dropped. The round runs as its *How it runs* says, smaller. A `decide` line is argued as CLAUDE.md's *Before code* says, after the log is searched for the decision it may sharpen and the program that shows it is run.
+4. **The findings:** the lines are sorted as [`full.md`](full.md)'s *The findings* says, with one difference: a matter of clarity that is not `fix` is dropped. The round runs as its *How it runs* says, smaller. A `decide` line is argued as CLAUDE.md's *Who decides* says, after the log is searched for the decision it may sharpen and the program that shows it is run.
 
    A name a reader lists is decided after the word is searched across the report, the code and the shell, never from its module alone. Where it means something else anywhere in Ernest, the two meanings are weighed on §0's principles, a word carrying two where a reader who knows Ernest first keeps them apart, and the log names the principle that decided and the other meaning the verdict weighed.
 5. **The release:**

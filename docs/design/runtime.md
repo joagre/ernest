@@ -4,7 +4,7 @@ Status: the runtime's design note, which changes when the runtime does. It is no
 
 ## The rule
 
-What the runtime adds to an operation of the host costs a fraction of it, and on a call that answers at once its bookkeeping writes nothing (CLAUDE.md's *Design*, §10). That bookkeeping follows one rule: what the deadlock look needs of a process, the process marks in its own state, and the look reads it when the program seems idle; no operation writes a shared row for the look's sake. A shared row exists only where a process other than its owner must read it, and each such row names that reader below. The log's *The Sitting on §8.6's Bookkeeping* argues the rule.
+What the runtime adds to an operation of the host costs a fraction of it, and on a call that answers at once its bookkeeping writes nothing (CLAUDE.md's *What the user wants of Ernest*, §10). That bookkeeping follows one rule: what the deadlock look needs of a process, the process marks in its own state, and the look reads it when the program seems idle; no operation writes a shared row for the look's sake. A shared row exists only where a process other than its owner must read it, and each such row names that reader below. The log's *The Sitting on §8.6's Bookkeeping* argues the rule.
 
 ## The process model
 

@@ -28,7 +28,7 @@ Once the lists are in, the round:
 - No agent runs `make`. Each compiles what it changed into a scratch directory of its own and tests there.
 - An agent runs the program or the command a finding gives before it makes the fix, and hands back a line whose program does not show the defect.
 - What crosses between agents, a cause text, a frame's form, a glossary word, goes through the session as sentences, the report's sentence first.
-- The `decide` lines are a second round, with the user one at a time, the argument before the verdict, after the log is searched and the program run, as CLAUDE.md's *Before code* says; then built by agents as the `fix` lines were.
+- The `decide` lines are a second round, with the user one at a time, the argument before the verdict, after the log is searched and the program run, as CLAUDE.md's *Who decides* says; then built by agents as the `fix` lines were.
 - The session integrates: it builds the tree, runs `make test-full`, closes the seams between the agents' files, and reads every diff back before the commit.
 - `git status --short` is read before the readers start and compared after them and after a round, as [`agents.md`](../agents.md)'s *Before and after* says.
 
@@ -87,7 +87,7 @@ Who works a finding is *The findings*'s. An agent that makes a fix runs at the e
 
 ## The findings
 
-- The lists become one document, the findings file CLAUDE.md's owner table names, beside the plan while they are open: a line per finding, by area, each naming its reader's letter and number.
+- The lists become one document, the findings file, `findings.md` in `docs/`, beside the plan while they are open: a line per finding, by area, each naming its reader's letter and number.
 - A line carries its decision: `fix`; `decide`; `felt`, an entry of [`language_feedback.md`](../language_feedback.md) with its number; a milestone's number, planned there; or `dropped`, with the reason; and `done`, with the date, once made.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
 - The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose by the session; code or a test by agents, each from a brief that names the lines in its files and the shape of each fix (CLAUDE.md, *The repository*; *The models*).

@@ -426,7 +426,7 @@ make clean      # remove every build product: build/, the tests' test/build/ and
 make clean-emacs # remove Emacs backup, auto-save, and lock files
 ```
 
-While a change is worked on, it runs the targets of its kind; which run a commit needs is CLAUDE.md's *Tests*.
+While a change is worked on, it runs the targets of its kind; which run a commit needs is CLAUDE.md's *The work*.
 
 | A change to | Runs |
 |---|---|

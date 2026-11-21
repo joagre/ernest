@@ -4,8 +4,6 @@ Ernest is a functional language for concurrent programs, designed by the user (j
 
 This file holds what judgment cannot supply: what is the user's, who decides, and what the user wants of the work. Everything else is left to judgment. A document that a job needs is read when the job starts (*Read when the job starts*).
 
-**On trial from 2026-11-20 through 2026-11-23** ([`README.md`](docs/proposals/short_rules/README.md)). The file it replaces stands at [`long.md`](docs/proposals/short_rules/long.md), loaded by no session, and is read only for a job whose rule has not yet been moved to its document. A mistake that one of its rules would have stopped goes on the README's list with what it cost, and no rule is added here meanwhile. A document or a comment that cites a section of `CLAUDE.md` this file lacks cites that file.
-
 ## Authority
 
 - **The report is the only normative document**, in three files: `language.md`, `toolchain.md` and `library.md`. Nothing else in the repository overrides it.
@@ -21,6 +19,7 @@ Each fact has one owner, and every other document points at it.
 - **[`docs/plan.md`](docs/plan.md)**: what is built next, and where we are.
 - **The code and its tests**: what is built.
 - **`docs/design/`**: each component's design as it stands.
+- **[`docs/known_issues.md`](docs/known_issues.md)**: what is known to be wrong or missing and not planned, a line each.
 - **[`docs/proposals/`](docs/proposals/)**: what is designed and not decided. Nothing in it is authoritative.
 
 ## What is the user's
@@ -36,7 +35,7 @@ Each fact has one owner, and every other document points at it.
 
 - **The report changes first**, then the log, then the code.
 - **A changed rule of §3 to §9 rewrites its paragraph of [`docs/soundness.md`](docs/soundness.md)** in the same commit.
-- **A change to the grammar or to a rule of §3 to §9 gets one cold reading** of its sentences before the code starts.
+- **A change to the grammar or to a rule of §3 to §9, or a form that would replace a mechanism, gets one cold reading** of its sentences before the code starts.
 - **Where the report is silent on what a user meets, it gains a sentence.** Input is never accepted silently.
 - **The user decides the language.** A change to the report, the library, an error's text or the plan that someone could argue with goes to the user first, with a recommendation and its reason. One that nobody would argue with is made and reported.
 - **One question at a time**, the argument before the verdict.
@@ -47,16 +46,16 @@ Each fact has one owner, and every other document points at it.
 
 ## The work
 
-- **The session designs, reads and decides, and agents write the code.** [`docs/agents.md`](docs/agents.md) says how, and is read before the first agent starts.
+- **The session designs, reads and decides, and agents write the code.** A question about what the host or the code does is the session's own: it reads, and runs what the reading leaves open. [`docs/agents.md`](docs/agents.md) says how an agent is briefed, and is read before the first agent starts.
 - **What must run before an Ernest program can is Erlang.** Any other work that could be either is Ernest.
-- **Nothing routes around a defect or a gap.** A defect is fixed when found, or goes in the plan. A gap in the language or the library is said to the user at once, and nothing is written around it meanwhile.
+- **Nothing routes around a defect or a gap.** A defect is fixed when found, or goes in the plan, or in the known issues where only a built corner shows it. A gap in the language or the library is said to the user at once, and nothing is written around it meanwhile.
 - **Writing Ernest tests the language.** A workaround, a second way, a helper that belongs in the library or a form repeated at site after site is said at once, and gets its entry in [`docs/language_feedback.md`](docs/language_feedback.md).
 - **The log is searched before a finding is argued**, for the decision the finding may sharpen or reverse.
 - **Work in proportion.** Read the code before probing it. A probe or a measurement ends when its result stops deciding anything. The checks an item gets are sized to what it changes.
 - **Nothing is left for its size or its difficulty.** Work is left only where it would decide nothing and remove nothing.
 - **A published specification or a general-purpose engine is a library's work.** A program that finds itself writing one stops, and the user decides whether a library is written.
-- **Before the launch stands what a first user meets.** A corner that must be built on purpose to be met goes to the milestone after it, with its date and the shape of its fix.
-- **`make test` runs before a commit**, `make test-docs` for documents alone, and `make test-full` before a commit that touches the runtime, the nodes or the emitter. Commit only after the check passes, on make's own exit status.
+- **Before the launch stands what a first user meets.** It is asked of each item when it is written and before it starts. A corner that must be built on purpose to be met gets its line in [`docs/known_issues.md`](docs/known_issues.md), and becomes an item when the user takes it up.
+- **`make test` runs before a commit**, `make test-docs` for documents alone, and `make test-full` before the commit that closes an item that changed code. Commit only after the check passes, on make's own exit status.
 - **Every report section has a test** whose comment cites it.
 - **The plan holds no stale sentence and no open question.** A step sweeps what it makes redundant in its own commit, and a question that waits for the user is a named decision in a milestone.
 - **The report's section numbers never change.**
@@ -65,12 +64,14 @@ Each fact has one owner, and every other document points at it.
 
 These are taste, and the log argues each.
 
+- Sound first, then the simplest thing that holds it.
 - Minimal and direct, with no speculative abstraction.
+- Ernest follows the host's semantics. What it promises beyond them needs a reason.
 - The tools are fast, and a slow tool is a defect.
 - Lean: a run holds only what its work needs.
 - What Ernest adds to a host operation costs a fraction of it.
 - No code is kept only to make it go faster.
-- No fixed sleep: a process waits on what it means.
+- No fixed sleep and no busy loop: a process waits on what it means.
 - A hole in a guarantee is answered first by a narrower promise, and by a mechanism only where the narrow one is not worth making.
 - Ernest asks a machine for a new OTP, and nothing else new.
 

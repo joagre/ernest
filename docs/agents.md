@@ -1,22 +1,22 @@
 # The agents
 
-How a session works with its agents: what a brief holds, where an agent's report goes, what is checked before agents start and after they end, and the model each job gets. What goes to an agent, and that its report is a claim, is [`CLAUDE.md`](../CLAUDE.md)'s *The repository*, which has a session read this file before it starts its first agent.
+How a session works with its agents: what a brief holds, where an agent's report goes, what is checked before agents start and after they end, and the model each job gets. What goes to an agent is [`CLAUDE.md`](../CLAUDE.md)'s *The work*, which has a session read this file before it starts its first agent, and that its report is a claim is its *Honest reports*.
 
 ## The brief
 
-Code goes to an agent one build at a time, given its goal, the report's sections it builds and the check that proves it done. In a run of items (`CLAUDE.md`, *Done*) each item has an agent of its own, started once the item before it is closed and committed.
+Code goes to an agent one build at a time, given its goal, the report's sections it builds and the check that proves it done. In a run of items (`CLAUDE.md`, *Who decides*) each item has an agent of its own, started once the item before it is closed and committed.
 
-A diagnosis that needs experiments goes to one agent with the failing case and what is ruled out, never the session's guess, and that agent owns the loop to a passing test.
+A diagnosis that needs experiments goes to one agent with the failing case and what is ruled out, never the session's guess, and that agent owns the loop to a passing test. A question about what the host or the code does is no diagnosis: the session reads and runs it itself (`CLAUDE.md`, *The work*).
 
 Agents whose work is bound by the processor, a race's probe, a run under a sanitizer or a load test, run one at a time, and each runs its programs one after another: side by side is for work that waits or reads. The brief says so. The brief sorts the agent's runs by that test and names each kind: a race's probe and a run whose time is measured are bound by the processor, and a run that only waits, a test that fails by running out its deadline among them, goes side by side. A session reads the machine's load before it starts such an agent: a load another session makes is said to the user, who says whether the agent waits.
 
-An agent follows `CLAUDE.md`, but a review's reader, whose brief stands in its place as [`reviews/full.md`](reviews/full.md)'s *How it runs* says. Its brief tells it in one line to leave untracked files alone, and says which style document it reads first, as `CLAUDE.md`'s *Style* has it.
+An agent follows `CLAUDE.md`, but a review's reader, whose brief stands in its place as [`reviews/full.md`](reviews/full.md)'s *How it runs* says. Its brief tells it in one line to leave untracked files alone, and says which style document it reads first, as `CLAUDE.md`'s *Read when the job starts* has it.
 
 ## An agent's report
 
-Its report comes back to the user and is written to a file under the session's scratchpad, which a compaction keeps whole. A step of many commands, a release's, keeps its checklist in such a file too.
+Its report comes back as the agent's answer: an agent cannot write a file of its report. The session keeps what it needs of it in a file under its scratchpad, which a compaction keeps whole. A step of many commands, a release's, keeps its checklist in such a file too.
 
-An agent drafts its log paragraph in that file and never edits the log: the session places it, so that the log keeps one voice and two agents never edit one file at once.
+An agent drafts its log paragraph in its report and never edits the log: the session places it, so that the log keeps one voice and two agents never edit one file at once.
 
 ## Before and after
 

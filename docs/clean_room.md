@@ -38,7 +38,7 @@ What the application meets of Ernest's that feels against a principle, a workaro
 
 ## The reading here
 
-Each line is read in Ernest's session: its program is run here, the log is searched for the decision the line may sharpen, and the verdict is weighed on the principles, as CLAUDE.md's *Before code* says. A verdict is a report change, a milestone's item or a line of the log saying that the line was dropped (CLAUDE.md, *Defects and gaps*). One made now is built as *Before code* says, a rule after its cold reading, with its regression test. The line takes Ernest's feedback number as it is decided, the header of `docs/language_feedback.md` moving its next number on; a decided line stands in the log, never in that file. The log entry argues the verdict, with the argument against it where the line is not taken, and the plan's item for the application records what was met.
+Each line is read in Ernest's session: its program is run here, the log is searched for the decision the line may sharpen, and the verdict is weighed on the principles, as CLAUDE.md's *Who decides* and *The work* say. A verdict is a report change, a milestone's item or a line of the log saying that the line was dropped (CLAUDE.md, *Defects and gaps*). One made now is built as *Before code* says, a rule after its cold reading, with its regression test. The line takes Ernest's feedback number as it is decided, the header of `docs/language_feedback.md` moving its next number on; a decided line stands in the log, never in that file. The log entry argues the verdict, with the argument against it where the line is not taken, and the plan's item for the application records what was met.
 
 ## The answer
 

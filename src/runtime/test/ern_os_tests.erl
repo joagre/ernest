@@ -601,7 +601,7 @@ write_after_close_input_closed_test() ->
     ?assertEqual({{'Left', 'Closed'}, {Input, 0}}, wait(piped)),
     ?assertEqual({'Left', 'Closed'}, wait(hung_up)).
 
-%% report Appendix E.23, and CLAUDE.md's *Design*: a write's time running
+%% report Appendix E.23, and CLAUDE.md's *What the user wants of Ernest*: a write's time running
 %% out costs the program's process the same however many writes wait
 %% beside it, so that writes that run out together are each answered on
 %% time. The work is the host's count of the process's reductions, from the
@@ -639,7 +639,7 @@ timed_out_reductions(Count) ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     wait(reductions).
 
-%% report Appendix E.23, and CLAUDE.md's *Design*: a read's time running
+%% report Appendix E.23, and CLAUDE.md's *What the user wants of Ernest*: a read's time running
 %% out, and the end of a read's caller, cost the program's process the same
 %% however many reads wait beside it, each counted as the writes' are
 %% (writes_time_out_without_a_scan_test_). A regression test, written after
