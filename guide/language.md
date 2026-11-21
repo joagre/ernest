@@ -3182,7 +3182,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.3 The shell
 
-§1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` puts a module in scope and `:reload` brings in what changed, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:faults` a line for each fault without its trace, `:set` sets the depth and length values are printed to, the rows of the live region, `:set rows`, and timing, and `:output` sends what programs write to a terminal or a file.
+§1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` puts a module in scope and `:reload` brings in what changed, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:faults` a line for each fault without its trace, `:set` sets the depth and length values are printed to, the rows that show what programs write, `:set rows`, and timing, and `:output` sends what programs write to a terminal or a file.
 
 An input runs in a process of its own, and at a terminal `C-c` ends it, which answers `Killed`, the session and its bindings kept (report §11.2).
 

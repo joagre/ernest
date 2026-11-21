@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 160**, what item
-119's cold reading left.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 161**, an input
+taller than the screen.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -55,31 +55,23 @@ Read for Build Order*). So the milestone ends with item 9.
 
 ### What is left
 
-What the reading of §11.2's *Editing* left comes first.
+What item 160's probe found in the live region comes first.
 
-- **160. What item 119's cold reading left**, found 2026-11-21 in §11.2 by the reading of
-  *Editing*, each in a sentence older than the item (the log's *An Input Edited by Its
-  Lines*). Each is decided with the user, by the line before MVP 4.4: a sentence a program
-  shows false is mended, and one that is only thin is mended, gets its line in the known
-  issues or is dropped.
+- **161. An input taller than the screen, and the erase from the screen's corner**, found
+  2026-11-21 by item 160's probe and decided with the user (the log's *The Live Region
+  Named Once*). The report changes first.
 
-  - "The live region" means three things: above the input in *Printing*, around it in the
-    glossary, and the input, programs' output and what `Tab` shows in *Editing*.
-  - The prompt of an input's first line is given nowhere, and `... ` is said for `Enter`
-    alone.
-  - A command is "an input" in *Startup and history* and not in *Inputs*: whether the
-    history keeps a command, and that `Enter` always runs one, is said nowhere in *Editing*.
-  - The search: that it is incremental, what it shows, what `Enter`, `Backspace` and a
-    second `C-r` do in it, and where the cursor then stands.
-  - A paste runs nothing only where the terminal brackets it (§12.1).
-  - "At a terminal an input may span lines", where line mode's input spans lines too; and
-    the hint line, which says neither that it is a terminal's nor where it is written.
-  - A control character "typed", where no key types one, and a line feed, which is one
-    (§2.1) and is not drawn as its picture.
-  - A line "wraps as it is typed", a recalled one too; an input taller than the screen, a
-    resize while an input stands, and what `C-l` draws again are not said.
-  - "Row" for a line in `Tab`'s indent, and "character" for a character literal in the
-    bracket's paragraph.
+  - **A window onto the input.** The region draws every row of an input, so one taller
+    than the screen leaves copies of its top rows in the scrollback at each key, and a
+    cursor moved past the top is edited blind. §11.2's *Editing* gains: "Of an input taller
+    than the screen the shell draws the rows the screen has room for, the cursor's row among
+    them." The region keeps where its window begins and moves it only when the cursor leaves
+    it, which is the design note's. An entered input is written whole into the transcript.
+  - **The erase.** After `C-l` the region erases from the screen's top corner, which tmux
+    saves to the scrollback by its default `scroll-on-clear`, a row at each key. The erase
+    clears its first row and then the rest from one column in. A unit test of the region
+    holds the bytes, since no test runs tmux, and the design note says why. The report
+    gains no sentence.
 
 Then the packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
@@ -138,7 +130,7 @@ changes the report first (the log's *A Package and Its Manifest*).
 ### What is done
 
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
-shell's editing, was built after them, then item 52, and item 54 last.
+shell's editing, was built after them, then item 52, item 54, and item 160 last.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -150,6 +142,7 @@ shell's editing, was built after them, then item 52, and item 54 last.
 | 119 | An input of several lines is edited by its lines, and the homepage's last clause | 2026-11-21 | *An Input Edited by Its Lines* |
 | 52 | The shell says a host's refusal in the jobs' words, each case of no history has its line, and the history file is named as §11.5 names one, which was item 54's second line | 2026-11-21 | *The Shell Says a Refusal in the Jobs' Words* |
 | 54 | What item 49 left: a path in `--emit-erl`'s first line and in a page's last line is written as §11.5 writes one, a peer's name holds no control character, and a value a refusal quotes from a configuration is written as JSON writes it | 2026-11-21 | *Each Value in the Escape of Its Own Notation* |
+| 160 | What item 119's cold reading left in §11.2: the live region named once, the prompt, a command kept as an input is, the search's paragraph, a paste a terminal brackets, and the words that said another thing | 2026-11-21, sentences alone | *The Live Region Named Once* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---

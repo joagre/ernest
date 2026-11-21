@@ -1469,7 +1469,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **lambda** — an anonymous function, `fn(x) = e`. §5.3.
 - **line mode** — the shell reading lines and editing none, when its input or output is not a terminal. §11.2.
 - **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.
-- **live region** — the shell's rows below what it has written, where the line being typed stands. §11.2.
+- **live region** — the rows at the foot of the screen that the shell draws again: what programs have written, the input, and what `Tab` shows. §11.2.
 - **load path** — the directories, in order, that a program's modules are found under by their namespaces and a `foreign fn`'s `.beam` is found in, each searched for both: the standard library's build, the loaded module's root, the directories `--load-path` and `--libs-dir` add, in the order the options are given, a `--load-path`'s root and each application's `ebin` under a `--libs-dir`, the build of each named package, with its `ebin` under `ern run`, `ern test` and `ern shell`, and the build of each library of the toolchain's own. §11.1, §11.2, §11.9.
 - **loss** — the end of a connection, which gives each monitor on the peer's processes its `Down` with `Unreachable`, ends each call and each wait on the peer that began before the node ran it, faults a `callForever` on one of its processes, and drops what waited to be sent. §8.7.
 - **mailbox** — the queue of values a process receives. §6.
