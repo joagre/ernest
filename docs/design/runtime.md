@@ -170,6 +170,58 @@ The exchange carries to a peer the definitions its spawn's reach names and the p
 
 Two shapes this note only points at are [`nodes.md`](nodes.md)'s and [`code.md`](code.md)'s. An adapted address applies its function on the node that made it, a process kept for it there applying a peer's messages in order, and an address exposed to foreign code has a checker in front of it (§6.5, §8.4, §8.7). A unit is a compiled module of the host's holding definitions each named by its hash; a module a load brings is placed as a unit the node already holds, as its file or as its forms, and an arrival is the unit one exchange's definitions make (§8.7, §11.1, §12.7, Appendix H).
 
+## The mechanisms, and what each is for
+
+A mechanism is what the runtime does of its own that no program names: a process, a message between its processes, a wait, a count or a table. A row is one mechanism, or the few that exist only together to keep one promise. The language's own steps, a check made in the calling process, a library function's own work and what is the host's are no rows.
+
+The rows were read on 2026-11-21 against one measure, sound first and then the simplest thing that holds it, and each stays (the log's *The Mechanisms' Reading Closed*). A row that changes, comes or goes changes its line here.
+
+The fourth column names the claim of [`docs/soundness.md`](../soundness.md) that is argued from the row, with the argument's sections. Such a row may get a simpler way to hold its claim, and never goes. The last column names the log's entries that weighed the row's simpler form.
+
+Rows 1 and 14 are [`code.md`](code.md)'s, and rows 2 to 4, 11, 12, 15, 25 and 36 are [`nodes.md`](nodes.md)'s. Row 37 is the library's, `supervisor.ern`. Row 27's promise is as it stands since `Tcp.close` waits.
+
+| | The mechanism | The promise it keeps | The claim it holds | The log's entries |
+|---|---|---|---|---|
+| 1 | The exchange and the code table | A function spawned or computed on a peer that lacks it runs there, carried as its form by its hash (§8.7, §12.7) | a process on a peer runs the code it was typed with (7) | *What the Design Notes Argued*, *Code Travels Only With a Spawn* |
+| 2 | How busy a node is: the measure, the telling, the rows held and the pick | `Peer.compute` runs on the less busy of two peers, and `Peer.utilization` answers (§8.7, §12.8, E.27) |  | *Placing Work by Name*, *The Placement Proposals Swept* |
+| 3 | The carrier: its keys, its floor, its own acceptor and port map | A node connects only to a listed key, on one floor (§8.7, §12.5) | its floor: a process on a peer runs the code it was typed with (7) | *The Nodes' Reasons, Kept* |
+| 4 | The gateway, a worker for each peer, and the seventeen frames | What a message cannot do on a peer is done there in order, and the runtime's own processes wait on no peer (§8.7, §12.6) |  | *The Nodes' Reasons, Kept* |
+| 5 | The eight system processes | Each system module is answered by a process the runtime starts (§8.2, §12.1) |  | *Ambient Sys, Five Principles* |
+| 6 | A load's evaluator and its settler | A load evaluates its bindings outside its caller, and is whole or undone however the caller ends (E.28, §11.2) | every message fits its mailbox (6.4) | *The Argument's Four Decisions* |
+| 7 | A full table and the limit of open files, answered | At a limit of the host's a request answers a value, a delivery faults its recipient, and the end can still run (§7.4, §12, §12.5) |  | *A Node's Limits*, *The Carrier's Acceptor at a Full Table* |
+| 8 | A restart told to its service monitors and waited for, on other nodes too | A `Down` with `Restarted` reaches its watcher before anything the new run sends (§6.9, §8.7, §12.6) | the new run's mailbox at a restart (5, 7) | *The Check Stays a Process* |
+| 9 | The end's wait for the subscribers of `Os.termination` | Each subscriber is told and waited for before the program ends (§8.6, §11.2, E.23) | no process runs after the end (7) | *The Check Stays a Process*, *A Termination Ends a Stalled Flush*, *The Job Halts Without the Host's Flush* |
+| 10 | The check of what foreign code sends: a process for each address that crossed | A message foreign code sends to an address it was given is of the mailbox's type, or faults its receiver (§8.4) | every message fits its mailbox (2, 5) | *The Check Stays a Process* |
+| 11 | The process kept for an adapted address on the node that made it | An adapted address works from any node, its function applied where it was made, a peer's messages in order (§6.5) | every message fits its mailbox (7) | *The Check Stays a Process* |
+| 12 | A reload of `ernest.conf` at the hangup | A node's peers change while it runs (§8.7, §12.5) |  | *A Node's End and Its Reload* |
+| 13 | The deadlock look, and what each process marks for it | A program in which nothing can deliver faults with `deadlock`, and its report lists who waits (§8.6, §12.4) |  | *Deadlock Detection Distinguishes Idle Server From Deadlocked Program*, *The Sitting on §8.6's Bookkeeping* |
+| 14 | What a node holds of code and lets go, and the host's limits counted | A session's units and a test run's go, and a node says when it nears a limit of the host's (§10, §11.2) | a process's code stands while it runs (7) | *Lean at the Limits*, *A Purge Needs Sight* |
+| 15 | A node's end told to each peer and waited for | A peer says `ended` and not `lost`, and what was placed before the word crossed (§8.7, §12.6) |  | *MVP 3.1 Read*, *A Node's End Waits for No Send* |
+| 16 | A session's screen and a session's own processes | What a session's processes write goes to its shell's screen (§11.2, §12.1) |  | *The Attached Shell's Sentences* |
+| 17 | The record of a waiting call: the caller's mark, the callee's row and the note on its node | A restart ends every call waiting on it, and `Process.status` and a deadlock's report say who waits on whom (§6.6, §6.9, §8.7, E.21) | every answer fits its call (4) | *The Sitting on §8.6's Bookkeeping* |
+| 18 | A process for each delivery through a wrap, acting for its recipient | A wrap that does not finish holds up no other delivery, and what it opens is its recipient's (§6.5, §6.9, §10) | every message fits its mailbox (6.3) | *The Check Stays a Process* |
+| 19 | A restart a supervisor asks for, taken at the child's next wait | A supervisor restarts a child's siblings in place (§6.9, E.22) | the new run's mailbox at a restart (5, 7) | *A Sibling Restarts at Its Next Wait* |
+| 20 | The terminal's claim, its reader and its holder | One terminal is read as keys or as lines, and is given back as it was found (§12.1) |  | *`Keys`, and Who Owns the Terminal* |
+| 21 | A fault's trace: twelve lines, the runtime's frames left out | A trace shows the program's frames (§7.3, E.21) |  | *Every Fault Carries a Trace* |
+| 22 | A resource's process owned by its opener | A socket, a listener and a running program end with the process that opened them or was given them (§6.9, E.18, E.23) |  | *Who Owns a Process*, *A Process Owns What It Opens* |
+| 23 | The lock on `ernest.pid` | One node to a directory, and `ern stop` returns once the node has ended (§11.2, §12.5) |  | *MVP 3.1 Read* |
+| 24 | A fault that stands in a mailbox and is met at the next wait | A fault in an adapted address's function, and a bad message's, is its target's (§6.5, §7.3, §8.4) | every message fits its mailbox (2, 5) | *The Check Stays a Process* |
+| 25 | A compute's process on the peer and its fault carried to the caller | A fault in the function a compute runs is the caller's, with its trace (§8.7, E.27) | a process on a peer runs the code it was typed with (7) | *Placing Work by Name* |
+| 26 | The reaper and a row for each process | A `Down` and a fault's line name the spawn site, and `Process.live` lists the program's processes (§6.9, E.21) |  | *Supervision Stays in the Reaper*, *Spawn Keeps Its Wait* |
+| 27 | A socket's writer and its closer | A write that waits holds up no read, and `Tcp.close` answers once the bytes a socket took are sent, or dropped at a bound (E.18) |  | *A Node's Own Processes at a Full Table*, *A Close Answers Once Its Bytes Are Sent* |
+| 28 | The runtime's own lines: a line that waits for standard error, and the sayer of lines said later | None of the report's: the order of the runtime's lines among a program's output is promised nowhere |  |  |
+| 29 | A listener's workers and the close that waits for its end | `Tcp.closeListener` answers once the listener has ended, each accept it held answered first (E.18) |  | *`Tcp`, Measured, and the Refusals Gone*, *The Two Closes Answer* |
+| 30 | A capture's collector | `Test.capture` takes what its caller's chain writes, and writes it back where the caller ends first (E.24) |  | *A Case's Standard Error* |
+| 31 | The killer: every kill through one process | A kill ends the call its victim waited in, and needs no room in a full table (§6.9, §10) |  | *The Sitting on §8.6's Bookkeeping*, *A Node's Limits* |
+| 32 | The helper `ern_exec` | A program `Os.start` started has its pipes or its terminal, its signals and its process group, which ends with it (E.23) |  | *`Os.run` Runs Through a Helper in C* |
+| 33 | A courier for each subscription to keys and to faults | A subscriber's keys and reports arrive in order, and a wrap that does not finish delays no other subscriber's (§12.1, E.21) | every message fits its mailbox (6.3) | *The Check Stays a Process* |
+| 34 | A restart cancels what the old run asked for | An alarm, a monitor and a subscription of the old run, with what is on its way, reach no new run (§6.9) | no process runs after the end (7) | *A Restart Begins Afresh* |
+| 35 | `Process.run`'s second process and the mark of an expected fault | `Process.run` answers a fault as a value, and `Test.faults` keeps its fault from every report (E.21, E.24) |  | *A Worker's Value or Its End Built* |
+| 36 | The launch's tag in an adapted address | An adapted address an earlier run made is dead, its function not applied (§8.7, §11.2) | a process's code stands while it runs (7) |  |
+| 37 | The supervisor's two processes | A group keeps its children across its supervisor's restart, and ends them in order at its death (E.22) |  | *A `Supervisor` in the Standard Library, and `fault`*, *The `Supervisor`'s Shape* |
+
+The rows stand on five decisions of the language. Code runs on a peer that never held it. A resource of the library's is a process with an owner. Nothing is silent at the host's edge. A restart keeps its process's address. A function applied on a message's way may wait. A simpler Ernest would come from one of the five, and not from a mechanism.
+
 ## What the runtime does not do
 
 It makes no scan on an operation's path that grows with other processes' work: a restart reads its own rows, a kill reads its victim, the look reads every process and every checker only when nothing else can deliver, and only an end the host gives reads every row of its kind, a caller's every pending call and a delivery's every delivery. It keeps no cache without a rule for letting go: a launch reads the host's facts again (E.23). It routes around no defect of the host: what the host does not signal, a port's queue emptied, is waited for through the host's own busy state and not polled (§12.1; the log's *Built* paragraphs on the fixed waits).
