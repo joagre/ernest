@@ -444,8 +444,8 @@ fn readHistory() : #(List(String), Optional(String), List(String)) =
         }
       | Some(path) ->
             match History.read() {
-                Right(inputs) -> #(inputs, Some(named(path)), [])
-              | Left(reason) -> #([], None, [unkept(unkeptReason(reason, named(path)))])
+                Right(inputs) -> #(inputs, Some(Refusal.named(path)), [])
+              | Left(reason) -> #([], None, [unkept(unkeptReason(reason, Refusal.named(path)))])
             }
     }
 
@@ -459,9 +459,11 @@ fn unkept(why : String) : String =
 fn unkeptReason(reason : History.Unkept, file : String) : String =
     match reason {
         History.Unmade(=directory, error = Io.Exists) ->
-            named(directory) <> " is no directory"
+            Refusal.named(directory) <> " is no directory"
       | History.Unmade(=directory, =error) ->
-            named(directory) <> " could not be made its owner's alone: " <> trouble(error)
+            Refusal.named(directory)
+                <> " could not be made its owner's alone: "
+                <> Refusal.trouble(error)
       | History.Unreadable(error) ->
             historyTrouble(file, "read", error)
       | History.Unwritable(error) ->
@@ -479,7 +481,7 @@ fn historyTrouble(file : String, done : String, error : Io.Error) : String =
     match error {
         Io.NotAFile -> file <> " is no regular file"
       | Io.NotUtf8(_) -> file <> " is not UTF-8"
-      | _ -> file <> " could not be " <> done <> ": " <> trouble(error)
+      | _ -> file <> " could not be " <> done <> ": " <> Refusal.trouble(error)
     }
 
 // Report §11.2: where the startup files are, its user's first and then
@@ -487,7 +489,7 @@ fn historyTrouble(file : String, done : String, error : Io.Error) : String =
 // names that directory; a file both paths name runs once. Whether each is
 // there, and what it holds, readFileInputs reads.
 fn startupFiles() : List(String) =
-    match #(Optional.map(History.startup, fromWorkingDirectory), configStartup()) {
+    match #(Optional.map(History.startup, Refusal.fromWorkingDirectory), configStartup()) {
         #(Some(own), Some(configured)) ->
             if isSameFile(own, configured) then [own] else [own, configured]
       | #(Some(own), None) ->
@@ -498,17 +500,6 @@ fn startupFiles() : List(String) =
             []
     }
 
-// Report §11.5: a file is named from the working directory where it lies
-// under it, and as it was given where it does not, the working directory
-// itself and a path with a `.` or `..` segment after it among them.
-fn fromWorkingDirectory(path : Path) : String =
-    Path.toString(Optional.withDefault(Path.from(path, Os.workingDirectory), path))
-
-// Report §11.2: a startup file, the history file and `$HOME/.ernest` are
-// named as §11.5 names a source's file, through `controlFree`.
-fn named(path : Path) : String =
-    controlFree(fromWorkingDirectory(path))
-
 // Report §11.2: the inputs of a startup file, read where it is found and
 // held to no owner and no mode (§11). A file that is not there is no
 // error; one that cannot be read, is no regular file or is not UTF-8 is
@@ -518,13 +509,13 @@ fn readFileInputs(file : String) : #(List(#(String, Int, String)), List(String))
         Left(Io.NotFound) ->
             #([], [])
       | Left(Io.NotAFile) ->
-            #([], [controlFree(file) <> " is no regular file"])
+            #([], [Refusal.controlFree(file) <> " is no regular file"])
       | Left(error) ->
-            #([], [controlFree(file) <> " could not be read: " <> trouble(error)])
+            #([], [Refusal.controlFree(file) <> " could not be read: " <> Refusal.trouble(error)])
       | Right(bytes) ->
             match String.fromUtf8(bytes) {
                 Some(text) -> #(startupInputs(file, List.indexed(String.lines(text))), [])
-              | None -> #([], [controlFree(file) <> " is not UTF-8, and is not run"])
+              | None -> #([], [Refusal.controlFree(file) <> " is not UTF-8, and is not run"])
             }
     }
 
@@ -570,20 +561,6 @@ let screenMs = 5000
 fn localMs() : Int =
     fileMs + dialMs()
 
-// Report §11.2: the host's reason for a file the shell could not read,
-// write or make, in §11's words where it has them and the shell's own where
-// it has none; an error no file call of the shell's answers is shown as
-// `Io` shows it.
-fn trouble(error : Io.Error) : String =
-    match error {
-        Io.NotFound -> "no such file"
-      | Io.Denied -> "permission denied"
-      | Io.Timeout -> "the file system did not answer"
-      | Io.Invalid -> "the path is not one the host can take"
-      | Io.Other(text) -> text
-      | _ -> Io.show(error)
-    }
-
 // Report §11.2: where a program's output goes. A path is a terminal or a
 // file of the shell's own node, which an append of nothing tries there,
 // creating a file that is not there; `-` is the screen's own place for it
@@ -604,7 +581,7 @@ fn redirectOutput(local : Address(LocalMsg),
                 Left(cannotWrite(path, error))
           | Right(_) -> {
                 send(screen, Redirect(Some(path)));
-                Right("output goes to " <> controlFree(argument))
+                Right("output goes to " <> Refusal.controlFree(argument))
             }
         }
     }
@@ -637,9 +614,9 @@ fn cannotWrite(path : Path, error : Io.Error) : String = {
     let why = match error {
         Io.NotAFile -> "it is neither a device nor a file"
       | Io.NotFound -> "its directory is not there"
-      | _ -> trouble(error)
+      | _ -> Refusal.trouble(error)
     };
-    "cannot write to " <> pathText(path) <> ": " <> why
+    "cannot write to " <> Refusal.pathText(path) <> ": " <> why
 }
 
 // Report §11.2: a startup input runs as a typed one, a command among them,
@@ -1059,26 +1036,6 @@ fn escapedChar(char : Char) : String =
                 Char.toString(char)
     }
 
-// Report §11, §2.1: a path, a word of the command line or a text read from
-// a file as the shell names it, each control character written as its bytes
-// in UTF-8, each `\xHH`, as every job writes one, and every other character,
-// a backslash among them, as itself.
-fn controlFree(text : String) : String =
-    String.join(List.map(String.toList(text), controlFreeChar), "")
-
-// A path as the shell names it, through `controlFree`.
-fn pathText(path : Path) : String =
-    controlFree(Path.toString(path))
-
-fn controlFreeChar(char : Char) : String =
-    if Char.isControl(char) then
-        String.join(List.map(Bytes.toList(String.toUtf8(Char.toString(char))), hexByte), "")
-    else
-        Char.toString(char)
-
-fn hexByte(byte : Int) : String =
-    "\\x" <> String.padStart(hexadecimal(byte), 2, "0")
-
 // Base 16 is one `Int.toStringBase` writes in, so `None` does not come,
 // and would be a defect of the library's.
 fn hexadecimal(int : Int) : String =
@@ -1112,8 +1069,10 @@ fn origin(state : State, column : Int) : Origin =
 // file and line, as its diagnostic is.
 fn placed(state : State, text : String) : String =
     match state.startupLine {
-        Some(#(file, line)) -> controlFree(file) <> ":" <> Int.toString(line) <> ": " <> text
-      | None -> text
+        Some(#(file, line)) ->
+            Refusal.controlFree(file) <> ":" <> Int.toString(line) <> ": " <> text
+      | None ->
+            text
     }
 
 // Lines the session says, in one message, and nothing for none.
@@ -1516,7 +1475,7 @@ fn appendOutput(local : Address(LocalMsg),
 // the live region at a terminal and standard output in line mode.
 fn place(destination : Optional(Path), screenPlace : String) : String =
     match destination {
-        Some(path) -> pathText(path)
+        Some(path) -> Refusal.pathText(path)
       | None -> screenPlace
     }
 
@@ -2119,7 +2078,7 @@ fn holdKeys() : Optional(Terminal.Size) receiving LocalMsg =
 // shell calls answers `NotLoaded` (§8.7). An error the spawn cannot answer
 // is shown as `Io` shows it.
 fn refusal(name : String, error : Io.Error) : String = {
-    let peer = "ern shell: the peer " <> controlFree(name);
+    let peer = "ern shell: the peer " <> Refusal.controlFree(name);
     match error {
         Io.NotListed ->
             peer <> " is not listed"
@@ -2149,7 +2108,7 @@ fn startRefusal(name : String, reason : Reason) : String =
 // Report §11.2: a refusal of what the node itself did, `words` after its
 // name.
 fn nodeRefusal(name : String, words : String) : String =
-    "ern shell: the node " <> controlFree(name) <> " " <> words
+    "ern shell: the node " <> Refusal.controlFree(name) <> " " <> words
 
 // Report §11.2: until the session has its screen, the terminal's events
 // waiting meanwhile; an attached shell, `deadline` the moment its wait
@@ -2306,7 +2265,7 @@ fn endWithSession(name : String, down : Down, ending : String) : Unit = {
             end(0, "")
       | reason -> {
             write(ending);
-            let #(status, line) = nodeEnd(controlFree(name), reason);
+            let #(status, line) = nodeEnd(Refusal.controlFree(name), reason);
             end(status, line)
         }
     }

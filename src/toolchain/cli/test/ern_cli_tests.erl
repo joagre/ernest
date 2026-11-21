@@ -6552,19 +6552,6 @@ job_first_test() ->
                                                 " stop and unpack; ern --help describes"
                                                 " them\n">>)).
 
-%% report §11: `ern unpack` is refused as not implemented, in one line
-%% with status 1 and no usage, and given an argument it is refused as
-%% taking none, with its usage. A regression test, written after the code;
-%% it does not cover the job's work, which is not built
-unpack_not_implemented_test() ->
-    ?assertEqual(1, ern_err(["unpack"])),
-    ?assertEqual(<<"ern unpack: this job is not implemented\n">>,
-                 iolist_to_binary(?capturedOutput)),
-    ?assertEqual(1, ern_err(["unpack", "x"])),
-    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
-                                      <<"ern unpack: unpack takes no argument\n"
-                                        "Usage: ern unpack\n">>)).
-
 %% report §11: a compiled module given first is refused with the job that
 %% runs it, an option before the job with where it goes, and a spelling of
 %% an earlier toolchain as any word that is no job or no option of the job

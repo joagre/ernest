@@ -39,7 +39,7 @@ The modules of `cli`, under `src/toolchain/cli/`:
 | `ern_signals` | the handler of termination and hangup (§8.6, §11.2) |
 | `getopt` | the vendored option parser, each job's options a spec of its own |
 
-The shell's host half is `ern_shell`, the shell's front end, beside its Ernest in `src/shell/` (§11.2, *The shell*). A node's modules stand under `src/nodes/`:
+The shell's host half is `ern_shell`, the shell's front end, beside its Ernest in `src/shell/` (§11.2, *The shell*), and `ern unpack`'s is `ern_unpack`, beside its Ernest there (§11.9, *The unpacking*). A node's modules stand under `src/nodes/`:
 
 | Module | Job |
 |---|---|
@@ -50,7 +50,7 @@ The shell's host half is `ern_shell`, the shell's front end, beside its Ernest i
 
 ### The launcher
 
-`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and the toolchain's Erlang under `build/` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell or the shell's three libraries, `libs/ansi`, `libs/markdown` and `libs/ets`, is loaded from its `.erc` at its first call (*The code table*), and a node's start loads the shell's whole (§8.7). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`design/install.md`](design/install.md) lays out the installed tree.
+`bin/ern` finds its tree, refuses a working directory whose name is not UTF-8, and starts the host with `-noinput` and the toolchain's Erlang under `build/` on its code path; its header comment says what else it sets and why. No compiled Ernest module is on that path: a unit of the standard library, the shell's build or its four libraries, `libs/ansi`, `libs/markdown`, `libs/ets` and `libs/crypto`, is loaded from its `.erc` at its first call (*The code table*), and a node's start loads the shell's units whole (§8.7). It calls `ern_signals:install/0` and then `ern_cli:start/0`. [`design/install.md`](design/install.md) lays out the installed tree.
 
 `ern_cli:start/0` installs `ern_signals` again, for a caller that is no launcher, and runs `ern_cli:ern/2`, whose status the host ends with (§11.8).
 
@@ -279,7 +279,7 @@ The modules of a node (§8.7) are `ern_node`, `ern_carrier`, `ern_tls_dist`, `er
 
 The code table (§8.7) is `ern_code`'s bag of that name, made at its first use by a process of its own (`ensure/0`). `load/3` loads a unit from its file, and `loaded/2` and `loaded/3` put a unit's rows as it loads, read from its `'$code'/0`; `unloaded/1` takes them. `load/4`, the runner's, keeps beside them the interface chunk it read of the unit, which `chunk/1` and `chunks/0` answer, so that a shell's view of its node's modules reads the code the node runs (§11.2).
 
-`ensure_loaded/1` loads a module where the host holds none of its name, as the host's `code:ensure_loaded/1` does: a unit of the toolchain's own from its `.erc`, which `own_file/1` finds by namespace in `build/stdlib` and the builds `own_builds/0` names, `build/shell`, `build/libs/ansi`, `build/libs/markdown` and `build/libs/ets`, and any other module as the host loads it. The runtime's error handler, `ern_rt:undefined_function/3`, calls it at a first call, on every process the runtime starts and on the one each job runs in (`ern_cli:start/0`); `ern_code:function/2` calls it too, and so does a node's start for each unit of `build/shell` (`ern_cli:shell_build/0`).
+`ensure_loaded/1` loads a module where the host holds none of its name, as the host's `code:ensure_loaded/1` does: a unit of the toolchain's own from its `.erc`, which `own_file/1` finds by namespace in `build/stdlib` and the builds `own_builds/0` names, `build/shell`, `build/libs/ansi`, `build/libs/markdown`, `build/libs/ets` and `build/libs/crypto`, and any other module as the host loads it. The runtime's error handler, `ern_rt:undefined_function/3`, calls it at a first call, on every process the runtime starts and on the one each job runs in (`ern_cli:start/0`); `ern_code:function/2` calls it too, and so does a node's start for each unit of the shell's own in `build/shell`, `Ernest.Shell` and those under it (`ern_cli:shell_build/0`, `is_shells/1`).
 
 Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`, `{unit, Unit}`, `{binding, QualifiedName, Hash}`, `{constant, Hash}` for a constant's getter and value, `{foreign, QualifiedName}`, `{declared, QualifiedName}`, `{namespace, Namespace}` for the units that hold functions under it, which `Code.running` reads (E.28), `{forms, Unit}` for what a unit's compiled form records, and `{chunk, Unit}` for the interface chunk the runner read. The module's header comment gives each row.
 
@@ -347,6 +347,7 @@ A library under `src/libs/` stands on the host as the standard library does. The
 - **`ern doc`** renders a page with `ern_page:page/1` from the two chunks (§11.4). `doc_dir/3` writes a directory's pages that are `outdated/2`; `--man` renders through `libs/markdown`'s `roff` in a started runtime (`in_runtime/2`). `ern(1)` is `tools/manual.ern`'s, which `make manual` runs over §11.
 - **`ern config`** writes Appendix C's file and an Ed25519 key pair (`ern_node:create/2`, §11.3), and with `--peer-dir` lists in the file a node of this machine, read from its own directory (`ern_node:add_peer/2`).
 - **`ern reload`** and **`ern stop`** signal the node that holds their directory's `ernest.pid`, through the helper's `node` mode (`ern_node:signaled/2`, `ern_node:stopped/1`, §12.5).
+- **`ern unpack`** is `unpack/3`, which hands the root package's entries to `ern_unpack` and runs `Ernest.Unpack.main` as `ern run` runs an entry point (*The unpacking*, §11.9).
 
 ### The shell
 
@@ -363,6 +364,12 @@ The shell is an Ernest program over `Terminal`: `src/shell/ernest/shell.ern`, th
 - An input that declares or builds a function value is kept; an expression's unit holds the value `it` names while `it` names it; any other is deleted by the collection that follows its answer (`is_kept/2`, `collected/1`). The input's process answers its value and what it bound, which the session binds and joins in its own process, the one that writes the session's rows (`bound_value/3`, `collect/2`), and the session keeps the checker's environment between inputs, as the reader keeps its own (`session_env/1`, `reader_session/0`). The process of an input that binds a name lives while the scope holds one (`binders/0`, `let_go/1`).
 - An attached session's detach leaves what it started to the node, keeps for the node's life its units that declare a function or build a function value, with what they need (`lasting/3`, `kept_for_life/1`), and lets the rest go as the purge allows, at a leave or, where the session faulted, from the root of its chain (`detach/0`, `released/4`, `collect_detached/0`).
 - `Shift-Tab` is `documentation/1` or `signature/1`, which prints through `ern_types:format_call/4`. `:doc` is `ern_page`'s `declaration/3`, `session_declaration/3` or `module_head/1`.
+
+### The unpacking
+
+`ern unpack` is an Ernest program beside the shell: `src/shell/ernest/unpack.ern`, the module `Ernest.Unpack`, compiled into `build/shell` with the shell and against `libs/crypto`, whose `sha256` checks an archive (§11.9). It shares `Ernest.Shell.Refusal`, the words of a refusal, with the shell, and no node holds it. `ern_package:read/4` reads the root package's manifest for the job, and `ern_package:entries/1` gives each entry of its form with its `url` and its `sha256`, which `ern_cli:unpack/3` hands to `ern_unpack:given/1` before it runs the program.
+
+`ern_unpack` answers the program's `foreign fn`s: the entries; an archive's members and its regular files' bytes, as `erl_tar` reads them from memory (`members/1`, `files/1`); the lock on `lib/.unpack`, which `ern_os:job_locked/1`'s helper holds for the program's process until it ends (`hold/1`); whether a `.beam` names a module the host finds first (`is_found_first/1`); and a `VERSION`'s form, `ern_package`'s test (`held_version/1`, `version_of/1`). The rest is Ernest over `Fs`: what stands under `lib`, each archive judged whole before any is unpacked, and each unpacked into `lib/.<name>-<version>` and renamed, a removal of what a run left walked over `Fs.list` and `Fs.remove`. Its tests are `src/shell/test/ern_unpack_tests.erl`, which write each archive header by header.
 
 ### The site's generator
 

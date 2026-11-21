@@ -1671,8 +1671,8 @@ editor() ->
     %% over (report §11.2)
     ?assertEqual([<<"Ernest.Shell.Command">>, <<"Ernest.Shell.Complete">>,
                   <<"Ernest.Shell.Editor">>, <<"Ernest.Shell.History">>,
-                  <<"Ernest.Shell.Listing">>, <<"Ernest.Shell.Region">>,
-                  <<"Ernest.Shell.Style">>],
+                  <<"Ernest.Shell.Listing">>, <<"Ernest.Shell.Refusal">>,
+                  <<"Ernest.Shell.Region">>, <<"Ernest.Shell.Style">>],
                  Lines -- Passed),
     ?assert(length(Passed) >= 100),
     ?assertEqual(0, Status).

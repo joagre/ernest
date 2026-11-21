@@ -1,0 +1,102 @@
+/// The words a job of the toolchain's own writes a refusal in (report §11),
+/// which the shell and `ern unpack` both write: a path as §11.5 names one, a
+/// control character as its bytes, and the host's reason for a file. Pure
+/// but for the working directory a path is named from, and tested by `ern
+/// test`.
+
+/// Report §11.5: a file is named from the working directory where it lies
+/// under it, and as it was given where it does not, the working directory
+/// itself and a path with a `.` or `..` segment after it among them.
+export fn fromWorkingDirectory(path : Path) : String =
+    Path.toString(Optional.withDefault(Path.from(path, Os.workingDirectory), path))
+
+/// Report §11.2: a startup file, the history file and `$HOME/.ernest` are
+/// named as §11.5 names a source's file, through `controlFree`.
+export fn named(path : Path) : String =
+    controlFree(fromWorkingDirectory(path))
+
+/// Report §11.2: the host's reason for a file a job could not read, write
+/// or make, in §11's words where it has them and the job's own where it has
+/// none; an error no file call answers is shown as `Io` shows it.
+export fn trouble(error : Io.Error) : String =
+    match error {
+        Io.NotFound -> "no such file"
+      | Io.Denied -> "permission denied"
+      | Io.Timeout -> "the file system did not answer"
+      | Io.Invalid -> "the path is not one the host can take"
+      | Io.Other(text) -> text
+      | _ -> Io.show(error)
+    }
+
+/// Report §11, §2.1: a path, a word of the command line or a text read from
+/// a file as a job names it, each control character written as its bytes in
+/// UTF-8, each `\xHH`, as every job writes one, and every other character, a
+/// backslash among them, as itself.
+export fn controlFree(text : String) : String =
+    String.join(List.map(String.toList(text), controlFreeChar), "")
+
+/// A path as a job names it, through `controlFree`.
+export fn pathText(path : Path) : String =
+    controlFree(Path.toString(path))
+
+fn controlFreeChar(char : Char) : String =
+    if Char.isControl(char) then
+        String.join(List.map(Bytes.toList(String.toUtf8(Char.toString(char))), hexByte), "")
+    else
+        Char.toString(char)
+
+// One byte as `\xHH`, its digits in upper case, as §11 writes them.
+fn hexByte(byte : Int) : String =
+    match Bytes.fromList([byte]) {
+        Some(bytes) -> "\\x" <> Bytes.toHex(bytes)
+      | None -> fault("a byte of UTF-8 is no octet")
+    }
+
+//
+// The tests (report Appendix E.24, §11), run by `ern test`, which `make test-shell` does.
+//
+
+// Report §11: `ern build: a\x1Bb.ern: no such file`, and U+009B is written
+// `\xC2\x9B`.
+let controls =
+    Test.Case(name = "a control character is written as its bytes, each \\xHH",
+              run = fn() =
+                  Test.equal(#(controlFree("a\u{1B}b.ern"),
+                               controlFree("\u{9B}"),
+                               controlFree("\n\u{7F}")),
+                             #("a\\x1Bb.ern", "\\xC2\\x9B", "\\x0A\\x7F")))
+
+let kept =
+    Test.Case(name = "a backslash and every other character are written as themselves",
+              run = fn() =
+                  Test.equal(#(controlFree("a\\x1Bb"), controlFree("lib/é-1.0.0")),
+                             #("a\\x1Bb", "lib/é-1.0.0")))
+
+let path =
+    Test.Case(name = "a path is written through controlFree",
+              run = fn() = Test.equal(pathText(Path("lib/\u{1B}x")), "lib/\\x1Bx"))
+
+// Report §11.5: a path under the working directory is named from it, and
+// one outside it as it was given.
+let fromHere =
+    Test.Case(name = "a path under the working directory is named from it",
+              run = fn() =
+                  Test.equal(#(named(Os.workingDirectory <> Path("a\u{1B}/b")),
+                               fromWorkingDirectory(Path("/elsewhere/x")),
+                               fromWorkingDirectory(Path("rel/x"))),
+                             #("a\\x1B/b", "/elsewhere/x", "rel/x")))
+
+let reasons =
+    Test.Case(name = "a file's trouble is said in §11's words, or the host's",
+              run = fn() =
+                  Test.equal(List.map([Io.NotFound,
+                                       Io.Denied,
+                                       Io.Timeout,
+                                       Io.Invalid,
+                                       Io.Other("no space left on device")],
+                                      trouble),
+                             ["no such file",
+                              "permission denied",
+                              "the file system did not answer",
+                              "the path is not one the host can take",
+                              "no space left on device"]))

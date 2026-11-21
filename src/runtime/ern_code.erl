@@ -132,9 +132,10 @@ loaded_from(Unit, File) ->
 %% Report §11.1, §11.2: the `.erc` of a unit of the toolchain's own, found
 %% by the namespace its Erlang name gives, `ern@` and its path with `@` for
 %% `/`, in the standard library's directory, then in the shell's build and
-%% in the builds of the three libraries the shell is compiled against,
-%% libs/ansi, libs/markdown and libs/ets; none where none holds it, a
-%% program's unit among them, which its runner loads (§11.2).
+%% in the builds of the four libraries the shell's build is compiled
+%% against, libs/ansi, libs/markdown, libs/ets and libs/crypto; none where
+%% none holds it, a program's unit among them, which its runner loads
+%% (§11.2).
 -spec own_file(module()) -> {ok, file:filename()} | none.
 own_file(Module) ->
     case atom_to_list(Module) of
@@ -152,12 +153,14 @@ own_file(Module) ->
 
 %% Report §11.2, §12.5: the builds of the toolchain's own units beside the
 %% standard library's, under the tree's `build` (ern_tree:build/1): the
-%% shell's and those of the three libraries it is compiled against, which
-%% a unit's first call finds it in (own_file/1) and a development build's
-%% floor digests (ern_carrier).
+%% shell's, which holds `ern unpack`'s Ernest beside the shell (§11.9), and
+%% those of the four libraries it is compiled against, `Crypto` the job's,
+%% which a unit's first call finds it in (own_file/1) and a development
+%% build's floor digests (ern_carrier).
 -spec own_builds() -> [file:filename()].
 own_builds() ->
-    [ern_tree:build(Build) || Build <- ["shell", "libs/ansi", "libs/markdown", "libs/ets"]].
+    [ern_tree:build(Build)
+     || Build <- ["shell", "libs/ansi", "libs/markdown", "libs/ets", "libs/crypto"]].
 
 %% Report §12: what a run loads at its start, so that the limit of open
 %% files leaves its system processes, a fault's report and its end able to

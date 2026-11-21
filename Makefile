@@ -129,12 +129,14 @@ lib-http: lib-time lib-uri
 $(filter-out lib-markdown lib-http,$(LIB_BUILDS)): lib-%: stdlib
 	@bin/ern build --verbose --source-root src/libs/$* --build-root build/libs/$* src/libs/$*
 
-# The shell, written in Ernest (report §11.2): src/shell/
-# compiled by ern build into build/shell, where `ern shell` loads it by
-# namespace, with libs/ansi and libs/markdown, which it renders and styles
-# documentation with, and libs/ets, whose `owned` it says an input's
-# tables by, each compiled against from its build under build/libs.
-shell: lib-ansi lib-markdown lib-ets
+# The shell, written in Ernest (report §11.2), and `ern unpack`'s Ernest
+# beside it (§11.9): src/shell/ compiled by ern build into build/shell,
+# where `ern shell` and `ern unpack` load them by namespace, with
+# libs/ansi and libs/markdown, which the shell renders and styles
+# documentation with, libs/ets, whose `owned` it says an input's tables by,
+# and libs/crypto, whose `sha256` the job checks an archive by, each
+# compiled against from its build under build/libs.
+shell: lib-ansi lib-markdown lib-ets lib-crypto
 	@bin/ern build --verbose --build-root build/shell src/shell
 
 # Every page in CommonMark, which the site is generated from (docs/design/site.md

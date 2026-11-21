@@ -22,9 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 8**, `ern unpack`,
-the second of the packages proposal's build order. §11.9 says what it builds since
-2026-11-21, and its two builds are next.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 9**, the guide's
+section on a package, the last of the milestone.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -58,106 +57,7 @@ Read for Build Order*). So the milestone ends with item 9.
 
 The packages proposal's build order,
 [`proposals/package_manager/`](proposals/package_manager/README.md), as it stood in MVP 4.16.
-No further cold reading of §11.9's diff runs: item 8 reads its own sentences of §11.9 against
-its build and its probes before it closes, as items 5 and 6 did, and a finding changes the
-report first (the log's *A Package and Its Manifest*).
 
-- **8. `ern unpack`**, in Ernest, over `Crypto.sha256` and the host's `erl_tar`. §11.9's
-  paragraphs under **`ern unpack`** say what it does since 2026-11-21, the report first,
-  and the log's *An Archive Read by the Host* says why. What is left is the build, in two
-  builds, an agent each, the second started once the first is committed. No library over
-  tar or gzip is written, and none reads the tar format in Ernest.
-
-  - **The first build, the lock**, in the runtime, at the stronger effort. The helper,
-    `src/runtime/c_src/ern_exec.c`, gains a command that opens the file it is given,
-    making it where it is absent, takes a write lock on it and waits for one another
-    process holds, says that it holds the lock, and holds it until its standard input
-    ends. It opens no name that reaches anything but a regular file (§11). `ern_os` gains
-    the function that starts it, whose caller owns the port, so that the lock goes when
-    the caller ends. Its answers are the lock held, a name that reaches no regular file,
-    and the words for what stopped the helper. A test in `ern_os_tests` holds a lock,
-    asks for it again from a second helper, lets the first go and sees the second hold
-    it. The check: `make test` and, since the helper's C changes, `make sanitize`.
-  - **The second build, the job.** Three parts.
-    - **The command**, `ern_cli:unpack/3`. `unpack` joins the jobs that read a manifest.
-      Started where there is no manifest it is refused, `package.conf: no such file`.
-      `ern_package:read/4` takes the job `"unpack"`: the manifest's form, the directory
-      every user may write and the entries' namespaces, and no refusal of a named package
-      not under `lib`. It gains an accessor that gives each entry of its form, the first
-      of each name, with its `url` and its `sha256` where it has them. The command hands
-      the entries to the job's Erlang half, loads `Ernest.Unpack` from `build/shell` as
-      the shell is loaded, and runs its `main` as `ern run` runs an entry point. The
-      status is 1 where the job refused anything (§11.8).
-    - **The Erlang half**, `src/shell/ern_unpack.erl`. It holds the entries as
-      `ern_shell` holds what its command read, and answers the job's foreign functions:
-      the entries; the members of an archive's bytes, each with its name, its kind and
-      its mode, over `erl_tar:table`, or the host's reason by `erl_tar:format_error`;
-      the regular files' names and bytes, over `erl_tar:extract` into memory; the lock,
-      the first build's; whether a name is a module of the host's own or of the
-      toolchain's, as §11.2 finds one first; and a `VERSION`'s form, by
-      `ern_package`'s one test, of a package's directory and of an archive's `VERSION`.
-      A name the host could not decode answers the host's reason for one in a header,
-      `erl_tar:format_error({bad_header, invalid_string})`.
-    - **The Ernest**, `src/shell/ernest/unpack.ern`, the module `Ernest.Unpack`. It takes
-      the lock where `lib` is a directory, and works in three passes over the entries,
-      in the manifest's order. The refusals are written on standard error, each after
-      `ern unpack: `, in the entries' order.
-      - **What stands.** It reads what stands at `lib/<name>`, following no link there,
-        and its `VERSION` where it is a directory or a link to one. A package at its
-        entry's version is held to nothing.
-      - **Each archive judged.** Else it reads the archive whole, checks its digest,
-        lists its members, holds each to its kind and its name, and holds the archive
-        to its `package.conf`, its `VERSION` and the `.beam` refusals, each as §11.9
-        says, an archive's `ebin` being the regular files directly under it. Every
-        archive is read and judged before one is unpacked, since the `.beam` refusal
-        holds an archive to the other packages' archives.
-      - **Each unpacked.** It first removes each name in `lib` that begins with
-        `.<name>-`, by a walk over `Fs.list` and `Fs.remove`. It unpacks into
-        `lib/.<name>-<version>`: each directory member and each file's directories
-        made, each file written in the archive's order, and the right to run added
-        where the file has the right to read and its member lets its owner run it. A
-        link at `lib/<name>` is then removed, and the directory renamed. A write that
-        fails is refused with its path and the host's reason, and what the job staged
-        is removed.
-    - **The refusal's words.** The shell's `controlFree`, `pathText` and `trouble` move
-      to a module of the root that the shell and the job both name, with their tests.
-    - **What follows the place.** `ern_cli`'s load of the shell's build at a node's
-      start takes `Ernest.Shell` and what stands under it alone. The Makefile's `shell`
-      target takes `libs/crypto`, and the list of the toolchain's own builds in
-      `ern_code` gains it.
-  - **The tests**, each citing §11.9, over archives the tests write themselves, header by
-    header, so that a hostile one needs no tool.
-    - **One that unpacks**: its files, an empty directory, a file its owner may run and
-      one it may not, a set-ID bit that reaches no file, a name given twice, a leading
-      `./`, a pax global header passed over, and a second run that does and says
-      nothing.
-    - **Each refusal of §11.9 with its text**: no `sha256` with and without the archive,
-      no archive with and without a `url`, the digest, an archive the host cannot read,
-      each kind refused, a name outside the directory, a `..`, no `package.conf`, no
-      `VERSION`, a `VERSION` not of its form and of another version, each of the four
-      things that may stand at `lib/<name>`, and the three `.beam` refusals, one
-      against an archive and one against a package under `lib`.
-    - **What a run leaves**: a link at `lib/<name>` removed, and left by a refused
-      archive; what an earlier run left removed; nothing of a refused archive unpacked;
-      and a refusal that stops no other package.
-    - **The lock**: a run started while the test holds the lock ends once the test lets
-      it go.
-  - **A package's `priv`**, moved here from item 10 on 2026-11-19 (the log's *The Plan Read
-    for Build Order*). A fixture package with an `ebin` and a `priv` is unpacked by `ern
-    unpack`, and a program over it takes the `priv` through `code:priv_dir`, as §11.9's
-    paragraph on the load path says. So the sentence's test needs no other repository, and
-    the full review reads it.
-  - **What is not tested.** That a second run waits, which no test can show without a
-    sleep: the session's probe shows it. A broken archive, a file where a directory must
-    stand among them, which fails with the host's reason.
-  - **The documents.** `docs/development.md`'s row for the job goes. `docs/architecture.md`
-    gains the job's paragraph beside the shell's, and each document that says the shell's
-    root holds the shell alone gains its clause: `src/shell/README.md`,
-    `docs/design/shell.md` and `docs/development.md`. The code style's glossary takes the
-    job's words.
-  - **The close.** The session reads §11.9's sentences against the build, and probes two
-    runs at once, an archive `git archive` wrote, and one made with a leading `./`. A
-    finding changes the report first. Then `make test-full`.
 - **9. The guide's section on a package.** It says what an entry's digest promises: the archive
   that `ern unpack` unpacks, and nothing of a `lib` filled by hand or changed since (the
   log's *An Installed Program's Packages*). It teaches `--package-dir` with a program
@@ -179,8 +79,8 @@ report first (the log's *A Package and Its Manifest*).
 ### What is done
 
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
-shell's editing, was built after them, then item 52, item 54, item 160 and item 161, and item
-7 last.
+shell's editing, was built after them, then item 52, item 54, item 160 and item 161, item 7,
+and item 8 last.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -195,6 +95,7 @@ shell's editing, was built after them, then item 52, item 54, item 160 and item 
 | 160 | What item 119's cold reading left in §11.2: the live region named once, the prompt, a command kept as an input is, the search's paragraph, a paste a terminal brackets, and the words that said another thing | 2026-11-21, sentences alone | *The Live Region Named Once* |
 | 161 | An input taller than the screen drawn through a window, the cursor's row in it, and the region's erase made no clear from the screen's corner, with `Ansi.clearRow` | 2026-11-21 | *A Window onto the Input* and *A Window onto the Input, Built* |
 | 7 | `Crypto.sha256`, a shim beside `sha1`, its E.0 reading and its line of Appendix G.9 first | 2026-11-21 | *SHA-256 Beside SHA-1* |
+| 8 | `ern unpack`, `Ernest.Unpack` in the shell's root over `erl_tar`, `Crypto.sha256` and the helper's waiting lock, §11.9's paragraphs on an archive first, and a package's `priv` found through `code:priv_dir` | 2026-11-21 | *An Archive Read by the Host* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---
@@ -379,7 +280,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
        Program's Packages*). The launcher gives `--package-dir` with its root and loses its
        loop, and `make install` copies `package.conf`. A program's own Erlang is named from
        a directory of its own, `erl` in a checkout, so that `lib` holds the named packages
-       alone. The test of a `priv` found through `code:priv_dir` is MVP 4.17's item 8's.
+       alone. `ern_unpack_tests`' `priv_test` holds a `priv` found through `code:priv_dir`, since MVP
+       4.17's item 8.
      - **The template's archive**, found 2026-11-14, reading ernest-epx's release step. It
        holds a library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link
        copied through, where §11.9 has a package's Erlang under its own `ebin` with its

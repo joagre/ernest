@@ -1,0 +1,575 @@
+/// `ern unpack` (report §11.9): each named package of the root package's
+/// manifest that does not stand under `lib` at its entry's version, by its
+/// `VERSION`, unpacked there from its archive in `lib`, which its entry's
+/// SHA-256 checks, in the manifest's order. The job says nothing but its
+/// refusals, each on standard error after `ern unpack: `, and its status is
+/// 1 where it refused anything.
+///
+/// It holds `lib/.unpack` locked while it works, and works in three passes
+/// over the entries: what stands at each name under `lib`, each archive read
+/// and judged, and each archive judged whole unpacked. Every archive is
+/// judged before one is unpacked, since an archive's `.beam` files are held
+/// to the other packages'. The host reads an archive, as its `erl_tar` reads
+/// one, holds the lock and knows its own modules; the rest is Ernest over
+/// `Fs` and `Crypto`.
+
+// An entry of the root package's manifest, of its form and the first of its
+// name, as the command read it, with its `url` and its `sha256` where it has
+// them (report §11.9).
+type Entry =
+    Entry(name : String, version : String, url : Optional(String), sha256 : Optional(String))
+
+// A member's kind as the host names it: a directory, a regular file, tar's
+// contiguous file among them, one of a kind the host does not know, a pax
+// global header among them, and any other, a link, a named pipe or a device.
+type Kind = Directory | Regular | Unknown | Other
+
+// A member of an archive as the host lists it, in the archive's order.
+type Member = Member(name : String, kind : Kind, mode : Int)
+
+// What a package's directory under `lib` holds of its `VERSION`.
+type Held = NoVersion | NotOfForm | Version(String)
+
+// What stands at an entry's name under `lib`: its package at the entry's
+// version, nothing, a link the unpacking replaces, or what is refused and
+// left as it is, with its refusal.
+type Standing = Stands | Absent | Linked | Refused(String)
+
+// What an archive unpacks, each by its segments under the archive's
+// directory: a directory made, or a file written with its bytes, which may
+// be run where its member lets its owner run it.
+type Unpacked =
+    Made(segments : List(String))
+  | Written(segments : List(String), bytes : Bytes, runs : Bool)
+
+// An archive whose digest is its entry's and whose members the host lists:
+// what it unpacks, the last member of each name, and the `.beam` files
+// directly under its `ebin`, in the archive's order.
+type Archive = Archive(unpacked : List(Unpacked), ebin : List(String))
+
+// An entry judged: what stands at its name, its archive where it has one
+// that is read, and its refusals so far, in the order they are said.
+type Judged =
+    Judged(entry : Entry, standing : Standing, archive : Optional(Archive), refusals : List(String))
+
+// How long to wait for the file system, which is a local file.
+let fileMs = 5000
+
+// Report §11.9: the root package is the working directory, so its manifest
+// and its `lib` are named so, as §11.5 names a path.
+let manifest = "package.conf"
+
+let lib = "lib"
+
+/// Report §11.9, §11.8: the job, its refusals said in the order they are
+/// made, and its status 1 where it made one. The lock is held by this
+/// process, and goes as it ends.
+export fn main() : Unit = {
+    let refusals = match locked() {
+        Left(refusal) -> [refusal]
+      | Right(_) -> passes(entries())
+    };
+    List.forEach(refusals,
+                 fn(refusal) =
+                     Io.printlnError("ern unpack: " <> Shell.Refusal.controlFree(refusal)));
+    if List.isEmpty(refusals) then Unit else Os.exit(1)
+}
+
+// Report §11.9: `lib/.unpack` locked where `lib` is a directory; a root
+// package with no `lib` has nothing to unpack, and takes no lock.
+fn locked() : Either(String, Unit) =
+    match Fs.stat(Path(lib), fileMs) {
+        Right(entry) when entry.kind == Fs.Directory ->
+            Either.mapLeft(hold(lib <> "/.unpack"), fn(reason) = lib <> "/.unpack: " <> reason)
+      | _ ->
+            Right(Unit)
+    }
+
+// Report §11.9: the three passes, the refusals of the first two in the
+// entries' order, then those of the third. A refusal of one named package
+// stops no other.
+fn passes(entries : List(Entry)) : List(String) = {
+    let judged = List.map(entries, fn(entry) = judgedEntry(entry, standing(entry)));
+    let held = List.map(judged, fn(one) = heldToOthers(one, judged));
+    List.flatMap(held, fn(one) = one.refusals) <> List.flatMap(held, unpackedOne)
+}
+
+//
+// What stands
+//
+
+// Report §11.9: what stands at the entry's name under `lib`, no link there
+// followed, and its `VERSION` where it is a directory or a link to one. A
+// link stands where its package is at the entry's version, and is replaced
+// otherwise; anything else there is refused and left as it is.
+fn standing(entry : Entry) : Standing = {
+    let path = lib <> "/" <> entry.name;
+    match Fs.readLink(Path(path), fileMs) {
+        Left(Io.NotFound) ->
+            Absent
+      | Right(Some(_)) or Left(Io.NotUtf8(_)) ->
+            if heldVersion(path) == Version(entry.version) then Stands else Linked
+      | Right(None) ->
+            match Fs.stat(Path(path), fileMs) {
+                Right(found) when found.kind == Fs.Directory -> directoryStanding(entry, path)
+              | Right(_) -> Refused(heldOtherwise(entry, path <> " is no directory"))
+              | Left(error) -> Refused(path <> ": " <> Shell.Refusal.trouble(error))
+            }
+      | Left(error) ->
+            Refused(path <> ": " <> Shell.Refusal.trouble(error))
+    }
+}
+
+fn directoryStanding(entry : Entry, path : String) : Standing =
+    match heldVersion(path) {
+        Version(version) when version == entry.version ->
+            Stands
+      | Version(version) ->
+            Refused(heldOtherwise(entry, path <> " holds " <> version))
+      | NoVersion ->
+            Refused(heldOtherwise(entry, path <> " holds no VERSION"))
+      | NotOfForm ->
+            Refused(heldOtherwise(entry, path <> "/VERSION is not one line that holds a version"))
+    }
+
+fn heldOtherwise(entry : Entry, held : String) : String =
+    manifest
+        <> ": the entry for "
+        <> entry.name
+        <> " says "
+        <> entry.version
+        <> ", and "
+        <> held
+        <> "; remove it, and ern unpack puts "
+        <> entry.version
+        <> " there"
+
+//
+// Each archive judged
+//
+
+// Report §11.9: an entry's archive read and judged where its package does
+// not stand at its entry's version, one refused for what stands at its name
+// among them, whose archive's refusals are said after that refusal and
+// which is not unpacked.
+fn judgedEntry(entry : Entry, standing : Standing) : Judged =
+    match standing {
+        Stands ->
+            Judged(=entry, =standing, archive = None, refusals = [])
+      | Refused(refusal) -> {
+            let #(refusals, archive) = read(entry);
+            Judged(=entry, =standing, =archive, refusals = refusal :: refusals)
+        }
+      | _ -> {
+            let #(refusals, archive) = read(entry);
+            Judged(=entry, =standing, =archive, =refusals)
+        }
+    }
+
+// The entry's archive, `lib/<name>-<version>.tar.gz`, read and checked by
+// its digest, which an entry with no `sha256` cannot be and which an archive
+// that fails is read no further past; then its members judged.
+fn read(entry : Entry) : #(List(String), Optional(Archive)) = {
+    let path = archivePath(entry);
+    match #(Fs.read(Path(path), fileMs), entry.sha256) {
+        #(Right(bytes), None) ->
+            #([noDigest(entry) <> "; " <> path <> " has " <> digest(bytes)], None)
+      | #(Right(bytes), Some(expected)) ->
+            if digest(bytes) == expected then
+                members(entry, path, bytes)
+            else
+                #([path
+                       <> ": its sha256 is "
+                       <> digest(bytes)
+                       <> ", and the entry for "
+                       <> entry.name
+                       <> " says "
+                       <> expected],
+                  None)
+      | #(Left(error), sha256) -> {
+            let unchecked = if Optional.isNone(sha256) then [noDigest(entry)] else [];
+            #(unchecked <> [unread(entry, path, error)], None)
+        }
+    }
+}
+
+fn noDigest(entry : Entry) : String =
+    manifest <> ": the entry for " <> entry.name <> " has no sha256"
+
+// Report §11.9: an archive that is not there is said with where to put it,
+// and what to download where the entry has a `url`; any other is refused
+// with the host's reason, as §11 words one that reaches no regular file.
+fn unread(entry : Entry, path : String, error : Io.Error) : String =
+    match error {
+        Io.NotFound -> {
+            let package =
+                manifest <> ": " <> entry.name <> " " <> entry.version <> " is not under " <> lib;
+            match entry.url {
+                Some(url) -> package <> "; download " <> url <> " to " <> path
+              | None -> package <> "; put " <> archiveName(entry) <> ".tar.gz in " <> lib
+            }
+        }
+      | Io.NotAFile ->
+            path <> ": is no regular file"
+      | _ ->
+            path <> ": " <> Shell.Refusal.trouble(error)
+    }
+
+// The archive's SHA-256, as a manifest writes one, its letters lowercase.
+fn digest(bytes : Bytes) : String =
+    String.toAsciiLower(Bytes.toHex(Crypto.sha256(bytes)))
+
+fn archiveName(entry : Entry) : String =
+    entry.name <> "-" <> entry.version
+
+fn archivePath(entry : Entry) : String =
+    lib <> "/" <> archiveName(entry) <> ".tar.gz"
+
+// Report §11.9: the archive's members as the host lists them, each held to
+// its kind and its name, a line for each that breaks a rule, in the
+// archive's order, a member of a kind the host does not know passed over;
+// then the archive held to its `package.conf`, its `VERSION` and the
+// `.beam` refusals its own `ebin` gives. Each refusal names the archive.
+fn members(entry : Entry, path : String, bytes : Bytes) : #(List(String), Optional(Archive)) =
+    match Either.andThen(listed(bytes),
+                         fn(listed) =
+                             Either.map(files(bytes), fn(contents) = #(listed, contents))) {
+        Left(reason) ->
+            #([path <> ": " <> reason], None)
+      | Right(#(listed, contents)) -> {
+            let directory = archiveName(entry);
+            let known = List.filter(listed, fn(member) = member.kind != Unknown);
+            let unpacked =
+                lastOfEach(List.filterMap(withBytes(listed, contents),
+                                          fn(#(member, bytes)) =
+                                              unpackedMember(member, bytes, directory)));
+            let ebin = ebinOf(unpacked);
+            let refusals =
+                List.flatMap(known, fn(member) = memberRefusals(member, directory))
+                    <> packageRefusals(entry, unpacked, directory)
+                    <> List.flatMap(ebin, ownBeamRefusals);
+            #(List.map(refusals, fn(refusal) = path <> ": " <> refusal),
+              Some(Archive(=unpacked, =ebin)))
+        }
+    }
+
+// Each member with the bytes of the regular file it is, the archive's
+// regular files' bytes taken in the archive's order, which the host lists
+// and extracts alike.
+fn withBytes(listed : List(Member),
+             contents : List(#(String, Bytes))) : List(#(Member, Optional(Bytes))) =
+    match #(listed, contents) {
+        #(member :: rest, #(name, bytes) :: more) when member.kind == Regular
+            && name == member.name ->
+            #(member, Some(bytes)) :: withBytes(rest, more)
+      | #(member :: _, _) when member.kind == Regular ->
+            fault("the host extracted no file for the member " <> member.name)
+      | #(member :: rest, _) ->
+            #(member, None) :: withBytes(rest, contents)
+      | #([], _) ->
+            []
+    }
+
+// Report §11.9: a member's name is the archive's directory, alone or with
+// segments after it, none `..`; an empty segment and a `.` name nothing.
+fn segments(name : String) : List(String) =
+    List.filter(String.split(name, "/"), fn(segment) = segment != "" && segment != ".")
+
+fn memberRefusals(member : Member, directory : String) : List(String) = {
+    let kind = match member.kind {
+        Directory or Regular -> []
+      | _ -> [member.name <> " is neither a directory nor a regular file"]
+    };
+    let name = match segments(member.name) {
+        named when List.contains(named, "..") || List.isEmpty(named) ->
+            [member.name <> " is no member's name"]
+      | first :: _ when first != directory ->
+            [member.name <> " stands outside " <> directory]
+      | _ ->
+            []
+    };
+    kind <> name
+}
+
+// A member of its kind and of its name as what it unpacks, by its segments
+// under the archive's directory; a file may be run where its member's mode
+// lets its owner run it.
+fn unpackedMember(member : Member,
+                  bytes : Optional(Bytes),
+                  directory : String) : Optional(Unpacked) =
+    match #(member.kind, bytes, segments(member.name)) {
+        #(_, _, named) when List.contains(named, "..") ->
+            None
+      | #(Directory, _, first :: rest) when first == directory ->
+            Some(Made(segments = rest))
+      | #(Regular, Some(bytes), first :: rest) when first == directory ->
+            Some(Written(segments = rest, =bytes, runs = Int.bitAnd(member.mode, 0o100) != 0))
+      | _ ->
+            None
+    }
+
+fn segmentsOf(unpacked : Unpacked) : List(String) =
+    match unpacked {
+        Made(=segments) -> segments
+      | Written(=segments) -> segments
+    }
+
+// Report §11.9: where two members have one name, the last stands, in its
+// place in the archive's order.
+fn lastOfEach(unpacked : List(Unpacked)) : List(Unpacked) = {
+    let key = fn(one) = String.join(segmentsOf(one), "/");
+    let last =
+        List.foldLeft(List.indexed(unpacked),
+                      Map.empty,
+                      fn(acc, #(index, one)) = Map.put(acc, key(one), index));
+    List.filterMap(List.indexed(unpacked),
+                   fn(#(index, one)) =
+                       if Map.get(last, key(one)) == Some(index) then Some(one) else None)
+}
+
+// Report §11.9: an archive's `ebin` is the regular files directly under
+// it, and its `.beam` files those whose names end so.
+fn ebinOf(unpacked : List(Unpacked)) : List(String) =
+    List.filterMap(unpacked, fn(one) = match one {
+        Written(segments = ["ebin", name]) when String.endsWith(name, ".beam") -> Some(name)
+      | _ -> None
+    })
+
+// Report §11.9: the archive holds a manifest and a `VERSION` of its form
+// that says the entry's version.
+fn packageRefusals(entry : Entry, unpacked : List(Unpacked), directory : String) : List(String) = {
+    let file = fn(name) = List.find(unpacked, fn(one) = match one {
+        Written(segments = [given]) -> given == name
+      | _ -> false
+    });
+    let conf = match file("package.conf") {
+        Some(_) -> []
+      | None -> ["holds no package.conf"]
+    };
+    let version = match file("VERSION") {
+        None ->
+            ["holds no VERSION"]
+      | Some(Written(=bytes)) ->
+            match versionOf(bytes) {
+                None ->
+                    [directory <> "/VERSION is not one line that holds a version"]
+              | Some(held) when held != entry.version ->
+                    ["holds "
+                         <> entry.name
+                         <> " "
+                         <> held
+                         <> ", and the entry for "
+                         <> entry.name
+                         <> " says "
+                         <> entry.version]
+              | Some(_) ->
+                    []
+            }
+      | Some(_) ->
+            []
+    };
+    conf <> version
+}
+
+// Report §11.9, §11.2: a `.beam` of the archive's `ebin` named as a unit
+// is, or as a module the host finds first.
+fn ownBeamRefusals(beam : String) : List(String) =
+    if String.startsWith(beam, "ern@") then
+        [beam <> " is named as a unit is"]
+    else if isFoundFirst(beam) then
+        [beam <> " is the host's own module, which is found first"]
+    else
+        []
+
+// Report §11.9: an archive's `.beam` files held to each other named
+// package's `ebin`, a line for each name and each package, in the
+// manifest's order: the `ebin` of its archive where the package does not
+// stand at its entry's version, and that under `lib` where it does. An
+// archive that was not read is held to nothing.
+fn heldToOthers(one : Judged, judged : List(Judged)) : Judged =
+    match one.archive {
+        Some(archive) -> {
+            let others = List.filter(judged, fn(other) = other.entry.name != one.entry.name);
+            let ebins = List.map(others, fn(other) = #(other.entry.name, ebinHeld(other)));
+            let shared =
+                List.flatMap(archive.ebin,
+                             fn(beam) =
+                                 List.filterMap(ebins,
+                                                fn(#(name, ebin)) =
+                                                    if List.contains(ebin, beam) then
+                                                        Some(sharedBeam(one.entry, beam, name))
+                                                    else
+                                                        None));
+            Judged(..one, refusals = one.refusals <> shared)
+        }
+      | None ->
+            one
+    }
+
+fn sharedBeam(entry : Entry, beam : String, other : String) : String =
+    archivePath(entry) <> ": " <> beam <> " is " <> other <> "'s too, and the host loads one"
+
+fn ebinHeld(judged : Judged) : List(String) =
+    match #(judged.standing, judged.archive) {
+        #(Stands, _) ->
+            match Fs.list(Path(lib <> "/" <> judged.entry.name <> "/ebin"), fileMs) {
+                Right(entries) ->
+                    List.filter(List.filterMap(entries, fn(entry) = Path.name(entry.path)),
+                                fn(name) = String.endsWith(name, ".beam"))
+              | Left(_) ->
+                    []
+            }
+      | #(_, Some(archive)) ->
+            archive.ebin
+      | _ ->
+            []
+    }
+
+//
+// Each unpacked
+//
+
+// Report §11.9: an archive that passed every check, unpacked into
+// `lib/.<name>-<version>` once whatever a run left beside its name is
+// removed, and renamed to its name, a link there removed first. A write
+// that fails is refused with its path and the host's reason, and what the
+// job staged is removed.
+fn unpackedOne(judged : Judged) : List(String) =
+    match #(judged.standing, judged.archive, judged.refusals) {
+        #(Absent, Some(archive), []) or #(Linked, Some(archive), []) ->
+            match unpacking(judged.entry, judged.standing == Linked, archive.unpacked) {
+                Right(_) -> []
+              | Left(refusals) -> refusals
+            }
+      | _ ->
+            []
+    }
+
+fn unpacking(entry : Entry,
+             linked : Bool,
+             unpacked : List(Unpacked)) : Either(List(String), Unit) = {
+    let staging = Path(lib <> "/." <> archiveName(entry));
+    let target = Path(lib <> "/" <> entry.name);
+    let _ <- Either.mapLeft(leftoversRemoved(entry), fn(refusal) = [refusal]);
+    let _ <-
+        Either.mapLeft(refusedAt(staging, Fs.makeDir(staging, fileMs)), fn(refusal) = [refusal]);
+    withdrawnUnless(staging, {
+        let _ <- List.tryForEach(unpacked, fn(one) = written(staging, one));
+        let _ <- if linked then refusedAt(target, Fs.remove(target, fileMs)) else Right(Unit);
+        refusedAt(staging, Fs.rename(staging, target, fileMs))
+    })
+}
+
+// Report §11.9: each name in `lib` that begins with `.<name>-`, which a
+// run left beside the package's name, removed, a link removed and not
+// followed.
+fn leftoversRemoved(entry : Entry) : Either(String, Unit) = {
+    let left <- refusedAt(Path(lib), Fs.list(Path(lib), fileMs));
+    let begun = "." <> entry.name <> "-";
+    List.tryForEach(List.filter(left,
+                                fn(found) =
+                                    Optional.withDefault(Optional.map(Path.name(found.path),
+                                                                      fn(name) =
+                                                                          String.startsWith(name,
+                                                                                            begun)),
+                                                         false)),
+                    removed)
+}
+
+// A name removed, a directory with all it holds, and a link removed and
+// not followed (`Fs.remove`).
+fn removed(found : Fs.Entry) : Either(String, Unit) = {
+    let _ <- match found.kind {
+        Fs.Directory -> {
+            let held <- refusedAt(found.path, Fs.list(found.path, fileMs));
+            List.tryForEach(held, removed)
+        }
+      | _ ->
+            Right(Unit)
+    };
+    refusedAt(found.path, Fs.remove(found.path, fileMs))
+}
+
+// The unpacking's result, and where it failed, what it staged removed, the
+// refusal of that removal said after the failure's.
+fn withdrawnUnless(staging : Path, result : Either(String, Unit)) : Either(List(String), Unit) =
+    match result {
+        Right(_) ->
+            Right(Unit)
+      | Left(refusal) ->
+            match Either.andThen(refusedAt(staging, Fs.stat(staging, fileMs)), removed) {
+                Right(_) -> Left([refusal])
+              | Left(withdrawal) -> Left([refusal, withdrawal])
+            }
+    }
+
+// Report §11.9, Appendix E.17: a member written under the staging
+// directory: a directory made, and a file written with the bits the mask
+// leaves it, its directories made, and the right to run added where it has
+// the right to read and its member lets its owner run it.
+fn written(staging : Path, unpacked : Unpacked) : Either(String, Unit) =
+    match unpacked {
+        Made(=segments) -> {
+            let path = under(staging, segments);
+            refusedAt(path, Fs.makeDir(path, fileMs))
+        }
+      | Written(=segments, =bytes, =runs) -> {
+            let path = under(staging, segments);
+            let parent = Optional.withDefault(Path.parent(path), staging);
+            let _ <- refusedAt(parent, Fs.makeDir(parent, fileMs));
+            let _ <- refusedAt(path, Fs.write(path, bytes, fileMs));
+            if runs then madeRunnable(path) else Right(Unit)
+        }
+    }
+
+fn madeRunnable(path : Path) : Either(String, Unit) = {
+    let found <- refusedAt(path, Fs.stat(path, fileMs));
+    let mode = Int.bitOr(found.mode, Int.shiftRight(Int.bitAnd(found.mode, 0o444), 2));
+    if mode == found.mode then Right(Unit) else refusedAt(path, Fs.setMode(path, mode, fileMs))
+}
+
+fn under(staging : Path, segments : List(String)) : Path =
+    Path.join(Path.toString(staging) :: segments)
+
+// A file call's error as a refusal of the path, in the host's words.
+fn refusedAt(path : Path, result : Either(Io.Error, a)) : Either(String, a) =
+    Either.mapLeft(result, fn(error) = Path.toString(path) <> ": " <> Shell.Refusal.trouble(error))
+
+//
+// The host
+//
+
+// Report §11.9: the root package's entries, which the command read.
+foreign fn entries() : List(Entry) =
+    "ern_unpack:entries/0"
+
+// Report §11.9: the archive's members as the host's `erl_tar` lists them,
+// or the host's reason for an archive it cannot read.
+foreign fn listed(bytes : Bytes) : Either(String, List(Member)) =
+    "ern_unpack:members/1"
+
+// Report §11.9: the names and the bytes of the archive's regular files, in
+// the archive's order, as the host extracts them.
+foreign fn files(bytes : Bytes) : Either(String, List(#(String, Bytes))) =
+    "ern_unpack:files/1"
+
+// Report §11.9: the job's lock on the file at the path, held by this
+// process until it ends, or the reason it is not held. The library has no
+// lock on a file, and a second run waits for this one in the host.
+foreign fn hold(path : String) : Either(String, Unit) =
+    "ern_unpack:hold/1"
+
+// Report §11.9, §11.2: whether a `.beam` is named as a module of the host's
+// own or of the toolchain's, which the host finds first.
+foreign fn isFoundFirst(beam : String) : Bool =
+    "ern_unpack:is_found_first/1"
+
+// Report §11.9: what a package's directory holds of its `VERSION`, by the
+// one test `ern build` holds a named package to.
+foreign fn heldVersion(package : String) : Held =
+    "ern_unpack:held_version/1"
+
+// Report §11.9: the version an archive's `VERSION` holds, where it is of
+// its form, by the same test.
+foreign fn versionOf(bytes : Bytes) : Optional(String) =
+    "ern_unpack:version_of/1"

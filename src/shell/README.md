@@ -1,13 +1,13 @@
 # Reading the shell
 
-The Ernest shell is an Ernest program: `Ernest.Shell` in [`ernest/shell.ern`](ernest/shell.ern), seven modules under [`ernest/shell/`](ernest/shell/), and a front end in Erlang for what only the compiler or the host can answer. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/design/shell.md`](../../docs/design/shell.md), cited by the names of its sections and paragraphs.
+The Ernest shell is an Ernest program: `Ernest.Shell` in [`ernest/shell.ern`](ernest/shell.ern), eight modules under [`ernest/shell/`](ernest/shell/), and a front end in Erlang for what only the compiler or the host can answer. The shell's root holds `ern unpack`'s Ernest beside it, `Ernest.Unpack` in [`ernest/unpack.ern`](ernest/unpack.ern), over its own host half, [`ern_unpack.erl`](ern_unpack.erl), and no node holds it (report §11.9). This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/design/shell.md`](../../docs/design/shell.md), cited by the names of its sections and paragraphs.
 
 ## Where to start
 
 Start at `main` in `ernest/shell.ern`. The file reads top to bottom, in seven parts:
 
 1. **The session**: the types of every process and the front end's handles, `main`, `attach`, the session's start, `session`, and its own functions.
-2. **Commands**: what a `:` line does, but `:output`'s `redirectOutput` and `cannotWrite`, which stand in the session's part after `trouble`, among the startup files' functions.
+2. **Commands**: what a `:` line does, but `:output`'s `redirectOutput` and `cannotWrite`, which stand in the session's part after `fileMs`, among the startup files' functions.
 3. **The screen**: the one process that draws.
 4. **The reader**: the keys, completion, and documentation.
 5. **Line mode**: `lineLoop`, where the shell reads lines rather than keys (§11.2 *Editing*).
@@ -69,13 +69,15 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 | `Ernest.Shell.Region` | [`ernest/shell/region.ern`](ernest/shell/region.ern) | The live region at the foot of the terminal, and the bytes each event writes. |
 | `Ernest.Shell.History` | [`ernest/shell/history.ern`](ernest/shell/history.ern) | The person's directory and the history file in it, over `Os` and `Fs`. |
 | `Ernest.Shell.Listing` | [`ernest/shell/listing.ern`](ernest/shell/listing.ern) | The lines `:processes` writes: each process by its site, what it does and the bytes it holds, and each cycle of calls without limit. |
+| `Ernest.Shell.Refusal` | [`ernest/shell/refusal.ern`](ernest/shell/refusal.ern) | The words a refusal is written in, which `ern unpack` writes too: a path named from the working directory, a control character as `\xHH`, and the host's reason for a file. |
 | `Ernest.Shell.Style` | [`ernest/shell/style.ern`](ernest/shell/style.ern) | The colors. Each function is given `Markdown.Styled` or `Markdown.Plain`, as documentation is rendered. |
+| `Ernest.Unpack` | [`ernest/unpack.ern`](ernest/unpack.ern) | Not part of the shell: `ern unpack`, which checks each named package's archive and unpacks it under `lib` (report §11.9), over its own host half, `ern_unpack.erl`. |
 | `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell, which renders documentation. |
 | `Ansi` | [`libs/ansi`](../libs/ansi/ansi.ern) | A library, not part of the shell, which writes the terminal's styles and the cursor's moves. |
 
-`Ernest.Shell` uses all the others but `Ansi`, which `Ernest.Shell.Region`, `Ernest.Shell.Style` and `Markdown` write with. Of the others, three use another: `Ernest.Shell.Editor` reads the history's limit, `Ernest.Shell.History.kept`; `Ernest.Shell.Complete` reads `Ernest.Shell.Command`'s table, what each command takes and where its word ends; and `Ernest.Shell.Style` takes a `Markdown.Output`.
+`Ernest.Shell` uses all the others but `Ansi`, which `Ernest.Shell.Region`, `Ernest.Shell.Style` and `Markdown` write with, and `Ernest.Unpack` uses `Ernest.Shell.Refusal` alone of them. Of the others, three use another: `Ernest.Shell.Editor` reads the history's limit, `Ernest.Shell.History.kept`; `Ernest.Shell.Complete` reads `Ernest.Shell.Command`'s table, what each command takes and where its word ends; and `Ernest.Shell.Style` takes a `Markdown.Output`.
 
-Every module but `Ernest.Shell`, `Ernest.Shell.History` and `Ernest.Shell.Complete` is pure, and `Ernest.Shell.Complete`'s matching is. `Ernest.Shell.Editor.Editing` and `Ernest.Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Ernest.Shell.Editor.text`. Each module but `Ernest.Shell` is tested by its `Test` values (Appendix E.24, §11.2), the impure ones' tests reaching their pure parts. `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
+Every module but `Ernest.Shell`, `Ernest.Shell.History`, `Ernest.Shell.Complete` and `Ernest.Shell.Refusal`, which names a path from the working directory, is pure, and `Ernest.Shell.Complete`'s matching is. `Ernest.Shell.Editor.Editing` and `Ernest.Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Ernest.Shell.Editor.text`. Each module but `Ernest.Shell` is tested by its `Test` values (Appendix E.24, §11.2), the impure ones' tests reaching their pure parts. `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*). `Ernest.Unpack` is tested whole, the job run over archives its tests write, by `src/shell/test/ern_unpack_tests.erl`.
 
 ## The front end
 

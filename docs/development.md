@@ -104,7 +104,8 @@ src/libs/          the first-party libraries, each a source root whose build end
                    and ern_uri.erl, http with its tests under test/
 src/shell/         the shell as Ernest source under ernest/, its host half
                    ern_shell.erl, whose tests stand under test/, and README.md, which
-                   guides a reader through the code
+                   guides a reader through the code; beside the shell, ern unpack's
+                   Ernest, ernest/unpack.ern, over its host half ern_unpack.erl
 editors/emacs/     ernest-mode.el, the Emacs major mode, and its tests under test/
 release/           the release archive's own files, Makefile and README.md, which
                    tools/install.sh fills with the version
@@ -482,10 +483,6 @@ The shell's `:help` lists its commands; the language guide §9.3 teaches the she
 
 ## What the toolchain accepts
 
-The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs, but for what the table names. Each row is what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
-
-| Construct | Until | What you see today |
-|---|---|---|
-| `ern unpack`, a package's archive checked and unpacked under `lib` (report §11.9) | MVP 4.17 | `ern unpack: this job is not implemented` |
+The toolchain is the report, on one node and across nodes. Everything the report describes type-checks, compiles and runs: no construct waits for a later milestone today. Where one does, it stands here as a row of a table, what the toolchain refuses or does not yet do, with the milestone of the [plan](plan.md) that lifts it.
 
 Every refusal the toolchain makes for a later milestone's sake says `… is not implemented` in its error text and names no milestone, which the row here names, and `unimplemented_listed_test` in `src/toolchain/cli/test/ern_cli_tests.erl` fails when such a text is missing from this section. Runtime behavior that stands in for a later milestone is listed by hand. `make sections` prints only a section of a milestone not yet built, which that milestone's plan item names.

@@ -123,7 +123,7 @@ install() ->
     ?assertEqual([], under_a_test_directory(Code)),
     ?assertNot(filelib:is_dir(Base ++ "/a/lib/ernest/src")),
     ?assertEqual(compiled("../src/stdlib"), installed(Base ++ "/a/lib/ernest/build/stdlib")),
-    ?assertEqual(["ebin/ern_shell.beam" | compiled("../src/shell")],
+    ?assertEqual(["ebin/ern_shell.beam", "ebin/ern_unpack.beam" | compiled("../src/shell")],
                  installed(Base ++ "/a/lib/ernest/build/shell")),
     Documents = Base ++ "/a/share/doc/ernest/",
     {ok, Installed} = file:read_file(Documents ++ "README.md"),

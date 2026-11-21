@@ -1,7 +1,7 @@
 %% The toolchain of report §11: one command, ern, whose first word is its
 %% job, build and doc (§11.1, §11.4), format (§11.6), run, test and shell
 %% (§11.2), config (§11.3), reload and stop (§11.2, §12.5), and unpack
-%% (§11.9), which is not implemented. The launcher bin/ern is thin;
+%% (§11.9). The launcher bin/ern is thin;
 %% everything is here so that the tests can call it.
 %% `ern/1,2` returns the exit status, which the launcher's entry point ends
 %% the host with.
@@ -322,6 +322,8 @@ counted(Job, Options, Arguments) ->
             lists:keymember(attach, 1, Options) orelse not lists:keymember(main, 1, Options)
                 orelse usage_fail(no_main_file(shell)),
             ok;
+        {"unpack", [_ | _]} ->
+            usage_fail("unpack takes no argument");
         {"run", []} ->
             %% report §11.2: `--config-dir` makes a run a node, and a node
             %% with no `.erc` is a bare node; a run that is no node runs a
@@ -357,10 +359,9 @@ root_package(Job, Options, Arguments) ->
     end.
 
 %% Report §11.9: the jobs that read a manifest. What each takes of it is
-%% the package's (ern_package:read/4). `ern unpack` reads one too, and is
-%% not implemented.
+%% the package's (ern_package:read/4).
 reads_manifest(Job) ->
-    lists:member(Job, ["build", "doc", "run", "test", "shell"]).
+    lists:member(Job, ["build", "doc", "run", "test", "shell", "unpack"]).
 
 %% Report §11.9: Options with the root package Dir, Place being the
 %% `working_directory` or the `package_dir` `--package-dir` names, read
@@ -368,7 +369,8 @@ reads_manifest(Job) ->
 %% Job given the paths Arguments and its `--build-root`: the package's
 %% directory, whose `src` and `build` are default roots (§11.1, §11.2), its
 %% named packages, as the load path holds them, under `ern build` the order
-%% it builds them in, and, where `--verbose` asks, what it says of them, as
+%% it builds them in, under `ern unpack` the entries with their `url` and
+%% their `sha256`, and, where `--verbose` asks, what it says of them, as
 %% data, since the build, which is in the compiler's hash, calls no module
 %% of the package's (ern_build:load_path/1). A Dir `--package-dir` names
 %% that holds none is refused, and so is one whose name cannot be looked
@@ -384,6 +386,8 @@ packaged(Options, Dir, Place, Job, Arguments) ->
                 ++ [{named_package, Named} || Named <- ern_package:packages(Package)]
                 ++ [{package_order, Order} || Order <- [ern_package:built_order(Package)],
                                               Order =/= []]
+                ++ [{package_entry, Entry} || Job =:= "unpack",
+                                              Entry <- ern_package:entries(Package)]
                 ++ [{package_said, Line} || lists:member(verbose, Options),
                                             Line <- ern_package:said(Package)];
         {{error, enoent}, working_directory} ->
@@ -1346,13 +1350,29 @@ stop(Options, [], _ErrorDevice) ->
 stop(_Options, _Rest, _ErrorDevice) ->
     usage_fail("stop takes no argument").
 
-%% Report §11, §11.9: `ern unpack`, which takes no argument, is refused as
-%% not implemented.
--spec unpack([term()], [string()], io:device()) -> no_return().
-unpack(_Options, [], _ErrorDevice) ->
-    ern_build:fail("this job is not implemented");
-unpack(_Options, _Rest, _ErrorDevice) ->
-    usage_fail("unpack takes no argument").
+%% Report §11.9: `ern unpack`, started in its root package, the working
+%% directory, whose manifest's entries the job's Erlang half holds
+%% (ern_unpack:given/1) for its Ernest, `Ernest.Unpack`, which the shell's
+%% build holds and is loaded as the shell's is, and runs as `ern run` runs an
+%% entry point; started where there is no manifest it is refused. Its
+%% status is 1 where it refused anything (§11.8), which its `Os.exit` gives.
+unpack(Options, [], ErrorDevice) ->
+    lists:keymember(root_package, 1, Options)
+        orelse ern_build:fail("package.conf: no such file"),
+    ern_unpack:given([Entry || {package_entry, Entry} <- Options]),
+    run_started(),
+    Namespace = ['Ernest', 'Unpack'],
+    ErlangModule = ern_namespace:erlang_module(Namespace),
+    case ern_code:ensure_loaded(ErlangModule) of
+        {module, ErlangModule} -> ok;
+        _ -> ern_build:fail(shell_not_built())
+    end,
+    %% report §11.1: the unit names its functions by their position
+    {Main, 0} = ern_code:function(ErlangModule, Namespace ++ [main]),
+    Site = entry_site(Namespace, main),
+    RunOptions = reporting_options(#{init => init_fun([ErlangModule])}, ErrorDevice),
+    report_outcome(ErrorDevice, Site,
+                   ern_rt:run_main(fun() -> ErlangModule:Main() end, Site, RunOptions)).
 
 %% Report §11.2, §11.3: `ern config`, `ern reload` and `ern stop` name the
 %% configuration directory they act on, which they require.
@@ -2471,8 +2491,9 @@ whole_build(LoadPath, Say) ->
     ok.
 
 %% Report §8.7, §11.2: the shell of this build of `ern`, held by a node from
-%% its start: each unit of `build/shell` loaded as the standard library's
-%% are, from its `.erc` and into the code table (ern_code:ensure_loaded/1),
+%% its start: each unit of the shell's own in `build/shell`, `Ernest.Shell`
+%% and those under it (is_shells/1), loaded as the standard library's are,
+%% from its `.erc` and into the code table (ern_code:ensure_loaded/1),
 %% and none initialized. The build is on no load path, so no name resolves
 %% to one of its units, a session's interfaces hold none (ern_shell), and
 %% no --verbose line says one, as none says the standard library's. It is
@@ -2483,7 +2504,8 @@ whole_build(LoadPath, Say) ->
 shell_build() ->
     Build = ern_tree:build("shell"),
     Files = case filelib:is_dir(Build) of
-                true -> ern_build:compiled_under(Build);
+                true -> [File || File <- ern_build:compiled_under(Build),
+                                 is_shells(filename:split(ern_build:relative(File, Build)))];
                 false -> []
             end,
     Files =/= [] orelse ern_build:fail(shell_not_built()),
@@ -2496,6 +2518,13 @@ shell_build() ->
                           {error, _} -> ern_build:fail(shell_not_built())
                       end
                   end, Files).
+
+%% Report §11.2, §4.2: a unit of the shell's own, `Ernest.Shell` or one
+%% under it, by its path under the shell's build; the build holds `ern
+%% unpack`'s Ernest beside them (§11.9), which no node holds.
+is_shells(["ernest", "shell.erc"]) -> true;
+is_shells(["ernest", "shell" | _]) -> true;
+is_shells(_) -> false.
 
 shell_not_built() ->
     "the shell is not built; run make".

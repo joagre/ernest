@@ -233,7 +233,7 @@ An entry gives the name, what it names and where the code holds it. The mechanis
 - **Message**: a message, the Erlang variable; a mailbox type in Ernest ends in `Msg` as the guide says. Not `Msg` for the variable.
 - **Unopened**: a file no job opens, since its name reaches no regular file (§11, E.28): `unopened` in `ern_build:regular_bytes/1`, in a walk's `found()` and in `ern_os`'s answers of `ernest.pid` and of a job's lock, its words `ern_build:reason/1`'s. A directory is unopened to `regular_bytes/1`, and is none to `ern_code:is_unopened/1`, since E.28 answers `Invalid` for one. Not `fifo`, `special`.
 - **Unwatched**: a host that cannot watch a node's process for its end, a Linux without `pidfd_open` or a system the lock's helper has no watch for, which the helper's `k` frame names by the system's name and release, `ern_os:locked/2` answers as `{unwatched, Host}` and a node's start refuses (§12.5). Not `OldKernel`, `Unsupported`.
-- **ControlFree**: a text as a job writes it, on standard output, on standard error or in a file it writes, each control character (§2.1) as its bytes in UTF-8, each `\xHH` (§11), `ern_build:control_free/1`: a refusal's text where the refusal is made, `ern_build:fail/1`, `ern_cli:usage_fail/1` and `refuse/2`, and `ern_package:read/4`'s lines, and a path where a line that is no refusal names it, `ern_build:path_text/1`, the file `shown/1` gives written so, which every caller of `ern_diagnostic:format/3` passes, and `ern_build:verbose/2`, and a path in `--emit-erl`'s first line and in a page's last line; the shell's Ernest writes its own strings through `controlFree`. What a job opens is the path as `shown/1` gives it, and a fault's cause keeps the escape a literal writes (`ern_show:controls/2`). Not `Escaped`, `Sanitized`.
+- **ControlFree**: a text as a job writes it, on standard output, on standard error or in a file it writes, each control character (§2.1) as its bytes in UTF-8, each `\xHH` (§11), `ern_build:control_free/1`: a refusal's text where the refusal is made, `ern_build:fail/1`, `ern_cli:usage_fail/1` and `refuse/2`, and `ern_package:read/4`'s lines, and a path where a line that is no refusal names it, `ern_build:path_text/1`, the file `shown/1` gives written so, which every caller of `ern_diagnostic:format/3` passes, and `ern_build:verbose/2`, and a path in `--emit-erl`'s first line and in a page's last line; the shell's Ernest and `ern unpack`'s write their own strings through `Ernest.Shell.Refusal.controlFree`. What a job opens is the path as `shown/1` gives it, and a fault's cause keeps the escape a literal writes (`ern_show:controls/2`). Not `Escaped`, `Sanitized`.
 
 **Ernest**
 
@@ -246,6 +246,14 @@ The names are [`guide/style.md`](../guide/style.md)'s, with the spellings its gl
 - **rows**: the rows the live region's tail is given, which `:set rows n` sets, in `Ernest.Shell` and `Ernest.Shell.Region`: the setting, the region's field, `SetRows` and `rowsSized`. Not `height`, `outputRows`.
 - **window**: the input's screen rows the live region draws, all of an input that fits and the cursor's part of one that does not, in `Ernest.Shell.Region`: `windowStart` and `windowRows`. Not the terminal's, which is the `screen`.
 - **typedWord**: the word typed before the cursor, which completion completes, in `Ernest.Shell` and `Ernest.Shell.Complete`.
+
+And the names of `ern unpack`'s, `Ernest.Unpack`, and its host half, `ern_unpack`, which are §11.9's:
+
+- **Entry**: an entry of the root package's manifest, of its form and the first of its name, its name, its version, its `url` and its `sha256`, `Ernest.Unpack.Entry`, `ern_package:entry()`, which `ern_package:entries/1` gives. Not `Package`, which is a named package read, nor the site's sidebar `Entry`.
+- **Member**: a member of an archive, its name, its kind and its mode as `erl_tar` lists it, `Ernest.Unpack.Member`, `ern_unpack:members/1`. Not `File`, which is one kind of member, nor the compiler's `Member` of a type.
+- **Standing**: what stands at an entry's name under `lib`, its package at the entry's version, nothing, a link the unpacking replaces, or what is refused, `Ernest.Unpack.Standing`.
+- **Judged**: an entry with what stands at its name, its archive where it was read and its refusals, `Ernest.Unpack.Judged`; an `Archive` is one whose digest held, with what it unpacks, `Unpacked`, the last member of each name, and its `ebin`'s `.beam` files.
+- **staging**: `lib/.<name>-<version>`, where an archive is unpacked before it is renamed to its name, and **leftovers**, each name in `lib` that begins with `.<name>-`, which a run left beside it. Not `tmp`, `scratch`.
 
 And the names that recur across the site generator's modules, `Site` and those under it in `tools/site/`:
 

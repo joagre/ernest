@@ -6,13 +6,13 @@ How `ern shell` is built. What the shell does is report §11.2, cited here by th
 
 ## Shape
 
-The shell is an Ernest program over a front end in Erlang. Its source is a tree of its own, `src/shell/`, beside `src/stdlib/` and `src/libs/`, which `make` compiles into `build/shell/`, where `ern shell` finds it. It is the toolchain's own program, neither standard library nor a library under `src/libs/`.
+The shell is an Ernest program over a front end in Erlang. Its source is a tree of its own, `src/shell/`, beside `src/stdlib/` and `src/libs/`, which `make` compiles into `build/shell/`, where `ern shell` finds it. It is the toolchain's own program, neither standard library nor a library under `src/libs/`. The tree holds `ern unpack`'s Ernest beside the shell, `Ernest.Unpack` over `ern_unpack.erl`, which shares `Ernest.Shell.Refusal` with it and which no node holds (§11.9; `ern_cli:is_shells/1`).
 
 Its modules stand under the toolchain's taken namespace, `Ernest.Shell` and those under it, which `src/shell/` as their source root gives the paths `ernest/shell.ern` and `ernest/shell/` (§4.2, §11.1). `ern build` refuses `Ernest` to every other source root, so a program's module names none of the shell's units, which a node holds beside the program from its start, read from its build of `ern` and in no scope (§8.7, §11.2; the log's *Four Lines From the Deployment*, *A Node Holds the Shell*).
 
 `Ernest.Shell`, in `src/shell/ernest/shell.ern`, holds the processes and the front end's declarations: everything that sends, receives or reaches the host, but the history file and the questions `Ernest.Shell.Complete` asks of the front end. A process only carries messages and writes bytes.
 
-The decisions are pure functions in modules of their own, each tested by its `Test` values (Appendix E.24). `Ernest.Shell.Editor` decides what a key does, `Ernest.Shell.Region` what the screen shows, `Ernest.Shell.Complete.complete` what a word completes to, `Ernest.Shell.Command` what a command line selects, `Ernest.Shell.Listing` the lines `:processes` writes, and `Ernest.Shell.Style` how a line is colored. `Ernest.Shell.History` reads and writes the history file.
+The decisions are pure functions in modules of their own, each tested by its `Test` values (Appendix E.24). `Ernest.Shell.Editor` decides what a key does, `Ernest.Shell.Region` what the screen shows, `Ernest.Shell.Complete.complete` what a word completes to, `Ernest.Shell.Command` what a command line selects, `Ernest.Shell.Listing` the lines `:processes` writes, `Ernest.Shell.Style` how a line is colored, and `Ernest.Shell.Refusal` the words of a refusal, a path and the host's reason for a file. `Ernest.Shell.History` reads and writes the history file.
 
 ## Processes
 

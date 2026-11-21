@@ -13,7 +13,7 @@
 %% loads nothing of this module.
 -module(ern_package).
 
--export([read/4, packages/1, built_order/1, said/1]).
+-export([read/4, packages/1, entries/1, built_order/1, said/1, version_held/1, version_of/1]).
 
 -include_lib("kernel/include/file.hrl").
 -include_lib("cli/include/ern_build.hrl").
@@ -24,22 +24,29 @@
 %% Report §11.9: the root package as the job read it: its manifest and its
 %% `lib`, as the job reached them, its named packages, each the name and
 %% the version of an entry of its form, in the manifest's order, each as
-%% the job's load path holds it, and, in `ern build`, their names in the
-%% order it builds them.
+%% the job's load path holds it, its entries with their `url` and their
+%% `sha256`, and, in `ern build`, their names in the order it builds them.
 -record(package, {manifest :: file:filename(),
                   lib :: file:filename(),
                   named :: [{string(), string()}],
                   packages :: [#named_package{}],
+                  entries = [] :: [entry()],
                   order = [] :: [string()]}).
+
+%% Report §11.9: an entry of its form, its name, its version, and its `url`
+%% and its `sha256` where it has them, which `ern unpack` alone uses.
+-type entry() :: {string(), string(), binary() | none, binary() | none}.
 
 %% Report §11.9: a manifest as it was read: its faults of form, in the
 %% order of where each stands; its `ernest` where that is of its form, and
 %% none otherwise; its entries of their form, each a name and a version,
-%% the first of each name; and every name an entry gives that is of its
-%% form, the entry's or not.
+%% the first of each name, and the same entries with their `url` and their
+%% `sha256`; and every name an entry gives that is of its form, the entry's
+%% or not.
 -record(form, {faults = [] :: [string()],
                ernest = none :: string() | none,
                named = [] :: [{string(), string()}],
+               entries = [] :: [entry()],
                names = [] :: [string()]}).
 
 %% Report §11.9: a named package placed under `lib`, as `ern build` reads
@@ -53,26 +60,29 @@
                          form :: #form{}}).
 
 -opaque package() :: #package{}.
--export_type([package/0]).
+-export_type([package/0, entry/0]).
 
 %% Report §11.9: the root package Dir, which holds a manifest, Place being
 %% where it is, the `working_directory` the job was started in or the
 %% `package_dir` its `--package-dir` names, read by the job Job, `"build"`,
-%% `"doc"`, `"run"`, `"test"` or `"shell"`, given the paths Given, as
-%% resolved (§11), each an `{argument, Path}` or the `{build_root, Path}`
-%% its `--build-root` names. The job's load path takes each named package's
-%% build, and its `ebin` too where the job runs code. `ern build` and `ern
-%% doc` refuse a path given under `lib`, and `ern build` alone holds the
-%% build's rules. A job that cannot read the manifest has one fault of its
-%% form, and the other groups are said all the same. Every fault is thrown,
-%% a line each, as `{cli_errors, Lines}`, which the job writes after its
-%% name, each holding no control character (ern_build:control_free/1).
+%% `"doc"`, `"run"`, `"test"`, `"shell"` or `"unpack"`, given the paths
+%% Given, as resolved (§11), each an `{argument, Path}` or the `{build_root,
+%% Path}` its `--build-root` names. The job's load path takes each named
+%% package's build, and its `ebin` too where the job runs code.
+%%
+%% `ern unpack` refuses no named package that is not under `lib`, which it
+%% puts there. `ern build` and `ern doc` refuse a path given under `lib`,
+%% and `ern build` alone holds the build's rules. A job that cannot read the
+%% manifest has one fault of its form, and the other groups are said all
+%% the same. Every fault is thrown, a line each, as `{cli_errors, Lines}`,
+%% which the job writes after its name, each holding no control character
+%% (ern_build:control_free/1).
 -spec read(file:filename(), working_directory | package_dir, string(),
            [{argument, file:filename()} | {build_root, file:filename()}]) -> package().
 read(Dir, Place, Job, Given) ->
     Manifest = filename:join(Dir, "package.conf"),
     Lib = filename:join(Dir, "lib"),
-    #form{faults = Form, named = Named} = RootForm = manifest(Manifest),
+    #form{faults = Form, named = Named, entries = Entries} = RootForm = manifest(Manifest),
     Shown = ern_build:shown(Manifest),
     Packages = [{Name, Version, filename:join(Lib, Name)} || {Name, Version} <- Named],
     Open = [ern_build:shown(Dir) ++ ": may be written by every user"
@@ -85,7 +95,7 @@ read(Dir, Place, Job, Given) ->
                                          Packages),
     Absent = [lists:flatten([Shown, ": ", Name, " ", Version, " is not under ",
                              ern_build:shown(Lib), "; ern unpack puts it there"])
-              || {Name, Version, _} <- Unplaced],
+              || Job =/= "unpack", {Name, Version, _} <- Unplaced],
     Under = [Line || Job =:= "build" orelse Job =:= "doc", Path <- Given,
                      Line <- given_under_lib(Job, Path, Lib, Named)],
     %% report §11.9: `ern build` alone reads the named packages' manifests,
@@ -101,7 +111,7 @@ read(Dir, Place, Job, Given) ->
     case [Shown ++ ": " ++ Fault || Fault <- Form] ++ Open ++ Taken ++ Absent ++ Under ++ Rules of
         [] -> #package{manifest = Manifest, lib = Lib, named = Named,
                        packages = named_packages(Manifest, Packages, Job, Manifests),
-                       order = in_built_order(Manifests)};
+                       entries = Entries, order = in_built_order(Manifests)};
         Lines -> throw({cli_errors, [ern_build:control_free(Line) || Line <- Lines]})
     end.
 
@@ -169,6 +179,13 @@ named_packages(Manifest, Packages, Job, Manifests) ->
 packages(#package{packages = Packages}) ->
     Packages.
 
+%% Report §11.9: the root package's entries of their form, in the
+%% manifest's order, the first of each name, each with its `url` and its
+%% `sha256` where it has them, which `ern unpack` reads.
+-spec entries(package()) -> [entry()].
+entries(#package{entries = Entries}) ->
+    Entries.
+
 %% Report §11.9: the names of the named packages in the order `ern build`
 %% builds them, which its options carry as `{package_order, Names}`
 %% (ern_build:compile/4); none for any other job.
@@ -218,7 +235,9 @@ version_said(Package) ->
 %% a version and ends in a line feed; `absent` where the package holds no
 %% name `VERSION`, and `not_of_form` for any other, which gives it no
 %% version. A file the job cannot read, a name that reaches no regular file
-%% among them (report §11), is one of no form.
+%% among them (report §11), is one of no form. `ern unpack` asks it of what
+%% stands under `lib` (ern_unpack:held_version/1).
+-spec version_held(file:filename()) -> absent | not_of_form | {version, string()}.
 version_held(Package) ->
     File = filename:join(Package, "VERSION"),
     case file:read_link_info(File, [raw]) of
@@ -226,10 +245,18 @@ version_held(Package) ->
             absent;
         _ ->
             case ern_build:regular_bytes(File) of
-                {ok, Text} -> version_line(binary:split(Text, <<"\n">>));
+                {ok, Text} -> version_of(Text);
                 {error, _} -> not_of_form
             end
     end.
+
+%% Report §11.9: the version a `VERSION`'s bytes, Text, hold, one line that
+%% holds a version and ends in a line feed, and `not_of_form` for any
+%% other; the one test, which `ern unpack` asks of an archive's `VERSION`
+%% too (ern_unpack:version_of/1).
+-spec version_of(binary()) -> not_of_form | {version, string()}.
+version_of(Text) ->
+    version_line(binary:split(Text, <<"\n">>)).
 
 version_line([Version, <<>>]) ->
     case is_version(Version) of
@@ -275,6 +302,7 @@ form(Text) ->
                               ++ Absent,
                           ernest = version_given(<<"ernest">>, Said),
                           named = lists:append([Named || #form{named = Named} <- Judged]),
+                          entries = lists:append([Listed || #form{entries = Listed} <- Judged]),
                           names = lists:append([Names || #form{names = Names} <- Judged])}
             end;
         {fault, Fault} ->
@@ -283,16 +311,17 @@ form(Text) ->
 
 field({fault, Fault}) -> #form{faults = [Fault]};
 field({field, <<"ernest">>, Value}) -> #form{faults = version_faults("ernest", Value)};
-field({field, <<"packages">>, Entries}) when is_list(Entries) -> entries(Entries);
+field({field, <<"packages">>, Entries}) when is_list(Entries) -> entries_judged(Entries);
 field({field, <<"packages">>, _}) -> #form{faults = ["packages is not a JSON array"]}.
 
 %% Report §11.9: each entry's faults, the entries of their form, and the
 %% names the entries give; an entry that names a package an earlier entry
 %% names has that fault too, after its own.
-entries(Items) ->
+entries_judged(Items) ->
     {Judged, Names} = lists:mapfoldl(fun entry/2, [], Items),
     #form{faults = lists:append([Faults || {Faults, _} <- Judged]),
-          named = lists:append([Named || {_, Named} <- Judged]),
+          named = [{Name, Version} || {_, Entry} <- Judged, {Name, Version, _, _} <- Entry],
+          entries = lists:append([Entry || {_, Entry} <- Judged]),
           names = Names}.
 
 %% One entry judged, Earlier holding the names the entries before it give;
@@ -314,7 +343,9 @@ entry(Item, Earlier) ->
                 ++ [What ++ " has no name" || not lists:member(<<"name">>, Given)]
                 ++ [What ++ " has no version" || not lists:member(<<"version">>, Given)]
                 ++ ["two entries name " ++ Name || Name =/= none, lists:member(Name, Earlier)],
-            {{Faults, [{Name, Version} || Faults =:= []]}, [Name || Name =/= none] ++ Earlier}
+            Entry = [{Name, Version, string_given(<<"url">>, Said),
+                      string_given(<<"sha256">>, Said)} || Faults =:= []],
+            {{Faults, Entry}, [Name || Name =/= none] ++ Earlier}
     end.
 
 %% The name an entry's first `name` gives, where it is of its form.
@@ -342,6 +373,14 @@ version_given(Field, Said) ->
             end;
         _ ->
             none
+    end.
+
+%% The string the first Field of an entry gives, its `url` or its `sha256`,
+%% or none where it gives none; called where the entry is of its form.
+string_given(Field, Said) ->
+    case lists:keyfind(Field, 2, Said) of
+        {field, _, Value} -> Value;
+        false -> none
     end.
 
 %% Report §11.9: a field of an entry held to its form. A `url` is held to

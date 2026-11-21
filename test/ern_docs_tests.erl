@@ -464,22 +464,23 @@ architecture_tables_test() ->
     ?assertEqual([], [Shown || Shown <- ["`#launch{}`" | ["`{" ++ Key || Key <- Keys]],
                                string:find(Launch, Shown) =:= nomatch]).
 
-%% src/shell/README.md, report §4.2, §11.1: the README's table of the
-%% shell's modules names each module of the shell, `ernest/shell.ern` and
-%% those under `ernest/shell/`, by the name its path gives it beside a link
-%% to its file, and the count of those under `ernest/shell/` in words. A
-%% regression test, written after the table; it does not read what a row
-%% says its module is.
+%% src/shell/README.md, report §4.2, §11.1, §11.9: the README's table of
+%% the shell's root names each module of it, `ernest/shell.ern`, those
+%% under `ernest/shell/` and `ern unpack`'s `ernest/unpack.ern`, by the name
+%% its path gives it beside a link to its file, and the count of those
+%% under `ernest/shell/` in words. A regression test, written after the
+%% table; it does not read what a row says its module is.
 shell_modules_test() ->
     Readme = ern_repository:read("src/shell/README.md"),
-    Named = "\\| `(Ernest\\.Shell[A-Za-z.]*)` \\| "
+    Named = "\\| `(Ernest\\.[A-Za-z.]*)` \\| "
         "\\[`([a-z_/]+\\.ern)`\\]\\(([a-z_/]+\\.ern)\\)",
     Rows = matches(Readme, Named),
-    Files = ern_repository:files(["src/shell/ernest/*.ern", "src/shell/ernest/shell/*.ern"]),
+    Under = ern_repository:files(["src/shell/ernest/shell/*.ern"]),
+    Files = ern_repository:files(["src/shell/ernest/*.ern"]) ++ Under,
     ?assertEqual(lists:sort(Files), lists:sort(["src/shell/" ++ Link || [_, _, Link] <- Rows])),
     ?assertEqual([], [Row || [Module, Shown, Link] = Row <- Rows,
                              Shown =/= Link orelse Module =/= module_named(Link)]),
-    ?assertNotEqual(nomatch, string:find(Readme, [number_word(length(Files) - 1),
+    ?assertNotEqual(nomatch, string:find(Readme, [number_word(length(Under)),
                                                   " modules under"])).
 
 %% The module a path under a source root names (report §4.2):
