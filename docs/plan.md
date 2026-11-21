@@ -21,8 +21,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**The next item is what is left of MVP 4.16's item 100**: the build of a `Tcp.close` that
-answers once its socket's bytes are sent or dropped.
+**The next item is MVP 4.16's item 142**, whether the short rules stay, the milestone's
+last.
 
 The milestones to come, in order: MVP 4.16, MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -64,10 +64,8 @@ corner shows it (the log's *Item 140 Stands After the Launch*). Items 135 and 13
 there on 2026-11-20 for the same reason (the log's *Item 135 Stands After the Launch* and
 *Item 136 Stands After the Launch*).
 
-**What needs the user**, each a design discussion of its own. Item 142 is read on its date
-and orders nothing. Item 100, ernest-httpd's session's two lines on a close, is the rest,
-and three of that session's tests wait on it. Item 101's rule is its measure, and that of
-MVP 4.5's item 68 (the log's *An Order Nobody Promised*).
+**What needs the user.** Item 142 is the last, and it orders nothing. Item 101's rule is
+the measure of MVP 4.5's item 68 (the log's *An Order Nobody Promised*).
 
 - **142. Whether the short rules stay**, to decide with the user on 2026-11-24 (the log's
   *The Rules Cut for a Trial*). The root's `CLAUDE.md` is a short file on trial from
@@ -93,38 +91,6 @@ MVP 4.5's item 68 (the log's *An Order Nobody Promised*).
   > sibling operation leads to it.** Then Ernest keeps it where there is something to wait
   > on, no rule breaks and the cost is a fraction, and otherwise the report states the
   > host's order.
-- **100. When a close reaches the far end, and what a read answers after one**, feedback
-  262 and 263, found 2026-11-17 by ernest-httpd's session on 0.10.0 (the log's *Two Lines on
-  a Close*). Its probes ran on 2026-11-21, and its questions were decided that day, one at a
-  time.
-
-  Done, the first two questions. Over TCP the close follows the last byte, by a shutdown of
-  the socket's writing side as it ends, and over TLS E.18 states the closer's look (the
-  log's *The Close Follows the Last Byte*). A write answered `Left(Closed)` loses what had
-  arrived and no read had taken, and E.18 says so (the log's *A Failed Write Loses What Had
-  Arrived*).
-
-  Left, the third question, placed with the user on 2026-11-19 (the log's *What a Program
-  Can Wait On Before Its End*). Shown: a program that writes 8 MiB, closes and returns cuts
-  what the host still held, the far end reads an orderly close, and OTP alone loses
-  nothing. Decided with the user: `Tcp.close` answers once the socket's bytes and, over
-  TLS, the record that ends the connection are with the kernel, or the bytes are dropped,
-  the socket ending at the close as it did, and the closer's look once a second stays, one
-  mechanism over TCP and over TLS (the log's *A Close Answers Once Its Bytes Are Sent*).
-  E.18, E.0's shape rule 8 and the guide's §8.7 say it, and it is built.
-
-  At its close MVP 4.5's item 122 takes what the probes showed of its case: a close drops
-  the writes its writer still holds, those answered `Left(Timeout)` among them.
-
-  Two decisions named here, to place with the user. The build of the first question found
-  that a socket over TLS closed while a TLS 1.3 handshake waits holds its process for 5
-  seconds, before this item's change and after. And `reload_waits_on_no_stopped_peer` of
-  `ern_nodes_tests` failed in one full run of two: the maker said the stopped third's loss,
-  "it closed", before the asker's end, where the test has the third's connection stand
-  until the third runs again.
-
-  Three of ernest-httpd's regression tests wait on the verdicts, and that session is told
-  them at the close.
 
 ### What is done
 
@@ -257,6 +223,7 @@ them. What an item decided is its log entry's, and the report's at the sections 
 | 154 | Messages one process sends through one check are received in sending order; a checked message takes one step more, in the check's process, need not be in its receiver's mailbox when the foreign function that sent it has returned, and can be passed by one sent the same receiver after it another way; foreign code sends as the process it runs in; shown by two probes, four tests, no code of the runtime changed, with the user | 2026-11-20 | §6.4, §8.4, §8.7; *The Order Through One Check* |
 | 93 | `Tcp.closeListener` answers once the listener has ended and its host socket has closed, each accept it held answered `Left(Closed)` first, by a second call private to `Tcp`; a held accept faults where the listener is killed or its owner dies; `Os.closeInput` answers once the close is made, under a terminal once the helper says the hangup is made, and faults on an ended process and where the helper has failed; the harness's write of nothing went, and two terminal tests build their fixtures into roots of their own; item 155 found, with the user | 2026-11-21 | Appendix E.18, E.23; *The Two Closes Answer* |
 | 95 | Three shell sessions that showed more than the report promises: the tour's chapter 8 lists a move after an answered `report`, and the deployment guide names what its listing rests on; the tour's restart limit is an hour; the tour's chapter 2 and the guide's §1.4 say that a send and a call to another node in two inputs are two senders' messages and that the page shows one order, the tour also why chapter 1's order holds; the transcripts as typed, with the user | 2026-11-21 | *The Outside Reviews Read*, *Two Shell Sessions Written*, *A Send and a Call in Two Inputs* |
+| 100 | A socket over TCP shuts down its writing side as it ends, so the far end reads the close straight after the last byte; a write answered `Left(Closed)` loses what had arrived and no read had taken, and E.18 says so; `Tcp.close` answers once the socket's bytes and, over TLS, the record that ends the connection are with the kernel, or the bytes are dropped, and at once where a handshake has not ended; a socket whose TLS 1.3 handshake waits no longer holds its end 5 seconds; feedback 262 and 263, with the user | 2026-11-21 | Appendix E.0, E.18; *The Close Follows the Last Byte*, *A Failed Write Loses What Had Arrived*, *A Close Answers Once Its Bytes Are Sent* |
 
 ---
 
@@ -706,7 +673,7 @@ Before the Launch*): six items of MVP 4.16, each under the number it had there, 
 and judged to stand here is added the same way, with its date and its fix's shape.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 134, 135, 136, 140, 143, 144, 145, 149, 153, 157, 151 and 5. Item 103 is last, since nothing of
+1 to 4 follow, then items 68, 96, 113, 134, 135, 136, 140, 143, 144, 145, 149, 153, 157, 158, 159, 151 and 5. Item 103 is last, since nothing of
 Ernest's meets it.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -773,9 +740,11 @@ What the line left, in the order it is taken:
   shape then follows item 106's: E.18 says what the rule costs, and what is held past
   its use is mended.
 
-  What a close does with such writes is shown by MVP 4.16's item 100's probes, decided
-  with the user on 2026-11-19, and what they find false is mended there. This item starts
-  from that showing and keeps the bound.
+  Shown by MVP 4.16's item 100's probes on 2026-11-21: a close ends the writer with the
+  writes it still holds, and one answered `Left(Timeout)` and not yet given to the host is
+  never sent, which E.18's "may" allows. Read from the host's driver and not shown: a
+  write's milliseconds may also wait on the far end's taking of the write's own bytes,
+  against E.18's sentence. This item starts from both and keeps the bound.
 - **68. A job that ends at once, and its other stream**, found 2026-11-15 by item 40's
   diagnosis (the log's *The Shell's Last Line*). A stream that can no longer be written ends
   a job outside a run at once, and so does the host's termination or hangup (§11). Neither
@@ -1036,6 +1005,22 @@ What the line left, in the order it is taken:
     says so.
 
   It follows item 153.
+- **158. A socket ended with what its host holds dropped**, feedback 270, found
+  2026-11-21 by ernest-httpd's session on 0.10.0 (the log's *A Close Answers Once Its
+  Bytes Are Sent*, its paragraph *Left at the close*). Nothing in `Tcp` ends a socket and
+  drops what its host holds: after a close or a kill the bytes go on, for up to E.18's
+  bound, to a far end the program has given up. That session's server gives a client up
+  at a write past its deadline, and three waves of 16 such clients took its node from 107
+  MiB to 225, outside its caps. E.18 is true and a kill does what 0.10.0's close did, so
+  it stands here. The shape: a function of `Tcp` that ends a socket at once, its far end
+  reading a reset, weighed on E.0's admission rules and decided with the user.
+- **159. `reload_waits_on_no_stopped_peer` failed once**, found 2026-11-21 by a full run
+  of item 100 (the log's *The Close Follows the Last Byte*, its paragraph *What it cost*).
+  The test of `ern_nodes_tests` failed in one full run of four that day: the maker said
+  the stopped third's loss, "it closed", before the asker's end, where the test has the
+  third's connection stand until the third runs again. Only the suite meets it, so it
+  stands here. The shape: the test is read against §7's sentences on a stopped peer, and
+  it or the runtime is mended.
 - **103. Two behaviors of OTP's that no report holds**, found 2026-11-17 by item 98's
   build and decided with the user the same day (the log's *A Connection That Cannot Drain*,
   its paragraph *Decided after the close*). `net_kernel:setopts/2` for a node answers
