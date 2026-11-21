@@ -22,9 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 162**, `:keys`,
-decided on 2026-11-21 and built next from the item's brief. Items 163 and 164 follow it and
-end the milestone.
+**MVP 4.16 is done since 2026-11-21. The next item is MVP 4.17's item 163**, the known
+issues sorted with the user a line at a time. Item 164 follows it and ends the milestone.
 
 The milestones to come, in order: MVP 4.17, MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -57,43 +56,6 @@ Read for Build Order*). Items 162 to 164 were added last, on the user's word of
 
 ### What is left
 
-- **162. `:keys` lists the keys, and `:help` names the manual page**, decided with the user
-  on 2026-11-21 (the log's *The Keys Listed by `:keys`*). §11.2's *Editing* already says what
-  `C-` and `M-` are, and that a control key that sends no character of a named key does
-  nothing. What is left is the build, one agent's, from this brief.
-  - **The report first, in the build's commit**, since `commands_mirror_test` holds §11.2's
-    list of commands equal to the shell's table. §11.2's *Commands* takes two lines, word for
-    word. The line for `:help` becomes "`:help` lists the commands, each with a line of help,
-    and names the manual page." A line stands between `:help` and `:load`: "`:keys` lists the
-    keys the shell binds at a terminal, those that do the same on one line, each line with
-    its help."
-  - **The command.** `:keys` takes nothing and prints the same text at a terminal and in line
-    mode. Its line of `:help` is `the keys the shell binds at a terminal`. `:help` ends with a
-    line after its line on `it`: `The manual is man ern, the shell in its section 11.2.`
-  - **The list** is the log entry's, word for word, its help in the column the commands'
-    help stands in.
-  - **One table**, in `Ernest.Shell.Editor`, the module that binds the keys: each line's
-    keys and its help, and for each key the events a terminal sends for it, both characters
-    of `Enter` and of `Backspace` and every sequence of `Home` and `End` among them (§12.1).
-    `:keys` prints the table. The editor's dispatch stays as it is.
-  - **The test**, among the editor's own, holds the table to the editor both ways. Each key
-    of the table is bound: on some state, its events do other than nothing. Each key the
-    editor binds stands in the table: of the keys below, those that do other than nothing
-    on some state are the table's. The test is shown to fail on a key taken from the table
-    and on a key bound beside it.
-  - **The test's keys and states.** The keys are every control character, `Escape` and then
-    every character of ASCII but the two that begin a sequence, the four arrows, the
-    interrupt, and every sequence `Escape [` or `Escape O` begins that ends in one final
-    character or in a number and `~`. The states are an empty input, an input of several
-    lines with the cursor inside it, a kill held and the history walked back, and a search
-    under way. In a search any key that is not the search's own ends it, so there a key is
-    bound where it does other than end the search.
-  - **The documents.** The guide names `:keys` where it says the shell edits with Readline's
-    keys and where its chapter on tools lists the shell's commands.
-    [`design/shell.md`](design/shell.md)'s *Commands* says where the table stands and names
-    its test. `test/fixtures/session/basic.out` takes the new `:help`.
-  - **The checks.** `make test`, and `make test-full` before the commit that closes the
-    item.
 - **163. The known issues sorted**, the user's word on 2026-11-21. Each line of
   [`known_issues.md`](known_issues.md) is read against the code as it stands and given one
   of three verdicts, decided with the user a line at a time: dropped, the line going with
@@ -122,8 +84,8 @@ Read for Build Order*). Items 162 to 164 were added last, on the user's word of
 
 The discussion came first, item 43, and items 47 to 50 built what it decided. Item 119, the
 shell's editing, was built after them, then item 52, item 54, item 160 and item 161, item 7,
-item 8, and item 9 last, which ended the packages proposal's build order,
-[`proposals/package_manager/`](proposals/package_manager/README.md).
+item 8, item 9, which ended the packages proposal's build order,
+[`proposals/package_manager/`](proposals/package_manager/README.md), and item 162 last.
 
 | Item | What | Done | The log's entries |
 |---|---|---|---|
@@ -140,6 +102,7 @@ item 8, and item 9 last, which ended the packages proposal's build order,
 | 7 | `Crypto.sha256`, a shim beside `sha1`, its E.0 reading and its line of Appendix G.9 first | 2026-11-21 | *SHA-256 Beside SHA-1* |
 | 8 | `ern unpack`, `Ernest.Unpack` in the shell's root over `erl_tar`, `Crypto.sha256` and the helper's waiting lock, §11.9's paragraphs on an archive first, and a package's `priv` found through `code:priv_dir` | 2026-11-21 | *An Archive Read by the Host* |
 | 9 | The guide's §9.6 on a package, typed along from a package made to a program started elsewhere under `--package-dir`, with what a digest promises; the faq's question on packages and no package manager; the site's sentence on how a program takes a library, which MVP 4.4's item 6 holds to ernest-epx's archive; the glossary's line on a package's verbs; and two tests, the section replayed and the phrase held to the faq | 2026-11-21 | *A Package in the Guide* |
+| 162 | `:keys` lists the keys the shell binds, from one table in `Ernest.Shell.Editor` that two of the editor's tests hold to its bindings both ways, and `:help` names the manual page, §11.2's two lines first | 2026-11-21 | *The Keys Listed by `:keys`* |
 | 53 | What item 48's cold reading left | dropped 2026-11-14 on the user's word: no more is spent on a name that reaches no regular file | *The Trust Said Once*, its paragraph *The corner closed* |
 
 ---

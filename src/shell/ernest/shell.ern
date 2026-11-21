@@ -1118,6 +1118,8 @@ fn obey(state : State,
             Leave
       | Command.Help ->
             answerCommand(state, screen, Command.help())
+      | Command.Keys ->
+            answerCommand(state, screen, Command.keys())
       | Command.Bindings ->
             match bindings(session) {
                 [] -> answerCommand(state, screen, ["the session declares nothing yet"])

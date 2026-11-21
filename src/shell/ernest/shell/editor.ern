@@ -1,7 +1,8 @@
 /// The shell's line editor (report §11.2), designed in
 /// docs/design/shell.md: a pure function from what is being edited and an
 /// event to what the reader must do next. GNU Readline's Emacs bindings;
-/// `Escape` and the key after it are `Meta` and that key (§12.1).
+/// `Escape` and the key after it are `Meta` and that key (§12.1). The
+/// table of the keys it binds, `boundKeys`, is what `:keys` lists.
 ///
 /// Pure, and tested on its own: the tests at the foot of this file are
 /// what `ern test` runs (Appendix E.24, §11.2). The reader holds an `Editing`
@@ -58,6 +59,13 @@ export type Edit =
   | Completing(Editing)
   | Documenting(Editing)
   | Quit
+
+/// A key of the keys' table: its name as `:keys` writes it, and each run
+/// of events a terminal sends for it (report §12.1).
+export type Key = Key(name : String, sends : List(List(Terminal.Event)))
+
+/// A row of the keys' table: keys that do the same, and what they do.
+export type Row = Row(keys : List(Key), help : String)
 
 // Nothing typed yet and nothing behind it. A function and no `let`,
 // since `Map.empty` is no constant (report §4.6): an attached session runs
@@ -632,6 +640,86 @@ fn alphanumeric(text : String, index : Int) : Bool =
         char :: _ -> Char.isAlpha(char) || Char.isDigit(char)
       | [] -> false
     }
+
+//
+// The keys' table, which `:keys` lists and the tests below hold to `edit`
+// both ways.
+//
+
+/// Report §11.2: the keys the editor binds, a row for the keys that do the
+/// same, in the order *Editing* names them, each key with every run of
+/// events a terminal sends for it (§12.1): both characters of `Enter` and
+/// of `Backspace`, and each sequence of `Home` and of `End`, as `named`
+/// reads them. A control key that sends the character of a key here, `C-m`
+/// that of `Enter`, is not listed.
+export fn boundKeys() : List(Row) =
+    [Row(keys = [Key(name = "Enter", sends = [[Terminal.Key('\r')], [Terminal.Key('\n')]])],
+         help = "runs a finished input, and adds a line to an unfinished one"),
+     Row(keys = [Key(name = "M-Enter", sends = [escaped("\r"), escaped("\n")])],
+         help = "adds a line"),
+     Row(keys = [Key(name = "C-c", sends = [[Terminal.Interrupt]])],
+         help = "abandons the input, and ends the one that runs"),
+     Row(keys = [Key(name = "C-d", sends = [[Terminal.Key('\u{4}')]])],
+         help = "deletes the character at the cursor, and leaves the shell on an empty input"),
+     Row(keys = [Key(name = "Tab", sends = [[Terminal.Key('\t')]])],
+         help = "completes the name before the cursor, and lists the candidates"),
+     Row(keys = [Key(name = "Shift-Tab", sends = [escaped("[Z")])],
+         help = "shows what the name at the cursor is, and its documentation when pressed again"),
+     Row(keys = [Key(name = "C-b", sends = [[Terminal.Key('\u{2}')]]),
+                 Key(name = "Left", sends = [[Terminal.ArrowLeft]])],
+         help = "moves back a character"),
+     Row(keys = [Key(name = "C-f", sends = [[Terminal.Key('\u{6}')]]),
+                 Key(name = "Right", sends = [[Terminal.ArrowRight]])],
+         help = "moves forward a character"),
+     Row(keys = [Key(name = "M-b", sends = [escaped("b")])], help = "moves back a word"),
+     Row(keys = [Key(name = "M-f", sends = [escaped("f")])], help = "moves forward a word"),
+     Row(keys = [Key(name = "C-a", sends = [[Terminal.Key('\u{1}')]]),
+                 Key(name = "Home",
+                     sends = [escaped("[H"), escaped("OH"), escaped("[1~"), escaped("[7~")])],
+         help = "moves to the start of the line"),
+     Row(keys = [Key(name = "C-e", sends = [[Terminal.Key('\u{5}')]]),
+                 Key(name = "End",
+                     sends = [escaped("[F"), escaped("OF"), escaped("[4~"), escaped("[8~")])],
+         help = "moves to the end of the line"),
+     Row(keys = [Key(name = "C-p", sends = [[Terminal.Key('\u{10}')]]),
+                 Key(name = "Up", sends = [[Terminal.ArrowUp]])],
+         help = "moves to the line above, and from the first line back in the history"),
+     Row(keys = [Key(name = "C-n", sends = [[Terminal.Key('\u{e}')]]),
+                 Key(name = "Down", sends = [[Terminal.ArrowDown]])],
+         help = "moves to the line below, and from the last line forward in the history"),
+     Row(keys = [Key(name = "M-<", sends = [escaped("<")])],
+         help = "goes to the history's first input"),
+     Row(keys = [Key(name = "M->", sends = [escaped(">")])],
+         help = "goes to the input being typed"),
+     Row(keys = [Key(name = "C-r", sends = [[Terminal.Key('\u{12}')]])],
+         help = "searches the history backward"),
+     Row(keys = [Key(name = "C-s", sends = [[Terminal.Key('\u{13}')]])],
+         help = "searches the history forward"),
+     Row(keys = [Key(name = "C-g", sends = [[Terminal.Key('\u{7}')]])],
+         help = "leaves a search for the input it began from"),
+     Row(keys = [Key(name = "Backspace",
+                     sends = [[Terminal.Key('\u{7f}')], [Terminal.Key('\u{8}')]]),
+                 Key(name = "C-h", sends = [[Terminal.Key('\u{8}')]])],
+         help = "deletes the character before the cursor"),
+     Row(keys = [Key(name = "Delete", sends = [escaped("[3~")])],
+         help = "deletes the character at the cursor"),
+     Row(keys = [Key(name = "C-k", sends = [[Terminal.Key('\u{b}')]])],
+         help = "kills to the end of the line"),
+     Row(keys = [Key(name = "C-u", sends = [[Terminal.Key('\u{15}')]])],
+         help = "kills back to the start of the line"),
+     Row(keys = [Key(name = "C-w", sends = [[Terminal.Key('\u{17}')]])],
+         help = "kills back to a space"),
+     Row(keys = [Key(name = "M-Backspace", sends = [escaped("\u{7f}"), escaped("\u{8}")])],
+         help = "kills back a word"),
+     Row(keys = [Key(name = "M-d", sends = [escaped("d")])], help = "kills forward a word"),
+     Row(keys = [Key(name = "C-y", sends = [[Terminal.Key('\u{19}')]])],
+         help = "puts back what the last kill took"),
+     Row(keys = [Key(name = "C-l", sends = [[Terminal.Key('\u{c}')]])], help = "clears the screen")]
+
+// `Escape` and the characters after it, as a terminal sends a Meta key and
+// a sequence the runtime does not name (report §12.1).
+fn escaped(text : String) : List(Terminal.Event) =
+    Terminal.Escape :: List.map(String.toList(text), Terminal.Key)
 
 //
 // The tests (report Appendix E.24, §11.2), run by `ern test build/shell/shell/editor.erc`,
@@ -1396,6 +1484,90 @@ let notKept =
                       Test.Passed
                   else
                       Test.Failed("the history kept what it should not"))
+
+//
+// Report §11.2: the keys' table and `edit` agree. A key is bound where, on
+// one of the states `states` gives, its events do other than nothing; in a
+// search, other than end it, since any key that is not the search's own
+// ends it and then does what it does.
+//
+
+// Each run of events of a key of the table is bound.
+let listedKeysBound = Test.Case(name = "every key of the table is bound", run = fn() = {
+    let unbound = List.filter(listedKeys(), fn(key) = !List.all(key.sends, isBound));
+    Test.equal(List.map(unbound, fn(key) = key.name), [])
+})
+
+// Each key the test tries that is bound is the table's.
+let boundKeysListed = Test.Case(name = "every key the editor binds is in the table", run = fn() = {
+    let listed = List.flatMap(listedKeys(), fn(key) = key.sends);
+    Test.equal(List.filter(tried(), fn(events) = isBound(events) && !List.contains(listed, events)),
+               [])
+})
+
+fn listedKeys() : List(Key) =
+    List.flatMap(boundKeys(), fn(row) = row.keys)
+
+// The keys the test tries: every control character, `Escape` and then every
+// character of ASCII but `[` and `O`, which begin a sequence, the four
+// arrows, the interrupt, and every sequence `Escape [` and `Escape O` begin
+// that ends in one final character, or in a number up to 99 and `~` (report
+// §12.1, the editor's `sequence`).
+fn tried() : List(List(Terminal.Event)) = {
+    let ascii = List.filterMap(List.range(0, 127), Char.fromCodePoint);
+    let controls = List.filter(ascii, fn(char) = char < ' ' || char == '\u{7f}');
+    let unbegun = List.filter(ascii, fn(char) = char != '[' && char != 'O');
+    let finals = List.filter(ascii, fn(char) = char >= '@' && char <= '~');
+    let endings =
+        List.map(finals, Char.toString)
+            <> List.map(List.range(0, 99), fn(number) = Int.toString(number) <> "~");
+    List.map(controls, fn(char) = [Terminal.Key(char)])
+        <> List.map(unbegun, fn(char) = escaped(Char.toString(char)))
+        <> [[Terminal.ArrowUp],
+            [Terminal.ArrowDown],
+            [Terminal.ArrowLeft],
+            [Terminal.ArrowRight],
+            [Terminal.Interrupt]]
+        <> List.flatMap(["[", "O"],
+                        fn(begun) = List.map(endings, fn(ending) = escaped(begun <> ending)))
+}
+
+// Whether the events do other than nothing on one of the states.
+fn isBound(events : List(Terminal.Event)) : Bool =
+    List.any(states(), fn(state) = changes(state, events))
+
+// The states a key is tried on: an empty input, an input of several lines
+// with the cursor inside it, a kill held and the history walked back, and a
+// search under way. Each has inputs behind it, so that a walk and a search
+// can go somewhere.
+fn states() : List(Editing) = {
+    let empty = start(["one two", "three"]);
+    [empty,
+     withLine(empty, "ab cd\nef gh\nij kl", 9),
+     editedBy(empty, keys("ab") <> [ctrl('w'), Terminal.ArrowUp]),
+     editedBy(empty, [ctrl('r')] <> keys("o"))]
+}
+
+// Whether the events change the state, or end the input, the record of the
+// key before aside, since every key forgets it; a search that only ends is
+// no change.
+fn changes(state : Editing, events : List(Terminal.Event)) : Bool =
+    match plays(state, events) {
+        Edited(edited) ->
+            !List.contains([forgotten(state), forgotten(stop(state))], forgotten(edited))
+      | _ ->
+            true
+    }
+
+fn forgotten(state : Editing) : Editing =
+    Editing(..state, previous = OtherKey)
+
+// The state the events leave, which the states above are made by.
+fn editedBy(state : Editing, events : List(Terminal.Event)) : Editing =
+    match plays(state, events) {
+        Edited(edited) -> edited
+      | _ -> state
+    }
 
 // Every event of a text typed a character at a time.
 fn keys(text : String) : List(Terminal.Event) =

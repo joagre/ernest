@@ -64,7 +64,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 |---|---|---|
 | `Ernest.Shell` | [`ernest/shell.ern`](ernest/shell.ern) | The processes and the front end's declarations: all that sends, receives, or reaches the host, the local half among them, but the person's directory and the history file in it, and the questions `Ernest.Shell.Complete` asks of the front end. |
 | `Ernest.Shell.Command` | [`ernest/shell/command.ern`](ernest/shell/command.ern) | The table of commands, and the parsing of a command line and of `:set`'s argument. |
-| `Ernest.Shell.Editor` | [`ernest/shell/editor.ern`](ernest/shell/editor.ern) | The editor: Readline's Emacs keys, the moves between an input's lines, the walk through the history, which keeps each input as it was left, and the incremental search. |
+| `Ernest.Shell.Editor` | [`ernest/shell/editor.ern`](ernest/shell/editor.ern) | The editor: Readline's Emacs keys and the table of them `:keys` lists, the moves between an input's lines, the walk through the history, which keeps each input as it was left, and the incremental search. |
 | `Ernest.Shell.Complete` | [`ernest/shell/complete.ern`](ernest/shell/complete.ern) | Completion: what may stand at the cursor, the names that may, gathered from the session and the source root, and matching a word against them. |
 | `Ernest.Shell.Region` | [`ernest/shell/region.ern`](ernest/shell/region.ern) | The live region at the foot of the terminal, and the bytes each event writes. |
 | `Ernest.Shell.History` | [`ernest/shell/history.ern`](ernest/shell/history.ern) | The person's directory and the history file in it, over `Os` and `Fs`. |

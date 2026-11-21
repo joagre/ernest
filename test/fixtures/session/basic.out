@@ -127,6 +127,7 @@ zero : () -> Int
   :faults         the faults reported since the session began
   :forget name    a name the session declared, forgotten, or every one for *
   :help           this text
+  :keys           the keys the shell binds at a terminal
   :load Module    the module by its namespace, from its source or its compiled form
   :output path    what programs write, appended to path, or back in the region for -
   :processes      the live processes by spawn site, the shell's own left out
@@ -135,6 +136,7 @@ zero : () -> Int
   :set            depth n, length n, rows n, timing on or off; :set alone shows them
   :type e         the type of e, which is not run
 The value of the last expression is `it`.
+The manual is man ern, the shell in its section 11.2.
 > output goes to /tmp/ern-output-test.log
 > > output goes to /tmp/ern-output-test.log
 > output goes to standard output

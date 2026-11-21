@@ -12,6 +12,7 @@ export type Action =
   | Faults
   | Forget
   | Help
+  | Keys
   | Load
   | Output
   | Processes
@@ -81,6 +82,11 @@ export fn commands() : List(Command) =
              takes = Needs(what = "a name, or * for all of them", completes = SessionNames),
              about = "a name the session declared, forgotten, or every one for *"),
      Command(name = "help", action = Help, placeholder = "", takes = Nothing, about = "this text"),
+     Command(name = "keys",
+             action = Keys,
+             placeholder = "",
+             takes = Nothing,
+             about = "the keys the shell binds at a terminal"),
      Command(name = "load",
              action = Load,
              placeholder = "Module",
@@ -194,12 +200,28 @@ export fn completes(word : String) : Optional(Completes) =
       | _ -> None
     }
 
-/// Report §11.2: the help, a line for each command. Completion lists a
-/// command by the same line.
+/// Report §11.2: the help, a line for each command, and the manual page.
+/// Completion lists a command by the same line.
 export fn help() : List(String) =
     ["Commands, which a prefix of the name selects where it begins no other:"]
         <> List.map(commands(), fn(command) = "  " <> line(command))
-        <> ["The value of the last expression is `it`."]
+        <> ["The value of the last expression is `it`.",
+            "The manual is man ern, the shell in its section 11.2."]
+
+/// Report §11.2: the keys `:keys` lists, a line for each row of the
+/// editor's table, its help in the column the commands' help stands in.
+/// Line mode binds no key, and the first line says where they are bound,
+/// so the text is the same in both modes.
+export fn keys() : List(String) =
+    ["Keys at a terminal, C- the key with Control and M- the key after Escape, or with Alt:"]
+        <> List.map(Editor.boundKeys(), fn(row) = "  " <> keysLine(row))
+
+// A row of the editor's table as `:keys` lists it: its keys, and what they
+// do.
+fn keysLine(row : Editor.Row) : String = {
+    let names = String.join(List.map(row.keys, fn(key) = key.name), ", ");
+    String.padEnd(names, column, " ") <> row.help
+}
 
 /// A command's line of the help: its name, the word it takes, and what it
 /// does.
@@ -274,6 +296,19 @@ let oneWordToLeave =
                   #(Picked(Command(name = "doc")), Unknown) -> Test.Passed
                 | _ -> Test.Failed("d")
               })
+
+// Report §11.2: no other command begins with `k`.
+let keysByK = Test.Case(name = "k selects keys", run = fn() = match pick("k") {
+    Picked(Command(name = "keys")) -> Test.Passed
+  | _ -> Test.Failed("k")
+})
+
+let keysLines =
+    Test.Case(name = "a key's help starts in the column a command's does",
+              run = fn() =
+                  Test.equal(#(List.size(keys()), List.get(keys(), 20)),
+                             #(29,
+                               Some("  Backspace, C-h  deletes the character before the cursor"))))
 
 let alphabetical = Test.Case(name = "the commands are in alphabetical order", run = fn() = {
     let names = List.map(commands(), fn(command) = command.name);
