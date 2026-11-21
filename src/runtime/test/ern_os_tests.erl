@@ -2331,6 +2331,74 @@ found_node_file_test() ->
     released(Holder),
     ?assertEqual({8#644, sent, false}, {Mode band 8#777, Signaled, filelib:is_file(PidFile)}).
 
+%% report §11.9: a second run waits for a job's lock: the second's answer
+%% comes only once the first has let it go, its port closed with the
+%% process that owns it, and the path then names the file the first held.
+%% The wait is shown by order, and no wait is timed: before the first lets
+%% go, the second's answer is looked for once without waiting, a weak
+%% check, since the second's helper may not yet have asked for the lock.
+%% The first's helper lets the lock go only as it exits, so a removal of
+%% the file at its end would show.
+job_lock_waits_test() ->
+    Path = filename:join(node_dir("ern_os_job_lock_"), ".unpack"),
+    First = job_held(Path),
+    {ok, #file_info{inode = Held}} = file:read_file_info(Path),
+    Self = self(),
+    Second = spawn(fun() ->
+                       Self ! {second, ern_os:job_locked(Path)},
+                       receive stop -> ok end
+                   end),
+    Early = receive {second, Answer} -> {early, Answer} after 0 -> waiting end,
+    released(First),
+    ?assertEqual({waiting, locked}, {Early, wait(second)}),
+    ?assertMatch({ok, #file_info{inode = Held}}, file:read_file_info(Path)),
+    released(Second).
+
+%% report §11.9, Appendix E.17: a job's lock makes its file where it is
+%% absent, a regular file with the permission bits the mask leaves of 0666.
+job_lock_makes_its_file_test() ->
+    Path = filename:join(node_dir("ern_os_job_made_"), ".unpack"),
+    ?assertNot(filelib:is_file(Path)),
+    Holder = job_held(Path),
+    {ok, #file_info{type = Type, mode = Mode}} = file:read_file_info(Path),
+    released(Holder),
+    ?assertEqual({regular, 8#666 band bnot ern_os:umask()}, {Type, Mode band 8#777}).
+
+%% report §11, §11.9: a job's lock is taken only where its name reaches a
+%% regular file, a link followed: a link to a regular file is locked, and a
+%% directory, a link to one and a named pipe are not opened, and are
+%% `unopened`; a job that opened the pipe would not end, which is how the
+%% test shows that none does. A device and a socket are not covered.
+job_lock_reaches_a_regular_file_test() ->
+    Dir = node_dir("ern_os_job_unopened_"),
+    Path = filename:join(Dir, ".unpack"),
+    Target = filename:join(Dir, "target"),
+    ok = file:write_file(Target, <<>>),
+    ok = file:make_symlink(Target, Path),
+    released(job_held(Path)),
+    ok = file:delete(Path),
+    ok = file:make_dir(Path),
+    Directory = ern_os:job_locked(Path),
+    ok = file:del_dir(Path),
+    ok = file:make_dir(Target ++ "_dir"),
+    ok = file:make_symlink(Target ++ "_dir", Path),
+    Linked = ern_os:job_locked(Path),
+    ok = file:delete(Path),
+    "" = os:cmd("mkfifo " ++ Path),
+    Pipe = ern_os:job_locked(Path),
+    ?assertEqual({unopened, unopened, unopened}, {Directory, Linked, Pipe}).
+
+%% A process that holds the helper's port of a job's lock on Path, until it
+%% is told to stop, once the lock is taken.
+job_held(Path) ->
+    Self = self(),
+    Holder = spawn(fun() ->
+                       Self ! {job_locked, ern_os:job_locked(Path)},
+                       receive stop -> ok end
+                   end),
+    ?assertEqual(locked, wait(job_locked)),
+    Holder.
+
 %% report §12.5: the helper sends a process a signal and says how it went,
 %% the signal 0 asking whether the process lives: this host's process
 %% lives, a process number nothing holds names none, and the first process

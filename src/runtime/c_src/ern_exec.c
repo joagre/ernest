@@ -3,8 +3,9 @@
  * Appendix E.23), doing what the host's ports cannot: the program's
  * standard error apart from its output, the end of its input while its
  * output is still read, a kill of the program with its process group, and
- * a run under a pseudo-terminal; and a node's lock on its ernest.pid, and a
- * signal to the node that holds one (report §12.5). It is C99 over
+ * a run under a pseudo-terminal; a node's lock on its ernest.pid, and a
+ * signal to the node that holds one (report §12.5); and a job's lock on a
+ * file, which waits for another's (report §11.9). It is C99 over
  * POSIX.1-2008 alone, its XSI option among it for the pseudo-terminal, so
  * that any POSIX host builds it, but for two ioctls that Linux and macOS
  * both have beyond it, TIOCSCTTY and TIOCSWINSZ, and the watch of a node's
@@ -131,9 +132,19 @@
  * holds names by chance, and never one whose number a file of another
  * user's names (report §11.2, §12.5). The file is opened through no link.
  *
+ * With the arguments `hold` and a path, the helper is a job's lock on the
+ * file at the path (report §11.9), which the host has no word for. It opens
+ * the file for writing, a link followed, made where it is absent with the
+ * bits the mask leaves of 0666, and takes a write lock on the whole of it,
+ * waiting while another holds one. It then writes an 'l' frame, holds the
+ * lock until fd 0 ends, and exits, which lets the lock go and leaves the
+ * file. An error is an 'f' frame and its name. A path that reaches what is
+ * not a regular file, a link followed, is not opened, and the helper exits
+ * 9 (report §11).
+ *
  * The locks are POSIX's record locks, which a process holds until it
  * closes the file or ends, and which another can ask after without taking
- * them. Two bytes of the file are locked apart, whatever it holds: the
+ * them. Two bytes of a node's file are locked apart, whatever it holds: the
  * node's lock is the second, held for writing by the node; the first is
  * held for writing while a node takes its lock and writes its number, and
  * for reading while the number is read, so that a number read beside a
@@ -370,7 +381,8 @@ static int fail(unsigned char tag, int error, int status)
    fd 0, and the helper then exits with Status. The runtime may send a frame
    before it has read the last, a request for output or the hangup among
    them, and a frame written to a pipe whose reader has gone fails, which
-   the host takes for the port's failure. */
+   the host takes for the port's failure. A job's lock is held so after its
+   'l' frame, until its port closes (hold_job_lock). */
 static int wait_for_let_go(int status)
 {
     unsigned char buffer[CHUNK];
@@ -1037,6 +1049,42 @@ static int signal_node(int argc, char **argv)
     return 0;
 }
 
+/* Report §11: whether Path, a link followed, reaches what is not a regular
+   file, which a job's lock is not opened as, since an open of a named pipe
+   may never end; a name that reaches nothing, a link to nothing among
+   them, is left to the open, which makes the file. */
+static int is_followed_unopened(const char *path)
+{
+    struct stat status;
+    return stat(path, &status) == 0 && !S_ISREG(status.st_mode);
+}
+
+/* `hold PATH`: a job's lock on the file (above). Report §11.9: a second
+   run waits for the lock, in the host, until the first lets it go. */
+static int hold_job_lock(int argc, char **argv)
+{
+    struct flock lock;
+    int fd;
+
+    if (argc != 3)
+        return 7;
+    if (is_followed_unopened(argv[2]))
+        return 9;
+    fd = open(argv[2], O_WRONLY | O_CREAT | O_CLOEXEC, 0666);
+    if (fd < 0)
+        return fail('f', errno, 1);
+    memset(&lock, 0, sizeof lock);
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0;
+    while (fcntl(fd, F_SETLKW, &lock) < 0)
+        if (errno != EINTR)
+            return fail('f', errno, 1);
+    frame('l', NULL, 0);
+    return wait_for_let_go(0);
+}
+
 int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], start_failure[2];
@@ -1069,6 +1117,8 @@ int main(int argc, char **argv)
         return hold_lock(argc, argv);
     if (strcmp(argv[1], "node") == 0)
         return signal_node(argc, argv);
+    if (strcmp(argv[1], "hold") == 0)
+        return hold_job_lock(argc, argv);
     if (strcmp(argv[1], "terminal") == 0) {
         if (!terminal_size(argc, argv, &rows, &columns))
             return 1;

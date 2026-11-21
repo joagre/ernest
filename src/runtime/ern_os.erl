@@ -19,18 +19,19 @@
 -module(ern_os).
 
 -export([loop/0, input/5, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3,
-         host/0, umask/0, working_directory/0]).
+         job_locked/1, host/0, umask/0, working_directory/0]).
 
 %% The most bytes an `i` frame carries after its tag: the host writes a
 %% frame's length, its tag among it, in 4 bytes, and cuts a longer one.
 -define(INPUT_MOST, 16#FFFFFFFE).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
-%% The host's facts are read from a port, a wait inside foreign code for
-%% the look (host/0); the working directory is the host's file server's,
-%% whose functions the look reads on top of the process's stack as the
-%% host's work.
--receives({foreign_wait, [host_read/1, variables/2]}).
+%% The host's facts are read from a port, and a job's lock waited for at
+%% one, each a wait inside foreign code for the look (host/0,
+%% job_locked/1); the working directory is the host's file server's, whose
+%% functions the look reads on top of the process's stack as the host's
+%% work.
+-receives({foreign_wait, [host_read/1, variables/2, job_lock_answer/1]}).
 -receives({own_process, [serve/1, spawn_program/5, signal/2, locked/2, node_signaled/3,
                          ended/1, starting/3, running/4, exited/2, over/2, writing/1,
                          stop_writer/1]}).
@@ -245,7 +246,8 @@ helper_failed() ->
     {fault, <<"the runtime's helper ern_exec failed">>}.
 
 %% The helper beside the runtime's modules: build/runtime/priv/ern_exec, which
-%% runs Os's programs and holds and signals a node's ernest.pid (§12.5).
+%% runs Os's programs, holds and signals a node's ernest.pid (§12.5) and
+%% holds a job's lock (§11.9).
 -spec helper() -> file:filename().
 helper() ->
     filename:join([filename:dirname(code:which(?MODULE)), "..", "priv", "ern_exec"]).
@@ -321,6 +323,33 @@ node_signaled(PidFile, Number, Wait) ->
         {Helper, {exit_status, 5}} -> others;
         {Helper, {exit_status, 8}} ->
             {failed, "is another user's, and names no node of this user's"};
+        {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
+    end.
+
+%% Report §11.9: a job's lock on the file at Path, which the helper opens
+%% for writing, a link followed, making it where it is absent with the bits
+%% the mask leaves of 0666 (Appendix E.17), and locks whole for writing,
+%% waiting in the host while another holds it, as a second run of the job
+%% waits. The helper holds the lock until its port closes, and leaves the
+%% file. The calling process owns the port, so that the lock goes when that
+%% process ends. Report §8.6: the wait is at a port, which the look cannot
+%% see deliver.
+%%
+%% `locked`, `unopened` where the name reaches no regular file, which the
+%% helper does not open (§11), or `{failed, Text}`, the words for what
+%% stopped the helper. A helper the host cannot start, its table of ports
+%% full, raises as open_port/2 does.
+-spec job_locked(file:filename_all()) -> locked | unopened | {failed, string()}.
+job_locked(Path) ->
+    Helper = open(["hold", Path]),
+    ern_rt:entered_foreign(),
+    try job_lock_answer(Helper) after ern_rt:left_foreign() end.
+
+job_lock_answer(Helper) ->
+    receive
+        {Helper, {data, <<"l">>}} -> locked;
+        {Helper, {data, <<"f", Name/binary>>}} -> ended(Helper), {failed, error_text(Name)};
+        {Helper, {exit_status, 9}} -> unopened;
         {Helper, {exit_status, _}} -> {failed, helper_failed_text()}
     end.
 
