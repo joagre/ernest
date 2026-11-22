@@ -140,10 +140,10 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      harness is not mended before the launch, and is MVP 4.5's item 168.
    - **Two defects found beside them.** `Fs.copy` onto a file that exists goes through the
      host's file server, which `ern_fs` goes around everywhere else: decided 2026-11-22, a
-     defect, fixed with `Fs`'s stats by raw handles. To decide: a
-     `Supervisor.group` whose function never runs leaves its watcher waiting for the run's
-     life, which E.22 does not say. The library bench's row, which kills a group at once,
-     leaves none, since the group asks its watcher before the kill comes.
+     defect, fixed with `Fs`'s stats by raw handles. A
+     `Supervisor.group` whose function no process runs leaves its process waiting for the
+     run's life: decided the same day, E.22 says so, and nothing is built, since a group
+     made at its first run would need a table to be found after a restart.
 3. **The raise a primitive catches**, read, decided and closed 2026-11-22 (the log's *What a
    Raise Reads*, which names the entry of each decision). A raise reads a recursion of one
    call beneath it whole, a defect of OTP's, `docs/otp_bugs.md`'s report 28, whose filing is
