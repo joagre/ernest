@@ -122,10 +122,13 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
    **The depth stays 64**, decided with the user 2026-11-22 (the log's *The Depth Stays 64*).
 
+   **A narrower sentence alone answers the square**, decided with the user 2026-11-22, and
+   what Ernest could build against it is MVP 4.5's item 167 (the log's *The Sentence Alone
+   for the Square*).
+
    **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*),
-   in this order: the sentences of §10 and E.28 and their echoes, and with them whether a
-   narrower sentence alone answers the map's square; and whether the bench gains a row for a
-   raise beneath a deep recursion, which item 2 then reads.
+   in this order: the wording of §10 and E.28 and their echoes; and whether the bench gains
+   a row for a raise beneath a deep recursion, which item 2 then reads.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
@@ -336,7 +339,8 @@ lines of [`known_issues.md`](known_issues.md), each naming the item it was (the 
 Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 158, 165 and 166.
+1 to 4 follow, then items 68, 96, 113, 158, 165 and 166, and item 167 last, so that OTP's
+answer to its report may come first.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -454,6 +458,20 @@ What the line left, in the order it is taken:
   is the code's, which §12.5's reload would then break, or the test's own is not known.
   `make flakes` is run over the nodes' tests, and a failure is diagnosed; where none comes
   in an hour, the item closes on a log line.
+- **167. The map's square**, found 2026-11-22 by MVP 4.4's item 3 (the log's *The Raise's
+  Walk Reported* and *The Sentence Alone for the Square*). A raise reads a recursion
+  beneath it whole, OTP's defect (`docs/otp_bugs.md`, report 28), so `List.map` over 80,000
+  texts that `String.toInt` refuses takes 2.7 seconds, against 5 milliseconds where each is
+  an integer. §10 states the cost. Where a release of OTP that Ernest requires bounds the
+  walk, the item closes on a log line.
+
+  To decide with the user otherwise, between two mechanisms and neither. The primitives
+  that answer a refusal the host raises check first, `String.toIntBase`, `Bytes.fromHex`
+  and `Float.div`: a refusal then takes no raise, each conversion that succeeds pays a
+  scan, and `Json.parse` and a foreign function's raise stay. Or `List`'s recursions
+  become loops, which covers every raise in a function `List` calls and leaves a program's
+  own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
+  against keeping no code only for speed.
 
 ---
 
@@ -513,4 +531,4 @@ What the line left, in the order it is taken:
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide; `:keys`, the known issues sorted, and the OTP defects read against their issues | 2026-11-21 | | *The Milestone Split*, *The Homepage and the Shell's Editing Planned*, *The Plan Read for Build Order*, *The Trust Said Once*, *A Refusal Holds No Control Character*, *An Input Edited by Its Lines*, *The Shell Says a Refusal in the Jobs' Words*, *Each Value in the Escape of Its Own Notation*, *The Live Region Named Once*, *A Window onto the Input*, *A Window onto the Input, Built*, *SHA-256 Beside SHA-1*, *An Archive Read by the Host*, *A Package in the Guide*, *The Keys Listed by `:keys`*, *The Known Issues Sorted*, *The OTP Defects Read Against Their Issues* |
 | MVP 4.6 | the server owning both ends of its socket: the site's script imports the client the server ships, the generator takes no configuration and the browser test serves a stub client; the homepage and the blocks' tools; the stylesheet in the reader's font size; `Bytes.toHex` in lower case | 2026-11-22 | | the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's *MVP 4.16, the Proposals Before the Launch*, *MVP 4.6 Before the Launch*, *The Client's Interface Agreed*, *The Homepage and the Shell's Editing Planned*, *The Homepage Built*, *A Line Above the Homepage's Heading*, *The Server's Client in the Site*, *The Stylesheet's Units*, *The Server's Client, Its Proposal Read*, *The Homepage's Proposal Read*, *Three Feedback Entries Decided*, *A Digest in Lower Case* |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
-| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, and a test and a flake from the known issues' sort | | | above |
+| MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, and the map's square from MVP 4.4's item 3 | | | above |
