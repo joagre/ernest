@@ -24,7 +24,8 @@ outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 3**, the raise a
 primitive catches, which is taken before item 2, the cost. Its reading is made and its
-report to OTP written, and the rest of its verdict is next, with the user.
+report to OTP written, and its sentences are in the report; the bench's row is decided next, with the user, and an
+agent then writes the echoes in the code and a test.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -110,7 +111,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    refused text, 3 milliseconds. OTP alone shows it at its default depth, `lists:map/2` over
    160,000 binaries with `binary_to_integer/1` caught, in 10.9 seconds against 4 milliseconds.
 
-   So the walk is OTP's defect, and two sentences of the report are false, which the line
+   So the walk is OTP's defect, and two sentences of the report were false, which the line
    mends before the launch. §10's "costs the frames the host keeps of the stack, 64": a raise
    beneath a deep recursion costs the recursion. E.28's "a process whose such frame lies
    beneath them is not listed": the host's 64 count a run of one call site once. `Code`'s
@@ -126,9 +127,16 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    what Ernest could build against it is MVP 4.5's item 167 (the log's *The Sentence Alone
    for the Square*).
 
-   **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*),
-   in this order: the wording of §10 and E.28 and their echoes; and whether the bench gains
-   a row for a raise beneath a deep recursion, which item 2 then reads.
+   **The sentences are written**, decided with the user 2026-11-22 (the log's *The Raise's
+   Sentences*): §10's bullet on a raise, E.28's sentence on the 64 frames, a clause each in
+   E.5 and E.20 that names the primitives whose `None` is the host's raise, and the
+   guide's §8.9. Left for an agent: `Code`'s doc, the comments of `ern_rt:run_main/3`,
+   `ern_code:running/1` and the bench's `raises`, and a test of E.28's clause, a process
+   beneath 1,000 frames of one call listed and one beneath frames of two calls in turn not.
+
+   **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*):
+   whether the bench gains a row for a raise beneath a deep recursion, which item 2 then
+   reads.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.

@@ -33,7 +33,7 @@ This file holds the report's §10 to §12 and Appendices C and H. §0 to §9 and
 - A spawn or a compute whose function the peer lacks costs the crossing of what the peer lacks of its reach and the peer's compile of it, once for each definition on each node, within the spawn's time (§8.7).
 
   A node holds the code it receives, and the code it loads after its start, as units of the host's beside its build's, for its life but for what §11.2's **What a node holds** lets go (§11.1); each unit adds to the host's counts of module names, export entries, function entries and atoms, which never fall in the host's life (§11.2).
-- A raise, a fault's among them, costs the frames the host keeps of the stack, 64 (Appendix E.28), a cost a deep stack alone pays; a trace shows twelve lines of them (Appendix E.21).
+- A raise, a fault's among them, costs the frames the host reads of the stack beneath it, and it reads until it has kept 64 (Appendix E.28). Consecutive frames that return to one call are kept as one and read whole, so a raise beneath a recursion whose call is not in tail position costs the recursion's depth. A primitive that answers the host's raise as a value costs the same: one that refuses an element in `List.map`'s function costs the element's position in the list. A trace shows twelve lines of the frames kept (Appendix E.21).
 - Memory is the host's. A program that exhausts it ends at once, every process with it: no process faults, no monitor is told, and the host's message is written to standard error (§11.8).
 - `Int` has arbitrary precision. A result beyond the host's integers faults with `Fault("error:system_limit")`, a limit of the host met (§7.4).
 - Bitstrings are constructed and matched by the runtime's bit syntax (§5.11).

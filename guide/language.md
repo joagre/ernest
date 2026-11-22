@@ -3083,9 +3083,9 @@ A service `Registry`, with `type Msg = Register((Int) -> Int)` and a binding `re
 
 ### 8.9 A service moved to new code
 
-A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f`, or of another version of its name with the same message type, at that moment, among the innermost 64 frames the host keeps, so a process whose such frame lies deeper is not listed (report §3.11, Appendix E.28). Its printed type, `(a) -> List(Address(m))` at `:type Code.running`, is not the rule, which report Appendix E.28 states.
+A process changes its code by a message of its own type that carries the new loop (§4.6). Across a program, the processes running a function are listed by `Code.running(f)`, a *form*, a call the compiler reads by a rule of its own: `f` names a top-level `fn`, and the list holds the addresses of the processes on this node whose stack holds a frame of `f`, or of another version of its name with the same message type, at that moment, among the 64 frames the host keeps, the innermost, with consecutive frames that return to one call kept as one, so a process whose such frame lies deeper is not listed (report §3.11, Appendix E.28). Its printed type, `(a) -> List(Address(m))` at `:type Code.running`, is not the rule, which report Appendix E.28 states.
 
-The move's limits are four: the same message type, the same state type, a frame of `f` among the innermost 64, and no `restarting` around the process, whose restart runs the old loop (report §6.9; the deployment guide's §5.3). A tool moves every counter by sending each its `Upgrade`:
+The move's limits are four: the same message type, the same state type, a frame of `f` among the 64 the host keeps, and no `restarting` around the process, whose restart runs the old loop (report §6.9; the deployment guide's §5.3). A tool moves every counter by sending each its `Upgrade`:
 
 ```ernest
 type CounterMsg =
