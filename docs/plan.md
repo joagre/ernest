@@ -23,7 +23,8 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 3**, the raise a
-primitive catches, which is taken before item 2, the cost.
+primitive catches, which is taken before item 2, the cost. Its reading is made, and its
+verdict is next, with the user.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -77,14 +78,43 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
 
    It is taken before item 2, whole, decided with the user 2026-11-19 (the log's *The Plan
-   Read for Build Order*). Its reading says what a raise does with the stack beneath it,
-   which item 2's one candidate and item 123 rest on. Its verdict may change the depth,
-   which E.28 and §10 state, or add the bench a row for a raise beneath a deep stack, and
-   item 2 then reads the bench once.
+   Read for Build Order*). Its verdict may change the depth, which E.28 and §10 state, or add
+   the bench a row for a raise beneath a deep stack, and item 2 then reads the bench once.
 
-   The reading comes first and is written into this item at a commit. A report to OTP alone
-   closes the item there, and a verdict that touches the depth is decided with the user after
-   it (the log's *Where a Session Is Cut*).
+   **Read 2026-11-22** in OTP 29.1.2's erts, by probes of OTP alone and of Ernest kept
+   outside the repository. Every raise saves the stack's return addresses where it is
+   raised, a throw and one caught where it is made among them (`handle_error` calls
+   `save_stacktrace`, `erts/emulator/beam/beam_common.c`). The walk, `gather_stacktrace`, goes
+   down from the raise and stops once it holds the depth's count of entries, but counts an
+   address only where it differs from the one above it. So a run of frames that return to one
+   call site, a body recursion such as `List.map`'s, is one entry, and the walk crosses it
+   whole, 0.6 to 0.75 nanoseconds a frame on nike, unless the entries fill above it.
+
+   Where the catch stands does not bound the walk. The trace's terms are built only where a
+   catch uses the stack trace or the error ends the process. An entry is a word, beside the
+   arguments of a host function that raised, which the trace keeps: what item 2's one
+   candidate and item 123 rest on.
+
+   Shown: a refused text costs `Json.parse` 2.1 microseconds on a shallow stack and 76
+   beneath 100,000 frames of one call site, and a caught `error` in Erlang alone 0.13 and 64.
+   At the host's default depth, 8, `Json.parse`'s own frames fill the entries, and it costs 2
+   to 5 microseconds at every depth. At 12, E.21's twelve lines, the run is crossed again.
+   `process_info`'s stack, which `Code.running` reads, is the same walk: a process whose
+   frame of `f` lies beneath 1,000 frames of one call site is listed, and one beneath 1,000
+   frames of two call sites in turn is not.
+
+   So the walk is OTP's defect, and two sentences of the report are false, which the line
+   mends before the launch. §10's "costs the frames the host keeps of the stack, 64": a raise
+   beneath a deep recursion costs the recursion. E.28's "a process whose such frame lies
+   beneath them is not listed": the host's 64 count a run of one call site once. `Code`'s
+   doc, the guide's §8.9 and the comments of `ern_rt:run_main/3`, `ern_code:running/1` and
+   the bench's `raises` repeat them.
+
+   **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*):
+   the report to OTP, recommended; the sentences of §10 and E.28 and their echoes; the
+   depth, recommended to stay 64, since none that keeps E.21's twelve lines bounds the walk;
+   and whether the bench gains a row for a raise beneath a deep recursion, which item 2 then
+   reads.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
