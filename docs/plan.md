@@ -129,12 +129,15 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      walk; `Io.show` writes an `Int` by one conversion; and `Fs.append`, `Fs.write` and
      `Fs.copy` decide a path's kind by one stat, `Fs.copy` copying between raw handles.
 
-     To decide, each found by that build. A host error in a function given to a shim of
-     the standard library's, `Map.map`'s among them, faults as the shim's raise, against
-     §12.3, and `Map.fold`, which measured the host's own around the host's fold, waits on
-     it. `Fs.copy` of a file onto itself empties it. `Path.name` around the host's
-     `basename` left `Path.extension` at 3.1 to 3.2 times the host's at 100 bytes, past
-     the line, and was not kept.
+     Three things that build found. A host error in a function given to a shim of the
+     standard library's, `Map.map`'s among them, faulted as the shim's raise, against
+     §12.3: decided and built 2026-11-22 (the log's *A Host Error in a Shim's Function*),
+     the shim's handler telling it by the stack, and `Map.fold` closes around the host's
+     fold, the host's own cost at every size. `Path.extension` keeps its form, an exception
+     as `Path.<>`'s, since `Path.name` around the host's `basename` left it at 3.1 to 3.2
+     times the host's at 100 bytes. To decide: `Fs.copy` of a file onto itself empties it,
+     and the host's stat, which holds a file's number in 32 bits, cannot tell one file
+     from two.
    - **The gaps the reading left, measured.** `Bytes.toList` at 10,000 bytes is the harness's:
      Ernest calls the host's function itself, and the host's side applies its export in a
      process whose heap the earlier rows shaped. `Os.closeInput`'s 0.8 ms over `Os.start` is

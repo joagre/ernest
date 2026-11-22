@@ -51,7 +51,7 @@
          kill_started/1, kill_all/1, processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
          writes_through/1, faults/1, termination/1,
-         expected/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
+         expected/1, is_ernest/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, peer_wait/1, peer_waited/0,
          deadline/1, deadline/2, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
@@ -3162,11 +3162,14 @@ still([{Pid, _, Reductions} | First], Held) ->
             running
     end.
 
-%% Report §8.6: whether a module is Ernest's own code: a unit, which exports
-%% '$code'/0 as every unit the toolchain makes does, and by which the code
-%% table takes one (ern_code:loaded/3), or a module of the toolchain's own
-%% Erlang (ern_code:own_modules/0). Every other module is the host's,
-%% foreign code's and a standard library function's host work among them.
+%% Report §8.6, §12.3: whether a module is Ernest's own code: a unit, which
+%% exports '$code'/0 as every unit the toolchain makes does, and by which
+%% the code table takes one (ern_code:loaded/3), or a module of the
+%% toolchain's own Erlang (ern_code:own_modules/0). Every other module is
+%% the host's, foreign code's and a standard library function's host work
+%% among them. The boundary reads a raise's innermost frame by it
+%% (ern_boundary:shim_raised/6).
+-spec is_ernest(module()) -> boolean().
 is_ernest(Module) ->
     erlang:function_exported(Module, '$code', 0) orelse is_map_key(Module, ern_code:own_modules()).
 

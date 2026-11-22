@@ -478,6 +478,31 @@ parameter_text({applied, {named, Name}, Args}) ->
 parameter_text({variable, _}) ->
     "a".
 
+%% report §12.3: no host function a shim of the standard library's names
+%% raises in its caller's frame, with no frame of its own, as
+%% `erlang:error/1,2,3`, `exit/1`, `throw/1`, `raise/3` and `apply/2,3`
+%% raise, so that the frame of a shim's call site is never the innermost
+%% of a raise the shim catches, and ern_boundary:shim_raised/6 reads an
+%% Ernest frame there as one of a function the shim gave the host. A shim
+%% added over one of them fails here and is read then. Written with the
+%% shim's handler, which rests on it
+shim_hosts_raise_in_a_frame_of_their_own_test() ->
+    Hosts = [{HostModule, HostFunction, scheme_arity(Scheme)}
+             || Erc <- filelib:wildcard("build/stdlib/*.erc"),
+                {ok, Beam} <- [file:read_file(Erc)],
+                {ok, #recorded{foreign = Foreign}} <- [ern_canonical:read(Beam)],
+                #foreign_function{host_module = HostModule, host_function = HostFunction,
+                                  scheme = Scheme} <- Foreign],
+    ?assert(lists:member({maps, fold, 3}, Hosts)),
+    InCallersFrame = [{erlang, error, 1}, {erlang, error, 2}, {erlang, error, 3},
+                      {erlang, exit, 1}, {erlang, throw, 1}, {erlang, raise, 3},
+                      {erlang, apply, 2}, {erlang, apply, 3}],
+    ?assertEqual([], [Host || Host <- Hosts, lists:member(Host, InCallersFrame)]).
+
+%% The arity of a foreign function's scheme.
+scheme_arity({scheme, _, {arrow, Params, _, _}, _}) ->
+    length(Params).
+
 %% The code of the function Function of the module M that Text compiles to,
 %% as the host's disassembler reads it.
 function_code(Text, Function) ->
@@ -3645,6 +3670,62 @@ list_reverse_of_any_element_test() ->
         "    let sum = receive { Got(first) -> receive { Got(second) -> first + second } };\n"
         "    Io.println(Io.show(#(sum, List.size(addresses))))\n"
         "}\n")).
+
+%% report §12.3, Appendix E.21: a function of the program's that a shim of
+%% the standard library's calls faults as it would anywhere: a division by
+%% zero in it is `division by zero`, its trace the host's `erlang:'div'/2`
+%% above the program's frame that met it, as through `List.map`, for each
+%% shim that is given a function and calls it in the caller, `fold`'s
+%% among them; a `fault` passes as it is; and a foreign function's own
+%% raise names the foreign function, the host's operator where it is the
+%% function, one that raises in its caller's frame, and one of the
+%% library's, each called in the function given. A
+%% regression test, written after the code: each was the shim's raise,
+%% `foreign function maps:map/2 raised error:badarith`
+shim_function_faults_as_anywhere_test() ->
+    Program = fun(Call) ->
+                  "type Bad = Bad(Int)\n"
+                  "fn Bad.compare(left : Bad, right : Bad) : Ordering = {\n"
+                  "    let Bad(l) = left;\n"
+                  "    let Bad(r) = right;\n"
+                  "    compare(divided(l, r), 0)\n"
+                  "}\n"
+                  "fn divided(key : Int, value : Int) : Int = key / value\n"
+                  "foreign fn quotient(key : Int, value : Int) : Int = \"erlang:div/2\"\n"
+                  "foreign fn boom(x : Int) : Int = \"erlang:error/1\"\n"
+                  "export fn main() : Unit = {\n"
+                  "    let pairs = [#(1, 0)];\n"
+                  "    let zeros = [0];\n"
+                  "    let _ = " ++ Call ++ ";\n"
+                  "    Io.println(\"unreached\")\n"
+                  "}\n"
+              end,
+    Divisions = ["List.map(zeros, fn(v) = divided(1, v))",
+                 "Map.map(Map.fromList(pairs), divided)",
+                 "Map.filter(Map.fromList(pairs), fn(k, v) = divided(k, v) > 0)",
+                 "Map.mergeWith(Map.fromList(pairs), Map.fromList(pairs),"
+                 " fn(_, a, b) = divided(a, b))",
+                 "Map.fold(Map.fromList(pairs), 0, fn(acc, k, v) = acc + divided(k, v))",
+                 "Set.map(Set.fromList(zeros), fn(v) = divided(1, v))",
+                 "Set.filter(Set.fromList(zeros), fn(v) = divided(1, v) > 0)",
+                 "List.sort([Bad(1), Bad(0)])"],
+    [begin
+         {{fault, Cause, Trace}, _} = run(Program(Call)),
+         Frames = frames(Trace),
+         ?assertEqual({Call, <<"division by zero">>, [<<"erlang:'div'/2">>, <<"M.divided:7">>]},
+                      {Call, Cause, lists:sublist(Frames, 2)}),
+         ?assertEqual({Call, <<"M.main:13">>}, {Call, lists:last(Frames)})
+     end || Call <- Divisions],
+    [?assertMatch({{fault, Cause, _}, _}, run(Program(Call)))
+     || {Call, Cause} <- [{"Map.map(Map.fromList(pairs), fn(_, _) = fault(\"x\"))", <<"x">>},
+                          {"Map.map(Map.fromList(pairs), quotient)",
+                           <<"foreign function erlang:'div'/2 raised error:badarith">>},
+                          {"Map.map(Map.fromList(pairs), fn(_, v) = boom(v))",
+                           <<"foreign function erlang:error/1 raised error:0">>},
+                          {"Map.map(Map.fromList(pairs),"
+                           " fn(_, _) = Foreign.atom(String.repeat(\"a\", 300)))",
+                           <<"foreign function erlang:binary_to_atom/1 raised"
+                             " error:system_limit">>}]].
 
 %% report §6.6, §6.5: a request that makes a call of its own, as printing
 %% does, and an adapted address's function that prints, each applied in the

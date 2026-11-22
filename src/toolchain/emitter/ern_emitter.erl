@@ -713,19 +713,22 @@ foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType}, Args,
             _ ->
                 Call = erl_syntax:application(erl_syntax:atom(HostModule),
                                               erl_syntax:atom(HostFunction), Exposed ++ Members),
-                foreign_call(Source, Call, HostModule, HostFunction, Arity, Context1)
+                foreign_call(Source, Call, raised, {HostModule, HostFunction, Arity}, Context1)
         end,
     HostText = ern_namespace:host_function_text(HostModule, HostFunction, Arity),
     foreign_return(Source, Try, ParamTypes, ResultType, HostText, Context2).
 
 %% Report §4.7, §12.3: the foreign call, an exception it raises turned into
-%% a fault. Report §8.6: the call writes nothing for the deadlock look,
-%% which reads a process waiting inside foreign code from the host's
-%% function on top of its stack, and one inside a function foreign code
-%% called back from the key the function's wrapper keeps (called/2).
-foreign_call(Source, Call, HostModule, HostFunction, Arity, Context) ->
+%% a fault by ern_boundary's function RaisedBy, raised/6 for a foreign
+%% function of the program's and shim_raised/6 for a shim of the standard
+%% library's (shim_call/4). Report §8.6: the call writes nothing for the
+%% deadlock look, which reads a process waiting inside foreign code from
+%% the host's function on top of its stack, and one inside a function
+%% foreign code called back from the key the function's wrapper keeps
+%% (called/2).
+foreign_call(Source, Call, RaisedBy, {HostModule, HostFunction, Arity}, Context) ->
     {[Class, Error, Trace], Context1} = named_variables(["Class", "Error", "Trace"], Context),
-    Raised = call_remote(ern_boundary, raised,
+    Raised = call_remote(ern_boundary, RaisedBy,
                          [erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
                           erl_syntax:integer(Arity)
                           | [erl_syntax:variable(Variable) || Variable <- [Class, Error, Trace]]]),
@@ -743,10 +746,13 @@ foreign_call(Source, Call, HostModule, HostFunction, Arity, Context) ->
 %% which a function value of it calls. A raise is turned into the fault
 %% that names the foreign function, but for a host function that cannot
 %% raise at the types the library declares it at (is_raiseless/1), which
-%% the host's compiler makes its instruction where it has one. An argument
-%% is evaluated before the handler is entered, so that its own fault is no
-%% raise of the function (§5.1, §7.4). Report §8.6: the call writes nothing
-%% for the deadlock look, as foreign_call/6 writes nothing.
+%% the host's compiler makes its instruction where it has one.
+%%
+%% A host error met in a function the call gave the host is the fault it
+%% would be anywhere (ern_boundary:shim_raised/6). An argument is evaluated
+%% before the handler is entered, so that its own fault is no raise of the
+%% function (§5.1, §7.4). Report §8.6: the call writes nothing for the
+%% deadlock look, as foreign_call/6 writes nothing.
 shim_call(Source, {HostModule, HostFunction}, Args, Context) ->
     case is_raiseless({HostModule, HostFunction, length(Args)}) of
         true ->
@@ -754,8 +760,8 @@ shim_call(Source, {HostModule, HostFunction}, Args, Context) ->
         false ->
             {Bindings, Evaluated, Context1} = evaluated_first(Args, Context),
             Call = call_remote(HostModule, HostFunction, Evaluated),
-            {Try, Context2} = foreign_call(Source, Call, HostModule, HostFunction,
-                                           length(Args), Context1),
+            {Try, Context2} = foreign_call(Source, Call, shim_raised,
+                                           {HostModule, HostFunction, length(Args)}, Context1),
             {with_bindings(Bindings, Try), Context2}
     end.
 
@@ -2466,7 +2472,10 @@ is_plain(_) -> true.
 %% address inside, through the checker that checks what foreign code sends
 %% it, and a Reply foreign code gave back as it gave it; a function,
 %% wrapped to check the arguments foreign code calls it with; any other,
-%% and every argument of the standard library's own, as it is.
+%% and every argument of the standard library's own, as it is. Report
+%% §12.3: a function given so is not wrapped, and a host error it meets
+%% while the host runs it is told by the stack the raise kept
+%% (ern_boundary:shim_raised/6).
 exposed({_, Arg}, #emit_context{unit = #unit{standard = true}} = Context) ->
     {Arg, Context};
 exposed({Type, Arg}, Context) ->

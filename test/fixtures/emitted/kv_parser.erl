@@ -25,12 +25,12 @@
 '$3'(Line_6) ->
     case '$4'(try ern_string:to_list(Line_6) catch
                   Class_7:Error_8:Trace_9 ->
-                      ern_boundary:raised(ern_string,
-                                          to_list,
-                                          1,
-                                          Class_7,
-                                          Error_8,
-                                          Trace_9)
+                      ern_boundary:shim_raised(ern_string,
+                                               to_list,
+                                               1,
+                                               Class_7,
+                                               Error_8,
+                                               Trace_9)
               end)
         of
         {'Left', Left_10} -> {'Left', Left_10};
@@ -54,12 +54,12 @@
             {'Right',
              {try ern_string:from_list(Letters_18) catch
                   Class_20:Error_21:Trace_22 ->
-                      ern_boundary:raised(ern_string,
-                                          from_list,
-                                          1,
-                                          Class_20,
-                                          Error_21,
-                                          Trace_22)
+                      ern_boundary:shim_raised(ern_string,
+                                               from_list,
+                                               1,
+                                               Class_20,
+                                               Error_21,
+                                               Trace_22)
               end,
               Rest_19}};
         false ->
@@ -67,12 +67,12 @@
              <<"bad key: ",
                try ern_string:from_list(Chars_17) catch
                    Class_23:Error_24:Trace_25 ->
-                       ern_boundary:raised(ern_string,
-                                           from_list,
-                                           1,
-                                           Class_23,
-                                           Error_24,
-                                           Trace_25)
+                       ern_boundary:shim_raised(ern_string,
+                                                from_list,
+                                                1,
+                                                Class_23,
+                                                Error_24,
+                                                Trace_25)
                end/binary>>}
     end.
 
@@ -88,12 +88,12 @@
     case ern@string:'$30'(try ern_string:from_list(Chars_29)
                           catch
                               Class_31:Error_32:Trace_33 ->
-                                  ern_boundary:raised(ern_string,
-                                                      from_list,
-                                                      1,
-                                                      Class_31,
-                                                      Error_32,
-                                                      Trace_33)
+                                  ern_boundary:shim_raised(ern_string,
+                                                           from_list,
+                                                           1,
+                                                           Class_31,
+                                                           Error_32,
+                                                           Trace_33)
                           end)
         of
         {'Some', Value_34} -> {'Right', Value_34};

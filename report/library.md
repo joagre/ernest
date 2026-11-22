@@ -308,7 +308,7 @@ List.tryForEach : (List(a), (a) -> Either(e, Unit) receiving x) -> Either(e, Uni
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
 
-Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `fold`, `forEach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, `all`, and `mergeWith` meet the entries. The primitives are `empty`, `size`, `get`, `put`, `remove`, `map`, `filter`, `merge`, `mergeWith`, `fromList`, `toList`, `keys`, and `values` (E.0 rule 1); the rest is Ernest over them.
+Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `fold`, `forEach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, `all`, and `mergeWith` meet the entries. The primitives are `empty`, `size`, `get`, `put`, `remove`, `map`, `filter`, `merge`, `mergeWith`, `fromList`, `toList`, `keys`, `values`, and a function of the host's beneath `fold`, private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Map.empty : Map(k=, v)

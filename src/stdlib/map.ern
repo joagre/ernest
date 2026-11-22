@@ -181,7 +181,14 @@ export fn filterMap(map : Map(k, v),
 ///
 /// since 0.4.0
 export fn fold(map : Map(k, v), acc : b, step : (b, k, v) -> b receiving e) : b receiving e =
-    List.foldLeft(toList(map), acc, fn(acc, #(key, value)) = step(acc, key, value))
+    folded(fn(key, value, acc) = step(acc, key, value), acc, map)
+
+// Report Appendix E.3, E.0 rule 1: the host's function beneath `fold`,
+// which gives its function the key, the value and the accumulator, in that
+// order, and meets the entries in an order its page leaves unspecified, as
+// E.3 leaves `fold`'s.
+foreign fn folded(step : (k, v, b) -> b receiving e, acc : b, map : Map(k, v)) : b receiving e =
+    "maps:fold/3"
 
 /// Calls `f(key, value)` for each entry, for its effect, in unspecified
 /// order.

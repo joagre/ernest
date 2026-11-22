@@ -160,12 +160,12 @@
     case ern@list:'$15'(try ern_string:to_list(Text_46)
                         catch
                             Class_47:Error_48:Trace_49 ->
-                                ern_boundary:raised(ern_string,
-                                                    to_list,
-                                                    1,
-                                                    Class_47,
-                                                    Error_48,
-                                                    Trace_49)
+                                ern_boundary:shim_raised(ern_string,
+                                                         to_list,
+                                                         1,
+                                                         Class_47,
+                                                         Error_48,
+                                                         Trace_49)
                         end,
                         fun ern@char:'$1'/1)
         of
@@ -178,12 +178,12 @@
     ern@optional:'$4'(try ern_map:get(Stock_50, Key_51)
                       catch
                           Class_52:Error_53:Trace_54 ->
-                              ern_boundary:raised(ern_map,
-                                                  get,
-                                                  2,
-                                                  Class_52,
-                                                  Error_53,
-                                                  Trace_54)
+                              ern_boundary:shim_raised(ern_map,
+                                                       get,
+                                                       2,
+                                                       Class_52,
+                                                       Error_53,
+                                                       Trace_54)
                       end,
                       0).
 

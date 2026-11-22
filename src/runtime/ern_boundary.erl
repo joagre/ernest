@@ -33,8 +33,8 @@
 %% the function's name and the text after it.
 -module(ern_boundary).
 
--export([raised/6, raised/4, called_raised/3, expose/2, check/3, value/3, result/4, argument/5,
-         expose/3]).
+-export([raised/6, shim_raised/6, raised/4, called_raised/3, expose/2, check/3, value/3,
+         result/4, argument/5, expose/3]).
 
 -export_type([descriptor/0]).
 
@@ -81,6 +81,55 @@ raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
                                                                    Arity),
                                   Class, Error])),
                  ern_rt:failure_trace(Stack)).
+
+%% Report §12.3: an exception a shim of the standard library's raised
+%% (ern_emitter:shim_call/4), the foreign function's as raised/6 makes it,
+%% but for a host error met in Ernest code the host function called, a
+%% function the shim gave the host as it is (ern_emitter:exposed/2): that
+%% is the fault it would be anywhere, as called_raised/3 makes it, told by
+%% the stack the raise kept (is_met_in_ernest/4), so that nothing is added
+%% to the call. A throw met there is the runtime's, a fault or a restart
+%% passing, and passes as raised/6 passes it. A foreign function of the
+%% program's reads no stack: every function it gives the host is wrapped
+%% (called/2), so a raise it catches is the foreign function's.
+-spec shim_raised(module(), atom(), arity(), error | exit | throw, term(), list()) ->
+          no_return().
+shim_raised(HostModule, HostFunction, Arity, throw, Error, Stack) ->
+    raised(HostModule, HostFunction, Arity, throw, Error, Stack);
+shim_raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
+    case is_met_in_ernest(HostModule, HostFunction, Arity, Stack) of
+        true -> called_raised(Class, Error, Stack);
+        false -> raised(HostModule, HostFunction, Arity, Class, Error, Stack)
+    end.
+
+%% Report §12.3: whether an exception a shim caught was met in Ernest code
+%% the host function called, or in the runtime that code called, by the
+%% stack the raise kept, its innermost frame first. Past the frame of an
+%% operator of Ernest code that failed, the host's `erlang:'div'/2`, which
+%% met/3 reads (ern_rt:arithmetic_cause/1), the innermost frame is Ernest's
+%% own code (ern_rt:is_ernest/1): a frame of a unit, the function given or
+%% one it called, or of the runtime, where the function's call of it was
+%% its last. A frame of the host's there is the host function's work, and
+%% so is one of its own module where the runtime implements it, and of the
+%% operator where the operator is the host function itself.
+%%
+%% The test rests on the host function's raise having a frame of its own,
+%% so that the frame of the shim's call site is never the innermost: no
+%% host function a shim of the standard library's names raises in its
+%% caller's frame, as `erlang:error/1` does, which `ern_emitter_tests`
+%% holds to every shim.
+is_met_in_ernest(HostModule, HostFunction, Arity, [{erlang, Operator, [_, _], _} | Stack])
+  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
+       Operator =:= 'div'; Operator =:= 'rem' ->
+    {HostModule, HostFunction, Arity} =/= {erlang, Operator, 2}
+        andalso is_ernest_frame(HostModule, Stack);
+is_met_in_ernest(HostModule, _, _, Stack) ->
+    is_ernest_frame(HostModule, Stack).
+
+is_ernest_frame(HostModule, [{Module, _, _, _} | _]) ->
+    Module =/= HostModule andalso ern_rt:is_ernest(Module);
+is_ernest_frame(_, []) ->
+    false.
 
 %% Report §12.3: an exception a function value foreign code gave raised
 %% where the program called it, as a foreign function's (raised/6), named
