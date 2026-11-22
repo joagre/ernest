@@ -78,7 +78,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      first call, so 19,400 writers that fault at once each list the toolchain's tree through
      the host's one file server, holding about 200 KB while they wait, and the reports take
      20 s. With the modules found first, memory rises by at most 150 MB and the reports take
-     0.7 to 3.8 s, the reaper's collections over its long mailbox setting the pace, which the
+     0.7 to 7.4 s, the reaper's collections over its long mailbox setting the pace, which the
      line's garbage doubles. Decided: the fix's shape.
    - **A `match` guard that calls a function**, feedback 235 (the log's *The Libraries' Shims
      Read Against E.0 Rule 1*). The emitter binds the clauses after such a guard as a closure
@@ -102,16 +102,26 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      times, `Path.<>`, `List.reverse` and `Map.fold`, whose reason to stay in Ernest *Kill
      Darlings* took away, `String.stripPrefix`, a foreign function's return check and a
      callback, a computed `let`'s read, `Code.load`, `Code.running`, a launch and a shell's
-     input. Argued nowhere: `Io.show` of an `Int`, 3.1 times where it was 1.6,
-     `Path.extension`, which grows with the path where the host's does not, `Fs`'s checks the
-     host does not make, `Os.give` and `Tcp.give`, `Process.fromAddress`, `Utilization.cpu`, a
-     record update, `Code.hashes`, and `Tcp`'s round trip to the reaper at each open. Decided,
-     row by row, for these and the rows above: by design or a defect.
+     input. Argued nowhere: `Io.show` of an `Int`, 3.1 times, `Path.extension`, which grows
+     with the path where the host's does not, `Fs`'s checks the host does not make, `Os.give`
+     and `Tcp.give`, `Process.fromAddress`, `Utilization.cpu`, a record update, `Code.hashes`,
+     and `Tcp`'s round trip to the reaper at each open. Decided, row by row, for these and the
+     rows above: by design or a defect.
+   - **The gaps the reading left, measured.** `Bytes.toList` at 10,000 bytes is the harness's:
+     Ernest calls the host's function itself, and the host's side applies its export in a
+     process whose heap the earlier rows shaped. `Os.closeInput`'s 0.8 ms over `Os.start` is
+     mostly its place, the first program's row after the pure ones. `Clock.alarmAt` at twice
+     `alarm`, `Clock.cancel` and `Http.readRequest`'s 23 µs over `readResponse` are one run's
+     slow moment, and `Code.running`'s ratio swings with its twelve reads of a stack, Ernest
+     adding 3 µs. `Fs.append` and `Fs.copy` stat one path three times, 3.4 µs a stat, against
+     an append of 8 to 10. Half of `Io.show`'s time is the host's `characters_to_binary`, on a
+     path unchanged since the log's 1.6, which was eve's. Decided: whether the library's
+     harness is mended for the first two.
    - **Two defects found beside them**, each to decide: `Fs.copy` onto a file that exists goes
      through the host's file server, which `ern_fs` goes around everywhere else; and a
-     `Supervisor.group` whose process is killed before it runs leaves its watcher waiting for
-     the run's life, which the library bench's row of `group` does at every iteration, so
-     that the rows after it may meet many waiting processes.
+     `Supervisor.group` whose function never runs leaves its watcher waiting for the run's
+     life, which E.22 does not say. The library bench's row, which kills a group at once,
+     leaves none, since the group asks its watcher before the kill comes.
 3. **The raise a primitive catches**, read, decided and closed 2026-11-22 (the log's *What a
    Raise Reads*, which names the entry of each decision). A raise reads a recursion of one
    call beneath it whole, a defect of OTP's, `docs/otp_bugs.md`'s report 28, whose filing is
