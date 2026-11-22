@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 2**, the cost, the
-fault row made readable first.
+**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 3**, the raise a
+primitive catches, which is taken before item 2, the cost.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -81,6 +81,10 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    which item 2's one candidate and item 123 rest on. Its verdict may change the depth,
    which E.28 and §10 state, or add the bench a row for a raise beneath a deep stack, and
    item 2 then reads the bench once.
+
+   The reading comes first and is written into this item at a commit. A report to OTP alone
+   closes the item there, and a verdict that touches the depth is decided with the user after
+   it (the log's *Where a Session Is Cut*).
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
@@ -201,6 +205,10 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    the archive's path and its commit to all three by a message, and asks for the reviews, on
    the user's word. Each application's own session opens on the new floor, changes what its
    code needs there and begins its review.
+
+   The message names the review's three legs, each ended by a commit: the floor's rise, the
+   readers and their lists in the findings file; the sort and the lines to decide, with the
+   user; and the fixes and the close (the log's *Where a Session Is Cut*).
 
    The three floors stand on 0.10 since 2026-11-10, and rise together from there (the log's
    *The Release Review Before 0.10.0*, its last paragraph).

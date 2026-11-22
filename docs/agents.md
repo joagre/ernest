@@ -4,7 +4,7 @@ How a session works with its agents: what a brief holds, where an agent's report
 
 ## The brief
 
-Code goes to an agent one build at a time, given its goal, the report's sections it builds and the check that proves it done. In a run of items (`CLAUDE.md`, *Who decides*) each item has an agent of its own, started once the item before it is closed and committed.
+Code goes to an agent one build at a time, given its goal, the report's sections it builds and the check that proves it done. Where the user has said to go on (`CLAUDE.md`, *Who decides*), each item has an agent of its own, started once the item before it is closed and committed.
 
 A diagnosis that needs experiments goes to one agent with the failing case and what is ruled out, never the session's guess, and that agent owns the loop to a passing test. A question about what the host or the code does is no diagnosis: the session reads and runs it itself (`CLAUDE.md`, *The work*).
 
