@@ -267,19 +267,15 @@ version:
 # *The generation*): the tag
 # exported by git archive into build/site-source/, the toolchain built there
 # and its pages written by make doc there, the checkout untouched, and the tag's own
-# generator run over the export with the server's configuration, CONFIG,
-# writing build/site/ whole and refusing a site with a link that leads
-# nowhere. Everything comes from the tag, so a tag that holds no site/ is
-# refused. The version the pages name is the tag's VERSION; a page's date
-# is its source's last commit at the tag, which the checkout's history
-# gives. TAG may name any commit, HEAD among them, whose links to GitHub
-# then name the commit itself.
+# generator run over the export, writing build/site/ whole and refusing a
+# site with a link that leads nowhere. Everything comes from the tag, so a
+# tag that holds no site/ is refused. The version the pages name is the
+# tag's VERSION; a page's date is its source's last commit at the tag,
+# which the checkout's history gives. TAG may name any commit, HEAD among
+# them, whose links to GitHub then name the commit itself.
 site:
-	@test -n "$(TAG)" && test -n "$(CONFIG)" || { \
-	  echo "make site TAG=v0.x.y CONFIG=path/to/config.json: TAG names the release" \
-	    "the site is built from, CONFIG the server's configuration, whose shell" \
-	    "the shell's page states"; exit 2; }
-	@test -f "$(CONFIG)" || { echo "make site: $(CONFIG) is not there"; exit 2; }
+	@test -n "$(TAG)" || { \
+	  echo "make site TAG=v0.x.y: TAG names the release the site is built from"; exit 2; }
 	@git rev-parse -q --verify "$(TAG)^{commit}" >/dev/null || { \
 	  echo "make site: git knows no commit $(TAG)"; exit 2; }
 	@git cat-file -e "$(TAG):site/templates" 2>/dev/null || { \
@@ -292,16 +288,15 @@ site:
 	@named=$$(git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null && echo "$(TAG)" \
 	  || git rev-parse "$(TAG)^{commit}") && \
 	  build/site-source/bin/ern run build/site-source/build/tools/site.erc build/site-source \
-	  build/site $$(cat build/site-source/VERSION) "$$named" "$(CONFIG)"
+	  build/site $$(cat build/site-source/VERSION) "$$named"
 
 # The programs of the build written in Ernest, tools/, compiled into
 # build/tools against the libraries they use: libs/markdown and libs/ansi,
-# which the manual page is written with, libs/crypto, whose digest names
-# the site's assets, and libs/json, which reads the server's configuration
-# for the site's shell page. The site's generator reaches the toolchain's lexer
+# which the manual page is written with, and libs/crypto, whose digest
+# names the site's assets. The site's generator reaches the toolchain's lexer
 # through its helper, tools/site/ern_site.erl, compiled to the root of the
 # build, where `ern run` finds it on the load path (report §11.2).
-tools: lib-ansi lib-markdown lib-crypto lib-json build/tools/ern_site.beam
+tools: lib-ansi lib-markdown lib-crypto build/tools/ern_site.beam
 	@bin/ern build --verbose --build-root build/tools tools
 
 build/tools/ern_site.beam: tools/site/ern_site.erl

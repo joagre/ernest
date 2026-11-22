@@ -3,7 +3,7 @@
 %% document it plays, the guide, the tour, the report, the library's pages,
 %% Why, the questions, the deployment guide, the README, the release notes,
 %% the log and the projects' list, beside the site's files, ../site/, and
-%% the logos, with fixtures/site/config.json as the server's configuration.
+%% the logos.
 %%
 %% The pages it writes are held to the expected ones under fixtures/site/expected/,
 %% their assets' digests aside, so that the look and the generation never
@@ -27,7 +27,6 @@
 -export([fixture_site/1, repository_site/1, write_expected/0]).
 
 -define(TREE, "fixtures/site/tree").
--define(CONFIG, "fixtures/site/config.json").
 -define(EXPECTED, "fixtures/site/expected").
 -define(SOURCE, "build/site/source").
 -define(OUT, "build/site/out").
@@ -49,7 +48,6 @@ generated_test_() ->
      [{"pages", fun pages/0}, {"assets", fun assets/0}, {"icons", fun icons/0},
       {"qualified", fun qualified/0}, {"logged", fun logged/0},
       {"described", fun described/0}, {"refused", {timeout, 30, fun refused/0}},
-      {"unconfigured", {timeout, 30, fun unconfigured/0}},
       {"unlogged", {timeout, 30, fun unlogged/0}},
       {"absolute", {timeout, 30, fun absolute/0}},
       {"additions", {timeout, 30, fun additions/0}},
@@ -71,9 +69,8 @@ generated_test_() ->
 %% number, a GitHub anchor of a heading holding `§` or sharing its digits
 %% with another's led to its number; Projects, a project a line with its
 %% icon, its name linked and its purpose; the homepage, its claims and its
-%% example; the shell's page, its numbers the configuration's; every
-%% page's script told the shell's path and the session's lifetime, the
-%% configuration's too; and the 404 page.
+%% example; the shell's page, each of its numbers a span holding the words
+%% it reads without the script; and the 404 page.
 %%
 %% Each with its citations made links, its links written for GitHub
 %% led to the site's pages, its code colored by the toolchain's lexer, each
@@ -205,28 +202,9 @@ is_described(Page) ->
 %% The generator writes the site into a directory of its own, so that no
 %% page whose source is gone stays, and refuses one that is there already.
 refused() ->
-    {Status, Output} = ern_integration_tests:sh(generate(?OUT, ?CONFIG)),
+    {Status, Output} = ern_integration_tests:sh(generate(?OUT)),
     ?assertEqual(1, Status),
     ?assertMatch({_, _}, binary:match(Output, <<"build/site/out is there already">>)).
-
-%% docs/design/site.md *The templates*: the shell's page says
-%% what the server enforces, and every page's script opens the session's
-%% socket at the shell's path, so a configuration with no `shell`, a
-%% server that serves none, is refused, and so is one whose shell has no
-%% path; no site is written.
-unconfigured() ->
-    Config = "build/site/plain.json",
-    ok = file:write_file(Config, <<"{\"listeners\": []}\n">>),
-    {Status, Output} = ern_integration_tests:sh(generate("build/site/plain", Config)),
-    ?assertEqual(1, Status),
-    ?assertMatch({_, _}, binary:match(Output, <<"build/site/plain.json has no shell">>)),
-    {ok, Fixture} = file:read_file(?CONFIG),
-    Pathless = "build/site/pathless.json",
-    ok = file:write_file(Pathless, binary:replace(Fixture, <<"\"path\": \"/shell/session\",">>,
-                                                  <<>>)),
-    {Refused, Said} = ern_integration_tests:sh(generate("build/site/pathless", Pathless)),
-    ?assertEqual(1, Refused),
-    ?assertMatch({_, _}, binary:match(Said, <<"pathless.json: the shell's path is a string">>)).
 
 %% docs/design/site.md *Links*: a citation of the log that
 %% names no entry of the log's index, or a title two entries hold, is
@@ -319,7 +297,7 @@ dangling() ->
              ["\n<p>\n<a href=\"/nowhere/\">a page</a>, <a href=\"/guide/1.html#nowhere\">",
               "another's anchor</a> and <a href=\"#nowhere\">its own</a>\n</p>\n"]),
     {Status, Output} =
-        ern_integration_tests:sh(generate(Source, "build/site/dangling-out", ?CONFIG)),
+        ern_integration_tests:sh(generate(Source, "build/site/dangling-out")),
     ?assertEqual(1, Status),
     [?assertMatch({_, _}, binary:match(Output, Line))
      || Line <- [<<"build/site/dangling-out holds links that lead nowhere:\n">>,
@@ -353,8 +331,7 @@ head() ->
     Tracked = string:lexemes(ern_integration_tests:succeed("git -C .. ls-files site"), "\n"),
     [copied(filename:join("..", File), filename:join(Source, File))
      || File <- Tracked ++ built_pages()],
-    ern_integration_tests:succeed(generate(Source, "build/site/head-out", head_commit(),
-                                           ?CONFIG)),
+    ern_integration_tests:succeed(generate(Source, "build/site/head-out", head_commit())),
     ?assert(length([File || File <- files("build/site/head-out"),
                             filename:extension(File) =:= ".html"]) > 80).
 
@@ -373,16 +350,16 @@ head_commit() ->
     binary_to_list(string:trim(ern_integration_tests:succeed("git rev-parse HEAD"))).
 
 %% docs/development.md *Building*: `make site` refuses to run without the tag
-%% it builds from and the server's configuration, saying how it is called,
-%% and refuses a tag that holds no site/, every tag before the generator's,
-%% since the site's generator and its templates come from the tag. The
-%% refusals are run; the export and the build they guard are not.
+%% it builds from, saying how it is called, and refuses a tag that holds no
+%% site/, every tag before the generator's, since the site's generator and
+%% its templates come from the tag. The refusals are run; the export and
+%% the build they guard are not.
 site_refusals_test() ->
     Make = "env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL make -s -C .. site",
     {Usage, Said} = ern_integration_tests:sh(Make),
     ?assertEqual(2, Usage),
-    ?assertMatch({_, _}, binary:match(Said, <<"make site TAG=v0.x.y CONFIG=path/to/config.json">>)),
-    {Before, Refused} = ern_integration_tests:sh(Make ++ " TAG=v0.9.0 CONFIG=test/" ++ ?CONFIG),
+    ?assertMatch({_, _}, binary:match(Said, <<"make site TAG=v0.x.y: TAG names the release">>)),
+    {Before, Refused} = ern_integration_tests:sh(Make ++ " TAG=v0.9.0"),
     ?assertEqual(2, Before),
     ?assertMatch({_, _}, binary:match(Refused, <<"v0.9.0 holds no site/">>)).
 
@@ -430,7 +407,7 @@ varied(Source, Changes) ->
     [copied(filename:join(?SOURCE, File), filename:join(Source, File)) || File <- files(?SOURCE)],
     [ok = file:write_file(filename:join(Source, File), Change(read(Source, File)))
      || {File, Change} <- Changes],
-    ern_integration_tests:sh(generate(Source, Source ++ "-out", ?CONFIG)).
+    ern_integration_tests:sh(generate(Source, Source ++ "-out")).
 
 %% A change that appends Text to a file's bytes.
 appending(Text) ->
@@ -470,7 +447,7 @@ fixture_site(Base) ->
     [copied(filename:join("..", File), filename:join(Source, File))
      || File <- Tracked, not lists:member(File, Own)],
     [copied("../assets/" ++ Logo, Source ++ "/assets/" ++ Logo) || Logo <- ?LOGOS],
-    ern_integration_tests:succeed(generate(Source, Out, ?CONFIG)),
+    ern_integration_tests:succeed(generate(Source, Out)),
     Out.
 
 %% The repository's own site written under Base, from its tracked files as
@@ -485,22 +462,22 @@ repository_site(Base) ->
     Tracked = string:lexemes(ern_integration_tests:succeed("git -C .. ls-files"), "\n"),
     [copied(filename:join("..", File), filename:join(Source, File))
      || File <- Tracked ++ built_pages(), filelib:is_regular(filename:join("..", File))],
-    ern_integration_tests:succeed(generate(Source, Out, head_commit(), ?CONFIG)),
+    ern_integration_tests:succeed(generate(Source, Out, head_commit())),
     Out.
 
 copied(From, To) ->
     ok = filelib:ensure_dir(To),
     {ok, _} = file:copy(From, To).
 
-generate(Out, Config) ->
-    generate(?SOURCE, Out, Config).
+generate(Out) ->
+    generate(?SOURCE, Out).
 
-generate(Source, Out, Config) ->
-    generate(Source, Out, ?TAG, Config).
+generate(Source, Out) ->
+    generate(Source, Out, ?TAG).
 
-generate(Source, Out, Tag, Config) ->
+generate(Source, Out, Tag) ->
     "../bin/ern run ../build/tools/site.erc " ++ Source ++ " " ++ Out ++ " " ++ ?VERSION ++ " "
-        ++ Tag ++ " " ++ Config.
+        ++ Tag.
 
 %% make site-expected: the expected pages written again from the fixture,
 %% after a change to the look or the generation that is meant.

@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.17 is done since 2026-11-21. The next item is MVP 4.6's item 2**, Ernest's side,
-built against the rehearsal's server.
+**MVP 4.6's item 2 is done since 2026-11-22. The next item is MVP 4.6's item 4**, the
+stylesheet's units.
 
 The milestones to come, in order: MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -44,24 +44,20 @@ line in [`known_issues.md`](known_issues.md), and becomes an item when the user 
 Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*), the
 proposal [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md), and moved before the
 launch on 2026-11-10, once the server's reset under load was fixed and the three floors stood at
-0.10 (the log's *MVP 4.6 Before the Launch*). The site's script speaks the server's wire, its
-generator reads the server's configuration and its browser test stubs the server's socket. Each
-goes, for a client the server ships. The order keeps the proposal's: the server's part first,
-which adds and takes nothing away, and no day but the launch's switch changes both repositories,
-on a path the rehearsal has walked.
+0.10 (the log's *MVP 4.6 Before the Launch*). The site's script spoke the server's wire, its
+generator read the server's configuration and its browser test stubbed the server's socket, and
+item 2 put a client the server ships in place of each. The order keeps the proposal's: the
+server's part first, which adds and takes nothing away, and no day but the launch's switch
+changes both repositories, on a path the rehearsal has walked.
 
 1. **The ask**, done on 2026-11-10 (the log's *The Client's Interface Agreed*). The server
    serves the client as its design's *The client* states it, and the rehearsal serves it at
    `https://ernest-lang.org:8443/` until the launch's switch. The server's part goes into
    the release its item 5 makes for the launch.
-2. **Ernest's side**, begun after MVP 4.17 and built against the rehearsal's server.
-   `site.js`'s session imports the client, an ES module, on demand. The generator takes no
-   configuration, and `make site` the tag alone. The shell's page takes its numbers from the
-   client's limits and names no memory. The browser test serves a stub client that speaks the
-   agreed interface. `docs/design/site.md` changes in five sections, citing the server's
-   design's *The client* for the interface, with the sweep the proposal lists. It goes live
-   with the launch's switch, and closes on `make test`, the site's targets and
-   `make test-browser`.
+2. **Ernest's side**, done on 2026-11-22 (the log's *The Server's Client in the Site*).
+   `site.js` imports the client, the generator and `make site` take no configuration, and
+   the browser test serves a stub client. The rehearsal serves the site built from it, and
+   ernest-lang.org takes it with the launch's switch.
 3. **The homepage and the blocks' tools**, done on 2026-11-19, ahead of this milestone (the
    log's *The Homepage Built*), the proposal
    [`proposals/homepage/`](proposals/homepage/README.md). The opening's last clause came

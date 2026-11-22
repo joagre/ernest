@@ -12,14 +12,11 @@
 // entries, so the two are read first; and the site's links are checked last
 // (Site.Check), so that a site with one that leads nowhere is refused.
 //
-// `ern run site.erc root out version tag config`: `root` holds the
-// repository's files, a checkout or a tag's export; `out`, which must not
-// be there yet, is where the site is written, so that a page whose source
-// is gone goes; `version` is the release the site shows, and `tag` the
-// revision its links to GitHub name and its pages' dates are read at; and
-// `config` the server's configuration file, whose `shell` gives the shell
-// page its numbers, and every page's script the shell's path and its
-// lifetime (site.md *The templates*). A page's date is its
+// `ern run site.erc root out version tag`: `root` holds the repository's
+// files, a checkout or a tag's export; `out`, which must not be there yet,
+// is where the site is written, so that a page whose source is gone goes;
+// `version` is the release the site shows, and `tag` the revision its links
+// to GitHub name and its pages' dates are read at. A page's date is its
 // source's last commit at the tag, which git gives in the working
 // directory, a checkout, since an export has no history.
 //
@@ -50,22 +47,17 @@ let symbolLeft : List(String) =
 
 export fn main() : Unit =
     match Os.arguments {
-        [root, out, version, tag, config] ->
-            match generated(Path(root), Path(out), version, tag, Path(config)) {
+        [root, out, version, tag] ->
+            match generated(Path(root), Path(out), version, tag) {
                 Right(_) -> Unit
               | Left(message) -> quit(message)
             }
       | _ ->
-            quit("usage: site root out version tag config")
+            quit("usage: site root out version tag")
     }
 
-fn generated(root : Path,
-             out : Path,
-             version : String,
-             tag : String,
-             config : Path) : Either(String, Unit) = {
+fn generated(root : Path, out : Path, version : String, tag : String) : Either(String, Unit) = {
     let _ <- absent(out);
-    let shell <- shellRead(config);
     let templates <- templatesRead(root <> Path("site/templates"));
     let library <- Library.read(root);
     let logText <- Run.textOf(root <> Path("docs/log/README.md"));
@@ -82,8 +74,6 @@ fn generated(root : Path,
                 =assets,
                 declarations = Library.declarations(library),
                 =log,
-                shellPath = shell.path,
-                lifetimeText = spoken(shell.lifetime),
                 =unrunnable);
     // The library's pages first (site.md *The generation*).
     let _ <- Library.written(run, library);
@@ -93,7 +83,7 @@ fn generated(root : Path,
     let _ <- Document.written(run);
     let _ <- Document.projectsWritten(run);
     let _ <- homeWritten(run);
-    let _ <- shellWritten(run, shell);
+    let _ <- shellWritten(run);
     let _ <- notFoundWritten(run);
     Check.checked(out)
 }
@@ -196,34 +186,10 @@ fn isClaimsLead(block : Markdown.Block) : Bool =
 // The shell's page
 //
 
-// The shell the server serves, from its configuration's `shell`
-// (ernest-httpd's design, *The configuration*): the path of its socket,
-// which every page's script opens, and the session's limits as the server
-// enforces them, the lifetime without a key and the warning before its
-// end, the most sessions at once, the starts an address may make within a
-// window, all in milliseconds but the counts, and the memory a container
-// is given, in megabytes, which the shell's command gives by `--memory`.
-type Shell =
-    Shell(path : String,
-          lifetime : Int,
-          warning : Int,
-          atOnce : Int,
-          starts : Int,
-          within : Int,
-          memory : Int)
-
-// The shell's page, shell.html, its numbers the configuration's, so that
-// it says what the server enforces (site.md *The templates*).
-fn shellWritten(run : Run.Run, shell : Shell) : Either(String, Unit) = {
-    let main <-
-        Run.filled(run,
-                   "shell.html",
-                   [#("lifetime", Template.Plain(spoken(shell.lifetime))),
-                    #("warning", Template.Plain(spoken(shell.warning))),
-                    #("memory", Template.Plain(Int.toString(shell.memory))),
-                    #("at_once", Template.Plain(Int.toString(shell.atOnce))),
-                    #("starts", Template.Plain(Int.toString(shell.starts))),
-                    #("within", Template.Plain(spoken(shell.within)))]);
+// The shell's page, shell.html, whose limits the script writes from the
+// server's client (site.md *The other pages*).
+fn shellWritten(run : Run.Run) : Either(String, Unit) = {
+    let main <- Run.filled(run, "shell.html", []);
     Run.pageWritten(run,
                     Run.Output(address = "/shell/",
                                title = Run.titled("Shell"),
@@ -231,99 +197,6 @@ fn shellWritten(run : Run.Run, shell : Shell) : Either(String, Unit) = {
                                room = Some("Shell"),
                                =main,
                                source = Some("site/templates/shell.html")))
-}
-
-// A time in milliseconds as the shell's page says it, in the largest unit
-// it is a whole number of: `5 minutes`, `a minute`, `an hour`.
-fn spoken(ms : Int) : String = {
-    let units =
-        [#(3600000, "an hour", "hours"),
-         #(60000, "a minute", "minutes"),
-         #(1000, "a second", "seconds"),
-         #(1, "a millisecond", "milliseconds")];
-    match List.find(units, fn(#(size, _, _)) = ms % size == 0) {
-        Some(#(size, one, many)) ->
-            if ms == size then one else Int.toString(ms / size) <> " " <> many
-      | None ->
-            Int.toString(ms) <> " milliseconds"
-    }
-}
-
-// The configuration's `shell` read, or why the site cannot be written: a
-// file that is no JSON, or one with no `shell`, a server that serves no
-// shell.
-fn shellRead(config : Path) : Either(String, Shell) = {
-    let named = Path.toString(config);
-    let text <- Run.textOf(config);
-    let value <-
-        Either.mapLeft(Json.parse(text), fn(error) = named <> " is not JSON: " <> Io.show(error));
-    let shell <-
-        Either.fromOptional(member(value, "shell"),
-                            named
-                                <> " has no shell, whose limits the shell's page states; the site"
-                                <> " is built with the configuration of a server that serves one");
-    let path <- match member(shell, "path") {
-        Some(Json.Text(found)) -> Right(found)
-      | _ -> Left(named <> ": the shell's path is a string")
-    };
-    let lifetime <- integer(named, shell, "lifetime");
-    let warning <- integer(named, shell, "warning");
-    let atOnce <- integer(named, shell, "most-at-once");
-    let starts <- Either.fromOptional(member(shell, "starts"), named <> " has no shell.starts");
-    let count <- integer(named, starts, "count");
-    let within <- integer(named, starts, "within");
-    let command <- match member(shell, "command") {
-        Some(Json.Array(words)) ->
-            List.tryMap(words, fn(word) = match word {
-                Json.Text(text) -> Right(text)
-              | _ -> Left(named <> ": shell.command is an array of strings")
-            })
-      | _ ->
-            Left(named <> " has no shell.command")
-    };
-    let memory <- memoryOf(named, command);
-    Right(Shell(=path, =lifetime, =warning, =atOnce, starts = count, =within, =memory))
-}
-
-fn member(value : Json.Value, name : String) : Optional(Json.Value) =
-    match value {
-        Json.Object(members) -> Map.get(members, name)
-      | _ -> None
-    }
-
-fn integer(named : String, object : Json.Value, name : String) : Either(String, Int) =
-    match member(object, name) {
-        Some(Json.Integer(found)) -> Right(found)
-      | _ -> Left(named <> ": the shell's " <> name <> " is an integer")
-    }
-
-// The memory the shell's command gives a container, in megabytes, from its
-// `--memory`, `--memory 128m` or `--memory=128m`, in `m` or `g` as podman
-// writes them.
-fn memoryOf(named : String, command : List(String)) : Either(String, Int) = {
-    let given = match List.span(command, fn(word) = word != "--memory") {
-        #(_, _ :: value :: _) -> Some(value)
-      | _ -> List.get(List.filterMap(command, fn(word) = String.stripPrefix(word, "--memory=")), 0)
-    };
-    match Optional.andThen(given, megabytes) {
-        Some(found) ->
-            Right(found)
-      | None ->
-            Left(named
-                     <> ": shell.command gives no --memory in whole megabytes or gigabytes,"
-                     <> " which the shell's page states")
-    }
-}
-
-fn megabytes(value : String) : Optional(Int) = {
-    let #(digits, unit) = List.span(String.toList(value), Char.isAsciiDigit);
-    match #(String.toInt(String.fromList(digits)), unit) {
-        #(Some(count), ['m']) -> Some(count)
-      | #(Some(count), ['M']) -> Some(count)
-      | #(Some(count), ['g']) -> Some(count * 1024)
-      | #(Some(count), ['G']) -> Some(count * 1024)
-      | _ -> None
-    }
 }
 
 //

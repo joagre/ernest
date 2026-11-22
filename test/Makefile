@@ -207,7 +207,7 @@ site-shell: $(BEAMS) prepare pty
 	@$(call AREA_RUN,site_shell,$(call EUNIT_ALONE,$(SITE_SHELL)))
 
 # The site's client in a headless Chrome over its DevTools protocol, the
-# fixture's pages served by OTP's httpd and a stub at the shell's path;
+# fixture's pages served by OTP's httpd with a stub of the server's client;
 # it says so and stops where no Chrome is found.
 browser: $(BEAMS) prepare
 	@$(call AREA_RUN,browser,erl -noshell $(CODE_PATH) -pa $(EBIN) \

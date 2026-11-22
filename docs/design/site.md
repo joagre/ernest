@@ -6,7 +6,7 @@ The website, ernest-lang.org, is a compact language manual with a working termin
 
 The server is ernest-httpd, a program in a repository of its own. What the server does, the session behind the shell among it, is its own design's, https://github.com/joagre/ernest-httpd/blob/main/docs/design.md, cited below as the server's design.
 
-The plan's MVP 4.2 built the site, and each section below names the log entries that argue it. `make test-site` holds the generator, `make test-site-shell` the blocks the pages offer the shell, and `make test-browser` the client in a browser. A test's comment names the section it holds.
+The plan's MVP 4.2 built the site, and each section below names the log entries that argue it. `make test-site` holds the generator, `make test-site-shell` the blocks the pages offer the shell, and `make test-browser` the site's script in a browser. A test's comment names the section it holds.
 
 ## The root
 
@@ -32,11 +32,12 @@ The site's files as served.
     /man/libs/<name>/               contents, a line per module
     /man/libs/<name>/<module>.html
     /shell/                         the full-page shell
+    /shell/client.js                the server's client of the shell, served by the server and no file of the site's
     /install/
     /releases/                      CHANGES.md
     /projects/                      site/projects.md
     /assets/css/                    site.<digest>.css, xterm's stylesheet
-    /assets/js/                     xterm.js, its fit addon, site.<digest>.js, the session client
+    /assets/js/                     xterm.js, its fit addon, site.<digest>.js
     /assets/img/icons/              the Lucide icons and their LICENSE
     /assets/img/icons.<digest>.svg  the same icons, one symbol each
     /assets/img/projects/           each project's icon, <project>.png
@@ -104,6 +105,7 @@ The log's *The Pages Read Against the Principles* and *The Site's Proposal Read*
 - Library does not lead to Projects. The footer does, and one sentence of Why's *Reading on*.
 - The shell page is the heading, one line, and the panel in the page's frame, with no hide and no header buttons. The terminal takes most of the space, with the panel's controls above it and the warning banner when it comes (*The live shell*). There is no Examples control: the pages' blocks are the examples.
 - Beneath the frame stand two short columns, the session's limits as a list and the privacy line: no accounts, one cookie, the layout kept in the browser, what the server logs, nothing kept. Without the script the frame says to install Ernest and run `ern shell`.
+- The limits' numbers are the running server's, which the script writes from the server's client: a time in its largest whole unit, `5 minutes`, and a count in digits. Without the script each sentence of the list reads whole, a word in its number's place.
 - On the shell page a dropped connection and an expired session are told apart, nothing is erased silently on a reconnect, and nothing runs but by the visitor's act. Nothing starts until the visitor presses Start or a Paste brings an input.
 
 The log's *Projects, a Page of Their Own*, *The Release's Note, Written Once* and *The Site's Proposal Read* argue them.
@@ -151,16 +153,15 @@ The log's *The Generator's First Stage*, *The Generator's Third Stage*, *The Sta
 - No control the script works stands in the HTML: Copy, Paste and Load, a transcript's Paste for each input, the example's button and the panel's toggle are made by the script, and a page without it shows none. The HTML holds what the generator decided, a block's `data-shell="paste"` or `"load"` and a signature's `data-tools="none"`, and `home.html`'s own `data-shell="start"` for the example's button, and the script reads it.
 - A template is a flat token file, cut at its tokens once and joined with the values. There is no templating language.
 - A plain token is escaped. A `*_html` token takes only HTML the generator makes from the repository: rendered Markdown or code, navigation or a template's fragment. An HTML block a document writes is written into its page as it is, and so are an icon file's attributes and children into the icons' file.
-- The generator is given the server's configuration file. It reads from it the shell's path, its lifetime, its warning, the shells at once, the starts allowed within a time and the command's memory flag, each a plain token. So the shell page says what the server enforces and nothing is written twice.
 - A list in a page, `contents_html`, `navigation_html` or `entries_html`, takes its item's look from a fragment file beside the page's.
 
 The log's *The Site's Look, by Hand*, *The Client's Questions* and *The Site's Proposal Read* argue the templates.
 
 ## The generation
 
-- One generator, `tools/site.ern`, written in Ernest. It reads the repository, writes static files, and ends. It refuses an output directory that is there already, a configuration with no `shell`, and a template given the wrong tokens.
+- One generator, `tools/site.ern`, written in Ernest. It reads the repository, writes static files, and ends. It refuses an output directory that is there already and a template given the wrong tokens.
 - `site/` holds `templates/` and `root/`, the homepage's example, `example.md`, the projects' list, `projects.md`, and `unrunnable.md` (*The live shell*).
-- The site is this repository's whole, its shell page among its pages. The generator reads this repository's documents at a tag. A test holds it to the pages written from a fixture, `test/fixtures/site/`: a tree with each document at the path of the one it plays, a configuration, and the expected pages.
+- The site is this repository's whole, its shell page among its pages. The generator reads this repository's documents at a tag. A test holds it to the pages written from a fixture, `test/fixtures/site/`: a tree with each document at the path of the one it plays, and the expected pages.
 - Every page is generated from what the repository owns: two templates and two pages of their own, all four standing on `base.html` with its header and footer.
 - `page.html` is a Markdown document with a sidebar of its headings and a footer naming its source. It serves every chapter of the tour and the guide, each file of the report, every `/man/` page, Why, the questions, the deployment guide, Install, Releases, Projects, and the 404 page with its fixed body. What differs between them, a previous and a next, and what the footer names, is data the generator passes, and a slot without it is empty.
 - `toc.html` is a contents page, a book's or a directory's opening and its list of links: `/tour/`, `/guide/`, `/report/`, `/man/`, `/man/stdlib/`, `/man/libs/` and `/man/libs/<name>/`. `home.html` is the homepage and `shell.html` the full-page shell; each is one page, not a template.
@@ -173,9 +174,9 @@ The log's *The Site's Look, by Hand*, *The Client's Questions* and *The Site's P
 - The library's pages are written first, and the modules' pages they read are held no longer than that, so that no later collection of the run copies them (the log's *Lean at the Limits*).
 - `make site` builds the site from a release's tag without a worktree. It exports the tag with `git archive` into `build/site-source/`, builds the toolchain there, the checkout untouched, and runs `make doc` there, which writes the pages. It wipes `build/site/`, copies the root and the logos there, and writes every generated page beside them, so a page whose source is gone goes. `build/site/` is never edited in place, and its copy to the host is the operator's step, the server's own.
 - `make site` takes any revision as its tag, a release's for the site and `HEAD` for a look at the work in hand. A revision whose tree holds no `site/templates/` is refused, since the generator comes from it.
-- Everything comes from the tag, the documents and the site's own files, its templates, its root and its generator. So the site is a release exactly, and a fix to the site's look or its generator goes live with the next release.
-- A page's text, links and navigation are complete in its HTML, and read without a script. A script adds to a page, the shell panel, the navigation that keeps it and the code blocks' buttons, and never holds what the page says.
-- A stylesheet, a script or the icons' file is written under a name that holds a digest of its content, the first eight hexadecimal digits of its SHA-1, `site.3f9a2c1e.js`, and every page names it so. The server sends no `Cache-Control`. The vendored files keep their own names inside it.
+- Everything comes from the tag, the documents and the site's own files, its templates, its root and its generator, but the server's client. So the site is a release exactly, and a fix to the site's look or its generator goes live with the next release.
+- A page's text, links and navigation are complete in its HTML, and read without a script, but the shell page's numbers. A script adds to a page, the shell panel, the navigation that keeps it and the code blocks' buttons, and never holds what the page says.
+- A stylesheet, a script or the icons' file is written under a name that holds a digest of its content, the first eight hexadecimal digits of its SHA-1, `site.3f9a2c1e.js`, and every page names it so, but the server's client, which keeps its path and is served under `no-store` (the server's design, *The client*). The server sends no `Cache-Control` for the site's files. The vendored files keep their own names inside it.
 - The site runs on ernest-httpd (the server's design, *The deployment*).
 - `make install` ships no page of the site: the pages are the server's, their links absolute and the shell panel on each. An installation's documents stay each in the form its reader uses (the log's *Every User's Document Installed*).
 
@@ -183,23 +184,23 @@ The log's *The Generator Before MVP 4.15*, *The Generator's First Stage*, *The G
 
 ## The live shell
 
-The server side of the shell is the server's: the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover. It stands in the server's design, from *The WebSocket* to *The deployment*. What follows is the page's side.
+The server side of the shell is the server's: the pseudo-terminal, the container per visitor and its image, the session's timeouts and a second tab's takeover. It stands in the server's design, from *The WebSocket* to *The deployment*. The page reaches a session through the server's client alone, whose interface is the server's design's *The client*. What follows is the page's side.
 
 **The container's two nodes.** The visitor's container runs two nodes, so that a visitor tries the homepage's claim: `foo`, started with no program, and the shell, started with `--config-dir a`. The two list each other's keys, made when the image is built. Each node's `ernest.conf` states `"limits": {"processes": 65536, "ports": 4096}` (report §12.5). The image, the container's memory and its numbers are the server's (the server's design, *The deployment*).
 
 **The terminal.**
 
-- xterm.js, its stylesheet, a fit addon and a session client, self-hosted, each vendored file with its row in `THIRD_PARTY_LICENSES`. xterm.js and its stylesheet load only when a session first starts. A terminal that does not load is *disconnected*, and a second Start while it loads opens no second socket. A WebSocket at the configuration's `shell.path`, which the generator reads from the server's configuration file, leads to a pseudo-terminal running `ern shell` unchanged (the server's design, *The shell*).
+- xterm.js, its stylesheet and a fit addon, self-hosted, each vendored file with its row in `THIRD_PARTY_LICENSES`. The session is the server's client's, an ES module the script imports from `/shell/client.js`, a path it names once, and imports once for a document. xterm.js, its stylesheet and the client load only when a session first starts, and the shell's page imports the client at its load, for its numbers. A terminal or a client that does not load is *disconnected*, and a second Start while they load starts no second session. A session runs `ern shell` unchanged behind a pseudo-terminal (the server's design, *The shell*).
 - xterm.js keeps a scrollback, a scrollbar, the wheel and Shift+PageUp, in the browser alone. The shell writes above its live region on the ordinary screen, and a program on the alternate screen has no scrollback while it runs.
-- The client sends the panel's size as its first message and at each resize, which the server takes as the session's start and its terminal's size. The messages' forms are the server's design's, *The shell*. A session the server says this browser joined is asked to draw its line again, and a paste into it is bracketed by the page itself.
+- A session starts at the panel's size, and each resize is given to the client. A session the client says this browser joined is asked to draw its line again, and a paste into it is bracketed by the page itself.
 - xterm.js takes Alt, and Option on a Mac, as Meta, so the shell's M-Enter works in the panel.
-- Everything is reachable by keyboard. Focus lands in the shell after a Paste, and xterm.js's screen-reader mode is on. The shell takes Tab, Shift-Tab and Escape, so F6 in the terminal moves the focus to the panel's controls. It is the client's own key, since §11.2's editor binds no function key, and `/shell/`'s notes name it once.
+- Everything is reachable by keyboard. Focus lands in the shell after a Paste, and xterm.js's screen-reader mode is on. The shell takes Tab, Shift-Tab and Escape, so F6 in the terminal moves the focus to the panel's controls. It is the page's own key, since §11.2's editor binds no function key, and `/shell/`'s notes name it once.
 
 **The session's states.**
 
-- Seven states, each announced once: connecting, running and disconnected, the page's own, and expired, taken over, unavailable and stopped, one for each close code the server sends, 4001 to 4004 (the server's design, *The shell* and *The sessions*).
-- A session's warning is a banner with Extend, shown when the server's warning comes, and the banner is no dialog. It says once the seconds the warning carries, as "ends in" and the seconds, and nothing counts down. A key or Extend keeps the session, by the lifetime the server's design owns, *The sessions*.
-- A session that expires closes its panel and gives the page back its width. A short line says that the shell ended after the configuration's lifetime without a key, which the generator reads, and that opening it starts a new one. The layout kept in local storage is unchanged, so the next Paste or Open shell opens the panel as the visitor last had it. A takeover and *unavailable* show in the panel.
+- Seven states, each announced once: connecting from a session's start, running from the client's word that it is attached, and the five ends the client names, expired, taken over, unavailable, stopped, and lost, which the page words *disconnected*.
+- A session's warning is a banner with Extend, shown when the client's warning comes, and the banner is no dialog. It says once the seconds the warning carries, as "ends in" and the seconds, and nothing counts down. A key or Extend keeps the session, by the lifetime the server's design owns, *The sessions*.
+- A session that expires closes its panel and gives the page back its width. A short line says that the shell ended after the lifetime the client's limits give without a key, and that opening it starts a new one. The layout kept in local storage is unchanged, so the next Paste or Open shell opens the panel as the visitor last had it. A takeover and *unavailable* show in the panel.
 - The line is a snackbar, a slim notice at the window's bottom edge, whatever the layout was: the sentence, an icon that opens the shell and one that closes the notice. It stays until the visitor clicks one of them or anywhere on the page, or presses Escape outside the terminal, and no timer removes it. It is announced as a polite live region; the warning alone is an alert. Its open icon opens the panel and starts a session. `/shell/` shows no notice, its frame holding the end's mark.
 - Stop ends the session, and Restart is a deliberate act that ends the old one. What they end, the container, is the server's (the server's design, *The sessions*).
 - A session's end is marked in the terminal, dim, after its last output, in the bar's word for it. The screen stays to be read, and the terminal takes no keys until a new session starts. A Start after an end begins below the ended screen, and a Restart begins on a clear one.
@@ -214,7 +215,7 @@ The server side of the shell is the server's: the pseudo-terminal, the container
 - The session's limits and the privacy line stay on `/shell/`.
 - Copy, Paste, Load, Hide and the header's two buttons are small icons, each with a tooltip and an accessible name, `Paste into the shell`. Start, Restart and Stop are an icon with its word, and Extend its word alone.
 
-**A page kept under the panel.** While the panel is open, or its session runs hidden, a link to another page of the site fetches that page and puts its `<main>`, its title, its footer and the header's links in place of the old, the address moved by the history. The panel, its socket and its screen stay, and no page counts as shown while one is on its way. Back, forward, the scroll, an anchor and focus behave as on a page loaded whole, which the browser test checks.
+**A page kept under the panel.** While the panel is open, or its session runs hidden, a link to another page of the site fetches that page and puts its `<main>`, its title, its footer and the header's links in place of the old, the address moved by the history. The panel, its session and its screen stay, and no page counts as shown while one is on its way. Back, forward, the scroll, an anchor and focus behave as on a page loaded whole, which the browser test checks.
 
 With the panel closed a link loads its page whole, and on a phone always. So does a page that names another script or stylesheet, a newer site's. Every page stays a whole file.
 
@@ -222,7 +223,7 @@ With the panel closed a link loads its page whole, and on a phone always. So doe
 
 - Copy is on every block but a declaration's signature on a module's page, which has no tool.
 - Only an `ernest` block that runs alone in a bare shell has Paste or Load: one the guide tests take as a module of its own. One joined with the other blocks that name its file is a piece of a program and has Copy alone. The generator decides it by the guide tests' own grouping, for the guide, Why and the questions alike, and no mark is written by hand.
-- A block of the guide, Why or the questions with `export fn main` is Loaded: pasted as one declaring input and entered (report §11.2), and then `main()` typed and not entered, so that it is one Enter away. Any other is Pasted. No file is written, and nothing crosses the socket but the terminal's bytes.
+- A block of the guide, Why or the questions with `export fn main` is Loaded: pasted as one declaring input and entered (report §11.2), and then `main()` typed and not entered, so that it is one Enter away. Any other is Pasted. No file is written, and nothing reaches the session but the terminal's bytes.
 - Every block of the tour has Copy alone, as have the README's, the release notes', the deployment guide's and the report's.
 - Three more kinds of `ernest` block have Copy alone. One is a block the shell cannot take as one input, a top-level `let` beside another declaration, or declarations followed by an expression. The generator reads it from the block's paragraphs, as `ern test` reads an example's (report §11.2), and a paragraph whose first token is indented or a closing delimiter continues the one before, since the shell takes a paste whole. One is an example on the page of a library outside the standard library, which the panel's shell reaches only by `:load`. One is a block the bare-shell test finds it cannot run, a program that needs its own terminal or arguments.
 - `site/unrunnable.md` lists each block of that last kind by its page and its first line. The generator reads it, and the test holds it equal to what it finds, so no source is marked.
@@ -239,7 +240,7 @@ With the panel closed a link loads its page whole, and on a phone always. So doe
 - A block's tools are always shown, as small buttons: each the page's own color with a line around it, its icon in the accent's color, and both in the text's color when pointed at or focused. An input's Paste is the same small button, in the line it follows. It is held at the block's visible right edge where the input is longer than the block is wide.
 - A block's tools stand over its upper right corner where its first line leaves them room, and on a row of their own above it where it does not, so they never cover that line. The script measures the first line when it makes the tools and again when the block's width changes. The rule is one under a mouse and on a touch screen, and names no width. Without the script a block has no tools.
 
-**The browser test.** `make test-browser` stands outside `make test` and is a step of the release review. Erlang under `test/` drives a headless Chrome over its DevTools protocol, Chrome the one dependency it adds. It serves the fixture's pages by OTP's `httpd`, with a stub socket that speaks ernest-httpd's protocol for the session's states. Beside them it serves the repository's own site, written from the working tree and the pages `make doc` writes, and measures the homepage there. A real shell behind the socket stays the check by hand on a server before a release ([`reviews/release.md`](../reviews/release.md)).
+**The browser test.** `make test-browser` stands outside `make test` and is a step of the release review. Erlang under `test/` drives a headless Chrome over its DevTools protocol, Chrome the one dependency it adds. It serves the fixture's pages by OTP's `httpd`, with a stub client at `/shell/client.js` that has the client's interface and whose states the test sets, and holds the shell page's numbers. Beside them it serves the repository's own site, written from the working tree and the pages `make doc` writes, and measures the homepage there. A real shell behind the server's client stays the check by hand on a server before a release ([`reviews/release.md`](../reviews/release.md)).
 
 The log's *The Site's Look, by Hand*, *The Generator's First Stage*, *The Generator's Second Stage*, *The Client's Questions*, *A Node's Limits*, *A Node's Schedulers*, *The Browser Test's Flake*, *The Site's Proposal Read*, *The Homepage and the Shell's Editing Planned* and *The Homepage Built* argue the live shell.
 

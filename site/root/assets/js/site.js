@@ -1,20 +1,17 @@
 // What the script adds to a page (docs/design/site.md, *The
 // live shell*): the shell panel and its two buttons, beside and below, with
-// its session over the server's WebSocket; a code block's Copy, Paste and
+// its session through the server's client; a code block's Copy, Paste and
 // Load, a transcript's Paste for each input, and the example's Try it; the
-// navigation that keeps the panel from page to page; and the sidebar's mark
-// on the section being read. The page reads whole without it.
+// navigation that keeps the panel from page to page; the shell page's
+// numbers, the server's limits; and the sidebar's mark on the section being
+// read. The page reads whole without it, but for the shell page's numbers.
 
-// What the generator read, which the page names on this script's element:
-// the icons' file, whose name holds a digest of its content as this
-// script's does, the shell's path on the server, and the session's lifetime
-// as a page says it, from the server's configuration (site.md *The
+// The icons' file, which the page names on this script's element, its name
+// holding a digest of its content as this script's does (site.md *The
 // templates*).
 const script = document.currentScript;
 const here = script.src;
 const icons = new URL(script.dataset.icons, document.baseURI);
-const shellPath = script.dataset.shellPath;
-const lifetime = script.dataset.lifetime;
 
 function icon(name) {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -155,29 +152,31 @@ function toggle(layout) {
 // The session
 //
 
-// xterm.js over the server's WebSocket, as ernest-httpd's design has it,
-// *The shell*. The terminal's bytes go each way as binary messages; the
-// page's own messages are text, one JSON object each: the terminal's size
-// at the open and at each change, which attaches the session, an extend
-// and a stop. The server's are the attach's word, whether the session is
-// new or one this browser joined, and the warning of the seconds left; its
-// close code says why a session ended. xterm.js is loaded only when a
-// session starts, so that a page read without the shell fetches none of it.
+// xterm.js over the server's client, an ES module the server serves at the
+// site's address for it, whose interface is the server's design's *The
+// client*: a session started at the terminal's size, its keys, a resize, an
+// extend and a stop; and told the output, the attach, whether this browser
+// joined a live session, the warning with the milliseconds left, and the
+// end by its name. xterm.js and the client are loaded only when a session
+// starts, so that a page read without the shell fetches neither, but the
+// shell's page, which imports the client at its load for its limits.
+const clientPath = "/shell/client.js";
 
 // The session's seven states, each the bar's word and the mark at a
-// session's end: connecting, running and disconnected, the page's own,
-// and one for each close code the server ends a session with (the
-// server's design, *The shell* and *The sessions*). Any other close is a
-// dropped connection.
+// session's end: connecting, running and disconnected, the page's own, and
+// one for each end the client names, a lost session being a dropped
+// connection.
 const endings = {
-    4001: "expired",
-    4002: "taken over",
-    4003: "unavailable",
-    4004: "stopped",
+    expired: "expired",
+    takenOver: "taken over",
+    unavailable: "unavailable",
+    stopped: "stopped",
+    lost: "disconnected",
 };
 const encoder = new TextEncoder();
 const session = {
-    socket: null,
+    client: null,
+    handle: null,
     terminal: null,
     fit: null,
     pastes: [],
@@ -216,16 +215,31 @@ function loadXterm() {
     return xtermLoaded;
 }
 
+// The client, imported once for a document; one that does not load is
+// imported again at the next start.
+let clientLoaded = null;
+
+function loadClient() {
+    if (clientLoaded === null) {
+        clientLoaded = import(clientPath).catch((failure) => {
+            clientLoaded = null;
+            throw failure;
+        });
+    }
+    return clientLoaded;
+}
+
 function token(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-// A terminal that does not load leaves no session, in the page's own word
-// for a connection lost, and the next start loads it again. A second start
-// made while it loads finds the first's socket when it comes, and opens none.
+// A terminal or a client that does not load leaves no session, in the
+// page's own word for a connection lost, and the next start loads it again.
+// A second start made while they load finds the first's session when they
+// come, and starts none.
 async function startSession() {
     try {
-        await loadXterm();
+        [session.client] = await Promise.all([loadClient(), loadXterm()]);
     } catch {
         setState("disconnected");
         return;
@@ -244,7 +258,7 @@ async function startSession() {
         terminal.open(panel.terminal);
         terminal.onData((data) => sendKeys(encoder.encode(data)));
         terminal.onBinary((data) => sendKeys(Uint8Array.from(data, (char) => char.charCodeAt(0))));
-        terminal.onResize((size) => sendText({ resize: [size.rows, size.cols] }));
+        terminal.onResize((size) => session.handle?.resize(size.rows, size.cols));
         // The shell takes Tab, Shift-Tab and Escape, so F6, which report
         // §11.2's editor binds to nothing, moves the focus out of the terminal
         // to the panel's controls (site.md *The live shell*).
@@ -266,72 +280,59 @@ async function startSession() {
         Object.assign(session, { terminal, fit });
     }
     session.fit.fit();
-    if (noSocket()) {
+    if (session.handle === null) {
         connect();
     }
 }
 
-function noSocket() {
-    return session.socket === null || session.socket.readyState === WebSocket.CLOSED;
-}
-
+// A session started at the terminal's size, its handle kept until it ends.
 function connect() {
-    const scheme = location.protocol === "https:" ? "wss://" : "ws://";
-    const socket = new WebSocket(scheme + location.host + shellPath);
-    socket.binaryType = "arraybuffer";
-    session.socket = socket;
     session.joined = false;
     session.spoken = false;
     setState("connecting");
-    socket.onopen = () => {
-        // A restart starts on a clear screen; a start after an end keeps the
-        // ended session's screen above the new one.
-        if (session.clear) {
-            session.terminal.reset();
-            session.clear = false;
-        }
-        session.terminal.options.disableStdin = false;
-        sendText({ resize: [session.terminal.rows, session.terminal.cols] });
-        setState("running");
-        focusTerminal();
-    };
-    socket.onmessage = (event) => {
-        if (event.data instanceof ArrayBuffer) {
+    session.handle = session.client.start(session.terminal.rows, session.terminal.cols, {
+        output: (bytes) => {
             session.spoken = true;
-            session.terminal.write(new Uint8Array(event.data), pasteWaiting);
-        } else {
-            told(JSON.parse(event.data));
-        }
-    };
-    socket.onclose = (event) => {
-        if (socket !== session.socket) {
-            return;
-        }
-        panel.warning.hidden = true;
-        const ending = endings[event.code] ?? "disconnected";
-        setState(ending);
-        if (session.restarting) {
-            session.restarting = false;
-            session.clear = true;
-            connect();
-        } else {
-            markEnd(ending);
-            if (ending === "expired") {
-                expired();
-            }
-        }
-    };
+            session.terminal.write(bytes, pasteWaiting);
+        },
+        attached,
+        warning: warn,
+        ended,
+    });
 }
 
-// The server's text messages. A session this browser joined, after a
-// whole page's load or in another tab, has a shell that drew its prompt on
-// an earlier terminal, so it is asked to draw its line again, C-l.
-function told(message) {
-    if (message.attached === "joined") {
+// A restart starts on a clear screen; a start after an end keeps the ended
+// session's screen above the new one. A session this browser joined, after
+// a whole page's load or in another tab, has a shell that drew its prompt
+// on an earlier terminal, so it is asked to draw its line again, C-l.
+function attached(joined) {
+    if (session.clear) {
+        session.terminal.reset();
+        session.clear = false;
+    }
+    session.terminal.options.disableStdin = false;
+    setState("running");
+    focusTerminal();
+    if (joined) {
         session.joined = true;
-        send(new Uint8Array([12]));
-    } else if ("warning" in message) {
-        warn(message.warning);
+        session.handle.keys(new Uint8Array([12]));
+    }
+}
+
+function ended(reason) {
+    session.handle = null;
+    panel.warning.hidden = true;
+    const ending = endings[reason];
+    setState(ending);
+    if (session.restarting) {
+        session.restarting = false;
+        session.clear = true;
+        connect();
+    } else {
+        markEnd(ending);
+        if (ending === "expired") {
+            expired();
+        }
     }
 }
 
@@ -343,28 +344,18 @@ function markEnd(ending) {
     session.terminal.options.disableStdin = true;
 }
 
-// What is sent while the socket is not open is dropped.
-function send(data) {
-    if (session.socket?.readyState === WebSocket.OPEN) {
-        session.socket.send(data);
-    }
-}
-
-function sendText(message) {
-    send(JSON.stringify(message));
-}
-
 // A key moves the session's end as an extend does, so it takes the
-// warning down.
+// warning down. What is sent where no session runs is dropped.
 function sendKeys(bytes) {
     panel.warning.hidden = true;
-    send(bytes);
+    session.handle?.keys(bytes);
 }
 
 // The warning says once the seconds it carries; nothing counts down, since
 // a key moves the server's deadline without a word.
-function warn(seconds) {
-    panel.warningText.textContent = "The session ends in " + seconds + " seconds.";
+function warn(left) {
+    panel.warningText.textContent = "The session ends in " + Math.round(left / 1000) +
+        " seconds.";
     panel.warning.hidden = false;
 }
 
@@ -392,21 +383,16 @@ function pasteWaiting() {
     }
 }
 
-// A stop asked for while the socket still connects is sent once it opens,
-// after the size that attaches the session.
+// A stop asked for before the session is attached is the client's to
+// order.
 function stopSession() {
-    const socket = session.socket;
-    if (socket?.readyState === WebSocket.CONNECTING) {
-        socket.addEventListener("open", () => sendText({ stop: true }), { once: true });
-    } else {
-        sendText({ stop: true });
-    }
+    session.handle?.stop();
 }
 
-// A restart stops the session and connects anew at the close, or at once
-// where no socket is open.
+// A restart stops the session and starts anew at its end, or at once where
+// none runs.
 function restartSession() {
-    if (noSocket()) {
+    if (session.handle === null) {
         startSession();
     } else {
         session.restarting = true;
@@ -473,8 +459,8 @@ function expired() {
         closePanel();
     }
     const sentence = document.createElement("span");
-    sentence.textContent = "The shell ended after " + lifetime + " without a key; opening it" +
-        " starts a new one.";
+    sentence.textContent = "The shell ended after " + spoken(session.client.limits.lifetime) +
+        " without a key; opening it starts a new one.";
     const open = iconButton(layoutIcon(layoutFor(remembered("ernest.panel", "beside"))),
         "Open the shell", "icon-button", () => {
             openPanel(remembered("ernest.panel", "beside"));
@@ -604,7 +590,7 @@ function addPanel() {
     extend.textContent = "Extend";
     extend.addEventListener("click", () => {
         warning.hidden = true;
-        sendText({ extend: true });
+        session.handle?.extend();
         focusTerminal();
     });
     warning.append(warningText, extend);
@@ -677,6 +663,52 @@ function placePanel() {
         showLayout(layoutFor(remembered("ernest.panel", "beside")));
         remember("ernest.panel.open", "yes");
     }
+}
+
+//
+// The shell page's limits
+//
+
+// The server's limits, which the client answers, each written into the
+// shell page's span that names it, in place of the words the page reads
+// without the script (site.md *The other pages*): a time spoken, a count
+// in digits. A client that does not load leaves the words.
+const limitsSaid = {
+    "lifetime": (limits) => spoken(limits.lifetime),
+    "warning": (limits) => spoken(limits.warning),
+    "mostAtOnce": (limits) => String(limits.mostAtOnce),
+    "starts.count": (limits) => String(limits.starts.count),
+    "starts.within": (limits) => spoken(limits.starts.within),
+};
+
+function showLimits() {
+    const spans = document.querySelectorAll("main [data-limit]");
+    if (spans.length === 0) {
+        return;
+    }
+    loadClient().then(({ limits }) => {
+        for (const span of spans) {
+            span.textContent = limitsSaid[span.dataset.limit](limits);
+        }
+    }, () => {});
+}
+
+// A time in milliseconds as a page says it, in the largest unit it is a
+// whole number of: `5 minutes`, `a minute`, `an hour`.
+const units = [
+    [3600000, "an hour", "hours"],
+    [60000, "a minute", "minutes"],
+    [1000, "a second", "seconds"],
+    [1, "a millisecond", "milliseconds"],
+];
+
+function spoken(ms) {
+    const unit = units.find(([size]) => ms % size === 0);
+    if (unit === undefined) {
+        return ms + " milliseconds";
+    }
+    const [size, one, many] = unit;
+    return ms === size ? one : ms / size + " " + many;
 }
 
 //
@@ -849,6 +881,7 @@ function addToPage() {
     }
     followReading();
     placePanel();
+    showLimits();
 }
 
 //
@@ -858,7 +891,7 @@ function addToPage() {
 // While the panel shows, or its session runs, a link to another page of
 // the site fetches that page and puts its main, its footer, its header's
 // links and its title in place of the old, the address moved by the
-// history, so that the panel, its socket and its screen stay; back,
+// history, so that the panel, its session and its screen stay; back,
 // forward, the scroll, an anchor and the focus then behave as on a page
 // loaded whole. Otherwise, and on a phone, a link loads its page whole.
 // Every page stays a whole file, and one that names another script or

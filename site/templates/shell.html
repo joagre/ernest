@@ -8,9 +8,9 @@
         <section aria-labelledby="session-title">
             <h2 id="session-title">The session</h2>
             <ul>
-                <li>It ends after {{lifetime}} without a key. The panel says so {{warning}} before and offers Extend.</li>
-                <li>It runs in a container of its own with {{memory}} MB of memory and no network. The container is removed when the session ends.</li>
-                <li>At most {{at_once}} sessions run at once, and one address starts at most {{starts}} in {{within}}. Past either limit the shell says it is unavailable.</li>
+                <li>It ends after <span data-limit="lifetime">a while</span> without a key. The panel says so <span data-limit="warning">shortly</span> before and offers Extend.</li>
+                <li>It runs in a container of its own, with no network. The container is removed when the session ends.</li>
+                <li>At most <span data-limit="mostAtOnce">a few</span> sessions run at once, and one address starts at most <span data-limit="starts.count">a few</span> in <span data-limit="starts.within">a while</span>. Past either limit the shell says it is unavailable.</li>
                 <li>Another tab of this browser takes the session over, and this one says so.</li>
                 <li>F6 leaves the terminal.</li>
             </ul>

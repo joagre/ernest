@@ -71,8 +71,9 @@ test/fixtures/     what the tests read: target/, the hand-written target modules
                    services print, interpreter's session among
                    them, and the Erlang they compile to; site/, under tree/ the
                    documents the site's generator renders and the log it links to, each
-                   at the path of the one it plays, config.json, the server's
-                   configuration it is given, and under expected/ the pages it writes;
+                   at the path of the one it plays, client.js, the stub of the
+                   server's client the browser test serves, and under expected/ the
+                   pages it writes;
                    and bench/, input/, layout/,
                    load/, peers/, pty/, service/,
                    session/, stdin/ and terminal/, the programs and inputs tests run
@@ -114,9 +115,8 @@ release/           the release archive's own files, Makefile and README.md, whic
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; site.ern, with site/ beside it, which holds
                    its helper ern_site.erl over the toolchain's lexer, writes every page of
-                   the website from the repository into a directory of its own, the
-                   shell page's numbers from the server's configuration, and checks
-                   every link of it, for make site;
+                   the website from the repository into a directory of its own, and
+                   checks every link of it, for make site;
                    unicode_width.escript writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
@@ -228,8 +228,8 @@ make test-site-shell # every block the site's pages offer the shell, and every o
                 # pseudo-terminal, and the file held to those that do not run; part of
                 # make test-full, about 45 seconds
 make test-browser # the site's client in a headless Chrome over its DevTools protocol, the
-                # fixture's pages served by OTP's httpd and a stub speaking
-                # ernest-httpd's protocol at the shell's path, and the homepage
+                # fixture's pages served by OTP's httpd with a stub of the server's
+                # client at /shell/client.js, and the homepage
                 # measured on the repository's own site; not part of make
                 # test-full, a step of docs/reviews/release.md
 make test-grammar # Appendix A read as data, and a thousand programs generated from it,
@@ -378,11 +378,11 @@ make install    # install under PREFIX, /usr/local by default, within DESTDIR if
 make uninstall  # remove the installation under the same PREFIX and DESTDIR
 make release    # write the release archive, build/release/ern-VERSION.tar.gz, which says its
                 # commit after the version where the checkout is not at the release's tag
-make site TAG=v0.x.y CONFIG=path/to/config.json
-                # write the website into build/site/ from the release TAG names, given the
-                # server's configuration: the tag exported into build/site-source/, the
-                # toolchain and its pages built there by make doc, then the tag's generator
-                # run over it, every link of the site checked; it refuses a tag that holds
+make site TAG=v0.x.y
+                # write the website into build/site/ from the release TAG names: the tag
+                # exported into build/site-source/, the toolchain and its pages built
+                # there by make doc, then the tag's generator run over it, every link of
+                # the site checked; it refuses a tag that holds
                 # no site/; TAG=HEAD, or any commit, builds a site whose links to GitHub name
                 # the commit; about 10 seconds, nearly all of them the export's build
 make version V=x.y.z
@@ -442,7 +442,7 @@ While a change is worked on, it runs the targets of its kind; which run a commit
 | the tour, its document or a chapter's program | `make test`, which holds its blocks to its files, and `make test-tour`, which runs its sessions |
 | the site's templates, its assets or its generator | `make test-site`, then `make test`; which blocks get Paste and Load `make test-site-shell` too, and the client in `site/root/assets/js/` `make test-browser` |
 | a document's blocks that the site offers the shell, the guide's, Why's and the library's pages | `make test-site-shell`, and `make site-unrunnable` where a block a bare shell cannot run is meant |
-| the site's build, `make site` | `make test-site`, then `make site TAG=HEAD CONFIG=test/fixtures/site/config.json` |
+| the site's build, `make site` | `make test-site`, then `make site TAG=HEAD` |
 | a proposal, or any other document | `make test-docs` |
 | a path `make bench` measures | the part of `make bench` that measures it, `make bench-<part>`, beside the targets of its kind |
 

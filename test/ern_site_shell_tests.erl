@@ -103,8 +103,7 @@ found() ->
     ok = filelib:ensure_dir(?OUT),
     Commit = string:trim(ern_integration_tests:succeed("git rev-parse HEAD")),
     ern_integration_tests:succeed("../bin/ern run ../build/tools/site.erc .. " ++ ?OUT
-                                  ++ " 9.9.9 " ++ binary_to_list(Commit)
-                                  ++ " fixtures/site/config.json"),
+                                  ++ " 9.9.9 " ++ binary_to_list(Commit)),
     Listed = listed(),
     Pages = [{address(File), read(File)} || File <- pages(), address(File) =/= "/"],
     {Offered, Named} =

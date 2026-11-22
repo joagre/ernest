@@ -1,15 +1,15 @@
 %% The site's client in a browser, `make test-browser` (docs/design/site.md,
 %% *The live shell*): a headless Chrome, driven over its
 %% DevTools protocol, reads the fixture's pages, which OTP's httpd serves,
-%% and its panel talks to a stub at the shell's path that speaks
-%% ernest-httpd's protocol, its design's §11: the size, the attach's word,
-%% the warning, an extend, a stop and the four close codes, each sent as
-%% that server writes it. The stub answers no input as a shell does; what
-%% the page sends it is what the test reads, and a real shell behind the
-%% socket is a server's to show by hand before a release.
+%% and its panel's session runs on a stub of the server's client at
+%% /shell/client.js, fixtures/site/client.js, which has the interface of
+%% ernest-httpd's design's *The client* and no socket behind it. The stub
+%% keeps what the page asked of each session, which the test reads in the
+%% page, and tells the page what the test sets: the attach, the warning, the
+%% output and each end. It answers no input as a shell does, and a real
+%% shell behind the server's client is a server's to show by hand before a
+%% release.
 %%
-%% One port takes the browser's connections: one to the shell's path goes
-%% to the stub, and any other is carried to httpd, byte for byte both ways.
 %% The homepage's measures are made on the repository's own site, which a
 %% second httpd serves, since the page's height is its claims', which Why
 %% gives and the fixture's tree does not hold.
@@ -27,8 +27,7 @@
 -export([run/0]).
 
 -define(SITE_BASE, "build/browser").
--define(SHELL_PATH, <<"/shell/session">>).
--define(GUID, <<"258EAFA5-E914-47DA-95CA-C5AB0DC85B11">>).
+-define(STUB, "fixtures/site/client.js").
 
 %% What the browsers are, by the names their programs go by.
 -define(CHROMES, ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]).
@@ -59,13 +58,8 @@ chrome() ->
 client_test_() ->
     {setup, fun started/0, fun stopped/1,
      fun(World) ->
-         [{timeout, 120, {Name, fun() -> checked(Check, World) end}} || {Name, Check} <- checks()]
+         [{timeout, 120, {Name, fun() -> Check(World) end}} || {Name, Check} <- checks()]
      end}.
-
-%% A check, the stub telling this process what the page sent it.
-checked(Check, World) ->
-    persistent_term:put({?MODULE, test}, self()),
-    Check(World).
 
 checks() ->
     [{"the panel and a session", fun session/1},
@@ -80,20 +74,19 @@ checks() ->
      {"Hide, the handle and F6", fun keyboard/1},
      {"Stop, Start and Restart", fun ends/1},
      {"the warning and an expiry's notice", fun expiry/1},
-     {"the other close codes", fun closes/1},
+     {"the other ends", fun closes/1},
      {"a paste waits for the first output", fun waiting/1},
-     {"a terminal that does not load", fun unloaded/1},
+     {"a terminal or a client that does not load", fun unloaded/1},
      {"two starts while the terminal loads", fun started_twice/1},
      {"the shell's page and a phone", fun pages/1}].
 
 %% docs/design/site.md *The live shell*: no panel opens until
 %% the visitor asks; the header's beside button opens it, pressed, and puts
 %% the focus in the terminal; the bar names no state before a session, and
-%% Start connects, the panel's size its first message, the attach's word
-%% `new` answered by nothing of the client's, then running; the terminal
-%% fills the panel with no scrollbar of its own.
+%% Start starts one at the panel's size, connecting, the attach new
+%% answered by nothing of the page's, then running; the terminal fills the
+%% panel with no scrollbar of its own.
 session(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     ?assert(eval(Page, "document.querySelector('.shell-panel').hidden")),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
@@ -102,14 +95,15 @@ session(#{page := Page, url := Url}) ->
                        " === 'true'")),
     ?assertEqual(<<>>, eval(Page, state())),
     ?assertEqual(<<"status">>, eval(Page, "document.querySelector('.panel-state').role")),
-    Conn = start(Page),
-    {text, #{<<"resize">> := [Rows, Columns]}} = first_message(Conn),
+    Session = start(Page),
+    [Rows, Columns] = eval(Page, stubbed(Session) ++ ".size"),
     ?assert(Rows > 0 andalso Columns > 0),
     until(Page, state() ++ " === 'running'"),
     until(Page, rows() ++ ".includes('session 1')"),
+    ?assertEqual(<<>>, eval(Page, stubbed(Session) ++ ".keys")),
     ?assert(eval(Page, "document.activeElement.classList.contains('xterm-helper-textarea')")),
     ?assertEqual([0, 0], eval(Page, overflow(".panel-terminal"))),
-    stop(Page, Conn).
+    stop(Page, Session).
 
 %% docs/design/site.md *The live shell*: a block's Paste
 %% sends it as one input, bracketed as the shell asked the terminal, and
@@ -117,44 +111,42 @@ session(#{page := Page, url := Url}) ->
 %% not entered; a transcript's input its own Paste, its prompt left out; and
 %% a long input's Paste stands at the block's visible right edge.
 pastes(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
-    Conn = start(Page),
+    Session = start(Page),
     until(Page, rows() ++ ".includes('session 1')"),
     click_tool(Page, "pre.code[data-shell=\"paste\"]", "Paste into the shell"),
-    Pasted = keys(Conn, <<"\e[201~">>),
+    Pasted = keys(Page, Session, <<"\e[201~">>),
     ?assertEqual(<<"\e[200~fn double(value : Int) : Int =\r    value * 2\e[201~">>, Pasted),
     click_tool(Page, "pre.code[data-shell=\"load\"]", "Load into the shell"),
     ?assertEqual(<<"\e[200~export fn main() : Unit =\r    Io.println(\"hello, world\")\e[201~"
-                   "\rmain()">>, keys(Conn, <<"\rmain()">>)),
+                   "\rmain()">>, keys(Page, Session, <<"\rmain()">>)),
     eval(Page, "document.querySelector('pre.transcript[data-shell=\"paste\"] .line-paste')"
                ".click()"),
-    ?assertEqual(<<"\e[200~1 + 2\e[201~">>, keys(Conn, <<"\e[201~">>)),
+    ?assertEqual(<<"\e[200~1 + 2\e[201~">>, keys(Page, Session, <<"\e[201~">>)),
     Edge = eval(Page, "(() => { const button = [...document.querySelectorAll('.line-paste')]"
                       ".at(-1); const pre = button.closest('pre'); const at = button"
                       ".getBoundingClientRect(), box = pre.getBoundingClientRect(); return"
                       " [pre.scrollWidth > pre.clientWidth, at.right <= box.right + 0.5,"
                       " at.left >= box.left]; })()"),
     ?assertEqual([true, true, true], Edge),
-    stop(Page, Conn).
+    stop(Page, Session).
 
 %% docs/design/site.md *The homepage*: the example's button,
 %% Try it, puts the example's code into the shell, opening the panel and
 %% starting a session, and its label never changes.
 example(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/", {1440, 900}),
     Code = eval(Page, "document.querySelector('.home-use pre.code').textContent"),
     eval(Page, "[...document.querySelectorAll('button')].find((button) => button.textContent"
                " === 'Try it').click()"),
-    Conn = connected(),
+    Session = connected(Page, 0),
     ?assert(eval(Page, "document.body.classList.contains('panel-beside')")),
     Typed = binary:replace(string:trim(Code, trailing), <<"\n">>, <<"\r">>, [global]),
-    ?assertEqual(<<"\e[200~", Typed/binary, "\e[201~">>, keys(Conn, <<"\e[201~">>)),
+    ?assertEqual(<<"\e[200~", Typed/binary, "\e[201~">>, keys(Page, Session, <<"\e[201~">>)),
     ?assert(eval(Page, "[...document.querySelectorAll('button')].some((button) =>"
                        " button.textContent === 'Try it')")),
-    stop(Page, Conn).
+    stop(Page, Session).
 
 %% docs/design/site.md *The homepage*: the repository's own
 %% homepage at three sizes of the page, each the page's own after the
@@ -251,16 +243,15 @@ selectors(Parts) ->
 
 %% docs/design/site.md *The live shell*: while the panel is
 %% open a link fetches its page and puts its main in place, the panel, its
-%% socket and its screen kept; the new page's blocks have their tools, the
+%% session and its screen kept; the new page's blocks have their tools, the
 %% header marks its room, it starts at its top, the next Tab reaches the
 %% skip link and its title is said; back returns to the page and its
 %% scroll, forward again, and a link to another page's anchor puts it in
 %% view.
 navigation(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
-    Conn = start(Page),
+    Session = start(Page),
     until(Page, rows() ++ ".includes('session 1')"),
     eval(Page, "window.kept = document.querySelector('.xterm'); document.querySelector('.page')"
                ".scrollTop = 300"),
@@ -289,8 +280,8 @@ navigation(#{page := Page, url := Url}) ->
     until(Page, "location.pathname + location.hash === '/guide/2.html#2.1'"),
     ?assert(eval(Page, "(() => { const top = document.getElementById('2.1')"
                        ".getBoundingClientRect().top; return top >= 0 && top < innerHeight; })()")),
-    ?assertEqual(none, receive {stub_connected, _} -> another after 0 -> none end),
-    stop(Page, Conn).
+    ?assertEqual(1, eval(Page, "stub.sessions.length")),
+    stop(Page, Session).
 
 %% docs/design/site.md *The live shell*: back and forward go
 %% where the visitor last asked. A move made while a page is on its way
@@ -298,7 +289,6 @@ navigation(#{page := Page, url := Url}) ->
 %% is dropped, its failure with it. The fetches are held here, so that the
 %% order is the test's.
 on_its_way(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
     eval(Page, "document.querySelector('.page-nav [rel=\"next\"]').click()"),
@@ -317,23 +307,23 @@ on_its_way(#{page := Page, url := Url}) ->
     ?assert(eval(Page, "location.pathname === '/guide/2.html' && window.stayed === true")).
 
 %% docs/design/site.md *The live shell*, ernest-httpd's design
-%% §11: a page loaded whole opens the panel as it was kept; a session the
-%% server says this browser joined, `{"attached": "joined"}`, is asked to
-%% draw its line again, C-l, and a paste into it is bracketed by the page
-%% itself, since its shell asked an earlier terminal.
+%% *The client*: a page loaded whole opens the panel as it was kept; a
+%% session the client says this browser joined is asked to draw its line
+%% again, C-l, and a paste into it is bracketed by the page itself, since
+%% its shell asked an earlier terminal.
 joined(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"joined">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
     open(Page, Url ++ "/guide/1.html", {1440, 900}),
     ?assert(eval(Page, "document.body.classList.contains('panel-beside') && !document"
                        ".querySelector('.shell-panel').hidden")),
-    Conn = start(Page),
-    ?assertEqual(<<12>>, keys(Conn, <<12>>)),
+    eval(Page, "window.stubMode = { joined: true }"),
+    Session = start(Page),
+    ?assertEqual(<<12>>, keys(Page, Session, <<12>>)),
     until(Page, rows() ++ ".includes('again')"),
     click_tool(Page, "pre.code[data-shell=\"paste\"]", "Paste into the shell"),
-    ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Conn, <<"\e[201~">>)),
-    stop(Page, Conn).
+    ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Page, Session, <<"\e[201~">>)),
+    stop(Page, Session).
 
 %% docs/design/site.md *The live shell*: Hide hides the panel
 %% and keeps the session, the header's button marked with a dot and the
@@ -341,10 +331,9 @@ joined(#{page := Page, url := Url}) ->
 %% handle is a separator the arrow keys move; F6 in the terminal moves the
 %% focus to the panel's controls.
 keyboard(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
-    Conn = start(Page),
+    Session = start(Page),
     until(Page, rows() ++ ".includes('session 1')"),
     eval(Page, "session.terminal.focus()"),
     key(Page, "F6", 117),
@@ -366,15 +355,13 @@ keyboard(#{page := Page, url := Url}) ->
     until(Page, "location.pathname === '/tour/'"),
     ?assert(eval(Page, "window.kept === document.querySelector('.xterm')")),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
-    stop(Page, Conn).
+    stop(Page, Session).
 
-%% docs/design/site.md *The live shell*: Stop sends
-%% `{"stop": true}`, and the server's 4004 is `stopped`, marked in the
-%% terminal in the bar's word, which then takes no keys; Start after an end
-%% begins below the ended screen, and Restart, a stop and a new session,
-%% on a clear one.
+%% docs/design/site.md *The live shell*: Stop asks the client
+%% to stop, and the session's end `stopped` is marked in the terminal in the
+%% bar's word, which then takes no keys; Start after an end begins below the
+%% ended screen, and Restart, a stop and a new session, on a clear one.
 ends(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
     First = start(Page),
@@ -384,37 +371,34 @@ ends(#{page := Page, url := Url}) ->
     ?assert(eval(Page, "session.terminal.options.disableStdin")),
     ?assertEqual(<<"Start">>, eval(Page, "panel.start.textContent")),
     Second = start(Page),
-    {text, #{<<"resize">> := _}} = first_message(Second),
     until(Page, state() ++ " === 'running' && " ++ rows() ++ ".includes('stopped')"),
     eval(Page, "panel.start.click()"),
-    ?assertEqual(#{<<"stop">> => true}, next_text(Second, <<"stop">>)),
-    Third = connected(),
-    {text, #{<<"resize">> := _}} = first_message(Third),
+    asked(Page, Second, "stop"),
+    Third = connected(Page, Second + 1),
     until(Page, state() ++ " === 'running' && !" ++ rows() ++ ".includes('stopped')"),
     stop(Page, Third).
 
-%% docs/design/site.md *The live shell*: the server's warning,
-%% `{"warning": seconds}`, is a banner that says the seconds once, and
-%% Extend sends `{"extend": true}` and takes it down; an expiry, 4001,
-%% closes the panel and gives the page its width, the layout kept as it
-%% was, and the notice at the window's bottom says why with an icon that
-%% opens the shell and one that closes it, closed by a click anywhere or
-%% by Escape outside the terminal.
+%% docs/design/site.md *The live shell*: the client's warning
+%% is a banner that says the seconds once, and Extend asks the client to
+%% extend and takes it down; an expiry closes the panel and gives the page
+%% its width, the layout kept as it was, and the notice at the window's
+%% bottom says why, in the client's lifetime spoken, with an icon that opens
+%% the shell and one that closes it, closed by a click anywhere or by Escape
+%% outside the terminal.
 expiry(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
-    Conn = start(Page),
+    Session = start(Page),
     until(Page, rows() ++ ".includes('session 1')"),
-    say(Conn, #{<<"warning">> => 60}),
+    told(Page, Session, "told.warning(60000)"),
     until(Page, "!document.querySelector('.panel-warning').hidden"),
     ?assertEqual(<<"alert">>, eval(Page, "document.querySelector('.panel-warning').role")),
     ?assertEqual(<<"The session ends in 60 seconds.Extend">>,
                  eval(Page, "document.querySelector('.panel-warning').textContent")),
     eval(Page, "document.querySelector('.panel-warning button').click()"),
-    ?assertEqual(#{<<"extend">> => true}, next_text(Conn, <<"extend">>)),
+    asked(Page, Session, "extend"),
     ?assert(eval(Page, "document.querySelector('.panel-warning').hidden")),
-    close(Conn, 4001),
+    told(Page, Session, "end('expired')"),
     until(Page, state() ++ " === 'expired'"),
     ?assert(eval(Page, "document.querySelector('.shell-panel').hidden && !document.body"
                        ".classList.contains('panel-beside')")),
@@ -431,45 +415,42 @@ expiry(#{page := Page, url := Url}) ->
     ?assertEqual(0, eval(Page, "document.querySelector('.notice').childElementCount")).
 
 %% docs/design/site.md *The live shell*, ernest-httpd's design
-%% §11 and §12: 4002 is `taken over` and 4003 `unavailable`, each shown in
-%% the panel, and a connection that drops is `disconnected`.
+%% *The client*: a session taken over is `taken over` and one unavailable
+%% `unavailable`, each shown in the panel, and a lost one is `disconnected`.
 closes(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
-    lists:foreach(fun({Code, Word}) ->
-                      Conn = start(Page),
+    lists:foreach(fun({Reason, Word}) ->
+                      Session = start(Page),
                       until(Page, state() ++ " === 'running'"),
-                      case Code of
-                          dropped -> Conn ! drop;
-                          _ -> close(Conn, Code)
-                      end,
+                      told(Page, Session, "end('" ++ Reason ++ "')"),
                       until(Page, state() ++ " === '" ++ Word ++ "'"),
                       until(Page, rows() ++ ".endsWith('" ++ Word ++ " |')"),
                       ?assertNot(eval(Page, "document.querySelector('.shell-panel').hidden"))
-                  end, [{4002, "taken over"}, {4003, "unavailable"}, {dropped, "disconnected"}]).
+                  end, [{"takenOver", "taken over"}, {"unavailable", "unavailable"},
+                        {"lost", "disconnected"}]).
 
 %% docs/design/site.md *The live shell*: a paste for a session
 %% that is starting waits for the session's first output, as a person
 %% waits for the prompt, and goes once it comes.
 waiting(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>, prompt => held}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
+    eval(Page, "window.stubMode = { held: true }"),
     click_tool(Page, "pre.code[data-shell=\"paste\"]", "Paste into the shell"),
-    Conn = connected(),
-    {text, #{<<"resize">> := _}} = first_message(Conn),
+    Session = connected(Page, 0),
     until(Page, state() ++ " === 'running'"),
-    ?assertEqual(none, next_message(Conn, 0)),
-    Conn ! prompt,
-    ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Conn, <<"\e[201~">>)),
-    stop(Page, Conn).
+    ?assertEqual(<<>>, eval(Page, stubbed(Session) ++ ".keys")),
+    told(Page, Session, "prompt()"),
+    ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Page, Session, <<"\e[201~">>)),
+    stop(Page, Session).
 
 %% docs/design/site.md *The live shell*: a terminal whose script
 %% does not load is `disconnected`, the page's own word, and the next Start
-%% loads it again; the check at the end of the run reads that no exception
-%% was left. The failure is made in the page, so that it comes when asked.
-unloaded(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
+%% loads it again; and so is a client the server does not answer, here one
+%% moved aside. The check at the end of the run reads that no exception was
+%% left. The terminal's failure is made in the page, so that it comes when
+%% asked.
+unloaded(#{page := Page, url := Url, site := Site}) ->
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
     eval(Page, "document.head.append = function (element) { if (element.src?.includes('xterm'))"
@@ -478,38 +459,59 @@ unloaded(#{page := Page, url := Url}) ->
     eval(Page, "panel.start.click()"),
     until(Page, state() ++ " === 'disconnected'"),
     eval(Page, "delete document.head.append"),
-    Conn = start(Page),
+    Session = start(Page),
     until(Page, rows() ++ ".includes('session 1')"),
-    stop(Page, Conn).
+    stop(Page, Session),
+    Client = filename:join([Site, "shell", "client.js"]),
+    fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
+    eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
+    ok = file:rename(Client, Client ++ ".aside"),
+    try
+        eval(Page, "panel.start.click()"),
+        until(Page, state() ++ " === 'disconnected'")
+    after
+        ok = file:rename(Client ++ ".aside", Client)
+    end,
+    Again = start(Page),
+    until(Page, rows() ++ ".includes('session 1')"),
+    stop(Page, Again).
 
 %% docs/design/site.md *The live shell*: a second Start made
 %% while the terminal still loads starts no second session.
 started_twice(#{page := Page, url := Url}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/guide/1.html", {1440, 900}),
     eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
     eval(Page, "panel.start.click(); panel.start.click()"),
-    Conn = connected(),
+    Session = connected(Page, 0),
     until(Page, rows() ++ ".includes('session 1')"),
-    ?assertEqual(none, receive {stub_connected, _} -> another after 0 -> none end),
-    stop(Page, Conn).
+    ?assertEqual(1, eval(Page, "stub.sessions.length")),
+    stop(Page, Session).
 
 %% docs/design/site.md *The live shell* and *The other pages*:
-%% the shell's page holds the panel in its frame and scrolls in neither
-%% direction, its terminal filling what the page leaves; on a phone no
-%% panel is offered, no page scrolls sideways, the homepage's among them,
-%% whose blocks are wider than a phone's page, and a Paste opens the
+%% the shell's page says the client's limits in its list, the times spoken
+%% and the counts in digits, holds the panel in its frame and scrolls in
+%% neither direction, its terminal filling what the page leaves; on a phone
+%% no panel is offered, no page scrolls sideways, the homepage's among
+%% them, whose blocks are wider than a phone's page, and a Paste opens the
 %% shell's page with the input arriving there.
 pages(#{page := Page, url := Url, cdp := Cdp}) ->
-    stub_mode(#{attach => <<"new">>}),
     fresh(Page, Url ++ "/shell/", {1440, 900}),
+    until(Page, "document.querySelector('[data-limit]').textContent !== 'a while'"),
+    ?assertEqual([<<"It ends after 5 minutes without a key. The panel says so a minute before"
+                    " and offers Extend.">>,
+                  <<"It runs in a container of its own, with no network. The container is"
+                    " removed when the session ends.">>,
+                  <<"At most 6 sessions run at once, and one address starts at most 10 in an"
+                    " hour. Past either limit the shell says it is unavailable.">>],
+                 eval(Page, "[...document.querySelectorAll('.shell-notes li')].slice(0, 3)"
+                            ".map((item) => item.textContent)")),
     ?assertEqual([0, 0], eval(Page, overflow("document.scrollingElement"))),
-    Conn = start(Page),
+    Session = start(Page),
     until(Page, rows() ++ ".includes('session 1')"),
     ?assertEqual([0, 0], eval(Page, overflow(".panel-terminal"))),
     ?assertEqual([0, 0], eval(Page, overflow("document.scrollingElement"))),
     ?assert(eval(Page, "document.querySelector('.panel-toggle').hidden")),
-    stop(Page, Conn),
+    stop(Page, Session),
     Phone = page(Cdp, {390, 844}, true),
     fresh(Phone, Url ++ "/", {390, 844}),
     ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
@@ -518,37 +520,29 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
                            " !== 'none'")),
     ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
     click_tool(Phone, "pre.code[data-shell=\"paste\"]", "Paste into the shell"),
-    %% The connection first: a wait begun in the page that is leaving is
-    %% refused by DevTools when the next one arrives, and only the shell's
-    %% page connects.
-    PhoneConn = connected(),
-    until(Phone, "location.pathname === '/shell/' && document.readyState === 'complete'"),
-    ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(PhoneConn, <<"\e[201~">>)),
+    arrived(Phone, "location.pathname === '/shell/' && document.readyState === 'complete'"),
+    PhoneSession = connected(Phone, 0),
+    ?assertMatch(<<"\e[200~fn double", _/binary>>, keys(Phone, PhoneSession, <<"\e[201~">>)),
     ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
-    stop(Phone, PhoneConn),
+    stop(Phone, PhoneSession),
     ?assertEqual([], exceptions(Cdp)).
 
 %%
-%% The world: the site, httpd, the front port with its stub, and Chrome
+%% The world: the site with its stub client, httpd, and Chrome
 %%
 
 started() ->
     _ = file:del_dir_r(?SITE_BASE),
     Site = ern_site_tests:fixture_site(?SITE_BASE),
+    {ok, _} = file:copy(?STUB, filename:join([Site, "shell", "client.js"])),
     Repository = ern_site_tests:repository_site(?SITE_BASE ++ "/repository"),
     ok = application:ensure_started(inets),
-    {Httpd, HttpdPort} = served(Site),
+    {Httpd, Port} = served(Site),
     {Own, OwnPort} = served(Repository),
-    {ok, Listener} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}},
-                                        {reuseaddr, true}]),
-    {ok, Port} = inet:port(Listener),
-    Front = spawn(fun() -> front(Listener, HttpdPort) end),
-    ok = gen_tcp:controlling_process(Listener, Front),
     {Chrome, Endpoint} = chrome_started(),
     Cdp = cdp_started(Endpoint),
-    persistent_term:put({?MODULE, cdp}, Cdp),
     Page = page(Cdp, {1440, 900}, false),
-    #{httpd => Httpd, own => Own, front => Front, chrome => Chrome, cdp => Cdp, page => Page,
+    #{httpd => Httpd, own => Own, chrome => Chrome, cdp => Cdp, page => Page, site => Site,
       url => "http://127.0.0.1:" ++ integer_to_list(Port),
       repository => "http://127.0.0.1:" ++ integer_to_list(OwnPort)}.
 
@@ -567,241 +561,55 @@ served(Pages) ->
     [{port, Port}] = httpd:info(Httpd, [port]),
     {Httpd, Port}.
 
-stopped(#{httpd := Httpd, own := Own, front := Front, chrome := Chrome, cdp := Cdp}) ->
+stopped(#{httpd := Httpd, own := Own, chrome := Chrome, cdp := Cdp}) ->
     %% asked, not waited for: the browser may close before it answers
     Cdp ! {call, self(), <<"Browser.close">>, #{}, none},
     chrome_ended(Chrome),
-    exit(Front, kill),
     inets:stop(httpd, Httpd),
     inets:stop(httpd, Own).
 
 %%
-%% The front: the shell's path to the stub, the rest to httpd
+%% The stub client's sessions, as the page holds them
 %%
 
-front(Listener, HttpdPort) ->
-    {ok, Socket} = gen_tcp:accept(Listener),
-    Handler = spawn(fun() -> receive go -> connection(Socket, HttpdPort) end end),
-    ok = gen_tcp:controlling_process(Socket, Handler),
-    Handler ! go,
-    front(Listener, HttpdPort).
+%% The stub's session at its index, as the page's script names it.
+stubbed(Index) ->
+    "stub.sessions[" ++ integer_to_list(Index) ++ "]".
 
-connection(Socket, HttpdPort) ->
-    {Head, Rest} = head(Socket, <<>>),
-    case binary:split(Head, <<" ">>, [global]) of
-        [<<"GET">>, ?SHELL_PATH | _] -> stub(Socket, Head, Rest);
-        _ -> carried(Socket, Head, Rest, HttpdPort)
-    end.
-
-%% A request's head and what came after it; a connection the browser
-%% opened ahead and closed unused has none.
-head(Socket, Acc) ->
-    case binary:split(Acc, <<"\r\n\r\n">>) of
-        [Head, Rest] ->
-            {Head, Rest};
-        [_] ->
-            case gen_tcp:recv(Socket, 0) of
-                {ok, Bytes} -> head(Socket, <<Acc/binary, Bytes/binary>>);
-                {error, _} -> exit(normal)
-            end
-    end.
-
-%% A connection carried to httpd as it came, each way until either closes.
-carried(Socket, Head, Rest, HttpdPort) ->
-    {ok, Httpd} = gen_tcp:connect({127, 0, 0, 1}, HttpdPort, [binary, {active, false}]),
-    ok = gen_tcp:send(Httpd, [Head, "\r\n\r\n", Rest]),
-    Back = spawn_link(fun() -> relayed(Httpd, Socket) end),
-    ok = gen_tcp:controlling_process(Httpd, Back),
-    relayed(Socket, Httpd).
-
-relayed(From, To) ->
-    case gen_tcp:recv(From, 0) of
-        {ok, Bytes} ->
-            case gen_tcp:send(To, Bytes) of
-                ok -> relayed(From, To);
-                {error, _} -> gen_tcp:close(From)
-            end;
-        {error, _} ->
-            gen_tcp:close(To)
-    end.
-
-%%
-%% The stub: ernest-httpd's protocol, design §11, with no shell behind it
-%%
-
-%% How the next connection behaves: the attach's word it says, and whether
-%% it holds its prompt until told.
-stub_mode(Mode) ->
-    persistent_term:put({?MODULE, mode}, Mode).
-
-stub(Socket, Head, Rest) ->
-    {match, [Key]} = re:run(Head, "Sec-WebSocket-Key: *([^\r\n]+)", [{capture, all_but_first,
-                                                                       binary}, caseless]),
-    Accept = base64:encode(crypto:hash(sha, <<Key/binary, ?GUID/binary>>)),
-    ok = gen_tcp:send(Socket, ["HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
-                               "Connection: Upgrade\r\nSec-WebSocket-Accept: ", Accept,
-                               "\r\n\r\n"]),
-    Mode = persistent_term:get({?MODULE, mode}),
-    tell({stub_connected, self()}),
-    ok = inet:setopts(Socket, [{active, once}]),
-    served(#{socket => Socket, mode => Mode, attached => false}, Rest).
-
-%% What the stub tells the check that runs.
-tell(Message) ->
-    persistent_term:get({?MODULE, test}) ! Message.
-
-served(Stub, Buffer) ->
-    case frame(Buffer) of
-        {ok, Opcode, Payload, Rest} ->
-            case message(Stub, Opcode, Payload) of
-                closed -> ok;
-                Next -> served(Next, Rest)
-            end;
-        more ->
-            #{socket := Socket} = Stub,
-            receive
-                {tcp, Socket, Bytes} ->
-                    ok = inet:setopts(Socket, [{active, once}]),
-                    served(Stub, <<Buffer/binary, Bytes/binary>>);
-                {tcp_closed, Socket} ->
-                    ok;
-                {say, Message} ->
-                    served(said(Stub, Message), Buffer);
-                prompt ->
-                    served(prompted(Stub), Buffer);
-                {close, Code} ->
-                    ok = gen_tcp:send(Socket, encoded(8, <<Code:16>>)),
-                    gen_tcp:close(Socket);
-                drop ->
-                    gen_tcp:close(Socket)
-            end
-    end.
-
-%% A message from the page: its first resize attaches, the attach's word
-%% said as Json.format writes it, then the prompt where the mode does not
-%% hold it; a stop closes with 4004; keys are read, and C-l draws the line
-%% again. Each is told the test.
-message(Stub, 1, Payload) ->
-    Message = json:decode(Payload),
-    tell({stub_text, self(), Message}),
-    case Message of
-        #{<<"resize">> := _} when not map_get(attached, Stub) ->
-            #{mode := #{attach := Word} = Mode} = Stub,
-            Said = said(Stub#{attached := true}, #{<<"attached">> => Word}),
-            case {Word, maps:get(prompt, Mode, shown)} of
-                {<<"new">>, shown} -> prompted(Said);
-                _ -> Said
-            end;
-        #{<<"stop">> := true} ->
-            #{socket := Socket} = Stub,
-            ok = gen_tcp:send(Socket, encoded(8, <<4004:16>>)),
-            gen_tcp:close(Socket),
-            closed;
-        _ ->
-            Stub
-    end;
-message(#{socket := Socket} = Stub, 2, Payload) ->
-    tell({stub_keys, self(), Payload}),
-    case Payload of
-        <<12>> -> ok = gen_tcp:send(Socket, encoded(2, <<"\r\e[Jdrawn again\r\n> ">>));
-        _ -> ok
-    end,
-    Stub;
-message(#{socket := Socket}, 8, _) ->
-    gen_tcp:close(Socket),
-    closed;
-message(#{socket := Socket} = Stub, 9, Payload) ->
-    ok = gen_tcp:send(Socket, encoded(10, Payload)),
-    Stub;
-message(Stub, _, _) ->
-    Stub.
-
-%% A text message as ernest-httpd writes one, Json.format's layout, the
-%% members spaced and a line feed after (design §11).
-said(#{socket := Socket} = Stub, Message) ->
-    [{Name, Value}] = maps:to_list(Message),
-    Text = iolist_to_binary(["{ ", json:encode(Name), ": ", json:encode(Value), " }\n"]),
-    ok = gen_tcp:send(Socket, encoded(1, Text)),
-    Stub.
-
-prompted(#{socket := Socket} = Stub) ->
-    ok = gen_tcp:send(Socket, encoded(2, <<"\e[?2004hErnest 9.9.9, session 1. :help for help."
-                                           "\r\n> ">>)),
-    Stub.
-
-%% What the stub was sent of the test's: a connection, its first message,
-%% and each after.
-connected() ->
-    receive {stub_connected, Conn} -> Conn
-    after ern_nodes_tests:wait_ms() -> error({no_connection, exceptions(cdp())})
-    end.
-
-cdp() ->
-    persistent_term:get({?MODULE, cdp}).
-
-first_message(Conn) ->
-    next_message(Conn).
-
-next_message(Conn) ->
-    case next_message(Conn, ern_nodes_tests:wait_ms()) of
-        none -> error({no_message, Conn});
-        Message -> Message
-    end.
-
-next_message(Conn, Ms) ->
-    receive
-        {stub_text, Conn, Message} -> {text, Message};
-        {stub_keys, Conn, Keys} -> {keys, Keys}
-    after Ms -> none
-    end.
-
-%% The keys the stub was sent, from the next on, up to the first that
-%% holds the bytes.
-keys(Conn, Until) ->
-    keys(Conn, Until, <<>>).
-
-keys(Conn, Until, Acc) ->
-    receive
-        {stub_keys, Conn, Keys} ->
-            Got = <<Acc/binary, Keys/binary>>,
-            case binary:match(Got, Until) of
-                nomatch -> keys(Conn, Until, Got);
-                _ -> Got
-            end;
-        {stub_text, Conn, _} ->
-            keys(Conn, Until, Acc)
-    after ern_nodes_tests:wait_ms() ->
-        error({keys_short_of, Until, Acc})
-    end.
-
-say(Conn, Message) ->
-    Conn ! {say, Message}.
-
-close(Conn, Code) ->
-    Conn ! {close, Code}.
-
-%% A session started at the panel's Start, and its connection.
+%% A session started at the panel's Start, and its index.
 start(Page) ->
+    Index = eval(Page, "window.stub?.sessions.length ?? 0"),
     eval(Page, "panel.start.click()"),
-    connected().
+    connected(Page, Index).
 
-%% A session stopped by the panel's Stop, its stop read and its close
-%% shown.
-stop(Page, Conn) ->
+%% The index, once the page has started a session there.
+connected(Page, Index) ->
+    until(Page, "window.stub?.sessions.length > " ++ integer_to_list(Index)),
+    Index.
+
+%% The keys the page gave the session since they were last read, once they
+%% hold the bytes.
+keys(Page, Index, Until) ->
+    Session = stubbed(Index),
+    Text = binary_to_list(iolist_to_binary(json:encode(Until))),
+    until(Page, Session ++ ".keys.includes(" ++ Text ++ ")"),
+    eval(Page, "(() => { const keys = " ++ Session ++ ".keys; " ++ Session ++ ".keys = '';"
+               " return keys; })()").
+
+%% Once the page has asked the session the ask: a resize, an extend or a
+%% stop.
+asked(Page, Index, Ask) ->
+    until(Page, stubbed(Index) ++ ".asked.includes('" ++ Ask ++ "')").
+
+%% What the server would tell the page, told through the stub's session.
+told(Page, Index, Call) ->
+    eval(Page, stubbed(Index) ++ "." ++ Call).
+
+%% A session stopped by the panel's Stop, its stop asked and its end shown.
+stop(Page, Index) ->
     eval(Page, "panel.stop.click()"),
-    until_stopped(Conn),
+    asked(Page, Index, "stop"),
     until(Page, state() ++ " === 'stopped'").
-
-until_stopped(Conn) ->
-    #{<<"stop">> := true} = next_text(Conn, <<"stop">>).
-
-%% The next text message of the page's that holds the member, a resize
-%% of the panel's along the way passed over.
-next_text(Conn, Member) ->
-    case next_message(Conn) of
-        {text, #{Member := _} = Message} -> Message;
-        _ -> next_text(Conn, Member)
-    end.
 
 %%
 %% The page's side
@@ -884,6 +692,16 @@ until(Page, Condition) ->
                               ++ Condition ++ "); } catch { return 'throws'; } })()]")})
     end.
 
+%% A wait for a page a navigation brings: one begun in the page that is
+%% leaving is refused by DevTools when the next one arrives, and is begun
+%% again there.
+arrived(Page, Condition) ->
+    try
+        until(Page, Condition)
+    catch
+        error:{devtools, <<"Runtime.evaluate">>, _} -> until(Page, Condition)
+    end.
+
 key(Page, Key, Code) ->
     Common = #{key => list_to_binary(Key), code => list_to_binary(Key),
                windowsVirtualKeyCode => Code, nativeVirtualKeyCode => Code},
@@ -964,6 +782,16 @@ cdp_started({Address, Path}) ->
     after ern_nodes_tests:wait_ms() -> error(no_devtools)
     end.
 
+%% The head of the upgrade's response and what came after it.
+head(Socket, Acc) ->
+    case binary:split(Acc, <<"\r\n\r\n">>) of
+        [Head, Rest] ->
+            {Head, Rest};
+        [_] ->
+            {ok, Bytes} = gen_tcp:recv(Socket, 0),
+            head(Socket, <<Acc/binary, Bytes/binary>>)
+    end.
+
 %% The page's exceptions are kept, and each request of the page's that
 %% failed and was not canceled by a navigation, by its address, which the
 %% requests sent name.
@@ -1036,7 +864,9 @@ exceptions(Cdp) ->
     receive {exceptions, Found} -> Found end.
 
 %% A page of the browser's, its session attached, at a size, a phone's
-%% with touch.
+%% with touch. It keeps no response between loads, as the server's client
+%% is served under no-store (ernest-httpd's design, *The client*), so that
+%% a page loaded whole imports the client the server serves now.
 page(Cdp, {Width, Height}, Mobile) ->
     #{<<"targetId">> := Target} = call(Cdp, <<"Target.createTarget">>,
                                        #{url => <<"about:blank">>}, none),
@@ -1046,6 +876,7 @@ page(Cdp, {Width, Height}, Mobile) ->
     call(Page, <<"Runtime.enable">>, #{}),
     call(Page, <<"Page.enable">>, #{}),
     call(Page, <<"Network.enable">>, #{}),
+    call(Page, <<"Network.setCacheDisabled">>, #{cacheDisabled => true}),
     call(Page, <<"Emulation.setDeviceMetricsOverride">>,
          #{width => Width, height => Height, deviceScaleFactor => 1, mobile => Mobile}),
     Mobile andalso call(Page, <<"Emulation.setTouchEmulationEnabled">>,
@@ -1053,21 +884,18 @@ page(Cdp, {Width, Height}, Mobile) ->
     Page.
 
 %%
-%% WebSocket frames, RFC 6455
+%% The DevTools protocol's WebSocket frames, RFC 6455
 %%
 
-%% One frame read: its opcode and payload, unmasked where it came masked,
-%% and the bytes after it. A message of several frames is not read whole,
-%% since the browser's and the DevTools' messages here come in one each.
-frame(<<_:4, Opcode:4, Masked:1, Length:7, Rest/binary>>) ->
+%% One frame of Chrome's read, unmasked as a server sends it: its opcode
+%% and payload, and the bytes after it. A message of several frames is not
+%% read whole, since the DevTools' messages here come in one each.
+frame(<<_:4, Opcode:4, 0:1, Length:7, Rest/binary>>) ->
     case length_of(Length, Rest) of
         {ok, Size, After} ->
-            MaskSize = Masked * 4,
             case After of
-                <<Mask:MaskSize/binary, Payload:Size/binary, Left/binary>> ->
-                    {ok, Opcode, unmasked(Payload, Mask), Left};
-                _ ->
-                    more
+                <<Payload:Size/binary, Left/binary>> -> {ok, Opcode, Payload, Left};
+                _ -> more
             end;
         more ->
             more
@@ -1080,22 +908,14 @@ length_of(127, <<Size:64, After/binary>>) -> {ok, Size, After};
 length_of(Length, After) when Length < 126 -> {ok, Length, After};
 length_of(_, _) -> more.
 
-unmasked(Payload, <<>>) ->
-    Payload;
-unmasked(Payload, <<A, B, C, D>>) ->
-    Keys = {A, B, C, D},
-    << <<(Byte bxor element(1 + (Index rem 4), Keys))>>
-       || {Index, Byte} <- lists:enumerate(0, binary_to_list(Payload)) >>.
-
-%% A frame of the server's, unmasked, and one of a client's, masked.
-encoded(Opcode, Payload) ->
-    <<1:1, 0:3, Opcode:4, 0:1, (size_bits(byte_size(Payload)))/bitstring, Payload/binary>>.
-
+%% A text frame of a client's, masked.
 masked(Iodata) ->
     Payload = iolist_to_binary(Iodata),
-    Mask = crypto:strong_rand_bytes(4),
-    <<1:1, 0:3, 1:4, 1:1, (size_bits(byte_size(Payload)))/bitstring, Mask/binary,
-      (unmasked(Payload, Mask))/binary>>.
+    <<A, B, C, D>> = Mask = crypto:strong_rand_bytes(4),
+    Keys = {A, B, C, D},
+    Hidden = << <<(Byte bxor element(1 + (Index rem 4), Keys))>>
+                || {Index, Byte} <- lists:enumerate(0, binary_to_list(Payload)) >>,
+    <<1:1, 0:3, 1:4, 1:1, (size_bits(byte_size(Payload)))/bitstring, Mask/binary, Hidden/binary>>.
 
 size_bits(Size) when Size < 126 -> <<Size:7>>;
 size_bits(Size) when Size < 65536 -> <<126:7, Size:16>>;

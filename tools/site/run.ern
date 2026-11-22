@@ -12,10 +12,8 @@
 /// goes, the release and the tag it is built from, the templates by their
 /// paths under site/templates/, the assets' addresses, each declaration of
 /// the library by its qualified name, the log's entries by their titles
-/// with their GitHub anchors (`Site.Links.Page`), what every page's script
-/// is told of the server's shell, the path of its socket and the session's
-/// lifetime in the words a page says it in, `5 minutes`, and the blocks a
-/// bare shell cannot run, each by its page's address and its first line, a
+/// with their GitHub anchors (`Site.Links.Page`), and the blocks a bare
+/// shell cannot run, each by its page's address and its first line, a
 /// transcript's its first input (`unrunnableRead`).
 export type Run =
     Run(root : Path,
@@ -26,8 +24,6 @@ export type Run =
         assets : Assets,
         declarations : Map(String, Links.Declaration),
         log : Map(String, List(String)),
-        shellPath : String,
-        lifetimeText : String,
         unrunnable : Set(#(String, String)))
 
 /// The addresses of the files whose names hold a digest of their content,
@@ -83,8 +79,6 @@ export fn pageWritten(run : Run, output : Output) : Either(String, Unit) = {
                 #("stylesheet", Template.Plain(run.assets.stylesheet)),
                 #("script", Template.Plain(run.assets.script)),
                 #("icons", Template.Plain(run.assets.icons)),
-                #("shell_path", Template.Plain(run.shellPath)),
-                #("lifetime", Template.Plain(run.lifetimeText)),
                 #("navigation_html", Template.Markup(navigation)),
                 #("main_html", Template.Markup(output.main)),
                 #("source_html", Template.Markup(source)),
