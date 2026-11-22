@@ -291,6 +291,18 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    traffic*). What Ernest lacks for it is feedback 261, MVP 4.5's item 4.
 7. **The mechanisms read against what they force**, read and closed 2026-11-21 with every
    row staying (the log's *The Mechanisms' Reading Closed*).
+8. **A result that is never empty**, feedback 274, counted, decided and closed 2026-11-23
+   (the log's *A Clause That Cannot Run*, *A Result Never Empty, Counted*, *A Result Never
+   Empty, Decided* and *A Result Never Empty, Built*). The type stays `List`, and the
+   report says in words that a list is never empty: E.5, E.20, G.2 and E.0 shape rule 6.
+   `guide/style.md` gives a case the value's shape rules out no value. `Bytes.splitOnce`
+   entered, and no split at the last occurrence did. 53 sites of this repository took a
+   form where every case can come, or a clause that faults.
+
+   What the item left: the 19 likely and 8 unchased finds, which nobody has shown;
+   ernest-httpd's sites, told to its session, which its full review reads against the
+   rule; and one line of `docs/known_issues.md`, `Markdown.parse` on a line that holds a
+   no-break space alone.
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about two weeks, after the launch
 
@@ -449,20 +461,6 @@ What the line left, in the order it is taken:
   become loops, which covers every raise in a function `List` calls and leaves a program's
   own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
   against keeping no code only for speed.
-
-
-8. **A result that is never empty**, feedback 274, counted, decided and closed 2026-11-23
-   (the log's *A Clause That Cannot Run*, *A Result Never Empty, Counted*, *A Result Never
-   Empty, Decided* and *A Result Never Empty, Built*). The type stays `List`, and the
-   report says in words that a list is never empty: E.5, E.20, G.2 and E.0 shape rule 6.
-   `guide/style.md` gives a case the value's shape rules out no value. `Bytes.splitOnce`
-   entered, and no split at the last occurrence did. 53 sites of this repository took a
-   form where every case can come, or a clause that faults.
-
-   What the item left: the 19 likely and 8 unchased finds, which nobody has shown;
-   ernest-httpd's sites, told to its session, which its full review reads against the
-   rule; and one line of `docs/known_issues.md`, `Markdown.parse` on a line that holds a
-   no-break space alone.
 
 ---
 
