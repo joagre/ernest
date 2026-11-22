@@ -150,7 +150,8 @@ let retryMs = 1000
 /// function faults, even after the first has ended; a second group is a second
 /// call of `group`. The call also spawns a process that keeps the group's
 /// children and kills them when the supervisor dies. A restart of the
-/// supervisor does not end it, and `Process.live` lists it.
+/// supervisor does not end it, and `Process.live` lists it. Where no process
+/// ever runs the function, that process waits until the program ends.
 ///
 /// A supervisor that is itself a child restarts in place, and asks each of its
 /// children to restart; they keep their order. A child that waits to run

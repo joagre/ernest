@@ -3674,7 +3674,7 @@ found_fault(Pid, Cause) ->
 %% own Erlang (ern_code:own_modules/0), which a run's start found, or one
 %% of a unit that names no definition of the program's, a helper the
 %% compiler writes into the unit, the boundary's wrapper, a spawn's entry
-%% or an arrival's lacked function among them (ern_code:function_text/3).
+%% or an arrival's lacked function among them (ern_code:function_text/2).
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
     Own = ern_code:own_modules(),
@@ -3695,7 +3695,7 @@ failure_trace(Stack) ->
 %% it are left out, and a stack with no frame of the program's has an empty
 %% trace. A frame of Ernest code is
 %% written as a spawn site is (§6.9), by the name the unit's sites write
-%% its function by (ern_code:function_text/3) and its line,
+%% its function by (ern_code:function_text/2) and its line,
 %% `Counter.worker:23`; a frame of the host's or the runtime's by the
 %% function as the host writes it, quoted where the host quotes it, and its
 %% line, `lists:nth/2:213`, `erlang:'div'/2` (ern_namespace:host_function_text/3);
@@ -3712,8 +3712,8 @@ runs_once([Line | Lines]) -> [Line | runs_once(Lines)];
 runs_once([]) -> [].
 
 %% Whether a frame of the host's stack is of a unit of Ernest code.
-is_program_frame({ErlangModule, Function, _, Info}) ->
-    ern_code:function_text(ErlangModule, Function, proplists:get_value(line, Info, none)) =/= none;
+is_program_frame({ErlangModule, Function, _, _}) ->
+    ern_code:function_text(ErlangModule, Function) =/= none;
 is_program_frame(_) ->
     false.
 
@@ -3724,11 +3724,11 @@ is_helper_frame({ErlangModule, _, _, _} = Entry) ->
 
 %% Report §12.7, §11.2: a frame's line, its name written with each control
 %% character as its escape, since a unit an exchange made names its
-%% definitions by a peer's text, which may hold any (ern_code:function_text/3),
+%% definitions by a peer's text, which may hold any (ern_code:function_text/2),
 %% and a line feed in one would forge a frame.
 trace_line({ErlangModule, Function, Arguments, Info}) ->
     Line = proplists:get_value(line, Info, none),
-    Name = case ern_code:function_text(ErlangModule, Function, Line) of
+    Name = case ern_code:function_text(ErlangModule, Function) of
                none -> ern_namespace:host_function_text(ErlangModule, Function, arity(Arguments));
                Text -> Text
            end,

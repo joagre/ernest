@@ -45,19 +45,21 @@ serve(Message) ->
 
 handle({'Read', Path, Reply}) ->
     Text = text(Path),
-    answer(Reply, regular(Text, fun() -> file:read_file(Text, [raw]) end));
+    answer(Reply, regular(Text, fun(_) -> file:read_file(Text, [raw]) end));
 %% Report Appendix E.17: a part of a file, read where it lies, without
 %% holding the rest; fewer bytes at its end, and none past it. Report §7.4:
 %% an offset or a count below 0 is none.
 handle({'ReadRange', Path, Offset, Count, Reply}) ->
     Text = text(Path),
-    answer(Reply, regular(Text, fun() -> range(Text, max(Offset, 0), max(Count, 0)) end));
+    answer(Reply, regular(Text, fun(_) -> range(Text, max(Offset, 0), max(Count, 0)) end));
 handle({'Write', Path, Bytes, Reply}) ->
     Text = text(Path),
-    answer(Reply, regular_or_none(Text, fun() -> unit(file:write_file(Text, Bytes, [raw])) end));
+    answer(Reply, regular_or_none(Text, fun(_) -> unit(file:write_file(Text, Bytes, [raw])) end));
 handle({'Append', Path, Bytes, Reply}) ->
     Text = text(Path),
-    answer(Reply, appendable(Text, fun() -> unit(file:write_file(Text, Bytes, [raw, append])) end));
+    answer(Reply, appendable(Text, fun(_) ->
+                                       unit(file:write_file(Text, Bytes, [raw, append]))
+                                   end));
 handle({'ListEntries', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
@@ -146,9 +148,11 @@ handle({'SetModified', Path, Mtime, Reply}) ->
 handle({'Copy', SourcePath, DestinationPath, Reply}) ->
     Source = text(SourcePath),
     Destination = text(DestinationPath),
-    answer(Reply, regular(Source, fun() ->
+    answer(Reply, regular(Source, fun(Read) ->
                                       regular_or_none(Destination,
-                                                      fun() -> copy(Source, Destination) end)
+                                                      fun(Found) ->
+                                                          copy(Source, Read, Destination, Found)
+                                                      end)
                                   end)).
 
 range(Text, Offset, Count) ->
@@ -171,55 +175,76 @@ range(Text, Offset, Count) ->
             Error
     end.
 
-%% Report Appendix E.17: a destination that is not there is made with the
-%% source's permission bits less the program's mask, as cp(1) makes it,
-%% set before a byte is written; one that is there keeps its own.
-copy(Source, Destination) ->
-    case file:open(Destination, [write, exclusive, raw, binary]) of
-        {ok, File} ->
-            Copied = case file:read_file_info(Source, [raw]) of
-                         {ok, #file_info{mode = Mode}} ->
-                             Bits = Mode band 8#777 band bnot ern_os:umask(),
-                             case file:change_mode(Destination, Bits) of
-                                 ok -> file:copy({Source, [raw]}, File);
-                                 Refused -> Refused
-                             end;
-                         Error -> Error
+%% Report Appendix E.17: the source copied into the destination between two
+%% handles of this process's, as every file here is opened, the source
+%% first, so that one that cannot be read leaves the destination as it was.
+%% A destination the stat found missing is made with the source's
+%% permission bits less the program's mask, as cp(1) makes it, set before a
+%% byte is written; one it found keeps its own.
+copy(Source, #file_info{mode = Mode}, Destination, Found) ->
+    case file:open(Source, [read, raw, binary]) of
+        {ok, From} ->
+            Copied = case file:open(Destination, [write, raw, binary]) of
+                         {ok, To} ->
+                             Written = case made_mode(Destination, Mode, Found) of
+                                           ok -> file:copy(From, To);
+                                           Refused -> Refused
+                                       end,
+                             closed(Written, file:close(To));
+                         Error ->
+                             Error
                      end,
-            ok = file:close(File),
-            copied(Copied);
-        {error, eexist} ->
-            copied(file:copy({Source, [raw]}, {Destination, [raw]}));
+            ok = file:close(From),
+            Copied;
         Error ->
             Error
     end.
 
-copied({ok, _}) -> {ok, 'Unit'};
-copied(Error) -> Error.
+made_mode(Destination, Mode, none) ->
+    file:change_mode(Destination, Mode band 8#777 band bnot ern_os:umask());
+made_mode(_, _, #file_info{}) ->
+    ok.
+
+%% A write's answer, and the close's where the write was whole, since the
+%% host may report a write's failure at the close.
+closed({ok, _}, ok) -> {ok, 'Unit'};
+closed({ok, _}, Error) -> Error;
+closed(Error, _) -> Error.
 
 %% Report Appendix E.17: read, write and copy work on regular files, since
 %% a named pipe waits for a writer that may never come and a device may
 %% never end; a path that names nothing may be written.
 regular(Text, Then) ->
-    case file:read_file_info(Text, [raw]) of
-        {ok, #file_info{type = regular}} -> Then();
-        {ok, _} -> {error, not_regular};
-        Error -> Error
-    end.
+    of_kind(Text, [regular], Then).
 
 regular_or_none(Text, Then) ->
-    case file:read_file_info(Text, [raw]) of
-        {error, enoent} -> Then();
-        _ -> regular(Text, Then)
-    end.
+    of_kind(Text, [regular, none], Then).
 
 %% Report Appendix E.17: append writes a device as well, a terminal among
 %% them, since a write to it ends; a named pipe's open waits for a reader
 %% that may never come.
 appendable(Text, Then) ->
+    of_kind(Text, [regular, device, none], Then).
+
+%% Report Appendix E.17: the work Then does, given the path's stat, where
+%% the path names a file of one of the Kinds, `none` for a path that names
+%% nothing, which Then is given as `none`. One stat decides, and the work
+%% takes what it answered, so that no second answer of the host's can
+%% disagree with the first.
+of_kind(Text, Kinds, Then) ->
     case file:read_file_info(Text, [raw]) of
-        {ok, #file_info{type = device}} -> Then();
-        _ -> regular_or_none(Text, Then)
+        {ok, #file_info{type = Type} = Info} ->
+            case lists:member(Type, Kinds) of
+                true -> Then(Info);
+                false -> {error, not_regular}
+            end;
+        {error, enoent} = Missing ->
+            case lists:member(none, Kinds) of
+                true -> Then(none);
+                false -> Missing
+            end;
+        Error ->
+            Error
     end.
 
 %% Report Appendix E.17: the host says "not a directory" of a path that

@@ -3618,6 +3618,34 @@ standard_library_unchecked_test() ->
     ?assertEqual({ok, <<"unchecked\n">>}, run(['M'], Text, #{standard => true})),
     ?assertEqual(return_cause("erlang:node/0", "Int"), cause_of(outcome(Text))).
 
+%% report §8.4, Appendix E.2: `List.reverse`, a foreign function of the
+%% library's, takes a list of any element type, functions, replies and
+%% addresses among them, and what it answers is used as the list was.
+%% Written when it became the host's `lists:reverse/1`
+list_reverse_of_any_element_test() ->
+    ?assertEqual({ok, <<"[20, 3]\n#(1, 2)\n">>}, run(
+        "type ServerMsg = Ask(reply : Reply(Int))\n"
+        "type MainMsg = Got(Int)\n"
+        "fn serve(held : List(Reply(Int))) : Unit receiving ServerMsg =\n"
+        "    if List.size(held) == 2 then\n"
+        "        List.forEach(List.indexed(List.reverse(held)),\n"
+        "                     fn(#(index, reply)) = answer(reply, index))\n"
+        "    else\n"
+        "        receive { Ask(reply = r) -> serve(r :: held) }\n"
+        "fn asking(server : Address(ServerMsg), me : Address(MainMsg)) : Unit =\n"
+        "    send(me, Got(Address.callForever(server, fn(r) = Ask(reply = r))))\n"
+        "export fn main() : Unit receiving MainMsg = {\n"
+        "    let functions = List.reverse([fn(x : Int) = x + 1, fn(x : Int) = x * 10]);\n"
+        "    Io.println(Io.show(List.map(functions, fn(f) = f(2))));\n"
+        "    let server = spawn(fn() = serve([]));\n"
+        "    let me = self();\n"
+        "    let addresses = List.reverse([server, server]);\n"
+        "    let _ = spawn(fn() = asking(server, me));\n"
+        "    let _ = spawn(fn() = asking(server, me));\n"
+        "    let sum = receive { Got(first) -> receive { Got(second) -> first + second } };\n"
+        "    Io.println(Io.show(#(sum, List.size(addresses))))\n"
+        "}\n")).
+
 %% report §6.6, §6.5: a request that makes a call of its own, as printing
 %% does, and an adapted address's function that prints, each applied in the
 %% caller, leave no call noted once the calls are over. A regression test,

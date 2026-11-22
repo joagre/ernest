@@ -187,7 +187,17 @@ export fn endsWith(text : String, suffix : String) : Bool = {
 ///
 /// since 0.10.0
 export fn stripPrefix(text : String, prefix : String) : Optional(String) =
-    if startsWith(text, prefix) then Some(drop(text, size(prefix))) else None
+    if Bytes.startsWith(toUtf8(text), toUtf8(prefix)) then {
+        // Report Appendix E.5: the text after as many graphemes as the
+        // prefix holds, walked once, is what follows the prefix's bytes
+        // where the prefix ends where a grapheme of the text does
+        let rest = drop(text, size(prefix));
+        if Bytes.size(toUtf8(prefix)) + Bytes.size(toUtf8(rest)) == Bytes.size(toUtf8(text)) then
+            Some(rest)
+        else
+            None
+    } else
+        None
 
 /// The text before `suffix`, or `None` where `text` does not end with it, as
 /// whole graphemes. Every string ends with the empty string.

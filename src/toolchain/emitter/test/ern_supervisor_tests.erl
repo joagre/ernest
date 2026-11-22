@@ -460,6 +460,26 @@ group_runs_once_after_its_end_test() ->
         "}\n"),
     ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Output).
 
+%% Appendix E.22: where no process runs the function `group` answers, the
+%% process that keeps the group's children waits, `Process.live` listing
+%% it, and the program ends while it waits. Written with the sentence,
+%% after the code
+group_no_process_runs_test() ->
+    {ok, Output} = ern_emitter_tests:run(
+        "foreign fn waiting(process : Process) : Foreign.Term = \"ern_waits:waiting/1\"\n"
+        "export fn main() : Unit = {\n"
+        "    let before = Process.live();\n"
+        "    let _ = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
+        "    let kept =\n"
+        "        List.filter(Process.live(), fn(process) = !List.contains(before, process));\n"
+        "    let _ = List.map(kept, waiting);\n"
+        "    let described = List.map(kept, fn(process) = Optional.map(Process.status(process),\n"
+        "        fn(status) = #(String.startsWith(status.site, \"Supervisor.group:\"),\n"
+        "                       status.activity)));\n"
+        "    Io.println(Io.show(described))\n"
+        "}\n"),
+    ?assertEqual(<<"[Some(#(true, Process.Receiving))]\n">>, Output).
+
 %% A group whose children count, fault on Boom, and on Crunch compute for a
 %% while without waiting, so that a restart asked of one then waits; on
 %% Crash they compute a fifth as long and then fault. `running` waits until

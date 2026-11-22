@@ -65,7 +65,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    - **A fault** costs 29 µs against the host's 1.8, measured in parts. A returning
      `spawnMonitored` is 6.8 of it, and the raise, its record and its end 2.9. The cause's
      text, an `io_lib:format`, is 7.0, and the trace's 7.4, both made in the faulting process
-     at the raise: `ern_code:function_text/3` costs a frame of a unit 1.0 to 1.3 µs, since it
+     at the raise: `ern_code:function_text/2` costs a frame of a unit 1.0 to 1.3 µs, since it
      scans the unit's `'$code'/0` and makes a list of every entry's name. The line the
      reporter makes in the reaper is 5.4, and standard error's write costs the loop nothing.
      About 6 µs of the two texts is the faulting process's collections from its first heap.
@@ -123,12 +123,18 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      design, and §10 states the foreign return's check, the callback's and the open's
      round trip, but for six defects.
 
-     To build, by one agent after the guard's: `List.reverse` becomes a shim of the host's;
-     `Map.fold` closes around the host's fold where that measures faster at every size;
-     `String.stripPrefix` walks its prefix once; `Io.show` writes an `Int` by one
-     conversion; `Fs.append`, `Fs.write` and `Fs.copy` decide a path's kind by one stat,
-     `Fs.copy` copying between raw handles (below); and `Path.name` closes around the
-     host's `basename`, where `Path.extension` then costs within three times the host's.
+     Built the same day (the log's *The Library's Defects, Built*): `List.reverse` is a
+     shim of the host's, 1.0 to 1.1 times it; `String.stripPrefix` compares the bytes and
+     drops the prefix's graphemes once, 4.1 times where it was 4.9, the rest `String.drop`'s
+     walk; `Io.show` writes an `Int` by one conversion; and `Fs.append`, `Fs.write` and
+     `Fs.copy` decide a path's kind by one stat, `Fs.copy` copying between raw handles.
+
+     To decide, each found by that build. A host error in a function given to a shim of
+     the standard library's, `Map.map`'s among them, faults as the shim's raise, against
+     §12.3, and `Map.fold`, which measured the host's own around the host's fold, waits on
+     it. `Fs.copy` of a file onto itself empties it. `Path.name` around the host's
+     `basename` left `Path.extension` at 3.1 to 3.2 times the host's at 100 bytes, past
+     the line, and was not kept.
    - **The gaps the reading left, measured.** `Bytes.toList` at 10,000 bytes is the harness's:
      Ernest calls the host's function itself, and the host's side applies its export in a
      process whose heap the earlier rows shaped. `Os.closeInput`'s 0.8 ms over `Os.start` is

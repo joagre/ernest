@@ -488,8 +488,8 @@ export fn repeat(element : a, count : Int) : List(a) =
 /// List.reverse([1, 2, 3])
 /// // => [3, 2, 1]
 /// ```
-export fn reverse(list : List(a)) : List(a) =
-    foldLeft(list, [], fn(acc, element) = element :: acc)
+export foreign fn reverse(list : List(a)) : List(a) =
+    "lists:reverse/1"
 
 /// The elements sorted by the order of their type, the least first (report
 /// §3.10).

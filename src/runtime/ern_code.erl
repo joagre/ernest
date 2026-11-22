@@ -60,7 +60,7 @@
          holder/1, ground/1, grounded/1, forms/1,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2,
-         function_text/3, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
+         function_text/2, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
          placement/4, running/1, hashes/1, is_unopened/1, binding_keys/1, nearing/0, nearing/1,
          nearing/2, line/3, counts/0]).
 
@@ -811,8 +811,8 @@ held_function(_) -> [].
 %% sender's, `Counter.worker` (§12.7). None for any other function, the
 %% unit's '$init'/0 among them, and for a module that is no unit, which
 %% keep the host's names.
--spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
-function_text(Unit, Function, _Line) ->
+-spec function_text(module(), atom()) -> string() | none.
+function_text(Unit, Function) ->
     case erlang:function_exported(Unit, '$code', 0) andalso Unit:'$code'() of
         [{_, {names, Names}} | _] ->
             case maps:get(defining(atom_to_list(Function)), Names, none) of
@@ -838,7 +838,7 @@ value_text(Function) ->
     case [erlang:fun_info(Function, Item) || Item <- [module, name]] of
         %% a fun's name is [] where the host holds no code for it
         [{module, Unit}, {name, Name}] when is_atom(Name) ->
-            case function_text(Unit, Name, none) of
+            case function_text(Unit, Name) of
                 none -> bound_name(Unit, Function);
                 Text -> Text
             end;
@@ -847,14 +847,14 @@ value_text(Function) ->
     end.
 
 %% The binding of Unit whose value is Function, by the name its getter has
-%% (function_text/3), or none: a reading of every binding the unit lists,
+%% (function_text/2), or none: a reading of every binding the unit lists,
 %% which a cause that names a function foreign code gave pays alone.
 bound_name(Unit, Function) ->
     case erlang:function_exported(Unit, '$code', 0) of
         true ->
             case [Getter || {_, {binding, _, {_, Getter} = Key}} <- Unit:'$code'(),
                             persistent_term:get(Key, none) =:= Function] of
-                [Getter | _] -> function_text(Unit, Getter, none);
+                [Getter | _] -> function_text(Unit, Getter);
                 [] -> none
             end;
         false ->

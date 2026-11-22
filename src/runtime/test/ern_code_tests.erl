@@ -587,12 +587,12 @@ frames_named_by_the_names_test() ->
                       {'-$4/1-fun-0-', "Framenames$2.twice"}],
                      lists:sort([{Function, Name}
                                  || {Function, _} <- Unit:module_info(functions),
-                                    Name <- [ern_code:function_text(Unit, Function, none)],
+                                    Name <- [ern_code:function_text(Unit, Function)],
                                     Name =/= none])),
         ?assertEqual(['$code', '$init', '$spawned', '$type_1', '-inlined-$spawned/2-',
                       module_info],
                      lists:usort([Function || {Function, _} <- Unit:module_info(functions),
-                                              ern_code:function_text(Unit, Function, none)
+                                              ern_code:function_text(Unit, Function)
                                                   =:= none]))
     after
         code:purge(Unit),

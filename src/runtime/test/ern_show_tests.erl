@@ -19,6 +19,16 @@ by_type_test() ->
     %% a negative number with `-` before it; a regression test, written after
     %% the code
     ?assertEqual(<<"#(-1, -2.5)">>, ern_show:show({tuple, [int, float]}, {-1, -2.5})),
+    %% an Int alone is written by one conversion, by its descriptor and by
+    %% its representation, a negative one and one past a machine word among
+    %% them, and so at a depth of 0, since a number is no bracket (report
+    %% §11.2); written with the change to the conversion
+    ?assertEqual(<<"-12">>, ern_show:show(int, -12)),
+    ?assertEqual(<<"-12">>, ern_show:show(any, -12)),
+    ?assertEqual(<<"#(-1, [2])">>, ern_show:show(any, {-1, [2]})),
+    ?assertEqual(<<"-18446744073709551616">>, ern_show:show(int, -(1 bsl 64))),
+    ?assertEqual(<<"7">>, ern_show:show(int, 7, 0, 0)),
+    ?assertEqual(<<"[1, -2, ...]">>, ern_show:show({list, int}, [1, -2, 3], 2, 2)),
     ?assertEqual(<<"\"hi\"">>, ern_show:show(string, <<"hi">>)),
     ?assertEqual(<<"<<104, 105>>">>, ern_show:show(bytes, <<"hi">>)),
     ?assertEqual(<<"#(1, true)">>, ern_show:show({tuple, [int, bool]}, {1, true})),

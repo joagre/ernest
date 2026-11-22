@@ -264,7 +264,7 @@ A constructor of the prelude's is written by its name alone, `Some`, `Down`; any
 
 `[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains` and `unique` require equality on `a` (§3.10). `sort` orders by the element type's `compare` and `sortBy` by the key's (§3.10), each stable, equal elements in their order. `minimumBy` and `maximumBy` compare the keys by the key type's `compare`, which they need (§4.9), and call `key` once for each element, in order. `List.<>` and `List.compare` are the prelude's, §9.6; this module provides them (§9). `mapFold` departs from F#'s `List.mapFold` and Erlang's `lists:mapfoldl`, which answer the list first: it answers `#(acc, list)`, and its step `#(acc, element)`, the accumulator first as in `foldLeft`'s step.
 
-The primitives are `size`, `unique`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
+The primitives are `size`, `reverse`, `unique`, and a function of the host's beneath `sort`, private to the module, around which `sort` keeps a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
 
 ```
 List.size : (List(a)) -> Int

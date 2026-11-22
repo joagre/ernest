@@ -381,6 +381,17 @@ string_strip_test() ->
     ?assertEqual('None', Prefix(<<"ke">>, <<"key">>)),
     ?assertEqual('None', Prefix(<<"e\x{301}x"/utf8>>, <<"e">>)),
     ?assertEqual({'Some', <<"x">>}, Prefix(<<"e\x{301}x"/utf8>>, <<"e\x{301}"/utf8>>)),
+    %% a prefix whose bytes begin the text and which ends inside a grapheme
+    %% of it, after a pair of regional indicators, a virama and a carriage
+    %% return, and one that ends where a grapheme does; the cases of
+    %% docs/otp_bugs.md's report 21, written with the walk made once
+    ?assertEqual({'Some', <<"\x{1F1F8}"/utf8>>},
+                 Prefix(<<"\x{1F1EA}\x{1F1EA}\x{1F1F8}"/utf8>>, <<"\x{1F1EA}\x{1F1EA}"/utf8>>)),
+    ?assertEqual('None', Prefix(<<"\x{1F1EA}\x{1F1EA}\x{1F1EA}\x{1F1F8}"/utf8>>,
+                                <<"\x{1F1EA}\x{1F1EA}\x{1F1EA}"/utf8>>)),
+    ?assertEqual('None', Prefix(<<"\x{915}\x{94D}\x{915}"/utf8>>, <<"\x{915}\x{94D}"/utf8>>)),
+    ?assertEqual('None', Prefix(<<"line\r\nnext">>, <<"line\r">>)),
+    ?assertEqual({'Some', <<"next">>}, Prefix(<<"line\r\nnext">>, <<"line\r\n">>)),
     ?assertEqual({'Some', <<"page">>}, Suffix(<<"page.md">>, <<".md">>)),
     ?assertEqual('None', Suffix(<<"page">>, <<".md">>)),
     ?assertEqual({'Some', <<>>}, Suffix(<<"key">>, <<"key">>)),
@@ -1106,6 +1117,72 @@ fs_copy_mode_test() ->
     ?assertEqual({ok, <<"secret">>}, file:read_file(Name("private_copy"))),
     ?assertEqual({ok, <<"run">>}, file:read_file(Name("kept"))),
     file:del_dir_r(Dir).
+
+%% report Appendix E.17: `write`, `append` and `copy` read each path's kind
+%% by one stat, whose answer decides, and a copy onto a file that exists
+%% copies between handles of its own, around the host's file server, so it
+%% completes while that server is suspended. A regression test: `append`
+%% read one path three times and `write` twice, and such a copy went
+%% through the server
+fs_one_stat_and_raw_copy_test() ->
+    Self = self(),
+    Dir = scratch("ern_one_stat_"),
+    ok = filelib:ensure_path(Dir),
+    Name = fun(File) -> unicode:characters_to_binary(filename:join(Dir, File)) end,
+    InDir = fun(File) -> {'Path', Name(File)} end,
+    ok = file:write_file(Name("source"), <<"new">>),
+    ok = file:write_file(Name("kept"), <<"old">>),
+    Fs = ern_named:functions('ern@fs'),
+    [Write, Append, Copy] = [Fs(Function) || Function <- [write, append, copy]],
+    %% the runtime's own modules, which a wait's look reads a stack against,
+    %% found before the server is held, as a run's start finds them; finding
+    %% them asks the server
+    _ = ern_code:own_modules(),
+    Stat = {file, read_file_info, 2},
+    1 = erlang:trace_pattern(Stat, true, [global]),
+    try
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               FsPid = ern_rt:process_of(ern_rt:system_process(fs)),
+                               1 = erlang:trace(FsPid, true, [call, set_on_spawn, {tracer, Self}]),
+                               Self ! {fs, Write(InDir("written"), <<"a">>, 5000)},
+                               Self ! {fs, Write(InDir("written"), <<"b">>, 5000)},
+                               Self ! {fs, Append(InDir("written"), <<"c">>, 5000)},
+                               Self ! {fs, Append(InDir("appended"), <<"d">>, 5000)},
+                               Self ! {fs, Copy(InDir("source"), InDir("copied"), 5000)},
+                               Server = whereis(file_server_2),
+                               true = erlang:suspend_process(Server),
+                               Copied = try Copy(InDir("source"), InDir("kept"), 2000)
+                                        after erlang:resume_process(Server)
+                                        end,
+                               Self ! {fs, Copied},
+                               erlang:trace(FsPid, false, [call, set_on_spawn])
+                           end, <<"fs_one_stat_and_raw_copy_test">>, #{})),
+        Delivered = erlang:trace_delivered(all),
+        receive {trace_delivered, all, Delivered} -> ok end,
+        ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}), collect(fs, [])),
+        %% the paths each request's process read, a request a process
+        ?assertEqual(lists:sort([["written"], ["written"], ["written"], ["appended"],
+                                 ["copied", "source"], ["kept", "source"]]),
+                     lists:sort(maps:values(stats(Dir, #{})))),
+        ?assertEqual({ok, <<"bc">>}, file:read_file(Name("written"))),
+        ?assertEqual({ok, <<"new">>}, file:read_file(Name("kept")))
+    after
+        erlang:trace_pattern(Stat, false, [global]),
+        file:del_dir_r(Dir)
+    end.
+
+%% The stats the host traced, by the process that made them, each a name
+%% under Dir, sorted.
+stats(Dir, Acc) ->
+    receive
+        {trace, Pid, call, {file, read_file_info, [Path, _]}} ->
+            File = binary_to_list(filename:basename(Path)),
+            Dir = binary_to_list(filename:dirname(Path)),
+            stats(Dir, Acc#{Pid => lists:sort([File | maps:get(Pid, Acc, [])])})
+    after 0 ->
+        Acc
+    end.
 
 %% report Appendix E.17: read, write and copy work on regular files, and
 %% append on a regular file and a device; each refuses a named pipe and a

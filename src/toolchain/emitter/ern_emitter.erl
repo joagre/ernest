@@ -187,7 +187,7 @@ initializer_name(Position) ->
 
 %% The name of the next function a guard of the definition being compiled
 %% falls through to, which a fault's trace names as the definition
-%% (ern_code:function_text/3). Appendix E.28: in a lambda's or a local
+%% (ern_code:function_text/2). Appendix E.28: in a lambda's or a local
 %% fn's body it carries their position, so that Code.running counts a
 %% frame of it as theirs and no definition's (ern_code:frame_function/2).
 fallthrough_name(#emit_context{definition = {Definition, _, _}, inner_position = Inner,
@@ -861,7 +861,7 @@ init_function(#unit{binding_order = Order},
 %% beside its getter '$N', which names the binding as the process's site
 %% while it runs, so that its fault is reported under it, and keeps its
 %% value; a trace names its frame by the binding, at the frame's line
-%% (ern_code:function_text/3).
+%% (ern_code:function_text/2).
 initializer_function(Position, #emit_context{own = #own{forms = Forms}} = Context) ->
     {#definition{qualified_name = QualifiedName} = Definition, Form} = maps:get(Position, Forms),
     {Source, {binding, _, Body}} = sourced(Form),
@@ -1012,7 +1012,7 @@ definition_code(_, #definition{kind = type, qualified_name = QualifiedName, hash
 
 %% Report Appendix E.21, §6.9: the unit's names, the first row of its
 %% '$code'/0, by which a fault's trace names a frame of its code in one
-%% lookup, whatever the unit holds (§10, ern_code:function_text/3): each
+%% lookup, whatever the unit holds (§10, ern_code:function_text/2): each
 %% definition's and kept foreign function's function, '$3', a binding's
 %% getter, and the getter of the value an expression's unit holds, by the
 %% name the sites of its declaration write, as text (site_name/2). An
@@ -2133,7 +2133,7 @@ holds_function(_) -> false.
 %% A form without its source names the declaration alone. Report §12.7: a
 %% definition of an exchange's unit by the name the code frame gave it, its
 %% lines the sender's. A fault's trace writes a frame of the unit's code by
-%% the same name and line (ern_code:function_text/3).
+%% the same name and line (ern_code:function_text/2).
 site(Source, #emit_context{unit = #unit{site_namespace = SiteNamespace,
                                          name = ErlangModule} = Unit,
                            declaration = Declaration}) ->

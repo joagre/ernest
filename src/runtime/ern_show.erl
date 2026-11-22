@@ -21,7 +21,13 @@ show(Descriptor, Value) ->
            non_neg_integer() | unbounded) -> binary().
 show(Descriptor, Value, Depth, Length) ->
     Limits = #limits{depth = Depth, length = Length},
-    unicode:characters_to_binary(by_type(Descriptor, Value, #{}, Limits)).
+    text(by_type(Descriptor, Value, #{}, Limits)).
+
+%% What by_type/4 wrote, as one binary. An `Int` alone is the host's binary
+%% already, so that writing one is one conversion; anything else is
+%% characters, converted once.
+text(Text) when is_binary(Text) -> Text;
+text(Characters) -> unicode:characters_to_binary(Characters).
 
 %% Report §11.2: below the depth a value is `...`, whatever it is. A value
 %% written without nesting, a number or a string, is not below it: depth
@@ -46,7 +52,9 @@ parts(Items, Limits, Show) ->
 by_type(any, Value, _, Limits) -> represented(Value, Limits);
 %% report Appendix E.1: a foreign type's value is the host's own term
 by_type(foreign, _, _, _) -> "<foreign>";
-by_type(int, Value, _, _) -> integer_to_list(Value);
+%% report Appendix E.1: a negative number with `-` before it, as the host
+%% writes one
+by_type(int, Value, _, _) -> integer_to_binary(Value);
 by_type(float, Value, _, _) -> ern_literal:float_text(Value);
 by_type(bool, Value, _, _) -> atom_to_list(Value);
 by_type(char, Value, _, _) -> ern_literal:char_text(Value);
@@ -127,7 +135,7 @@ number(Pid) ->
     Number.
 
 %% By the runtime's representation alone.
-represented(Value, _) when is_integer(Value) -> integer_to_list(Value);
+represented(Value, _) when is_integer(Value) -> integer_to_binary(Value);
 represented(Value, _) when is_float(Value) -> ern_literal:float_text(Value);
 represented(Value, _) when is_atom(Value) -> atom_to_list(Value);
 represented(Value, Limits) when is_binary(Value) ->
