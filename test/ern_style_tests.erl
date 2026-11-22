@@ -191,25 +191,31 @@ no_tab_test() ->
 
 %% docs/code_style.md, CLAUDE.md *Writing*: a paragraph of a tracked document
 %% is at most 150 words, a list item among them, since a block past it no
-%% reader takes in whole; the listing is tools/paragraphs.sh's, which
+%% reader takes in whole; the listing is tools/words.ern's, which
 %% `make paragraphs` runs at a hundred for the writer to read and this
-%% test at the ceiling. The log and the proposals are left out, as the
-%% script leaves them. A regression test, written after
+%% test at the ceiling, from the build `make` leaves in build/tools. The log
+%% and the proposals are left out, as the listing leaves them. A regression
+%% test, written after
 %% the release review before 0.6.0 found Appendix A's lexical-decision
 %% paragraph at 399 words, listed at every run and read by no one
 paragraph_ceiling_test() ->
-    Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/paragraphs.sh 150"), "\n"),
-    ?assertEqual([], Listed).
+    ?assertEqual([], words_listed("paragraphs")).
 
 %% docs/code_style.md *Every language*: a comment is paragraphs as a document
 %% is, a blank comment line between them and none past 150 words, in the
-%% Erlang and the Ernest alike; tools/comments.sh lists the blocks at a
-%% hundred for the writer and this test holds them at the ceiling. A
+%% Erlang and the Ernest alike; tools/words.ern lists the blocks at a
+%% hundred for `make comments` and this test holds them at the ceiling. A
 %% regression test, written after the night the documents got their
 %% ceiling found 166 comment blocks past it, a module header at 569 words
 comment_ceiling_test() ->
-    Listed = string:lexemes(os:cmd("sh " ++ ?ROOT ++ "/tools/comments.sh 150"), "\n"),
-    ?assertEqual([], Listed).
+    ?assertEqual([], words_listed("comments")).
+
+%% The lines tools/words.ern writes for the job at the ceiling, run from the
+%% repository's root, with what it writes on standard error, so that a
+%% program that could not run is a line too.
+words_listed(Job) ->
+    string:lexemes(os:cmd("cd " ++ ?ROOT ++ " && bin/ern run build/tools/words.erc "
+                          ++ Job ++ " 150 2>&1"), "\n").
 
 %% docs/code_style.md *Every language*: a block of commands in a document is
 %% shell a reader can paste, so a comment beside a command begins with `#`,

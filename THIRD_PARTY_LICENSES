@@ -50,7 +50,7 @@ Unicode Character Database
 
   Path:     src/stdlib/terminal.ern, the table between its two
             generated-table marker lines, written by
-            tools/unicode_width.escript
+            tools/unicode_width.ern
   Upstream: https://www.unicode.org/Public/17.0.0/ucd/ (EastAsianWidth.txt,
             emoji-data.txt, UnicodeData.txt), as OTP 29 vendors them in
             lib/stdlib/uc_spec

@@ -8,7 +8,7 @@ A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md
 
 - A step of indentation is four spaces, and no file holds a tab, but a Makefile *(tested)*.
 - A line of code is at most 100 characters; prose in markdown may be longer, and so may a line a command wrote, quoted under it in a block *(tested)*.
-- A paragraph of a tracked document is at most 150 words, a list item among them, which `tools/paragraphs.sh` lists at 150 and the test holds; the log and the proposals are left out, as the listing leaves them *(tested)*.
+- A paragraph of a tracked document is at most 150 words, a list item among them, which `tools/words.ern` lists at 150 and the test holds; the log and the proposals are left out, as the listing leaves them *(tested)*.
 - A block of commands in a document is shell a reader can paste: a comment beside a command begins with `#`, and so does each line under it that carries the comment on. A tree of files, which no one runs, is annotated bare *(tested)*.
 - A name in a namespace shared with other code carries the repository's name: an Erlang module begins `ern` *(tested)*, an Emacs Lisp symbol `ernest-`.
 - The spelling test reads every tracked file of text but a proposal under `docs/proposals/`, a vendored file, `THIRD_PARTY_LICENSES` and `LICENSE` *(tested)*. A quotation keeps its author's spelling, and `-behaviour`, `LICENSE` and `prefers-color-scheme` are names of the host's or of another system's.
@@ -17,7 +17,7 @@ A name in the Erlang and the C is chosen as [`guide/style.md`](../guide/style.md
 - In Ernest a value changing through a function is bound again under its name, `let #(draw, seed) = splitMix(seed)`, which the report's §5.4 provides, where the earlier value is never used again, and no variable's or function's name ends in a number, but one whose number is the thing named, `rfc850`, `http11`, and one the host writes, `utf8` *(tested)*; `guide/style.md` says so for every program. In Erlang, which binds a name once, such a value is numbered, `Env1`, `Env2`, a numbered name is nothing else, and past two steps the function is split.
 - A comment says why and cites the report section the code implements, `%% Report §8.4: ...`, `// Report §11.2: ...`; the names say what it does.
 - A comment names no MVP, milestone, plan item, review finding or date, in the code and in a test, since each points into a document that deletes it. It cites the report's section, a design note's, and the log entry by its title where the history matters, and a regression test still says it is one *(tested)*.
-- A comment is paragraphs as a document is: a blank comment line, `%%` or `//` alone, stands between them, each says one thing, and none is past 150 words, the ceiling CLAUDE.md's *Writing* gives a document; a module's header keeps what a reader of the module needs and points at the design note for the rest, which lives there. `tools/comments.sh` lists the blocks past a hundred words for `make comments`, and the test holds them at the ceiling *(tested)*.
+- A comment is paragraphs as a document is: a blank comment line, `%%` or `//` alone, stands between them, each says one thing, and none is past 150 words, the ceiling CLAUDE.md's *Writing* gives a document; a module's header keeps what a reader of the module needs and points at the design note for the rest, which lives there. `tools/words.ern` lists the blocks past a hundred words for `make comments`, and the test holds them at the ceiling *(tested)*.
 
 ## Erlang
 
@@ -62,7 +62,7 @@ How the standard library's and the libraries' operations stand on the host, whic
 
   The page is a source of truth, never of wording: the prose is ours (E.0 shape rule 6), nothing is copied.
 
-  A host module or function whose documentation is hidden is used only where decided with the user: `unicode_util`'s tables behind `Char` (the log's *Char Reads the Host's Tables*), and `net_kernel:async_disconnect/1` where a node ends a connection (the log's *What a Peer's Worker Waits On*).
+  A host module or function whose documentation is hidden is used only where decided with the user: `unicode_util`'s tables behind `Char` (the log's *Char Reads the Host's Tables*), `unicode_util:spec_version/0`, the version of Unicode `tools/unicode_width.ern` holds its data to (the log's *The Decisions Before the Readers*), and `net_kernel:async_disconnect/1` where a node ends a connection (the log's *What a Peer's Worker Waits On*).
 - **No regular expression answers a fixed question in the runtime.** A shim that asks one thing of each value, a category, a literal's form, tests it directly.
 
 ## Glossary

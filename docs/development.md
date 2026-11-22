@@ -118,11 +118,11 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    its helper ern_site.erl over the toolchain's lexer, writes every page of
                    the website from the repository into a directory of its own, and
                    checks every link of it, for make site;
-                   unicode_width.escript writes Terminal.width's
+                   unicode_width.ern writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
-                   paragraphs.sh lists the long paragraphs, for make paragraphs and make
-                   test-docs, and comments.sh the long comment blocks, for make comments;
+                   words.ern lists the long paragraphs and the long comment blocks, for
+                   make paragraphs, make comments and make test-docs;
                    flakes.ern runs the flake hunt's hosts beside busy loops and says
                    what they found, for make flakes;
                    and version.sh sets VERSION and the lines the tests hold to it, for
@@ -192,7 +192,8 @@ make test-erl   # the unit tests of every root under src/, side by side, each ru
                 # the repository's root; APP=checker for one, a shim's by its library's
                 # name
 make test-library # the doc examples of the standard library and the libraries, with the
-                # libraries' own tests, run by ern test over build/stdlib and build/libs,
+                # libraries' own tests and the tools', run by ern test over build/stdlib,
+                # build/libs and build/tools,
                 # each example a program of its own, one line where all pass, and the
                 # shims' tests beside them
 make test-programs # the six parts below, one after another

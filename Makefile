@@ -306,10 +306,11 @@ build/tools/ern_site.beam: tools/site/ern_site.erl
 # Terminal.width's table in src/stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
 # a directory holding EastAsianWidth.txt, emoji-data.txt and
-# UnicodeData.txt, as OTP's source tree has in lib/stdlib/uc_spec.
-unicode:
+# UnicodeData.txt, as OTP's source tree has in lib/stdlib/uc_spec. The
+# table is written by tools/unicode_width.ern, built with the tools.
+unicode: tools
 	@test -n "$(UC_SPEC)" || { echo "UC_SPEC=dir is required"; exit 1; }
-	@escript tools/unicode_width.escript $(UC_SPEC)
+	@bin/ern run build/tools/unicode_width.erc $(UC_SPEC)
 
 # The tests by area, in two runs. `make test` is
 # the light run, for every commit: the applications' unit tests, the
@@ -431,17 +432,20 @@ flakes:
 runtime-test-beams: $(call test_beams,runtime)
 
 # The library's doc examples, the standard library's and the libraries',
-# with the libraries' own tests, each a case `ern test` runs over the
-# library's build, an example a program of its own (report §11.2, Appendix
-# E.0 shape rule 6): one line where every case passed and no case's
-# process faulted, and all `ern test` wrote where one did not. The shims'
-# tests run beside them.
+# with the libraries' own tests and the tools', each a case `ern test` runs
+# over the library's build or build/tools, an example a program of its own
+# (report §11.2, Appendix E.0 shape rule 6): one line where every case
+# passed and no case's process faulted, and all `ern test` wrote where one
+# did not. The shims' tests run beside them.
 test-library: all $(SHIM_TESTS)
 	@out=$$(mktemp "$${TMPDIR:-/tmp}/ern_library_XXXXXX") || exit 1; \
 	  bin/ern test build/stdlib > "$$out" 2>&1; stdlib=$$?; \
 	  bin/ern test build/libs >> "$$out" 2>&1; libs=$$?; \
-	  if [ $$stdlib -eq 0 ] && [ $$libs -eq 0 ] && ! grep -q ' faulted: ' "$$out"; then \
-	    echo "  All $$(grep -c ': passed$$' "$$out") cases of build/stdlib and build/libs passed."; \
+	  bin/ern test build/tools >> "$$out" 2>&1; tools=$$?; \
+	  if [ $$stdlib -eq 0 ] && [ $$libs -eq 0 ] && [ $$tools -eq 0 ] \
+	    && ! grep -q ' faulted: ' "$$out"; then \
+	    echo "  All $$(grep -c ': passed$$' "$$out") cases of build/stdlib, build/libs and" \
+	      "build/tools passed."; \
 	    status=0; \
 	  else cat "$$out"; status=1; fi; \
 	  rm -f "$$out"; exit $$status
@@ -482,11 +486,13 @@ test-docs: doc
 # The prose paragraphs past about a hundred words, for their writer to read
 # again when asked (CLAUDE.md, *Writing*); the style tests hold both at
 # 150. comments lists the comment blocks of the
-# Erlang and the Ernest the same way (docs/code_style.md).
-paragraphs:
-	@sh tools/paragraphs.sh
-comments:
-	@sh tools/comments.sh
+# Erlang and the Ernest the same way (docs/code_style.md). Both are
+# tools/words.ern, the job named first on its command line and a count of
+# words after it, 100 where none is given.
+paragraphs: tools
+	@bin/ern run build/tools/words.erc paragraphs
+comments: tools
+	@bin/ern run build/tools/words.erc comments
 test-guide: all
 	@$(MAKE) -C test guide
 test-site: doc

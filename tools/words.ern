@@ -1,0 +1,434 @@
+//
+// The words a reader takes in at once, counted: every prose paragraph of
+// the tracked documents past a count of words, a list item among them, or
+// every comment block of the Erlang and the Ernest, for its writer to read
+// again for a turn it may hide (CLAUDE.md, *Writing*; docs/code_style.md,
+// *Every language*). The count is 100 where none is given; 150 is the
+// ceiling the style tests hold both to, since a block past it no reader
+// takes in whole. A list, not a limit: a paragraph that holds one thing
+// stays whole.
+//
+// `ern run words.erc paragraphs [count]` lists the paragraphs, a line each
+// on standard output, its path, line, words and first characters, and
+// `ern run words.erc comments [count]` the comment blocks, with path, line
+// and words. Each reads the files git tracks in the working directory, the
+// repository's root, in git's order.
+//
+// A paragraph ends at a blank line, at a fence, at a list item, and where a
+// list item's lines stop being indented past the item; a heading, a table
+// row and an HTML line begin none that is counted. The log and the proposals
+// are left out.
+//
+// A comment block is a run of comment lines, `%%` or `//`, a doc block's
+// `///` among them, which a blank comment line or a line of code ends, and
+// a list item after the marker, `- ` or `1. `, begins one of its own; a
+// comment beside code is no block. The vendored getopt is left out.
+//
+
+// The listing the command line asks for.
+type Job = Paragraphs | Comments
+
+// A paragraph past the count: where it begins, its words, and its first
+// characters.
+type Paragraph = Paragraph(file : String, line : Int, words : Int, first : String)
+
+// A comment block past the count: where it begins and its words.
+type Block = Block(file : String, line : Int, words : Int)
+
+// Where the reading stands as a document's lines go by: the line's number,
+// whether it is inside a fence, the paragraph begun and not yet ended, and
+// the paragraphs found.
+type Reading =
+    Reading(line : Int,
+            fence : Bool,
+            start : Int,
+            first : String,
+            words : Int,
+            skip : Bool,
+            item : Bool,
+            indent : Int,
+            found : List(Paragraph))
+
+// Where the reading stands as a source's lines go by: the line's number,
+// the block begun and not yet ended, none while its words are 0, and the
+// blocks found.
+type CommentReading = CommentReading(line : Int, start : Int, words : Int, found : List(Block))
+
+let usage : String = "usage: words paragraphs|comments [count]"
+
+// The count where the command line gives none.
+let measured : Int = 100
+
+// The documents, as git names them, whose paragraphs are read.
+let documents : List(String) = ["*.md", ":!docs/log/", ":!docs/proposals/"]
+
+// The sources, as git names them, whose comments are read.
+let sources : List(String) =
+    ["src/*.erl",
+     "test/*.erl",
+     "test/fixtures/*.erl",
+     "src/*.ern",
+     "examples/*.ern",
+     "tools/*.ern",
+     "tools/*.erl",
+     "tour/*.ern",
+     "test/fixtures/*.ern"]
+
+// The bytes of a paragraph's beginning shown, its last character whole.
+let shownBytes : Int = 60
+
+// A file's time and git's, as the other tools give theirs.
+let fileMs : Int = 10000
+
+export fn main() : Unit =
+    match parsed(Os.arguments) {
+        Right(#(Paragraphs, measure)) ->
+            List.forEach(tracked(documents), fn(file) = {
+                let found = paragraphsOf(file, contents(file), measure);
+                List.forEach(found, fn(paragraph) = Io.println(shown(paragraph)))
+            })
+      | Right(#(Comments, measure)) ->
+            List.forEach(List.filter(tracked(sources), isOurs), fn(file) = {
+                let found = blocksOf(file, contents(file), measure);
+                List.forEach(found, fn(block) = Io.println(shownBlock(block)))
+            })
+      | Left(message) ->
+            quit(message)
+    }
+
+fn parsed(arguments : List(String)) : Either(String, #(Job, Int)) =
+    match arguments {
+        [name] ->
+            Either.map(jobNamed(name), fn(job) = #(job, measured))
+      | [name, count] -> {
+            let job <- jobNamed(name);
+            match String.toInt(count) {
+                Some(measure) when measure >= 0 -> Right(#(job, measure))
+              | _ -> Left(usage)
+            }
+        }
+      | _ ->
+            Left(usage)
+    }
+
+fn jobNamed(name : String) : Either(String, Job) =
+    match name {
+        "paragraphs" -> Right(Paragraphs)
+      | "comments" -> Right(Comments)
+      | _ -> Left(usage)
+    }
+
+//
+// The repository
+//
+
+// The files git tracks that the pathspecs name.
+fn tracked(pathspecs : List(String)) : List(String) =
+    match Os.run(Os.command("git", ["ls-files", "--"] <> pathspecs), fileMs) {
+        Right(finished) when finished.status == 0 ->
+            String.lines(text("git ls-files", finished.stdout))
+      | _ ->
+            quit("git ls-files failed")
+    }
+
+// Whether a source is the repository's own, and not the vendored getopt's.
+fn isOurs(file : String) : Bool =
+    String.endsWith(file, "/getopt.erl") == false
+
+fn contents(file : String) : String =
+    match Fs.read(Path(file), fileMs) {
+        Right(bytes) -> text(file, bytes)
+      | Left(error) -> quit("cannot read " <> file <> ": " <> Io.show(error))
+    }
+
+fn text(source : String, bytes : Bytes) : String =
+    match String.fromUtf8(bytes) {
+        Some(text) -> text
+      | None -> quit(source <> " is not UTF-8")
+    }
+
+fn quit(message : String) : a = {
+    Io.printlnError("words: " <> message);
+    Os.exit(1)
+}
+
+//
+// The paragraphs
+//
+
+// The paragraphs of the text past the measure, in order.
+fn paragraphsOf(file : String, text : String, measure : Int) : List(Paragraph) = {
+    let begun =
+        Reading(line = 0,
+                fence = false,
+                start = 0,
+                first = "",
+                words = 0,
+                skip = false,
+                item = false,
+                indent = 0,
+                found = []);
+    let last =
+        List.foldLeft(String.lines(text),
+                      begun,
+                      fn(reading, line) =
+                          read(file, measure, Reading(..reading, line = reading.line + 1), line));
+    List.reverse(ended(file, measure, last).found)
+}
+
+fn read(file : String, measure : Int, reading : Reading, line : String) : Reading =
+    if isFence(line) then
+        Reading(..ended(file, measure, reading), fence = reading.fence == false)
+    else if reading.fence then
+        reading
+    else if String.isEmpty(String.trim(line)) then
+        ended(file, measure, reading)
+    else if isItem(line) then
+        counted(file, measure, Reading(..ended(file, measure, reading), item = true), line)
+    else
+        counted(file, measure, reading, line)
+
+// The line's words added to the paragraph, which it begins where none is
+// begun, or where it stands at or before a list item's indentation.
+fn counted(file : String, measure : Int, reading : Reading, line : String) : Reading = {
+    let indent = indentation(line);
+    let begun = if reading.words == 0 then
+        Reading(..reading, start = reading.line, first = line, =indent, skip = isUnmeasured(line))
+    else if reading.item && indent <= reading.indent then
+        Reading(..ended(file, measure, reading),
+                start = reading.line,
+                first = line,
+                =indent,
+                skip = isUnmeasured(line))
+    else
+        reading;
+    Reading(..begun, words = begun.words + List.size(String.words(line)))
+}
+
+// The paragraph ended: kept where it is past the measure.
+fn ended(file : String, measure : Int, reading : Reading) : Reading = {
+    let found = if reading.skip == false && reading.words > measure then
+        Paragraph(=file,
+                  line = reading.start,
+                  words = reading.words,
+                  first = beginning(reading.first))
+            :: reading.found
+    else
+        reading.found;
+    Reading(..reading, words = 0, item = false, =found)
+}
+
+fn isFence(line : String) : Bool = {
+    let trimmed = String.trimStart(line);
+    String.startsWith(trimmed, "```") || String.startsWith(trimmed, "~~~")
+}
+
+// A heading, a table row and an HTML line, which are no prose.
+fn isUnmeasured(line : String) : Bool =
+    String.startsWith(line, "#") || String.startsWith(line, "|") || String.startsWith(line, "<")
+
+// A list item: "- ", "* ", or a number, a small letter or none, a dot and a
+// space, "1. " or "1a. ".
+fn isItem(line : String) : Bool = {
+    let chars = String.toList(String.trimStart(line));
+    isBullet(chars)
+        || match afterNumber(chars) {
+            Some('.' :: ' ' :: _) -> true
+          | Some(letter :: '.' :: ' ' :: _) -> letter >= 'a' && letter <= 'z'
+          | _ -> false
+        }
+}
+
+fn isBullet(chars : List(Char)) : Bool =
+    match chars {
+        '-' :: ' ' :: _ -> true
+      | '*' :: ' ' :: _ -> true
+      | _ -> false
+    }
+
+// The characters after the digits the characters begin with, or `None`
+// where they begin with none.
+fn afterNumber(chars : List(Char)) : Optional(List(Char)) = {
+    let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+    if List.isEmpty(digits) then None else Some(rest)
+}
+
+fn indentation(line : String) : Int =
+    String.size(line) - String.size(String.trimStart(line))
+
+// The line's first bytes as the listing shows them, a character they cut
+// short left out.
+fn beginning(line : String) : String = {
+    let #(text, _) = String.fromUtf8Piece(Bytes.slice(String.toUtf8(line), 0, shownBytes));
+    text
+}
+
+fn shown(paragraph : Paragraph) : String =
+    paragraph.file
+        <> ":"
+        <> Int.toString(paragraph.line)
+        <> ": "
+        <> Int.toString(paragraph.words)
+        <> " words  "
+        <> paragraph.first
+
+//
+// The comments
+//
+
+// The comment blocks of the source past the measure, in order.
+fn blocksOf(file : String, text : String, measure : Int) : List(Block) = {
+    let begun = CommentReading(line = 0, start = 0, words = 0, found = []);
+    let last = List.foldLeft(String.lines(text), begun, fn(reading, line) = {
+        let numbered = CommentReading(..reading, line = reading.line + 1);
+        match commentOf(line) {
+            Some(comment) -> commented(file, measure, numbered, comment)
+          | None -> blockEnded(file, measure, numbered)
+        }
+    });
+    List.reverse(blockEnded(file, measure, last).found)
+}
+
+// The text of a comment line after its marker, a run of `%` or of `/`, and
+// one space or tab after it, or `None` for a line of code.
+fn commentOf(line : String) : Optional(String) = {
+    let trimmed = String.trimStart(line);
+    let marker = if String.startsWith(trimmed, "%%") then
+        Some('%')
+    else if String.startsWith(trimmed, "//") then
+        Some('/')
+    else
+        None;
+    Optional.map(marker, fn(mark) = {
+        let #(_, rest) = List.span(String.toList(trimmed), fn(char) = char == mark);
+        match rest {
+            ' ' :: text -> String.fromList(text)
+          | '\t' :: text -> String.fromList(text)
+          | text -> String.fromList(text)
+        }
+    })
+}
+
+// The comment's words added to the block, which a blank comment line ends
+// and a list item begins anew.
+fn commented(file : String,
+             measure : Int,
+             reading : CommentReading,
+             comment : String) : CommentReading = {
+    let count = List.size(String.words(comment));
+    let chars = String.toList(comment);
+    let isItemBegun =
+        isBullet(chars)
+            || match afterNumber(chars) {
+                Some('.' :: ' ' :: _) -> true
+              | _ -> false
+            };
+    if count == 0 then
+        blockEnded(file, measure, reading)
+    else {
+        let begun = if isItemBegun then blockEnded(file, measure, reading) else reading;
+        let started = if begun.words == 0 then begun.line else begun.start;
+        CommentReading(..begun, start = started, words = begun.words + count)
+    }
+}
+
+// The block ended: kept where it is past the measure.
+fn blockEnded(file : String, measure : Int, reading : CommentReading) : CommentReading = {
+    let found = if reading.words > measure then
+        Block(=file, line = reading.start, words = reading.words) :: reading.found
+    else
+        reading.found;
+    CommentReading(..reading, words = 0, =found)
+}
+
+fn shownBlock(block : Block) : String =
+    block.file <> ":" <> Int.toString(block.line) <> ": " <> Int.toString(block.words) <> " words"
+
+//
+// Tests
+//
+
+let pastMeasure : String = String.trim(String.repeat("word ", 151))
+
+/// A paragraph past the measure is listed at its line; one at the measure is not.
+let listsThePastMeasure = Test.Case(name = "lists a paragraph past the measure", run = fn() = {
+    let text =
+        "# Title\n\nshort\n\n" <> pastMeasure <> "\n\n" <> String.trim(String.repeat("w ", 150));
+    Test.equal(List.map(paragraphsOf("f.md", text, 150),
+                        fn(paragraph) = #(paragraph.line, paragraph.words)),
+               [#(5, 151)])
+})
+
+/// A heading, a table row, a tag and fenced code are not measured, and nor is
+/// a heading that ends a list item by its indentation.
+let leavesUnmeasured =
+    Test.Case(name = "leaves a heading, a table, a tag and a fence unmeasured", run = fn() = {
+        let text =
+            "# "
+                <> pastMeasure
+                <> "\n\n| "
+                <> pastMeasure
+                <> "\n\n<"
+                <> pastMeasure
+                <> "\n\n```\n"
+                <> pastMeasure
+                <> "\n```\n\n- item\n# "
+                <> pastMeasure
+                <> "\n";
+        Test.equal(paragraphsOf("f.md", text, 150), [])
+    })
+
+/// A list item is a paragraph of its own, which ends at the next item and
+/// where its lines stop being indented past it; a numbered item may carry a
+/// letter.
+let readsItems = Test.Case(name = "reads a list item as a paragraph", run = fn() = {
+    let text =
+        "- "
+            <> pastMeasure
+            <> "\n- short\n  "
+            <> pastMeasure
+            <> "\nplain after\n1a. "
+            <> pastMeasure
+            <> "\n";
+    Test.equal(List.map(paragraphsOf("f.md", text, 150),
+                        fn(paragraph) = #(paragraph.file, paragraph.line)),
+               [#("f.md", 1), #("f.md", 2), #("f.md", 5)])
+})
+
+/// A paragraph is shown by its first 60 bytes, a character they cut short
+/// left out.
+let showsTheBeginning = Test.Case(name = "shows a paragraph's first bytes", run = fn() = {
+    let line = String.repeat("a", 59) <> "§ and more";
+    Test.equal(List.map(paragraphsOf("f.md", line, 2), shown),
+               ["f.md:1: 3 words  " <> String.repeat("a", 59)])
+})
+
+/// A comment block past the measure is listed at its first line, in Ernest
+/// and in Erlang, a doc block among them; code ends a block.
+let listsTheLongBlock = Test.Case(name = "lists a comment block past the measure", run = fn() = {
+    let text =
+        "// short\nfn f() = 1\n    /// "
+            <> pastMeasure
+            <> "\n%%% one more\nx.\n%% "
+            <> String.trim(String.repeat("w ", 150))
+            <> "\n";
+    Test.equal(List.map(blocksOf("f.ern", text, 150), fn(block) = #(block.line, block.words)),
+               [#(3, 153)])
+})
+
+/// A blank comment line ends a block, and a list item in a comment begins one.
+let splitsBlocks =
+    Test.Case(name = "ends a comment block at a blank line and an item", run = fn() = {
+        let text =
+            "// "
+                <> pastMeasure
+                <> "\n//\n// "
+                <> pastMeasure
+                <> "\n// - "
+                <> pastMeasure
+                <> "\n//   indented, no item\n// 1. "
+                <> pastMeasure
+                <> "\n";
+        Test.equal(List.map(blocksOf("f.ern", text, 150), fn(block) = #(block.line, block.words)),
+                   [#(1, 151), #(3, 151), #(4, 155), #(6, 152)])
+    })

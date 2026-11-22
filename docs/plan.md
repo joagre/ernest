@@ -112,21 +112,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
    Before its readers start:
 
-   - **The three tools in Ernest**, decided 2026-11-23 (the log's *The Decisions Before the
-     Readers*). `tools/paragraphs.sh` and `tools/comments.sh` become one program,
-     `tools/words.ern`, whose two jobs are the two listings, each taking the scripts'
-     optional count and writing the scripts' lines. Its paragraphs' reading is that of the
-     template's `tools/docs.ern`. `make paragraphs`, `make comments` and the two style tests
-     run it, and the scripts go, once it lists what they list over the tree at 100 and
-     at 150.
-
-     `tools/unicode_width.escript` becomes `tools/unicode_width.ern`, which `make unicode`
-     runs. It reads the host's Unicode version through a foreign declaration and refuses
-     data of another version, as the escript does. It is checked by writing today's table
-     byte for byte from the data of OTP 29.1.2's `lib/stdlib/uc_spec`, and the escript goes.
-
-     `docs/development.md`, `docs/code_style.md` and each comment that names one of the
-     three follow in the same commit.
+   - **The three tools in Ernest**, done 2026-11-23 (the log's *The Three Tools in
+     Ernest*): `tools/words.ern` and `tools/unicode_width.ern`, the scripts and the escript
+     gone.
    - **The checks that cost cycles**, built, decided with the user 2026-11-10, so that the
      readers start from what a tool lists (the log's *The Listings Before a Review*).
 
@@ -179,7 +167,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      question 5 says.
 
      Ernest's session writes it against the archive of the commit the readers are to read,
-     and runs `make` in each. A defect of Ernest's that the three show is mended and the
+     and runs `make` in each. The template's `tools/docs.ern` takes `tools/words.ern`'s
+     reading of a paragraph in the same write, so that one rule has one reading (the log's
+     *The Three Tools in Ernest*). A defect of Ernest's that the three show is mended and the
      archive made again, before the commit is named and the readers start. What fails for
      the application's own code goes to its session in the message.
 
