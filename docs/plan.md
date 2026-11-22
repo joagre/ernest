@@ -22,10 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 3**, the raise a
-primitive catches, which is taken before item 2, the cost. Its reading is made and its
-report to OTP written, and its sentences are in the report; every decision is made, and one agent writes the bench's
-row, the echoes in the code and a test.
+**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 2**, the cost. Item 3,
+the raise a primitive catches, was taken before it and is closed since 2026-11-22.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -73,74 +71,19 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    the node's memory peaked at 4.4 GB while their reports were written, about 220 KB a
    report. An agent first shows what one fault's report holds and what many at once add, and
    the fix's shape follows what it shows.
-3. **The raise a primitive catches**, `ern_json:decode` among them, whose cost grows with the
-   caller's stack, 0.4 microseconds on a shallow stack and 110 at 100,000 frames, the trace's
-   capture (found 2026-11-01; the log's *The Four Libraries*): read in erts and taken to
-   `otp_bugs.md`, or decided against the trace `backtrace_depth` keeps.
+3. **The raise a primitive catches**, read, decided and closed 2026-11-22 (the log's *What a
+   Raise Reads*, which names the entry of each decision). A raise reads a recursion of one
+   call beneath it whole, a defect of OTP's, `docs/otp_bugs.md`'s report 28, whose filing is
+   the user's. The depth stays 64. §10 and E.28 say what a raise reads and what the host
+   keeps, the bench holds a row for a raise beneath 100,000 frames of one call, and what
+   Ernest could build against the square a map meets is MVP 4.5's item 167.
 
-   It is taken before item 2, whole, decided with the user 2026-11-19 (the log's *The Plan
-   Read for Build Order*). Its verdict may change the depth, which E.28 and §10 state, or add
-   the bench a row for a raise beneath a deep stack, and item 2 then reads the bench once.
-
-   **Read 2026-11-22** in OTP 29.1.2's erts, by probes of OTP alone and of Ernest kept
-   outside the repository. Every raise saves the stack's return addresses where it is
-   raised, a throw and one caught where it is made among them (`handle_error` calls
-   `save_stacktrace`, `erts/emulator/beam/beam_common.c`). The walk, `gather_stacktrace`, goes
-   down from the raise and stops once it holds the depth's count of entries, but counts an
-   address only where it differs from the one above it. So a run of frames that return to one
-   call site, a body recursion such as `List.map`'s, is one entry, and the walk crosses it
-   whole, 0.6 to 0.75 nanoseconds a frame on nike, unless the entries fill above it.
-
-   Where the catch stands does not bound the walk. The trace's terms are built only where a
-   catch uses the stack trace or the error ends the process. An entry is a word, beside the
-   arguments of a host function that raised, which the trace keeps: what item 2's one
-   candidate and item 123 rest on.
-
-   Shown: a refused text costs `Json.parse` 2.1 microseconds on a shallow stack and 76
-   beneath 100,000 frames of one call site, and a caught `error` in Erlang alone 0.13 and 64.
-   At the host's default depth, 8, `Json.parse`'s own frames fill the entries, and it costs 2
-   to 5 microseconds at every depth. At 12, E.21's twelve lines, the run is crossed again.
-   `process_info`'s stack, which `Code.running` reads, is the same walk: a process whose
-   frame of `f` lies beneath 1,000 frames of one call site is listed, and one beneath 1,000
-   frames of two call sites in turn is not.
-
-   A program meets it as a square. `List.map` runs its function for element k beneath k
-   frames of one call site, so a map over texts that `String.toInt` refuses reads them all
-   at each: 80,000 texts take 2.7 seconds, against 5 milliseconds where each is an integer.
-   `Json.parse` refused costs the same, and `String.toFloat`, which takes no raise for a
-   refused text, 3 milliseconds. OTP alone shows it at its default depth, `lists:map/2` over
-   160,000 binaries with `binary_to_integer/1` caught, in 10.9 seconds against 4 milliseconds.
-
-   So the walk is OTP's defect, and two sentences of the report were false, which the line
-   mends before the launch. §10's "costs the frames the host keeps of the stack, 64": a raise
-   beneath a deep recursion costs the recursion. E.28's "a process whose such frame lies
-   beneath them is not listed": the host's 64 count a run of one call site once. `Code`'s
-   doc, the guide's §8.9 and the comments of `ern_rt:run_main/3`, `ern_code:running/1` and
-   the bench's `raises` repeat them.
-
-   **Reported 2026-11-22**, decided with the user: `docs/otp_bugs.md`'s report 28, whose
-   reproduction is the map (the log's *The Raise's Walk Reported*). Its filing is the user's.
-
-   **The depth stays 64**, decided with the user 2026-11-22 (the log's *The Depth Stays 64*).
-
-   **A narrower sentence alone answers the square**, decided with the user 2026-11-22, and
-   what Ernest could build against it is MVP 4.5's item 167 (the log's *The Sentence Alone
-   for the Square*).
-
-   **The sentences are written**, decided with the user 2026-11-22 (the log's *The Raise's
-   Sentences*): §10's bullet on a raise, E.28's sentence on the 64 frames, a clause each in
-   E.5 and E.20 that names the primitives whose `None` is the host's raise, and the
-   guide's §8.9.
-
-   **The bench gains one row**, decided with the user 2026-11-22 (the log's *A Row for a
-   Raise Beneath a Recursion*): a refused `String.toInt` beneath 100,000 frames of one call,
-   at depth 64 alone, beside the host's caught `badarg` there. Item 2 reads the bench with
-   the row in it.
-
-   **Left, for one agent**, every decision made: the row; the sentences' echoes in `Code`'s
-   doc and in the comments of `ern_rt:run_main/3`, `ern_code:running/1` and the bench's
-   `raises`; and a test of E.28's clause, a process beneath 1,000 frames of one call listed
-   and one beneath frames of two calls in turn not. The item closes on `make test-full`.
+   Item 2 and item 123 rest on two things the reading showed. A trace's terms are built only
+   where a catch uses the stack trace or the error ends the process. An entry of the stack a
+   raise saves is a word, beside the arguments of a host function that raised, which the
+   trace keeps. And the bench's host twin ran its rows beneath forty frames on a shallow
+   stack until this item, so the ratios of those rows in the log before 2026-11-22 are too
+   high, a refused `String.toInt`'s by about a quarter and a fault's by about a tenth.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.

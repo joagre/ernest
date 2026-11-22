@@ -3,12 +3,12 @@
 %% Ernest program runs them, the fastest of three runs of a loop, and
 %% printed beside what the Ernest program took, in nanoseconds an iteration,
 %% the loop's own cost included on both sides; a raise at each backtrace
-%% depth (Appendix E.21, report §10), the median of seven runs, with their
-%% range. It measures and asserts nothing, so it is not part of `make
-%% test-full`.
+%% depth and beneath a deep recursion at the runtime's (Appendix E.21,
+%% report §10), the median of seven runs, with their range. It measures
+%% and asserts nothing, so it is not part of `make test-full`.
 -module(ern_bench).
 
--export([main/1]).
+-export([main/1, deepened/2]).
 
 %% Prints the table for the Ernest program's lines in File, `key n ms` each,
 %% and halts.
@@ -18,13 +18,13 @@ main([File]) ->
     Lines = [string:lexemes(Line, " ") || Line <- string:lexemes(binary_to_list(Text), "\n")],
     Server = spawn(fun serve/0),
     Operations = operations(Server),
-    io:format("~-40s ~9s ~9s ~7s~n", ["ns an iteration", "Ernest", "Erlang", "ratio"]),
+    io:format("~-52s ~9s ~9s ~7s~n", ["ns an iteration", "Ernest", "Erlang", "ratio"]),
     lists:foreach(fun([Key, Iterations, Ms]) ->
                       {Name, Operation} = maps:get(Key, Operations),
                       Count = list_to_integer(Iterations),
                       Ernest = list_to_integer(Ms) * 1.0e6 / Count,
                       Erlang = fastest(Count, Operation),
-                      io:format("~-40s ~9.1f ~9.1f ~6.2fx~n",
+                      io:format("~-52s ~9.1f ~9.1f ~6.2fx~n",
                                 [Name, Ernest, Erlang, Ernest / Erlang]);
                      ([Key, Iterations | Micros]) ->
                       raised(Key, list_to_integer(Iterations),
@@ -44,26 +44,29 @@ raised(Key, Count, [Median, Low, High]) ->
                                 || _ <- lists:seq(1, 7)]),
     erlang:system_flag(backtrace_depth, Previous),
     PerIteration = fun(Micros) -> Micros * 1000 / Count end,
-    io:format("~-40s ~9.1f ~9.1f ~6.2fx  ~.1f to ~.1f, ~.1f to ~.1f~n",
+    io:format("~-52s ~9.1f ~9.1f ~6.2fx  ~.1f to ~.1f, ~.1f to ~.1f~n",
               [Name, PerIteration(Median), Erlang, PerIteration(Median) / Erlang,
                PerIteration(Low), PerIteration(High), ErlangLow, ErlangHigh]).
 
 %% A raise's key, `raise_` or `fault_`, then `deep_` where it is made
-%% beneath forty frames, then the depth: its row's name, the depth, the
-%% frames the loop runs beneath, and the same raise as Erlang writes it, a
-%% badarg taken by a try, the loop beneath forty frames where it is deep,
-%% or a process that ends by it, beneath forty frames of its own where it
-%% is deep, its exit not logged, and its 'DOWN' received.
+%% beneath forty frames of one call or `deeper_` beneath 100,000, then the
+%% depth: its row's name, the depth, the frames the loop runs beneath, and
+%% the same raise as Erlang writes it, a badarg taken by a try, the loop
+%% beneath those frames where it is deep, or a process that ends by it,
+%% beneath forty frames of its own where it is deep, its exit not logged,
+%% and its 'DOWN' received. Report §10: the host keeps the frames of one
+%% call as one, and each raise reads them whole.
 raise(Key) ->
     [Kind | Rest] = string:lexemes(Key, "_"),
     {Deep, Depth} = case Rest of
                         ["deep", Number] -> {40, list_to_integer(Number)};
+                        ["deeper", Number] -> {100000, list_to_integer(Number)};
                         [Number] -> {0, list_to_integer(Number)}
                     end,
     Text = binary:copy(<<"x">>),
     Where = case Deep of
                 0 -> "";
-                _ -> " beneath 40 frames"
+                _ -> io_lib:format(" beneath ~B frames", [Deep])
             end,
     case Kind of
         "raise" ->
@@ -89,7 +92,12 @@ raise(Key) ->
              end}
     end.
 
-%% Run beneath Count frames, none a tail call, as bench.ern's deepened/2.
+%% Run beneath Count frames, none a tail call, each returning to one call,
+%% as bench.ern's deepened/2. It is exported so that the host's compiler
+%% knows nothing of what Run answers: where it knows every caller's Run
+%% answers a number, it drops the `+ 0` and makes the call a tail call,
+%% which leaves no frame.
+-spec deepened(non_neg_integer(), fun(() -> number())) -> number().
 deepened(0, Run) -> Run();
 deepened(Count, Run) -> deepened(Count - 1, Run) + 0.
 

@@ -1034,9 +1034,10 @@ dependencies(Unit) ->
 %% definition's own body is the definition's. The scan reads each process's
 %% stack once, its input being the node's processes.
 %%
-%% Appendix E.28: the host keeps at most the innermost 64 frames of a
-%% stack, which the runtime sets at its start (ern_rt:run_main/3), so a
-%% frame beneath them is not seen.
+%% Appendix E.28, report §10: the host keeps at most the innermost 64
+%% frames of a stack, which the runtime sets at its start
+%% (ern_rt:run_main/3), and keeps consecutive frames that return to one
+%% call as one, so a frame beneath the 64 kept is not seen.
 -spec running(binary()) -> [pid()].
 running(Hash) ->
     Names = lists:usort([{QualifiedName, Mailbox}

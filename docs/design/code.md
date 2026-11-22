@@ -78,7 +78,7 @@ The evaluator is the runtime's one way of evaluating a load, a shell's `:load` a
 
 `Code.running(f)` is a form the compiler reads: it answers the addresses of the processes on this node whose stack holds, at the moment of the call, a frame of the definition `f` reaches, or of a definition of one of its names whose mailbox type has the same hash, on any version or arrival the node holds (§3.11, Appendix E.28; the log's *What `running` Finds*). A program moves the processes it lists by its own `send` to each, as §6.10 moves them: the runtime moves nothing.
 
-The call names `f` by its hash alone, so its names are those the units that hold it list it under, and a name's definitions are read from the code lists of the units that hold functions under its namespace, each function listed with its mailbox type's hash (the log's *What `running` Finds, Built*). The stacks are the host's, read through the code table; the host keeps the innermost sixty-four frames, which the runtime sets at its start, so a process whose frame lies beneath them is not listed (§10).
+The call names `f` by its hash alone, so its names are those the units that hold it list it under, and a name's definitions are read from the code lists of the units that hold functions under its namespace, each function listed with its mailbox type's hash (the log's *What `running` Finds, Built*). The stacks are the host's, read through the code table; the host keeps the innermost sixty-four frames, which the runtime sets at its start, consecutive frames that return to one call as one, so a process whose frame lies beneath the sixty-four kept is not listed (§10).
 
 ## The host's counts
 

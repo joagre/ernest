@@ -136,9 +136,10 @@ export foreign fn hashes(path : Path) : Either(Io.Error, List(#(String, String))
 /// listed.
 ///
 /// The list is a snapshot: a process may have left `f`, or ended, by the time
-/// it is sent to. The host keeps at most the innermost 64 frames of a stack, so
-/// a process whose such frame lies beneath them is not listed. `running` is
-/// called where it is named, and is no value (report §3.11).
+/// it is sent to. The host keeps at most the innermost 64 frames of a stack,
+/// and keeps consecutive frames that return to one call as one, so a process
+/// whose such frame lies beneath the 64 kept is not listed (report §10).
+/// `running` is called where it is named, and is no value (report §3.11).
 ///
 /// ### Examples
 ///

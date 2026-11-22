@@ -1212,6 +1212,56 @@ running_program() ->
     "        _ -> ended(left - 1)\n"
     "    }\n".
 
+%% Appendix E.28, report §10: the host keeps consecutive frames that return
+%% to one call as one, so a process whose frame of `waiter` lies beneath
+%% 1,000 frames of one call is listed, and one whose frame lies beneath
+%% 1,000 frames of two calls in turn, past the 64 kept, is not
+running_beneath_a_recursion_test() ->
+    Dir = tmp(),
+    Main = write(Dir, "main.ern", running_beneath_program()),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"one call true">>, <<"two calls false">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
+running_beneath_program() ->
+    "type MainMsg = Deepened\n\n"
+    "type WaiterMsg = Stop\n\n"
+    "export fn main() : Unit receiving MainMsg = {\n"
+    "    let starter = self();\n"
+    "    let one = deepened(fn(count) = oneCall(count, starter));\n"
+    "    let two = deepened(fn(count) = twoCalls(count, starter));\n"
+    "    let listed = List.map(Code.running(waiter), Process.fromAddress);\n"
+    "    let shown = fn(process) = Io.show(List.contains(listed, Process.fromAddress(process)));\n"
+    "    Io.println(\"one call \" <> shown(one));\n"
+    "    Io.println(\"two calls \" <> shown(two));\n"
+    "    send(one, Stop);\n"
+    "    send(two, Stop)\n"
+    "}\n\n"
+    "// A process on waiter, once its stack holds the frames deepen gives.\n"
+    "fn deepened(deepen : (Int) -> Int receiving WaiterMsg) "
+    ": Address(WaiterMsg) receiving MainMsg = {\n"
+    "    let process = spawn(fn() = waiter(deepen));\n"
+    "    receive {\n"
+    "        Deepened -> process\n"
+    "    }\n"
+    "}\n\n"
+    "fn waiter(deepen : (Int) -> Int receiving WaiterMsg) : Unit receiving WaiterMsg = {\n"
+    "    let _ = deepen(1000);\n"
+    "    Unit\n"
+    "}\n\n"
+    "fn oneCall(count : Int, starter : Address(MainMsg)) : Int receiving WaiterMsg =\n"
+    "    if count == 0 then waitForStop(starter) else 1 + oneCall(count - 1, starter)\n\n"
+    "fn twoCalls(count : Int, starter : Address(MainMsg)) : Int receiving WaiterMsg =\n"
+    "    if count == 0 then waitForStop(starter) else 1 + otherCall(count - 1, starter)\n\n"
+    "fn otherCall(count : Int, starter : Address(MainMsg)) : Int receiving WaiterMsg =\n"
+    "    if count == 0 then waitForStop(starter) else 1 + twoCalls(count - 1, starter)\n\n"
+    "fn waitForStop(starter : Address(MainMsg)) : Int receiving WaiterMsg = {\n"
+    "    send(starter, Deepened);\n"
+    "    receive {\n"
+    "        Stop -> 0\n"
+    "    }\n"
+    "}\n".
+
 %% Appendix E.28: a definition of the named function's qualified name whose
 %% mailbox type is its own, on whichever version of its module the node
 %% holds, is found: a build whose fix in the loop's callee gives the loop a

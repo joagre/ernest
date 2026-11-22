@@ -4463,9 +4463,10 @@ run_main(EntryPoint, Site, Options) ->
     make_tables(),
     %% Appendix E.28, E.21, report §10: the host keeps at most the innermost
     %% 64 frames of a stack, which Code.running reads (ern_code:running/1),
-    %% where its backtrace depth names as many, eight by default; each raise
-    %% saves that many, a fraction of its cost, and a fault's trace shows
-    %% the innermost twelve (trace/1)
+    %% where its backtrace depth names as many, eight by default, and keeps
+    %% consecutive frames that return to one call as one; each raise reads
+    %% the stack until it has kept that many, a run of one call whole, and a
+    %% fault's trace shows the innermost twelve (trace/1)
     _ = erlang:system_flag(backtrace_depth, 64),
     Launch = launched(Options),
     Runner = erlang:self(),

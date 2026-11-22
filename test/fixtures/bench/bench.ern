@@ -2,9 +2,10 @@
 // The benchmark of `make bench` (test/bench/ern_bench.erl): each operation run in
 // a loop of its own three times, and the fastest run printed as the
 // operation's key, the loop's count and the milliseconds it took; a raise,
-// at each backtrace depth, in seven loops, and their median and range
-// printed in microseconds. ern_bench runs the same operations as Erlang
-// writes them and prints the two side by side.
+// at each backtrace depth and beneath a deep recursion at the runtime's,
+// in seven loops, and their median and range printed in microseconds.
+// ern_bench runs the same operations as Erlang writes them and prints the
+// two side by side.
 //
 
 type Msg = Ping(Int)
@@ -121,15 +122,18 @@ export fn main() : Unit receiving Msg = {
     Unit
 }
 
-// Appendix E.21, E.28, report §10: a raise in the host saves as many frames
-// of the stack as the host's backtrace depth names, which the runtime sets
-// to 64 at its start; at each depth, a failing String.toInt, whose shim
-// takes the host's raise, and a foreign function that raises, which faults
-// its process, each on a shallow stack and beneath forty frames. The depth
-// is set here, by the measuring program, and set back to the runtime's
-// after; a fault is reported on standard error, which make bench writes to
-// a file.
-fn raises(depths : List(Int)) : Unit receiving Msg =
+// Appendix E.21, E.28, report §10: a raise in the host reads the stack
+// until it has kept as many frames as the host's backtrace depth names,
+// which the runtime sets to 64 at its start, and keeps consecutive frames
+// that return to one call as one, read whole. At each depth, a failing
+// String.toInt, whose shim takes the host's raise, and a foreign function
+// that raises, which faults its process, each on a shallow stack and
+// beneath forty frames of one call; at 64, the failing String.toInt
+// beneath 100,000 frames of one call, which each raise reads whole. The
+// depth is set here, by the measuring program, and set back to the
+// runtime's after; a fault is reported on standard error, which make bench
+// writes to a file.
+fn raises(depths : List(Int)) : Unit receiving Msg = {
     List.forEach(depths, fn(depth) = {
         let _ = systemFlag(backtraceDepth, depth);
         let suffix = Int.toString(depth);
@@ -140,7 +144,14 @@ fn raises(depths : List(Int)) : Unit receiving Msg =
         });
         measureRuns("fault_" <> suffix, 300, fn(index) = faulted(index, 0));
         measureRuns("fault_deep_" <> suffix, 300, fn(index) = faulted(index, 40))
-    })
+    });
+    let _ = systemFlag(backtraceDepth, 64);
+    let _ = deepened(100000, fn() = {
+        measureRuns("raise_deeper_64", 10000, failedToInt);
+        0
+    });
+    Unit
+}
 
 fn failedToInt(index : Int) : Int =
     Optional.withDefault(String.toInt("x"), index)
@@ -157,7 +168,8 @@ fn faulted(index : Int, depth : Int) : Int receiving Msg = {
     }
 }
 
-// f run beneath `count` frames of this function's own, none a tail call.
+// f run beneath `count` frames of this function's own, none a tail call,
+// each returning to one call, which the host keeps as one frame.
 fn deepened(count : Int, f : () -> Int receiving m) : Int receiving m =
     if count == 0 then f() else deepened(count - 1, f) + 0
 
