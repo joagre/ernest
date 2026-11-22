@@ -389,13 +389,9 @@ fn tailRowsOf(region : Region) : List(String) = {
 // text that ends in a line feed is being typed on a new empty row, and
 // that row is shown.
 fn inputRows(region : Region) : List(String) =
-    match String.split(region.typed, "\n") {
-        [] ->
-            [region.prompt]
-      | first :: rest ->
-            (region.prompt <> pictured(first))
-                :: List.map(rest, fn(line) = continuation <> pictured(line))
-    }
+    List.map(List.indexed(String.split(region.typed, "\n")),
+             fn(#(index, line)) =
+                 (if index == 0 then region.prompt else continuation) <> pictured(line))
 
 // Report §11.2, §11.5: a control character of what is typed is painted as
 // its picture, `␛` for U+001B, one of U+0080 to U+009F as U+FFFD, so that
@@ -547,9 +543,13 @@ fn styled(style : String, escape : String) : String =
 
 // The text up to each line feed, and what is left without one.
 fn split(text : String) : #(List(String), String) =
-    match String.split(text, "\n") {
-        [] -> #([], "")
-      | parts -> #(List.dropLast(parts, 1), Optional.withDefault(List.last(parts), ""))
+    match String.splitOnce(text, "\n") {
+        None ->
+            #([], text)
+      | Some(#(line, rest)) -> {
+            let #(lines, left) = split(rest);
+            #(line :: lines, left)
+        }
     }
 
 //

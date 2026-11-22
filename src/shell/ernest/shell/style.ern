@@ -14,9 +14,9 @@ export fn fault(text : String, color : Markdown.Output) : String =
 /// A diagnostic, its first line colored as a fault, the source under it
 /// plain.
 export fn diagnostic(text : String, color : Markdown.Output) : String =
-    match String.split(text, "\n") {
-        [] -> text
-      | first :: rest -> String.join(fault(first, color) :: rest, "\n")
+    match String.splitOnce(text, "\n") {
+        None -> fault(text, color)
+      | Some(#(first, rest)) -> fault(first, color) <> "\n" <> rest
     }
 
 /// The type after a printed value, dimmed so that the value stands out.

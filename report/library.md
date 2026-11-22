@@ -638,7 +638,7 @@ A relative path names a file under the working directory, `Os.workingDirectory` 
 
 A path whose segment before its last, or whose last followed by a separator, names anything but a directory, `index.html/x`, `index.html/x/y` and `index.html/` where `index.html` is a regular file, leads to nothing, and each function answers `Left(NotFound)` for it, as for a path that names nothing; so does a path through a loop of links, as a link that leads nowhere is answered. A path with a name longer than the host holds, or longer as a whole than the host holds, is `Left(Invalid)`, as one that holds U+0000 is.
 
-The path `write` and `append` take, and the second path of `copy`, may name nothing, and the file is then created. A file is created with the permission bits the host's mask leaves of `0o666`. One `copy` creates takes those the mask leaves of the source's bits below `0o1000`, set before a byte is written; one `copy` writes over keeps its own.
+The path `write` and `append` take, and the second path of `copy`, may name nothing, and the file is then created. A file is created with the permission bits the host's mask leaves of `0o666`. One `copy` creates takes those the mask leaves of the source's bits below `0o1000`, set before a byte is written; one `copy` writes over keeps its own. A file copied onto itself, by one path or by two, keeps its content. What a copy that fails leaves in the second is unspecified.
 
 A function follows the symbolic links of the paths it is given, but for a path's last segment where it names a link: `list` describes each entry as it is, a link as a `Link`, and `remove`, `rename`, and `readLink` act on the link itself. Each `Other` in an answer here is `Io.Error`'s, which says why, and not `Kind`'s, which is a kind of entry.
 

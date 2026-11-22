@@ -181,13 +181,21 @@ range(Text, Offset, Count) ->
 %% A destination the stat found missing is made with the source's
 %% permission bits less the program's mask, as cp(1) makes it, set before a
 %% byte is written; one it found keeps its own.
+%%
+%% The destination is not emptied before the copy: it is opened for
+%% reading and writing, which cuts nothing (written_over/1), copied into
+%% from its start, and cut where the copy ended (cut/2). A file copied onto
+%% itself, by one path or by two, has each byte written over itself, and
+%% keeps its content. A copy that fails midway leaves the source's bytes up
+%% to where it failed and the destination's old bytes past them, but for a
+%% destination that may not be read, whose open cut it.
 copy(Source, #file_info{mode = Mode}, Destination, Found) ->
     case file:open(Source, [read, raw, binary]) of
         {ok, From} ->
-            Copied = case file:open(Destination, [write, raw, binary]) of
+            Copied = case written_over(Destination) of
                          {ok, To} ->
                              Written = case made_mode(Destination, Mode, Found) of
-                                           ok -> file:copy(From, To);
+                                           ok -> cut(file:copy(From, To), To);
                                            Refused -> Refused
                                        end,
                              closed(Written, file:close(To));
@@ -199,6 +207,29 @@ copy(Source, #file_info{mode = Mode}, Destination, Found) ->
         Error ->
             Error
     end.
+
+%% The destination opened to be written over from its start. The host
+%% refuses an open for reading and writing of a file that may not be read
+%% and of one that may not be written alike; the open for writing alone
+%% then decides, which cuts a file that may be written and refuses one
+%% that may not, cutting nothing. A destination that may not be read is no
+%% file of the source's, which was just opened for reading, so the cut
+%% loses none of the source.
+written_over(Destination) ->
+    case file:open(Destination, [read, write, raw, binary]) of
+        {error, eacces} -> file:open(Destination, [write, raw, binary]);
+        Opened -> Opened
+    end.
+
+%% A copy's answer, the destination cut where the copy ended, at the
+%% position the copy left its handle at, where the copy was whole.
+cut({ok, _} = Copied, To) ->
+    case file:truncate(To) of
+        ok -> Copied;
+        Error -> Error
+    end;
+cut(Error, _) ->
+    Error.
 
 made_mode(Destination, Mode, none) ->
     file:change_mode(Destination, Mode band 8#777 band bnot ern_os:umask());

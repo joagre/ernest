@@ -1118,6 +1118,57 @@ fs_copy_mode_test() ->
     ?assertEqual({ok, <<"run">>}, file:read_file(Name("kept"))),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: a file copied onto itself keeps its content, by
+%% its own path, by a hard link to it and by a path through `..`, and each
+%% copy answers `Right(Unit)`; a copy onto a longer file leaves none of its
+%% old tail, and one between two files copies. Where the test does not run
+%% as root, a destination that may be written and not read is copied onto,
+%% keeping its bits, and one that may be read and not written is `Denied`
+%% and keeps its bytes. A regression test, written after the code: a copy
+%% onto itself left the file empty
+fs_copy_onto_itself_test() ->
+    Self = self(),
+    Dir = scratch("ern_copy_itself_"),
+    ok = filelib:ensure_path(filename:join(Dir, "sub")),
+    Name = fun(File) -> filename:join(Dir, File) end,
+    InDir = fun(File) -> {'Path', unicode:characters_to_binary(Name(File))} end,
+    Bytes = binary:copy(<<"twelve bytes">>, 10000),
+    ok = file:write_file(Name("kept"), Bytes),
+    ok = file:make_link(Name("kept"), Name("linked")),
+    ok = file:write_file(Name("short"), <<"short">>),
+    ok = file:write_file(Name("longer"), <<"a longer file">>),
+    ok = file:write_file(Name("other"), <<"old">>),
+    ok = file:write_file(Name("unreadable"), <<"cannot be read">>),
+    ok = file:change_mode(Name("unreadable"), 8#200),
+    ok = file:write_file(Name("unwritable"), <<"cannot be written">>),
+    ok = file:change_mode(Name("unwritable"), 8#400),
+    %% root reads and writes every file, and each copy of its copies
+    {Denied, Unwritable} = case string:trim(os:cmd("id -u")) of
+                               "0" -> {{'Right', 'Unit'}, <<"short">>};
+                               _ -> {{'Left', 'Denied'}, <<"cannot be written">>}
+                           end,
+    Copy = (ern_named:functions('ern@fs'))(copy),
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Self ! {fs, Copy(InDir("kept"), InDir("kept"), 5000)},
+                           Self ! {fs, Copy(InDir("kept"), InDir("linked"), 5000)},
+                           Self ! {fs, Copy(InDir("sub/../kept"), InDir("kept"), 5000)},
+                           Self ! {fs, Copy(InDir("short"), InDir("longer"), 5000)},
+                           Self ! {fs, Copy(InDir("kept"), InDir("other"), 5000)},
+                           Self ! {fs, Copy(InDir("short"), InDir("unreadable"), 5000)},
+                           Self ! {fs, Copy(InDir("short"), InDir("unwritable"), 5000)}
+                       end, <<"fs_copy_onto_itself_test">>, #{})),
+    ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}) ++ [Denied], collect(fs, [])),
+    ?assertEqual({ok, Bytes}, file:read_file(Name("kept"))),
+    ?assertEqual({ok, <<"short">>}, file:read_file(Name("longer"))),
+    ?assertEqual({ok, Bytes}, file:read_file(Name("other"))),
+    {ok, #file_info{mode = Unreadable}} = file:read_file_info(Name("unreadable")),
+    ?assertEqual(8#200, Unreadable band 8#7777),
+    ok = file:change_mode(Name("unreadable"), 8#600),
+    ?assertEqual({ok, <<"short">>}, file:read_file(Name("unreadable"))),
+    ?assertEqual({ok, Unwritable}, file:read_file(Name("unwritable"))),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: `write`, `append` and `copy` read each path's kind
 %% by one stat, whose answer decides, and a copy onto a file that exists
 %% copies between handles of its own, around the host's file server, so it

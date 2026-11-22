@@ -264,7 +264,8 @@ export fn rename(source : Path, destination : Path, ms : Int) : Either(Io.Error,
 /// Copies the regular file at the first path to the second. A file already
 /// at the second path is replaced and keeps its permission bits. A new one
 /// takes the first file's, less the bits the program's file mode mask
-/// takes away.
+/// takes away. A file copied onto itself, by the same path or by another,
+/// keeps its content.
 ///
 /// ### Examples
 ///

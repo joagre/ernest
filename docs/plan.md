@@ -22,9 +22,9 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 2**, the cost, whose
-measuring is done since 2026-11-22 and whose decisions come next. Item 3, the raise a
-primitive catches, was taken before it and is closed since 2026-11-22.
+**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 8**, a result that is
+never empty, whose hunt comes first, and item 4, the full review, follows it. Items 2 and 3,
+the cost and the raise a primitive catches, are closed since 2026-11-22.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -51,109 +51,17 @@ until someone outside this project depends on it, so that a break would cost the
 and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
 1. **The promise**, dropped 2026-11-05 (the log's *Ernest Stays at 0.x*).
-2. **The cost.** Each row of the bench at a multiple of the host's is read: by design, a
-   message §10 states and the log argues, with what it buys and the rate at which a program
-   feels it; or a defect. The verdicts and rates are one log entry and the rules a section of
-   the runtime's design note beside how it keeps its books, `why.md`'s cost claims held to
-   them; read before the review.
+2. **The cost**, read, decided and closed 2026-11-22 (the log's *The Cost Read*, which names
+   the entry of each decision and each build). Each row of the bench at twice the host's or
+   more is by design, with what it buys and the rate at which a program feels it, or was a
+   defect and is built. §10 states what a row may pay, and `docs/design/runtime.md`'s *What
+   an operation may cost* holds the rules, with `guide/why.md`'s cost claims held to them.
 
-   The measuring was done on 2026-11-22: the fault's row made readable (the log's *The Fault
-   Row Measured First*), the bench run whole and idle, and every row at twice the host's or
-   more read against §10, E.0's line and the log, by probes and readers kept outside the
-   repository. Each finding below leaves a decision with the user, taken in this order.
-
-   - **A fault** costs 29 µs against the host's 1.8, measured in parts. A returning
-     `spawnMonitored` is 6.8 of it, and the raise, its record and its end 2.9. The cause's
-     text, an `io_lib:format`, is 7.0, and the trace's 7.4, both made in the faulting process
-     at the raise: `ern_code:function_text/2` costs a frame of a unit 1.0 to 1.3 µs, since it
-     scans the unit's `'$code'/0` and makes a list of every entry's name. The line the
-     reporter makes in the reaper is 5.4, and standard error's write costs the loop nothing.
-     About 6 µs of the two texts is the faulting process's collections from its first heap.
-
-     Decided 2026-11-22 (the log's *A Fault's Cost Decided*): the trace stays at the raise;
-     the cause's text, the line and the collections are by design, which §10 states since
-     that day; and a frame's name, whose cost grows with its unit's definitions, 28 µs a
-     fault at 14 and 444 at 1,014, is a defect. Built the same day (the log's *A Frame's Name
-     and the Own Modules, Built*): a unit's `'$code'/0` lists its functions' written names
-     first, a trace reads a name by one lookup, and a fault beneath five frames costs 21
-     to 23 µs at 14, 114 and 1,014 definitions.
-   - **What 20,000 faults at once hold**, MVP 4.16's item 123, moved here on 2026-11-19 (the
-     log's *The Line Before the Launch*) and found by item 106's probes (the log's *What a
-     Program's Helper Holds*). One report holds under a kilobyte at each step. The 4 GB is the
-     first trace of a host's life: `own_modules/0` put its persistent term at its
-     first call, so 19,400 writers that fault at once each list the toolchain's tree through
-     the host's one file server, holding about 200 KB while they wait, and the reports take
-     20 s. With the modules found first, memory rises by at most 150 MB and the reports take
-     0.7 to 7.4 s, the reaper's collections over its long mailbox setting the pace, which the
-     line's garbage doubles.
-
-     Decided 2026-11-22 (the log's *Twenty Thousand Faults at Once*): the 4 GB is a defect,
-     and the slow reports have their line in the known issues. Built the same day: the
-     run's start finds the toolchain's own modules once, in `ern_code:load_runtime/0`, a
-     trace reads them, and the cold peak is 145 to 148 MB.
-   - **A `match` guard that calls a function**, feedback 235 (the log's *The Libraries' Shims
-     Read Against E.0 Rule 1*). The old `Base64.decode` loop over 16 KB took 209 µs against
-     44 for its `&&` form, and 76 sites of the libraries and the tools match so. Decided
-     2026-11-22 (the log's *A Guard's Fallthrough Is a Function*): the emitter's form
-     changes and no sentence states the cost. Built the same day (the log's *A Guard's
-     Fallthrough, Built*): the clauses after such a guard are a function of the unit, the
-     fallthrough a tail call to it, and the loop takes 113 µs, the host's own cost for a
-     binary kept for the clauses after.
-   - **`Code.running` past such a guard**, found by that build: a process that waited in
-     the clauses a guard falls through to was not listed, against E.28. Decided with the
-     user and built 2026-11-22 (the log's *`Code.running` Past a Guard*): the frame of
-     those clauses counts as its function's, and as a lambda's or a local fn's own where
-     the match stands in one.
-   - **Three readings of the rules**, decided 2026-11-22 before the rows, since each sorts
-     many (the log's *The Cost's Rules Read*). §10's "but for a call's wait" excepts the
-     growth alone. §10's rule reaches a socket's, a listener's and a running program's
-     process and the compiled code, and no library and not the shell, which are read as
-     Ernest code. E.0's line at three times the host's function covers `Path`, and not
-     `String` or `Map`, which are held to rule 1's other test. §10's sentences and rule 1's
-     say so since that day.
-   - **The rows at a multiple that §10 states.** Stated and argued: the calls to the
-     system's and the library's processes, `Process.run`, `Supervisor`, `Proxy.start` and the
-     text functions within E.0's line. The message stated and the rows behind it not: a
-     spawn, whose end's handling alone, 1.17 µs, is more than the host's whole spawn,
-     `spawnMonitored`, and a monitor of an ended process, 18 times the host. Decided
-     2026-11-22 (the log's *The Cost's Rows Read*): each by design, `Clock.sleep`'s fixed
-     part with them, and §10's bullet on a spawn states the end's message.
-   - **The rows at a multiple that no sentence states**, those the log argues and those
-     nothing argued, decided 2026-11-22 (the log's *The Cost's Rows Read*): each is by
-     design, and §10 states the foreign return's check, the callback's and the open's
-     round trip, but for six defects.
-
-     Built the same day (the log's *The Library's Defects, Built*): `List.reverse` is a
-     shim of the host's, 1.0 to 1.1 times it; `String.stripPrefix` compares the bytes and
-     drops the prefix's graphemes once, 4.1 times where it was 4.9, the rest `String.drop`'s
-     walk; `Io.show` writes an `Int` by one conversion; and `Fs.append`, `Fs.write` and
-     `Fs.copy` decide a path's kind by one stat, `Fs.copy` copying between raw handles.
-
-     Three things that build found. A host error in a function given to a shim of the
-     standard library's, `Map.map`'s among them, faulted as the shim's raise, against
-     §12.3: decided and built 2026-11-22 (the log's *A Host Error in a Shim's Function*),
-     the shim's handler telling it by the stack, and `Map.fold` closes around the host's
-     fold, the host's own cost at every size. `Path.extension` keeps its form, an exception
-     as `Path.<>`'s, since `Path.name` around the host's `basename` left it at 3.1 to 3.2
-     times the host's at 100 bytes. To decide: `Fs.copy` of a file onto itself empties it,
-     and the host's stat, which holds a file's number in 32 bits, cannot tell one file
-     from two.
-   - **The gaps the reading left, measured.** `Bytes.toList` at 10,000 bytes is the harness's:
-     Ernest calls the host's function itself, and the host's side applies its export in a
-     process whose heap the earlier rows shaped. `Os.closeInput`'s 0.8 ms over `Os.start` is
-     mostly its place, the first program's row after the pure ones. `Clock.alarmAt` at twice
-     `alarm`, `Clock.cancel` and `Http.readRequest`'s 23 µs over `readResponse` are one run's
-     slow moment, and `Code.running`'s ratio swings with its twelve reads of a stack, Ernest
-     adding 3 µs. `Fs.append` and `Fs.copy` stat one path three times, 3.4 µs a stat, against
-     an append of 8 to 10. Half of `Io.show`'s time is the host's `characters_to_binary`, on a
-     path unchanged since the log's 1.6, which was eve's. Decided 2026-11-22: the library's
-     harness is not mended before the launch, and is MVP 4.5's item 168.
-   - **Two defects found beside them.** `Fs.copy` onto a file that exists goes through the
-     host's file server, which `ern_fs` goes around everywhere else: decided 2026-11-22, a
-     defect, fixed with `Fs`'s stats by raw handles. A
-     `Supervisor.group` whose function no process runs leaves its process waiting for the
-     run's life: decided the same day, E.22 says so, and nothing is built, since a group
-     made at its first run would need a table to be found after a restart.
+   What the item left: three lines of `docs/known_issues.md`, a crowd of faults reported
+   slowly, a copy onto itself under a capability or a policy by path, and the shell's
+   comparison of two source roots; MVP 4.5's item 168, the library bench's rows each in a
+   process of its own; the bench's reference tables, which the release makes again, since
+   the rows moved; and item 8, which its close found.
 3. **The raise a primitive catches**, read, decided and closed 2026-11-22 (the log's *What a
    Raise Reads*, which names the entry of each decision). A raise reads a recursion of one
    call beneath it whole, a defect of OTP's, `docs/otp_bugs.md`'s report 28, whose filing is
@@ -519,6 +427,28 @@ What the line left, in the order it is taken:
   become loops, which covers every raise in a function `List` calls and leaves a program's
   own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
   against keeping no code only for speed.
+
+
+8. **A result that is never empty**, feedback 274, found 2026-11-22 by item 2's close and
+   taken next, before item 4, with the user (the log's *A Clause That Cannot Run*). A
+   function that never answers an empty list has no way to say so, and each caller writes a
+   clause that cannot run. First the hunt, which sizes it, and nothing is designed before
+   its count is in:
+
+   - every function of the standard library and the libraries whose `List` result is never
+     empty, by its section of the report and its code;
+   - every site in this repository, in ernest-httpd and in ernest-epx that handles an empty
+     list from one, by readers and by the dialyzer over each repository's units, the tools'
+     among them, which `make dialyzer` does not read; the other two repositories are read
+     and not written (`docs/clean_room.md`), their finds going to their own sessions;
+   - the count, without the chase, of the wider family: a default or a clause for a case
+     the value's shape rules out, an `Optional` that is never `None` among them;
+   - how the languages of Ernest's family answer it, Erlang, Haskell, OCaml, Elm, Gleam and
+     Rust among them.
+
+   Then the design, decided with the user: the answer that holds principle 1 and is the
+   family's practice. The three sites rewritten at item 2's close, and
+   `tools/site/code_block.ern`'s clause, which stands, are read against it.
 
 ---
 
