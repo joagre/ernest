@@ -708,7 +708,7 @@ bytes_text_test() ->
     ?assertEqual(<<>>, Bytes(join)([], <<0>>)),
     ?assertEqual(<<1, 1, 1>>, Bytes(repeat)(<<1>>, 3)),
     ?assertEqual(<<>>, Bytes(repeat)(<<1>>, -2)),
-    ?assertEqual(<<"00FF1A">>, Bytes(toHex)(<<0, 255, 26>>)),
+    ?assertEqual(<<"00ff1a">>, Bytes(toHex)(<<0, 255, 26>>)),
     ?assertEqual({'Some', <<0, 255, 26>>}, Bytes(fromHex)(<<"00ff1A">>)),
     ?assertEqual('None', Bytes(fromHex)(<<"0">>)),
     ?assertEqual('None', Bytes(fromHex)(<<"0g">>)).

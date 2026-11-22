@@ -22,14 +22,14 @@
 ///
 /// ```ernest
 /// Bytes.toHex(Crypto.sha1(String.toUtf8("abc")))
-/// // => "A9993E364706816ABA3E25717850C26C9CD0D89D"
+/// // => "a9993e364706816aba3e25717850c26c9cd0d89d"
 /// ```
 ///
 /// Its SHA-256 digest, FIPS 180-4's example too:
 ///
 /// ```ernest
 /// Bytes.toHex(Crypto.sha256(String.toUtf8("abc")))
-/// // => "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"
+/// // => "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 /// ```
 ///
 /// A token of 16 random bytes, in hexadecimal, another at every call:
@@ -52,7 +52,7 @@
 ///
 /// ```ernest
 /// Bytes.toHex(Crypto.sha1(<<>>))
-/// // => "DA39A3EE5E6B4B0D3255BFEF95601890AFD80709"
+/// // => "da39a3ee5e6b4b0d3255bfef95601890afd80709"
 /// ```
 export fn sha1(bytes : Bytes) : Bytes =
     hash(Foreign.atom("sha"), bytes)
@@ -64,7 +64,7 @@ export fn sha1(bytes : Bytes) : Bytes =
 ///
 /// ```ernest
 /// Bytes.toHex(Crypto.sha256(<<>>))
-/// // => "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+/// // => "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 /// ```
 ///
 /// since 0.11.0
@@ -101,9 +101,9 @@ let sha1Digests =
     Test.Case(name = "the SHA-1 digests of no bytes and of FIPS 180-4's examples",
               run = fn() =
                   Test.equal(List.map(examples, fn(text) = Bytes.toHex(sha1(String.toUtf8(text)))),
-                             ["DA39A3EE5E6B4B0D3255BFEF95601890AFD80709",
-                              "A9993E364706816ABA3E25717850C26C9CD0D89D",
-                              "84983E441C3BD26EBAAE4AA1F95129E5E54670F1"]))
+                             ["da39a3ee5e6b4b0d3255bfef95601890afd80709",
+                              "a9993e364706816aba3e25717850c26c9cd0d89d",
+                              "84983e441c3bd26ebaae4aa1f95129e5e54670f1"]))
 
 // Report Appendix G.9: the SHA-256 digests of no bytes and of FIPS 180-4's
 // two examples, of one block and of two.
@@ -112,9 +112,9 @@ let sha256Digests =
               run = fn() =
                   Test.equal(List.map(examples,
                                       fn(text) = Bytes.toHex(sha256(String.toUtf8(text)))),
-                             ["E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-                              "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
-                              "248D6A61D20638B8E5C026930C3E6039A33CE45964FF2167F6ECEDD419DB06C1"]))
+                             ["e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                              "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"]))
 
 // No bytes, and the two texts FIPS 180-4's examples digest with each
 // algorithm.

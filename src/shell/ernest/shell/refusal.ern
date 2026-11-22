@@ -48,7 +48,7 @@ fn controlFreeChar(char : Char) : String =
 // One byte as `\xHH`, its digits in upper case, as §11 writes them.
 fn hexByte(byte : Int) : String =
     match Bytes.fromList([byte]) {
-        Some(bytes) -> "\\x" <> Bytes.toHex(bytes)
+        Some(bytes) -> "\\x" <> String.toAsciiUpper(Bytes.toHex(bytes))
       | None -> fault("a byte of UTF-8 is no octet")
     }
 

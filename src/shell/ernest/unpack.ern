@@ -217,7 +217,7 @@ fn unread(entry : Entry, path : String, error : Io.Error) : String =
 
 // The archive's SHA-256, as a manifest writes one, its letters lowercase.
 fn digest(bytes : Bytes) : String =
-    String.toAsciiLower(Bytes.toHex(Crypto.sha256(bytes)))
+    Bytes.toHex(Crypto.sha256(bytes))
 
 fn archiveName(entry : Entry) : String =
     entry.name <> "-" <> entry.version

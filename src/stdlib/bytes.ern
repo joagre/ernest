@@ -267,17 +267,17 @@ export fn repeat(bytes : Bytes, count : Int) : Bytes =
 foreign fn copied(bytes : Bytes, count : Int) : Bytes =
     "binary:copy/2"
 
-/// Each byte as two hexadecimal digits, letters in upper case: `<<255, 1>>` is
-/// `"FF01"`.
+/// Each byte as two hexadecimal digits, letters in lower case: `<<255, 1>>` is
+/// `"ff01"`.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// Bytes.toHex(<<0, 171, 255>>)
-/// // => "00ABFF"
+/// // => "00abff"
 /// ```
 export foreign fn toHex(bytes : Bytes) : String =
-    "binary:encode_hex/1"
+    "ern_bytes:to_hex/1"
 
 /// The bytes that `text` writes two hexadecimal digits each, letters in either
 /// case, or `None` for an odd number of digits or a character that is no digit.

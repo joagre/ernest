@@ -309,7 +309,7 @@ fn digestCopied(from : Path, out : Path, relative : String) : Either(String, Str
 }
 
 fn digestWritten(out : Path, relative : String, bytes : Bytes) : Either(String, String) = {
-    let digest = String.slice(String.toLower(Bytes.toHex(Crypto.sha1(bytes))), 0, 8);
+    let digest = String.slice(Bytes.toHex(Crypto.sha1(bytes)), 0, 8);
     let named =
         Path.toString(Path.withoutExtension(Path(relative)))
             <> "."

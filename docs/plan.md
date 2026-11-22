@@ -22,10 +22,10 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6's items 2, 4 and 5 are done since 2026-11-22. The next item is MVP 4.6's item 6**,
-a digest written in lower case, whose shape is the user's to decide when it starts.
+**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 2**, the cost, the
+fault row made readable first.
 
-The milestones to come, in order: MVP 4.6, MVP 4.4, whose release is the
+The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
 log entry that placed it.
 
@@ -36,48 +36,6 @@ and a report against OTP stand in MVP 4.5. Each item is judged against that test
 written and before it starts. Since 2026-11-21 a find that only a built corner shows gets its
 line in [`known_issues.md`](known_issues.md), and becomes an item when the user takes it up
 (the log's *The Short Rules Stay*).
-
----
-
-## MVP 4.6 (the server owns both ends of its socket, the homepage, and a digest in lower case), a few days, before the launch
-
-Decided with the user on 2026-11-09 (the log's *MVP 4.16, the Proposals Before the Launch*), and
-moved before the launch on 2026-11-10, once the server's reset under load was fixed and the
-three floors stood at 0.10 (the log's *MVP 4.6 Before the Launch*). The site's script spoke
-the server's wire, its
-generator read the server's configuration and its browser test stubbed the server's socket, and
-item 2 put a client the server ships in place of each. The order keeps the proposal's: the
-server's part first, which adds and takes nothing away, and no day but the launch's switch
-changes both repositories, on a path the rehearsal has walked.
-
-1. **The ask**, done on 2026-11-10 (the log's *The Client's Interface Agreed*). The server
-   serves the client as its design's *The client* states it, and the rehearsal serves it at
-   `https://ernest-lang.org:8443/` until the launch's switch. The server's part goes into
-   the release its item 5 makes for the launch.
-2. **Ernest's side**, done on 2026-11-22 (the log's *The Server's Client in the Site*).
-   `site.js` imports the client, the generator and `make site` take no configuration, and
-   the browser test serves a stub client. The rehearsal serves the site built from it, and
-   ernest-lang.org takes it with the launch's switch.
-3. **The homepage and the blocks' tools**, done on 2026-11-19, ahead of this milestone (the
-   log's *The Homepage Built*). The opening's last clause came with MVP 4.17's item 119,
-   on 2026-11-21, and item 2 reads the site's design note as this item left it.
-4. **The stylesheet's units**, done on 2026-11-22 (the log's *The Stylesheet's Units*).
-   The page follows the reader's font size and measures as before at 16 pixels, and what a
-   phone at 24 showed past its box was fixed with it.
-5. **The proposals' reading and sweep**, done on 2026-11-22 (the log's *The Server's
-   Client, Its Proposal Read* and *The Homepage's Proposal Read*). What the two proposals
-   held that no owner had stands in those entries, the site's design note gained three
-   rules, and both directories are gone.
-6. **A digest written in lower case**, feedback 273, added with the user on 2026-11-22 (the
-   log's *Three Feedback Entries Decided*), before MVP 4.4 so that its full review reads it.
-   `Bytes.toHex` writes upper case (E.20), and `Ernest.Unpack` and `tools/site.ern` lowercase
-   what it writes, while `Uri`'s percent-encoding keeps the upper case RFC 3986 asks of it.
-   **The decision, its shape**, the user's when the item starts. The recommendation:
-   `toHex` writes lower case, as the host's `binary:encode_hex/2` can, and `Uri` uppercases
-   its own escape; least surprise decides (§0's principle 1), since a digest and most
-   languages' hexadecimal are lower case, and one way seconds it (principle 2), against a
-   second function beside `toHex`. E.20's line, the examples of `Crypto` and `Bytes`, the
-   two sites' second step and the tests they hold change with it.
 
 ---
 
@@ -299,8 +257,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    *The Site's Proposal Read*); `docs/design/site.md`'s *The root* lists them then.
 
    ernest-httpd rehearses the switch on the machine,
-   under a second unit on scratch ports, with Ernest 0.10.0's archive and, once its part of MVP
-   4.6 serves the client, with the client, so that the
+   under a second unit on scratch ports, with Ernest 0.10.0's archive and, since MVP 4.6, with the
+   client, so that the
    switch at the launch swaps one archive for another on a path already walked; then, with its
    release of item 5 made, it switches once, the machine serving its one page meanwhile. Its
    container, two nodes capped at 128 processes, 128 MiB and one core, was built 2026-11-04
@@ -504,6 +462,6 @@ What the line left, in the order it is taken:
 | Ernest 0.10.0 | the release of what the server taught, and the release review before it, which read the milestone's diff, 126 lines fixed and 25 decided in eighteen decisions | 2026-11-10 | tag `v0.10.0` | the log's *The Release Review Before 0.10.0* |
 | MVP 4.16 | a deadlock's scope and its report, a package's manifest and build, the flake hunt, and what its builds and the outside reviews found; `Tcp.close` answers once its bytes are sent; the short rules stay and the known issues' list begins | 2026-11-21 | | *A Deadlock of the Whole Program*, *A Package and Its Manifest*, *The Root Package Read*, *The Named Packages Built*, *The Flake Hunt*, *The Review's Feedback Decided*, *One Copy of the Pages*, *The Synopsis's Rule*, *A Status Read Before the Watch*, *A Hiding Module Refused*, *The Ownership Test Built*, *A Given Path Resolved Once*, *The Proposal Held Against the Report*, *One Namespace at the Root*, *An Installed Program's Packages*, *The Client's Line*, *What One Read Answers*, *Building*, *The Sentences Held by Tests*, *A Compiled Form's Sources*, *A Document Beside a Module That Fails*, *A Library's Function in a Program*, *The Sweep's Reading*, *What the Toolchain's Page Is Made From*, *The Front Page From Its Motive*, *The README's Top Comes First*, *The Front Page in the Announcement's Manner*, *The Shell's Last Line*, *The Named Packages Read*, *The Reading's Round*, *The Rules Read Against Each Other*, *The Milestone Split*, *No Module's Source*, *An Index That Is No File*, *A Sender That Outlives Its Run*, *The Rules Read for Clarity*, *A Limit Ends Its Own Test*, *Three Orders the Supervisor Tests Read*, *A Delivery Counted Before Its End*, *A Listener Closed Before Its Accept*, *Seven Entries of the Feedback*, *A Program's Line Beside the Prompt*, *A Program Named Before It Runs*, *A Subscriber That Ends Beside Main*, *A Terminal's Echo Beside Its End*, *A Signal Before the Pause*, *A Reaper That Outlives Its Runner*, *Two Hours for a Hunt*, *A Termination Lost With OTP Alone*, *A Message at a Checker*, *The First Start's Schedulers*, *Twenty-Six Hosts Are the Cost*, *Two Orders Stated*, *The Watcher Holds Who Waits*, *No Restarted After a Death*, *The Style Test Reads the Roots' Tests*, *The Resize Told by Its Signal*, *The Review Documents Read Against the Rules*, *Three Process Documents Read Against the Rules*, *Two Tests Wait for Their Subscriber*, *A Record After a Cancel*, *A Port Another Socket Holds*, *The Busy Wait Stays*, *What a Load Could Not Load*, *Each Failure Once*, *Lanes in Place of Chunks*, *One Way to Start a Line Session*, *A Port Its Listener's Connections Left*, *A Home of the Run's Own*, *The Hunt's Rounds Tested*, *A Status Lost to a Write*, *A Checker Among the Processes*, *The Outside Reviews Read*, *What Waits for a Peer*, *What a Full Buffer Holds*, *A Connection That Cannot Drain*, *A Head in Pieces, Tested*, *A Lock Held to the Process's End*, *A New OTP and Nothing Else New*, *The Runtime's Processes Wait on No Peer*, *A Message Is Placed in Parts*, *What a Program's Helper Holds*, *Suspended Is the Host's Word*, *What a Peer's Worker Waits On*, *The Type Lines Are Held*, *The Run's Home Stated Once*, *A Checker Acts for the Target*, *The Job Halts Without the Host's Flush*, *A Termination Ends a Stalled Flush*, *A Check Stands Through a Loss*, *A Down Follows the Send*, *The Roots' Unit Tests Under the Run's Home*, *A Body, Tested*, *G.11 States What a Client Sends*, *An ASCII Case in the Library*, *A Header's Name in ASCII Case*, *A List Header's Elements*, *The Process Behind a Check*, *The Process Behind a Check, Built*, *A Bad Message's Fault to a Foreign Target*, *A `monitor` in an Adapted Address's Function*, *The Runner Waits for No Line*, *The Shell Ends at Once*, *`ern test` Ends by a Signal That Cut an End*, *A Subscriber Named Unanswered*, *A Node's End Waits for No Send*, *The Disconnect Waits for Nothing*, *A Worker Waits on No Third Node*, *An Address Given Back, on Another Node*, *One Check for an Address of a Recursive Type*, *A Fault at a Wait Names Its `receive`*, *A Process Printed with a Dot, Built*, *One Check by the Type's Hash*, *What the Boundary Trusts at a Type Variable*, *Three Corners of a Diagnostic*, *A Wait for a Life, Built*, *An Order Nobody Promised*, *The Order Through One Check*, *The Two Closes Answer*, *Two Shell Sessions Written*, *A Send and a Call in Two Inputs*, *The Close Follows the Last Byte*, *A Failed Write Loses What Had Arrived*, *A Close Answers Once Its Bytes Are Sent*, *The Short Rules Stay* |
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide; `:keys`, the known issues sorted, and the OTP defects read against their issues | 2026-11-21 | | *The Milestone Split*, *The Homepage and the Shell's Editing Planned*, *The Plan Read for Build Order*, *The Trust Said Once*, *A Refusal Holds No Control Character*, *An Input Edited by Its Lines*, *The Shell Says a Refusal in the Jobs' Words*, *Each Value in the Escape of Its Own Notation*, *The Live Region Named Once*, *A Window onto the Input*, *A Window onto the Input, Built*, *SHA-256 Beside SHA-1*, *An Archive Read by the Host*, *A Package in the Guide*, *The Keys Listed by `:keys`*, *The Known Issues Sorted*, *The OTP Defects Read Against Their Issues* |
-| MVP 4.6 | the server owning both ends of its socket, the homepage, and a digest in lower case | | | above; the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's *MVP 4.16, the Proposals Before the Launch*, *MVP 4.6 Before the Launch*, *The Client's Interface Agreed*, *The Homepage and the Shell's Editing Planned*, *The Homepage Built*, *A Line Above the Homepage's Heading*, *The Server's Client in the Site*, *The Stylesheet's Units*, *The Server's Client, Its Proposal Read*, *The Homepage's Proposal Read*, *Three Feedback Entries Decided* |
+| MVP 4.6 | the server owning both ends of its socket: the site's script imports the client the server ships, the generator takes no configuration and the browser test serves a stub client; the homepage and the blocks' tools; the stylesheet in the reader's font size; `Bytes.toHex` in lower case | 2026-11-22 | | the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's *MVP 4.16, the Proposals Before the Launch*, *MVP 4.6 Before the Launch*, *The Client's Interface Agreed*, *The Homepage and the Shell's Editing Planned*, *The Homepage Built*, *A Line Above the Homepage's Heading*, *The Server's Client in the Site*, *The Stylesheet's Units*, *The Server's Client, Its Proposal Read*, *The Homepage's Proposal Read*, *Three Feedback Entries Decided*, *A Digest in Lower Case* |
 | MVP 4.4 | the cost analysis, the full review and the launch's release, Linux | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, and a test and a flake from the known issues' sort | | | above |

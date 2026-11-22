@@ -773,7 +773,7 @@ Bytes.split : (Bytes, Bytes) -> List(Bytes) // at each occurrence of the second;
 Bytes.replace : (Bytes, Bytes, Bytes) -> Bytes // every occurrence of the second by the third; an empty second changes nothing
 Bytes.join : (List(Bytes), Bytes) -> Bytes // the second between the parts
 Bytes.repeat : (Bytes, Int) -> Bytes // n times; n below 0 is 0
-Bytes.toHex : (Bytes) -> String // two hexadecimal digits an octet, with upper-case letters
+Bytes.toHex : (Bytes) -> String // two hexadecimal digits an octet, with lower-case letters
 Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either case; None for an odd count or another character
 ```
 

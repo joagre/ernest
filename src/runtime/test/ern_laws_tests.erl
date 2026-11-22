@@ -928,7 +928,7 @@ bytes_laws_test_() ->
           {"split then join gives the bytes back; replace as split and join",
            fun bytes_part_bytes/1, fun bytes_split/1},
           {"repeat, <>", fun two_bytes_and_one/1, fun bytes_repeat/1},
-          {"toHex upper-case, fromHex either case, None for an odd count or another digit",
+          {"toHex lower-case, fromHex either case, None for an odd count or another digit",
            fun bytes/1, fun bytes_hex/1}]).
 
 bytes_contents({Octets, Index}) ->
@@ -987,9 +987,9 @@ bytes_repeat({First, Second, Count}) ->
 
 bytes_hex(Octets) ->
     Hex = ?BYTES(toHex)(Octets),
-    Hex =:= binary:encode_hex(Octets)
+    Hex =:= binary:encode_hex(Octets, lowercase)
         andalso ?BYTES(fromHex)(Hex) =:= {'Some', Octets}
-        andalso ?BYTES(fromHex)(string:lowercase(Hex)) =:= {'Some', Octets}
+        andalso ?BYTES(fromHex)(string:uppercase(Hex)) =:= {'Some', Octets}
         andalso ?BYTES(fromHex)(<<Hex/binary, "A">>) =:= 'None'
         andalso ?BYTES(fromHex)(<<Hex/binary, "G0">>) =:= 'None'.
 

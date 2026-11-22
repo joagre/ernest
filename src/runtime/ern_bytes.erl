@@ -4,7 +4,7 @@
 %% catch.
 -module(ern_bytes).
 
--export([split/2, replace/3, from_hex/1]).
+-export([split/2, replace/3, to_hex/1, from_hex/1]).
 
 %% Appendix E.20: the parts between each occurrence of the separator, which
 %% is not empty, found from the first.
@@ -15,6 +15,10 @@ split(Bytes, Separator) -> binary:split(Bytes, Separator, [global]).
 %% replaced by the new, found as split finds them.
 -spec replace(binary(), binary(), binary()) -> binary().
 replace(Bytes, Old, New) -> binary:replace(Bytes, Old, New, [global]).
+
+%% Appendix E.20: two hexadecimal digits an octet, with lower-case letters.
+-spec to_hex(binary()) -> binary().
+to_hex(Bytes) -> binary:encode_hex(Bytes, lowercase).
 
 %% Appendix E.20: the octets that two hexadecimal digits of either case
 %% write each. `binary:decode_hex/1` raises on an odd count of them or on
