@@ -806,10 +806,11 @@ held_function(_) -> [].
 %% '$3.2', the entry a spawn on a peer starts one by, '$3.2.entry', and a
 %% fun the host compiles one to, `-'$3'/1-fun-0-` and `-'$3.init'/0-fun-0-`,
 %% alike, and so are the clauses a `match` guard falls through to,
-%% '$3.fallthrough1' (§5.9). A unit an exchange made names each by the name
-%% its code frame gave it, as text, the sender's, `Counter.worker` (§12.7).
-%% None for any other function, the unit's '$init'/0 among them, and for a
-%% module that is no unit, which keep the host's names.
+%% '$3.fallthrough1' and '$3.2.fallthrough1' (§5.9). A unit an exchange
+%% made names each by the name its code frame gave it, as text, the
+%% sender's, `Counter.worker` (§12.7). None for any other function, the
+%% unit's '$init'/0 among them, and for a module that is no unit, which
+%% keep the host's names.
 -spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
 function_text(Unit, Function, _Line) ->
     case erlang:function_exported(Unit, '$code', 0) andalso Unit:'$code'() of
@@ -861,12 +862,12 @@ bound_name(Unit, Function) ->
     end.
 
 %% The function of the definition whose code a function of a unit is, by
-%% the function's name: '$3' of '$3', '$3.init', '$3.2', '$3.fallthrough1'
-%% and '$3.2.entry', and of a fun the host compiles in one,
-%% -Function/Arity-fun-Index-, or a named one, a receive's wait among them,
-%% -Function/Arity-Name/Arity-Index-, Function, the name of a fun where the
-%% fun is made in one, holding no `/` before its own; none for any other
-%% name.
+%% the function's name: '$3' of '$3', '$3.init', '$3.2', '$3.fallthrough1',
+%% '$3.2.entry' and '$3.2.fallthrough1', and of a fun the host compiles in
+%% one, -Function/Arity-fun-Index-, or a named one, a receive's wait among
+%% them, -Function/Arity-Name/Arity-Index-, Function, the name of a fun
+%% where the fun is made in one, holding no `/` before its own; none for
+%% any other name.
 defining("-" ++ Fun) ->
     case string:split(string:trim(Fun, leading, "-"), "/") of
         [Enclosing, _] -> defining(Enclosing);
@@ -877,6 +878,7 @@ defining("$" ++ Numbered) ->
         [Number] -> existing_atom("$" ++ Number);
         [Number, _] -> existing_atom("$" ++ Number);
         [Number, _, "entry"] -> existing_atom("$" ++ Number);
+        [Number, _, "fallthrough" ++ _] -> existing_atom("$" ++ Number);
         _ -> none
     end;
 defining(_) ->
@@ -1038,9 +1040,14 @@ dependencies(Unit) ->
 %% under its namespace, a module's every version among them (namespaces/1).
 %%
 %% A lambda's and a local function's frames are their own functions', '$N.P'
-%% or a fun, and no definition's; a wait of a timed receive written in the
-%% definition's own body is the definition's. The scan reads each process's
-%% stack once, its input being the node's processes.
+%% or a fun, and no definition's, and so are those of the clauses a guard
+%% in their body falls through to, '$N.P.fallthroughK'; a wait of a timed
+%% receive written in the definition's own body is the definition's, and
+%% so are the clauses a guard there falls through to, '$N.fallthroughK',
+%% whose frame is the definition's only one where the match is in its tail
+%% (§5.9). A unit's function is one by its name, at one arity, so a frame
+%% is matched by its name alone. The scan reads each process's stack once,
+%% its input being the node's processes.
 %%
 %% Appendix E.28, report §10: the host keeps at most the innermost 64
 %% frames of a stack, which the runtime sets at its start
@@ -1057,9 +1064,9 @@ running(Hash) ->
                                                            lists:droplast(QualifiedName)}),
                                           {Named, Held, HeldMailbox} <- listed(Unit),
                                           {Named, HeldMailbox} =:= {QualifiedName, Mailbox}]]),
-    Functions = #{{Unit, Function, Arity} => true
+    Functions = #{{Unit, Function} => true
                   || Held <- Hashes,
-                     {_, Unit, {function, Function, Arity, _}} <- lookup({hash, Held})},
+                     {_, Unit, {function, Function, _, _}} <- lookup({hash, Held})},
     [Pid || map_size(Functions) > 0, Pid <- ern_rt:processes(), runs(Pid, Functions)].
 
 %% Each function Unit's code list names, by its qualified name, with its
@@ -1076,39 +1083,41 @@ listed(Unit) ->
 runs(Pid, Functions) ->
     case erlang:process_info(Pid, current_stacktrace) of
         {current_stacktrace, Frames} ->
-            lists:any(fun({ErlangModule, Function, Arity, _}) ->
-                              is_map_key(frame_function(ErlangModule, Function, frame_arity(Arity)),
-                                         Functions)
+            lists:any(fun({ErlangModule, Function, _, _}) ->
+                              is_map_key(frame_function(ErlangModule, Function), Functions)
                       end, Frames);
         undefined ->
             false
     end.
 
-%% The function a frame is a frame of. A timed receive's wait written in a
-%% definition's own body is a fun the host names -Function/Arity-Wait_N/0-Index-
-%% (ern_emitter's wait_prefix/1), and is its function's.
-frame_function(Module, Function, Arity) ->
-    Own = {Module, Function, Arity},
+%% The function a frame is a frame of, by its module and its name. A timed
+%% receive's wait written in a definition's own body is a fun the host
+%% names -Function/Arity-Wait_N/0-Index- (ern_emitter's wait_prefix/1), and
+%% is its function's; the clauses a guard there falls through to,
+%% '$N.fallthroughK', are '$N''s (ern_emitter's fallthrough_name/1).
+frame_function(Module, Function) ->
+    Own = {Module, Function},
     case atom_to_list(Function) of
         "-" ++ Fun ->
             case string:split(Fun, "/") of
                 [Enclosing, Rest] ->
                     case string:to_integer(Rest) of
-                        {EnclosingArity, "-Wait_" ++ _} ->
-                            {Module, list_to_existing_atom(Enclosing), EnclosingArity};
+                        {_, "-Wait_" ++ _} ->
+                            frame_function(Module, list_to_existing_atom(Enclosing));
                         _ ->
                             Own
                     end;
                 _ ->
                     Own
             end;
+        "$" ++ Numbered ->
+            case string:split(Numbered, ".") of
+                [Number, "fallthrough" ++ _] -> {Module, list_to_existing_atom("$" ++ Number)};
+                _ -> Own
+            end;
         _ ->
             Own
     end.
-
-%% A frame's arity, or the arguments the host gives in its place.
-frame_arity(Arity) when is_integer(Arity) -> Arity;
-frame_arity(Arguments) when is_list(Arguments) -> length(Arguments).
 
 %% Appendix E.28: Code.hashes, the definitions the compiled module at the
 %% path records (§11.1), each its qualified name as text and its hash, the

@@ -80,6 +80,8 @@ The evaluator is the runtime's one way of evaluating a load, a shell's `:load` a
 
 The call names `f` by its hash alone, so its names are those the units that hold it list it under, and a name's definitions are read from the code lists of the units that hold functions under its namespace, each function listed with its mailbox type's hash (the log's *What `running` Finds, Built*). The stacks are the host's, read through the code table; the host keeps the innermost sixty-four frames, which the runtime sets at its start, consecutive frames that return to one call as one, so a process whose frame lies beneath the sixty-four kept is not listed (§10).
 
+A frame is `f`'s where it is a frame of `f`'s function, of a timed receive's wait written in `f`'s own body, or of the clauses a guard there falls through to, the only frame of `f` a process has where the match is in `f`'s tail. A frame of a lambda or a local fn written in `f`, the clauses a guard in their body falls through to among them, is theirs and no definition's, so a process one of them started is not listed; the emitter names each so that the name tells which (`ern_code:frame_function/2`; §5.9; the log's *`Code.running` Past a Guard*).
+
 ## The host's counts
 
 The host limits what one runtime loads in its life and gives none of it back: 65,536 module names, 524,288 export entries, 524,288 function entries and 1,048,576 atoms, as OTP 29 sets them (§11.2). Nothing measures a load against them before it: a load past one ends the host, as exhausted memory does (§10, §11.2; the log's *A Load Past the Host's Limits*).

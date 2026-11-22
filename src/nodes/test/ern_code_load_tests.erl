@@ -1262,6 +1262,115 @@ running_beneath_program() ->
     "    }\n"
     "}\n".
 
+%% Appendix E.28, report §5.9: a process that waits in the clauses a guard
+%% in the definition's own body falls through to is listed, in a receive
+%% and in a receive with an `after`, though the tail call to those clauses
+%% leaves no other frame of the definition on its stack; one that waits in
+%% such clauses of a lambda written in the definition, or of a local fn of
+%% it spawned, is not, their frames being their own, so each host is
+%% listed alone. A regression test, written after the code: before it the
+%% first two were not listed
+running_after_a_fallthrough_test() ->
+    Dir = tmp(),
+    Main = write(Dir, "main.ern", running_after_a_fallthrough_program()),
+    built(Dir, "main.ern"),
+    ?assertEqual([<<"untimed 1">>, <<"timed 1">>, <<"lambda host 1">>, <<"local host 1">>],
+                 ran(filename:rootname(Main) ++ ".erc")).
+
+running_after_a_fallthrough_program() ->
+    "type Msg = Ping(reply : Reply(Unit)) | Stop\n\n"
+    "fn negative(n : Int) : Bool = n < 0\n\n"
+    "fn untimed(n : Int) : Unit receiving Msg = match n {\n"
+    "    k when negative(k) -> Unit\n"
+    "  | _ -> receive {\n"
+    "        Ping(=reply) -> {\n"
+    "            answer(reply, Unit);\n"
+    "            receive {\n"
+    "                Stop -> Unit\n"
+    "            }\n"
+    "        }\n"
+    "      | Stop -> Unit\n"
+    "    }\n"
+    "}\n\n"
+    "fn timed(n : Int) : Unit receiving Msg = match n {\n"
+    "    k when negative(k) -> Unit\n"
+    "  | _ -> receive {\n"
+    "        Ping(=reply) -> {\n"
+    "            answer(reply, Unit);\n"
+    "            receive {\n"
+    "                Stop -> Unit\n"
+    "            }\n"
+    "        }\n"
+    "      | Stop -> Unit\n"
+    "      | after 60000 -> Unit\n"
+    "    }\n"
+    "}\n\n"
+    "fn lambdaHost(n : Int) : Unit receiving Msg = {\n"
+    "    let inner = spawn(fn() : Unit receiving Msg = match n {\n"
+    "        k when negative(k) -> Unit\n"
+    "      | _ -> receive {\n"
+    "            Ping(=reply) -> {\n"
+    "                answer(reply, Unit);\n"
+    "                receive {\n"
+    "                    Stop -> Unit\n"
+    "                }\n"
+    "            }\n"
+    "          | Stop -> Unit\n"
+    "        }\n"
+    "    });\n"
+    "    receive {\n"
+    "        Ping(=reply) -> {\n"
+    "            ping(inner);\n"
+    "            answer(reply, Unit);\n"
+    "            receive {\n"
+    "                Stop -> send(inner, Stop)\n"
+    "            }\n"
+    "        }\n"
+    "      | Stop -> Unit\n"
+    "    }\n"
+    "}\n\n"
+    "fn localHost(n : Int) : Unit receiving Msg = {\n"
+    "    fn served() : Unit receiving Msg = match n {\n"
+    "        k when negative(k) -> Unit\n"
+    "      | _ -> receive {\n"
+    "            Ping(=reply) -> {\n"
+    "                answer(reply, Unit);\n"
+    "                receive {\n"
+    "                    Stop -> Unit\n"
+    "                }\n"
+    "            }\n"
+    "          | Stop -> Unit\n"
+    "        }\n"
+    "    };\n"
+    "    let inner = spawn(served);\n"
+    "    receive {\n"
+    "        Ping(=reply) -> {\n"
+    "            ping(inner);\n"
+    "            answer(reply, Unit);\n"
+    "            receive {\n"
+    "                Stop -> send(inner, Stop)\n"
+    "            }\n"
+    "        }\n"
+    "      | Stop -> Unit\n"
+    "    }\n"
+    "}\n\n"
+    "fn ping(process : Address(Msg)) : Unit = {\n"
+    "    let _ = Address.call(process, fn(reply) = Ping(=reply), 5000);\n"
+    "    Unit\n"
+    "}\n\n"
+    "fn counted(name : String, count : Int) : Unit =\n"
+    "    Io.println(name <> \" \" <> Int.toString(count))\n\n"
+    "export fn main() : Unit = {\n"
+    "    let processes = [spawn(fn() = untimed(1)), spawn(fn() = timed(1)),\n"
+    "                     spawn(fn() = lambdaHost(1)), spawn(fn() = localHost(1))];\n"
+    "    List.forEach(processes, ping);\n"
+    "    counted(\"untimed\", List.size(Code.running(untimed)));\n"
+    "    counted(\"timed\", List.size(Code.running(timed)));\n"
+    "    counted(\"lambda host\", List.size(Code.running(lambdaHost)));\n"
+    "    counted(\"local host\", List.size(Code.running(localHost)));\n"
+    "    List.forEach(processes, fn(process) = send(process, Stop))\n"
+    "}\n".
+
 %% Appendix E.28: a definition of the named function's qualified name whose
 %% mailbox type is its own, on whichever version of its module the node
 %% holds, is found: a build whose fix in the loop's callee gives the loop a

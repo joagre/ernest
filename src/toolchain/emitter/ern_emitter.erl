@@ -18,10 +18,12 @@
 %% starts a lambda or a local function by is '$N.P.entry' (§8.7).
 %%
 %% The initializer of a binding at N whose initializer is no ground term is
-%% evaluated in '$N.init' (§8.5). The clauses a `match` guard of the
-%% definition at N falls through to are '$N.fallthroughK', K counting the
-%% definition's (§5.9), a name no position takes. A descriptor's function
-%% is '$type_K', K counting the unit's descriptors.
+%% evaluated in '$N.init' (§8.5). The clauses a `match` guard falls through
+%% to are '$N.fallthroughK' where the match stands in the definition's own
+%% body, and '$N.P.fallthroughK' where it stands in the lambda's or the
+%% local function's at P, K counting the definition's (§5.9), so that
+%% Code.running tells the two apart (E.28); no position takes either. A
+%% descriptor's function is '$type_K', K counting the unit's descriptors.
 %%
 %% What the runtime calls on every unit keeps its name: '$init'/0,
 %% '$deps'/0, '$tests'/0, '$spawned'/2 and '$code'/0. Each function's
@@ -84,8 +86,10 @@
 %%
 %% guard: whether the expression being compiled is a clause's Erlang
 %% guard, where a selection reads its field in place (select/4).
-%% in_lambda: whether the expression being compiled stands in a lambda's
-%% body, by which a timed receive's wait is named (wait_prefix/1).
+%% inner_position: the position of the innermost lambda or local fn whose
+%% body the expression being compiled stands in (Appendix H), or none in
+%% the definition's own body, by which a timed receive's wait and a guard's
+%% fallthrough are named (wait_prefix/1, fallthrough_name/1).
 %% caller_site: in the body of a declaration its caller's site is passed to
 %% (caller_sited/1), the Erlang variable of that site, and else none.
 %% fallthroughs: the functions the definition's guards fall through to so
@@ -94,7 +98,7 @@
                        variables = #{}, counter = 0, locals = #{}, lifted = [],
                        descriptors = #{}, pattern_guards = [], members = #{}, outer,
                        let_lambdas = #{}, entries = #{}, builds_functions = false,
-                       guard = false, in_lambda = false, caller_site = none,
+                       guard = false, inner_position = none, caller_site = none,
                        fallthroughs = 0}).
 %% The unit's own (report §11.1, Appendix H): forms, each definition's
 %% position => {its #definition{}, its form prepared (prepared/2)}; hashes,
@@ -183,9 +187,16 @@ initializer_name(Position) ->
 
 %% The name of the next function a guard of the definition being compiled
 %% falls through to, which a fault's trace names as the definition
-%% (ern_code:function_text/3).
-fallthrough_name(#emit_context{definition = {Definition, _, _}, fallthroughs = Count} = Context) ->
-    Name = list_to_atom([$$ | integer_to_list(Definition)] ++ ".fallthrough"
+%% (ern_code:function_text/3). Appendix E.28: in a lambda's or a local
+%% fn's body it carries their position, so that Code.running counts a
+%% frame of it as theirs and no definition's (ern_code:frame_function/2).
+fallthrough_name(#emit_context{definition = {Definition, _, _}, inner_position = Inner,
+                               fallthroughs = Count} = Context) ->
+    Within = case Inner of
+                 none -> "";
+                 _ -> [$. | integer_to_list(Inner)]
+             end,
+    Name = list_to_atom([$$ | integer_to_list(Definition)] ++ Within ++ ".fallthrough"
                         ++ integer_to_list(Count + 1)),
     {Name, Context#emit_context{fallthroughs = Count + 1}}.
 
@@ -1194,14 +1205,14 @@ expr_form({negate, Expr, Supply}, _, Context) ->
     member_applied(Supply, [Form], Context1);
 expr_form({operator, Operator, Left, Right, Operation}, Source, Context) ->
     operator(Source, Operator, Left, Right, Operation, Context);
-expr_form({lambda, _Position, Params, _, Body}, _, Context) ->
+expr_form({lambda, Position, Params, _, Body}, _, Context) ->
     {Patterns, Context1} = lists:mapfoldl(fun pattern/2, Context, Params),
-    {BodyForms, Context2} = body(Body, Context1#emit_context{in_lambda = true}),
+    {BodyForms, Context2} = body(Body, Context1#emit_context{inner_position = Position}),
     Clause = erl_syntax:clause(Patterns, none, BodyForms),
     {erl_syntax:fun_expr([Clause]),
      Context2#emit_context{variables = Context#emit_context.variables,
                            builds_functions = true,
-                           in_lambda = Context#emit_context.in_lambda}};
+                           inner_position = Context#emit_context.inner_position}};
 expr_form({'if', Condition, Then, Else}, _, Context) ->
     {ConditionForm, Context1} = expr(Condition, Context),
     {[ThenForms, ElseForms], Context2} = lists:mapfoldl(fun body/2, Context1, [Then, Else]),
@@ -1318,9 +1329,10 @@ receive_clauses(Source, Clauses, Context) ->
 
 %% What the fun of a timed receive's wait is named by. Appendix E.28: the name
 %% tells a frame of a definition's own body, which Code.running finds, from a
-%% frame of a lambda written in it, which it does not (ern_code:frame_function/3).
-wait_prefix(#emit_context{in_lambda = true}) -> "LambdaWait";
-wait_prefix(_) -> "Wait".
+%% frame of a lambda or a local fn written in it, which it does not
+%% (ern_code:frame_function/2).
+wait_prefix(#emit_context{inner_position = none}) -> "Wait";
+wait_prefix(_) -> "LambdaWait".
 
 %% A receive with an `after`: the bindings that enter it, and the call
 %% that waits. Report §8.6: a timed receive holds the look's TIMED key from
@@ -2932,7 +2944,9 @@ spawned_lambda(Lambda, Scope, Context) ->
     {Source, {lambda, Position, _, _, Body} = Node} = sourced(Lambda),
     Captures = captures(Node),
     Context1 = entry(Position, length(Captures),
-                     fun(Function, Acc) -> lambda_entry(Function, Body, Source, Captures, Acc) end,
+                     fun(Function, Acc) ->
+                         lambda_entry(Function, Body, Source, Captures, Position, Acc)
+                     end,
                      Context),
     {spawned_identity(Position, [variable_form(maps:get(Number, Scope)) || Number <- Captures],
                       Context1),
@@ -2981,19 +2995,20 @@ entry(Position, Arity, Made,
     end.
 
 %% A lambda's entry: its body over its captures, each a fresh variable, in
-%% a scope of its own.
-lambda_entry(Function, Body, Source, Captures,
+%% a scope of its own, the lambda's at Position.
+lambda_entry(Function, Body, Source, Captures, Position,
              #emit_context{variables = Variables, locals = Locals, members = Members,
-                           let_lambdas = LetLambdas} = Context) ->
+                           let_lambdas = LetLambdas, inner_position = Inner} = Context) ->
     {Parameters, Context1} = named_variables(["Capture" || _ <- Captures], Context),
-    Inner = Context1#emit_context{variables = maps:from_list(lists:zip(Captures, Parameters)),
-                                  locals = #{}, members = #{}, let_lambdas = #{}},
-    {BodyForms, Context2} = body(Body, Inner),
+    Scope = Context1#emit_context{variables = maps:from_list(lists:zip(Captures, Parameters)),
+                                  locals = #{}, members = #{}, let_lambdas = #{},
+                                  inner_position = Position},
+    {BodyForms, Context2} = body(Body, Scope),
     Clause = at(Source, erl_syntax:clause([erl_syntax:variable(Parameter)
                                            || Parameter <- Parameters], none, BodyForms)),
     Entry = at(Source, erl_syntax:function(erl_syntax:atom(Function), [Clause])),
     Context2#emit_context{variables = Variables, locals = Locals, members = Members,
-                          let_lambdas = LetLambdas,
+                          let_lambdas = LetLambdas, inner_position = Inner,
                           lifted = [entry_comment(Entry, Context) | Context2#emit_context.lifted]}.
 
 %% A local fn's entry: its lifted function called with what it closes
@@ -3214,15 +3229,17 @@ emit_locals(Fns, Context) ->
     lists:foldl(fun emit_local/2, Context, Fns).
 
 emit_local(Fn, #emit_context{variables = Variables, locals = Locals, members = Members,
-                             definition = {_, _, QualifiedName}} = Context) ->
-    {Source, {local_fn, Number, _, {function, Scheme, Params, Body}}} = sourced(Fn),
+                             definition = {_, _, QualifiedName},
+                             inner_position = Inner} = Context) ->
+    {Source, {local_fn, Number, Position, {function, Scheme, Params, Body}}} = sourced(Fn),
     #local_fn{lifted_name = LiftedName, captured = Captured, snapshot = Snapshot} =
         maps:get(Number, Locals),
     Captures = captured_variables(Number, Context),
     CapturedVariables = maps:from_list([{CapturedNumber, maps:get(CapturedNumber, Snapshot)}
                                        || CapturedNumber <- Captured]),
     {Head, Context1} = head_patterns(Params, Scheme,
-                                     Context#emit_context{variables = CapturedVariables}),
+                                     Context#emit_context{variables = CapturedVariables,
+                                                          inner_position = Position}),
     {BodyForms, Context2} = body(Body, Context1),
     Clause = at(Source, erl_syntax:clause([erl_syntax:variable(Variable) || Variable <- Captures]
                                           ++ Head, none, BodyForms)),
@@ -3232,7 +3249,7 @@ emit_local(Fn, #emit_context{variables = Variables, locals = Locals, members = M
                none -> "";
                Name -> ", " ++ atom_to_list(Name)
            end,
-    Context2#emit_context{variables = Variables, members = Members,
+    Context2#emit_context{variables = Variables, members = Members, inner_position = Inner,
                           lifted = [with_comment(Function, Text) | Context2#emit_context.lifted]}.
 
 %% The locals a pattern binds, in the order it binds them.

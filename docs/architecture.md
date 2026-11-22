@@ -122,7 +122,7 @@ All three compile through `ern_compile:compiled/2`.
 
 `ern_emitter:unit/1` builds Erlang forms with `erl_syntax` in one traversal of each form, threading `#emit_context{}`. `prepared/2` first marks the references within a group and each lambda's and local fn's position (Appendix H). A value's representation is §12.2's ABI.
 
-A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$N.init'` for a binding's initializer, `'$N.fallthroughK'` for the clauses a `match` guard falls through to, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
+A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$N.init'` for a binding's initializer, `'$N.fallthroughK'` for the clauses a `match` guard falls through to and `'$N.P.fallthroughK'` where the match stands in a lambda or a local fn, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
 
 A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`.
 

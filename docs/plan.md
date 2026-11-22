@@ -99,6 +99,11 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      Fallthrough, Built*): the clauses after such a guard are a function of the unit, the
      fallthrough a tail call to it, and the loop takes 113 µs, the host's own cost for a
      binary kept for the clauses after.
+   - **`Code.running` past such a guard**, found by that build: a process that waited in
+     the clauses a guard falls through to was not listed, against E.28. Decided with the
+     user and built 2026-11-22 (the log's *`Code.running` Past a Guard*): the frame of
+     those clauses counts as its function's, and as a lambda's or a local fn's own where
+     the match stands in one.
    - **Three readings of the rules**, decided 2026-11-22 before the rows, since each sorts
      many (the log's *The Cost's Rules Read*). §10's "but for a call's wait" excepts the
      growth alone. §10's rule reaches a socket's, a listener's and a running program's
