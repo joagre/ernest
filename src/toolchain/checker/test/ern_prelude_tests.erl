@@ -110,16 +110,19 @@ in_module_docs(Namespace, Name) ->
 %% E.22: the primitives a module's section names are the module's `foreign
 %% fn`s. An exported one is named as itself; a private one by the exported
 %% declaration that alone calls it, `slice` for String's `sliced`, once for
-%% all that stand beneath it, as `sort` for List's three; one that only
+%% all that stand beneath it, as `sort` for List's three, and by each of
+%% the exported functions that alone call it where the section does not
+%% name it, `indexOf` and `splitOnce` for Bytes' `firstSplit`; one that only
 %% system references call, a system module's (§8.2), by the exported
 %% functions that reach them, since in a system module a function that
-%% reaches its process is a primitive; or else by its own name.
+%% reaches its process is a primitive; or else by its own name, as Tcp's
+%% `callLimited`.
 primitives_test() ->
     [begin
          {ok, Source} = file:read_file(stdlib_file(Namespace)),
          {ok, Declarations} = ern_parser:parse_string(Source),
          ?assertEqual({Namespace, lists:usort(Named)},
-                      {Namespace, lists:usort(foreign_names(Declarations))})
+                      {Namespace, lists:usort(foreign_names(Declarations, Named))})
      end || {Namespace, Body} <- namespaces(section("## Appendix E.", "## Appendix G")),
             Named <- [primitives(Body)], Named =/= []].
 
@@ -137,8 +140,9 @@ primitives(Body) ->
 stdlib_file(Namespace) ->
     filename:join("src/stdlib", ern_namespace:module_path(Namespace) ++ ".ern").
 
-%% Each foreign fn under the name the report gives it.
-foreign_names(Declarations) ->
+%% Each foreign fn under the name the report gives it, among the names the
+%% section's sentence holds.
+foreign_names(Declarations, Named) ->
     Callers = fun(Name) ->
                   [Declaration || Declaration <- Declarations,
                                   not is_record(Declaration, foreign_fn_declaration),
@@ -149,15 +153,23 @@ foreign_names(Declarations) ->
            {true, _} -> [Name];
            {false, [#fn_declaration{export = true, name = Caller}]} -> [Caller];
            {false, [#let_declaration{export = true, name = Caller}]} -> [Caller];
-           {false, [_ | _] = References} ->
-               LetNames = [LetName
-                           || #let_declaration{export = false, name = LetName} <- References],
-               case length(LetNames) =:= length(References) of
-                   true -> reaching(LetNames, Declarations);
-                   false -> [Name]
-               end;
+           {false, [_ | _] = References} -> shared_names(Name, References, Named, Declarations);
            {false, _} -> [Name]
        end || #foreign_fn_declaration{name = Name, export = Export} <- Declarations]).
+
+%% A private foreign fn that several declarations call: by the exported
+%% declarations that reach it where private bindings alone call it, by each
+%% exported function that calls it where they alone do and the section does
+%% not name it, or else by its own name.
+shared_names(Name, References, Named, Declarations) ->
+    LetNames = [LetName || #let_declaration{export = false, name = LetName} <- References],
+    Exported = [Caller || #fn_declaration{export = true, name = Caller} <- References],
+    case {length(LetNames) =:= length(References),
+          length(Exported) =:= length(References) andalso not lists:member(Name, Named)} of
+        {true, _} -> reaching(LetNames, Declarations);
+        {false, true} -> Exported;
+        {false, false} -> [Name]
+    end.
 
 %% The exported declarations that reach one of the names, directly or
 %% through private ones.

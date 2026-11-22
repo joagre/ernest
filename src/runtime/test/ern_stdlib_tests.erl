@@ -724,6 +724,44 @@ bytes_text_test() ->
     ?assertEqual('None', Bytes(fromHex)(<<"0">>)),
     ?assertEqual('None', Bytes(fromHex)(<<"0g">>)).
 
+%% report Appendix E.20: `splitOnce` answers the octets before the
+%% separator's first occurrence and those after it, the later occurrences
+%% left in the second, and None where the separator is not there and for an
+%% empty one. Written with the function
+bytes_split_once_test() ->
+    Bytes = ern_named:functions('ern@bytes'),
+    SplitOnce = Bytes(splitOnce),
+    ?assertEqual({'Some', {<<1>>, <<2>>}}, SplitOnce(<<1, 0, 2>>, <<0>>)),
+    ?assertEqual({'Some', {<<1>>, <<2, 0, 3>>}}, SplitOnce(<<1, 0, 2, 0, 3>>, <<0>>)),
+    ?assertEqual({'Some', {<<>>, <<1>>}}, SplitOnce(<<0, 1>>, <<0>>)),
+    ?assertEqual({'Some', {<<1>>, <<>>}}, SplitOnce(<<1, 0>>, <<0>>)),
+    ?assertEqual({'Some', {<<>>, <<>>}}, SplitOnce(<<0>>, <<0>>)),
+    ?assertEqual('None', SplitOnce(<<1, 2>>, <<0>>)),
+    ?assertEqual('None', SplitOnce(<<1, 2>>, <<>>)),
+    ?assertEqual('None', SplitOnce(<<>>, <<0>>)),
+    ?assertEqual('None', SplitOnce(<<>>, <<>>)),
+    ?assertEqual({'Some', {<<1>>, <<4, 2, 3>>}}, SplitOnce(<<1, 2, 3, 4, 2, 3>>, <<2, 3>>)),
+    ?assertEqual('None', SplitOnce(<<1, 2, 4, 3>>, <<2, 3>>)).
+
+%% report Appendix E.5, E.20: `String.split` and `Bytes.split` answer one
+%% part at least, at every edge: an empty first, an empty second, both, and
+%% a first that is the separator alone. Written with the report's sentence
+split_one_part_at_least_test() ->
+    String = ern_named:functions('ern@string'),
+    Bytes = ern_named:functions('ern@bytes'),
+    ?assertEqual([<<>>], String(split)(<<>>, <<>>)),
+    ?assertEqual([<<>>, <<>>], String(split)(<<",">>, <<",">>)),
+    ?assertEqual([<<>>, <<>>], String(split)(<<"ab">>, <<"ab">>)),
+    ?assertEqual([<<>>], Bytes(split)(<<>>, <<0>>)),
+    ?assertEqual([<<>>], Bytes(split)(<<>>, <<>>)),
+    ?assertEqual([<<>>, <<>>], Bytes(split)(<<0>>, <<0>>)),
+    ?assertEqual([<<>>, <<>>], Bytes(split)(<<1, 2>>, <<1, 2>>)),
+    Texts = [<<>>, <<",">>, <<"a">>, <<",,">>, <<"ab">>],
+    [?assertNotEqual([], Split(Text, Separator))
+     || Split <- [String(split), Bytes(split)],
+        Text <- Texts,
+        Separator <- [<<>>, <<",">>, <<"ab">>]].
+
 %% report Appendix E.12: `Foreign.atom`
 foreign_atom_test() ->
     ?assertEqual(ready, (ern_named:function('ern@foreign', atom))(<<"ready">>)).

@@ -1441,7 +1441,8 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 /// The document as a manual page in man(7)'s roff markup, which groff and
 /// mandoc render, one line of roff text in each element.
 ///
-/// The header and the NAME line come from `manual`. The blocks before the first
+/// The header and the NAME line come from `manual`, and are written whatever
+/// the blocks, so the list is never empty. The blocks before the first
 /// heading of level 1 go under DESCRIPTION; a heading of level 1 is a section,
 /// one of level 2 a subsection, and a deeper one a paragraph in bold. Lines are
 /// filled to the left margin alone and no word is hyphenated, so that a name in
@@ -1918,6 +1919,40 @@ let asciiNumbers =
     Test.Case(name = "a list number is ASCII digits, not any script's",
               run = fn() = Test.equal(parse("\u{661}. x"), [Paragraph([Text("\u{661}. x")])]))
 
+// report Appendix G.2: `parse` answers no empty `Paragraph`, `Items` or
+// `Raw`, and a table has one column at least, over the texts that come
+// nearest to answering one
+let noEmptyBlocks =
+    Test.Case(name = "no paragraph, list or raw block is empty, and a table has a column",
+              run = fn() = {
+                  let texts =
+                      ["",
+                       " \n\n\t",
+                       "-",
+                       "+",
+                       "1.",
+                       "- \n- ",
+                       ">",
+                       "> -",
+                       "- >",
+                       "* *",
+                       "#",
+                       "```\n```",
+                       "```",
+                       "| |\n|-|",
+                       "| |\n| - |\n| |",
+                       "a *\t* b",
+                       "<!-- -->",
+                       "<!---->",
+                       "<!-- a\n\n",
+                       "<div>",
+                       "<?x?>",
+                       "[]()",
+                       "a  ",
+                       "\\\n"];
+                  Test.equal(List.filter(texts, fn(text) = !List.all(parse(text), isFilled)), [])
+              })
+
 let styles =
     Test.Case(name = "with styles, each is turned off by its own code",
               run = fn() =
@@ -1971,6 +2006,8 @@ let emptyQuoteRow =
     Test.Case(name = "an empty row of a quote is the bar alone",
               run = fn() = Test.equal(render(parse("> a\n>\n> b"), 80, Plain), ["│ a", "│", "│ b"]))
 
+// report Appendix G.2: `roff` writes the header and the NAME line whatever
+// the blocks, so it answers one line at least
 let manualHeader =
     Test.Case(name = "a manual page begins with its header and its NAME line",
               run = fn() =
@@ -2171,3 +2208,22 @@ fn hello() : Manual =
 
 fn inlinesAre(text : String, expected : List(Inline)) : Test.Result =
     Test.equal(parse(text), [Paragraph(expected)])
+
+// Whether a block, and every block inside it, holds what G.2 says `parse`'s
+// blocks hold: a paragraph, a list and a raw block something, a table a
+// column.
+fn isFilled(block : Block) : Bool =
+    match block {
+        Paragraph(text) ->
+            !List.isEmpty(text)
+      | Items(=items) ->
+            !List.isEmpty(items) && List.all(items, fn(item) = List.all(item, isFilled))
+      | Raw(lines) ->
+            !List.isEmpty(lines)
+      | Table(=columns) ->
+            !List.isEmpty(columns)
+      | Quote(blocks) ->
+            List.all(blocks, isFilled)
+      | _ ->
+            true
+    }

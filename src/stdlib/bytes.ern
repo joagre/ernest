@@ -153,8 +153,8 @@ export fn indexOf(bytes : Bytes, part : Bytes) : Optional(Int) =
     }
 
 // The octets before the part's first occurrence and those after it, or
-// the octets alone; raises on an empty part, which `indexOf` answers
-// itself.
+// the octets alone; raises on an empty part, which `indexOf` and
+// `splitOnce` answer themselves.
 foreign fn firstSplit(bytes : Bytes, part : Bytes) : List(Bytes) =
     "binary:split/2"
 
@@ -204,7 +204,8 @@ export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool = {
 }
 
 /// The parts of `bytes` between the occurrences of `separator`, empty parts
-/// included. An empty `separator` gives `[bytes]`.
+/// included. An empty `separator` gives `[bytes]`. The list holds one part at
+/// least, `[<<>>]` for an empty `bytes`.
 ///
 /// ### Examples
 ///
@@ -218,6 +219,27 @@ export fn split(bytes : Bytes, separator : Bytes) : List(Bytes) =
 // Raises on an empty separator, which `split` answers itself.
 foreign fn parts(bytes : Bytes, separator : Bytes) : List(Bytes) =
     "ern_bytes:split/2"
+
+/// The bytes before the first occurrence of `separator` and the bytes after
+/// it, or `None` where `separator` does not occur: `<<1, 0, 2, 0, 3>>` split
+/// once at `<<0>>` is `Some(#(<<1>>, <<2, 0, 3>>))`. An empty `separator`
+/// answers `None`, as `split` gives `[bytes]` for it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.splitOnce(<<1, 0, 2, 0>>, <<0>>), Bytes.splitOnce(<<1>>, <<0>>))
+/// // => #(Some(#(<<1>>, <<2, 0>>)), None)
+/// ```
+///
+/// since 0.11.0
+export fn splitOnce(bytes : Bytes, separator : Bytes) : Optional(#(Bytes, Bytes)) =
+    if isEmpty(separator) then
+        None
+    else match firstSplit(bytes, separator) {
+        [before, rest] -> Some(#(before, rest))
+      | _ -> None
+    }
 
 /// `bytes` with each occurrence of `old` replaced by `new`, found from the left
 /// without overlaps. An empty `old` changes nothing.

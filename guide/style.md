@@ -30,6 +30,8 @@ A module reads top-down: its types, then its service bindings, the top-level `le
 
 A block holds more than one statement; one expression is written bare. A field whose value or pattern is its own name is written as a pun, `Desk(=local, size = s)`, not `Desk(local = local, size = s)` (report §5.6, §5.10). A blank line groups, where the writer chooses, and a comment or doc block stands directly above its declaration. A part of a long expression is named where the formatter's split reads worse than a name. A section's banner is a line `//`, lines `// text`, and a line `//`, with a blank line before and after; a module with a doc block has no banner for the file, since the block is its header (report §2.2). A comment says why; the names say what.
 
+A case the value's shape rules out is not given a value. The site asks in a form where every case can come, `String.splitOnce` for a first part; where there is none, the clause faults, and its cause says why the case cannot come.
+
 ## Glossary
 
 The names that recur in a program, one for each concept, in every module. The report is the authority: a concept it names takes its name, and a citation such as E.5 names a section of its Appendix E, and E.0's admission and shape rules their number. A name not here is the writer's.

@@ -202,7 +202,7 @@ Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 1
      Then come the section `Examples`, with the module's central examples, each under a line that says what it shows, and `See also` when there is something to see. It ends with the line `since v`, the toolchain version in which the module appeared.
    - **A declaration.** Every exported declaration has a doc block. Its first sentence says what the declaration does or answers, and in it what the type does not say, such as which occurrence `replace` replaces, the order `toList` produces, or the range `nextInt` draws from; the shell shows that sentence alone (§11.2).
 
-     Sentences follow, one rule each, for what else a caller needs: what an edge of its arguments gives, an empty list, an absent key or a count past the end; what it leaves as it was; and a cost its name does not suggest.
+     Sentences follow, one rule each, for what else a caller needs: what an edge of its arguments gives, an empty list, an absent key or a count past the end; that a list it answers is never empty, where that holds whatever it is given; what it leaves as it was; and a cost its name does not suggest.
 
      Then come an `Errors` section when it faults, and none otherwise (shape rule 4), which says what the caller did and the cause the fault carries; an `Examples` section with one example for an exported `type`, an abstract type's examples covering its members; `See also` when there is something to see.
 
@@ -404,7 +404,7 @@ String.toAsciiLower : (String) -> String // the letters A to Z in lower case, ev
 String.toAsciiUpper : (String) -> String // the letters a to z in upper case, every other code point as written
 String.lines : (String) -> List(String) // at each line feed and each carriage return with a line feed; a line's end at the end adds no empty line, and "" has no lines
 String.words : (String) -> List(String) // the parts between runs of whitespace, none empty
-String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
+String.split : (String, String) -> List(String) // at each occurrence of the second, one part at least; an empty second gives the first alone
 String.splitOnce : (String, String) -> Optional(#(String, String)) // the parts before and after the second's first occurrence; None where it is not there, and for an empty second
 String.join : (List(String), String) -> String // the second between the parts
 String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -; None for an integer the host cannot hold
@@ -754,7 +754,7 @@ Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) // the connection
 
 A `Bytes` is a container read through `toList`, which gives each octet as an `Int` from 0 to 255: of the container operations it provides `size`, `isEmpty`, `contains`, `get`, `fromList`, and `toList`, and the rest go through `toList`. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here.
 
-The primitives are `size`, `toList`, `toHex`, and `fromHex`, and functions of the host's beneath `fromList`, `indexOf`, `split`, `replace`, `repeat`, and `join`, private to the module (E.0 rule 1); the rest is written over them and with the bit syntax, `get` and `slice` among them. `fromHex` answers the host's raise as `None` (§10). The functions `String` has for text, a search, a split, a replacement and their like, are `Bytes`' too, for octets, under the same names.
+The primitives are `size`, `toList`, `toHex`, and `fromHex`, and functions of the host's beneath `fromList`, `indexOf`, `splitOnce`, `split`, `replace`, `repeat`, and `join`, private to the module (E.0 rule 1); the rest is written over them and with the bit syntax, `get` and `slice` among them. `fromHex` answers the host's raise as `None` (§10). The functions `String` has for text, a search, a split, a replacement and their like, are `Bytes`' too, for octets, under the same names.
 
 ```
 Bytes.size : (Bytes) -> Int // octets
@@ -769,7 +769,8 @@ Bytes.indexOf : (Bytes, Bytes) -> Optional(Int) // where the second first begins
 Bytes.lastIndexOf : (Bytes, Bytes) -> Optional(Int) // where the second last begins, None where it is not there; an empty second is the size
 Bytes.startsWith : (Bytes, Bytes) -> Bool // true for an empty second
 Bytes.endsWith : (Bytes, Bytes) -> Bool // true for an empty second
-Bytes.split : (Bytes, Bytes) -> List(Bytes) // at each occurrence of the second; an empty second gives the first alone
+Bytes.split : (Bytes, Bytes) -> List(Bytes) // at each occurrence of the second, one part at least; an empty second gives the first alone
+Bytes.splitOnce : (Bytes, Bytes) -> Optional(#(Bytes, Bytes)) // the parts before and after the second's first occurrence; None where it is not there, and for an empty second
 Bytes.replace : (Bytes, Bytes, Bytes) -> Bytes // every occurrence of the second by the third; an empty second changes nothing
 Bytes.join : (List(Bytes), Bytes) -> Bytes // the second between the parts
 Bytes.repeat : (Bytes, Int) -> Bytes // n times; n below 0 is 0
@@ -1139,7 +1140,7 @@ Ets.toList : (Table(k=, v)) -> List(#(k=, v))
 
 CommonMark 0.31 and GitHub's tables, read into blocks and inlines and laid out as text for a terminal or as a manual page. `parse` reads headings, paragraphs, code blocks, block quotes, lists, thematic breaks, and tables, and inside them code spans, emphasis, strong emphasis, links, images, and hard line breaks. A line ends in a line feed, a carriage return, or both. A tab in a line's indentation, quote marks and list markers reaches to the next multiple of four columns, and one elsewhere, in a code block's content as in text, is kept. An image is read as a `Link`, its description the link's text and its source the URL.
 
-What `parse` does not read is kept as written: an HTML block is a `Raw` block, and inline HTML, an entity, and a link by reference stay in the text. HTML blocks follow a simpler rule than the specification's: one begins with a comment, a declaration, a processing instruction or a CDATA section, whatever follows on the line, or with a tag alone on its line, which does not end a paragraph. A comment runs to the line that holds `-->`, a processing instruction to one that holds `?>`, a CDATA section to one that holds `]]>`, and a declaration to one that holds `>`, its first line among them, and to the end of the input where no line does; a tag runs to a blank line.
+What `parse` does not read is kept as written: an HTML block is a `Raw` block, and inline HTML, an entity, and a link by reference stay in the text. HTML blocks follow a simpler rule than the specification's: one begins with a comment, a declaration, a processing instruction or a CDATA section, whatever follows on the line, or with a tag alone on its line, which does not end a paragraph. A comment runs to the line that holds `-->`, a processing instruction to one that holds `?>`, a CDATA section to one that holds `]]>`, and a declaration to one that holds `>`, its first line among them, and to the end of the input where no line does; a tag runs to a blank line. `parse` answers no empty `Paragraph`, `Items` or `Raw`, and a table has one column at least.
 
 Emphasis follows a simpler rule than the specification's: a mark opens before a character other than a space and closes after one, the nearest run of as many marks closes it, and a run of three or more is text.
 
@@ -1150,6 +1151,8 @@ A table's rows are its lines to a blank line or one that begins another block; a
 `render` lays the blocks out as rows at most `width` columns wide where a word allows, an empty row between two blocks, with the terminal's styles (Appendix E.16) when the output is `Styled`, emphasis within emphasis and strong emphasis within a heading as the text around them, and when it is `Plain` a code span between single backticks, emphasis between `*`s and strong emphasis between `**`s, whether the source wrote `*` or `_`. It lays a table out in columns, each as wide as its widest cell, a row's cells separated by `│`, the headings bold with styles and a row of `─`s under them, each cell to the side its column aligns it to, a hard break in a cell a space, and no row wrapped.
 
 `roff` writes the blocks as a manual page in the roff of man(7), which groff and mandoc render: its header and its NAME line from the `Manual`, the blocks before its first heading of level 1 under DESCRIPTION, a heading of level 1 as a section, one of level 2 as a subsection, and a deeper one as a paragraph in bold, its lines filled to the left margin alone and never hyphenated. It lays out and styles the rest as §11.4 says of a manual page, with a thematic break as a row of asterisks, a table laid out as `render` lays it out, its headings bold and its lines not filled, and a `Raw` block as written. It writes every character roff would change as roff's escape for it, and the rest in UTF-8, which man-db and mandoc read.
+
+`roff` writes the header and the NAME line whatever the blocks, so it answers one line at least.
 
 `firstSentence` is the first paragraph's text up to the first period a space follows outside emphasis, code spans, and links, or all of it where there is none, and empty where there is no paragraph.
 

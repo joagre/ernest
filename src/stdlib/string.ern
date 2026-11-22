@@ -461,7 +461,8 @@ fn withWord(word : List(String), acc : List(String)) : List(String) =
 
 /// The parts of `text` between the occurrences of `separator`, empty parts
 /// included: `"a,,b"` split at `","` is `["a", "", "b"]`. An empty `separator`
-/// gives `[text]`, and so does a text without one.
+/// gives `[text]`, and so does a text without one. The list holds one part at
+/// least, `[""]` for an empty `text`.
 ///
 /// ### Examples
 ///

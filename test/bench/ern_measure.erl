@@ -552,6 +552,7 @@ hosts() ->
                                   binary:part(Bytes, From, byte_size(Bytes) - From)
                           end,
       <<"Bytes.split">> => fun(Bytes, Separator) -> binary:split(Bytes, Separator, [global]) end,
+      <<"Bytes.splitOnce">> => fun(Bytes, Separator) -> binary:split(Bytes, Separator) end,
       <<"Bytes.contains">> => fun(Bytes, Part) -> binary:match(Bytes, Part) =/= nomatch end,
       <<"Bytes.join">> => fun(Parts, Separator) -> iolist_to_binary(lists:join(Separator, Parts))
                           end,
