@@ -22,9 +22,9 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 8**, a result that is
-never empty, whose hunt comes first, in a session on Opus 5.5 at xhigh, and item 4, the
-full review, follows it. Items 2 and 3,
+**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 8's design**, a result
+that is never empty, in a session on Fable 5.2 at high; its hunt is done the same day (the
+log's *A Result Never Empty, Counted*), and item 4, the full review, follows it. Items 2 and 3,
 the cost and the raise a primitive catches, are closed since 2026-11-22.
 
 The milestones to come, in order: MVP 4.4, whose release is the
@@ -433,34 +433,20 @@ What the line left, in the order it is taken:
 8. **A result that is never empty**, feedback 274, found 2026-11-22 by item 2's close and
    taken next, before item 4, with the user (the log's *A Clause That Cannot Run*). A
    function that never answers an empty list has no way to say so, and each caller writes a
-   clause that cannot run. First the hunt, which sizes it, and nothing is designed before
-   its count is in:
+   clause that cannot run.
 
-   - every function of the standard library and the libraries whose `List` result is never
-     empty, by its section of the report and its code;
-   - every site in this repository, in ernest-httpd, in ernest-epx and in ernest-template
-     that handles an empty list from one, by readers and by the dialyzer over each
-     repository's units, the tools' among them, which `make dialyzer` does not read; the
-     other repositories are read and not written (`docs/clean_room.md`), a copy outside
-     each built where the dialyzer needs units, and their finds go to their own sessions as
-     the messages that document describes;
-   - the count, without the chase, of the wider family: a default or a clause for a case
-     the value's shape rules out, an `Optional` that is never `None` among them;
-   - how the languages of Ernest's family answer it, Erlang, Haskell, OCaml, Elm, Gleam and
-     Rust among them.
-
-   The hunt's session runs on Opus 5.5 at xhigh: its code readers on Opus 5.5 at xhigh,
-   its searches on Haiku 5.5, the survey on Opus 5.5 at high. It changes no site, designs
-   nothing and recommends nothing. Its result is one log entry: a table of the functions, a
-   table of the sites by repository with what each answers for the empty list, the wider
-   family's count, and the survey's table, each language's answer with its source. The
-   readers' reports are kept under the project directory's `probes/mvp44_item8/`. It
-   commits the entry, says in *Where we are* that the design is next, and stops for the
-   user.
+   The hunt, done 2026-11-22 on Opus 5.5 at xhigh, designed nothing (the log's *A Result
+   Never Empty, Counted*). Three functions never answer an empty list, `String.split`,
+   `Bytes.split` and `Markdown.roff`, and the report says so of none in words. Ten sites
+   handle the empty list, all in this repository and one in the guide. The wider family
+   is 80 sure finds and 19 likely, most an `Optional` that is never `None`. Of the six
+   languages surveyed, Haskell alone has a non-empty list in its standard library, and
+   OCaml alone says in words that its split is never empty. The readers' reports are under
+   the project directory's `probes/mvp44_item8/`.
 
    Then the design, in a session on Fable 5.2 at high, decided with the user: the answer
    that holds principle 1 and is the family's practice. The three sites rewritten at item
-   2's close, and `tools/site/code_block.ern`'s clause, which stands, are read against it.
+   2's close and the ten the hunt found are read against it.
 
 ---
 
