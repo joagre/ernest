@@ -1679,3 +1679,118 @@ exception error: no match of right hand side value #{location => {"t.erl",4},arg
 #6851 met the same rewrite by another path, a fragment that could be other than a bitstring, and its fix has the pass rewrite only a fragment typed as a bitstring alone, which an empty literal is. #12249, open, is another fault of the pass at a literal tuple, which the compiler meets in `patch_literal_tuple/6` for a tuple a function returns; the module here compiles, and faults when it runs.
 
 Found by a generator of random well-typed programs in a compiler that emits Erlang, where a field selected from a record that a conditional builds became `element/2` of a `case` the compiler reduced to one literal tuple.
+
+## 28. A raise reads a run of frames of one call site whole, whatever the backtrace depth
+
+Not filed. Found on 2026-11-01 as a cost of `Json.parse` that grew with the caller's stack (the log's *The Four Libraries*), read in erts and measured on 2026-11-22; the log's *The Raise's Walk Reported*. A search of OTP's tracker on 2026-11-22 found no earlier issue. Ernest meets it wherever a primitive takes the host's raise beneath a recursion, `String.toInt` in `List.map` among them.
+
+**Title:** A raise costs the stack beneath it where the frames return to one call site; lists:map/2 over a caught error is quadratic
+
+**Describe the bug**
+
+Every raise saves the stack's return addresses where it is raised, whether or not anything reads the stack trace: `handle_error` calls `save_stacktrace`, which calls `gather_stacktrace` (`erts/emulator/beam/beam_common.c`, line 782). The walk goes down the stack until it holds `backtrace_depth` entries, but it adds an entry only where a frame's return address differs from the one above it (line 817). So a run of frames that return to one call site, a body recursion's, is one entry, and the walk reads the run whole unless the entries fill above it. The raise then costs the recursion's depth, 0.6 to 0.9 nanoseconds a frame here, where the documentation of `backtrace_depth` names a maximum depth.
+
+Where the catch stands does not bound the walk: an error caught in the function that raised it pays for every frame beneath. `lists:map/2` is such a recursion. Its fun runs for element K beneath K frames of `lists:map_1/2`, so a fun that catches an error for each element makes the map quadratic. `process_info(Pid, current_stacktrace)` is the same walk, through `erts_save_stacktrace`.
+
+**To Reproduce**
+
+`walk.erl`, at the default depth, 8:
+
+```erlang
+-module(walk).
+-export([main/0]).
+
+%% Depth frames that return to one call site, then Fun.
+same(0, Fun) -> Fun();
+same(Depth, Fun) -> 1 + same(Depth - 1, Fun).
+
+%% Depth frames that return to two call sites in turn, then Fun.
+one(0, Fun) -> Fun();
+one(Depth, Fun) -> 1 + two(Depth - 1, Fun).
+two(0, Fun) -> Fun();
+two(Depth, Fun) -> 1 + one(Depth - 1, Fun).
+
+to_integer(Text) -> try binary_to_integer(Text) catch error:badarg -> none end.
+
+raises(0) -> 0;
+raises(Count) -> to_integer(<<"x">>), raises(Count - 1).
+
+%% What Fun answers, run in a process of its own.
+in_process(Fun) ->
+    {Pid, Ref} = spawn_monitor(fun() -> exit({answer, Fun()}) end),
+    receive {'DOWN', Ref, process, Pid, {answer, Answer}} -> Answer end.
+
+micros(Fun) ->
+    Start = erlang:monotonic_time(microsecond),
+    Fun(),
+    erlang:monotonic_time(microsecond) - Start.
+
+%% The microseconds one caught raise costs beneath Depth frames of Shape.
+raise(Shape, Depth) ->
+    in_process(fun() ->
+        Self = self(),
+        Shape(Depth, fun() -> Self ! micros(fun() -> raises(1000) end), 0 end),
+        receive Micros -> Micros / 1000 end
+    end).
+
+%% The milliseconds lists:map/2 takes over Count copies of Text.
+map(Count, Text) ->
+    List = lists:duplicate(Count, Text),
+    in_process(fun() -> micros(fun() -> lists:map(fun to_integer/1, List) end) / 1000 end).
+
+%% The microseconds process_info/2 takes to read the stack of a process that
+%% waits beneath Depth frames of one call site.
+info(Depth) ->
+    Self = self(),
+    Pid = spawn(fun() -> same(Depth, fun() -> Self ! ready, receive stop -> 0 end end) end),
+    receive ready -> ok end,
+    Micros = micros(fun() -> process_info(Pid, current_stacktrace) end),
+    exit(Pid, kill),
+    Micros.
+
+main() ->
+    io:format("one caught raise, microseconds~n~10s ~14s ~15s~n",
+              ["frames", "one call site", "two call sites"]),
+    [io:format("~10B ~14.2f ~15.2f~n", [Depth, raise(fun same/2, Depth), raise(fun one/2, Depth)])
+     || Depth <- [0, 1000, 10000, 100000, 1000000]],
+    io:format("lists:map/2, milliseconds~n~10s ~14s ~15s~n", ["elements", "<<\"x\">>", "<<\"7\">>"]),
+    [io:format("~10B ~14.1f ~15.1f~n", [Count, map(Count, <<"x">>), map(Count, <<"7">>)])
+     || Count <- [20000, 40000, 80000, 160000]],
+    io:format("process_info(Pid, current_stacktrace), microseconds~n"),
+    [io:format("~10B ~14B~n", [Depth, info(Depth)]) || Depth <- [0, 1000000]],
+    halt().
+```
+
+```
+$ erlc walk.erl && erl -noshell -pa . -run walk main
+one caught raise, microseconds
+    frames  one call site  two call sites
+         0           0.10            0.10
+      1000           0.88            0.07
+     10000           7.84            0.11
+    100000          76.24            0.26
+   1000000         633.94            0.06
+lists:map/2, milliseconds
+  elements        <<"x">>         <<"7">>
+     20000          173.9             0.4
+     40000          734.5             0.8
+     80000         2778.5             1.7
+    160000        10930.6             4.1
+process_info(Pid, current_stacktrace), microseconds
+         0             12
+   1000000            660
+```
+
+**Expected behavior**
+
+A raise costs no more than the depth allows, whatever lies beneath it: 160,000 caught errors in `lists:map/2` in some tens of milliseconds, as beneath frames of two call sites. A limit on the frames the walk reads, beside the limit on the entries it keeps, would bound it, the trace then ending inside a run longer than the limit.
+
+**Affected versions**
+
+OTP 29.1.2, erts 17.1.1 with the JIT, stdlib 8.1.1, on Linux x86_64.
+
+**Additional context**
+
+Frames of distinct call sites between the raise and the run spare the raise where they fill the entries, so a higher `backtrace_depth` spares fewer raises. The map's run is read whole at every depth of 5 or more: 40,000 elements take 3 ms at a depth of 4 and 700 ms at 5.
+
+Found by a language that compiles to Erlang, whose conversion of a text to an integer answers an optional value by catching `binary_to_integer/1`'s error: its map over 80,000 texts that are no integers took 2.7 s, against 5 ms over texts that are.

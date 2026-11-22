@@ -23,8 +23,8 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 3**, the raise a
-primitive catches, which is taken before item 2, the cost. Its reading is made, and its
-verdict is next, with the user.
+primitive catches, which is taken before item 2, the cost. Its reading is made and its
+report to OTP written, and the rest of its verdict is next, with the user.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -103,6 +103,13 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    frame of `f` lies beneath 1,000 frames of one call site is listed, and one beneath 1,000
    frames of two call sites in turn is not.
 
+   A program meets it as a square. `List.map` runs its function for element k beneath k
+   frames of one call site, so a map over texts that `String.toInt` refuses reads them all
+   at each: 80,000 texts take 2.7 seconds, against 5 milliseconds where each is an integer.
+   `Json.parse` refused costs the same, and `String.toFloat`, which takes no raise for a
+   refused text, 3 milliseconds. OTP alone shows it at its default depth, `lists:map/2` over
+   160,000 binaries with `binary_to_integer/1` caught, in 10.9 seconds against 4 milliseconds.
+
    So the walk is OTP's defect, and two sentences of the report are false, which the line
    mends before the launch. §10's "costs the frames the host keeps of the stack, 64": a raise
    beneath a deep recursion costs the recursion. E.28's "a process whose such frame lies
@@ -110,11 +117,14 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    doc, the guide's §8.9 and the comments of `ern_rt:run_main/3`, `ern_code:running/1` and
    the bench's `raises` repeat them.
 
-   **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*):
-   the report to OTP, recommended; the sentences of §10 and E.28 and their echoes; the
-   depth, recommended to stay 64, since none that keeps E.21's twelve lines bounds the walk;
-   and whether the bench gains a row for a raise beneath a deep recursion, which item 2 then
-   reads.
+   **Reported 2026-11-22**, decided with the user: `docs/otp_bugs.md`'s report 28, whose
+   reproduction is the map (the log's *The Raise's Walk Reported*). Its filing is the user's.
+
+   **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*),
+   in this order: the depth, recommended to stay 64, since none that keeps E.21's twelve
+   lines bounds the walk; the sentences of §10 and E.28 and their echoes, and with them
+   whether a narrower sentence alone answers the map's square; and whether the bench gains a
+   row for a raise beneath a deep recursion, which item 2 then reads.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
