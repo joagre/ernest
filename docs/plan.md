@@ -22,8 +22,9 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 2**, the cost. Item 3,
-the raise a primitive catches, was taken before it and is closed since 2026-11-22.
+**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 2**, the cost, whose
+measuring is done since 2026-11-22 and whose decisions come next. Item 3, the raise a
+primitive catches, was taken before it and is closed since 2026-11-22.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -50,27 +51,67 @@ until someone outside this project depends on it, so that a break would cost the
 and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
 
 1. **The promise**, dropped 2026-11-05 (the log's *Ernest Stays at 0.x*).
-2. **The cost.** The fault row made readable first, a median over runs with more iterations,
-   since its spread in one run is half its value (the log's *The Release Review Before 0.7.0*,
-   *The raise's rise is noise*). Then the bench whole, idle, and each row above a fraction of the
-   host's read: by design, a message §10 states and the log argues, with what it buys and the rate
-   at which a program feels it; or a defect, the fault's report at 36 times the host the one
-   candidate, whether the trace is taken at the raise or when a line is written. The verdicts and
-   rates are one log entry and the rules a section of the runtime's design note beside how it
-   keeps its books, `why.md`'s cost claims held to them; read before the review.
+2. **The cost.** Each row of the bench at a multiple of the host's is read: by design, a
+   message §10 states and the log argues, with what it buys and the rate at which a program
+   feels it; or a defect. The verdicts and rates are one log entry and the rules a section of
+   the runtime's design note beside how it keeps its books, `why.md`'s cost claims held to
+   them; read before the review.
 
-   A `match` guard that calls a function, feedback 235, is read with them: it compiles into a
-   chain of closures, which cost `Base64.decode`'s loop about four times the host where the same
-   test in the body cost 1.4 to 2.3 (the log's *The Libraries' Shims Read Against E.0 Rule 1*).
-   The emitter compiles it so that a loop pays the call alone, or §11 states the cost.
+   The measuring was done on 2026-11-22: the fault's row made readable (the log's *The Fault
+   Row Measured First*), the bench run whole and idle, and every row at twice the host's or
+   more read against §10, E.0's line and the log, by probes and readers kept outside the
+   repository. Each finding below leaves a decision with the user, taken in this order.
 
-   MVP 4.16's item 123, what 20,000 faults at once hold, is read with the fault's report,
-   moved here on 2026-11-19 (the log's *The Line Before the Launch*). It was found
-   2026-11-18 by item 106's probes (the log's *What a Program's Helper Holds*, its paragraph
-   *Found beside it*). A kill of a program with 20,000 writers waiting faulted them all, and
-   the node's memory peaked at 4.4 GB while their reports were written, about 220 KB a
-   report. An agent first shows what one fault's report holds and what many at once add, and
-   the fix's shape follows what it shows.
+   - **A fault** costs 29 µs against the host's 1.8, measured in parts. A returning
+     `spawnMonitored` is 6.8 of it, and the raise, its record and its end 2.9. The cause's
+     text, an `io_lib:format`, is 7.0, and the trace's 7.4, both made in the faulting process
+     at the raise: `ern_code:function_text/3` costs a frame of a unit 1.0 to 1.3 µs, since it
+     scans the unit's `'$code'/0` and makes a list of every entry's name. The line the
+     reporter makes in the reaper is 5.4, and standard error's write costs the loop nothing.
+     About 6 µs of the two texts is the faulting process's collections from its first heap.
+     Decided: whether the trace is taken at the raise or when a line is written, and what the
+     two texts and the line may cost.
+   - **What 20,000 faults at once hold**, MVP 4.16's item 123, moved here on 2026-11-19 (the
+     log's *The Line Before the Launch*) and found by item 106's probes (the log's *What a
+     Program's Helper Holds*). One report holds under a kilobyte at each step. The 4 GB is the
+     first trace of a host's life: `ern_rt:own_modules/0` puts its persistent term at its
+     first call, so 19,400 writers that fault at once each list the toolchain's tree through
+     the host's one file server, holding about 200 KB while they wait, and the reports take
+     20 s. With the modules found first, memory rises by at most 150 MB and the reports take
+     0.7 to 3.8 s, the reaper's collections over its long mailbox setting the pace, which the
+     line's garbage doubles. Decided: the fix's shape.
+   - **A `match` guard that calls a function**, feedback 235 (the log's *The Libraries' Shims
+     Read Against E.0 Rule 1*). The emitter binds the clauses after such a guard as a closure
+     at every evaluation, the scrutinee captured. The old `Base64.decode` loop over 16 KB
+     takes 209 µs against 44 for its `&&` form. In a model in Erlang, the clauses after it as
+     a local function of the scrutinee halve the closures' chain, and the scrutinee kept for a
+     fallthrough still costs a binary loop the host's reuse of its match, 2.7 times the `&&`
+     form. 76 sites of the libraries and the tools match so. Decided: the emitter's form, or
+     §11 states the cost.
+   - **Three readings of the rules**, decided before the rows, since each sorts many: whether
+     §10's "but for a call's wait" excepts a call's whole added cost or its growth alone;
+     whether §10's rule reaches a socket's, a running program's and a library's processes, the
+     shell and the emitter's forms; and whether E.0's line at three times the host's function
+     covers `String`, `Map` and `Path`.
+   - **The rows at a multiple that §10 states.** Stated and argued: the calls to the
+     system's and the library's processes, `Process.run`, `Supervisor`, `Proxy.start` and the
+     text functions within E.0's line. The message stated and the rows behind it not: a
+     spawn, whose end's handling alone, 1.17 µs, is more than the host's whole spawn,
+     `spawnMonitored`, and a monitor of an ended process, 18 times the host.
+   - **The rows at a multiple that no sentence states.** Argued in the log: `restarting`, 29
+     times, `Path.<>`, `List.reverse` and `Map.fold`, whose reason to stay in Ernest *Kill
+     Darlings* took away, `String.stripPrefix`, a foreign function's return check and a
+     callback, a computed `let`'s read, `Code.load`, `Code.running`, a launch and a shell's
+     input. Argued nowhere: `Io.show` of an `Int`, 3.1 times where it was 1.6,
+     `Path.extension`, which grows with the path where the host's does not, `Fs`'s checks the
+     host does not make, `Os.give` and `Tcp.give`, `Process.fromAddress`, `Utilization.cpu`, a
+     record update, `Code.hashes`, and `Tcp`'s round trip to the reaper at each open. Decided,
+     row by row, for these and the rows above: by design or a defect.
+   - **Two defects found beside them**, each to decide: `Fs.copy` onto a file that exists goes
+     through the host's file server, which `ern_fs` goes around everywhere else; and a
+     `Supervisor.group` whose process is killed before it runs leaves its watcher waiting for
+     the run's life, which the library bench's row of `group` does at every iteration, so
+     that the rows after it may meet many waiting processes.
 3. **The raise a primitive catches**, read, decided and closed 2026-11-22 (the log's *What a
    Raise Reads*, which names the entry of each decision). A raise reads a recursion of one
    call beneath it whole, a defect of OTP's, `docs/otp_bugs.md`'s report 28, whose filing is

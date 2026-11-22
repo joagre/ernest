@@ -3,9 +3,10 @@
 // a loop of its own three times, and the fastest run printed as the
 // operation's key, the loop's count and the milliseconds it took; a raise,
 // at each backtrace depth and beneath a deep recursion at the runtime's,
-// in seven loops, and their median and range printed in microseconds.
-// ern_bench runs the same operations as Erlang writes them and prints the
-// two side by side.
+// in seven loops, and their median and range printed in microseconds,
+// measured first, while the run is fresh, since a fault measured after the
+// rest spreads by half its value. ern_bench runs the same operations as
+// Erlang writes them and prints the two side by side.
 //
 
 type Msg = Ping(Int)
@@ -37,6 +38,8 @@ export fn main() : Unit receiving Msg = {
     let path = Path("srv/site");
     let ended = endedProcess();
     let endedProcessOf = Process.fromAddress(ended);
+    raises([8, 12, 64]);
+    let _ = systemFlag(backtraceDepth, 64);
     measure("loop", 10000000, fn(index) = index);
     measure("operator", 10000000, fn(index) = (Point(x = index, y = 1) + point).x);
     measure("equal", 10000000, fn(index) = if Point(x = index, y = 2) == point then 1 else 0);
@@ -117,8 +120,6 @@ export fn main() : Unit receiving Msg = {
         Right(value) -> value
       | Left(_) -> 0
     });
-    raises([8, 12, 64]);
-    let _ = systemFlag(backtraceDepth, 64);
     Unit
 }
 
@@ -142,8 +143,8 @@ fn raises(depths : List(Int)) : Unit receiving Msg = {
             measureRuns("raise_deep_" <> suffix, 1000000, failedToInt);
             0
         });
-        measureRuns("fault_" <> suffix, 300, fn(index) = faulted(index, 0));
-        measureRuns("fault_deep_" <> suffix, 300, fn(index) = faulted(index, 40))
+        measureRuns("fault_" <> suffix, 3000, fn(index) = faulted(index, 0));
+        measureRuns("fault_deep_" <> suffix, 3000, fn(index) = faulted(index, 40))
     });
     let _ = systemFlag(backtraceDepth, 64);
     let _ = deepened(100000, fn() = {
