@@ -22,9 +22,11 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 4, the full review.**
-Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22, and
-item 8, a result that is never empty, since 2026-11-23.
+**MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
+second leg is next**: the builds before the readers start, then the readers, on Opus 5.5 at
+xhigh. Its first leg, the decisions before the readers, closed 2026-11-23. Items 2 and 3,
+the cost and the raise a primitive catches, are closed since 2026-11-22, and item 8, a
+result that is never empty, since 2026-11-23.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -87,10 +89,13 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    *The Full Review in Four Legs*). The session stops at each cut and tells the user the
    model to switch to, since a session's model changes only after a `/clear`:
 
-   1. Fable 5.2 at high: the decisions before the readers start, which are eve beside nike,
-      whether the checker warns of a private function no code calls, the verdict on each of
-      the three tools, and the argument's recut. Its commit writes each verdict into this
-      item.
+   1. Fable 5.2 at high: the decisions before the readers start, closed 2026-11-23 (the
+      log's *The Decisions Before the Readers*). The review's clone stays on nike, where it
+      builds and passes before the readers start, as `docs/reviews/release.md`'s first step
+      says, and no rule changes. The checker says nothing of a private function no code
+      calls, as §0's principle 3 has it. The three tools are written in Ernest.
+      `docs/soundness.md`'s section 7 is recut, and its section 1 names the two claims
+      beyond the four.
    2. Opus 5.5 at xhigh: the builds before the readers start, the rest of the list below.
       Then the readers are started, and their lists are written whole into the findings
       file.
@@ -107,21 +112,21 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
    Before its readers start:
 
-   - **Eve beside nike**, to decide with the user, raised 2026-11-19. The review's clone
-     builds and runs `make test-full` on committed code while the readers read, and eve,
-     alone of the other machines, could run it beside nike. CLAUDE.md's *What is the user's* keeps another machine to tests
-     of nodes across a network, so that rule changes first, in the template, or the clone
-     stays on nike. Recommended: eve runs the clone, which needs committed code alone. A
-     second machine was weighed for an item's build the same day and helped nothing there.
-   - **The tools weighed.** `tools/paragraphs.sh`, `tools/comments.sh` and
-     `tools/unicode_width.escript` are weighed against CLAUDE.md's *The work*, each
-     written in Ernest or its reason to stay stated (the log's *The Layout's Proposal Read*).
-   - **The argument recut**, decided 2026-11-07. `docs/soundness.md`'s section 7 is recut: its
-     paragraphs cut at their turns and ordered by claim, not by the history of the rules that
-     wrote them, and section 1 naming the two claims it argues beyond the four, that no process
-     runs after the end and that a process's code stands while it runs, with no paragraph's
-     content changed, so that the cold reader reads the argument and not its history (the log's
-     *The Argument Recut*).
+   - **The three tools in Ernest**, decided 2026-11-23 (the log's *The Decisions Before the
+     Readers*). `tools/paragraphs.sh` and `tools/comments.sh` become one program,
+     `tools/words.ern`, whose two jobs are the two listings, each taking the scripts'
+     optional count and writing the scripts' lines. Its paragraphs' reading is that of the
+     template's `tools/docs.ern`. `make paragraphs`, `make comments` and the two style tests
+     run it, and the scripts go, once it lists what they list over the tree at 100 and
+     at 150.
+
+     `tools/unicode_width.escript` becomes `tools/unicode_width.ern`, which `make unicode`
+     runs. It reads the host's Unicode version through a foreign declaration and refuses
+     data of another version, as the escript does. It is checked by writing today's table
+     byte for byte from the data of OTP 29.1.2's `lib/stdlib/uc_spec`, and the escript goes.
+
+     `docs/development.md`, `docs/code_style.md` and each comment that names one of the
+     three follow in the same commit.
    - **The checks that cost cycles**, built, decided with the user 2026-11-10, so that the
      readers start from what a tool lists (the log's *The Listings Before a Review*).
 
@@ -137,8 +142,11 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      for the release review. `docs/reviews/full.md`, `release.md` and `development.md` name
      each check in the commit that builds it.
 
-     Decided first, with the user: whether the checker warns of a private function no code
-     calls (§11).
+     Decided 2026-11-23: the checker says nothing of a private function no code calls (the
+     log's *The Decisions Before the Readers*). One refusal more is added for this
+     repository's own Ernest, which holds none today: a style test names each private
+     top-level `fn` of a tracked module under `src/`, `tools/`, `examples/` and `tour/`
+     whose name stands nowhere else in its file, comments aside.
    - **What is kept, stated once**, found 2026-11-16 by the reading of three process
      documents (the log's *Three Process Documents Read Against the Rules*).
      `docs/memory_checks.md`'s *What is kept, and what lets it go* says when each row, unit
