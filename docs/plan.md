@@ -24,8 +24,8 @@ outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 3**, the raise a
 primitive catches, which is taken before item 2, the cost. Its reading is made and its
-report to OTP written, and its sentences are in the report; the bench's row is decided next, with the user, and an
-agent then writes the echoes in the code and a test.
+report to OTP written, and its sentences are in the report; every decision is made, and one agent writes the bench's
+row, the echoes in the code and a test.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -130,13 +130,17 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    **The sentences are written**, decided with the user 2026-11-22 (the log's *The Raise's
    Sentences*): §10's bullet on a raise, E.28's sentence on the 64 frames, a clause each in
    E.5 and E.20 that names the primitives whose `None` is the host's raise, and the
-   guide's §8.9. Left for an agent: `Code`'s doc, the comments of `ern_rt:run_main/3`,
-   `ern_code:running/1` and the bench's `raises`, and a test of E.28's clause, a process
-   beneath 1,000 frames of one call listed and one beneath frames of two calls in turn not.
+   guide's §8.9.
 
-   **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*):
-   whether the bench gains a row for a raise beneath a deep recursion, which item 2 then
-   reads.
+   **The bench gains one row**, decided with the user 2026-11-22 (the log's *A Row for a
+   Raise Beneath a Recursion*): a refused `String.toInt` beneath 100,000 frames of one call,
+   at depth 64 alone, beside the host's caught `badarg` there. Item 2 reads the bench with
+   the row in it.
+
+   **Left, for one agent**, every decision made: the row; the sentences' echoes in `Code`'s
+   doc and in the comments of `ern_rt:run_main/3`, `ern_code:running/1` and the bench's
+   `raises`; and a test of E.28's clause, a process beneath 1,000 frames of one call listed
+   and one beneath frames of two calls in turn not. The item closes on `make test-full`.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
