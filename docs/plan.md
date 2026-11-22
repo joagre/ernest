@@ -69,8 +69,14 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      scans the unit's `'$code'/0` and makes a list of every entry's name. The line the
      reporter makes in the reaper is 5.4, and standard error's write costs the loop nothing.
      About 6 µs of the two texts is the faulting process's collections from its first heap.
-     Decided: whether the trace is taken at the raise or when a line is written, and what the
-     two texts and the line may cost.
+
+     Decided 2026-11-22 (the log's *A Fault's Cost Decided*): the trace stays at the raise;
+     the cause's text, the line and the collections are by design, which §10 states since
+     that day; and a frame's name, whose cost grows with its unit's definitions, 28 µs a
+     fault at 14 and 444 at 1,014, is a defect. To build, with the fix of the 20,000 faults
+     below, by one agent: a unit's `'$code'/0` holds each function's written name in a row
+     of names, first in its list, in place of the row of its sites' namespace, and
+     `ern_code:function_text/3` reads a name by one lookup.
    - **What 20,000 faults at once hold**, MVP 4.16's item 123, moved here on 2026-11-19 (the
      log's *The Line Before the Launch*) and found by item 106's probes (the log's *What a
      Program's Helper Holds*). One report holds under a kilobyte at each step. The 4 GB is the
