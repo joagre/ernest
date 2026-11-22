@@ -85,7 +85,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      the host's one file server, holding about 200 KB while they wait, and the reports take
      20 s. With the modules found first, memory rises by at most 150 MB and the reports take
      0.7 to 7.4 s, the reaper's collections over its long mailbox setting the pace, which the
-     line's garbage doubles. Decided: the fix's shape.
+     line's garbage doubles.
+
+     Decided 2026-11-22 (the log's *Twenty Thousand Faults at Once*): the 4 GB is a defect,
+     and the slow reports have their line in the known issues. To build, by the agent of
+     the frame's name above: the run's start finds the toolchain's own modules once, in the
+     listing `ern_code:load_runtime/0` makes already, and a trace reads them.
    - **A `match` guard that calls a function**, feedback 235 (the log's *The Libraries' Shims
      Read Against E.0 Rule 1*). The emitter binds the clauses after such a guard as a closure
      at every evaluation, the scrutinee captured. The old `Base64.decode` loop over 16 KB
