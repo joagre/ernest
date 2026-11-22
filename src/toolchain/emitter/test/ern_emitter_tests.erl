@@ -4,10 +4,10 @@
 -module(ern_emitter_tests).
 
 -export([run/1, run/2, run_at_terminal/1, run/3, scratch/0, write_golden/0, frame_of/1, poke/1,
-         stack_here/0, calls_held/0, pair/0, funs/0, opt/1, improper/1, remember/1, junk/1,
-         good/1, tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1,
-         same/1, identical/2, call_nested_bad/1, call_nested_good/1, ask_junk/1, ask_good/1,
-         checker_ended/1, taken/0]).
+         stack_here/0, stack_size/0, calls_held/0, pair/0, funs/0, opt/1, improper/1, remember/1,
+         junk/1, good/1, tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1,
+         relay_good/1, same/1, identical/2, call_nested_bad/1, call_nested_good/1, ask_junk/1,
+         ask_good/1, checker_ended/1, taken/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -1442,9 +1442,9 @@ interface_chunk_test() ->
 %% of the module taken as a value, a constructor taken as one, a member of
 %% the module supplied to a requirement, a foreign function's result
 %% checked as it crosses; and not a call, another module's function taken
-%% as a value, nor a function the emitter makes and calls where it makes
-%% it, a timed receive's, a guard's way to the clauses after it, or the
-%% body pattern alternatives share. Written with the code
+%% as a value, a function the emitter makes and calls where it makes it, a
+%% timed receive's or the body pattern alternatives share, nor the
+%% function of the unit a guard falls through to. Written with the code
 builds_functions_test() ->
     Builds = fun(Source) ->
                  Namespace = ['Builds'],
@@ -1787,6 +1787,197 @@ or_pattern_test() ->
     {Result, _} = run(Shape ++ Kind ++
              "export fn main() : Unit = Io.println(kind(Circle(0)))\n"),
     ?assertMatch({fault, <<"division by zero">>, _}, Result).
+
+%% report §5.9: a guard that is no Erlang guard falls through to the
+%% clauses after it, in each shape: a guard false and a pattern failing,
+%% beside a clause with an Erlang guard before it and a second such guard
+%% after; an or-pattern; a match in a guard and in a clause's body; a size
+%% read from a local and from a top-level `let`; a requirement's member
+%% and a local fn the clauses after use; a match in a lambda and in a
+%% local fn, reading what they capture; in a binding's initializer; a
+%% clause after that binds its own variables; and a guard that faults,
+%% which faults the process. Written with the clauses after a guard made a
+%% function of the unit (the log's *A Guard's Fallthrough Is a Function*)
+guard_fallthrough_shapes_test() ->
+    {Result, Output} = run(
+        "type Shape = Circle(Int) | Square(Int) | Dot\n"
+        "let width : Int = List.size([1, 2, 3, 4, 5, 6, 7, 8])\n"
+        "fn small(n : Int) : Bool = n < 3\n"
+        "fn even(n : Int) : Bool = n % 2 == 0\n"
+        "fn name(n : Int, label : String) : String = match n {\n"
+        "    0 -> \"zero\"\n"
+        "  | k when small(k) -> label <> \" small\"\n"
+        "  | 10 -> \"ten\"\n"
+        "  | k when k > 100 -> \"big\"\n"
+        "  | k when even(k) -> label <> \" even \" <> Int.toString(k)\n"
+        "  | other -> label <> \" odd \" <> Int.toString(other)\n"
+        "}\n"
+        "fn kind(s : Shape, limit : Int) : String = match s {\n"
+        "    Circle(n) or Square(n) when small(n) -> \"small\"\n"
+        "  | Circle(n) when n > limit -> \"large circle\"\n"
+        "  | Square(n) -> \"square \" <> Int.toString(n + limit)\n"
+        "  | _ -> \"other\"\n"
+        "}\n"
+        "fn nested(n : Int, m : Int) : String = match n {\n"
+        "    k when (match m { j when small(j) -> true | _ -> false }) -> \"m small\"\n"
+        "  | k when even(k) -> match m {\n"
+        "        j when even(j) -> \"both even\"\n"
+        "      | j -> \"n even \" <> Int.toString(j + k)\n"
+        "    }\n"
+        "  | _ -> \"neither\"\n"
+        "}\n"
+        "fn sized(n : Int, b : Bytes) : Int = match b {\n"
+        "    <<x:size(n), _:bytes>> when small(x) -> x\n"
+        "  | <<y:size(n), z:size(width)>> -> y * 1000 + z\n"
+        "  | _ -> -1\n"
+        "}\n"
+        "fn least(x : a, y : a, fallback : Int) : Int needs a.compare = {\n"
+        "    let offset = 5;\n"
+        "    fn shifted(k : Int) : Int = k + offset;\n"
+        "    match fallback {\n"
+        "        k when small(k) -> k\n"
+        "      | k -> match compare(x, y) { Less -> shifted(k) | _ -> shifted(-k) }\n"
+        "    }\n"
+        "}\n"
+        "fn captured(base : Int) : List(String) = {\n"
+        "    let suffix = \"!\";\n"
+        "    fn local(k : Int) : String = match k {\n"
+        "        j when small(j) -> \"local small\"\n"
+        "      | j -> \"local \" <> Int.toString(j + base) <> suffix\n"
+        "    };\n"
+        "    List.map([1, 5], fn(k : Int) : String = match k {\n"
+        "        j when small(j) -> \"lambda small\" <> suffix\n"
+        "      | j -> \"lambda \" <> Int.toString(j * base)\n"
+        "    }) <> [local(1), local(7)]\n"
+        "}\n"
+        "let classified : List(String) = List.map([1, 4, 9], fn(k : Int) : String = match k {\n"
+        "    j when small(j) -> \"s\"\n"
+        "  | j when even(j) -> \"e\"\n"
+        "  | _ -> \"o\"\n"
+        "})\n"
+        "fn quotient(n : Int) : String = match n {\n"
+        "    k when 10 / k > 2 -> \"big quotient\"\n"
+        "  | _ -> \"small quotient\"\n"
+        "}\n"
+        "export fn main() : Unit = {\n"
+        "    List.forEach([0, 1, 10, 200, 4, 7], fn(n : Int) = Io.println(name(n, \"n\")));\n"
+        "    List.forEach([Circle(1), Square(2), Circle(9), Circle(4), Square(7), Dot],\n"
+        "                 fn(s : Shape) = Io.println(kind(s, 5)));\n"
+        "    Io.println(nested(4, 1));\n"
+        "    Io.println(nested(4, 6));\n"
+        "    Io.println(nested(4, 7));\n"
+        "    Io.println(nested(5, 7));\n"
+        "    List.forEach([<<1, 9>>, <<7, 9>>, <<7>>],\n"
+        "                 fn(b : Bytes) = Io.println(Int.toString(sized(8, b))));\n"
+        "    Io.println(Int.toString(least(1, 2, 1)));\n"
+        "    Io.println(Int.toString(least(1, 2, 7)));\n"
+        "    Io.println(Int.toString(least(\"b\", \"a\", 7)));\n"
+        "    List.forEach(captured(3) <> classified, Io.println);\n"
+        "    Io.println(quotient(1));\n"
+        "    Io.println(quotient(5));\n"
+        "    Io.println(quotient(0))\n"
+        "}\n"),
+    ?assertMatch({fault, <<"division by zero">>, _}, Result),
+    ?assertEqual(<<"zero\nn small\nten\nbig\nn even 4\nn odd 7\n"
+                   "small\nsmall\nlarge circle\nother\nsquare 12\nother\n"
+                   "m small\nboth even\nn even 11\nneither\n"
+                   "1\n7009\n-1\n"
+                   "1\n12\n-2\n"
+                   "lambda small!\nlambda 15\nlocal small\nlocal 10!\ns\ne\no\n"
+                   "big quotient\nsmall quotient\n">>, Output).
+
+%% report §5.9, Appendix E.21: a fault in the clauses a guard falls through
+%% to is traced by the top-level declaration they are written in and the
+%% frame's own line, in the declaration's own body, in a lambda's and in a
+%% local fn's, as a frame of a lambda is named. Written with the clauses
+%% after a guard made a function of the unit
+guard_fallthrough_traced_test() ->
+    Traced = fun(Body) ->
+                 {{fault, <<"division by zero">>, Trace}, _} =
+                     run(['Fell'], "fn small(n : Int) : Bool = n < 0\n" ++ Body
+                                   ++ "export fn main() : Unit = Io.println(Int.toString(f(7)))\n",
+                         #{}),
+                 frames(Trace)
+             end,
+    ?assertEqual([<<"erlang:'div'/2">>, <<"Fell.f:5">>, <<"Fell.main:7">>],
+                 Traced("fn f(n : Int) : Int = match n {\n"
+                        "    k when small(k) -> 0\n"
+                        "  | k ->\n"
+                        "      10 / (k - 7)\n"
+                        "}\n")),
+    ?assertMatch([<<"erlang:'div'/2">>, <<"Fell.f:6">>, <<"List.map:", _/binary>>, <<"Fell.f:3">>,
+                  <<"Fell.main:8">>],
+                 Traced("fn f(n : Int) : Int =\n"
+                        "    List.size(List.map([n], fn(m : Int) : Int = match m {\n"
+                        "        k when small(k) -> 0\n"
+                        "      | k ->\n"
+                        "          10 / (k - 7)\n"
+                        "    }))\n")),
+    ?assertEqual([<<"erlang:'div'/2">>, <<"Fell.f:5">>, <<"Fell.f:7">>, <<"Fell.main:9">>],
+                 Traced("fn f(n : Int) : Int = {\n"
+                        "    fn g(m : Int) : Int = match m {\n"
+                        "        k when small(k) -> 0\n"
+                        "      | k -> 10 / (k - 7)\n"
+                        "    };\n"
+                        "    g(n) + 1\n"
+                        "}\n")).
+
+%% report §5.9, §10: the clauses a guard falls through to are in tail
+%% position where the match is, so that a loop through the fallthrough
+%% keeps constant stack: the stack at the bottom of a hundred thousand
+%% fallthroughs is the stack at the bottom of ten. Written with the clauses
+%% after a guard made a function of the unit
+guard_fallthrough_keeps_constant_stack_test() ->
+    {ok, Output} = run(
+        "foreign fn stackSize() : Int = \"ern_emitter_tests:stack_size/0\"\n"
+        "fn negative(n : Int) : Bool = n < 0\n"
+        "fn depth(n : Int) : Int = match n {\n"
+        "    0 -> stackSize()\n"
+        "  | k when negative(k) -> 0\n"
+        "  | k -> depth(k - 1)\n"
+        "}\n"
+        "export fn main() : Unit = Io.println(Int.toString(depth(100000) - depth(10)))\n"),
+    ?assertEqual(<<"0\n">>, Output).
+
+%% The words of the calling process's stack, which
+%% guard_fallthrough_keeps_constant_stack_test reads at a loop's bottom.
+-spec stack_size() -> non_neg_integer().
+stack_size() ->
+    {stack_size, Words} = erlang:process_info(self(), stack_size),
+    Words.
+
+%% report §5.9, §11.1: the clauses a guard falls through to are a function
+%% of the unit, '$N.fallthroughK', unexported, given the matched value and
+%% each local in scope that they use and no other, and the unit holds no
+%% fun for the match: the guard on `small` falls through to clauses that read
+%% `label`, the guard on `even` to one that reads nothing more, and a guard
+%% of a match in a clause's body to one that reads `label`; `unused` is
+%% passed to none. Written with the clauses after a guard made a function
+%% of the unit
+guard_fallthrough_makes_no_fun_test() ->
+    Text = "fn small(n : Int) : Bool = n < 3\n"
+           "fn even(n : Int) : Bool = n % 2 == 0\n"
+           "export fn name(n : Int, label : String, unused : Int) : String = match n {\n"
+           "    0 -> \"zero\"\n"
+           "  | k when small(k) -> \"small\"\n"
+           "  | k when even(k) -> match k {\n"
+           "        j when j > 100 -> \"big\"\n"
+           "      | j when small(j - 98) -> \"near\"\n"
+           "      | _ -> label\n"
+           "    }\n"
+           "  | _ -> \"odd\"\n"
+           "}\n",
+    {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
+    {ok, _, Beam} = ern_compile:compiled(ern_compile:forms(['M'], Typed, Env), []),
+    {beam_file, _, Exports, _, _, Functions} = beam_disasm:file(Beam),
+    ?assertEqual([{'$3', 3}, {'$3.fallthrough1', 2}, {'$3.fallthrough2', 1},
+                  {'$3.fallthrough3', 2}],
+                 lists:sort([{Name, Arity} || {function, Name, Arity, _, _} <- Functions,
+                                              lists:prefix("$3", atom_to_list(Name))])),
+    ?assertEqual([], [Name || {function, Name, _, _, _} <- Functions,
+                              lists:prefix("-$3", atom_to_list(Name))]),
+    ?assertEqual([], [Name || {Name, _, _} <- Exports,
+                              lists:prefix("$3.", atom_to_list(Name))]).
 
 %% report Appendix E.1: Io.debug prints a value as Ernest writes it, by the
 %% argument's type at the call, known whole there, and returns it; a type

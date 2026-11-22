@@ -15,10 +15,13 @@
 %% position N is '$N'. The function a local function of the definition at
 %% N is lifted to, at its position P among the definition's lambdas and
 %% local functions (Appendix H), is '$N.P', and the entry a spawn on a peer
-%% starts a lambda or a local function by is '$N.P.entry' (§8.7). The
-%% initializer of a binding at N whose initializer is no ground term is
-%% evaluated in '$N.init' (§8.5). A descriptor's function is '$type_K', K
-%% counting the unit's descriptors.
+%% starts a lambda or a local function by is '$N.P.entry' (§8.7).
+%%
+%% The initializer of a binding at N whose initializer is no ground term is
+%% evaluated in '$N.init' (§8.5). The clauses a `match` guard of the
+%% definition at N falls through to are '$N.fallthroughK', K counting the
+%% definition's (§5.9), a name no position takes. A descriptor's function
+%% is '$type_K', K counting the unit's descriptors.
 %%
 %% What the runtime calls on every unit keeps its name: '$init'/0,
 %% '$deps'/0, '$tests'/0, '$spawned'/2 and '$code'/0. Each function's
@@ -78,17 +81,21 @@
 %% (§8.7, §11.1); builds_functions: whether the unit builds a function
 %% value, a fun of its own code that may be held anywhere
 %% (function_value/2), which the shell reads to keep an input (§11.2).
+%%
 %% guard: whether the expression being compiled is a clause's Erlang
 %% guard, where a selection reads its field in place (select/4).
 %% in_lambda: whether the expression being compiled stands in a lambda's
 %% body, by which a timed receive's wait is named (wait_prefix/1).
 %% caller_site: in the body of a declaration its caller's site is passed to
 %% (caller_sited/1), the Erlang variable of that site, and else none.
+%% fallthroughs: the functions the definition's guards fall through to so
+%% far (fallthrough_name/1).
 -record(emit_context, {unit, own, definition, declaration, printing, restrictions = #{},
                        variables = #{}, counter = 0, locals = #{}, lifted = [],
                        descriptors = #{}, pattern_guards = [], members = #{}, outer,
                        let_lambdas = #{}, entries = #{}, builds_functions = false,
-                       guard = false, in_lambda = false, caller_site = none}).
+                       guard = false, in_lambda = false, caller_site = none,
+                       fallthroughs = 0}).
 %% The unit's own (report §11.1, Appendix H): forms, each definition's
 %% position => {its #definition{}, its form prepared (prepared/2)}; hashes,
 %% each definition's hash => the position of the first with it, two
@@ -173,6 +180,14 @@ entry_name(Definition, Position) ->
 %% The function the initializer of the binding at Position is evaluated in.
 initializer_name(Position) ->
     list_to_atom([$$ | integer_to_list(Position)] ++ ".init").
+
+%% The name of the next function a guard of the definition being compiled
+%% falls through to, which a fault's trace names as the definition
+%% (ern_code:function_text/3).
+fallthrough_name(#emit_context{definition = {Definition, _, _}, fallthroughs = Count} = Context) ->
+    Name = list_to_atom([$$ | integer_to_list(Definition)] ++ ".fallthrough"
+                        ++ integer_to_list(Count + 1)),
+    {Name, Context#emit_context{fallthroughs = Count + 1}}.
 
 syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     {Placed, ForeignPlaced} = placed(Unit),
@@ -473,7 +488,7 @@ entering(Position, #definition{qualified_name = QualifiedName, hash = Hash,
                          declaration = lists:nthtail(length(Namespace), QualifiedName),
                          printing = printing(Printing, Unit),
                          restrictions = restrictions(Form), variables = #{}, locals = #{},
-                         members = #{}, let_lambdas = #{}}.
+                         members = #{}, let_lambdas = #{}, fallthroughs = 0}.
 
 %% Report §3.9, Appendix H: each type variable a scheme of the form
 %% quantifies, by its number, with its restrictions; a foreign function's
@@ -3229,16 +3244,12 @@ pattern_numbers(Pattern) ->
 %% match and receive clauses
 %%
 
-%% A clause whose guard is not an Erlang guard expression falls through by
-%% a continuation over the remaining clauses (report §5.9).
+%% Report §5.9: a `match` whose every guard is an Erlang guard expression
+%% is one case; one with a guard of another form is general_clauses/4's,
+%% its value bound to a variable first.
 match_clauses(ScrutineeForm, Clauses, Context) ->
     InScope = maps:keys(Context#emit_context.variables),
-    HasErlangGuard = fun(Clause) ->
-                             {_, {clause, Pattern, Guard, _}} = sourced(Clause),
-                             Guard =:= none
-                                 orelse is_erlang_guard(Guard, pattern_numbers(Pattern) ++ InScope)
-                     end,
-    case lists:all(HasErlangGuard, Clauses) of
+    case lists:all(fun(Clause) -> has_erlang_guard(Clause, InScope) end, Clauses) of
         true ->
             {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Clauses),
             {Bindings, Forms} = join_parts(Parts),
@@ -3246,67 +3257,130 @@ match_clauses(ScrutineeForm, Clauses, Context) ->
         false ->
             {[ScrutineeName], Context1} = fresh_variables(1, "Scrutinee", Context),
             Scrutinee = erl_syntax:variable(ScrutineeName),
-            {Body, Context2} = general_clauses(Scrutinee, Clauses, Context1),
+            {Body, Context2} = general_clauses(Scrutinee, Clauses, InScope, Context1),
             {erl_syntax:block_expr([erl_syntax:match_expr(Scrutinee, ScrutineeForm), Body]),
              Context2}
     end.
 
-general_clauses(Scrutinee, [Clause | Rest], #emit_context{variables = Variables} = Context) ->
-    {Source, {clause, Pattern, Guard, ClauseBody}} = sourced(Clause),
-    case {sourced(Pattern), Rest} of
-        {{_, {alternatives, _}}, _} ->
-            {RestBind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
-            MakeClause = fun(AlternativeSource, PatternForm, AlternativeGuard, Call, Acc) ->
-                             PatternGuard = joined_guard(none, Acc),
-                             case AlternativeGuard of
-                                 none ->
-                                     {at(AlternativeSource,
-                                         erl_syntax:clause([PatternForm], PatternGuard, Call)),
-                                      Acc};
-                                 _ ->
-                                     {GuardForm, Acc1} = expr(AlternativeGuard, Acc),
-                                     Test = guard_test(GuardForm, Call, Fallthrough),
-                                     {at(AlternativeSource,
-                                         erl_syntax:clause([PatternForm], PatternGuard, [Test])),
-                                      Acc1}
-                             end
-                         end,
-            {{Bindings, Forms}, Context2} = alternatives(Clause, MakeClause, Context1),
+%% Whether a clause's guard is none or an Erlang guard expression over the
+%% locals its pattern binds and those InScope.
+has_erlang_guard(Clause, InScope) ->
+    {_, {clause, Pattern, Guard, _}} = sourced(Clause),
+    Guard =:= none orelse is_erlang_guard(Guard, pattern_numbers(Pattern) ++ InScope).
+
+%% Report §5.9: the clauses of a `match` on the value Scrutinee holds. The
+%% clauses up to the first whose guard is no Erlang guard, and that one,
+%% are one case, the guard a test inside its clause; where it is false, or
+%% none of their patterns matches, the case falls through to the clauses
+%% after, compiled so again as a function of the unit (fallthrough/4), by a
+%% tail call. So the match makes no fun, and a loop through a guard's
+%% fallthrough keeps constant stack (§10).
+general_clauses(Scrutinee, Clauses, InScope, #emit_context{variables = Variables} = Context) ->
+    case lists:splitwith(fun(Clause) -> has_erlang_guard(Clause, InScope) end, Clauses) of
+        {Simple, []} ->
+            {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Simple),
+            {Bindings, Forms} = join_parts(Parts),
+            {with_bindings(Bindings, erl_syntax:case_expr(Scrutinee, Forms)), Context1};
+        {Simple, [Guarded | After]} ->
+            {Fallthrough, Context1} = fallthrough(Scrutinee, After, InScope, Context),
+            {Parts, Context2} = lists:mapfoldl(fun simple_clauses/2, Context1, Simple),
+            {GuardedPart, Context3} = guarded_clauses(Guarded, Fallthrough, Context2),
+            {Bindings, Forms} = join_parts(Parts ++ [GuardedPart]),
             Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
-            Case = erl_syntax:case_expr(Scrutinee, Forms ++ [Otherwise]),
-            {erl_syntax:block_expr([RestBind | Bindings] ++ [Case]),
-             Context2#emit_context{variables = Variables}};
-        {_, []} when Guard =:= none ->
-            {PatternForm, PatternGuard, Context1} = clause_head(Pattern, none, Context),
-            {BodyForms, Context2} = body(ClauseBody, Context1),
-            ClauseForm = erl_syntax:clause([PatternForm], PatternGuard, BodyForms),
-            {erl_syntax:case_expr(Scrutinee, [ClauseForm]),
-             Context2#emit_context{variables = Variables}};
-        _ ->
-            {Bind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
-            {ClauseForm, Context2} = general_clause(Source, Pattern, Guard, ClauseBody,
-                                                    Fallthrough, Context1),
-            Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
-            Case = erl_syntax:case_expr(Scrutinee, [ClauseForm, Otherwise]),
-            {erl_syntax:block_expr([Bind, Case]), Context2#emit_context{variables = Variables}}
+            {with_bindings(Bindings, erl_syntax:case_expr(Scrutinee, Forms ++ [Otherwise])),
+             Context3#emit_context{variables = Variables}}
     end.
 
-%% A clause that falls through: its pattern, with the guard the pattern
-%% asks for, and its body behind its own guard, if any.
-general_clause(_Source, Pattern, Guard, ClauseBody, Fallthrough, Context) ->
-    {PatternForm, PatternGuard, Context1} = clause_head(Pattern, none, Context),
-    {Body, Context2} = case Guard of
-                           none ->
-                               body(ClauseBody, Context1);
-                           _ ->
-                               guarded_body(Guard, ClauseBody, Fallthrough, Context1)
-                       end,
-    {erl_syntax:clause([PatternForm], PatternGuard, Body), Context2}.
+%% The Erlang clauses of a clause whose guard is no Erlang guard, and the
+%% bindings they need: an alternative's each (alternatives/3), the guard
+%% a test inside each, which falls through where it is false.
+guarded_clauses(Clause, Fallthrough, Context) ->
+    {_, {clause, Pattern, Guard, ClauseBody}} = sourced(Clause),
+    case sourced(Pattern) of
+        {_, {alternatives, _}} ->
+            MakeClause = fun(AlternativeSource, PatternForm, AlternativeGuard, Call, Acc) ->
+                             PatternGuard = joined_guard(none, Acc),
+                             {GuardForm, Acc1} = expr(AlternativeGuard, Acc),
+                             Test = guard_test(GuardForm, Call, Fallthrough),
+                             {at(AlternativeSource,
+                                 erl_syntax:clause([PatternForm], PatternGuard, [Test])),
+                              Acc1}
+                         end,
+            alternatives(Clause, MakeClause, Context);
+        _ ->
+            {PatternForm, PatternGuard, Context1} = clause_head(Pattern, none, Context),
+            {GuardForm, Context2} = expr(Guard, Context1),
+            {BodyForms, Context3} = body(ClauseBody, Context2),
+            Test = guard_test(GuardForm, BodyForms, Fallthrough),
+            {{[], [erl_syntax:clause([PatternForm], PatternGuard, [Test])]}, Context3}
+    end.
 
-guarded_body(Guard, ClauseBody, Fallthrough, Context) ->
-    {GuardForm, Context1} = expr(Guard, Context),
-    {BodyForms, Context2} = body(ClauseBody, Context1),
-    {[guard_test(GuardForm, BodyForms, Fallthrough)], Context2}.
+%% The tail call by which a guard falls through to the clauses after its
+%% own, After, which are compiled to a function of the unit given the
+%% matched value and every other variable their code reads from the scope
+%% the `match` stands in, each passed by the name it has there, the
+%% function's comment naming its definition; where no clause follows, a
+%% raise, which the checker's coverage leaves unreached (report §5.9).
+fallthrough(_, [], _, Context) ->
+    {call_remote(erlang, error, [erl_syntax:atom(no_match)]), Context};
+fallthrough(Scrutinee, [First | _] = After, InScope,
+            #emit_context{definition = {_, _, QualifiedName}} = Context) ->
+    {Name, Context1} = fallthrough_name(Context),
+    {Body, Context2} = general_clauses(Scrutinee, After, InScope, Context1),
+    ScrutineeName = erl_syntax:variable_name(Scrutinee),
+    Arguments = [Scrutinee | [erl_syntax:variable(Variable) || Variable <- outer_variables(Body),
+                                                               Variable =/= ScrutineeName]],
+    {Source, _} = sourced(First),
+    Clause = at(Source, erl_syntax:clause(Arguments, none, [Body])),
+    Function = at(Source, erl_syntax:function(erl_syntax:atom(Name), [Clause])),
+    Text = "the clauses a guard of " ++ ern_namespace:text(QualifiedName) ++ " falls through to",
+    {erl_syntax:application(erl_syntax:atom(Name), Arguments),
+     Context2#emit_context{lifted = [with_comment(Function, Text) | Context2#emit_context.lifted]}}.
+
+%% The variables a form reads from the scope it stands in, in the order it
+%% first names them, which is the form's and not its names', so that a
+%% unit made from its forms alone is the code made with the source woven
+%% in (§11.1): those it names and binds nowhere, which tells them since
+%% the emitter makes each variable once (fresh_variables/3). A pattern
+%% binds its variables, and reads a bitstring segment's size.
+outer_variables(Form) ->
+    {Named, Bound} = variables_named(Form, {[], []}),
+    Inner = maps:from_keys(Bound, true),
+    lists:uniq([Variable || Variable <- lists:reverse(Named), not is_map_key(Variable, Inner)]).
+
+variables_named(Form, {Named, Bound} = Acc) ->
+    case erl_syntax:type(Form) of
+        variable ->
+            {[erl_syntax:variable_name(Form) | Named], Bound};
+        clause ->
+            Guard = case erl_syntax:clause_guard(Form) of
+                        none -> [];
+                        GuardForm -> [GuardForm]
+                    end,
+            lists:foldl(fun variables_named/2,
+                        lists:foldl(fun variables_bound/2, Acc, erl_syntax:clause_patterns(Form)),
+                        Guard ++ erl_syntax:clause_body(Form));
+        match_expr ->
+            variables_named(erl_syntax:match_expr_body(Form),
+                            variables_bound(erl_syntax:match_expr_pattern(Form), Acc));
+        named_fun_expr ->
+            lists:foldl(fun variables_named/2,
+                        variables_bound(erl_syntax:named_fun_expr_name(Form), Acc),
+                        erl_syntax:named_fun_expr_clauses(Form));
+        _ ->
+            lists:foldl(fun variables_named/2, Acc, lists:append(erl_syntax:subtrees(Form)))
+    end.
+
+variables_bound(Pattern, {Named, Bound} = Acc) ->
+    case erl_syntax:type(Pattern) of
+        variable ->
+            {Named, [erl_syntax:variable_name(Pattern) | Bound]};
+        size_qualifier ->
+            variables_named(erl_syntax:size_qualifier_argument(Pattern),
+                            variables_bound(erl_syntax:size_qualifier_body(Pattern), Acc));
+        _ ->
+            lists:foldl(fun variables_bound/2, Acc, lists:append(erl_syntax:subtrees(Pattern)))
+    end.
 
 %% A clause's pattern and its guard, the guards the pattern asks for joined
 %% to Guard, which is an Erlang guard here, or none.
@@ -3325,25 +3399,12 @@ guard_expr(Guard, Context) ->
     {Form, Context1#emit_context{guard = false}}.
 
 %% A guard that is no Erlang guard, as a test inside its clause: the body
-%% where it holds, the clauses after it where it does not.
+%% where it holds, and where it does not the tail call to the clauses
+%% after it (fallthrough/4).
 guard_test(GuardForm, Body, Fallthrough) ->
     erl_syntax:case_expr(GuardForm, [erl_syntax:clause([erl_syntax:atom(true)], none, Body),
                                      erl_syntax:clause([erl_syntax:atom(false)], none,
                                                        [Fallthrough])]).
-
-%% The clauses after the one being compiled, bound as Rest = fun() -> ...
-%% end, and the call Rest() by which a guard falls through to them.
-rest_fun(Scrutinee, Rest, Context) ->
-    {[RestName], Context1} = fresh_variables(1, "Rest", Context),
-    RestVariable = erl_syntax:variable(RestName),
-    {RestBody, Context2} =
-        case Rest of
-            [] -> {call_remote(erlang, error, [erl_syntax:atom(no_match)]), Context1};
-            _ -> general_clauses(Scrutinee, Rest, Context1)
-        end,
-    RestFun = erl_syntax:fun_expr([erl_syntax:clause([], none, [RestBody])]),
-    {erl_syntax:match_expr(RestVariable, RestFun), erl_syntax:application(RestVariable, []),
-     Context2}.
 
 simple_clause(Source, Pattern, Guard, ClauseBody, #emit_context{variables = Variables} = Context) ->
     {PatternForm, GuardForm, Context1} = clause_head(Pattern, Guard, Context),

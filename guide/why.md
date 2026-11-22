@@ -294,7 +294,7 @@ A deadlock is quiescence, not a cycle, and the runtime's look for one may be lat
 
 A process stuck while another can still run or deliver is not found: two workers waiting on each other in a server with its listener open wait on, as they would on Erlang.
 
-Finding one costs a program at work the count behind it, a message at each spawn and each monitor, and the check itself runs only once the program has been quiet. `make bench`, in a checkout of the repository, measures a spawn and a monitor so counted against the host's own; the prose here carries no number, since the bench owns it. A program run as a node, `ern run` or `ern test` with `--config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
+Finding one costs a program at work the count behind it, a message at each spawn, each monitor and each process's end, and the check itself runs only once the program has been quiet. `make bench`, in a checkout of the repository, measures a spawn and a monitor so counted against the host's own; the prose here carries no number, since the bench owns it. A program run as a node, `ern run` or `ern test` with `--config-dir`, looks for no deadlock, since a peer can always deliver to it (report §8.6).
 
 ### Abstract types and requirements
 

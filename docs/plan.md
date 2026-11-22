@@ -92,24 +92,19 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      run's start finds the toolchain's own modules once, in `ern_code:load_runtime/0`, a
      trace reads them, and the cold peak is 145 to 148 MB.
    - **A `match` guard that calls a function**, feedback 235 (the log's *The Libraries' Shims
-     Read Against E.0 Rule 1*). The emitter binds the clauses after such a guard as a closure
-     at every evaluation, the scrutinee captured. The old `Base64.decode` loop over 16 KB
-     takes 209 µs against 44 for its `&&` form. In a model in Erlang, the clauses after it as
-     a local function of the scrutinee halve the closures' chain, and the scrutinee kept for a
-     fallthrough still costs a binary loop the host's reuse of its match, 2.7 times the `&&`
-     form. 76 sites of the libraries and the tools match so.
-
-     Decided 2026-11-22 (the log's *A Guard's Fallthrough Is a Function*): the emitter's
-     form changes and no sentence states the cost. To build, by an agent of its own after
-     the agent of the fault's fixes: the clauses after such a guard are a function of the
-     unit, given the matched value and the locals they use, and the fallthrough a tail call
-     to it.
+     Read Against E.0 Rule 1*). The old `Base64.decode` loop over 16 KB took 209 µs against
+     44 for its `&&` form, and 76 sites of the libraries and the tools match so. Decided
+     2026-11-22 (the log's *A Guard's Fallthrough Is a Function*): the emitter's form
+     changes and no sentence states the cost. Built the same day (the log's *A Guard's
+     Fallthrough, Built*): the clauses after such a guard are a function of the unit, the
+     fallthrough a tail call to it, and the loop takes 113 µs, the host's own cost for a
+     binary kept for the clauses after.
    - **Three readings of the rules**, decided 2026-11-22 before the rows, since each sorts
      many (the log's *The Cost's Rules Read*). §10's "but for a call's wait" excepts the
      growth alone. §10's rule reaches a socket's, a listener's and a running program's
      process and the compiled code, and no library and not the shell, which are read as
-     Ernest code. E.0's line at three times the host's function covers none of `String`,
-     `Map` and `Path`, which are held to rule 1's other test. §10's sentences and rule 1's
+     Ernest code. E.0's line at three times the host's function covers `Path`, and not
+     `String` or `Map`, which are held to rule 1's other test. §10's sentences and rule 1's
      say so since that day.
    - **The rows at a multiple that §10 states.** Stated and argued: the calls to the
      system's and the library's processes, `Process.run`, `Supervisor`, `Proxy.start` and the
@@ -121,13 +116,14 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    - **The rows at a multiple that no sentence states**, those the log argues and those
      nothing argued, decided 2026-11-22 (the log's *The Cost's Rows Read*): each is by
      design, and §10 states the foreign return's check, the callback's and the open's
-     round trip, but for five defects.
+     round trip, but for six defects.
 
      To build, by one agent after the guard's: `List.reverse` becomes a shim of the host's;
      `Map.fold` closes around the host's fold where that measures faster at every size;
      `String.stripPrefix` walks its prefix once; `Io.show` writes an `Int` by one
-     conversion; and `Fs.append`, `Fs.write` and `Fs.copy` decide a path's kind by one
-     stat, `Fs.copy` copying between raw handles (below).
+     conversion; `Fs.append`, `Fs.write` and `Fs.copy` decide a path's kind by one stat,
+     `Fs.copy` copying between raw handles (below); and `Path.name` closes around the
+     host's `basename`, where `Path.extension` then costs within three times the host's.
    - **The gaps the reading left, measured.** `Bytes.toList` at 10,000 bytes is the harness's:
      Ernest calls the host's function itself, and the host's side applies its export in a
      process whose heap the earlier rows shaped. `Os.closeInput`'s 0.8 ms over `Os.start` is

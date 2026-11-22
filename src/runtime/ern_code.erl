@@ -805,10 +805,11 @@ held_function(_) -> [].
 %% site at the same place is (E.21): one lifted to a function of its own,
 %% '$3.2', the entry a spawn on a peer starts one by, '$3.2.entry', and a
 %% fun the host compiles one to, `-'$3'/1-fun-0-` and `-'$3.init'/0-fun-0-`,
-%% alike. A unit an exchange made names each by the name its code frame
-%% gave it, as text, the sender's, `Counter.worker` (§12.7). None for any
-%% other function, the unit's '$init'/0 among them, and for a module that
-%% is no unit, which keep the host's names.
+%% alike, and so are the clauses a `match` guard falls through to,
+%% '$3.fallthrough1' (§5.9). A unit an exchange made names each by the name
+%% its code frame gave it, as text, the sender's, `Counter.worker` (§12.7).
+%% None for any other function, the unit's '$init'/0 among them, and for a
+%% module that is no unit, which keep the host's names.
 -spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
 function_text(Unit, Function, _Line) ->
     case erlang:function_exported(Unit, '$code', 0) andalso Unit:'$code'() of
@@ -860,11 +861,12 @@ bound_name(Unit, Function) ->
     end.
 
 %% The function of the definition whose code a function of a unit is, by
-%% the function's name: '$3' of '$3', '$3.init', '$3.2' and '$3.2.entry',
-%% and of a fun the host compiles in one, -Function/Arity-fun-Index-, or a
-%% named one, a receive's wait among them, -Function/Arity-Name/Arity-Index-,
-%% Function, the name of a fun where the fun is made in one, holding no `/`
-%% before its own; none for any other name.
+%% the function's name: '$3' of '$3', '$3.init', '$3.2', '$3.fallthrough1'
+%% and '$3.2.entry', and of a fun the host compiles in one,
+%% -Function/Arity-fun-Index-, or a named one, a receive's wait among them,
+%% -Function/Arity-Name/Arity-Index-, Function, the name of a fun where the
+%% fun is made in one, holding no `/` before its own; none for any other
+%% name.
 defining("-" ++ Fun) ->
     case string:split(string:trim(Fun, leading, "-"), "/") of
         [Enclosing, _] -> defining(Enclosing);

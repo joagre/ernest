@@ -586,6 +586,27 @@ float_fault_at_prompt() ->
                              ++ " < /dev/null"),
     ?assertMatch({_, _}, binary:match(Loaded, <<"Init.bad:3 faulted: float arithmetic error">>)).
 
+%% report §5.9, §11.2, Appendix E.21: a `match` at the prompt whose guard
+%% is no Erlang guard falls through to the clauses after it, which read
+%% what an earlier input bound, and a fault there is traced by the input's
+%% name and its own line, as a frame of the input's code is. Written with
+%% the clauses after a guard made a function of the unit (the log's *A
+%% Guard's Fallthrough Is a Function*)
+guard_fallthrough_at_the_prompt_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun guard_fallthrough_at_the_prompt/0).
+
+guard_fallthrough_at_the_prompt() ->
+    {0, Output} = line_session("fn small(n : Int) : Bool = n < 3\n"
+                               "let label = \"n\"\n"
+                               "match 7 { k when small(k) -> \"small\""
+                               " | k -> label <> Int.toString(k) }\n"
+                               "match 4 { k when small(k) -> 0 | k ->\n"
+                               "    10 / (k - 4) }\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"> \"n7\" : String\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"fault: division by zero\n"
+                                                "    erlang:'div'/2\n"
+                                                "    $Session1.input 4:2\n">>)).
+
 %% report §11.2, §11.1: `:load` compiles from its source a module the
 %% loaded one uses that the session has not loaded, and compiles it against
 %% the session's modules; `:reload` compiles again, with a changed module,

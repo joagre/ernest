@@ -122,7 +122,7 @@ All three compile through `ern_compile:compiled/2`.
 
 `ern_emitter:unit/1` builds Erlang forms with `erl_syntax` in one traversal of each form, threading `#emit_context{}`. `prepared/2` first marks the references within a group and each lambda's and local fn's position (Appendix H). A value's representation is §12.2's ABI.
 
-A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$N.init'` for a binding's initializer, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
+A unit's functions are named by position (§11.1), as `ern_emitter`'s header comment gives them: `'$N'` (`function_name/1`), `'$N.P'` for a lifted local fn, `'$N.P.entry'` for an entry, `'$N.init'` for a binding's initializer, `'$N.fallthroughK'` for the clauses a `match` guard falls through to, `'$type_K'` for a descriptor, and `'$lacked_K'` for a lacked function. The functions the runtime calls keep their names: `'$init'/0`, `'$deps'/0`, `'$tests'/0`, `'$spawned'/2` and `'$code'/0`. The interface's `positions` say where a dependent calls each.
 
 A caller from Erlang finds a function by its qualified name through `ern_code:function/2`: `ern_cli` for the entry point and the shell's program, `ern_shell` for an input's entry, `ern_page`, and the tests through `ern_named`.
 
@@ -136,6 +136,7 @@ Each construct's function says how it is written:
 - `let p <- e`, a `case` (§5.5);
 - a selected field (§3.5, §8.4);
 - a clause's alternatives, `alternatives/3` (§5.9);
+- a `match` with a guard that is no Erlang guard, the clauses after such a guard a function of the unit given what they read, which the guard falls through to by a tail call, `general_clauses/4` and `fallthrough/4` (§5.9);
 - a top-level `let`, a getter over `persistent_term` that its initializer fills, a function of its own, `initializer_function/2`, exported and called by the unit's name from `'$init'/0` in dependency order, a call the host's type pass does not follow (`init_function/2`, §8.5, §11.1); one whose initializer is a ground term, `ground/2`, is read as its value, `term_form/1`, in its module and, through the interface's `terms` and a `#linked{}`'s `term`, in a dependent, and `'$init'/0` gives it its value before any initializer runs (§11.1);
 - a spawn on a peer, `spawned/2`, its captures, `captures/1`, and a service's hash, `service_hash/1` (§8.7, §12.6);
 - a spawn's site, `site_name/2`, written by `ern_namespace:site_text/2` as a frame of a trace is (§6.9, E.21);

@@ -6,6 +6,14 @@ Status: the runtime's design note, which changes when the runtime does. It is no
 
 What the runtime adds to an operation of the host costs a fraction of it, and on a call that answers at once its bookkeeping writes nothing (CLAUDE.md's *What the user wants of Ernest*, §10). That bookkeeping follows one rule: what the deadlock look needs of a process, the process marks in its own state, and the look reads it when the program seems idle; no operation writes a shared row for the look's sake. A shared row exists only where a process other than its owner must read it, and each such row names that reader below. The log's *The Sitting on §8.6's Bookkeeping* argues the rule.
 
+## What an operation may cost
+
+§10 holds what the runtime or the compiled code adds to an operation of the host to a fraction of it, growing with nothing but the operation's own input. The exception, a call's wait, a sleep's and a restart's, is of the growth alone: what they cost with nothing waiting is held to the fraction. The rule reaches the processes the runtime makes for a program, a system process, a socket, a listener and a running program. It does not reach a library or the shell, which are Ernest and are read against the same work in Erlang, a library by E.0 rule 1.
+
+A row of the bench at a multiple of the host's is by design only where §10 states what it pays: a message to the runtime and its answer at a spawn, a monitor and an open, a message at a process's end, a process for a delivery through a wrap, a message to a process that holds what the operation needs, a fault's texts, and the check of a foreign function's return and of a callback's arguments. Any other is a defect. The log's *The Cost's Rules Read* argues the readings, and *The Cost's Rows Read* holds each row's verdict and the rate at which a program feels it.
+
+A ratio is read against what the host's side does. Where it does less, answers at once, returns a literal or reports nothing, the ratio says nothing, and the time added is set against how often a program pays it: a fault's 22 µs at 1,000 faults a second is 2 to 3 percent of a core.
+
 ## The process model
 
 A program's processes are the host's, spawned by the runtime, which keeps a row for each (§6.9, §8.5). The reaper, one process, monitors every process the program spawns and every resource a system module opens, delivers each `Down` through a process of its own, and makes the deadlock look (§8.6). It watches its launch's runner and ends with it, its killer with it (the log's *A Reaper That Outlives Its Runner*).
