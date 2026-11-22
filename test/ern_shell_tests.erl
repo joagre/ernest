@@ -5825,10 +5825,9 @@ reload_new_dependency() ->
 %% previous version's, which that version's code may read for the session's
 %% life. Counted by the host's persistent terms, which hold the values, from
 %% the session's own inputs: each count holds the binding that takes it,
-%% and the input `1 / List.size([])` faults first, so that the persistent
-%% term the runtime makes at its first trace or look, its own modules
-%% (ern_rt:own_modules/0), exists before the counting begins. A regression
-%% test: a failed load's were kept for the life of the node
+%% and the shell's start has put the toolchain's own modules, which the
+%% failed load's trace reads (ern_code:own_modules/0). A regression test: a
+%% failed load's were kept for the life of the node
 stored_values_go_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun stored_values_go/0).
 
@@ -5845,7 +5844,6 @@ stored_values_go() ->
                              " \"maps:get/2\"\n",
                              "fn terms() : Int ="
                              " get(Foreign.term(Foreign.atom(\"count\")), info())\n",
-                             "1 / List.size([])\n",
                              "let before = terms()\n:load Bad\nterms() - before\n",
                              ":load Demo\nlet loaded = terms()\n",
                              write_source(Dir, "demo.ern", "export let kept : Int = 1\n"),

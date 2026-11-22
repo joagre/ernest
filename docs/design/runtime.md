@@ -104,7 +104,7 @@ The host's persistent terms, each put once at a job's start, a launch or a reloa
 - `{ern_signals, ended}`, the signal that ended the running program, put as the job ends by it (§8.6, §11.2);
 - `{ern_signals, taken}`, the signal the job took, put by the handler before it tells the runtime, which `ern test` and `ern doc` read as a launch ends, since a signal that cut short the launch's end ends those jobs too (§8.6, §11.8);
 - `{ern_cli, host_ends}`, put as the host's process of a node's connections ends on a spawn beyond the limit, after which the job waits for the host's end (§11.8, §12.5);
-- `{ern_rt, own_modules}`, the toolchain's own modules, a map put once in a host's life;
+- `{ern_code, own_modules}`, the toolchain's own modules, a map put once in a host's life, at a run's start, before any process of the program runs, or at the first trace or look of a host where no run has started (§10);
 - `{ern_rt, holder}`, the process that holds the terminal for a shell, put as the shell claims it and erased at each launch (§11.2, §12.1), and each system process's pid under its name, put at each launch (§8.2);
 - `{ern_rt, at_once}`, put where a termination once a launch's end had begun ended it at once, and erased at each launch, after which the job writes out nothing more (§8.6);
 - `{ern_os, umask}`, the file mode mask the host's facts gave, kept for the program's life (Appendix E.17);
@@ -156,6 +156,8 @@ An end the host gives a caller, foreign code's kill, leaves no mark to read, and
 A call from the runner to a process that ends with the program waits for the program's end, so the runner calls none but through an alias under a monitor, as its flush of the shell's screen and its lines on standard error do. A process of the runtime's own that kills the process it acts for ends at the kill, as that process would had it killed itself, and a monitor it asks for is that process's, made only while both live (§6.5, §6.9; the log's *A Wrap's `self` Is Its Recipient's*). The reaper keeps such an asker beside the monitor and watches it until it ends; one that ends otherwise than it returns, a delivery ended with its recipient's run among them, takes its monitors with it.
 
 A fault's trace is the host's stack as it stood, twelve of the program's and the host's frames of the sixty-four the host keeps, the runtime's own left out but where a host error was met in its code, a frame of a unit that names no definition of the program's among the runtime's (§7.3, §7.4, E.21). A host function is written as the host writes it, quoted where the host quotes it, in a trace and in a cause alike. A fault a compute carries back is the peer's cause and trace, the cause naming the peer and the trace ending in the compute's site (§8.7).
+
+A frame of a unit is named by one lookup in the row of names its `'$code'/0` lists first, each function's as its sites write it, so that the name costs the same whatever the unit holds; an input's expression is `input` there, and its name is read from the forms the input's load recorded, since no unit's code holds it (§10, E.21).
 
 ## The boundary
 

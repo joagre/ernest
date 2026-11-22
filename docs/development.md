@@ -278,7 +278,10 @@ make bench      # what each of a few operations costs in Ernest beside the same 
                 # test/build/bench/bench.txt; then every function of the library beside the
                 # host's, at 10, 100 and 10,000, its time and what it allocates, with what
                 # costs more than three times the host's and whether the machine was idle,
-                # the whole table in library.txt; then, between two nodes on this machine,
+                # the whole table in library.txt, where two rows are the harness's and
+                # not Ernest's until the plan's item 168: Bytes.toList at 10,000 bytes,
+                # whose time is the measuring process's heap after the rows before it,
+                # and Os.closeInput, slow as the first row that starts a program; then, between two nodes on this machine,
                 # the host's ping over TLS and over TCP, a call to the other node's
                 # process, and a round trip to it straight and through an adapted address
                 # made there, in nodes.txt; then, on nodes it starts, what a spawn and a

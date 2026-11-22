@@ -73,14 +73,14 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      Decided 2026-11-22 (the log's *A Fault's Cost Decided*): the trace stays at the raise;
      the cause's text, the line and the collections are by design, which §10 states since
      that day; and a frame's name, whose cost grows with its unit's definitions, 28 µs a
-     fault at 14 and 444 at 1,014, is a defect. To build, with the fix of the 20,000 faults
-     below, by one agent: a unit's `'$code'/0` holds each function's written name in a row
-     of names, first in its list, in place of the row of its sites' namespace, and
-     `ern_code:function_text/3` reads a name by one lookup.
+     fault at 14 and 444 at 1,014, is a defect. Built the same day (the log's *A Frame's Name
+     and the Own Modules, Built*): a unit's `'$code'/0` lists its functions' written names
+     first, a trace reads a name by one lookup, and a fault beneath five frames costs 21
+     to 23 µs at 14, 114 and 1,014 definitions.
    - **What 20,000 faults at once hold**, MVP 4.16's item 123, moved here on 2026-11-19 (the
      log's *The Line Before the Launch*) and found by item 106's probes (the log's *What a
      Program's Helper Holds*). One report holds under a kilobyte at each step. The 4 GB is the
-     first trace of a host's life: `ern_rt:own_modules/0` puts its persistent term at its
+     first trace of a host's life: `own_modules/0` put its persistent term at its
      first call, so 19,400 writers that fault at once each list the toolchain's tree through
      the host's one file server, holding about 200 KB while they wait, and the reports take
      20 s. With the modules found first, memory rises by at most 150 MB and the reports take
@@ -88,9 +88,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      line's garbage doubles.
 
      Decided 2026-11-22 (the log's *Twenty Thousand Faults at Once*): the 4 GB is a defect,
-     and the slow reports have their line in the known issues. To build, by the agent of
-     the frame's name above: the run's start finds the toolchain's own modules once, in the
-     listing `ern_code:load_runtime/0` makes already, and a trace reads them.
+     and the slow reports have their line in the known issues. Built the same day: the
+     run's start finds the toolchain's own modules once, in `ern_code:load_runtime/0`, a
+     trace reads them, and the cold peak is 145 to 148 MB.
    - **A `match` guard that calls a function**, feedback 235 (the log's *The Libraries' Shims
      Read Against E.0 Rule 1*). The emitter binds the clauses after such a guard as a closure
      at every evaluation, the scrutinee captured. The old `Base64.decode` loop over 16 KB
@@ -104,27 +104,30 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      the agent of the fault's fixes: the clauses after such a guard are a function of the
      unit, given the matched value and the locals they use, and the fallthrough a tail call
      to it.
-   - **Three readings of the rules**, decided before the rows, since each sorts many. The
-     first is decided 2026-11-22 (the log's *The Cost's Rules Read*): §10's "but for a
-     call's wait" excepts the growth alone, its sentence cut in two, which leaves
-     `Clock.sleep`'s fixed part and the wait of `Tcp.listen`'s close to the rows. To decide:
-     whether §10's rule reaches a socket's, a running program's and a library's processes, the
-     shell and the emitter's forms; and whether E.0's line at three times the host's function
-     covers `String`, `Map` and `Path`.
+   - **Three readings of the rules**, decided 2026-11-22 before the rows, since each sorts
+     many (the log's *The Cost's Rules Read*). §10's "but for a call's wait" excepts the
+     growth alone. §10's rule reaches a socket's, a listener's and a running program's
+     process and the compiled code, and no library and not the shell, which are read as
+     Ernest code. E.0's line at three times the host's function covers none of `String`,
+     `Map` and `Path`, which are held to rule 1's other test. §10's sentences and rule 1's
+     say so since that day.
    - **The rows at a multiple that §10 states.** Stated and argued: the calls to the
      system's and the library's processes, `Process.run`, `Supervisor`, `Proxy.start` and the
      text functions within E.0's line. The message stated and the rows behind it not: a
      spawn, whose end's handling alone, 1.17 µs, is more than the host's whole spawn,
-     `spawnMonitored`, and a monitor of an ended process, 18 times the host.
-   - **The rows at a multiple that no sentence states.** Argued in the log: `restarting`, 29
-     times, `Path.<>`, `List.reverse` and `Map.fold`, whose reason to stay in Ernest *Kill
-     Darlings* took away, `String.stripPrefix`, a foreign function's return check and a
-     callback, a computed `let`'s read, `Code.load`, `Code.running`, a launch and a shell's
-     input. Argued nowhere: `Io.show` of an `Int`, 3.1 times, `Path.extension`, which grows
-     with the path where the host's does not, `Fs`'s checks the host does not make, `Os.give`
-     and `Tcp.give`, `Process.fromAddress`, `Utilization.cpu`, a record update, `Code.hashes`,
-     and `Tcp`'s round trip to the reaper at each open. Decided, row by row, for these and the
-     rows above: by design or a defect.
+     `spawnMonitored`, and a monitor of an ended process, 18 times the host. Decided
+     2026-11-22 (the log's *The Cost's Rows Read*): each by design, `Clock.sleep`'s fixed
+     part with them, and §10's bullet on a spawn states the end's message.
+   - **The rows at a multiple that no sentence states**, those the log argues and those
+     nothing argued, decided 2026-11-22 (the log's *The Cost's Rows Read*): each is by
+     design, and §10 states the foreign return's check, the callback's and the open's
+     round trip, but for five defects.
+
+     To build, by one agent after the guard's: `List.reverse` becomes a shim of the host's;
+     `Map.fold` closes around the host's fold where that measures faster at every size;
+     `String.stripPrefix` walks its prefix once; `Io.show` writes an `Int` by one
+     conversion; and `Fs.append`, `Fs.write` and `Fs.copy` decide a path's kind by one
+     stat, `Fs.copy` copying between raw handles (below).
    - **The gaps the reading left, measured.** `Bytes.toList` at 10,000 bytes is the harness's:
      Ernest calls the host's function itself, and the host's side applies its export in a
      process whose heap the earlier rows shaped. `Os.closeInput`'s 0.8 ms over `Os.start` is
@@ -133,10 +136,11 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      slow moment, and `Code.running`'s ratio swings with its twelve reads of a stack, Ernest
      adding 3 µs. `Fs.append` and `Fs.copy` stat one path three times, 3.4 µs a stat, against
      an append of 8 to 10. Half of `Io.show`'s time is the host's `characters_to_binary`, on a
-     path unchanged since the log's 1.6, which was eve's. Decided: whether the library's
-     harness is mended for the first two.
-   - **Two defects found beside them**, each to decide: `Fs.copy` onto a file that exists goes
-     through the host's file server, which `ern_fs` goes around everywhere else; and a
+     path unchanged since the log's 1.6, which was eve's. Decided 2026-11-22: the library's
+     harness is not mended before the launch, and is MVP 4.5's item 168.
+   - **Two defects found beside them.** `Fs.copy` onto a file that exists goes through the
+     host's file server, which `ern_fs` goes around everywhere else: decided 2026-11-22, a
+     defect, fixed with `Fs`'s stats by raw handles. To decide: a
      `Supervisor.group` whose function never runs leaves its watcher waiting for the run's
      life, which E.22 does not say. The library bench's row, which kills a group at once,
      leaves none, since the group asks its watcher before the kill comes.
@@ -363,7 +367,7 @@ lines of [`known_issues.md`](known_issues.md), each naming the item it was (the 
 Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 158, 165 and 166, and item 167 last, so that OTP's
+1 to 4 follow, then items 68, 96, 113, 158, 165, 166 and 168, and item 167 last, so that OTP's
 answer to its report may come first.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -488,6 +492,15 @@ What the line left, in the order it is taken:
   texts that `String.toInt` refuses takes 2.7 seconds, against 5 milliseconds where each is
   an integer. §10 states the cost. Where a release of OTP that Ernest requires bounds the
   walk, the item closes on a log line.
+- **168. A row of the library's bench in a process of its own**, found 2026-11-22 by MVP
+  4.4's item 2 (the log's *The Cost's Rows Read*). `Bytes.toList` at 10,000 bytes reads 5.4
+  times the host's with nothing added: in the harness's process a compiled call of
+  `binary_to_list/1` takes 33 µs and the host's side, which applies its export, 12, and in
+  a fresh process the sign flips. `Os.closeInput` reads 2.4 times as the first row that
+  starts a program, 1.2 moved last, for a reason not found. `ern_measure` times each row
+  in a process of its own, so that no row rests on the rows before it, and
+  `Os.closeInput`'s first timing is read again after it. `docs/development.md` names the
+  two rows as the harness's until then.
 
   To decide with the user otherwise, between two mechanisms and neither. The primitives
   that answer a refusal the host raises check first, `String.toIntBase`, `Bytes.fromHex`

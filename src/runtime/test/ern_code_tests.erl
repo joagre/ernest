@@ -189,15 +189,20 @@ unit_load_fills_table_test() ->
     ?assertEqual({Unit, '$6', 1, {[], [['Tablefill', backwards]]}},
                  ern_code:spawnable({foreign, ['Tablefill', backwards]})),
     ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
-    %% every definition the chunk holds, and nothing else, the namespace
-    %% its sites name its declarations under, and the calls
+    %% every definition the chunk holds, and nothing else, the names first,
+    %% each function's as its sites write it and the type's none, and the
+    %% calls
     ?assertEqual(lists:sort(maps:keys(Definitions)),
                  lists:sort([QualifiedName
                              || {QualifiedName, Held} <- Unit:'$code'(),
                                 not lists:member(element(1, Held),
-                                                 [foreign, sites, calls])])),
-    ?assertEqual([{['Tablefill'], {sites, ['Tablefill']}}],
-                 [Sites || {_, {sites, _}} = Sites <- Unit:'$code'()]),
+                                                 [foreign, names, calls])])),
+    ?assertEqual({['Tablefill'], {names, #{'$2' => <<"Tablefill.Box.compare">>,
+                                           '$3' => <<"Tablefill.twice">>,
+                                           '$4' => <<"Tablefill.hidden">>,
+                                           '$5' => <<"Tablefill.answer">>,
+                                           '$6' => <<"Tablefill.backwards">>}}},
+                 hd(Unit:'$code'())),
     ?assertEqual([{['Tablefill'], {calls, []}}],
                  [Calls || {_, {calls, _}} = Calls <- Unit:'$code'()]),
     ern_code:unloaded(Unit),
@@ -546,3 +551,67 @@ trace_leaves_out_a_units_helper_test() ->
         code:delete(Unit),
         code:purge(Unit)
     end.
+
+%% Appendix E.21, report §10, §11.2: a trace names each function of a unit
+%% by the name the sites of its declaration write, under the namespace its
+%% sites are compiled with, a reload's version's here, from the names its
+%% '$code'/0 lists first: a member's, a binding's getter and initializer, a
+%% function's, a local function lifted, a lambda's entry, a foreign
+%% function's and each fun the host compiles in one; and names none of the
+%% unit's helpers, which keep the host's names. A regression test, written
+%% after the code: a frame's name was found by a reading of the whole
+%% '$code'/0, which cost with the unit's definitions (the log's *A Fault's
+%% Cost Decided*)
+frames_named_by_the_names_test() ->
+    Text = "export type Vec = Vec(Int)\n"
+           "export fn Vec.+(a : Vec, b : Vec) : Vec = a\n"
+           "let base : Int = List.size(List.map([1], fn(k : Int) : Int = k + 1))\n"
+           "export fn twice(n : Int) : Int = {\n"
+           "    fn add(k : Int) : Int = k + n;\n"
+           "    List.size(List.map([add(n)], fn(k : Int) : Int = k + base))\n"
+           "}\n"
+           "export fn start(n : Int) : Either(Io.Error, Address(Never)) =\n"
+           "    Peer.spawn(\"p\", fn() = { let _ = n + base; Unit }, 100)\n"
+           "export foreign fn backwards(list : List(Int)) : List(Int) = \"lists:reverse/1\"\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Framenames'], Text),
+    {ok, Unit, Beam} = ern_compile:compile(['Framenames'], Typed, Interface, Env,
+                                          #{source_hash => <<>>, deps => [],
+                                            site_namespace => ['Framenames$2']}),
+    {module, Unit} = code:load_binary(Unit, "test", Beam),
+    try
+        ?assertEqual([{'$2', "Framenames$2.Vec.+"}, {'$3', "Framenames$2.base"},
+                      {'$3.init', "Framenames$2.base"}, {'$4', "Framenames$2.twice"},
+                      {'$4.1', "Framenames$2.twice"}, {'$5', "Framenames$2.start"},
+                      {'$5.1.entry', "Framenames$2.start"}, {'$6', "Framenames$2.backwards"},
+                      {'-$3.init/0-fun-0-', "Framenames$2.base"},
+                      {'-$4/1-fun-0-', "Framenames$2.twice"}],
+                     lists:sort([{Function, Name}
+                                 || {Function, _} <- Unit:module_info(functions),
+                                    Name <- [ern_code:function_text(Unit, Function, none)],
+                                    Name =/= none])),
+        ?assertEqual(['$code', '$init', '$spawned', '$type_1', '-inlined-$spawned/2-',
+                      module_info],
+                     lists:usort([Function || {Function, _} <- Unit:module_info(functions),
+                                              ern_code:function_text(Unit, Function, none)
+                                                  =:= none]))
+    after
+        code:purge(Unit),
+        code:delete(Unit),
+        code:purge(Unit)
+    end.
+
+%% report §10, Appendix E.21: a run's start finds the toolchain's own
+%% modules, before any process of the program runs, which a trace reads to
+%% leave their frames out: the runtime's are among them, and a test's
+%% module is not. A regression test, written after the code: the first
+%% trace of a host's life found them, so that each of 19,400 processes that
+%% faulted at once listed the toolchain's directories through the host's
+%% one file server (the log's *Twenty Thousand Faults at Once*)
+own_modules_found_at_a_runs_start_test() ->
+    persistent_term:erase({ern_code, own_modules}),
+    ok = ern_code:load_runtime(),
+    Own = persistent_term:get({ern_code, own_modules}, none),
+    ?assert(is_map_key(ern_rt, Own)),
+    ?assert(is_map_key(ern_code, Own)),
+    ?assertNot(is_map_key(?MODULE, Own)),
+    ?assertEqual(Own, ern_code:own_modules()).

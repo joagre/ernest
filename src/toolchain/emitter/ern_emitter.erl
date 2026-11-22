@@ -196,11 +196,10 @@ syntax(#unit{namespace = Namespace, name = ErlangModule, code = Code} = Unit) ->
     CodeFunction = case Code of
                        true ->
                            Calls = calls(Bodies, Unit),
-                           code_function(code(Placed, ForeignKept, Entries, Context3)
-                                         ++ held_code(Placed, Unit)
-                                         ++ [{Unit#unit.form_namespace,
-                                              {sites, Unit#unit.site_namespace}},
-                                             {Namespace, {calls, Calls}}]);
+                           code_function([{Namespace, {names, names(Placed, ForeignKept, Unit)}}
+                                          | code(Placed, ForeignKept, Entries, Context3)
+                                          ++ held_code(Placed, Unit)
+                                          ++ [{Namespace, {calls, Calls}}]]);
                        false ->
                            []
                    end,
@@ -943,16 +942,13 @@ foreign_arity(#foreign_function{scheme = {scheme, _, {arrow, ParamTypes, _, _}, 
 %% local fn a spawn on a peer starts, by its identity, with its entry and
 %% its reach.
 %%
-%% Under the namespace the forms name what it declares under, the unit
-%% holds the namespace its spawn sites name its declarations under, by
-%% which a fault's trace names its functions (ern_code:function_text/3),
-%% the session's as it prints for an input of a shell's session; and, last,
-%% under the module's namespace, the units its code calls (calls/2). Each
-%% qualified name is the forms' (Appendix H): an input of a shell's session
-%% names what it declares under the session's one namespace, by which a
-%% reach finds it. The last two rows are the unit's, which syntax/1 adds.
-%% A literal '$code'/0 answers, so that a load reads it without decoding
-%% the module's chunks, which costs more than the load.
+%% Each qualified name is the forms' (Appendix H): an input of a shell's
+%% session names what it declares under the session's one namespace, by
+%% which a reach finds it. Two rows are the unit's, under the module's
+%% namespace, which syntax/1 adds: first its names (names/3), and last the
+%% units its code calls (calls/2). A literal '$code'/0 answers, so that a
+%% load reads it without decoding the module's chunks, which costs more
+%% than the load.
 code(Placed, ForeignPlaced, Entries,
      #emit_context{unit = #unit{reaches = Reaches} = Unit,
                    own = #own{forms = Forms, grounds = Grounds}} = Context) ->
@@ -987,6 +983,32 @@ definition_code(Position, #definition{kind = binding, qualified_name = Qualified
 definition_code(_, #definition{kind = type, qualified_name = QualifiedName, hash = Hash}, _,
                 #emit_context{unit = Unit}) ->
     {form_name(QualifiedName, Unit), {type, Hash}}.
+
+%% Report Appendix E.21, §6.9: the unit's names, the first row of its
+%% '$code'/0, by which a fault's trace names a frame of its code in one
+%% lookup, whatever the unit holds (§10, ern_code:function_text/3): each
+%% definition's and kept foreign function's function, '$3', a binding's
+%% getter, and the getter of the value an expression's unit holds, by the
+%% name the sites of its declaration write, as text (site_name/2). An
+%% input's expression is `input`, as its sites have it: the shell gives its
+%% text as the input runs (site/2), and no unit's code holds it, so that an
+%% input typed again compiles to the code it did before.
+names(Placed, ForeignKept, #unit{namespace = Namespace, held = Held} = Unit) ->
+    Declared = [{Position, QualifiedName}
+                || {Position, #definition{kind = Kind, qualified_name = QualifiedName}} <- Placed,
+                   Kind =/= type]
+        ++ [{Position, QualifiedName}
+            || {Position, #foreign_function{qualified_name = QualifiedName}} <- ForeignKept]
+        ++ [{held_position(Unit), Definition} || {_, Definition} <- [Held]],
+    maps:from_list([{function_name(Position),
+                     written_name(lists:nthtail(length(Namespace), QualifiedName), Unit)}
+                    || {Position, QualifiedName} <- Declared]).
+
+written_name(Declaration, Unit) ->
+    case site_name(Declaration, Unit) of
+        input -> input;
+        Name -> ern_namespace:site_text(Name, none)
+    end.
 
 %% Report §8.7: '$spawned'/2 runs, in the calling process, a function of
 %% this unit a spawn on a peer may start, over the values it captured:

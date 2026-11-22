@@ -54,8 +54,8 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, load/3, load/4, documented/1,
-         chunk/1,
+-export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, own_modules/0, load/3, load/4,
+         documented/1, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
          holder/1, ground/1, grounded/1, forms/1,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
@@ -172,17 +172,40 @@ own_builds() ->
 %% `~p`). The compiler, the shell, the host's TLS and what a foreign module
 %% calls are loaded at their first call. The libraries' shims are on the
 %% host's code path from here, first after the toolchain's own, as the
-%% runner puts them (ern_cli:host_path/1).
+%% runner puts them (ern_cli:host_path/1). The toolchain's own modules,
+%% which tell the host's apart here, are found here for the host's life
+%% (own_modules/0).
 -spec load_runtime() -> ok.
 load_runtime() ->
     ok = code:add_pathsz(ern_tree:libraries()),
     Files = ern_tree:run_code(),
-    Own = [list_to_atom(filename:basename(File, ".beam")) || File <- ern_tree:own_code()],
-    Host = [Called || File <- Files, Called <- absent_calls(File), not lists:member(Called, Own)],
+    Own = own_modules(),
+    Host = [Called || File <- Files, Called <- absent_calls(File), not is_map_key(Called, Own)],
     ok = code:ensure_modules_loaded([list_to_atom(filename:basename(File, ".beam"))
                                      || File <- Files]),
     _ = code:ensure_modules_loaded(lists:usort([calendar, erl_posix_msg, io_lib_pretty | Host])),
     ok.
+
+%% Report §10, Appendix E.21, §8.6: the modules of the toolchain's own
+%% Erlang (ern_tree:own_code/0), which hold no test's, so that a test's own
+%% module is the host's, as a program's foreign module is: a trace leaves
+%% their frames out, and the look reads them as Ernest's (ern_rt). They are
+%% found once in a host's life, at a run's start (load_runtime/0), before
+%% any process of the program runs, so that processes that fault at once
+%% each read them and none lists the toolchain's directories through the
+%% host's one file server; and at the first ask in a host where no run has
+%% started, a test of the runtime's.
+-spec own_modules() -> #{module() => true}.
+own_modules() ->
+    case persistent_term:get({?MODULE, own_modules}, none) of
+        none ->
+            Own = maps:from_keys([list_to_atom(filename:basename(Beam, ".beam"))
+                                  || Beam <- ern_tree:own_code()], true),
+            persistent_term:put({?MODULE, own_modules}, Own),
+            Own;
+        Own ->
+            Own
+    end.
 
 %% Report §12, §8.4: the modules a compiled form's code calls, loaded where
 %% the host holds none of them, a unit's foreign functions' among them, so
@@ -402,7 +425,7 @@ rows(Unit, _, {type, Hash}) ->
 rows(Unit, QualifiedName, {foreign, HostModule, HostFunction, Function, Arity}) ->
     [{{foreign, texts(QualifiedName)}, Unit,
       {foreign, HostModule, HostFunction, Function, Arity}}];
-rows(_, _, {sites, _}) ->
+rows(_, _, {names, _}) ->
     [];
 rows(_, _, {calls, _}) ->
     [].
@@ -764,14 +787,17 @@ held_function({foreign, _, _, Function, Arity}) -> [{Function, Arity}];
 held_function(_) -> [].
 
 %% Report Appendix E.21, §11.2: a function of a loaded Unit as a fault's
-%% trace names it at the frame's Line, by the name the unit's spawn sites
-%% write the declaration that holds it (§6.9), read back from its
-%% '$code'/0. A definition's or a foreign function's function, '$3', is
-%% named by its qualified name under the namespace the unit's sites name
-%% its declarations under, `Geo.area`, a member's `Geo.Vec.+`, a reload's
-%% version's `Counter$2.worker`, and in a shell's session by its own name;
-%% a definition its recorded forms name otherwise, an input's expression
-%% among them, `input 3`, by that name where the node keeps them.
+%% trace names it, by the name the unit's spawn sites write the
+%% declaration that holds it (§6.9), which the names its '$code'/0 lists
+%% first give by one lookup (ern_emitter:names/3), so that a frame's name
+%% costs the same whatever the unit holds (§10). A definition's or a
+%% foreign function's function, '$3', is named by its qualified name under
+%% the namespace the unit's sites name its declarations under, `Geo.area`,
+%% a member's `Geo.Vec.+`, a reload's version's `Counter$2.worker`, and in
+%% a shell's session under the session's as it prints, `$Session2.start`.
+%% An input's expression, whose name no unit's code holds, is named as its
+%% load recorded it, `$Session2.input 3`, read from the unit's forms in the
+%% table (input_name/1), at a cost of what the one input holds.
 %%
 %% A top-level binding's initializer, '$3.init', is named as the binding
 %% is. A lambda or a local function is named as the top-level declaration
@@ -784,10 +810,16 @@ held_function(_) -> [].
 %% other function, the unit's '$init'/0 among them, and for a module that
 %% is no unit, which keep the host's names.
 -spec function_text(module(), atom(), pos_integer() | none) -> string() | none.
-function_text(Unit, Function, Line) ->
-    case erlang:function_exported(Unit, '$code', 0) of
-        true -> named_function(atom_to_list(Function), Line, Unit, Unit:'$code'());
-        false -> none
+function_text(Unit, Function, _Line) ->
+    case erlang:function_exported(Unit, '$code', 0) andalso Unit:'$code'() of
+        [{_, {names, Names}} | _] ->
+            case maps:get(defining(atom_to_list(Function)), Names, none) of
+                none -> none;
+                input -> input_name(Unit);
+                Name -> unicode:characters_to_list(Name)
+            end;
+        _ ->
+            none
     end.
 
 %% Report §8.4, Appendix E.21: a function value of a loaded unit as a trace
@@ -812,89 +844,63 @@ value_text(Function) ->
             none
     end.
 
-%% The binding of Unit whose value is Function, by the name its sites
-%% write it by, or none.
+%% The binding of Unit whose value is Function, by the name its getter has
+%% (function_text/3), or none: a reading of every binding the unit lists,
+%% which a cause that names a function foreign code gave pays alone.
 bound_name(Unit, Function) ->
     case erlang:function_exported(Unit, '$code', 0) of
         true ->
-            Code = Unit:'$code'(),
-            case [written_name(QualifiedName, Held, Unit, Code)
-                  || {QualifiedName, {binding, _, Key} = Held} <- Code,
-                     persistent_term:get(Key, none) =:= Function] of
-                [Name | _] -> Name;
+            case [Getter || {_, {binding, _, {_, Getter} = Key}} <- Unit:'$code'(),
+                            persistent_term:get(Key, none) =:= Function] of
+                [Getter | _] -> function_text(Unit, Getter, none);
                 [] -> none
             end;
         false ->
             none
     end.
 
-named_function("-" ++ Fun, Line, Unit, Code) ->
-    %% the host's name of a fun: -Function/Arity-fun-Index-, and of a named
-    %% one, a receive's wait among them, -Function/Arity-Name/Arity-Index-;
-    %% Function, the name of a fun where the fun is made in one, holds no `/`
-    %% before its own
+%% The function of the definition whose code a function of a unit is, by
+%% the function's name: '$3' of '$3', '$3.init', '$3.2' and '$3.2.entry',
+%% and of a fun the host compiles in one, -Function/Arity-fun-Index-, or a
+%% named one, a receive's wait among them, -Function/Arity-Name/Arity-Index-,
+%% Function, the name of a fun where the fun is made in one, holding no `/`
+%% before its own; none for any other name.
+defining("-" ++ Fun) ->
     case string:split(string:trim(Fun, leading, "-"), "/") of
-        [Enclosing, _] -> named_function(Enclosing, Line, Unit, Code);
+        [Enclosing, _] -> defining(Enclosing);
         _ -> none
     end;
-named_function("$" ++ Numbered, _, Unit, Code) ->
-    %% '$3', '$3.init', '$3.2' and '$3.2.entry' are the definition '$3''s code
+defining("$" ++ Numbered) ->
     case string:split(Numbered, ".", all) of
-        [Number] -> declared_name("$" ++ Number, Unit, Code);
-        [Number, _] -> declared_name("$" ++ Number, Unit, Code);
-        [Number, _, "entry"] -> declared_name("$" ++ Number, Unit, Code);
+        [Number] -> existing_atom("$" ++ Number);
+        [Number, _] -> existing_atom("$" ++ Number);
+        [Number, _, "entry"] -> existing_atom("$" ++ Number);
         _ -> none
     end;
-named_function(_, _, _, _) ->
+defining(_) ->
     none.
 
-%% The name a definition or a foreign function is written by in a site of
-%% Unit, where the unit holds it in the function Function.
-declared_name(Function, Unit, Code) ->
-    case [{QualifiedName, Held} || {QualifiedName, Held} <- Code, {Held1, _} <- held_function(Held),
-                                   atom_to_list(Held1) =:= Function] of
-        [{QualifiedName, Held} | _] -> written_name(QualifiedName, Held, Unit, Code);
-        [] -> none
+%% A function's name as the atom the host holds, or none where it holds
+%% none, which no unit's function is named by.
+existing_atom(Name) ->
+    try list_to_existing_atom(Name)
+    catch error:badarg -> none
     end.
 
-%% The name a definition's sites write it by: the one Unit's recorded forms
-%% give it, or its qualified name under the namespace its sites name it
-%% under.
-written_name(QualifiedName, Held, Unit, Code) ->
-    case recorded_name(Unit, Held) of
-        none -> in_site_namespace(QualifiedName, Code);
-        Name -> ern_namespace:text(Name)
-    end.
-
-%% The name Unit's recorded forms give a definition its sites write by
-%% another than its qualified name (ern_canonical.hrl), found by its hash,
-%% where the code table keeps them, as it keeps those of every unit no file
-%% holds; none for a foreign function, which has no form.
-recorded_name(Unit, Held) ->
-    Hash = case Held of
-               {function, FunctionHash, _, _, _, _} -> FunctionHash;
-               {binding, BindingHash, _} -> BindingHash;
-               _ -> none
-           end,
-    case Hash =/= none andalso lookup({forms, Unit}) of
+%% Report §11.2: the name the sites of an input's expression write, which
+%% the shell gives as the input runs, so that no unit's code holds it
+%% (ern_emitter:site/2): its name as the input's load recorded it beside
+%% the expression's form (ern_compile), in the forms the table keeps of
+%% every unit no file holds; none where it keeps none.
+input_name(Unit) ->
+    case lookup({forms, Unit}) of
         [{_, _, #recorded{definitions = Definitions}}] ->
-            case [Name || #definition{hash = Named, name = Name} <- Definitions, Named =:= Hash] of
-                [Name | _] -> Name;
+            case [Name || #definition{qualified_name = QualifiedName, name = Name} <- Definitions,
+                          lists:last(QualifiedName) =:= '$input', Name =/= none] of
+                [Name | _] -> ern_namespace:text(Name);
                 [] -> none
             end;
         _ ->
-            none
-    end.
-
-%% A qualified name under the namespace the unit's forms name its
-%% declarations under, written under the one its sites name them under,
-%% which '$code'/0 lists (ern_emitter:code/4).
-in_site_namespace(QualifiedName, Code) ->
-    case [{FormNamespace, SiteNamespace} || {FormNamespace, {sites, SiteNamespace}} <- Code] of
-        [{FormNamespace, SiteNamespace}] ->
-            Declaration = lists:nthtail(length(FormNamespace), QualifiedName),
-            ern_namespace:text(SiteNamespace ++ Declaration);
-        [] ->
             none
     end.
 

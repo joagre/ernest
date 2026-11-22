@@ -3165,24 +3165,10 @@ still([{Pid, _, Reductions} | First], Held) ->
 %% Report §8.6: whether a module is Ernest's own code: a unit, which exports
 %% '$code'/0 as every unit the toolchain makes does, and by which the code
 %% table takes one (ern_code:loaded/3), or a module of the toolchain's own
-%% Erlang (own_modules/0). Every other module is the host's, foreign code's
-%% and a standard library function's host work among them.
+%% Erlang (ern_code:own_modules/0). Every other module is the host's,
+%% foreign code's and a standard library function's host work among them.
 is_ernest(Module) ->
-    erlang:function_exported(Module, '$code', 0) orelse is_map_key(Module, own_modules()).
-
-%% The modules of the toolchain's own Erlang, found once in a host's life
-%% (ern_tree:own_code/0), which hold no test's, so that a test's own module
-%% is the host's, as a program's foreign module is.
-own_modules() ->
-    case persistent_term:get({?MODULE, own_modules}, none) of
-        none ->
-            Own = maps:from_keys([list_to_atom(filename:basename(Beam, ".beam"))
-                                  || Beam <- ern_tree:own_code()], true),
-            persistent_term:put({?MODULE, own_modules}, Own),
-            Own;
-        Own ->
-            Own
-    end.
+    erlang:function_exported(Module, '$code', 0) orelse is_map_key(Module, ern_code:own_modules()).
 
 %% A call waiting on a system process, a listener, a socket or a running
 %% program, Held, is a pending I/O from before its request is sent, as the
@@ -3685,13 +3671,13 @@ found_fault(Pid, Cause) ->
 %% check among them: a frame of the runtime's is left out wherever it
 %% stands, the twelve counted without it, and a frame of the host's above
 %% the program's stays. A frame of the runtime's is one of the toolchain's
-%% own Erlang (own_modules/0), or one of a unit that names no definition
-%% of the program's, a helper the compiler writes into the unit, the
-%% boundary's wrapper, a spawn's entry or an arrival's lacked function
-%% among them (ern_code:function_text/3).
+%% own Erlang (ern_code:own_modules/0), which a run's start found, or one
+%% of a unit that names no definition of the program's, a helper the
+%% compiler writes into the unit, the boundary's wrapper, a spawn's entry
+%% or an arrival's lacked function among them (ern_code:function_text/3).
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
-    Own = own_modules(),
+    Own = ern_code:own_modules(),
     traced([Entry || {ErlangModule, _, _, _} = Entry <- Stack, not is_map_key(ErlangModule, Own),
                      not is_helper_frame(Entry)]).
 
