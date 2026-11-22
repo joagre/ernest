@@ -97,10 +97,17 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      takes 209 µs against 44 for its `&&` form. In a model in Erlang, the clauses after it as
      a local function of the scrutinee halve the closures' chain, and the scrutinee kept for a
      fallthrough still costs a binary loop the host's reuse of its match, 2.7 times the `&&`
-     form. 76 sites of the libraries and the tools match so. Decided: the emitter's form, or
-     §11 states the cost.
-   - **Three readings of the rules**, decided before the rows, since each sorts many: whether
-     §10's "but for a call's wait" excepts a call's whole added cost or its growth alone;
+     form. 76 sites of the libraries and the tools match so.
+
+     Decided 2026-11-22 (the log's *A Guard's Fallthrough Is a Function*): the emitter's
+     form changes and no sentence states the cost. To build, by an agent of its own after
+     the agent of the fault's fixes: the clauses after such a guard are a function of the
+     unit, given the matched value and the locals they use, and the fallthrough a tail call
+     to it.
+   - **Three readings of the rules**, decided before the rows, since each sorts many. The
+     first is decided 2026-11-22 (the log's *The Cost's Rules Read*): §10's "but for a
+     call's wait" excepts the growth alone, its sentence cut in two, which leaves
+     `Clock.sleep`'s fixed part and the wait of `Tcp.listen`'s close to the rows. To decide:
      whether §10's rule reaches a socket's, a running program's and a library's processes, the
      shell and the emitter's forms; and whether E.0's line at three times the host's function
      covers `String`, `Map` and `Path`.
