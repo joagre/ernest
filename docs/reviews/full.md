@@ -88,7 +88,7 @@ Who works a finding is *The findings*'s. An agent that makes a fix runs at the e
 ## The findings
 
 - The lists become one document, the findings file, `findings.md` in `docs/`, beside the plan while they are open: a line per finding, by area, each naming its reader's letter and number.
-- A line carries its decision: `fix`; `decide`; `felt`, an entry of [`language_feedback.md`](../language_feedback.md) with its number; a milestone's number, planned there; or `dropped`, with the reason; and `done`, with the date, once made.
+- A line carries its decision: `fix`; `decide`; `felt`, an entry of [`language_feedback.md`](../language_feedback.md) with its number; `known`, a line of [`known_issues.md`](../known_issues.md), the one it meets or a new one, for a corner that must be built on purpose to be met; a milestone's number, planned there; or `dropped`, with the reason; and `done`, with the date, once made.
 - Each reader's whole list is kept below the lines, since a line is too short to fix from.
 - The lines are sorted before anything is built, and the sorting is read first. A line nobody would argue about once the finding is read is `fix`, made at once, the line saying what was done: a sentence, a soundness paragraph or prose by the session; code or a test by agents, each from a brief that names the lines in its files and the shape of each fix (CLAUDE.md, *The work*; [`agents.md`](../agents.md), *The brief*).
 
@@ -98,7 +98,7 @@ Who works a finding is *The findings*'s. An agent that makes a fix runs at the e
 
   A milestone's read (the log's *MVP 3.0 Read Without a Release*) sorts its lines the same way.
 - The plan gives the list a milestone.
-- The document goes when every line is done, dropped or carried to `language_feedback.md`, or stands in the plan as an item of its own.
+- The document goes when every line is done, dropped or carried to `language_feedback.md` or `known_issues.md`, or stands in the plan as an item of its own.
 - The log gains an entry for the review: its date and commit, the principles reader's counts, the newcomer's program, and how many findings took each decision.
 
 ## Its cost

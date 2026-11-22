@@ -145,9 +145,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
 
-   A finding that meets one of MVP 4.5's items 68, 96, 103, 113, 118, 122, 134 and 140 is
-   sorted to that item. It comes before the launch only where a program shows a sentence of the report
-   false (the log's *The Line Before the Launch*).
+   A finding that meets one of MVP 4.5's items is sorted to that item. It comes before the
+   launch only where a program shows a sentence of the report false (the log's *The Line
+   Before the Launch*).
 
    Before its readers start:
 
