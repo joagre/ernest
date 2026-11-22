@@ -67,8 +67,8 @@ function remember(key, value) {
 
 // Beside needs a wide window; on a narrower one the panel goes below, and
 // on a phone there is none: the shell is its own page.
-const wide = window.matchMedia("(min-width: 1000px)");
-const phone = window.matchMedia("(max-width: 760px)");
+const wide = window.matchMedia("(width >= 62.5em)");
+const phone = window.matchMedia("(width <= 47.5em)");
 
 // The panel: its layout, beside, below or hidden, null; its element and
 // its parts; whether a session runs, connecting or running; whether it
@@ -233,6 +233,12 @@ function token(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+// The terminal's text is .875rem, in the pixels xterm.js takes, so that it
+// follows the reader's font size as the page's does.
+function terminalSize() {
+    return 0.875 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+}
+
 // A terminal or a client that does not load leaves no session, in the
 // page's own word for a connection lost, and the next start loads it again.
 // A second start made while they load finds the first's session when they
@@ -250,7 +256,7 @@ async function startSession() {
             screenReaderMode: true,
             macOptionIsMeta: true,
             fontFamily: token("--mono"),
-            fontSize: 14,
+            fontSize: terminalSize(),
             theme: { background: token("--terminal"), foreground: token("--terminal-ink") },
         });
         const fit = new FitAddon.FitAddon();

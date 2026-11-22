@@ -1,6 +1,6 @@
 # The homepage and the blocks' tools
 
-What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6's items 3 and 4, since 2026-11-18. Item 3, the homepage and the tools, is built since 2026-11-19, ahead of its milestone (the log's *The Homepage Built*), and stays here as the record of its design until the milestone's release. The proposal's *Open* is done, its 1 with MVP 4.17's item 119 on 2026-11-21 (the log's *An Input Edited by Its Lines*), and the page stays without a line above a block. Item 4, the stylesheet's units, is not built. Nothing in it is authoritative: what is built is the site's design note's, [`docs/design/site.md`](../../design/site.md).
+What each file here is, and which is current. The proposal is decided and planned, as MVP 4.6's items 3 and 4, since 2026-11-18. Item 3, the homepage and the tools, is built since 2026-11-19, ahead of its milestone (the log's *The Homepage Built*), and stays here as the record of its design until the milestone's release. The proposal's *Open* is done, its 1 with MVP 4.17's item 119 on 2026-11-21 (the log's *An Input Edited by Its Lines*), and the page stays without a line above a block. Item 4, the stylesheet's units, is built since 2026-11-22: the page follows the reader's font size, as the site's design note's *The look* says. Nothing in it is authoritative: what is built is the site's design note's, [`docs/design/site.md`](../../design/site.md).
 
 | File | What it is | Status |
 |---|---|---|

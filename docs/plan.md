@@ -22,8 +22,8 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6's item 2 is done since 2026-11-22. The next item is MVP 4.6's item 4**, the
-stylesheet's units.
+**MVP 4.6's items 2 and 4 are done since 2026-11-22. The next item is MVP 4.6's item 5**,
+the proposals' reading and sweep.
 
 The milestones to come, in order: MVP 4.6, MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -63,13 +63,10 @@ changes both repositories, on a path the rehearsal has walked.
    [`proposals/homepage/`](proposals/homepage/README.md). The opening's last clause came
    with MVP 4.17's item 119, on 2026-11-21, and item 2 reads the site's design note as
    this item left it.
-4. **The stylesheet's units**, after item 3 (the proposal's *The stylesheet's units*).
-   `:root`'s size follows the reader's, and the widths at which the layout changes and the
-   page's width leave the pixel, together or not at all. The first screen's three sizes
-   are measured again, and the page is looked at with the browser's font size at 20 and at
-   24 pixels.
-5. **The proposals' reading and sweep**, once items 2 and 4 are done, and before MVP 4.4's
-   release. [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md)
+4. **The stylesheet's units**, done on 2026-11-22 (the log's *The Stylesheet's Units*).
+   The page follows the reader's font size and measures as before at 16 pixels, and what a
+   phone at 24 showed past its box was fixed with it.
+5. **The proposals' reading and sweep**, before MVP 4.4's release. [`proposals/ernest_httpd/`](proposals/ernest_httpd/README.md)
    and [`proposals/homepage/`](proposals/homepage/README.md) are read for what they hold
    that no owner has yet, in a reading decided with the user. That goes to the site's
    design note or the log. The item removes each directory once this milestone's row names

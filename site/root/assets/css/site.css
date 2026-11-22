@@ -28,7 +28,7 @@
     --mono: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", monospace;
 
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 16px;
+    font-size: 100%;
     line-height: 1.55;
 }
 
@@ -78,7 +78,7 @@ a:hover {
 }
 
 .wrap {
-    width: min(100% - 3rem, 1120px);
+    width: min(100% - 3rem, 70rem);
     margin-inline: auto;
 }
 
@@ -170,7 +170,7 @@ button:disabled {
     display: flex;
     align-items: center;
     gap: 2rem;
-    min-height: 60px;
+    min-height: 3.75rem;
 }
 
 .brand {
@@ -185,8 +185,8 @@ button:disabled {
 
 .brand img {
     display: block;
-    width: 24px;
-    height: 30px;
+    width: 1.5rem;
+    height: 1.875rem;
 }
 
 .site-nav {
@@ -414,11 +414,11 @@ main:has(> .home-intro) {
     color: var(--muted);
 }
 
-/* Narrower than the page's full width, 1120 px with a margin of 24 px on
-   each side, so in a window under 1120 + 2 × 24 = 1168 px, the example's
-   parts stand one under the other: the counter, Try it, the session and
-   the tour's sentence, so that Try it stays on the first screen. */
-@media (max-width: 1167px) {
+/* Narrower than the page's full width, 70rem with a margin of 1.5rem on
+   each side, so in a window under 70 + 2 × 1.5 = 73em, the example's parts
+   stand one under the other: the counter, Try it, the session and the
+   tour's sentence, so that Try it stays on the first screen. */
+@media (width < 73em) {
     .home-use .example {
         display: flex;
         flex-direction: column;
@@ -465,7 +465,7 @@ main:has(> .home-intro) {
 .door a {
     flex: 1;
     display: grid;
-    grid-template-columns: 120px 1fr auto;
+    grid-template-columns: 7.5rem 1fr auto;
     align-items: center;
     gap: 1rem;
     padding: .85rem 0;
@@ -506,7 +506,10 @@ pre code {
     font-size: inherit;
 }
 
+/* A long run of inline code breaks where it would leave its line; a
+   block keeps its lines and scrolls sideways. */
 :not(pre) > code {
+    overflow-wrap: break-word;
     padding: .08em .22em;
     border-radius: 2px;
     background: var(--panel);
@@ -657,7 +660,7 @@ pre.rejected {
 
 .doc-layout {
     display: grid;
-    grid-template-columns: 205px minmax(0, 1fr);
+    grid-template-columns: 12.8125rem minmax(0, 1fr);
     gap: 3rem;
 }
 
@@ -676,7 +679,7 @@ pre.rejected {
 
 /* On a desktop the sidebar is plainly the page's sections, and its label
    says nothing; on a phone the label opens the fold. */
-@media (min-width: 761px) {
+@media (width > 47.5em) {
     .contents summary {
         display: none;
     }
@@ -940,7 +943,7 @@ h2:hover .anchor,
 
 .projects li {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-columns: 2.5rem minmax(0, 1fr);
     column-gap: 1rem;
     align-items: start;
     margin: 0;
@@ -950,8 +953,8 @@ h2:hover .anchor,
 
 .projects img {
     grid-row: span 2;
-    width: 40px;
-    height: 40px;
+    width: 2.5rem;
+    height: 2.5rem;
     border-radius: 3px;
 }
 
@@ -1015,7 +1018,7 @@ td.right {
    ---------------------------------------------------------------------- */
 
 .terminal-frame {
-    min-height: min(56vh, 520px);
+    min-height: min(56vh, 32.5rem);
     padding: 1.2rem;
     border: 1px solid var(--line);
     border-radius: 3px;
@@ -1071,9 +1074,9 @@ td.right {
 /* A narrow screen: one column, and the header folded into its menu
    ---------------------------------------------------------------------- */
 
-@media (max-width: 760px) {
+@media (width <= 47.5em) {
     .wrap {
-        width: min(100% - 2rem, 1120px);
+        width: min(100% - 2rem, 70rem);
     }
 
     .header-inner {
@@ -1110,6 +1113,26 @@ td.right {
 
     .door {
         gap: .5rem;
+    }
+
+    /* A door's sentence goes under its name, and the arrow stays at its
+       right. */
+    .door a {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "name arrow" "sentence arrow";
+        row-gap: .2rem;
+    }
+
+    .door strong {
+        grid-area: name;
+    }
+
+    .door span {
+        grid-area: sentence;
+    }
+
+    .door a > .icon {
+        grid-area: arrow;
     }
 
     main {
@@ -1268,8 +1291,12 @@ body.panel-below .panel-handle {
 }
 
 /* The panel's bar: the session's state, Start or Restart, Stop and close. */
+/* Where its buttons do not fit, they wrap onto a second row, at its
+   right. */
 .panel-bar {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
     gap: .5rem;
     padding: .4rem .6rem;
@@ -1384,7 +1411,7 @@ body:has(.terminal-frame .shell-panel) main {
 
 /* On a phone the terminal takes most of the first screen, and the notes
    follow beneath it. */
-@media (max-width: 760px) {
+@media (width <= 47.5em) {
     .terminal-frame:has(.shell-panel) {
         min-height: 60dvh;
     }
@@ -1434,8 +1461,8 @@ body:has(.terminal-frame .shell-panel) main {
     white-space: nowrap;
 }
 
-/* Beside needs a wide window; below 1000 px the panel goes below. */
-@media (max-width: 999px) {
+/* Beside needs a wide window; below 62.5em the panel goes below. */
+@media (width < 62.5em) {
     .panel-toggle .beside {
         display: none;
     }
