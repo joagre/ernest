@@ -120,11 +120,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    **Reported 2026-11-22**, decided with the user: `docs/otp_bugs.md`'s report 28, whose
    reproduction is the map (the log's *The Raise's Walk Reported*). Its filing is the user's.
 
+   **The depth stays 64**, decided with the user 2026-11-22 (the log's *The Depth Stays 64*).
+
    **To decide with the user**, on the stronger model (the log's *Where a Session Is Cut*),
-   in this order: the depth, recommended to stay 64, since none that keeps E.21's twelve
-   lines bounds the walk; the sentences of §10 and E.28 and their echoes, and with them
-   whether a narrower sentence alone answers the map's square; and whether the bench gains a
-   row for a raise beneath a deep recursion, which item 2 then reads.
+   in this order: the sentences of §10 and E.28 and their echoes, and with them whether a
+   narrower sentence alone answers the map's square; and whether the bench gains a row for a
+   raise beneath a deep recursion, which item 2 then reads.
 4. **The full review**, as `docs/reviews/full.md` says, the principles review inside it, over the swept
    form after the pun and with the three programs written since 0.7.0; its findings sorted and
    worked as it says.
