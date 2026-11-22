@@ -83,6 +83,28 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    launch only where a program shows a sentence of the report false (the log's *The Line
    Before the Launch*).
 
+   It runs in four legs, each ended by a commit, decided with the user 2026-11-23 (the log's
+   *The Full Review in Four Legs*). The session stops at each cut and tells the user the
+   model to switch to, since a session's model changes only after a `/clear`:
+
+   1. Fable 5.2 at high: the decisions before the readers start, which are eve beside nike,
+      whether the checker warns of a private function no code calls, the verdict on each of
+      the three tools, and the argument's recut. Its commit writes each verdict into this
+      item.
+   2. Opus 5.5 at xhigh: the builds before the readers start, the rest of the list below.
+      Then the readers are started, and their lists are written whole into the findings
+      file.
+   3. Fable 5.2 at high: the sort, and the `decide` lines with the user, each verdict and
+      each fix's shape written into the findings file.
+   4. Opus 5.5 at xhigh: the fixes by agents, the diffs read back, `make test-full` and the
+      close.
+
+   Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
+   the `fix` lines made at once and the `decide` lines after, so that the design is one
+   block. The readers' models are their own, whichever session starts them: a reader of
+   the code or of what the toolchain does runs on Opus 5.5 at xhigh, and every other
+   reader on Fable 5.2 at high, which leg 2's briefs name outright.
+
    Before its readers start:
 
    - **Eve beside nike**, to decide with the user, raised 2026-11-19. The review's clone
