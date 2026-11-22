@@ -1,6 +1,6 @@
 # Memory
 
-How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, what each kind of memory is kept for and what lets it go, and how a growth is traced to its cause. The rule: memory that no collection reclaims is a defect. [`reviews/release.md`](reviews/release.md) says when the loads run, and [`architecture.md`](architecture.md) how each table is keyed.
+How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, what the host keeps, with where the design notes say what each component keeps and what lets it go, and how a growth is traced to its cause. The rule: memory that no collection reclaims is a defect. [`reviews/release.md`](reviews/release.md) says when the loads run, and [`architecture.md`](architecture.md) how each table is keyed.
 
 ## The loads
 
@@ -48,6 +48,8 @@ The loads show only what they exercise, so the code is read too, for what a long
 
 Something may be kept as long as a program holds what it stands for: a socket until `Tcp.close`, a running program until it is killed, `Os.run`'s once it has read the exit status, a checker (report §8.4) for as long as the process behind it (the log's *A Check at the Boundary Lasts as Long as Its Process*). What nothing can use again is a defect. A limit the report states, as §11.2's history of a thousand inputs, is a rule and not a cap.
 
+What each component keeps, and when it lets it go, is its design note's, which a reading of the code reads it against: the shell's session, its inputs and its front end's table, [`design/shell.md`](design/shell.md)'s; a process's own, the runtime's tables and the persistent terms, [`design/runtime.md`](design/runtime.md)'s *What the runtime keeps, and where*, with a load's evaluator in its *The process model*; the gateway's rows, the peers' workers, the notes of calls and the offers, [`design/nodes.md`](design/nodes.md)'s; and the code table, the exchange, the arrivals and what a load brings, [`design/code.md`](design/code.md)'s. What the host keeps beneath them is this document's.
+
 ### What the host keeps
 
 **The host's code.** OTP keeps an entry for each lambda of each distinct version of a module it loads, for as long as the node lives. It shows as `code` that rises with every new version of a module, and not with a version loaded again. New versions come from the shell's inputs and loads, from code that arrives from peers, and from `Code.load`. The log's *The Shell's Code Memory* has the figures.
@@ -57,69 +59,6 @@ Something may be kept as long as a program holds what it stands for: a socket un
 **Atoms.** The host never frees an atom, so what makes one is read for as well as counted. A running program makes none from what it is given. The shell makes them of the inputs it runs, and none of text that is typed and not run. The log's *Atoms, Counted* has what each costs.
 
 **Socket buffers.** The host's inet driver keeps up to 14 released receive buffers on each scheduler, of 9,216 bytes each and 1 MiB at most, for the next reads of any socket. No process references them, so they show as `binary` memory that a collection leaves, up to about 130 KB a scheduler, 3 MB on 24 schedulers. A buffer released on another scheduler than the one that took it moves between their stacks, so a stack fills once the host first gives its scheduler a socket's work, which may come at any time (the log's *The Sockets Load on One Scheduler*).
-
-### The shell
-
-- An input that declares nothing and builds no function value is unloaded once it has its answer (report §11.2).
-- An input that declares, or builds a function value, is kept while the session runs (report §11.2).
-- Such an input costs about 24 KB and two atoms where it declares a function, and about 8 KB and the same two where it binds a lambda, the atoms its namespace's and its unit's (measured 2026-10-12 over 2,000 inputs of each). Its definitions make none, since a unit's functions are named by their position.
-- A holder, a session module that holds what a `let` bound, and an expression's unit, which holds the value `it` names, are kept while a name of their own in the session's scope, or an input the session keeps, reaches them. The session collects once an input has answered and at each `:forget`, reading only such units, and lets go of an unreached one's values, code, interface and number (`ern_shell:collected/1`, [`design/shell.md`](design/shell.md)).
-- The process of an input that bound a name lives while the scope holds one of its names, and is let go at the collection that finds none, or at the session's end (`ern_shell:let_go/1`, report §11.2).
-- The prelude's environment, about 52,000 words, is built at the host's first session and kept for the host's life, a persistent term set once, since neither the prelude nor the standard library changes while the host runs; no session holds a copy (`ern_shell:prelude/0`; the log's *A Line-Mode Input's Cost*).
-- A session's rows of the front end's table stand under the root of its processes and go at an attached session's end, whether it left or faulted, the root of its chain detaching it then; an input unit's name is the node's and goes with the unit.
-- The checker's environment the reader checks a line in, after a `.` and for `Shift-Tab`, is kept in the reader's own process and replaced when the session's interfaces change; it goes with the reader (`ern_shell:reader_session/0`).
-- At that end each input that declares a function or builds a function value stays for the node's life, its code and its name, with every unit it needs, as a load's units do, since no purge can tell which process holds a function of it (report §11.2; `ern_shell:kept_for_life/1`); a unit's values stay where one of them needs it. What stays is bounded by what the session declared and built, each such input the 24 KB or 8 KB measured above, and a holder kept with one the values it holds.
-- The other inputs and holders go at that end as the purge allows: one a process still runs stays, with every unit it uses, in the node's `detached` row, until a later session's start or collection finds the process gone (`ern_shell:detach/0`, `collect_detached/0`); a node no session attaches to again keeps those, a cost bounded by what the session made.
-- `:load` and `:reload` unload nothing while the session runs: each version's unit, its bindings' values, and the interface of every type a reload changed, under its previous version's namespace, are kept for the session's life, by design (report §11.2; the log's *The Shell's Reload by Hash, Built*). The host's limits bound the units, and the session says when it nears one.
-- A unit a refused load brought stays, out of reach (report §11.2). The same module refused again makes no unit.
-
-### A node's tables (report §8.7)
-
-- An offer's rows in `ern_offers` and `ern_offered` go when its process ends, which the reaper sees for a process the runtime started or opened, and watches for in any other.
-- `ern_initialized` holds a row for each unit whose initializers a run or a load has run, which the build and the session's loads bound; a unit unloaded takes its row with it (`ern_code:unloaded/1`), and a session's input's and holder's have none, since no peer can name a session's binding (the log's *Sites, Sessions and Their Names*).
-- The utilization a program set is one row of `ern_launch`, each set in place of the last, for the launch's life.
-- A session's screen, a row of `ern_screens` for each root the session heads, its own and each evaluator's started in its chain, is dropped whole by the session as it detaches, every row of its sink, an evaluator's that ended among them, since what the evaluation started is the session's until then, a withdrawn load's by the load as it answers, and goes with the launch's tables at the end, a row a load at most while the session runs; the mark that a process is a session's own is in its row, and goes with the process (report §12.1, §11.2). A character a program's write cut waits in the screen's own state, and goes with the screen.
-- A capture's row of `ern_captures` goes as the capture ends, or as its caller does, which its collector watches; the collector is no chain's process, so nothing the program kills ends it first (E.24). The collector's row of `ern_collectors` goes as the collector ends, once it has answered its capture or written back what it took, at its caller's end or at the run's, which tells it; a stream whose process has ended takes nothing more, and the collector drops the rest and ends, so that no collector outlives its run, which waits for it (§8.6).
-- The note of a call from another node, in `ern_notes` and `ern_callees`, goes at an answer given on this node, the callee's restart or end, the caller's second note, or the loss of the caller's node. The call sends the second note wherever it ends otherwise, its caller's end among them.
-
-### What a process owns (Appendix E.21, G.1)
-
-- The tables a process made, which `Ets.new` tells the runtime of, and the processes it started to end with it, which `Proxy.start` tells, are a list in the process's own dictionary, which drops what the process no longer holds once it has doubled, so that it stays within twice what the process holds, and goes with the process (Appendix E.21, G.1, G.7; `ern_rt:owned_listed/3`).
-
-### The gateway and its peers (report §8.7)
-
-- A spawn's row in `ern_spawns` goes when its answer comes, when the spawner gives up, or at a loss of the peer's connection that the gateway learned of after the row was written. A later answer ends its process.
-- `ern_utilizations` holds a row for each peer that told the node its utilization, a later telling in its place, until that peer's connection is lost: at most a row for each peer the configuration lists.
-- The gateway holds one timer, of its next telling, while the node lists peers.
-- A worker for each peer that sent a frame lives until that peer's connection is lost and the worker holds no frame and no kept process.
-- A process kept for an adapted address and a peer that sends to it lives until no message of that peer's to the address waits.
-- A monitored spawn's process waits on the peer until its spawner has made the monitor or has ended.
-
-### The code table
-
-- A unit's rows stay until the unit is loaded again with other code or unloaded, as the shell unloads an input's.
-- A unit no file holds, a load's, a shell input's or an arrival's, keeps what its compiled form records, its forms among it, in a row of its own for as long as its other rows (report §11.2).
-- A unit the runner loaded keeps its interface chunk and its documentation as it loaded them, the second a compiled form of the interface and the `Docs` chunk alone, in rows of its own for as long as its other rows, so that the shell's view of the node's modules, a reload and `:doc` read the code the node runs (report §11.2; `ern_code:chunk/1`, `documented/1`).
-- A build's unit's forms are read from its `.erc` at the first request of an exchange that needs them, and kept from then on for as long as the unit, which is the node's life (report §11.2). The build bounds them: the standard library's 27 units' forms, all read, take 2,425,824 bytes in the table, about 25 times their compressed chunks, `Terminal`'s 588 KB the largest (measured 2026-10-12, the same in seven runs; the log's *The Report for Code with a Spawn*).
-
-### Code from peers
-
-- The node's `ern_exchange` holds each exchange it asked a peer for, with the code frames it verified, apart from the code table (report §8.7). It goes once the reach is received, made a unit and loaded, or refused with its reason; once the reach answers `NotLoaded`, or that the spawner's node no longer holds it, at the request or at the lacks; once a frame of that peer's is faulty; and at that peer's loss.
-- No time of its own bounds an exchange. A peer that stopped answering without its connection ending would hold it until the loss, which a peer's exchange, answering every frame, gives no cause for.
-- As the spawner's node, `ern_exchange` keeps nothing between a peer's frames.
-- `ern_exchange` keeps the prelude's environment, built at its first arrival, and its pool's count for the node's life, since neither the prelude nor the standard library changes while it runs.
-- An arrival's unit and its row of forms are held for the node's life, as every unit is (report §11.2; the log's *The Report for Code with a Spawn*).
-- The index of the toolchain's own units, each definition's hash to its unit, some 600 of them, is read from the tree's builds at the first spawn whose function the node lacks and kept for the host's life, since the tree does not change under a running node; a unit of the toolchain's own a spawn loads is held for the node's life, as every unit is (report §12.7).
-- A node sent code without end holds each definition once, in the unit of the exchange that brought it, so it grows with the exchanges that bring it distinct definitions and the definitions they bring, not with its spawns or its time.
-- An arrival adds one module name and an atom, an export entry for each function it holds and four more, and a function entry for each lambda (measured 2026-10-12 by `make bench`).
-
-### `Code.load`
-
-- A unit `Code.load` makes is held for the node's life, as every unit is (report §11.2, Appendix E.28). A module of twenty functions, each with a lambda, and a binding adds one module name, two atoms, twenty-five export entries and twenty function entries (measured 2026-10-12 by `make bench`).
-- A module loaded again, unchanged, makes no unit: its code is the node's, or a unit an earlier load made from the same forms (`ern_code:unit_beside/2`).
-- A load whose binding faulted keeps its units, out of reach, with their bindings' values erased and the processes it started killed (Appendix E.28).
-- The run's load path, which `Code.load` reads, is one persistent term, replaced at each run's start (`ern_cli:load_path/0`).
-- A load's evaluator, a process of the runtime's own with its row, ends once every binding has its value, unless it owns what a binding opened, a listener, a socket, a running program or a table, when it lives until each process it owns has ended, and where it owns a table until it is killed or the node ends, as the entry process lives through a program, a shell's load's for each module alike; one whose binding faulted ends. The tables it made are in its own dictionary and go with it. A load of what the node holds evaluates nothing and starts none, so the evaluators that live on are bounded as the loads whose bindings open something are (Appendix E.28; the log's *Sites, Sessions and Their Names*). The caller's mark of the evaluator it waits for is in its own dictionary while it waits.
 
 ## Tracing a growth
 

@@ -147,16 +147,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      repository's own Ernest, which holds none today: a style test names each private
      top-level `fn` of a tracked module under `src/`, `tools/`, `examples/` and `tour/`
      whose name stands nowhere else in its file, comments aside.
-   - **What is kept, stated once**, found 2026-11-16 by the reading of three process
-     documents (the log's *Three Process Documents Read Against the Rules*).
-     `docs/memory_checks.md`'s *What is kept, and what lets it go* says when each row, unit
-     and process goes, and the design notes say it too, in the two places sampled.
-
-     Decided with the user: the design notes own what a component keeps and when it lets
-     go. `memory_checks.md` keeps the loads, the reading, what the host keeps and the
-     tracing, and points at the notes. A reader reads each line against its note. A line a
-     note lacks moves there, and one a note states goes. The session writes it, and it
-     closes on `make test-docs`.
+   - **What is kept, stated once**, done 2026-11-23 (the log's *What Is Kept, Stated
+     Once*). The design notes own what a component keeps and when it lets go, and
+     `docs/memory_checks.md` points at them.
    - **The documents' listings**, built, decided with the user 2026-11-16, so that the readers
      of the report, the guide and the tour start from what a tool lists (the log's *The
      Documents Before the Launch*). `docs/reviews/full.md` names each in the commit that
