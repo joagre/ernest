@@ -65,10 +65,10 @@ fn accepting(listener : Address(Tcp.ListenerMsg)) : Unit =
 // Answers each line that has arrived, and reads for more, until the client
 // closes the connection or falls silent.
 fn serve(socket : Address(Tcp.SocketMsg), received : Bytes) : Unit =
-    match Bytes.indexOf(received, newline) {
-        Some(end) ->
-            match Tcp.write(socket, shouted(Bytes.slice(received, 0, end)), 5000) {
-                Right(Unit) -> serve(socket, Bytes.drop(received, end + 1))
+    match Bytes.splitOnce(received, newline) {
+        Some(#(line, rest)) ->
+            match Tcp.write(socket, shouted(line), 5000) {
+                Right(Unit) -> serve(socket, rest)
               | Left(_) -> Tcp.close(socket)
             }
       | None ->

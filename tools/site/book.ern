@@ -77,10 +77,10 @@ fn booked(run : Run.Run,
         List.partition(front, fn(each) = Optional.isSome(chapterSummaries(numbers, each.block)));
     let page = Links.Page(..bookPage, declared = CodeBlock.declared(kept));
     let summaries <-
-        List.tryMap(List.flatMap(listing,
-                                 fn(each) =
-                                     Optional.withDefault(chapterSummaries(numbers, each.block),
-                                                          [])),
+        List.tryMap(List.flatMap(listing, fn(each) = match chapterSummaries(numbers, each.block) {
+                        Some(found) -> found
+                      | None -> fault("the listing holds only blocks that list the chapters")
+                    }),
                     fn(#(found, summary)) =
                         Either.map(Links.inlinesLinked(summary, page),
                                    fn(linked) = #(found, linked)));
@@ -158,7 +158,7 @@ fn chaptered(source : String, placed : List(CodeBlock.Placed)) : Either(String, 
             Right(Chapter(number = found, heading = text, blocks = own) :: others)
         }
       | _ ->
-            Left(source <> ": a chapter begins at its heading")
+            fault("a span up to a second-level heading leaves the heading first")
     }
 
 // The contents page: the book's opening, then each chapter, with its

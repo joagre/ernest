@@ -22,10 +22,9 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 8's sweep**, a result
-that is never empty; its hunt and its design are done the same day (the log's *A Result Never
-Empty, Counted* and *A Result Never Empty, Decided*), and item 4, the full review, follows it.
-Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22.
+**MVP 4.6 is done since 2026-11-22. The next item is MVP 4.4's item 4, the full review.**
+Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22, and
+item 8, a result that is never empty, since 2026-11-23.
 
 The milestones to come, in order: MVP 4.4, whose release is the
 launch, and MVP 4.5 after it. Each section's opening says what the milestone is and names the
@@ -430,31 +429,18 @@ What the line left, in the order it is taken:
   against keeping no code only for speed.
 
 
-8. **A result that is never empty**, feedback 274, found 2026-11-22 by item 2's close and
-   taken next, before item 4, with the user (the log's *A Clause That Cannot Run*). A
-   function that never answers an empty list has no way to say so, and each caller writes a
-   clause that cannot run.
+8. **A result that is never empty**, feedback 274, counted, decided and closed 2026-11-23
+   (the log's *A Clause That Cannot Run*, *A Result Never Empty, Counted*, *A Result Never
+   Empty, Decided* and *A Result Never Empty, Built*). The type stays `List`, and the
+   report says in words that a list is never empty: E.5, E.20, G.2 and E.0 shape rule 6.
+   `guide/style.md` gives a case the value's shape rules out no value. `Bytes.splitOnce`
+   entered, and no split at the last occurrence did. 53 sites of this repository took a
+   form where every case can come, or a clause that faults.
 
-   The hunt, done 2026-11-22 on Opus 5.5 at xhigh, designed nothing (the log's *A Result
-   Never Empty, Counted*). Three functions never answer an empty list, `String.split`,
-   `Bytes.split` and `Markdown.roff`, and the report says so of none in words. Ten sites
-   handle the empty list, all in this repository and one in the guide. The wider family
-   is 80 sure finds and 19 likely, most an `Optional` that is never `None`. Of the six
-   languages surveyed, Haskell alone has a non-empty list in its standard library, and
-   OCaml alone says in words that its split is never empty. The readers' reports are under
-   the project directory's `probes/mvp44_item8/`.
-
-   The design, decided with the user 2026-11-22 on Fable 5.2 at high (the log's *A Result
-   Never Empty, Decided*). The type stays `List`, and the report says it in words: E.5,
-   E.20, G.2 and E.0 shape rule 6. `guide/style.md` gives a case that cannot come no value:
-   the site asks in a form where every case can come, or its clause faults. `Bytes.splitOnce`
-   enters, and no split at the last occurrence does.
-
-   Then the sweep, by agents on Opus 5.5 at high, one for each area the readers took, from
-   the readers' lists: the ten sites, and the about 40 sure finds of this repository that
-   answer a value, each proven by reading before it changes. What is left as it is, the
-   log's entry lists. The other repositories' finds go to their sessions by message, as
-   news. It closes on `make test-full`.
+   What the item left: the 19 likely and 8 unchased finds, which nobody has shown;
+   ernest-httpd's sites, told to its session, which its full review reads against the
+   rule; and one line of `docs/known_issues.md`, `Markdown.parse` on a line that holds a
+   no-break space alone.
 
 ---
 

@@ -188,7 +188,7 @@ fn argumentNames(completes : Command.Completes,
       | Command.SourceModules ->
             sourceModules(typedWord, entries)
       | Command.Expressions ->
-            namesFor(typedWord)
+            fault("argument completes an expression's names in a clause of its own")
       | Command.Names ->
             namesFor(typedWord)
       | Command.SessionNames ->
@@ -471,7 +471,7 @@ fn every(parts : List(String), segments : List(String), byPrefix : Bool) : Bool 
       | #(part :: rest, segment :: more) ->
             (segment == part || begins(segment, part, byPrefix)) && every(rest, more, byPrefix)
       | #(_, []) ->
-            false
+            fault("reaches gives every as many parts as segments")
     }
 
 // Report §11.2: a segment's first letter is matched as typed, since its
@@ -504,25 +504,30 @@ fn abbreviates(part : List(Char), segment : List(Char), atStart : Bool) : Bool =
 // typed: `L.fM` gives `List.fM`. With no namespace, or several, nothing is.
 fn namespaced(loose : List(Name), typedWord : String) : String = {
     let namespaces = List.unique(List.map(loose, fn(name) = namespaceOf(name.text)));
-    match #(namespaces, List.last(String.split(typedWord, "."))) {
-        #([namespace], Some(last)) ->
-            if String.isEmpty(namespace) then "" else namespace <> "." <> last
-      | _ ->
-            ""
+    let last = match String.lastIndexOf(typedWord, ".") {
+        None -> typedWord
+      | Some(index) -> String.drop(typedWord, index + 1)
+    };
+    match namespaces {
+        [namespace] -> if String.isEmpty(namespace) then "" else namespace <> "." <> last
+      | _ -> ""
     }
 }
 
 // The namespace a qualified name is in, and nothing for a name of one
 // segment.
 fn namespaceOf(text : String) : String =
-    String.join(List.dropLast(String.split(text, "."), 1), ".")
+    match String.lastIndexOf(text, ".") {
+        None -> ""
+      | Some(index) -> String.slice(text, 0, index)
+    }
 
 // The longest text every candidate begins with, which a first `Tab`
 // puts in even where the name is still ambiguous.
 fn common(texts : List(String)) : String =
     match texts {
         [] ->
-            ""
+            fault("complete asks it of one name reached by prefix at least")
       | first :: rest ->
             List.foldLeft(rest, first, fn(shared, text) = sharedPrefix(shared, text, 0))
     }

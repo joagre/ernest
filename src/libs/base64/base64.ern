@@ -237,7 +237,10 @@ let exactlyWritten =
 let readBack =
     Test.Case(name = "decode reads what encode writes as the bytes it was written from",
               run = fn() = {
-                  let all = Optional.withDefault(Bytes.fromList(List.range(0, 255)), <<>>);
+                  let all = match Bytes.fromList(List.range(0, 255)) {
+                      Some(bytes) -> bytes
+                    | None -> fault("each number from 0 to 255 is a byte")
+                  };
                   let parts = List.map(List.range(0, 256), fn(end) = Bytes.slice(all, 0, end));
                   Test.equal(List.map(parts, fn(bytes) = decode(encode(bytes))),
                              List.map(parts, Some))

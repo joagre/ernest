@@ -2219,7 +2219,7 @@ fn served(serving : Serving) : Unit receiving LocalMsg =
       | SessionEnded(down) ->
             match serving.peer {
                 Some(name) -> endWithSession(name, down, serving.ending)
-              | None -> served(serving)
+              | None -> fault("the session is monitored where it is attached alone")
             }
       // the root of the session's chain, which ends with the session, whose
       // own end the local half monitors

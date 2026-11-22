@@ -137,9 +137,10 @@ fn groupRead(root : Path, name : List(Markdown.Inline), path : String) : Either(
     });
     let modules <- List.tryMap(items, fn(item) = moduleOf(root, path, item));
     let address <- Either.fromOptional(Links.address(path), path <> " has no page of the site");
-    let id <-
-        Either.fromOptional(List.last(List.dropLast(String.split(path, "/"), 1)),
-                            path <> " stands in no directory");
+    let id = match List.last(List.dropLast(String.split(path, "/"), 1)) {
+        Some(directory) -> directory
+      | None -> fault("a group's index is a path that ends in /index.md or /README.md")
+    };
     Right(Group(=name, =id, =address, =modules))
 }
 
@@ -384,7 +385,10 @@ fn librariesWritten(run : Run.Run, rows : List(Row)) : Either(String, Unit) = {
 // The address of the directory a page stands in, `/man/libs/markdown/` of
 // `/man/libs/markdown/markdown.html`.
 fn directoryOf(address : String) : String =
-    String.join(List.dropLast(String.split(address, "/"), 1), "/") <> "/"
+    match String.lastIndexOf(address, "/") {
+        Some(index) -> String.slice(address, 0, index + 1)
+      | None -> fault("a page's address begins with /")
+    }
 
 fn moduleList(run : Run.Run, rows : List(Row)) : Either(String, List(Template.Line)) = {
     let lines <-

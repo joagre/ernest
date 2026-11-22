@@ -200,7 +200,7 @@ export fn parseAuthority(text : String) : Optional(Authority) =
 export fn decode(text : String) : Optional(Bytes) =
     match Bytes.split(String.toUtf8(text), <<'%':utf8>>) {
         first :: encoded -> decoded(encoded, first)
-      | [] -> Some(<<>>) // a split answers one part at least
+      | [] -> fault("a split answers one part at least")
     }
 
 // The octets `acc` holds, then those of each part a `%` began: the octet

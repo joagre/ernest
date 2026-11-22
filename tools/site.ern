@@ -289,7 +289,10 @@ fn treeCopied(from : Path,
     let entries <- Run.listed(from);
     let _ <- Run.made(to);
     List.tryForEach(entries, fn(entry) = {
-        let name = Optional.withDefault(Path.name(entry.path), "");
+        let name = match Path.name(entry.path) {
+            Some(found) -> found
+          | None -> fault("Fs.list joins each entry's name to its directory's path")
+        };
         let relative = under <> [name];
         match entry.kind {
             Fs.Directory -> treeCopied(entry.path, to <> Path(name), relative, left)
@@ -310,12 +313,12 @@ fn digestCopied(from : Path, out : Path, relative : String) : Either(String, Str
 
 fn digestWritten(out : Path, relative : String, bytes : Bytes) : Either(String, String) = {
     let digest = String.slice(Bytes.toHex(Crypto.sha1(bytes)), 0, 8);
+    let extension = match Path.extension(Path(relative)) {
+        Some(found) -> found
+      | None -> fault("each file named by its digest is written with an extension")
+    };
     let named =
-        Path.toString(Path.withoutExtension(Path(relative)))
-            <> "."
-            <> digest
-            <> "."
-            <> Optional.withDefault(Path.extension(Path(relative)), "");
+        Path.toString(Path.withoutExtension(Path(relative))) <> "." <> digest <> "." <> extension;
     let _ <- Run.fileWritten(out <> Path(named), bytes);
     Right("/" <> named)
 }

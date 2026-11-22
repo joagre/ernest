@@ -1063,8 +1063,8 @@ fn chunks(reading : Reading,
 // A chunk's size, the hexadecimal digits before any `;` and the spaces and
 // tabs before it.
 fn chunkSize(sizeLine : Bytes) : Optional(Int) = {
-    let digits = match Bytes.indexOf(sizeLine, <<';':utf8>>) {
-        Some(index) -> Bytes.slice(sizeLine, 0, index)
+    let digits = match Bytes.splitOnce(sizeLine, <<';':utf8>>) {
+        Some(#(before, _)) -> before
       | None -> sizeLine
     };
     let text <- String.fromUtf8(trimmedEnd(digits));
@@ -3000,13 +3000,15 @@ let twoDigitYears =
                   let current = Time.toCivil(Clock.now()).year;
                   let january =
                       fn(year) =
-                          Optional.withDefault(Time.fromCivil(Time.Civil(=year,
-                                                                         month = 1,
-                                                                         day = 1,
-                                                                         hour = 0,
-                                                                         minute = 0,
-                                                                         second = 0)),
-                                               0);
+                          match Time.fromCivil(Time.Civil(=year,
+                                                          month = 1,
+                                                          day = 1,
+                                                          hour = 0,
+                                                          minute = 0,
+                                                          second = 0)) {
+                              Some(time) -> time
+                            | None -> fault("the calendar has every year's first of January")
+                          };
                   Test.equal(#(parseDate(rfc850(january(current + 50))),
                                parseDate(rfc850(january(current - 49)))),
                              #(Some(january(current + 50)), Some(january(current - 49))))

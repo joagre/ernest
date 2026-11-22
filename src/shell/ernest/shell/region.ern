@@ -263,8 +263,10 @@ fn screenInput(region : Region) : List(String) =
 
 fn onScreen(line : String, width : Int) : List(String) = {
     let rows = wrapped(line, width);
-    let last = Optional.withDefault(List.last(rows), "");
-    if width > 0 && Terminal.width(last) >= width then rows <> [""] else rows
+    match List.last(rows) {
+        Some(last) -> if width > 0 && Terminal.width(last) >= width then rows <> [""] else rows
+      | None -> fault("a line wraps into one row at least")
+    }
 }
 
 // Report §11.2: what is shown under the input wraps at the screen's edge,
@@ -405,13 +407,19 @@ fn picture(char : Char) : String = {
     if code == 9 || code >= 32 && code < 127 || code > 159 then
         Char.toString(char)
     else if code < 32 then
-        Optional.withDefault(Optional.map(Char.fromCodePoint(0x2400 + code), Char.toString),
-                             "\u{FFFD}")
+        controlPicture(code)
     else if code == 127 then
         "\u{2421}"
     else
         "\u{FFFD}"
 }
+
+// The picture of U+0000 to U+001F, U+2400 to U+241F.
+fn controlPicture(code : Int) : String =
+    match Char.fromCodePoint(0x2400 + code) {
+        Some(shown) -> Char.toString(shown)
+      | None -> fault("the control pictures U+2400 to U+241F are characters")
+    }
 
 // The rows the tail is given: what `:set rows` asks for, and never more
 // than the screen has room for, the input having the last word.
@@ -439,7 +447,10 @@ fn cursorRow(region : Region) : Int = {
 // line holds before the cursor, laid out in rows as the line is, tabs and
 // all.
 fn column(region : Region) : Int =
-    Terminal.width(Optional.withDefault(List.last(headRows(region)), "")) + 1
+    match List.last(headRows(region)) {
+        Some(row) -> Terminal.width(row) + 1
+      | None -> fault("the cursor's line takes one row at least")
+    }
 
 // The rows of what the cursor's line holds before the cursor, the prompt
 // or `... ` among them: its last is the one the cursor rests on.
@@ -543,13 +554,11 @@ fn styled(style : String, escape : String) : String =
 
 // The text up to each line feed, and what is left without one.
 fn split(text : String) : #(List(String), String) =
-    match String.splitOnce(text, "\n") {
+    match String.lastIndexOf(text, "\n") {
         None ->
             #([], text)
-      | Some(#(line, rest)) -> {
-            let #(lines, left) = split(rest);
-            #(line :: lines, left)
-        }
+      | Some(index) ->
+            #(String.split(String.slice(text, 0, index), "\n"), String.drop(text, index + 1))
     }
 
 //

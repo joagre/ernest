@@ -137,9 +137,11 @@ fn inline(template : Template,
             }
     }
 
-// fill checked first that every token has a value.
 fn valueOf(values : Map(String, Value), name : String) : Value =
-    Optional.withDefault(Map.get(values, name), Plain(""))
+    match Map.get(values, name) {
+        Some(value) -> value
+      | None -> fault("fill checks first that every token has a value")
+    }
 
 fn isIndentation(text : String) : Bool =
     List.all(String.toList(text), fn(char) = char == ' ')

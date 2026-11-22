@@ -47,7 +47,7 @@ export fn main() : Unit receiving Msg = {
     measure("map_put", 5000000, fn(index) = Map.size(Map.put(map, index % 8, index)));
     measure("list_map", 200000, fn(index) = match List.map(list, fn(element) = element + index) {
         head :: _ -> head
-      | [] -> 0
+      | [] -> fault("the list holds a hundred numbers")
     });
     measure("list_size", 1000000, fn(index) = List.size(list) + index);
     measure("string_size", 5000000, fn(index) = String.size(first) + index);
@@ -180,7 +180,10 @@ fn measureRuns(key : String,
                count : Int,
                operation : (Int) -> Int receiving m) : Unit receiving m = {
     let timings = List.sort(List.map(List.range(1, 7), fn(_) = timedMicros(count, operation)));
-    let at = fn(index) = Int.toString(Optional.withDefault(List.get(timings, index), 0));
+    let at = fn(index) = match List.get(timings, index) {
+        Some(timing) -> Int.toString(timing)
+      | None -> fault("seven timings hold the indexes 0 to 6")
+    };
     Io.println(String.join([key, Int.toString(count), at(3), at(0), at(6)], " "))
 }
 

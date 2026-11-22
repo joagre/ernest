@@ -224,8 +224,12 @@ fn afterWhiteSpace(bytes : Bytes) : Bytes =
 // begins, counted as a diagnostic's are (report §11.5): from 1, a line
 // ending at a line feed and a column a code point.
 fn position(text : Bytes, index : Int) : Position = {
-    let lines = Bytes.split(Bytes.slice(text, 0, index), <<'\n':utf8>>);
-    let last = Optional.withDefault(List.last(lines), <<>>); // a split answers one part at least
+    let before = Bytes.slice(text, 0, index);
+    let lines = Bytes.split(before, <<'\n':utf8>>);
+    let last = match Bytes.lastIndexOf(before, <<'\n':utf8>>) {
+        Some(feed) -> Bytes.drop(before, feed + 1)
+      | None -> before
+    };
     Position(line = List.size(lines), column = 1 + codePoints(last, 0))
 }
 

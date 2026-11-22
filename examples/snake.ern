@@ -36,11 +36,13 @@ type Direction = North | South | West | East
 
 type Point = Point(x : Int, y : Int)
 
-// A player: `direction` is where it goes next, and `moved` where it went at
-// the last tick, which a turn may not reverse.
+// A player: its snake is its head and the tail behind it, nearest first;
+// `direction` is where it goes next, and `moved` where it went at the last
+// tick, which a turn may not reverse.
 type Player =
     Player(id : Int,
-           body : List(Point),
+           head : Point,
+           tail : List(Point),
            direction : Direction,
            moved : Direction,
            score : Int,
@@ -162,16 +164,16 @@ fn board() : #(Int, Int) =
 fn step(world : World) : World = {
     fn movePlayer(#(acc, apples), _, player) =
         match player {
-            Player(alive = false) or Player(body = []) ->
+            Player(alive = false) ->
                 #(acc, apples)
-          | Player(body = head :: rest, =direction, =score) -> {
+          | Player(=head, =tail, =direction, =score) -> {
                 let next = move(world.width, world.height, head, direction);
                 let ate = List.contains(apples, next);
-                let #(body, score) = if ate then
-                    #(next :: head :: rest, score + 1)
+                let #(tail, score) = if ate then
+                    #(head :: tail, score + 1)
                 else
-                    #(next :: head :: List.dropLast(rest, 1), score);
-                let moved = Player(..player, =body, moved = direction, =score);
+                    #(head :: List.dropLast(tail, 1), score);
+                let moved = Player(..player, head = next, =tail, moved = direction, =score);
                 #(Map.put(acc, player.id, moved), List.filter(apples, fn(apple) = apple != next))
             }
         };
@@ -196,8 +198,8 @@ fn applyInput(world : World, input : Input) : World =
 
 fn collide(players : Map(Int, Player), player : Player) : Player =
     match player {
-        Player(body = head :: _, alive = true) ->
-            if List.any(Map.values(players), fn(other) = List.contains(tailOf(other), head)) then
+        Player(=head, alive = true) ->
+            if List.any(Map.values(players), fn(other) = List.contains(other.tail, head)) then
                 Player(..player, alive = false)
             else
                 player
@@ -222,7 +224,8 @@ fn addPlayer(world : World, id : Int) : World =
         Some(#(point, seed)) -> {
             let player =
                 Player(=id,
-                       body = [point],
+                       head = point,
+                       tail = [],
                        direction = East,
                        moved = East,
                        score = 0,
@@ -251,7 +254,7 @@ fn freePoint(world : World) : Optional(#(Point, Random.Seed)) = {
 
 fn taken(world : World, point : Point) : Bool =
     List.contains(world.apples, point)
-        || List.any(Map.values(world.players), fn(player) = List.contains(player.body, point))
+        || List.any(Map.values(world.players), fn(player) = occupies(player, point))
 
 // The whole screen every tick: the terminal is cleared and drawn from the top,
 // so a tick's picture replaces the one before it.
@@ -266,9 +269,9 @@ fn row(world : World, y : Int) : String =
                              fn(x) = cell(world.players, world.apples, Point(=x, =y))))
 
 fn cell(players : Map(Int, Player), apples : List(Point), point : Point) : Char =
-    if List.any(Map.values(players), fn(player) = headOf(player) == Some(point)) then
+    if List.any(Map.values(players), fn(player) = player.head == point) then
         '@'
-    else if List.any(Map.values(players), fn(player) = List.contains(player.body, point)) then
+    else if List.any(Map.values(players), fn(player) = occupies(player, point)) then
         'o'
     else if List.contains(apples, point) then
         '*'
@@ -288,12 +291,6 @@ fn scoreText(player : Player) : String =
         <> ": "
         <> Int.toString(player.score)
         <> (if player.alive then "" else " (dead)")
-
-fn headOf(player : Player) : Optional(Point) =
-    match player.body {
-        head :: _ -> Some(head)
-      | [] -> None
-    }
 
 //
 // Small helpers
@@ -315,11 +312,8 @@ fn turn(player : Player, direction : Direction) : Player =
       | _ -> Player(..player, =direction)
     }
 
-fn tailOf(player : Player) : List(Point) =
-    match player.body {
-        _ :: rest -> rest
-      | [] -> []
-    }
+fn occupies(player : Player, point : Point) : Bool =
+    player.head == point || List.contains(player.tail, point)
 
 //
 // Tests, run by `ern test`
@@ -329,7 +323,8 @@ let noUTurn =
     Test.Case(name = "two turns within a tick do not reverse the last move", run = fn() = {
         let player =
             Player(id = 1,
-                   body = [Point(x = 1, y = 0), Point(x = 0, y = 0)],
+                   head = Point(x = 1, y = 0),
+                   tail = [Point(x = 0, y = 0)],
                    direction = East,
                    moved = East,
                    score = 0,
@@ -340,10 +335,10 @@ let noUTurn =
 let applesOnFreeCells =
     Test.Case(name = "an apple goes on a free cell, and none where every cell is taken",
               run = fn() = {
-                  let body = [Point(x = 0, y = 0), Point(x = 1, y = 0), Point(x = 0, y = 1)];
                   let player =
                       Player(id = 1,
-                             =body,
+                             head = Point(x = 0, y = 0),
+                             tail = [Point(x = 1, y = 0), Point(x = 0, y = 1)],
                              direction = East,
                              moved = East,
                              score = 0,

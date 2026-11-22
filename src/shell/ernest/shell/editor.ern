@@ -513,7 +513,10 @@ fn matched(state : Editing, search : Search, back : Int) : Editing = {
 }
 
 fn matchAt(text : String, query : String) : Int =
-    Optional.withDefault(String.indexOf(text, query), String.size(text))
+    match String.indexOf(text, query) {
+        Some(index) -> index
+      | None -> fault("a search stands at an input that contains its query")
+    }
 
 fn find(state : Editing, query : String, back : Int, stride : Int) : Optional(Int) =
     if back < 1 || back > List.size(state.history) then
@@ -638,7 +641,7 @@ fn unspaced(text : String, index : Int) : Bool = {
 fn alphanumeric(text : String, index : Int) : Bool =
     match String.toList(String.slice(text, index, index + 1)) {
         char :: _ -> Char.isAlpha(char) || Char.isDigit(char)
-      | [] -> false
+      | [] -> fault("a word's walk steps over a grapheme inside the text")
     }
 
 //
@@ -1577,7 +1580,7 @@ fn keys(text : String) : List(Terminal.Event) =
 fn ctrl(letter : Char) : Terminal.Event =
     match Char.fromCodePoint(Char.toCodePoint(letter) - 96) {
         Some(control) -> Terminal.Key(control)
-      | None -> Terminal.Key(letter)
+      | None -> fault("a lowercase letter's control character is a code point")
     }
 
 // The events in order, from a fresh line; an event after the line ended

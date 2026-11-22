@@ -104,7 +104,7 @@ fn readFile(path : Path) : Either(Unkept, List(String)) = {
 fn makeDirectory(path : Path) : Either(Unkept, Unit) =
     match Path.parent(path) {
         None ->
-            Right(Unit)
+            fault("the history's file is in its user's directory")
       | Some(directory) -> {
             let unmade = fn(error) = Unmade(=directory, =error);
             let _ <- Either.mapLeft(Fs.makeDir(directory, fileMs), unmade);

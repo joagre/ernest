@@ -168,7 +168,7 @@ fn pusher(peer : Address(SyncMsg), Change(=path, =modified) : Change) : Unit =
         Right(bytes) ->
             match Path.name(path) {
                 Some(name) -> push(peer, Path(name), modified, bytes)
-              | None -> Io.println("cannot push " <> Path.toString(path) <> ", which names no file")
+              | None -> fault("a listed entry's path ends in the entry's name")
             }
       | Left(error) ->
             Io.println("cannot read " <> Path.toString(path) <> ": " <> errorText(error))

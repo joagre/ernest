@@ -366,7 +366,7 @@ fn packageRefusals(entry : Entry, unpacked : List(Unpacked), directory : String)
                     []
             }
       | Some(_) ->
-            []
+            fault("file finds a written member alone")
     };
     conf <> version
 }
@@ -466,13 +466,10 @@ fn unpacking(entry : Entry,
 fn leftoversRemoved(entry : Entry) : Either(String, Unit) = {
     let left <- refusedAt(Path(lib), Fs.list(Path(lib), fileMs));
     let begun = "." <> entry.name <> "-";
-    List.tryForEach(List.filter(left,
-                                fn(found) =
-                                    Optional.withDefault(Optional.map(Path.name(found.path),
-                                                                      fn(name) =
-                                                                          String.startsWith(name,
-                                                                                            begun)),
-                                                         false)),
+    List.tryForEach(List.filter(left, fn(found) = match Path.name(found.path) {
+                        Some(name) -> String.startsWith(name, begun)
+                      | None -> fault("an entry's path is lib's joined with its name")
+                    }),
                     removed)
 }
 
@@ -515,7 +512,10 @@ fn written(staging : Path, unpacked : Unpacked) : Either(String, Unit) =
         }
       | Written(=segments, =bytes, =runs) -> {
             let path = under(staging, segments);
-            let parent = Optional.withDefault(Path.parent(path), staging);
+            let parent = match Path.parent(path) {
+                Some(parent) -> parent
+              | None -> fault("a path under lib has a parent")
+            };
             let _ <- refusedAt(parent, Fs.makeDir(parent, fileMs));
             let _ <- refusedAt(path, Fs.write(path, bytes, fileMs));
             if runs then madeRunnable(path) else Right(Unit)

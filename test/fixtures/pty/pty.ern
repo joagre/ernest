@@ -442,7 +442,7 @@ fn isCut(sequence : Bytes) : Bool =
 fn uncolored(text : Bytes) : Bytes =
     match Bytes.split(text, escape) {
         first :: parts -> Bytes.join(first :: List.map(parts, colorless), <<>>)
-      | [] -> text
+      | [] -> fault("a split answers one part at least")
     }
 
 // A part that followed an escape, with the escape before it, or without
@@ -466,7 +466,7 @@ fn parametersOf(bytes : Bytes) : Parameters = {
     let #(first, second) = match numbers {
         first :: second :: _ -> #(first, second)
       | [first] -> #(first, None)
-      | [] -> #(None, None)
+      | [] -> fault("a split answers one part at least")
     };
     Parameters(=first, =second, rest = Bytes.drop(bytes, size))
 }

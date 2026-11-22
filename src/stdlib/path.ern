@@ -216,7 +216,7 @@ fn extended(path : Path, suffix : String) : Path = {
             Path(String.join(rebuilt, separator()))
         }
       | [] ->
-            path
+            fault("a path that has a name has a part that is not empty")
     }
 }
 

@@ -2995,7 +2995,7 @@ A bitstring's total width is a whole number of bytes, and a value that does not 
 
 A `Bytes` value is read with the `Bytes` module: `Bytes.size`, `Bytes.get` for one octet, `Bytes.slice`, and `Bytes.toList` for all of them. Text crosses with `String.toUtf8` and `String.fromUtf8`.
 
-A stream of bytes, as `Tcp.read` answers it, may end inside a line, and inside a character, so lines are split off the bytes before they become text: `Bytes.split(bytes, <<10>>)` gives the lines, the last part being what has come of the next, as the program of §8.7 does. A stream of text whose pieces may cut a character is read with `String.fromUtf8Piece`, which answers a piece's text and the bytes of the character it ends inside, to go before the next piece (report Appendix E.5). A frame is taken apart with a pattern, as `parseFrame` does, and not octet by octet with `Bytes.get`.
+A stream of bytes, as `Tcp.read` answers it, may end inside a line, and inside a character, so lines are split off the bytes before they become text: the bytes up to the last line feed, `Bytes.lastIndexOf(bytes, <<10>>)`, are whole lines, and those after it are what has come of the next, as the program of §8.7 keeps them. A stream of text whose pieces may cut a character is read with `String.fromUtf8Piece`, which answers a piece's text and the bytes of the character it ends inside, to go before the next piece (report Appendix E.5). A frame is taken apart with a pattern, as `parseFrame` does, and not octet by octet with `Bytes.get`.
 
 In a pattern, `size(bodySize)` may name a variable bound by an earlier segment. A `match` over bitstrings ends with a clause that takes anything, as `parseFrame` does, since the compiler does not decide whether bitstring patterns cover every `Bytes` value.
 
@@ -3052,12 +3052,15 @@ fn reader(socket : Address(Tcp.SocketMsg), recipient : Address(Optional(Bytes)))
 fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit receiving Session =
     receive {
         Arrived(Some(bytes)) -> {
-            let parts = Bytes.split(rest <> bytes, <<10>>);
-            List.forEach(List.dropLast(parts, 1), fn(line) = {
-                let _ = Tcp.write(socket, line <> <<10>>, 5000);
-                Unit
-            });
-            talk(socket, Optional.withDefault(List.last(parts), <<>>))
+            let received = rest <> bytes;
+            match Bytes.lastIndexOf(received, <<10>>) {
+                Some(index) -> {
+                    let _ = Tcp.write(socket, Bytes.slice(received, 0, index + 1), 5000);
+                    talk(socket, Bytes.drop(received, index + 1))
+                }
+              | None ->
+                    talk(socket, received)
+            }
         }
       | Ticked(_) -> {
             let _ = Tcp.write(socket, String.toUtf8("still here\n"), 5000);

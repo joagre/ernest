@@ -126,11 +126,14 @@ fn fromFirst(cycle : List(Process), places : Map(Process, Int)) : #(Int, List(Pr
         Some(#(index, process)) ->
             #(place(process, places), List.drop(cycle, index) <> List.take(cycle, index))
       | None ->
-            #(0, cycle)
+            fault("a cycle holds one process at least")
     }
 
 fn place(process : Process, places : Map(Process, Int)) : Int =
-    Optional.withDefault(Map.get(places, process), 0)
+    match Map.get(places, process) {
+        Some(index) -> index
+      | None -> fault("each process of a cycle makes a call the listing holds")
+    }
 
 // Report §11.2: a cycle's line, the age of its youngest call and its
 // processes' sites.
@@ -142,7 +145,10 @@ fn cycleLine(cycle : List(Process),
         List.filterMap(cycle,
                        fn(process) =
                            Optional.map(Map.get(calls, process), fn(#(_, since)) = since));
-    let youngest = Optional.withDefault(List.maximumBy(begun, fn(since) = since), now);
+    let youngest = match List.maximumBy(begun, fn(since) = since) {
+        Some(since) -> since
+      | None -> fault("a cycle holds one call at least")
+    };
     "a cycle of calls without limit for "
         <> age(youngest, now)
         <> ": "

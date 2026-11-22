@@ -20,7 +20,7 @@ export fn main() : Unit receiving Msg =
 fn sizeText() : String =
     match Terminal.size() {
         Left(Io.NotATerminal) -> "no size"
-      | Left(_) -> "a size refused otherwise"
+      | Left(_) -> fault("Terminal.size answers no error but NotATerminal")
       | Right(Terminal.Size(=rows, =columns)) -> Int.toString(rows) <> "x" <> Int.toString(columns)
     }
 

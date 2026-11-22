@@ -147,12 +147,11 @@ fn continued(walk : Walk, lines : List(String)) : Optional(Int) =
       | _ -> None
     }
 
-// The session with a console's inputs added; one the walk has not found,
-// which no console continues, offers nothing.
+// The session with a console's inputs added.
 fn continuedBy(found : Optional(Session), lines : List(String)) : Session =
     match found {
         Some(session) -> Session(..session, inputs = session.inputs <> inputs(lines))
-      | None -> Session(bare = false, inputs = inputs(lines))
+      | None -> fault("a session is put as the console that begins it is met")
     }
 
 // A module of its own, which names no file on its first line, as
@@ -414,9 +413,12 @@ fn pre(class : String, given : Buttons, body : String) : List(Template.Line) = {
       | Signature -> " data-tools=\"none\""
     };
     let open = "<pre class=\"" <> class <> "\"" <> shell <> "><code>";
-    match String.split(open <> body <> "</code></pre>", "\n") {
-        first :: rest -> Template.Line(first) :: List.map(rest, Template.Verbatim)
-      | [] -> []
+    let whole = open <> body <> "</code></pre>";
+    match String.splitOnce(whole, "\n") {
+        Some(#(first, rest)) ->
+            Template.Line(first) :: List.map(String.split(rest, "\n"), Template.Verbatim)
+      | None ->
+            [Template.Line(whole)]
     }
 }
 
@@ -459,8 +461,8 @@ fn tokensHtml(found : List(Token), links : Map(String, String)) : List(String) =
     match found {
         [] ->
             []
-      | Token(kind = TypeName) :: _ -> {
-            let #(name, later) = qualified(found);
+      | token :: following when token.kind == TypeName -> {
+            let #(name, later) = qualified(token, following);
             match #(name, Map.get(links, String.join(List.map(name, fn(each) = each.text), ""))) {
                 #(first :: rest, Some(address)) -> {
                     let opened = written(first.before) <> "<a href=\"" <> written(address) <> "\">";
@@ -475,18 +477,16 @@ fn tokensHtml(found : List(Token), links : Map(String, String)) : List(String) =
             tokenHtml(token) :: tokensHtml(rest, links)
     }
 
-// The tokens of the name that begins the tokens, its first and each `.`
+// The tokens of the name that begins with the first token, it and each `.`
 // and name after it with nothing between, and the tokens after them.
-fn qualified(found : List(Token)) : #(List(Token), List(Token)) =
-    match found {
-        first :: dot :: next :: rest when isJoined(dot, next) -> {
-            let #(name, later) = qualified(next :: rest);
+fn qualified(first : Token, rest : List(Token)) : #(List(Token), List(Token)) =
+    match rest {
+        dot :: next :: following when isJoined(dot, next) -> {
+            let #(name, later) = qualified(next, following);
             #(first :: dot :: name, later)
         }
-      | first :: rest ->
+      | _ ->
             #([first], rest)
-      | [] ->
-            #([], [])
     }
 
 fn isJoined(dot : Token, next : Token) : Bool =
