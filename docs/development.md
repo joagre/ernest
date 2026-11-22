@@ -46,7 +46,8 @@ docs/              every other document, which docs/README.md lists, this one an
                    catalog of diagnostics among them
 docs/proposals/    what is designed, a directory for each proposal: the proposal, the
                    reasons for it, what other systems do, and its experiments or
-                   programs; tentative until decided, and kept as a record once built
+                   programs; never authoritative; one refused or not taken up stays
+                   as a record, and a built one goes
 examples/          Ernest programs written for a reader of the language, which
                    examples/README.md lists by topic
 test/              what spans the roots of src/: the integration, nodes, deployment guide,

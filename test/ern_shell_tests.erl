@@ -5174,7 +5174,8 @@ libraries_in_the_shell() ->
 
 %% report §11.2: the commands the report's paragraph lists are the shell's
 %% own list, `Ernest.Shell.Command.commands`, each once; a mirror, a list
-%% that lives in the code and in the report (CLAUDE.md)
+%% that lives in the code and in the report (docs/development.md, *Lists in
+%% two places*)
 commands_mirror_test() ->
     {ok, Report} = file:read_file("../report/toolchain.md"),
     [_, Rest] = binary:split(Report, <<"**Commands.**">>),

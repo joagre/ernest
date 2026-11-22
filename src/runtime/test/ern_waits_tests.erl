@@ -4,11 +4,11 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% CLAUDE.md, *No fixed sleep*: until/2 answers `ended` for a process that
-%% ends while it waits, and for one that had ended before. A regression
-%% test: the wait read only the trace of the process's scheduling, which
-%% shows no end, and waited for ever; a process that had ended raised as
-%% its trace was turned on
+%% CLAUDE.md, *What the user wants of Ernest*: until/2 answers `ended` for a
+%% process that ends while it waits, and for one that had ended before. A
+%% regression test: the wait read only the trace of the process's
+%% scheduling, which shows no end, and waited for ever; a process that had
+%% ended raised as its trace was turned on
 until_ended_test() ->
     Pid = spawn(fun() -> receive go -> ok end end),
     Self = self(),

@@ -1,6 +1,7 @@
 %% The tables of ern_prelude are report section 9 and Appendix E as data.
 %% A list that lives in the code and in a document has a test keeping them
-%% equal (CLAUDE.md); these read the report and are that test.
+%% equal (docs/development.md, *Lists in two places*); these read the report
+%% and are that test.
 -module(ern_prelude_tests).
 
 -include_lib("eunit/include/eunit.hrl").

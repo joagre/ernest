@@ -1,9 +1,9 @@
 %% The waits the tests share, each on what it means rather than on a time
-%% (CLAUDE.md, *No fixed sleep*): a process in a state, blocked in a receive
-%% or in a call, or watching another or no longer, among them, a process's
-%% mailbox holding messages, a process having called a function or
-%% returned from it, the runtime's reaper
-%% having looked for a deadlock, the deliveries to a process having
+%% (CLAUDE.md, *What the user wants of Ernest*): a process in a state,
+%% blocked in a receive or in a call, or watching another or no longer,
+%% among them, a process's mailbox holding messages, a process having
+%% called a function or returned from it, the runtime's reaper having
+%% looked for a deadlock, the deliveries to a process having
 %% delivered, and processes having ended. All but the last two read what
 %% the host reports of a process by tracing it, and stop tracing when they
 %% return.

@@ -22,7 +22,7 @@ Each fact has one owner, and every other document points at it.
 - **The code and its tests**: what is built.
 - **`docs/design/`**: each component's design as it stands.
 - **[`docs/known_issues.md`](docs/known_issues.md)**: what is known to be wrong or missing and not planned, a line each.
-- **[`docs/proposals/`](docs/proposals/)**: what is designed and not decided. Nothing in it is authoritative.
+- **[`docs/proposals/`](docs/proposals/)**: what is designed and not built. Nothing in it is authoritative.
 
 ## What is the user's
 
