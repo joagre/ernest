@@ -149,38 +149,11 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      `Never` at that `fn`'s end, and a capture is read at the top-level definition's. It
      is design on §3.11, so it is decided in the review's sort, on Fable, with the
      findings, its probes kept in the scratchpad's `cold311/`.
-   - **The other repositories take their manifests**, MVP 4.17's item 10, moved here on
-     2026-11-19 (the log's *The Plan Read for Build Order*). The write is the floors' rise:
-     a manifest's `ernest` line takes the place of the Makefile's `ERN_VERSION`, and no
-     release before the launch's reads a manifest. ernest-template is first, with its
-     Makefile cut, and ernest-epx's release carries its host part as the proposal's
-     question 5 says.
-
-     Ernest's session writes it against the archive of the commit the readers are to read,
-     and runs `make` in each. The template's `tools/docs.ern` takes `tools/words.ern`'s
-     reading of a paragraph in the same write, so that one rule has one reading (the log's
-     *The Three Tools in Ernest*). A defect of Ernest's that the three show is mended and the
-     archive made again, before the commit is named and the readers start. What fails for
-     the application's own code goes to its session in the message.
-
-     - **Who writes what**, decided with the user 2026-11-11. This session writes the
-       packages' part in the three, their sessions closed, as a change across the
-       repositories in their shape alone (`docs/clean_room.md`): each manifest, the
-       template's Makefile and `TEMPLATE.md`, and ernest-epx's moved files and Makefile.
-       ernest-epx's release stays its own session's. So do ernest-httpd's four matches on a
-       bare `Process.Calling`, which take `Process.Calling()` then, since MVP 4.16's item 3
-       gave it fields (E.21).
-     - **An installed program**, decided with the user 2026-11-13 (the log's *An Installed
-       Program's Packages*). The launcher gives `--package-dir` with its root and loses its
-       loop, and `make install` copies `package.conf`. A program's own Erlang is named from
-       a directory of its own, `erl` in a checkout, so that `lib` holds the named packages
-       alone. `ern_unpack_tests`' `priv_test` holds a `priv` found through `code:priv_dir`, since MVP
-       4.17's item 8.
-     - **The template's archive**, found 2026-11-14, reading ernest-epx's release step. It
-       holds a library's Erlang under `lib/<name>/ebin` and `lib/<name>/priv`, each link
-       copied through, where §11.9 has a package's Erlang under its own `ebin` with its
-       `priv` beside it. The item moves it there, and holds the archive it makes to `ern
-       unpack`'s rules on an archive's members.
+   - **The other repositories take their manifests**, done 2026-11-23 (the log's *The
+     Other Repositories' Manifests*): ernest-template's `0155cf2`, tagged `v0.11.0`,
+     ernest-epx's `479b1c6` and ernest-httpd's `6690e4f`, against the archive of
+     `fcb26908`, each session told by a message. ernest-epx's release with its host part,
+     and ernest-httpd's code that fails at 0.11, are their sessions' own.
    - **The packages proposal's reading and sweep**, MVP 4.17's item 23, moved here with
      item 10. It follows the manifests' write, which is the last that reads the proposal,
      and comes before the release, as *A Built Proposal's Sweep Is an Item* places one.
