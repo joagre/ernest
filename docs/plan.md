@@ -22,12 +22,19 @@ and a change to the language, the standard library or the libraries is driven by
 use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x until someone
 outside the project depends on it, as MVP 4.4's opening says.
 
-**MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
-fourth leg is next**, on Opus 5.5 at xhigh, after a `/clear`: the `1` and `1r` lines of
-`docs/findings.md` by the session, and the `2a`, `2b` and decided lines by agents, one
-brief to an owner holding all its lines. Each decided line holds its verdict beneath it,
-and a verdict that says a reader reads first, or that a line comes back to the user, is
-done so. Four verdicts were changed after the round, and a cold reading of the decided
+**MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
+leg, and its answers to the readings are next**, on Fable 5.2 at high, after a `/clear`.
+The readings were made 2026-11-23: 14 of the 37 hold, and 23 come to the user with the
+five that the findings' *Before leg 4 builds* names and the new line *Z10*, each result
+under its line (the log's *Leg 4's Readings*). They are taken one at a time, each answer
+written under its line.
+
+The leg then goes on, on Opus 5.5 at xhigh after a `/clear`: the cold readings of the
+changed sentences of §3 to §9, the renames with the applications' message, then the `1`
+and `1r` lines of `docs/findings.md` by the session, and the `2a`, `2b` and decided lines
+by agents, one brief to an owner holding all its lines. Each decided line holds its
+verdict beneath it, and a verdict that says a reader reads first, or that a line comes
+back to the user, is done so. Four verdicts were changed after the round, and a cold reading of the decided
 lines mended thirty places more, twenty plainly and ten with the user. Their lines say
 so (the log's *Four Verdicts Changed After the Round*, *Before Leg 4 Builds* and *The
 Ten of the Cold Reading*).
@@ -147,7 +154,8 @@ says what is left once its readings are in, and no figure stands until then.
       to the user in one round; the cold readings of the changed sentences of §3 to §9;
       the renames and the other changes the applications meet, with their message, so
       that the three can start; and then the rest. A verdict that comes back needs Fable
-      for its answer, so the session stops there as it stops at a cut.
+      for its answer, so the session stops there as it stops at a cut. The readings
+      were made 2026-11-23 (the log's *Leg 4's Readings*).
 
    Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
    the `fix` lines made at once and the `decide` lines after, so that the design is one
