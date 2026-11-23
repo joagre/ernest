@@ -137,13 +137,10 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    - **Two defects the listings found**, done 2026-11-23 (the log's *An Operator's Anchor
      and a List of Sections*): the site writes an anchor's fragment percent-encoded, and a
      list of sections after a document's name is that document's to its end.
-   - **The checker's cases tabled**, decided with the user 2026-11-17 (the log's *The
-     Outside Reviews Read*, its paragraph *The checker's cases*). An agent tables the
-     eight groups of cases the paragraph lists, where a fault of inference over mailbox
-     types would show: each case, and the test that holds it under
-     `src/toolchain/checker/test/` or in `test/ern_typed_programs_tests.erl`, or none. A
-     case with no test gets one. It comes earlier where a checker item comes before the
-     review.
+   - **The checker's cases tabled**, done 2026-11-23 (the log's *The Checker's Cases
+     Tabled*): 132 cases, 73 held before and 59 by new tests, no defect. Two places where
+     the report is silent wait for the user's word: when a spawn's capture's type is read,
+     and how a requirement's message names another module's callee.
    - **The other repositories take their manifests**, MVP 4.17's item 10, moved here on
      2026-11-19 (the log's *The Plan Read for Build Order*). The write is the floors' rise:
      a manifest's `ernest` line takes the place of the Makefile's `ERN_VERSION`, and no

@@ -267,6 +267,41 @@ receiving_nothing_stands_for_a_mailbox_test() ->
     %% and a function that receives nothing prints without a mailbox type
     ?assertEqual("(Int) -> Unit", type_of("export fn done(n : Int) : Unit = Unit", done)).
 
+%% report §3.9: only an expression's own function type takes a fresh effect
+%% variable, so a function that receives nothing stands where one receiving
+%% Msg is expected as a list's element, a field's value, a tuple's part, an
+%% `if`'s branch and an identity's answer; one inside another type, a
+%% list's, an Optional's, a tuple's, a record's, a result's or a
+%% parameter's, keeps its effect and is refused there. A top-level `let` of
+%% a list of one closes the element's effect to none, so its list is
+%% refused where a block's, whose element the use fixes, stands
+widening_at_the_expression_s_own_type_test() ->
+    Head = "type Msg = Add(Int)\ntype Box(a) = Box(item : a)\n"
+           "fn done(n : Int) : Unit = Unit\nfn quiet(n : Int) : Unit = Unit\n"
+           "fn id(x : a) : a = x\n",
+    Receiving = "(Int) -> Unit receiving Msg",
+    [?assertEqual({Body, ok}, {Body, ok(Head ++ "fn f(c : Bool) : " ++ Type ++ " = " ++ Body)})
+     || {Type, Body} <- [{"List(" ++ Receiving ++ ")", "[done, quiet]"},
+                         {"Box(" ++ Receiving ++ ")", "Box(item = done)"},
+                         {"#(" ++ Receiving ++ ", Int)", "#(done, 1)"},
+                         {"Box(" ++ Receiving ++ ")", "Box(item = if c then done else quiet)"},
+                         {"Box(" ++ Receiving ++ ")", "Box(item = id(done))"}]],
+    Kept = "(a function that receives nothing and one that receives do not match)",
+    [?assertEqual("the body does not have the declared result type: expected " ++ Wanted
+                  ++ ", found " ++ Plain ++ " " ++ Kept,
+                  refusal(Head ++ "fn f(k : " ++ Plain ++ ") : " ++ Wanted ++ " = k"))
+     || {Plain, Wanted} <- [{"List((Int) -> Unit)", "List(" ++ Receiving ++ ")"},
+                            {"Optional((Int) -> Unit)", "Optional(" ++ Receiving ++ ")"},
+                            {"#((Int) -> Unit, Int)", "#(" ++ Receiving ++ ", Int)"},
+                            {"Box((Int) -> Unit)", "Box(" ++ Receiving ++ ")"},
+                            {"() -> (Int) -> Unit", "() -> " ++ Receiving},
+                            {"((Int) -> Unit) -> Unit", "(" ++ Receiving ++ ") -> Unit"}]],
+    Run = "fn run(hs : List(" ++ Receiving ++ ")) : Unit = Unit\n",
+    ?assertEqual(ok, ok(Head ++ Run ++ "fn f() : Unit = { let ds = [done]; run(ds) }\n")),
+    ?assertEqual("the argument does not fit run: expected List(" ++ Receiving ++ "), found"
+                 " List((Int) -> Unit) " ++ Kept,
+                 refusal(Head ++ Run ++ "let ds = [done]\nfn f() : Unit = run(ds)\n")).
+
 %% report §5.9, §6.3: a clause or an alternative that can match nothing
 %% the clauses before it leave is an error, in `match` and in `receive`; a
 %% guarded clause covers nothing, and a bitstring pattern judged is taken
@@ -290,6 +325,8 @@ redundant_clause_test() ->
     %% two bitstring clauses may differ by what their sizes decide
     ?assertEqual(ok, ok("fn f(b : Bytes) : Int ="
                         " match b { <<x>> -> x | <<x, _>> -> x | _ -> 0 }")),
+    %% and one after a clause that matches every value can never match
+    ?assertEqual(Never, refusal("fn f(b : Bytes) : Int = match b { _ -> 0 | <<x>> -> x }")),
     {error, [CoveredByOne | _]} = check("fn f(x : Int) : Int = match x { n -> n | 0 -> 1 }"),
     ?assertEqual([{{1, 33, {1, 34}}, "this pattern matches every value it would"}],
                  CoveredByOne#diagnostic.labels),
@@ -339,6 +376,45 @@ false_guard_test() ->
                         "fn f(x : Int) : Int = match x { n when off -> n | _ -> 0 }")),
     ?assertEqual(ok, ok("fn f() : Unit receiving Bool ="
                         " receive { x when x == false -> Unit | after 100 -> Unit }")).
+
+%% report §6.3, §5.9, §5.11: a `receive`'s patterns are typed against the
+%% mailbox type, a bitstring's making it Bytes, its size seeing an earlier
+%% segment; coverage is not required; the alternatives of a clause bind the
+%% same variables, and one that can match nothing is refused, as in a
+%% `match`; the `after` time is an Int of milliseconds. Written after the
+%% code
+receive_patterns_test() ->
+    Msg = "type Msg = A(Int) | B(Int) | C\n",
+    ?assertEqual("the pattern does not fit the value: expected Int, found String",
+                 refusal("fn f() : Unit receiving Int = receive { \"s\" -> Unit }\n")),
+    ?assertEqual("() -> Int receiving Bytes",
+                 type_of("export fn f() = receive { <<n, _:bytes>> -> n }\n", f)),
+    ?assertEqual("() -> Bytes receiving Bytes",
+                 type_of("export fn f() = receive { <<k, body:size(k)-bytes>> -> body }\n", f)),
+    ?assertEqual(ok, ok(Msg ++ "fn f() : Unit receiving Msg = receive { C -> Unit }\n")),
+    ?assertEqual(ok, ok(Msg ++ "fn f() : Int receiving Msg = receive { A(n) or B(n) -> n }\n")),
+    ?assertEqual("the alternatives of a clause bind different variables: `n` is bound by the"
+                 " first alternative and not by this one",
+                 refusal(Msg ++ "fn f() : Int receiving Msg = receive { A(n) or B(m) -> 1 }\n")),
+    ?assertEqual("this alternative can never match",
+                 refusal(Msg ++ "fn f() : Int receiving Msg = receive { A(_) or A(1) -> 1 }\n")),
+    ?assertEqual("the `after` time is in milliseconds: expected Int, found String",
+                 refusal("fn f() : Unit receiving Int ="
+                         " receive { n -> Unit | after \"x\" -> Unit }\n")).
+
+%% report Appendix A, §5.9: `match` and `receive` are primaries, so each
+%% stands as an operand and is typed there, and a pattern's numeric literal
+%% may be negative. Written after the code
+match_and_receive_as_operands_test() ->
+    ?assertEqual("(Int, Optional(Int)) -> Bool",
+                 type_of("export fn f(n : Int, x : Optional(Int)) ="
+                         " n > 0 && match x { Some(_) -> true | None -> false }\n", f)),
+    ?assertEqual("() -> Int receiving Int",
+                 type_of("export fn f() = 1 + receive { n -> n }\n", f)),
+    ?assertEqual("(Int, Float) -> String",
+                 type_of("export fn f(n : Int, x : Float) = match #(n, x) {"
+                         " #(-1, _) -> \"minus one\" | #(_, -1.5) -> \"below\" | _ -> \"other\""
+                         " }\n", f)).
 
 %% report §4.7, §3.10, §9.2: a foreign type's parameter written `k=` puts
 %% the equality constraint on its argument wherever the type is written,
@@ -628,6 +704,25 @@ peer_ok(Text) ->
 peer_refusal(Text) ->
     {error, [#diagnostic{message = Message} | _]} = with_peer(Text),
     Message.
+
+%% Importer, the module M, checked against the interface of Exporter, the
+%% module A, as a dependent reads it from the `.erc` (report §11.1): ok, or
+%% the first refusal's message.
+imported(Exporter, Importer) ->
+    case checked_against(Exporter, Importer) of
+        {ok, _, _, _} -> ok;
+        {error, [#diagnostic{message = Message} | _]} -> Message
+    end.
+
+%% The printed type of Importer's declaration Name, checked so.
+imported_type_of(Exporter, Importer, Name) ->
+    {ok, _, #interface{values = Values}, Env} = checked_against(Exporter, Importer),
+    ern_types:format_scheme(maps:get(['M', Name], Values), ern_typecheck:type_state(Env)).
+
+checked_against(Exporter, Importer) ->
+    {ok, _, Interface, _} = ern_typecheck:check_string(['A'], Exporter),
+    {ok, Declarations} = ern_parser:parse_string(Importer),
+    ern_typecheck:check(['M'], Declarations, [ern_interface:written(Interface)]).
 
 %% A function body that spawns Function on the peer `p` and drops what
 %% the spawn answers, after the given statements.
@@ -936,6 +1031,122 @@ spawn_captures_test() ->
                              ++ spawning("", "fn() : Unit receiving Never = {"
                                              " let local = fn(y : Int) : Int = y + n;"
                                              " work(local(1)) }"))).
+
+%% report §3.11, §3.9: a capture's type is read through what it holds, so
+%% one is refused where a list, a record, an `Either`, an `Optional`, an
+%% address or a reply holds a function, a resource or a type variable, the
+%% signature's or one a block `let` leaves open, for a spawn, a
+%% `Peer.spawnMonitored` and a compute alike; a capture of data, of a
+%% `Map`, a `Set`, a `Process`, an address of data and an adapted address
+%% crosses, and so does a block `let` an earlier use pins
+spawn_captures_inside_values_test() ->
+    Lambda = "fn() : Unit receiving Never = { let _ = c; Unit }",
+    Types = "type Job = Job(run : (Int) -> Int, n : Int)\ntype Box(a) = Box(item : a)\n"
+            "type Point = Point(x : Int, y : Int)\n",
+    Spawn = fun(Type) ->
+                peer_ok(Types ++ "fn f(c : " ++ Type ++ ") : Unit = {\n" ++ spawning("", Lambda))
+            end,
+    Bound = fun(Type, Held) ->
+                {error, "the function Peer.spawn starts captures c, whose type " ++ Type
+                        ++ " is bound to its node, since it holds " ++ Held}
+            end,
+    Open = fun(Type) ->
+               {error, "the function Peer.spawn starts captures c, whose type " ++ Type
+                       ++ " holds a type variable"}
+           end,
+    [?assertEqual({Type, Expected}, {Type, Spawn(Type)})
+     || {Type, Expected} <-
+            [{"List((Int) -> Int)", Bound("List((Int) -> Int)", "a function")},
+             {"Job", Bound("Job", "a function")},
+             {"Box(Box((Int) -> Int))", Bound("Box(Box((Int) -> Int))", "a function")},
+             {"Either(String, Address(Tcp.SocketMsg))",
+              Bound("Either(String, Address(Tcp.SocketMsg))", "the address of a socket")},
+             {"Optional(Clock.Alarm)", Bound("Optional(Clock.Alarm)", "an alarm")},
+             {"Address((Int) -> Int)",
+              Bound("Address((Int) -> Int)", "an address whose message type holds a function")},
+             {"List(a)", Open("List(a)")}, {"Box(a)", Open("Box(a)")},
+             {"Either(a, Int)", Open("Either(a, Int)")}, {"Address(m)", Open("Address(m)")},
+             {"Reply(a)", Open("Reply(a)")},
+             {"List(Int)", ok}, {"Point", ok}, {"Either(String, Int)", ok},
+             {"#(Map(String, Int), Set(Int), Process, Address(Int))", ok}]],
+    ?assertEqual(Open("List(a)"), peer_ok("fn f() : Unit = {\n" ++ spawning("let c = [];\n    ",
+                                                                         Lambda))),
+    ?assertEqual(ok, peer_ok("fn f() : Unit = {\n"
+                             ++ spawning("let c = [];\n    let _ = 1 :: c;\n    ", Lambda))),
+    ?assertEqual(ok, peer_ok("fn f(t : Address(Int)) : Unit = {\n"
+                             ++ spawning("let c = adapted(t, fn(s : String) = String.size(s));\n"
+                                         "    ", Lambda))),
+    ?assertEqual({error, "the function Peer.computeAt runs captures c, whose type"
+                         " List((Int) -> Int) is bound to its node, since it holds a function"},
+                 peer_ok("fn f(c : List((Int) -> Int)) : Unit = {\n"
+                         ++ computing("Peer.computeAt", "", "fn() = { let _ = c; 1 }"))),
+    ?assertEqual({error, "the function Peer.spawnMonitored starts captures c, whose type Job is"
+                         " bound to its node, since it holds a function"},
+                 peer_ok(Types ++ "type Msg = Died(Down)\n"
+                         "fn f(c : Job) : Unit receiving Msg = {\n"
+                         "    let _ = Peer.spawnMonitored(\"p\", " ++ Lambda ++ ", Died, 5000);\n"
+                         "    Unit\n}\n")).
+
+%% report §3.11, §4.9: the captures are the locals the body names, in a
+%% pun, a selection, an update's base, a `<-`, a pipe, a guard and an inner
+%% lambda among them, and a let-bound lambda is a function; a function
+%% that came in a message is refused, its captures unseen. A member of the
+%% requirement in force is a function the definition was given, whether an
+%% operator, `<` or a callee's requirement supplied from it uses it, and
+%% one supplied at a known type is no capture
+spawn_captures_through_forms_test() ->
+    Spawn = fun(Parameters, Body) ->
+                peer_ok("type Box(a) = Box(item : a)\ntype Holder(a) = Holder(c : a)\n"
+                        "type Pair = Pair(item : Int, run : (Int) -> Int)\n"
+                        "fn f(" ++ Parameters ++ ") : Unit = {\n"
+                        ++ spawning("", "fn() : Unit receiving Never = " ++ Body))
+            end,
+    Captures = fun(Name, What) ->
+                   {error, "the function Peer.spawn starts captures " ++ Name ++ ", " ++ What}
+               end,
+    Function = "a function, which is bound to its node",
+    Held = fun(Type) -> "whose type " ++ Type ++ " is bound to its node, since it holds a function"
+           end,
+    [?assertEqual({Body, Expected}, {Body, Spawn(Parameters, Body)})
+     || {Parameters, Body, Expected} <-
+            [{"c : (Int) -> Int", "{ let _ = Holder(=c); Unit }", Captures("c", Function)},
+             {"c : Box((Int) -> Int)", "{ let _ = c.item; Unit }",
+              Captures("c", Held("Box((Int) -> Int)"))},
+             {"c : Pair", "{ let _ = Pair(..c, item = 1); Unit }", Captures("c", Held("Pair"))},
+             {"c : Optional((Int) -> Int)", "{ let _ = { let g <- c; Some(g(1)) }; Unit }",
+              Captures("c", Held("Optional((Int) -> Int)"))},
+             {"c : (Int) -> Int", "{ let _ = 1 |> c; Unit }", Captures("c", Function)},
+             {"g : (Int) -> Int", "{ let k = fn() = g(1); let _ = k(); Unit }",
+              Captures("g", Function)},
+             {"c : (Int) -> Int", "match 1 { n when c(n) > 0 -> Unit | _ -> Unit }",
+              Captures("c", Function)}]],
+    ?assertEqual({error, "the function Peer.spawn starts captures limit, whose type a= holds a"
+                         " type variable"},
+                 peer_ok("fn f(limit : a) : Unit = {\n"
+                         ++ spawning("", "fn() = receive { n when n == limit -> Unit }"))),
+    ?assertEqual({error, "the function Peer.spawn starts captures h, a function, which is bound to"
+                         " its node"},
+                 peer_ok("fn f() : Unit = {\n"
+                         ++ spawning("let h = fn(x : Int) = x;\n    ",
+                                     "fn() : Unit receiving Never = { let _ = h(1); Unit }"))),
+    ?assertEqual({error, "Peer.spawn starts job, a function that came as a value, whose captures"
+                         " the compiler does not see"},
+                 peer_ok("type Msg = Run(() -> Unit receiving Never)\n"
+                         "fn f() : Unit receiving Msg = receive {\n"
+                         "    Run(job) -> { let _ = Peer.spawn(\"p\", job, 5000); Unit }\n}\n")),
+    Member = fun(Need, Body) ->
+                 peer_ok("fn f(x : a, y : a) : Unit needs " ++ Need ++ " = {\n"
+                         ++ spawning("", "fn() : Unit receiving Never = { let z : a ="
+                                         " fault(\"no\"); " ++ Body ++ "; Unit }"))
+             end,
+    Uses = fun(Need) ->
+               {error, "Peer.spawn starts a function that uses " ++ Need ++ ", a member of the"
+                       " requirement in force, which is a function bound to its node"}
+           end,
+    ?assertEqual(Uses("a.compare"), Member("a.compare", "let _ = z < z")),
+    ?assertEqual(Uses("a.+"), Member("a.+", "let _ = z + z")),
+    ?assertEqual(Uses("a.compare"), Member("a.compare", "let _ = OrderedSet.fromList([z])")),
+    ?assertEqual(ok, Member("a.compare", "let _ = OrderedSet.fromList([1]); let _ = 1 < 2")).
 
 %% report §3.11, §8.1: the process a spawn on a peer starts has a mailbox
 %% type known whole where it is written, which crosses; one that is a
@@ -1271,6 +1482,85 @@ equality_reads_private_types_test() ->
                                           "export fn make() : T = T(Inner(1))\n"),
     {ok, Declarations} = ern_parser:parse_string("fn f(x : A.T, y : A.T) : Bool = x == y\n"),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['M'], Declarations, [Interface])).
+
+%% report §3.10, §4.7, §11.1: an equality constraint crosses a compiled
+%% interface, inferred, through a `let`, a foreign function's `a=` and a
+%% foreign type's `k=`, and a dependent's `==` reads another module's type
+%% through its fields; each is checked at the dependent's instance
+equality_across_an_interface_test() ->
+    Function = "(Int) -> Int, a function type, does not support equality, which ",
+    ?assertEqual(Function ++ "A.equal requires of its first argument",
+                 imported("export fn equal(a, b) = a == b\n",
+                          "fn g(k : (Int) -> Int) = A.equal(k, k)\n")),
+    ?assertEqual(ok, imported("export fn equal(a, b) = a == b\n", "fn g() = A.equal(1, 2)\n")),
+    ?assertEqual("Address(Int), the type of an address, does not support equality, which A.same"
+                 " requires of its first argument; compare the processes behind addresses,"
+                 " `Process.fromAddress(a)`",
+                 imported("fn equal(a, b) = a == b\nexport let same = equal\n",
+                          "fn g(x : Address(Int)) = A.same(x, x)\n")),
+    ?assertEqual(Function ++ "A.member requires of its first argument",
+                 imported("export foreign fn member(x : a=, xs : List(a)) : Bool ="
+                          " \"lists:member/2\"\n",
+                          "fn g(k : (Int) -> Int) = A.member(k, [k])\n")),
+    ?assertEqual(Function ++ "A.put requires of its first argument",
+                 imported("export foreign type Table(k=, v)\n"
+                          "export foreign fn put(t : Table(k, v), key : k, value : v) : Unit ="
+                          " \"m:put/3\"\n",
+                          "fn g(t : A.Table((Int) -> Int, Int), k : (Int) -> Int) ="
+                          " A.put(t, k, 1)\n")),
+    ?assertEqual("`==` is not defined on A.Box((Int) -> Int), which contains a function",
+                 imported("export type Box(a) = Box(a)\n",
+                          "fn g(k : (Int) -> Int) = A.Box(k) == A.Box(k)\n")).
+
+%% report §4.5, §4.8, §4.9, §3.5, Appendix E.1, §11.1: another module's
+%% members reach a dependent through its compiled interface, an operator,
+%% `negate`, `compare` and a derived `compare` with its requirement, and a
+%% type without the member has no operator; a declaration's requirement is
+%% in its interface and supplied at the dependent's call: at a known type,
+%% refused where the type lacks the member or it has another shape, at a
+%% variable the dependent's own requirement, `show` among them, refused
+%% where the dependent declares none; taken as a value it is supplied, and
+%% a top-level `let` of it is refused
+members_and_requirements_across_an_interface_test() ->
+    Distance = "export type Distance = Distance(Int)\n",
+    Plus = "export fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)\n"
+           "export fn Distance.negate(Distance(a)) : Distance = Distance(-a)\n"
+           "export fn Distance.compare(Distance(a), Distance(b)) : Ordering = compare(a, b)\n",
+    ?assertEqual(ok, imported(Distance ++ Plus,
+                              "fn g(d : A.Distance) : Bool = d + -d < A.Distance(1)\n")),
+    ?assertEqual("`+` is not defined on A.Distance",
+                 imported(Distance, "fn g(d : A.Distance) : A.Distance = d + d\n")),
+    Pair = "export type Pair(a, b) = Pair(first : a, second : b) derives compare\n",
+    ?assertEqual(ok, imported(Pair, "fn g(x : A.Pair(Int, String), y : A.Pair(Int, String)) :"
+                                    " Bool = x < y\n")),
+    ?assertEqual("`<` needs A.Pair(Int, Map(Int, Int)).compare, and Map(Int, Int) has no compare",
+                 imported(Pair, "fn g(x : A.Pair(Int, Map(Int, Int)),"
+                                " y : A.Pair(Int, Map(Int, Int))) : Bool = x < y\n")),
+    Unique = "export fn unique(list : List(a)) : List(a) needs a.compare ="
+             " OrderedSet.toList(OrderedSet.fromList(list))\n",
+    Describe = "export fn describe(x : a) : String needs a.show = Io.show(x)\n",
+    Total = "export type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) : Float = 1.0\n"
+            "export fn total(list : List(a), zero : a) : a needs a.+ ="
+            " List.foldLeft(list, zero, fn(acc, x) = acc + x)\n",
+    [?assertEqual({Importer, Expected}, {Importer, imported(Exporter, Importer)})
+     || {Exporter, Importer, Expected} <-
+            [{Unique, "fn g() : List(Int) = A.unique([3, 1])\n", ok},
+             {Unique, "fn g(m : Map(Int, Int)) = A.unique([m])\n",
+              "unique needs Map(Int, Int).compare, and Map(Int, Int) has no compare"},
+             {Unique, "fn g(xs : List(b)) : List(b) = A.unique(xs)\n",
+              "unique needs b.compare, which g does not declare"},
+             {Unique, "fn g(xs : List(b)) : List(b) needs b.compare = A.unique(xs)\n", ok},
+             {Unique, "fn g(xss : List(List(Int))) : List(List(Int)) = List.map(xss, A.unique)\n",
+              ok},
+             {Unique, "let u = A.unique\n",
+              "unique needs a.compare, which a top-level let cannot declare"},
+             {Describe, "fn g() : String = A.describe(1)\n", ok},
+             {Describe, "fn g(x : b) : String = A.describe(x)\n",
+              "describe needs b.show, which g does not declare"},
+             {Describe, "fn g(x : b) : String needs b.show = A.describe(x)\n", ok},
+             {Total, "fn g() : Int = A.total([1, 2], 0)\n", ok},
+             {Total, "fn g(v : A.Vec) : A.Vec = A.total([v], v)\n",
+              "total needs A.Vec.+ : (A.Vec, A.Vec) -> A.Vec, and A.Vec.+ answers Float"}]].
 
 %% report §11.1, §4.2: the interface carries each private type an exported
 %% signature names wherever an arrow's effect names it, a mailbox type an
@@ -1759,6 +2049,42 @@ equality_through_a_binding_test() ->
     ?assertEqual(ok, ok(Source ++ "fn h() = g(1)")),
     ?assertEqual("(a=) -> Bool", type_of(Source, g)).
 
+%% report §3.10, §3.9: the equality constraint travels with the function
+%% value and is checked where it is instantiated: `let f = equal` carries
+%% it, a branch carries the union of its branches', and so do a record's
+%% field, a top-level record and a list that hold the function, a
+%% higher-order function given it and a lambda that calls it; a library
+%% function that compares elements, `List.contains`, propagates it
+equality_travels_with_the_value_test() ->
+    Equal = "fn equal(a, b) = a == b\nfn always(a, b) = true\n",
+    Address = "Address(Int), the type of an address, does not support equality, which ",
+    Process = "; compare the processes behind addresses, `Process.fromAddress(a)`",
+    ?assertEqual(Address ++ "f requires of its first argument" ++ Process,
+                 refusal(Equal ++ "let f = equal\nfn g(x : Address(Int)) = f(x, x)\n")),
+    ?assertEqual("(Bool) -> (a=, a=) -> Bool",
+                 type_of(Equal ++ "export fn pick(flag : Bool) = if flag then equal else always\n",
+                         pick)),
+    ?assertEqual(Address ++ "equal requires: equal : (a=, a=) -> Bool" ++ Process,
+                 refusal(Equal ++ "fn g(flag : Bool, x : Address(Int)) ="
+                                  " (if flag then equal else always)(x, x)\n")),
+    Function = "(Int) -> Int, a function type, does not support equality, which ",
+    Eq = "type Eq(a) = Eq(test : (a, a) -> Bool)\n",
+    [?assertEqual({Body, Function ++ Requires}, {Body, refusal(Equal ++ Eq ++ Body)})
+     || {Body, Requires} <-
+            [{"fn g(k : (Int) -> Int) = Eq(test = equal).test(k, k)\n",
+              "equal requires: equal : (a=, a=) -> Bool"},
+             {"let eqs = Eq(test = equal)\nfn g(k : (Int) -> Int) = eqs.test(k, k)\n",
+              "eqs requires: eqs : Eq(a=)"},
+             {"let tests = [equal]\n"
+              "fn g(k : (Int) -> Int) = match tests { [t] -> t(k, k) | _ -> false }\n",
+              "tests requires: tests : List((a=, a=) -> Bool)"},
+             {"fn apply2(f, x, y) = f(x, y)\nfn g(k : (Int) -> Int) = apply2(equal, k, k)\n",
+              "equal requires: equal : (a=, a=) -> Bool"},
+             {"fn g(k : (Int) -> Int) = { let e = fn(x, y) = equal(x, y); e(k, k) }\n",
+              "e requires of its first argument"},
+             {"fn g(k : (Int) -> Int) = List.contains([k], k)\n",
+              "List.contains requires of its first argument"}]].
+
 %% report §3.10, §4.2 (*Unqualified lookup*), §9.6: a type's ordering is the
 %% `compare` in its own namespace, and a module-level `fn compare` is an
 %% ordinary function that gives the type no ordering; a bare `compare` in
@@ -1878,6 +2204,38 @@ receive_and_mailboxes_test() ->
     ?assertEqual("(a) -> Unit receiving e+",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
 
+%% report §3.9, §6.1: a function that answers, reads or writes a file or a
+%% socket, calls through an address or reads the clock, calling only
+%% functions that receive nothing, names no mailbox, and one written `: T`
+%% does all of it; one that asks for a wrap's message to be delivered into
+%% its mailbox, as `spawnMonitored` does, receives the wrap's type, and one
+%% written `: T` is refused. A function has one mailbox type, so two calls
+%% that give out its address unify theirs
+the_world_carries_no_mark_test() ->
+    Msg = "export type Msg = Get(Reply(Int)) | Died(Down)\n",
+    [?assertEqual({Body, Type}, {Body, type_of(Msg ++ "export fn f" ++ Body ++ "\n", f)})
+     || {Body, Type} <-
+            [{"(r : Reply(Int)) = answer(r, 1)", "(Reply(Int)) -> Unit"},
+             {"(a : Address(Msg)) = Address.call(a, Get, 100)",
+              "(Address(M.Msg)) -> Optional(Int)"},
+             {"(a : Address(Msg)) = Address.callForever(a, Get)", "(Address(M.Msg)) -> Int"},
+             {"(p : Path) = Fs.read(p, 1000)", "(Path) -> Either(Io.Error, Bytes)"},
+             {"(p : Path) = Fs.write(p, <<1>>, 1000)", "(Path) -> Either(Io.Error, Unit)"},
+             {"(s : Address(Tcp.SocketMsg)) = Tcp.write(s, <<1>>, 100)",
+              "(Address(Tcp.SocketMsg)) -> Either(Io.Error, Unit)"},
+             {"() = Clock.now()", "() -> Int"}]],
+    ?assertEqual(ok, ok(Msg ++ "fn all(r : Reply(Int), a : Address(Msg), p : Path) : Unit = {\n"
+                        "    answer(r, 1);\n    let _ = Address.call(a, Get, 100);\n"
+                        "    let _ = Fs.read(p, 1000);\n    let _ = Clock.now();\n    Unit\n}\n")),
+    ?assertEqual("(() -> Unit) -> Address(Never) receiving M.Msg",
+                 type_of(Msg ++ "export fn start(f : () -> Unit) = spawnMonitored(f, Died)\n",
+                         start)),
+    ?assertEqual("spawnMonitored needs a mailbox, and start receives nothing",
+                 refusal(Msg ++ "fn start(f : () -> Unit) : Address(Never) ="
+                                " spawnMonitored(f, Died)\n")),
+    ?assertEqual("() -> #(Address(a), Address(a)) receiving a",
+                 type_of("fn me() = self()\nexport fn both() = #(me(), me())\n", both)).
+
 %% report §6.8, §4.6, §6.3: a `receive` in a body receiving Never is a type
 %% error whatever its clauses, an `after` beside them among them, in a
 %% function declared so and in a top-level initializer, and the help names
@@ -1903,8 +2261,9 @@ never_refuses_every_receive_test() ->
 %% function nor in a guard, where a function receiving nothing is expected;
 %% one whose pattern fixes the type is not, and a function receiving
 %% nothing stands there. A regression test, written after the checker,
-%% which did so before §3.9 named it; it does not cover a variable that
-%% the clause's body fixes, whose function receives at that type
+%% which did so before §3.9 named it; process_only_travels_test covers a
+%% variable that the clause's body fixes, whose function receives at that
+%% type
 receive_fixing_no_type_test() ->
     ?assertEqual("() -> Unit receiving e+", type_of("export fn f() = receive { _ -> Unit }", f)),
     ?assertEqual("(Int) -> Int receiving e+",
@@ -1955,6 +2314,82 @@ process_only_marks_a_receive_of_anything_test() ->
     ?assertEqual("() -> Unit receiving e+",
                  type_of("fn w() = receive { x -> x }\n"
                          "export fn f() = { let _ = w(); Unit }\n", f)).
+
+%% report §3.9: process-only is part of a scheme and travels with the
+%% function value, through a block `let`, a top-level `let`, one written
+%% `receiving m` among them, a branch, a list, a field, a function a call
+%% answers and a higher-order function of the module or of the standard
+%% library, each refused where a function that receives nothing calls it;
+%% a function written `receiving e` over a call of one is one too, checked
+%% at its callers and not at itself. A call at a mailbox type or at Never
+%% stands. A `receive` whose variable its clause's body fixes receives at
+%% that type and is no process-only one
+process_only_travels_test() ->
+    Skip = "fn skip() = receive { _ -> Unit }\n",
+    [?assertEqual({Body, Callee ++ " needs a mailbox, and p receives nothing"},
+                  {Body, refusal(Skip ++ Body)})
+     || {Callee, Body} <-
+            [{"h", "fn h() : Unit receiving e = skip()\nfn p() : Unit = h()\n"},
+             {"s", "fn p() : Unit = { let s = skip; s() }\n"},
+             {"s", "let s = skip\nfn p() : Unit = s()\n"},
+             {"s", "let s : () -> Unit receiving m = skip\nfn p() : Unit = s()\n"},
+             {"the callee",
+              "fn quiet() = Unit\nfn p(c : Bool) : Unit = (if c then skip else quiet)()\n"},
+             {"List.forEach",
+              "fn p() : Unit = { let fs = [skip]; List.forEach(fs, fn(f) = f()) }\n"},
+             {"the callee", "type J(e) = J(run : () -> Unit receiving e)\n"
+                            "fn p() : Unit = J(run = skip).run()\n"},
+             {"the callee", "fn make() = fn() = receive { _ -> Unit }\nfn p() : Unit = make()()\n"},
+             {"apply", "fn apply(f) = f()\nfn p() : Unit = apply(skip)\n"},
+             {"List.forEach", "fn p() : Unit = List.forEach([1], fn(x) = skip())\n"}]],
+    [?assertEqual({Declaration, Type}, {Declaration, type_of(Skip ++ Declaration, Name)})
+     || {Name, Declaration, Type} <-
+            [{h, "export fn h() : Unit receiving e = skip()\n", "() -> Unit receiving e+"},
+             {s, "export let s : () -> Unit receiving m = skip\n", "() -> Unit receiving m+"},
+             {p, "fn quiet() = Unit\nexport fn p(c : Bool) = if c then skip else quiet\n",
+              "(Bool) -> () -> Unit receiving e+"},
+             {fs, "export let fs = [skip]\n", "List(() -> Unit receiving e+)"}]],
+    ?assertEqual(ok, ok(Skip ++ "fn g() : Unit receiving Int = skip()\n"
+                                "fn n() : Unit receiving Never = skip()\n")),
+    ?assertEqual("(Address(Int)) -> Unit receiving Int",
+                 type_of("export fn f(a : Address(Int)) = receive { x -> send(a, x) }\n", f)).
+
+%% report §3.9, §11.1: a restriction travels through a compiled interface:
+%% another module's process-only function, its `let` and its list of one,
+%% its function written `receiving e` over one, its foreign function whose
+%% mailbox type is its own, and its higher-order function given a `receive`
+%% of anything, are refused where a function that receives nothing calls
+%% them and stand at a mailbox type; its function whose `self` stands in
+%% no value position of its type receives nothing, and one whose address a
+%% send fixes gives its caller that type
+process_only_through_an_interface_test() ->
+    Skip = "fn skip() = receive { _ -> Unit }\n",
+    [?assertEqual({Importer, Callee ++ " needs a mailbox, and p receives nothing"},
+                  {Importer, imported(Exporter, Importer)})
+     || {Callee, Exporter, Importer} <-
+            [{"A.skip", "export " ++ Skip, "fn p() : Unit = A.skip()\n"},
+             {"A.s", Skip ++ "export let s = skip\n", "fn p() : Unit = A.s()\n"},
+             {"List.forEach", Skip ++ "export let fs = [skip]\n",
+              "fn p() : Unit = List.forEach(A.fs, fn(f) = f())\n"},
+             {"A.h", Skip ++ "export fn h() : Unit receiving e = skip()\n",
+              "fn p() : Unit = A.h()\n"},
+             {"A.tick", "export foreign fn tick(n : Int) : Int receiving m = \"erlang:abs/1\"\n",
+              "fn p() : Int = A.tick(1)\n"},
+             {"A.apply", "export fn apply(f) = f()\n",
+              "fn p() : Unit = A.apply(fn() = receive { _ -> Unit })\n"},
+             {"A.me", "export fn me() = self()\n", "fn p() : Unit = send(A.me(), 1)\n"}]],
+    [?assertEqual({Importer, ok}, {Importer, imported(Exporter, Importer)})
+     || {Exporter, Importer} <-
+            [{"export " ++ Skip, "fn p() : Unit receiving Int = A.skip()\n"},
+             {"export fn apply(f) = f()\n", "fn p() : Unit = A.apply(fn() = Unit)\n"},
+             {"export fn quit() = kill(Process.fromAddress(self()))\n",
+              "fn p() : Unit = A.quit()\n"},
+             {"export fn me() = self()\n", "fn p() : Unit = { let _ = A.me(); Unit }\n"}]],
+    ?assertEqual("() -> Unit receiving e+",
+                 imported_type_of("export " ++ Skip, "export fn q() = A.skip()\n", q)),
+    ?assertEqual("() -> Unit receiving Int",
+                 imported_type_of("export fn me() = self()\n", "export fn q() = send(A.me(), 1)\n",
+                                  q)).
 
 %% report §4.5, §3.9, §11.5: `: T` stands over a body that calls `self` or
 %% `monitor`, or a function whose type holds their variable, where the
@@ -2244,6 +2679,66 @@ effect_mismatch_direction_test() ->
                          "fn g() : Int receiving n = h(fn(f : (Int) -> Int) : Int = f(1))")),
     ?assertEqual(ok, ok("fn apply(f, x) : Int = f(x)\nfn g() : Int = apply(fn(y) = y + 1, 1)")).
 
+%% report §3.9, §6.1: a function has one mailbox type or none. A callback
+%% that receives nothing stands beside one that receives, whose mailbox
+%% type the function inherits, and not where the signature says it
+%% receives nothing; two callbacks whose mailbox types are variables unify
+%% to one, and two of different types are refused, as arguments, in a list
+%% and in a record. A callback's mailbox type becomes its caller's through
+%% a higher-order function, the module's, one over another, or another
+%% module's: the caller's own at `self`, none at an addition and the type
+%% a `receive` fixes, refused in a caller written `: T` or receiving
+%% another type
+callbacks_share_one_mailbox_test() ->
+    CallBoth = "export fn callBoth(p : (Int) -> Int, e : (Int) -> Unit receiving n) :"
+               " Unit receiving n = { let _ = p(1); e(2) }\n",
+    ?assertEqual("((Int) -> Int, (Int) -> Unit receiving n) -> Unit receiving n",
+                 type_of(CallBoth, callBoth)),
+    ?assertEqual(ok, ok(CallBoth ++ "fn g() : Unit receiving Int ="
+                                    " callBoth(fn(x) = x, fn(y) = receive { k -> Unit })\n")),
+    ?assertEqual("the argument does not fit callBoth: a function that receives where one that"
+                 " receives nothing is needed",
+                 refusal(CallBoth ++ "fn g() : Unit receiving Int ="
+                                     " callBoth(fn(x) = receive { k -> k }, fn(y) = Unit)\n")),
+    Both = "export fn both(f, g) = { f(1); g(2) }\n",
+    ?assertEqual("((Int) -> Unit receiving e, (Int) -> a receiving e) -> a receiving e",
+                 type_of(Both, both)),
+    ?assertEqual("the argument does not fit both: expected (Int) -> a receiving Int, found (b) ->"
+                 " Unit receiving String",
+                 refusal(Both ++ "fn h() = both(fn(x) = receive { 1 -> Unit },"
+                                 " fn(y) = receive { \"s\" -> Unit })\n")),
+    Receivers = "fn a(x : Int) : Unit receiving Int = receive { k -> Unit }\n"
+                "fn b(x : Int) : Unit receiving String = receive { k -> Unit }\n",
+    ?assertEqual("the argument does not fit both: expected (Int) -> a receiving Int, found (Int) ->"
+                 " Unit receiving String", refusal(Both ++ Receivers ++ "fn h() = both(a, b)\n")),
+    ?assertEqual("list elements must have one type: expected (Int) -> Unit receiving Int, found"
+                 " (Int) -> Unit receiving String", refusal(Receivers ++ "fn h() = [a, b]\n")),
+    ?assertEqual("field g: expected () -> Unit receiving Int, found () -> Unit receiving String",
+                 refusal("type Pair(e) = Pair(f : () -> Unit receiving e,"
+                         " g : () -> Unit receiving e)\n"
+                         "fn h() = Pair(f = fn() = receive { 1 -> Unit },"
+                         " g = fn() = receive { \"s\" -> Unit })\n")),
+    Apply = "fn apply(f, x) = f(x)\n",
+    Receive = "fn(x) = receive { n -> n + x }",
+    [?assertEqual({Body, Type}, {Body, type_of(Apply ++ "export fn g() = " ++ Body ++ "\n", g)})
+     || {Body, Type} <- [{"apply(fn(x) = self(), 5)", "() -> Address(a) receiving a"},
+                         {"apply(fn(x) = x + 1, 5)", "() -> Int"},
+                         {"apply(" ++ Receive ++ ", 5)", "() -> Int receiving Int"}]],
+    ?assertEqual("() -> Int receiving Int",
+                 type_of(Apply ++ "fn twice(f) = apply(f, apply(f, 1))\n"
+                                  "export fn g() = twice(" ++ Receive ++ ")\n", g)),
+    ?assertEqual("apply needs a mailbox, and g receives nothing",
+                 refusal(Apply ++ "fn g() : Int = apply(" ++ Receive ++ ", 5)\n")),
+    ?assertEqual("apply needs mailbox Int, and the mailbox here is String",
+                 refusal(Apply ++ "fn g() : Int receiving String = apply(" ++ Receive ++ ", 5)\n")),
+    ?assertEqual("() -> Int receiving Int",
+                 imported_type_of("export " ++ Apply,
+                                  "export fn g() = A.apply(" ++ Receive ++ ", 5)\n", g)),
+    ?assertEqual("the argument does not fit A.both: expected (Int) -> a receiving Int, found (b) ->"
+                 " Unit receiving String",
+                 imported(Both, "fn h() = A.both(fn(x) = receive { 1 -> Unit },"
+                                " fn(y) = receive { \"s\" -> Unit })\n")).
+
 %% report §5.9: a guard receives nothing, and may send and print
 guards_receive_nothing_test() ->
     ?assertEqual(ok, ok("fn f(n : Int) = match n { k when k > 0 -> 1 | _ -> 0 }")),
@@ -2407,6 +2902,20 @@ bind_arrow_test() ->
                  refusal("fn f(a : String) = { let x <- String.toInt(a); Right(x) }")),
     ?assertMatch("`<-` needs an Either or an Optional, not Int",
                  refusal("fn f() = { let x <- 1; x }")).
+
+%% report §5.5: all `<-` bindings in one block resolve to the same sum
+%% type, so an Optional and an Either are refused in one block, and so are
+%% two Eithers whose error types differ. Written after the code
+bind_arrow_one_sum_test() ->
+    ?assertEqual("the value of `<-` must have the block's sum type: expected Optional(Int),"
+                 " found Either(String, Int)",
+                 refusal("fn f(a : String) : Optional(Int) = {\n    let x <- String.toInt(a);\n"
+                         "    let y <- Either.fromOptional(String.toInt(a), \"no\");\n"
+                         "    Some(x + y)\n}\n")),
+    ?assertEqual("the value of `<-` must have the block's sum type: expected Either(Int, Int),"
+                 " found Either(String, Int)",
+                 refusal("fn f(a : Either(Int, Int), b : Either(String, Int)) : Either(Int, Int) ="
+                         " { let x <- a; let y <- b; Right(x + y) }\n")).
 
 %% report §11.5: a callee's type in the label at its call is printed as its
 %% declaration writes it, under its own variable names, and a field's in a
@@ -2680,8 +3189,9 @@ local_fn_signature_shares_variables_test() ->
 %% signature, the message naming the rule and §11.5's help line the fix, a
 %% second function, at a top-level and a local definition's recursive call
 %% alike, and at no other call. A regression test: the checker conformed
-%% before it was written; the help line is its own. It does not cover a
-%% mutually recursive group.
+%% before it was written; the help line is its own.
+%% polymorphic_recursion_through_a_group_test covers a mutually recursive
+%% group.
 polymorphic_recursion_is_refused_test() ->
     Help = "declare a second function for the call at another type",
     %% report §11.5: at the recursive call's argument, as any call is;
@@ -2698,6 +3208,26 @@ polymorphic_recursion_is_refused_test() ->
                                   "    both(1, 1)\n}")),
     ?assertEqual({"the argument does not fit g: expected Int, found Bool", undefined},
                  refusal_and_help("fn twice(g, n : Int) = { let _ = g(n); g(true) }")).
+
+%% report §3.9: a group of definitions that name one another is inferred
+%% together, each call within it at the called definition's own type, so a
+%% call of a member at another type is refused as polymorphic recursion, at
+%% the top level and in a block, under signatures too; once inferred the
+%% group is generalized, and a definition that names none of its callers
+%% is generalized before them and serves two types
+polymorphic_recursion_through_a_group_test() ->
+    Refused = "the argument of a recursive call does not fit b at its own type: expected Int,"
+              " found Bool",
+    Group = "fn a(x) = { let _ = b(1); b(true) }\nfn b(y) = { let _ = a(y); y }\n",
+    ?assertEqual(Refused, refusal(Group)),
+    ?assertEqual(Refused, refusal("fn f() : Int = {\n    fn a(x) = { let _ = b(1); b(true) };\n"
+                                  "    fn b(y) = { let _ = a(y); y };\n    0\n}\n")),
+    ?assertEqual(Refused, refusal("fn a(x : t) : Int = b(1) + b(true)\n"
+                                  "fn b(y : u) : Int = a(y)\n")),
+    ?assertEqual(ok, ok("fn a(x) = { let _ = b(1); b(true) }\nfn b(y) = y\n")),
+    ?assertEqual("() -> #(Int, String)",
+                 type_of("fn a(x) = b(x)\nfn b(y) = if true then y else a(y)\n"
+                         "export fn c() = #(a(1), a(\"s\"))\n", c)).
 
 %% report §3.9, §4.6: a signature's type variables reach a block `let`'s
 %% annotation, `=` and `<-` alike, and stay rigid there; a variable named
@@ -3015,6 +3545,33 @@ initializer_call_not_generalized_test() ->
     ?assertEqual(Refused, refusal(Cell ++ "let shared = make()()")),
     ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(start)")),
     ?assertEqual("() -> Address(a) receiving a", type_of("export let me = fn() = self()", me)).
+
+%% report §3.9, §4.6: a binding is generalized over the variables no name
+%% around it holds, so a block's lambda keeps the variable of a name it
+%% captures and generalizes its own parameter's; a block `let` of a name
+%% is not generalized, and a top-level one, whose initializer is a value,
+%% is. A top-level `let` of a call closes an open effect to none, and a
+%% `fn` with the same body keeps its variable, §4.6's `makeApplier`
+generalization_by_the_value_rule_test() ->
+    ?assertEqual("the value does not have the declared type: expected String, found Int",
+                 refusal("fn f(x) = {\n    let g = fn() = x;\n    let a : Int = g();\n"
+                         "    let b : String = g();\n    Unit\n}\n")),
+    ?assertEqual(ok, ok("fn f(x) = {\n    let g = fn(y) = #(x, y);\n    let _ = g(1);\n"
+                        "    let _ = g(\"a\");\n    Unit\n}\n")),
+    ?assertEqual("the argument does not fit m: expected Int, found String",
+                 refusal("fn f() = { let k = fn(x) = x; let m = k; #(m(1), m(\"s\")) }\n")),
+    Alias = "fn id(x) = x\nexport let alias = id\n",
+    ?assertEqual("(a) -> a", type_of(Alias, alias)),
+    ?assertEqual("() -> #(Int, String)",
+                 type_of(Alias ++ "export fn c() = #(alias(1), alias(\"s\"))\n", c)),
+    Applier = "fn makeApplier() = fn(f) = f() + 1\n",
+    ?assertEqual("(() -> Int) -> Int", type_of(Applier ++ "export let h = makeApplier()\n", h)),
+    ?assertEqual("() -> (() -> Int receiving e) -> Int receiving e",
+                 type_of(Applier ++ "export fn h2() = makeApplier()\n", h2)),
+    ?assertEqual("the argument does not fit h: a function that receives where one that receives"
+                 " nothing is needed",
+                 refusal(Applier ++ "let h = makeApplier()\n"
+                                    "fn g() : Int receiving Int = h(fn() = receive { n -> n })\n")).
 
 %% report §6.8, §6.2, §8.1, §11.5: a `receive` whose mailbox type the
 %% definition's end makes Never is refused at the receive, as one in a body
@@ -4908,6 +5465,8 @@ bitstring_construction_test() ->
                  type_of("export fn f(x, c, b) = <<x:float, c:utf8, b:size(2)-bytes, 1:size(4),"
                          " 2:size(4)>>", f)),
     ?assertEqual("() -> Bytes", type_of("export fn f() = <<>>", f)),
+    %% a sizeless `bytes` segment is its whole value, wherever it stands
+    ?assertEqual("(Bytes) -> Bytes", type_of("export fn f(b : Bytes) = <<b:bytes, 1>>", f)),
     ?assertEqual("an `int` segment: expected Int, found String", refusal("fn f() = <<\"a\">>")),
     ?assertEqual("a `bytes` segment: expected Bytes, found Int", refusal("fn f() = <<1:bytes>>")),
     ?assertEqual("the size of a segment: expected Int, found Bool",
@@ -4952,7 +5511,8 @@ bitstring_specifier_kinds_test() ->
 
 %% report §5.11: a pattern binds each segment at its type; a size sees the
 %% earlier segments and receives nothing; a segment pattern is a variable, `_`, or
-%% a literal; a sizeless rest is last; a match needs a final wildcard
+%% a literal of the segment's type; a sizeless rest is last; a match needs a
+%% final wildcard
 bitstring_pattern_test() ->
     ?assertEqual("(Bytes) -> Optional(#(Int, Bytes, Bytes))",
                  type_of("export fn parse(b : Bytes) = match b {"
@@ -4968,6 +5528,12 @@ bitstring_pattern_test() ->
                          " <<x:size(receive { _ -> 8 })>> -> x | _ -> 0 }")),
     ?assertEqual("a segment pattern is a variable, `_`, or a literal",
                  refusal("fn f(b : Bytes) = match b { <<Some(x)>> -> x | _ -> 0 }")),
+    ?assertEqual("an `int` segment: expected Int, found String",
+                 refusal("fn f(b : Bytes) : Int = match b { <<\"a\">> -> 1 | _ -> 0 }")),
+    ?assertEqual("an `int` segment: expected Int, found Float",
+                 refusal("fn f(b : Bytes) : Int = match b { <<1.5>> -> 1 | _ -> 0 }")),
+    ?assertEqual(ok, ok("fn f(b : Bytes) : Int ="
+                        " match b { <<'a':utf8, 0.0:float, -1:signed, _:bytes>> -> 1 | _ -> 0 }")),
     ?assertEqual("a `bytes` segment without a size takes the rest, so it is the last segment",
                  refusal("fn f(b : Bytes) = match b { <<a:bytes, c:bytes>> -> a | _ -> b }")),
     ?assertEqual("the pattern is 4 bits, not a multiple of 8",
@@ -5152,16 +5718,20 @@ bitstring_size_variables_test() ->
                  refusal("fn f(p : #(Int, Bytes)) : Int ="
                          " match p { #(k, <<x:size(k)-bytes>>) -> k | _ -> 0 }")).
 
-%% report §5.9, §5.11: a bitstring nested in a constructor covers nothing,
-%% as one at the top does not; a wildcard at its place completes the match.
-%% A regression test: the checker conformed before it was written. It does
-%% not cover a bitstring inside a tuple.
+%% report §5.9, §5.11: a bitstring nested in a constructor or a tuple
+%% covers nothing, as one at the top does not; a wildcard at its place
+%% completes the match. A regression test: the checker conformed before it
+%% was written.
 nested_bitstring_coverage_test() ->
     ?assertEqual("match on Optional(Bytes) is not exhaustive; missing Some(_)",
                  refusal("fn f(x : Optional(Bytes)) : Int ="
                          " match x { Some(<<n>>) -> n | None -> 0 }")),
     ?assertEqual(ok, ok("fn f(x : Optional(Bytes)) : Int ="
-                        " match x { Some(<<n>>) -> n | None -> 0 | Some(_) -> 1 }")).
+                        " match x { Some(<<n>>) -> n | None -> 0 | Some(_) -> 1 }")),
+    ?assertEqual("match on #(Bytes, Int) is not exhaustive; missing #(_, _)",
+                 refusal("fn f(p : #(Bytes, Int)) : Int = match p { #(<<x>>, n) -> n }")),
+    ?assertEqual(ok, ok("fn f(p : #(Bytes, Int)) : Int ="
+                        " match p { #(<<x>>, n) -> n | #(_, n) -> n }")).
 
 %% report §5.11: a specifier's name is an ordinary identifier outside a
 %% specifier list, so a value, a parameter and a pattern's variable may be
