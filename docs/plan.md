@@ -53,7 +53,7 @@ line in [`known_issues.md`](known_issues.md), and becomes an item when the user 
 
 ---
 
-## MVP 4.4 (the cost, the full review and the release of 0.11.0), about four weeks
+## MVP 4.4 (the cost, the full review and the release of 0.11.0)
 
 Decided with the user on 2026-10-31 (the log's *MVP 4.4, the Road's End*): the road's last
 milestone before a program, so that the review reads a language that ernest-httpd,
@@ -65,6 +65,9 @@ launch since 2026-11-23: the site goes live and the announcement is sent with 0.
 Launch Is 0.11.1's*). What the full review decides is still built for 0.11.0. Ernest stays at 0.x
 until someone outside this project depends on it, so that a break would cost them something,
 and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will promise).
+
+The milestone was set at about four weeks before the full review decided 427 lines. Leg 4
+says what is left once its readings are in, and no figure stands until then.
 
 1. **The promise**, dropped 2026-11-05 (the log's *Ernest Stays at 0.x*).
 2. **The cost**, read, decided and closed 2026-11-22 (the log's *The Cost Read*, which names
@@ -129,7 +132,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
       *The Refusals That Rested on a Count*).
    4. Opus 5.5 at xhigh: the `1` and `1r` lines by the session, the `2a`, `2b` and decided
       lines by agents, one brief to an owner holding all its lines, the diffs read back,
-      `make test-full` and the close.
+      `make test-full` and the close. It opens with the findings' *Before leg 4 builds*,
+      in this order: the readings a verdict asks for first, and what comes back brought
+      to the user in one round; the cold readings of the changed sentences of §3 to §9;
+      the renames and the other changes the applications meet, with their message, so
+      that the three can start; and then the rest. A verdict that comes back needs Fable
+      for its answer, so the session stops there as it stops at a cut.
 
    Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
    the `fix` lines made at once and the `decide` lines after, so that the design is one
