@@ -151,9 +151,11 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      findings, its probes kept in the scratchpad's `cold311/`.
    - **The other repositories take their manifests**, done 2026-11-23 (the log's *The
      Other Repositories' Manifests*): ernest-template's `0155cf2`, tagged `v0.11.0`,
-     ernest-epx's `479b1c6` and ernest-httpd's `6690e4f`, against the archive of
-     `fcb26908`, each session told by a message. ernest-epx's release with its host part,
-     and ernest-httpd's code that fails at 0.11, are their sessions' own.
+     ernest-epx's `479b1c6`, against the archive of `fcb26908`, each session told by a
+     message. ernest-httpd's session took its `6690e4f` off main on the user's word, since
+     its `make test` failed there, and takes the template's tag in one commit with its own
+     fixes. ernest-epx's release with its host part is its session's own. All three hold
+     their commits unpushed until 0.11.0 is released.
    - **The packages proposal's reading and sweep**, MVP 4.17's item 23, moved here with
      item 10. It follows the manifests' write, which is the last that reads the proposal,
      and comes before the release, as *A Built Proposal's Sweep Is an Item* places one.
