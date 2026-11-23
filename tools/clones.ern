@@ -11,9 +11,10 @@
 // the working directory, the repository's root, each by its lexer's tokens
 // through the tools' helper, tools/ern_lexemes.erl: Ernest's the
 // toolchain's own, Erlang's the host's scanner's, each comment left out and
-// Erlang's attributes too, an export list or a spec repeating no code. A
-// token stands by its category alone, a name of any name, a literal of any
-// literal, so a stretch renamed is a clone still. A clone is at least
+// Erlang's attributes too, an export list or a spec repeating no code.
+//
+// A token stands by its category alone, a name of any name, a literal of
+// any literal, so a stretch renamed is a clone still. A clone is at least
 // `size` tokens long, for its language: two windows of that size alike, by
 // a hash of their tokens, are a clone, and windows alike side by side are
 // one, as long as they run. A clone whose two stretches each overlap a

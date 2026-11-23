@@ -85,12 +85,12 @@ test(Tests, Options) ->
     Result.
 
 %% Each module covered/1 compiled, loaded in place of the one built, under
-%% the name the host's code path gives its file, relative where the path
-%% is, or the tree's where no directory of the path holds it, a shim's, so
-%% that code:which/1 answers as it does in a host that records nothing and
-%% the tree is found as it is found there. The host's coverage mode is line
-%% as they load, and none again after, so that a unit a test loads is
-%% loaded as it would be.
+%% the name of the file the host's code path finds, or the tree's where no
+%% directory of the path holds it, a shim's, so that code:which/1 answers
+%% as it does in a host that records nothing and the tree is found as it is
+%% found there (loaded/2). The host's coverage mode is line as they load,
+%% and none again after, so that a unit a test loads is loaded as it would
+%% be.
 %%
 %% The compiler's build, which a compiled module records, is digested from
 %% its code as loaded (ern_build:compiler_build/0), so it is found first,
@@ -108,13 +108,17 @@ load_covered(Directory) ->
     ok.
 
 %% The module of the file Beam loaded from the file Covered, under Beam's
-%% name.
+%% name made absolute from the host's working directory, as the host's code
+%% server names a file it loads from a relative directory of its path, so
+%% that a module that finds a file from its own, ern_os the helper's,
+%% finds it after a test or an example's run has entered another directory
+%% (ern_examples:in_directory/3).
 -spec loaded(file:filename(), file:filename()) -> {module, module()}.
 loaded(Beam, Covered) ->
     Module = list_to_atom(filename:basename(Beam, ".beam")),
     {ok, Binary} = file:read_file(Covered),
     _ = code:purge(Module),
-    {module, Module} = code:load_binary(Module, Beam, Binary).
+    {module, Module} = code:load_binary(Module, filename:absname(Beam), Binary).
 
 %% The lines of each module the host ran and did not, by the module.
 write_lines(Directory) ->

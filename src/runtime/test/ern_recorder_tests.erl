@@ -32,10 +32,48 @@ loaded_under_its_file_test() ->
                      {code:which(ern_recorded_probe),
                       code:get_coverage(line, ern_recorded_probe)})
     after
-        code:purge(ern_recorded_probe),
-        code:delete(ern_recorded_probe),
-        code:purge(ern_recorded_probe)
+        unloaded(ern_recorded_probe)
     end.
+
+%% docs/development.md "Building": `make cover`; report §11.2, Appendix
+%% E.23. A regression test: a module found in a relative directory of the
+%% code path, as the hosts under test/ name theirs, is loaded under the
+%% name the host's code server gives a file it loads, absolute, so that
+%% ern_os finds the helper from its own file after `ern test` has entered
+%% an example's directory. Loaded under the relative name, the guide's
+%% example of `ern test` faulted in Os.host under recording.
+loaded_under_the_code_servers_name_test() ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR"), "recorder_relative"),
+    Covered = filename:join(Dir, "covered"),
+    ok = filelib:ensure_path(Covered),
+    Source = filename:join(Dir, "ern_recorded_relative.erl"),
+    ok = file:write_file(Source, <<"-module(ern_recorded_relative).\n">>),
+    {ok, ern_recorded_relative} = compile:file(Source, [debug_info, {outdir, Dir}]),
+    ok = ern_recorder:compiled(filename:join(Dir, "ern_recorded_relative.beam"), Covered),
+    Relative = relative(Dir),
+    true = code:add_patha(Relative),
+    try
+        {module, ern_recorded_relative} = code:ensure_loaded(ern_recorded_relative),
+        Plain = code:which(ern_recorded_relative),
+        unloaded(ern_recorded_relative),
+        Found = code:which(ern_recorded_relative),
+        ern_recorder:loaded(Found, filename:join(Covered, "ern_recorded_relative.beam")),
+        ?assertEqual({relative, Plain},
+                     {filename:pathtype(Found), code:which(ern_recorded_relative)})
+    after
+        unloaded(ern_recorded_relative),
+        code:del_path(Relative)
+    end.
+
+%% Dir's name relative to the host's working directory.
+relative(Dir) ->
+    {ok, Cwd} = file:get_cwd(),
+    filename:join([".." || _ <- tl(filename:split(Cwd))] ++ tl(filename:split(Dir))).
+
+unloaded(Module) ->
+    code:purge(Module),
+    code:delete(Module),
+    code:purge(Module).
 
 %% docs/development.md "Building": `make cover`. The lines not run are
 %% printed in stretches, each from its first line to its last with no line

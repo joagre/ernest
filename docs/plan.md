@@ -125,11 +125,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
      The listings are done 2026-11-23 (the log's *The Listings Before a Review, Built*):
      `make cover`, `make clones`, `make sizes` and `make slowest`, which the reviews name.
-   - **The helper's failure under recording**, found 2026-11-23 by `make cover` (the log's
-     *The Listings Before a Review, Built*). A guide example of `ern_nodes_tests` faulted
-     with `the runtime's helper ern_exec failed` from `Os.host` in two of three recording
-     runs, and in no plain `make test-full`. It is diagnosed before the readers start: a
-     defect a user can meet is mended, and one of the recorder's is mended there.
+   - **The helper's failure under recording**, done 2026-11-23 (the log's *The Helper's
+     Failure Under Recording*): the recorder's, mended.
    - **What is kept, stated once**, done 2026-11-23 (the log's *What Is Kept, Stated
      Once*). The design notes own what a component keeps and when it lets go, and
      `docs/memory_checks.md` points at them.
@@ -423,7 +420,9 @@ What the line left, in the order it is taken:
   four the maker said the stopped third's loss before the asker's end. Whether that order
   is the code's, which §12.5's reload would then break, or the test's own is not known.
   `make flakes` is run over the nodes' tests, and a failure is diagnosed; where none comes
-  in an hour, the item closes on a log line.
+  in an hour, the item closes on a log line. `make cover` failed it in each of its three
+  runs on 2026-11-23, a way to make it show (the log's *The Helper's Failure Under
+  Recording*).
 - **167. The map's square**, found 2026-11-22 by MVP 4.4's item 3 (the log's *The Raise's
   Walk Reported* and *The Sentence Alone for the Square*). A raise reads a recursion
   beneath it whole, OTP's defect (`docs/otp_bugs.md`, report 28), so `List.map` over 80,000
