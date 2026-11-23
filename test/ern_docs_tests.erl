@@ -464,6 +464,15 @@ architecture_tables_test() ->
     ?assertEqual([], [Shown || Shown <- ["`#launch{}`" | ["`{" ++ Key || Key <- Keys]],
                                string:find(Launch, Shown) =:= nomatch]).
 
+%% docs/architecture.md "The pipeline": the sentence that states the
+%% order the toolchain's applications call one another in names them in
+%% the order test/ern_xref_tests.erl holds the calls to.
+architecture_order_test() ->
+    [[Named]] = matches(ern_repository:read("docs/architecture.md"),
+                        "\nThe applications call one another in one order, ([^.]*), each"),
+    ?assertEqual([atom_to_list(Application) || Application <- ern_xref_tests:order()],
+                 [Name || [Name] <- matches(Named, "`([a-z]+)`")]).
+
 %% src/shell/README.md, report §4.2, §11.1, §11.9: the README's table of
 %% the shell's root names each module of it, `ernest/shell.ern`, those
 %% under `ernest/shell/` and `ern unpack`'s `ernest/unpack.ern`, by the name

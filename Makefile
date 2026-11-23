@@ -11,7 +11,7 @@
 # (report §11.2). The tests of a root compile into build/<root>/test, on no
 # code path of a job's.
 ROOTS = toolchain/lexer toolchain/parser toolchain/formatter toolchain/checker \
-	toolchain/emitter toolchain/cli shared nodes runtime shell
+	toolchain/emitter toolchain/builder toolchain/cli shared nodes runtime shell
 ROOT_BEAMS = $(foreach Root,$(ROOTS),$(patsubst src/$(Root)/%.erl,build/$(Root)/ebin/%.beam, \
 	$(wildcard src/$(Root)/*.erl)))
 SHIM_BEAMS = $(patsubst src/%.erl,build/%.beam,$(wildcard src/libs/*/*.erl))

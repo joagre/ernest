@@ -15,7 +15,7 @@
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
 
 %%

@@ -120,10 +120,12 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
 
      The refusals left after the four built before the release review before 0.10.0 (the log's
      *The Refusals Before the Release Review, Built*), each added with the tree cleaned to
-     zero: `xref`'s unused exports and its layers, with a short list of the exports called by
-     name, each with its reason, and near misses for the checker beside the typed programs.
-     From then on each runs with the checks of its kind: `xref`'s in `make xref`, and the near
-     misses in `make test-full`.
+     zero: `xref`'s unused exports, with a short list of the exports called by name, each
+     with its reason, and near misses for the checker beside the typed programs. From then on
+     each runs with the checks of its kind: `xref`'s in `make xref`, and the near misses in
+     `make test-full`. The layers are done, decided with the user 2026-11-23 (the log's *The
+     Applications' Order*): the build's modules stand in an application of their own,
+     `builder`, and `make xref` refuses a call against the applications' order.
 
      The listings, which a review runs: `cover` over `make test-full` for the full review,
      clones and each module's size for the full and the release reviews, and the slowest tests

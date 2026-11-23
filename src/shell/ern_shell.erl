@@ -30,7 +30,7 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("shared/include/ern_diagnostic.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 -include_lib("nodes/include/ern_node.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -393,7 +393,7 @@ start(Local, Screen, SourceRoot, WorkingDirectory, Attached, Shell) ->
     node_locked(fun() -> node_keep(sessions, (node_kept(sessions, #{}))#{Root => Shell}) end),
     LoadPath = case persistent_term:get({?MODULE, loaded}, none) of
                    #loaded{load_path = Given} -> Given;
-                   none -> ern_cli:load_path()
+                   none -> ern_build:load_path()
                end,
     %% built as the host's first session starts, so that its first input
     %% does not wait for it
@@ -456,7 +456,7 @@ node_modules() ->
 first_modules() ->
     Interfaces = case persistent_term:get({?MODULE, loaded}, none) of
                      #loaded{interfaces = Loaded} -> Loaded;
-                     none -> load_path_interfaces(ern_cli:load_path())
+                     none -> load_path_interfaces(ern_build:load_path())
                  end,
     Program = case persistent_term:get({?MODULE, loaded}, none) of
                   #loaded{program = Given} -> Given;
@@ -633,11 +633,11 @@ attach_to() ->
     end.
 
 %% Report §11.2, §11.8: the line an attached shell's end says, on the job's
-%% own standard error, where the job's lines go (ern_cli:error_line/1),
+%% own standard error, where the job's lines go (ern_job_line:error_line/1),
 %% before its local half ends the shell by Os.exit with its status.
 -spec say_end(binary()) -> 'Unit'.
 say_end(Line) ->
-    ern_cli:error_line(<<Line/binary, "\n">>),
+    ern_job_line:error_line(<<Line/binary, "\n">>),
     'Unit'.
 
 %% Report §11.2: whether two paths name one file, both there, on one device,
@@ -1641,12 +1641,12 @@ kind_of_namespace([Segment]) ->
 unit_loaded(Unit, Beam) ->
     {ok, Recorded} = ern_canonical:read(Beam),
     ern_code:loaded(Unit, Beam, Recorded),
-    ern_cli:say_limits().
+    ern_carrier:say_limits().
 
 %% A holder of values, which holds no definition and records none.
 holder_loaded(ErlangModule, Beam) ->
     ern_code:loaded(ErlangModule, Beam),
-    ern_cli:say_limits().
+    ern_carrier:say_limits().
 
 %% A module of the session's that no process runs and nothing reaches,
 %% deleted, out of the code table, and purged.

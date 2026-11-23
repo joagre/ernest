@@ -12,7 +12,7 @@
 -include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("parser/include/ern_fence.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 
 %% Report §11.2: the module an example is compiled in: its namespace, the
 %% text before the example's, the interfaces it is checked against beside

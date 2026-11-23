@@ -83,7 +83,7 @@ log(Event, #{formatter := {Formatter, Config}}) ->
                Formatted when is_binary(Formatted) -> Formatted;
                _ -> <<"FORMATTER ERROR: bad return value\n">>
            end,
-    ern_rt:say_later(Text, fun ern_cli:error_line/1).
+    ern_rt:say_later(Text, fun ern_job_line:error_line/1).
 
 %% Report §11.8: whether the stream was a terminal as the job started; no
 %% stream was where the job took none, as a test of a job does not.

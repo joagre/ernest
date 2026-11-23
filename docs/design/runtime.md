@@ -105,10 +105,10 @@ Beyond the runtime's tables, the gateway keeps two for a node's life, the spawns
 The host's persistent terms, each put once at a job's start, a launch or a reload, but where its line says otherwise:
 
 - `{ern_build, compiler_build}`, the build of `ern` that every `.erc` records, its version and the compiler's digest, which a run compares before anything runs (§11.1, §11.2);
-- `{ern_cli, streams}`, `{ern_cli, stamped}` and `{ern_out, terminals}`, put as the job starts: whether the job writes through the process's own streams or a test's device, whether a line on standard error begins with its time, and the streams that were terminals, which decide how a stream that can no longer be written ends the job (§11.2, §11.8, §12.1);
-- `{ern_cli, error_device}`, the device a line of the toolchain's own goes to while no launch's standard error takes it (§12.5);
+- `{ern_cli, streams}`, `{ern_job_line, stamped}` and `{ern_out, terminals}`, put as the job starts: whether the job writes through the process's own streams or a test's device, whether a line on standard error begins with its time, and the streams that were terminals, which decide how a stream that can no longer be written ends the job (§11.2, §11.8, §12.1);
+- `{ern_job_line, error_device}`, the device a line of the toolchain's own goes to while no launch's standard error takes it (§12.5);
 - `{ern_cli, flags}`, put in the launcher's first start of a job that makes a node, which says the node's flags and runs no program (§11.2, §12.5);
-- `{ern_cli, load_path}`, where `Code.load` finds the modules a module it loads uses, put as the job's program is loaded (Appendix E.28);
+- `{ern_build, load_path}`, where `Code.load` finds the modules a module it loads uses, put as the job's program is loaded (Appendix E.28);
 - `{ern_signals, ended}`, the signal that ended the running program, put as the job ends by it (§8.6, §11.2);
 - `{ern_signals, taken}`, the signal the job took, put by the handler before it tells the runtime, which `ern test` and `ern doc` read as a launch ends, since a signal that cut short the launch's end ends those jobs too (§8.6, §11.8);
 - `{ern_cli, host_ends}`, put as the host's process of a node's connections ends on a spawn beyond the limit, after which the job waits for the host's end (§11.8, §12.5);

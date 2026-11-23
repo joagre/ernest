@@ -7,13 +7,12 @@
 %% the host with.
 -module(ern_cli).
 
--export([start/0, node_flags/0, ern/1, ern/2, stamp/1, is_stamped/0, error_line/1, load_path/0,
-         said_otherwise/2, say_limits/0]).
+-export([start/0, node_flags/0, ern/1, ern/2, said_otherwise/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("kernel/include/file.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 -include_lib("nodes/include/ern_node.hrl").
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
@@ -51,8 +50,8 @@ start() ->
     ErrorDevice = ern_out:take(),
     Status = try
                  persistent_term:put({?MODULE, streams}, fds),
-                 persistent_term:put({?MODULE, stamped},
-                                     not ern_out:is_terminal(stderr) andalso not is_journal()),
+                 ern_job_line:set_stamped(not ern_out:is_terminal(stderr)
+                                          andalso not is_journal()),
                  %% report §11.1: the build of `ern`, set at the job's start as
                  %% every persistent term is set at a launch (docs/design/runtime.md)
                  _ = ern_build:compiler_build(),
@@ -251,8 +250,8 @@ usage(Device) ->
 %% ErrorDevice, any other error one line, both with status 1.
 job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
     %% report §12.5, §11.2: the job's own standard error, where a line of the
-    %% toolchain's own goes while no launch's takes it (error_line/1)
-    persistent_term:put({?MODULE, error_device}, ErrorDevice),
+    %% toolchain's own goes while no launch's takes it (ern_job_line)
+    ern_job_line:set_error_device(ErrorDevice),
     %% report §11: the host's report of an outcome said otherwise, which the
     %% program sees as a value or a fault or the job says in a line of its
     %% own, is not written, nor what the host logs as it ends the job, in
@@ -1243,7 +1242,8 @@ program_arguments([Word | Words], Position) ->
 %% longer be written, each ending it as it ends a program. Report §8.1,
 %% §6.9: its entry process's site is `bare node`.
 run_bare(ErrorDevice, Node) ->
-    RunOptions = reporting_options(maps:merge(#{init => fun say_limits/0}, Node), ErrorDevice),
+    RunOptions = reporting_options(maps:merge(#{init => fun ern_carrier:say_limits/0}, Node),
+                                   ErrorDevice),
     report_outcome(ErrorDevice, <<"bare node">>,
                    ern_rt:run_main(fun waits/0, <<"bare node">>, RunOptions)).
 
@@ -1643,8 +1643,8 @@ report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, 
                     _ -> [", spawned by ", ern_carrier:named(Peer)]
                 end,
     ern_rt:send(ern_rt:system_process(stderr),
-                iolist_to_binary([stamp(Stamped, Time), ern_show:controls(Site, line), Faulted,
-                                  ern_show:controls(Cause, line), carried(Callee, From),
+                iolist_to_binary([ern_job_line:stamp(Stamped, Time), ern_show:controls(Site, line),
+                                  Faulted, ern_show:controls(Cause, line), carried(Callee, From),
                                   SpawnedBy, "\n", indented_trace(Trace), left_waiting(Process)])).
 
 %% Report §11.2, §6.6, §8.7: what follows a fault's cause on its line, a
@@ -1675,19 +1675,6 @@ indented_trace(Trace) ->
     [["    ", ern_show:controls(Frame, line), "\n"]
      || Frame <- binary:split(Trace, <<"\n">>, [global, trim_all])].
 
-%% Report §11.2, §12.5: what a line on standard error begins with, a fault's
-%% or a node's: its time, in UTC as RFC 3339 writes it, where the lines are
-%% stamped, and nothing where they are not; the time now, or a fault's,
-%% the moment it was met (Appendix E.21).
--spec stamp(boolean()) -> iolist().
-stamp(Stamped) ->
-    stamp(Stamped, erlang:system_time(millisecond)).
-
-stamp(true, Time) ->
-    [calendar:system_time_to_rfc3339(Time, [{unit, millisecond}, {offset, "Z"}]), " "];
-stamp(false, _) ->
-    [].
-
 %% The options of a launch that reports its faults. From the command line the
 %% program writes to the process's own standard output and standard error,
 %% through ports that learn when a stream has gone (report §12.1), and a
@@ -1697,7 +1684,7 @@ stamp(false, _) ->
 reporting_options(RunOptions, ErrorDevice) ->
     case persistent_term:get({?MODULE, streams}, device) of
         fds ->
-            Stamped = is_stamped(),
+            Stamped = ern_job_line:is_stamped(),
             RunOptions#{faults => fun(FaultReport, Peer) ->
                                       report_fault(FaultReport, Peer, Stamped)
                                   end,
@@ -1709,14 +1696,6 @@ reporting_options(RunOptions, ErrorDevice) ->
                         stderr => fun(Bytes) -> file:write(ErrorDevice, Bytes) end}
     end.
 
-%% Report §11.2, §12.5: whether a line on standard error begins with its
-%% time: where the program writes to the process's own standard error, and
-%% that was neither a terminal nor a journal as the job started (§11.8),
-%% which start/0 reads once.
--spec is_stamped() -> boolean().
-is_stamped() ->
-    persistent_term:get({?MODULE, stamped}, false).
-
 %% Report §11.2: whether standard error is a service manager's journal,
 %% which systemd says by JOURNAL_STREAM, the device and inode of the
 %% stream it gave, so that a stream a shell has since redirected is not.
@@ -1727,14 +1706,6 @@ is_journal() ->
             Stream =:= integer_to_list(Device) ++ ":" ++ integer_to_list(Inode);
         _ -> false
     end.
-
-%% Report §12.5, §11.2: a line of the toolchain's own written on the job's
-%% own standard error, the device the job writes its own lines on, where no
-%% launch's standard error process takes it (ern_rt:say/2): before a node's
-%% first launch, between two and after its last.
--spec error_line(binary()) -> ok.
-error_line(Line) ->
-    io:put_chars(persistent_term:get({?MODULE, error_device}, standard_error), Line).
 
 %% Report §11: a compiled module's bytes, or the refusal of a file that is
 %% none, named as the user named it and not by what it holds. A module the
@@ -1812,19 +1783,11 @@ shaped_under(File, Relative) ->
 %% the host's would take the name `crypto` from the host's application, whose
 %% library the host then does not find.
 %% Appendix E.28: the load path is kept, where Code.load finds the modules
-%% a module it loads uses (load_path/0).
+%% a module it loads uses (ern_build:load_path/0).
 host_path(LoadPath) ->
-    persistent_term:put({?MODULE, load_path}, LoadPath),
+    ern_build:set_load_path(LoadPath),
     Libraries = ern_tree:libraries(),
     ok = code:add_pathsz(Libraries ++ (ern_build:directories(LoadPath) -- Libraries)).
-
-%% Appendix E.28, report §11.2, §11.9: the load path of the run in
-%% progress, its roots in order, the standard library aside, which every
-%% run holds, and its named packages; none where no run of `ern` gave one,
-%% as in a test that runs a program itself.
--spec load_path() -> ern_build:load_path().
-load_path() ->
-    persistent_term:get({?MODULE, load_path}, ern_build:load_path_of([])).
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts
 %% in the session's scope, each with the hash of the source it was compiled
@@ -1951,7 +1914,8 @@ report_outcome(_ErrorDevice, _Site, {gone, Stream}) ->
         false -> 128 + 13
     end;
 report_outcome(ErrorDevice, Site, killed) ->
-    io:put_chars(ErrorDevice, [stamp(is_stamped()), ern_show:controls(Site, line), " killed\n"]),
+    io:put_chars(ErrorDevice, [ern_job_line:stamp(ern_job_line:is_stamped()),
+                               ern_show:controls(Site, line), " killed\n"]),
     1;
 %% report §8.6, §11.2: the signal ended the program, and `ern` ends by it
 report_outcome(_ErrorDevice, _Site, {signal, Signal}) -> ern_signals:ended(Signal);
@@ -2007,16 +1971,8 @@ is_terminal_gone(Stream) -> ern_out:is_terminal(Stream).
 init_fun(Loaded) ->
     fun() ->
         ern_rt:init_modules(lists:reverse(Loaded)),
-        say_limits()
+        ern_carrier:say_limits()
     end.
-
-%% Report §11.2: each of the host's limits on what a runtime loads that the
-%% loads so far have brought to four fifths, said once, as a node's line is
-%% (§12.5): at a run's start, once its units are loaded, and at each load of
-%% the shell's.
--spec say_limits() -> ok.
-say_limits() ->
-    lists:foreach(fun ern_carrier:say/1, ern_code:nearing()).
 
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
@@ -2613,7 +2569,8 @@ same_interface(Namespace, File, Dependency, Hash) ->
         orelse ern_build:fail(another_interface(Namespace, File, Dependency, Found)).
 
 another_interface(Namespace, File, Dependency, Found) ->
-    case ern_build:hiding_found(File, Dependency, Found, ern_tree:libraries(), load_path()) of
+    case ern_build:hiding_found(File, Dependency, Found, ern_tree:libraries(),
+                                ern_build:load_path()) of
         none ->
             Name = ern_namespace:text(Namespace),
             Name ++ " was compiled against another " ++ ern_namespace:text(Dependency) ++ "; build "

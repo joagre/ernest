@@ -13,8 +13,8 @@
 
 -export([dial_ms/0, boot_flags/1, name/1, host/1, cookie/0, cookie/2, start/1, list/1, booted/0,
          configuration/0, is_node/0, attaching/1, tells/0, reload/0, depart/0, peer/1, verify/3,
-         dialing/1, listed/1, names_own_host/1, say/1, say_later/1, named/1, certified/1,
-         table_full/1, said/1, filter/2]).
+         dialing/1, listed/1, names_own_host/1, say/1, say_later/1, say_limits/0, named/1,
+         certified/1, table_full/1, said/1, filter/2]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("nodes/include/ern_node.hrl").
@@ -547,7 +547,7 @@ certificate_key(Der) ->
 %% job's own standard error (ern_rt:say/2).
 -spec say(iodata()) -> ok.
 say(Text) ->
-    ern_rt:say(line(Text), fun ern_cli:error_line/1).
+    ern_rt:say(line(Text), fun ern_job_line:error_line/1).
 
 %% Report §12.5: a line on the node's standard error as say/1 writes it, said
 %% for a process that must not wait for standard error to take it: the
@@ -557,10 +557,18 @@ say(Text) ->
 %% handler (ern_rt:say_later/2). Its time is the moment it was said.
 -spec say_later(iodata()) -> ok.
 say_later(Text) ->
-    ern_rt:say_later(line(Text), fun ern_cli:error_line/1).
+    ern_rt:say_later(line(Text), fun ern_job_line:error_line/1).
 
 line(Text) ->
-    iolist_to_binary([ern_cli:stamp(ern_cli:is_stamped()), Text, "\n"]).
+    iolist_to_binary([ern_job_line:stamp(ern_job_line:is_stamped()), Text, "\n"]).
+
+%% Report §11.2: each of the host's limits on what a runtime loads that the
+%% loads so far have brought to four fifths, said once, as a node's line is
+%% (§12.5): at a run's start, once its units are loaded, at each arrival
+%% and Code.load, and at each load of the shell's.
+-spec say_limits() -> ok.
+say_limits() ->
+    lists:foreach(fun say/1, ern_code:nearing()).
 
 %% A peer as a line names it: by its name in `ernest.conf`, or by its key's
 %% digest where it is not listed.

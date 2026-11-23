@@ -6,7 +6,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 
 %% report §11.2, §11.5: an expression prints its value and its type, one of
 %% type Unit prints nothing, an input that does not check shows the error

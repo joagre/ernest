@@ -12,7 +12,7 @@ How the installation is built, from a checkout and from the release archive; the
 bin/ern                          a relative link, ../lib/ernest/bin/ern
 lib/ernest/                      the toolchain's tree, bin/ and build/ as the repository's
     bin/ern                      the launcher
-    build/toolchain/<app>/ebin/  the compiler's and the command line's modules
+    build/toolchain/<app>/ebin/  the compiler's, the build's and the command line's modules
     build/shared/ebin/           the modules beneath them and the runtime
     build/nodes/ebin/            a node's modules
     build/runtime/ebin/          the runtime's modules

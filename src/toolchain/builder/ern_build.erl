@@ -18,7 +18,8 @@
          compile_order/2, compile_order/3, parse_all/3, order/1,
          module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
          source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
-         stdlib_hash/0, dependency_interfaces/5, load_path/1, load_path_of/1, with_root/2,
+         stdlib_hash/0, dependency_interfaces/5, load_path/1, load_path_of/1, set_load_path/1,
+         load_path/0, with_root/2,
          directories/1, looked_in/3, compiled_on/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, regular_bytes/1, reason/1, sweep_pages/5, compile_source/5,
          compile_source/6, absolute/1, relative/2, root_of/2, write_whole/2, write_output/2,
@@ -30,7 +31,7 @@
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("shared/include/ern_diagnostic.hrl").
 -include_lib("kernel/include/file.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 
 %% Report §11.2: the key of the calling process's dictionary that holds the
 %% access to a shell's source root while its load works (read_through/2).
@@ -1969,6 +1970,21 @@ load_path(Options) ->
 -spec load_path_of([file:filename()]) -> load_path().
 load_path_of(Roots) ->
     #load_path{roots = Roots}.
+
+%% Appendix E.28, report §11.2: the load path of the run in progress, put
+%% as the job's program is loaded (ern_cli), where Code.load finds the
+%% modules a module it loads uses.
+-spec set_load_path(load_path()) -> ok.
+set_load_path(LoadPath) ->
+    persistent_term:put({?MODULE, load_path}, LoadPath).
+
+%% Appendix E.28, report §11.2, §11.9: the load path of the run in
+%% progress, its roots in order, the standard library aside, which every
+%% run holds, and its named packages; none where no run of `ern` gave one,
+%% as in a test that runs a program itself.
+-spec load_path() -> load_path().
+load_path() ->
+    persistent_term:get({?MODULE, load_path}, load_path_of([])).
 
 %% Report §11.1, §11.2: the load path with the root Root first, a build's
 %% build root or a loaded module's root; a named package's build provides

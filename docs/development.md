@@ -89,10 +89,10 @@ test/machines/     machines.example.txt, the form of machines.txt, which is each
                    on port 8654, listing every other, and a shell's directory here that
                    lists them; stop; and status
 bin/               ern, the launcher, a POSIX sh script
-src/toolchain/     the compiler and the command line, a directory for each: lexer,
-                   parser, formatter, checker, emitter and cli, which holds the vendored
-                   getopt; each its modules beside include/ and test/
-src/shared/        the four modules beneath every stage and the runtime
+src/toolchain/     the compiler, the build and the command line, a directory for each:
+                   lexer, parser, formatter, checker, emitter, builder and cli, which
+                   holds the vendored getopt; each its modules beside include/ and test/
+src/shared/        the six modules beneath every stage and the runtime
 src/nodes/         a node's configuration, carrier, gateway, exchange and arrivals, and
                    Code.load, its modules beside include/ and test/
 src/runtime/       the runtime, its modules beside include/ and test/, and c_src/, the

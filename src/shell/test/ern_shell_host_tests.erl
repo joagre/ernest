@@ -3,7 +3,7 @@
 -module(ern_shell_host_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 
 %% report §11.1, §4.2: the segment a path component names is the one the
 %% path check accepts, since the shell's `:load` completion asks for it

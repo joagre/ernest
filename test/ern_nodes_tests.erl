@@ -6517,10 +6517,10 @@ released(Dir, Shell, Version) ->
                   end, Copies),
     [ok = file:change_mode(filename:join(Dir, File), 8#755)
      || File <- ["bin/ern", "build/runtime/priv/ern_exec"]],
-    {ok, ern_release} = compile:file(filename:join(Tree, "src/toolchain/cli/ern_release"),
+    {ok, ern_release} = compile:file(filename:join(Tree, "src/toolchain/builder/ern_release"),
                                      [{d, 'VERSION', Version},
                                       {d, 'MARK', ""},
-                                      {outdir, filename:join(Dir, "build/toolchain/cli/ebin")},
+                                      {outdir, filename:join(Dir, "build/toolchain/builder/ebin")},
                                       report]),
     filename:join([Dir, "bin", "ern"]).
 

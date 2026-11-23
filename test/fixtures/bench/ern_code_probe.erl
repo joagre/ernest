@@ -26,7 +26,7 @@
                 {ern_exchange, kept, 3}, {ern_exchange, completed, 3},
                 {ern_typecheck, prelude_env, 0}, {ern_arrival, received, 5},
                 {ern_emitter, unit, 1}, {ern_compile, compiled, 2}, {code, atomic_load, 1},
-                {ern_code, loaded, 3}, {ern_cli, say_limits, 0}, {ern_exchange, started, 1},
+                {ern_code, loaded, 3}, {ern_carrier, say_limits, 0}, {ern_exchange, started, 1},
                 {ern_gateway, outcome, 2}]).
 
 %% The spawner's node's two steps, each with its return: the reach answered

@@ -6,7 +6,7 @@
 %%
 %% The module at the path names its root, the directory its namespace
 %% descends from (§11.2), and each module it uses is found by its namespace
-%% under that root and then on the run's load path (ern_cli:load_path/0),
+%% under that root and then on the run's load path (ern_build:load_path/0),
 %% a named package's namespace under that package's build alone (§11.9),
 %% each verified against its hashes (ern_canonical:is_verified/1) and
 %% checked against the build of `ern` that wrote it, the interfaces it was
@@ -63,7 +63,7 @@
 -spec load({'Path', binary()}) -> {'Right', 'Unit'} | {'Left', term()}.
 load({'Path', Path}) ->
     try
-        evaluated(placed_and_loaded(Path, ern_cli:load_path()))
+        evaluated(placed_and_loaded(Path, ern_build:load_path()))
     catch
         throw:{refused, Error} -> {'Left', Error}
     end.
@@ -260,7 +260,7 @@ loaded(Placed) ->
                                      ({Unit, _, Beam, Recorded}) ->
                                           ern_code:loaded(Unit, Beam, Recorded)
                                   end, Made),
-                    ern_cli:say_limits();
+                    ern_carrier:say_limits();
                 {error, [{Unit, What} | _]} ->
                     #placed{found = Found} = lists:keyfind(Unit, #placed.unit, Placed),
                     cannot(Found, ["the host did not load it, ", io_lib:format("~p", [What])])

@@ -4789,7 +4789,7 @@ passed_on(_System, _Options) ->
 %%
 %% Report §8.6: the wait is on standard error's port, which the look cannot
 %% see take the line, and may be a program's process's, an entry process's
-%% as its initializers end among them (ern_cli:say_limits/0).
+%% as its initializers end among them (ern_carrier:say_limits/0).
 %%
 %% Report §8.6, §11.2: the runner's own line, the end's wait's (told/3), is
 %% sent to the process bare, as a fault's line is, and not waited for, so

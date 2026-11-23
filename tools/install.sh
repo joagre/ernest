@@ -216,8 +216,9 @@ release() {
     stage "$dir/$name"
     cd "$repo"
     erlc -Werror -DVERSION="\"$version\"" -DMARK="\"$mark\"" \
-        -o "$dir/$name/lib/ernest/build/toolchain/cli/ebin" src/toolchain/cli/ern_release.erl
-    escript tools/strip.escript "$dir/$name/lib/ernest/build/toolchain/cli/ebin"
+        -o "$dir/$name/lib/ernest/build/toolchain/builder/ebin" \
+        src/toolchain/builder/ern_release.erl
+    escript tools/strip.escript "$dir/$name/lib/ernest/build/toolchain/builder/ebin"
     pages "$dir/$name"
     rm "$dir/$name/lib/ernest/build/runtime/priv/ern_exec"
     cp src/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"

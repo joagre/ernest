@@ -303,7 +303,7 @@ attached_said_test() ->
 %% its name, where no peer is listed by it. A regression test: the lines
 %% wrote the name as the node gave it, its control characters with it
 handshake_name_escaped_test() ->
-    persistent_term:put({ern_cli, error_device}, group_leader()),
+    persistent_term:put({ern_job_line, error_device}, group_leader()),
     try
         ?assertEqual(stop, ern_carrier:filter(
                              #{msg => {"** Connection attempt from disallowed node ~s ** ~n",
@@ -314,7 +314,7 @@ handshake_name_escaped_test() ->
         %% the floor's line is said later, by the runtime's own process
         ern_rt:wait_for_later()
     after
-        persistent_term:erase({ern_cli, error_device})
+        persistent_term:erase({ern_job_line, error_device})
     end,
     ?assertEqual(<<"a node named ghost\\u{1B}[2J@node was refused: its key gives another"
                    " name\n"

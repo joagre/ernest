@@ -16,7 +16,7 @@
 -export([read/4, packages/1, entries/1, built_order/1, said/1, version_held/1, version_of/1]).
 
 -include_lib("kernel/include/file.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 
 -define(FIELDS, [<<"ernest">>, <<"packages">>]).
 -define(ENTRY_FIELDS, [<<"name">>, <<"version">>, <<"url">>, <<"sha256">>]).

@@ -15,7 +15,7 @@
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("kernel/include/file.hrl").
--include_lib("cli/include/ern_build.hrl").
+-include_lib("builder/include/ern_build.hrl").
 
 %%
 %% Helpers: a fresh directory per test, sources written into it
@@ -4554,8 +4554,8 @@ died_at_a_full_port_table_test() ->
 %% (ern_cli:said_otherwise/2), whose filter this host does not install.
 logged_at_a_full_table_test() ->
     Paths = lists:append([["-pa", filename:dirname(code:which(Module))]
-                          || Module <- [ern_out, ern_rt, ern_tty, ern_cli]]),
-    Logs = "ErrorDevice = ern_out:take(), {module, _} = code:ensure_loaded(ern_cli), "
+                          || Module <- [ern_out, ern_rt, ern_tty, ern_job_line]]),
+    Logs = "ErrorDevice = ern_out:take(), {module, _} = code:ensure_loaded(ern_job_line), "
            "Fill = fun F(Held) -> try spawn(fun() -> receive stop -> ok end end) of "
            "P -> F([P | Held]) catch error:system_limit -> Held end end, "
            "Held = Fill([]), logger:warning(\"at a full table\"), "
@@ -8947,17 +8947,20 @@ package_load_path_in() ->
     Libraries = ern_tree:libraries(),
     ?assertEqual({0, <<"epxleaf42\n">>}, said(["run", "lp_main.erc"])),
     ?assertEqual([Cwd, In("lib/lp_epx/build"), In("lib/lp_epx/ebin"), In("lib/lp_leaf/build"),
-                  In("lib/lp_none/build") | Libraries], ern_build:directories(ern_cli:load_path())),
+                  In("lib/lp_none/build") | Libraries],
+                 ern_build:directories(ern_build:load_path())),
     ?assertEqual({0, <<"found: passed\n">>}, said(["test", "lp_checked.erc"])),
     {0, Page} = said(["doc", "lp_main.ern"]),
     ?assertMatch({_, _}, binary:match(Page, <<"# Ernest module LpMain\n">>)),
     ?assertEqual({0, <<"epxleaf42\n">>},
                  said(["run", "--load-path", "lib/lp_leaf/build", "lp_main.erc"])),
     ?assertEqual([Cwd, In("lib/lp_leaf/build"), In("lib/lp_epx/build"), In("lib/lp_epx/ebin"),
-                  In("lib/lp_none/build") | Libraries], ern_build:directories(ern_cli:load_path())),
+                  In("lib/lp_none/build") | Libraries],
+                 ern_build:directories(ern_build:load_path())),
     ?assertEqual({0, <<"epxleaf42\n">>}, said(["run", "--libs-dir", "lib", "lp_main.erc"])),
     ?assertEqual([Cwd, In("lib/lp_epx/ebin"), In("lib/lp_epx/build"), In("lib/lp_leaf/build"),
-                  In("lib/lp_none/build") | Libraries], ern_build:directories(ern_cli:load_path())),
+                  In("lib/lp_none/build") | Libraries],
+                 ern_build:directories(ern_build:load_path())),
     %% the builds alone, where the job runs no code
     Packages = ern_package:packages(ern_package:read(".", working_directory, "doc", [])),
     ?assertEqual([In("lib/lp_epx/build"), In("lib/lp_leaf/build"), In("lib/lp_none/build")

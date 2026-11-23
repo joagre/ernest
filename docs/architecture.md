@@ -20,21 +20,30 @@ One Ernest module goes through these stages, each a directory of Erlang under `s
 | namespaces | `ern_namespace`, in `shared`, the one mapping between a path's components and a namespace's segments (§4.2, §11.1) | a component or a segment | the other |
 | literals | `ern_literal`, in `shared`, a value as Ernest writes its literal, which `ern_show`, `Float.toString` and the parser's helps write through (§2.5, E.9) | a float, a string or a character | its literal |
 | tree | `ern_tree`, in `shared`, the toolchain's tree, the builds of its own under it and its own Erlang (§11.1, §11.2) | a build's path | its directory |
-| cli | the modules below | command lines | `ern`'s jobs |
+| job's lines | `ern_job_line`, in `shared`, a line of the toolchain's own on the job's standard error, its device and whether it begins with its time (§11.2, §12.5) | a line | the line on the job's standard error |
+| builder | the build's modules below | sources, compiled modules, manifests | `.erc` files, pages, load paths |
+| cli | the command line's modules below | command lines | `ern`'s jobs |
+
+The applications call one another in one order, `shared`, `lexer`, `parser`, `formatter`, `checker`, `emitter`, `runtime`, `builder`, `nodes`, `shell` and `cli`, each calling only those before it, which `test/ern_xref_tests.erl` holds (*Calls*).
 
 `ern_json`, `ern_http` and `ern_uri` stand beside the stages, the shims of `libs/json`, `libs/http` and `libs/uri`, each beside its library's Ernest (*The libraries' primitives*).
+
+The modules of `builder`, under `src/toolchain/builder/`:
+
+| Module | Job |
+|---|---|
+| `ern_build` | the build every job reaches (§11.1) |
+| `ern_package` | a job's root package read, its manifest's faults and its named packages (§11.9) |
+| `ern_conf` | a JSON file of the toolchain's own read the one way, `ernest.conf` and `package.conf` (§12.5, §11.9) |
+| `ern_page` | §11.4's renderer, the pages of `ern doc` and the shell's `:doc` |
+| `ern_release` | the version text, `-dev` marking a build that is no release |
 
 The modules of `cli`, under `src/toolchain/cli/`:
 
 | Module | Job |
 |---|---|
 | `ern_cli` | the command, its jobs and the runner's start (*The tools*) |
-| `ern_build` | the build every job reaches (§11.1) |
-| `ern_package` | a job's root package read, its manifest's faults and its named packages (§11.9) |
-| `ern_conf` | a JSON file of the toolchain's own read the one way, `ernest.conf` and `package.conf` (§12.5, §11.9) |
-| `ern_page` | §11.4's renderer, the pages of `ern doc` and the shell's `:doc` |
 | `ern_examples` | a module's doc examples as the cases of `ern test` (§11.2) |
-| `ern_release` | the version text, `-dev` marking a build that is no release |
 | `ern_out` | a job's standard output and standard error (§11) |
 | `ern_signals` | the handler of termination and hangup (§8.6, §11.2) |
 | `getopt` | the vendored option parser, each job's options a spec of its own |
@@ -287,9 +296,9 @@ Its keys are `{hash, Hash}` for a function or a type, `{lambda, Hash, Position}`
 - Its lookups are `function/2`, `function_text/2`, `value_text/1`, `spawnable/1`, `holders/1`, `linkable/1`, `valued/1`, `holder/1`, `ground/1`, `forms/1`, `called/1`, `absent_binding/1,2`, `foreign/2`, `declared/1,2` and `present/1`. Where several units hold an identity, `answering/1` picks one (§8.7, §11.2).
 - `running/1` is `Code.running`, and `hashes/1` is `Code.hashes` (E.28).
 - `is_free/1`, `is_held/2`, `fresh_unit/1`, `unit_beside/2` and `placement/4` name and place a unit for the shell's load and `Code.load`. `binding_keys/1` gives the values a refused load erases.
-- The host's limits (§11.2) are `counts/0`, the sums `ern_code_sums` keeps (`summed/1`), and `nearing/0`. `ern_cli:say_limits/0` says the lines at a run's start, at each arrival and `Code.load`, and at each load of the shell's.
+- The host's limits (§11.2) are `counts/0`, the sums `ern_code_sums` keeps (`summed/1`), and `nearing/0`. `ern_carrier:say_limits/0` says the lines at a run's start, at each arrival and `Code.load`, and at each load of the shell's.
 
-`Code.load` (E.28, §11.2) is `ern_code_load:load/1`, run in the calling process; its header comment gives its steps. It finds each module on the run's load path, `ern_cli:load_path/0`, places it through `ern_code:placement/4`, and makes a unit from forms through `ern_compile:from_compiled/5`. Its units load in one `code:atomic_load/1`, and their bindings are evaluated in an evaluator while the caller waits (`ern_rt:evaluate/2`), a refused load undone by `ern_rt:withdraw_load/2`.
+`Code.load` (E.28, §11.2) is `ern_code_load:load/1`, run in the calling process; its header comment gives its steps. It finds each module on the run's load path, `ern_build:load_path/0`, places it through `ern_code:placement/4`, and makes a unit from forms through `ern_compile:from_compiled/5`. Its units load in one `code:atomic_load/1`, and their bindings are evaluated in an evaluator while the caller waits (`ern_rt:evaluate/2`), a refused load undone by `ern_rt:withdraw_load/2`.
 
 ### The exchange and arrivals
 
@@ -399,7 +408,7 @@ It reads first what every page links to, the library's declarations from the pag
 - The same file tests the signals, the streams, `Os`, and that every library's build has its source (`library_builds_test`). Its helpers serve `test/ern_manual_tests.erl`, which holds the manual pages to §11, and `test/ern_install_tests.erl`, which installs into a scratch prefix and from the release archive.
 - `test/ern_measure_tests.erl` holds that `make bench`'s measuring machine reaches every function of the library.
 - **The corpus**: `ast_coverage_test` holds that the examples, the programs, the standard library and the libraries use every AST record, and the checker's tests type-check every example and program.
-- **Calls**: `test/ern_xref_tests.erl` (`make xref`) holds each call of the toolchain's own Erlang, its shims and the compiled standard library, shell and libraries to a function that exists, read by the host's xref.
+- **Calls**: `test/ern_xref_tests.erl` (`make xref`) holds each call of the toolchain's own Erlang, its shims and the compiled standard library, shell and libraries to a function that exists, read by the host's xref, and each call between two of the toolchain's applications to their order (*The pipeline*).
 - **Generated programs**: `test/ern_grammar_programs_tests.erl` derives programs from Appendix A, read by `test/ern_grammar.erl`. `test/ern_typed_programs_tests.erl` generates well-typed programs and runs each against an interpreter. `src/runtime/test/ern_laws_tests.erl` holds the standard library to its laws on drawn cases ([`soundness.md`](soundness.md)).
 
 ### The documents
