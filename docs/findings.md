@@ -705,19 +705,28 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 ##### E.0's opening: what binds a library
 
 - **K 30** `3` — E.0 `library.md:182`: rule 8 is left out of what binds a library, yet `Http` follows it and rule 11 rests on it. Fix: "The shape rules hold in every library; the admission rules in the standard library alone." Owner: report. Decide: the sentence.
+  - **Decided 2026-11-23** (the log's *E.0's Opening and Admission Rules*): taken, in place of "Shape rules 1 to 5, 7 and 9 to 11 hold in a library outside the standard library too": "The shape rules hold in every library; the admission rules in the standard library alone."
 - **P2 29, P2 50** `3` — E.0 rule 1 and each module's sentence of primitives bind a toolchain to which operations are primitives, seen only in a trace and a cost. Fix: proposed sentence for E's opening. Owner: report. Decide: the sentence.
+  - **Decided 2026-11-23** (the log's *E.0's Opening and Admission Rules*): not taken. Rule 1 and each section's sentence of primitives stand: the rule is how the library keeps in Ernest what could be Ernest, and *The Cost's Rules Read* rests on it.
 
 ##### E.0, admission rule 1
 
 - **PL1 L32, PL3 4, PL3 6, PL6 11, PL6 15, PL6 L1 [second and third bullets], PL6 L17, E1 8** `3` — E.0 rule 1 (`library.md:141`, `:145`): "does exactly" and "almost does" are read alike: `List.reverse` was Ernest though exact, `List.<>` and `unzip` are Ernest where `erlang:'++'/2` and `lists:unzip/1` are exact (`list.ern:59-63`, `635-643`), and code kept for speed is decided both ways. Fix: rule 1 says what "almost" is and where speed chooses; a bench row for `List.<>`; shims, E.2 and §9.6 following. Owner: report+stdlib+emitter. Decide: what "almost" and the speed clause mean.
+  - **Decided 2026-11-23** (the log's *E.0's Opening and Admission Rules*): `List.<>` and `List.unzip` become shims of the host's `++` and `lists:unzip/1`, by rule 1 as written and as `List.reverse` did, with a bench row for `List.<>`; E.2 and §9.6 follow.
+  - Rule 1's fourth paragraph gains "A host function almost does the work where one difference of these kinds, closed once, makes it exact; one that differs at several of the operation's edges does not do the work", so `Path.<>` and `Path.extension` fall under "Where no host function does the work" and the log's two exceptions go. Rule 1 gains "A form is chosen for speed by this rule's measure, and nowhere else."
 
 ##### E.0, admission rules 2 to 4, and what is the prelude's
 
 - **P2 41, K 25** `3` — E.0 `library.md:135`: a type's admission rule admits neither `OrderedSet`, `OrderedMap`, `Random` nor `Test.Case`. Fix: P2's sentence for E.0; `Random` to Appendix G or kept by name. Owner: report+stdlib+libs. Decide: the sentence, and `Random`'s place.
+  - **Decided 2026-11-23** (the log's *E.0's Opening and Admission Rules*): E.0's sentence stands, "§3 to §9" widened to "§3 to §11" for `Test.Case`, and `OrderedSet`, `OrderedMap` and `Random` become libraries of Appendix G, under `src/libs/`, on every job's load path as before. Their three namespaces are no longer taken (§4.2), E.13, E.25 and E.26 become sections of Appendix G, and rule 3 loses "and E.13 states its generator whole".
 - **P2 34** `3` — E.0 admission rule 3's "general" and "obvious" restate principle 5; rule 4's "a case of its own" decides. Owner: report. Decide: cut the words.
+  - **Decided 2026-11-23** (the log's *E.0's Opening and Admission Rules*): no change. No finding shows a verdict that "general" and "obvious" got wrong, and rule 4 refuses what they admit too freely.
 - **P2 42** `3` — E.0 rule 3: "stated whole" has no test; `Float.toString`, `Clock.toString`, `makeTempDir`'s name, `Random`'s generator. Fix: proposed sentence for rule 3. Owner: report. Decide: the sentence.
+  - **Decided 2026-11-23** (the log's *E.0's Opening and Admission Rules*): rule 3 gains "A choice is stated whole only where the language, the toolchain or the host makes the same choice: a literal's form, a line's time, the temporary directory. Any other is an argument, or a library's."
 - **PL1 L6, PL1 L31, PL2 L2 [rule 4 against principle 5], PL2 A2, PL2 A3, PL2 A4, PL2 A6, PL5 L4 [rule 2]** `3` — E.0 rules 2 to 4. `Bytes.drop` is in and `String.take` out, the pick and the random draw are in the runtime under rule 3, `Test.until` is a short loop, the prelude grew from 33 to 40 in a day, and a vocabulary was lengthened to pass rule 4. Fix: the sentences proposed for rules 2, 3 and 4 and for principle 5's placing clause. Owner: report. Decide: what E.0's rules 2 to 4 admit.
+  - Taken out of the batch of 2026-11-23, to be decided alone once its findings are read whole.
 - **P2 24, P2 25, K 21, K 28 (Io.debug), W12, N H3** `3` — §9 `language.md:1104`, §0 principle 5, E.0 rule 4, `io.ern:275`: the prelude holds what a declaration could give (`Io.debug`, three lines under `needs a.show`; `Reply.process`, `kill`, `demonitor`, `answer`), bare process functions (`spawnMonitored`, `monitorService`, `adapted`, `restarting`) stand beside `Address.call`, and forms go to the library (`Peer.spawn`, `Code.running`). Fix: `Io.debug` declared in Ernest in E.1, `Reply.process` weighed, K's restatements of §0 and §9. Owner: report+checker+stdlib. Decide: what is the prelude's.
+  - **Decided 2026-11-23** (the log's *E.0's Opening and Admission Rules*): `Io.debug` leaves the prelude and is E.1's, written in Ernest under `needs a.show`, kept by name as a composition (rule 4); §4.9's "no member but `Io.show` and `Io.debug`" names `Io.show` alone, and §9 lists one function fewer. `Reply.process` is weighed with the names, a new line there. §9's test is not restated.
 
 ##### E.0, the shape rules
 
@@ -1051,6 +1060,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 - **N C30** `3` — `List` has no `sum` and no `maximum`, where `maximumBy` and `minimumBy` stand. Fix: per decision. Owner: stdlib. Decide: whether `List` gains `sum` and `maximum` by E.0's rules.
 - **E1 12** `3` — `path.ern:51`: `Path.<>`'s second parameter named `under`, an exported function's name, reading in reverse. Fix: `other`, as `List.<>`. Owner: stdlib. Decide: a parameter name on a library page.
 - **N W1-W16** `3` — library names a newcomer could not predict: `Random.nextInt`'s bound, `adapted`, `restarting`, `answer`, `Address.call`, `monitorService`, `Process.faults`/`Os.termination`/`Test.faults`, `Reply.process`, `Peer.computeAt`, `Io.show`, `Left`/`Right`, `Map.update`, `Os.environment`, `Supervisor.group`/`child`, `Clock.alarm`, `fromUtf8Piece`/`span`/`demonitor`. Fix: per decision. Owner: stdlib. Decide: whether any of the sixteen is renamed before the launch.
+- **P2 25 (`Reply.process`)** `3` — §9, `process.ern`: `Reply.process` is the prelude's and takes the namespace `Reply` for it alone, where `Process.fromAddress` does the same work for an address as a `foreign fn`. Fix: `Process.fromReply`, a `foreign fn` of `process.ern`, the prelude one function and one namespace smaller. Owner: report+checker+stdlib. Decide: whether the name moves before the launch. Added by leg 3, from the verdict on *P2 24*.
 
 #### What do the README, `why.md` and the FAQ claim, and against what?
 
@@ -1271,7 +1281,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 
 ### Counted
 
-**Lines in each bucket**: `1` 152; `1r` 30; `2a` 243; `2b` 14; `3` 423 (The sentences 36, the families 386, Alone 1); `4` 52. 914 in all, Z8's line added by the session after the join, four lines moved to `3` by leg 3's check, and three added by its verdicts.
+**Lines in each bucket**: `1` 152; `1r` 30; `2a` 243; `2b` 14; `3` 424 (The sentences 36, the families 387, Alone 1); `4` 52. 915 in all, Z8's line added by the session after the join, four lines moved to `3` by leg 3's check, and four added by its verdicts.
 
 **The marks, by bucket**: `false`: `1` 0, `1r` 2, `2a` 0, `2b` 6, `3` 19, `4` 0. `user`: `1` 23, `1r` 0, `2a` 0, `2b` 1, `3` 59, `4` 0.
 
