@@ -25,12 +25,13 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first eighteen families, 358 lines, each under its entry of
-the log for 2026-11-23, from *What a Diagnostic Says* to *Nothing Owed*.
+decided, 36 lines, with the first nineteen families, 366 lines, each under its entry of
+the log for 2026-11-23, from *What a Diagnostic Says* to *What Stands on Every Load
+Path*.
 
 The sentences of *PL6 2* and *PL6 3* are written a third time, against the two cold
-readings. Four families are left, 28 lines, the largest first, what stands on every
-load path the next of them. One line stands alone, and one is taken out of its family to be decided
+readings. Three families are left, 20 lines, the largest first, what may wait the
+next of them. One line stands alone, and one is taken out of its family to be decided
 as a batch, the ten refusals that rested on a count, with the keys' names in `Ansi` and
 hexadecimal's case, which two lines of the library's names left to it.
 
@@ -305,6 +306,14 @@ the site, since it sends a reader there. Its release is the launch.
    a shell's start line. `make version` does not write it and no test holds it, so the user
    sets it to the release's version before sending it (the log's *The Front Page in the
    Announcement's Manner*).
+6. **Whether seven libraries become packages**, a decision, taken while item 1 waits and
+   built for 0.12 where it is taken (the log's *What Stands on Every Load Path*). `Json`,
+   `Http`, `Uri`, `Time`, `Base64`, `Proxy` and `Utilization` stand on every load path,
+   and no job of the toolchain's calls them. A proposal says how they would ship, in the
+   installation or on the releases page; what a program names where a manifest is flat,
+   `Http` with `Time` and `Uri`; whose version each takes; and what the four examples,
+   the guide's §9.6, the site's pages, the man pages and ernest-httpd's manifest become.
+   It is read against each of those owners before the user decides.
 
 ## MVP 4.5 (`:trace f`, two requests to OTP, a decision on a listener, and what the line left), about two weeks, after the launch
 
@@ -556,5 +565,5 @@ What the line left, in the order it is taken:
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide; `:keys`, the known issues sorted, and the OTP defects read against their issues | 2026-11-21 | | *The Milestone Split*, *The Homepage and the Shell's Editing Planned*, *The Plan Read for Build Order*, *The Trust Said Once*, *A Refusal Holds No Control Character*, *An Input Edited by Its Lines*, *The Shell Says a Refusal in the Jobs' Words*, *Each Value in the Escape of Its Own Notation*, *The Live Region Named Once*, *A Window onto the Input*, *A Window onto the Input, Built*, *SHA-256 Beside SHA-1*, *An Archive Read by the Host*, *A Package in the Guide*, *The Keys Listed by `:keys`*, *The Known Issues Sorted*, *The OTP Defects Read Against Their Issues* |
 | MVP 4.6 | the server owning both ends of its socket: the site's script imports the client the server ships, the generator takes no configuration and the browser test serves a stub client; the homepage and the blocks' tools; the stylesheet in the reader's font size; `Bytes.toHex` in lower case | 2026-11-22 | | the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's *MVP 4.16, the Proposals Before the Launch*, *MVP 4.6 Before the Launch*, *The Client's Interface Agreed*, *The Homepage and the Shell's Editing Planned*, *The Homepage Built*, *A Line Above the Homepage's Heading*, *The Server's Client in the Site*, *The Stylesheet's Units*, *The Server's Client, Its Proposal Read*, *The Homepage's Proposal Read*, *Three Feedback Entries Decided*, *A Digest in Lower Case* |
 | MVP 4.4 | the cost analysis, the full review and the release of 0.11.0, Linux | | | above |
-| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch | | | above |
+| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; and a decision on seven libraries as packages | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, and the map's square from MVP 4.4's item 3 | | | above |
