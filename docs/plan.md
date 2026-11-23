@@ -23,8 +23,9 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
-second leg is next**: the builds before the readers start, then the readers, on Opus 5.5 at
-xhigh. Its first leg, the decisions before the readers, closed 2026-11-23. Items 2 and 3,
+third leg is next**: the two decisions for the user below, then the sort of
+`docs/findings.md` checked and its `decide` lines, on Fable 5.2 at high. Its first two legs, the decisions before the
+readers and the readers, closed 2026-11-23. Items 2 and 3,
 the cost and the raise a primitive catches, are closed since 2026-11-22, and item 8, a
 result that is never empty, since 2026-11-23.
 
@@ -99,11 +100,23 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    2. Opus 5.5 at xhigh: the builds before the readers start, the rest of the list below.
       Then the readers are started, and their lists are written whole into the findings
       file. The principles review runs merged with it, 31 agents, decided with the user
-      2026-11-23 (the log's *The Principles Review Inside*).
-   3. Fable 5.2 at high: the sort, and the `decide` lines with the user, each verdict and
-      each fix's shape written into the findings file.
-   4. Opus 5.5 at xhigh: the fixes by agents, the diffs read back, `make test-full` and the
-      close.
+      2026-11-23 (the log's *The Principles Review Inside*). Closed 2026-11-23 with 36
+      readers, their lists whole in `docs/findings.md` (the log's *The Full Review's
+      Readers*), and the lists pre-sorted on Opus into lines, decided with the user (the
+      log's *The Findings Pre-Sorted*).
+   3. Fable 5.2 at high: the sort checked, every `3`, `2b`, `1r` and `4` line read with its
+      finding and a sample of `1` and `2a`, a line that needs judgment moved to `3`, and a
+      plain defect that no report sentence covers moved to a fix. Then the `decide` lines
+      with the user, the sentences for §0 and E.0 first and then each family, each verdict
+      and each fix's shape written into the findings file. Fable writes a verdict for each
+      line of a family and marks the lines whose verdict does not follow plainly, and the
+      user answers once a family, taking a line out to decide it alone. In each family the
+      lines come first that show the report false or contradicting itself, that touch
+      soundness or security, or that a first user meets. The leg may be cut at a family's
+      end, at a commit.
+   4. Opus 5.5 at xhigh: the `1` and `1r` lines by the session, the `2a`, `2b` and decided
+      lines by agents, one brief to an owner holding all its lines, the diffs read back,
+      `make test-full` and the close.
 
    Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
    the `fix` lines made at once and the `decide` lines after, so that the design is one
@@ -151,7 +164,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      call, a hidden prelude name against §11.5's type rule, and §5.6's fill error. §4.9's
      error at a type variable no requirement can name and §11.5's `the first argument of
      drop` quote texts the checker does not print. It is decided in the review's sort, on
-     Fable, its probes in the scratchpad's `cold42/`.
+     Fable, its probes kept with the review's, in `mvp44_item4/cold42/` of the session's
+     probes.
    - **§3.11's two ends, a decision for the user**, found 2026-11-23 by the cold reading
      of *When a Capture's Type Is Read*. §3.11's third paragraph has a service's message
      type, a peer spawn's mailbox type and a compute's result type "known whole where they
@@ -159,7 +173,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      after the spawn fixes them. A spawn in a local `fn` has its unfixed mailbox type
      `Never` at that `fn`'s end, and a capture is read at the top-level definition's. It
      is design on §3.11, so it is decided in the review's sort, on Fable, with the
-     findings, its probes kept in the scratchpad's `cold311/`.
+     findings, its probes kept in `mvp44_item4/cold311/` of the session's probes.
    - **The other repositories take their manifests**, done 2026-11-23 (the log's *The
      Other Repositories' Manifests*): ernest-template's `0155cf2`, tagged `v0.11.0`,
      ernest-epx's `479b1c6`, against the archive of `fcb26908`, each session told by a
@@ -182,7 +196,7 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    the floor is what an archive before the release is (the log's *The Floors and the
    Releases*). The rise is the manifests' write above. Ernest's session then names the minor,
    the archive's path and its commit to all three by a message, and asks for the reviews, on
-   the user's word, which waits until Ernest's readers are done (the user, 2026-11-23). Each
+   the user's word, sent 2026-11-23 once Ernest's readers were done. Each
    application's own session opens on the new floor, changes what its code needs there and
    begins its review. Their findings are sorted after leg 3's, in a sort of their own.
 
