@@ -138,9 +138,17 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      and a List of Sections*): the site writes an anchor's fragment percent-encoded, and a
      list of sections after a document's name is that document's to its end.
    - **The checker's cases tabled**, done 2026-11-23 (the log's *The Checker's Cases
-     Tabled*): 132 cases, 73 held before and 59 by new tests, no defect. Two places where
-     the report is silent wait for the user's word: when a spawn's capture's type is read,
-     and how a requirement's message names another module's callee.
+     Tabled*): 132 cases, 73 held before and 59 by new tests, no defect. When a spawn's
+     capture's type is read is decided (the log's *When a Capture's Type Is Read*). How a
+     requirement's message names another module's callee waits for the user's word.
+   - **§3.11's two ends, a decision for the user**, found 2026-11-23 by the cold reading
+     of *When a Capture's Type Is Read*. §3.11's third paragraph has a service's message
+     type, a peer spawn's mailbox type and a compute's result type "known whole where they
+     are written", and the checker reads the last two at the definition's end, so a use
+     after the spawn fixes them. A spawn in a local `fn` has its unfixed mailbox type
+     `Never` at that `fn`'s end, and a capture is read at the top-level definition's. It
+     is design on §3.11, so it is decided in the review's sort, on Fable, with the
+     findings, its probes kept in the scratchpad's `cold311/`.
    - **The other repositories take their manifests**, MVP 4.17's item 10, moved here on
      2026-11-19 (the log's *The Plan Read for Build Order*). The write is the floors' rise:
      a manifest's `ernest` line takes the place of the Makefile's `ERN_VERSION`, and no

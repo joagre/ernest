@@ -1087,6 +1087,29 @@ spawn_captures_inside_values_test() ->
                          "    let _ = Peer.spawnMonitored(\"p\", " ++ Lambda ++ ", Died, 5000);\n"
                          "    Unit\n}\n")).
 
+%% report §3.11: a captured value's type is read at the end of the
+%% top-level definition the spawn or the compute is written in, so a block `let`
+%% that a use after the spawn fixes crosses where the use fixes it to a
+%% type that crosses, and is refused, by the type it was fixed to, where
+%% the use fixes it to a bound one, for a spawn and a compute alike. One
+%% that nothing fixes by the end stays refused, which
+%% spawn_captures_inside_values_test holds. A regression test, written
+%% after the code
+spawn_captures_read_at_definition_end_test() ->
+    Then = fun(Start, Use) ->
+               peer_ok("fn f() : Unit = {\n    let c = [];\n    let _ = " ++ Start ++ ";\n"
+                       "    let _ = " ++ Use ++ ";\n    Unit\n}\n")
+           end,
+    Spawn = "Peer.spawn(\"p\", fn() : Unit receiving Never = { let _ = c; Unit }, 5000)",
+    Functions = "[fn(x : Int) = x] <> c",
+    ?assertEqual(ok, Then(Spawn, "1 :: c")),
+    ?assertEqual({error, "the function Peer.spawn starts captures c, whose type"
+                         " List((Int) -> Int) is bound to its node, since it holds a function"},
+                 Then(Spawn, Functions)),
+    ?assertEqual({error, "the function Peer.compute runs captures c, whose type"
+                         " List((Int) -> Int) is bound to its node, since it holds a function"},
+                 Then("Peer.compute(fn() = { let _ = c; 1 }, 5000)", Functions)).
+
 %% report §3.11, §4.9: the captures are the locals the body names, in a
 %% pun, a selection, an update's base, a `<-`, a pipe, a guard and an inner
 %% lambda among them, and a let-bound lambda is a function; a function
