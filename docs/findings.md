@@ -1402,18 +1402,31 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 #### Are the tour's chapters recut, and what does its session show?
 
 - **L9, M 22 (tour:233)** `3` — `tour/README.md:226`, `:233`, `:361`, `guide/deployment.md:345`: `Counter$3` names the running version in a trace and a previous one in a type. Fix: show the two side by side in chapter 5, or a spelling decision. Owner: tour+report. Decide: whether the spelling stays and is shown, or changes.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the spelling stays, and the sentence about it goes. `Counter$3` is the third version both times, by §11.2: a trace numbers every version but the first, and a type only one that is no longer current. "A type's number works the other way" leaves the tour and `guide/deployment.md`, and chapter 5 says this where both are on the screen.
 - **R3 2** `3` user — `tour/README.md` chapter 2, l.76-l.147: what the commands made is said 40 lines under them. Fix: R3 2's outline; one of l.147's and l.139's sentences goes. Owner: tour. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, and of the two sentences line 139's stays, the first place.
 - **R3 3** `3` user — `tour/README.md` chapter 5, l.266-l.386: the claim behind notation notes; l.335 is chapter 6's. Fix: R3 3's outline, l.335 to chapter 6. Owner: tour. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, and line 335 goes to chapter 6, held to a sentence by *R3 7*.
 - **R3 5, R3 9** `3` user — `tour/README.md` chapter 6, l.466-l.472: a sentence parts a reason from its "So"; the spine mid-paragraph; the order of 6 and 7 kept (9). Fix: R3 5's outline, l.466 going. Owner: tour. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, line 466 goes, and chapters 6 and 7 keep their order.
 - **R3 4** `3` user — `tour/README.md` chapter 7, l.474-l.536: l.513 changes subject; the draw and its claim 124 words apart. Fix: R3 4's outline. Owner: tour. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R3 1** `3` user — `tour/README.md` chapter 8, l.538-l.655: the claim at the smaller move, the lead says how before what. Fix: R3 1's outline, l.584 joined or gone. Owner: tour. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken, and line 584 is held to a sentence by *R3 7*.
 - **R3 6** `3` user — `tour/README.md` l.13-l.17: how to read on both sides of how to start. Fix: R3 6's outline. Owner: tour. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R3 16** `3` user — `tour/README.md` l.208, l.220, l.368, l.449, l.143, l.584: `Process.fromAddress`, `it`, `:processes` used and not said. Fix: a clause each, or the half sentence goes. Owner: tour. Decide: a clause or a cut, against R3 7.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): `Process.fromAddress` gets a clause at its first use, that `monitor` and `kill` take a process. The half sentences that hold `it` and `:processes` go.
 - **R3 10** `3` user — `tour/README.md` l.353, l.430: the planted test's fix shown and never run. Fix: chapter 6 shows `ern test`'s two passing lines. Owner: tour+tests. Decide: whether chapter 6 shows them.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): chapter 6 shows `ern test`'s two passing lines, and the tour's test holds them: a fix that is never run is the one thing on the page a reader cannot check.
 - **R3 8** `3` user — `tour/README.md` l.528-l.532, chapter 7 "Work anywhere": all three computes on `foo` since `c6eab569`. Fix: a session that shows a spread, or the title and contents line say what the page shows. Owner: tour+tests. Decide: which.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the title stays, since the program names no node, which is what it says. The contents line says what the page shows, a compute that names no node. No spread is staged, since one a test can hold needs a node made busy and a telling waited for. Where the family on `Peer.compute` changes what a compute does, the chapter follows.
 - **R3 13** `3` user — `tour/README.md` l.72: the rule said on both sides of the Gleam aside, a note on the diagnostic's place between. Fix: the last sentence goes, the note to the paragraph's end. Owner: tour. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the cut is taken: the last sentence goes, and the note goes to the paragraph's end.
 - **R3 7** `3` user — `tour/README.md` whole: prose grew from 2,948 to 4,493 words in rule voice (l.145, l.233, l.335, l.530, l.584), against "no rule stated". Fix: each fix line held to a clause and a section. Owner: tour. Decide: which of these paragraphs go.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): none of the five paragraphs goes whole, and each is held to one sentence that says what the page shows and names the guide's section: line 145 keeps "one thing on the page is not promised", line 233 is *L9*'s sentence, lines 528 to 532 are one sentence, and lines 335 and 584 one each. Leg 4 checks that the guide states each rule before the tour drops it. A fix line of the tour is a clause and a section from here on, and `docs/reviews/full.md` says so.
 - **L24 (the test), M 16** `3` — `test/ern_tour_tests.erl` holds its own copy of every tour line, where the README's transcript is read from the page. Fix: the tour's test reads its blocks from the page. Owner: tests. Decide: whether the tour's test reads the page.
+  - **Decided 2026-11-23** (the log's *The Tour Recut*): the tour's test reads its blocks from the page, as the guide's test does, and its own copy of each line goes. The guide's §1.4 keeps its session, as *The Front Page in the Announcement's Manner* decided.
 
 #### How does the shell behave where the report is silent or the code departs from it?
 
