@@ -156,9 +156,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      its `make test` failed there, and takes the template's tag in one commit with its own
      fixes. ernest-epx's release with its host part is its session's own. All three hold
      their commits unpushed until 0.11.0 is released.
-   - **The packages proposal's reading and sweep**, MVP 4.17's item 23, moved here with
-     item 10. It follows the manifests' write, which is the last that reads the proposal,
-     and comes before the release, as *A Built Proposal's Sweep Is an Item* places one.
+   - **The packages proposal's reading and sweep**, done 2026-11-23 (the log's *The
+     Packages Proposal Swept*): read against its owners and removed, what only it held kept
+     in the log.
 
    Beside it, on the user's word, ernest-template, ernest-epx and ernest-httpd are each reviewed
    whole by their own sessions, by the `docs/full_review.md` each took at the layout's stop,
