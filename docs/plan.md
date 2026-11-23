@@ -23,8 +23,8 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
-third leg is next**: the two decisions for the user below, then the sort of
-`docs/findings.md` checked and its `decide` lines, on Fable 5.2 at high. Its first two legs, the decisions before the
+third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
+made, and the sort of `docs/findings.md` is checked next, then its `decide` lines. Its first two legs, the decisions before the
 readers and the readers, closed 2026-11-23. Items 2 and 3,
 the cost and the raise a primitive catches, are closed since 2026-11-22, and item 8, a
 result that is never empty, since 2026-11-23.
@@ -155,25 +155,15 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      Tabled*): 132 cases, 73 held before and 59 by new tests, no defect. When a spawn's
      capture's type is read is decided (the log's *When a Capture's Type Is Read*), and so is
      how a requirement's error names its callee (the log's *A Requirement's Callee, Named*).
-   - **How a diagnostic names a name, a decision for the user**, found 2026-11-23 by the
-     cold reading of *A Requirement's Callee, Named*. §4.2 has a diagnostic print a name
-     whole, from the root. The checker names a function, a binding or a constructor plain
-     where the module or the session declares it, `Address.call` as §9 lists it,
-     `Prelude.send` past a hiding, and whole in an error about a name's own form. Four
-     questions wait: a binding and a constructor, another module's constructor outside a
-     call, a hidden prelude name against §11.5's type rule, and §5.6's fill error. §4.9's
-     error at a type variable no requirement can name and §11.5's `the first argument of
-     drop` quote texts the checker does not print. It is decided in the review's sort, on
-     Fable, its probes kept with the review's, in `mvp44_item4/cold42/` of the session's
-     probes.
-   - **§3.11's two ends, a decision for the user**, found 2026-11-23 by the cold reading
-     of *When a Capture's Type Is Read*. §3.11's third paragraph has a service's message
-     type, a peer spawn's mailbox type and a compute's result type "known whole where they
-     are written", and the checker reads the last two at the definition's end, so a use
-     after the spawn fixes them. A spawn in a local `fn` has its unfixed mailbox type
-     `Never` at that `fn`'s end, and a capture is read at the top-level definition's. It
-     is design on §3.11, so it is decided in the review's sort, on Fable, with the
-     findings, its probes kept in `mvp44_item4/cold311/` of the session's probes.
+   - **How a diagnostic names a name**, decided 2026-11-23 in four questions (the log's
+     *How a Diagnostic Names a Name*): §11.5's rule for a type name is every declared
+     name's, a witness writes its constructors as the source does, a prelude type the
+     module hides prints `Prelude.x` as a function does, and §5.6's fill error names the
+     declaration. The findings' line *PL6 3* holds the sentences, which leg 4 builds.
+   - **§3.11's two ends**, decided 2026-11-23 (the log's *§3.11's Two Ends*): the report
+     follows the checker at both. A peer spawn's mailbox type and a compute's result type
+     are known whole by the end of the definition they are written in, which §4.8 says is
+     a local `fn` too. The findings' line *PL6 2* holds the sentences, which leg 4 writes.
    - **The other repositories take their manifests**, done 2026-11-23 (the log's *The
      Other Repositories' Manifests*): ernest-template's `0155cf2`, tagged `v0.11.0`,
      ernest-epx's `479b1c6`, against the archive of `fcb26908`, each session told by a
