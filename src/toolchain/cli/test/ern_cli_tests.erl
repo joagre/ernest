@@ -2154,11 +2154,10 @@ member_clash_test() ->
                                                 " Main.Stack.compare too; rename it\n">>)),
     ?assertNot(filelib:is_regular(Dir ++ "/build/main/stack.erc")).
 
-%% report §4.9, §11.5: a call of a function of the module of a type's name
-%% whose requirement the caller does not declare names the function as a
-%% module's is named, `least`, and not as the type's member. A regression
-%% test, written after the code: the checker took it for a member, and
-%% would have named it `Stack.least`
+%% report §4.2, §4.9, §11.5: a call of a function of the module of a type's
+%% name whose requirement the caller does not declare is the module's
+%% function, named whole, `Main.Stack.least`. A regression test, written
+%% after the code: the checker took it for the type's member
 shared_namespace_requirement_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", stack_parent()),
@@ -2169,8 +2168,8 @@ shared_namespace_requirement_test() ->
           "fn f(left : b, right : b) : b = Main.Stack.least(left, right)\n" ++ hello()),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
-                                      <<"user.ern:1:33: least needs b.compare, which f does not"
-                                        " declare\n">>)).
+                                      <<"user.ern:1:33: Main.Stack.least needs b.compare, which f"
+                                        " does not declare\n">>)).
 
 %% report §4.2: a module under the parent's namespace is reached from the
 %% parent by its last segment, the shortest resolving form, its functions,
@@ -9228,10 +9227,10 @@ package_tested_directory() ->
                                  " package.conf names"),
                  said(["test", "tested"])).
 
-%% Under the working directory, the trial's table of a package that loads a
-%% package, in the report's words: the root package `app` names `mid` 1.0.0
-%% and `leaf` 1.2.0, `mid` names `leaf` 1.1.0, and `app`'s module stands
-%% under its `src`. Nothing is built.
+%% Under the working directory, the trial's package that loads a package, as
+%% the packages were first tried on paper: the root package `app` names `mid`
+%% 1.0.0 and `leaf` 1.2.0, `mid` names `leaf` 1.1.0, and `app`'s module
+%% stands under its `src`. Nothing is built.
 trial() ->
     whole_package("mid", "1.0.0", [{"leaf", "1.1.0"}]),
     whole_package("leaf", "1.2.0", []),

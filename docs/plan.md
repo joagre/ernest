@@ -139,8 +139,18 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      list of sections after a document's name is that document's to its end.
    - **The checker's cases tabled**, done 2026-11-23 (the log's *The Checker's Cases
      Tabled*): 132 cases, 73 held before and 59 by new tests, no defect. When a spawn's
-     capture's type is read is decided (the log's *When a Capture's Type Is Read*). How a
-     requirement's message names another module's callee waits for the user's word.
+     capture's type is read is decided (the log's *When a Capture's Type Is Read*), and so is
+     how a requirement's error names its callee (the log's *A Requirement's Callee, Named*).
+   - **How a diagnostic names a name, a decision for the user**, found 2026-11-23 by the
+     cold reading of *A Requirement's Callee, Named*. §4.2 has a diagnostic print a name
+     whole, from the root. The checker names a function, a binding or a constructor plain
+     where the module or the session declares it, `Address.call` as §9 lists it,
+     `Prelude.send` past a hiding, and whole in an error about a name's own form. Four
+     questions wait: a binding and a constructor, another module's constructor outside a
+     call, a hidden prelude name against §11.5's type rule, and §5.6's fill error. §4.9's
+     error at a type variable no requirement can name and §11.5's `the first argument of
+     drop` quote texts the checker does not print. It is decided in the review's sort, on
+     Fable, its probes in the scratchpad's `cold42/`.
    - **§3.11's two ends, a decision for the user**, found 2026-11-23 by the cold reading
      of *When a Capture's Type Is Read*. §3.11's third paragraph has a service's message
      type, a peer spawn's mailbox type and a compute's result type "known whole where they

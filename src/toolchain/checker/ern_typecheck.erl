@@ -4047,12 +4047,6 @@ member_shape_at(compare, Type) -> {tfn, [Type, Type], none, {tcon, ['Ordering'],
 member_shape_at(negate, Type) -> {tfn, [Type], none, Type};
 member_shape_at(_Operator, Type) -> {tfn, [Type, Type], none, Type}.
 
-%% The name a use of a declaration is reported under, a member with its
-%% type's.
-needer_name(#own_declaration{member_of = MemberOf}, Name) -> local_name(MemberOf, Name);
-needer_name(#remote_declaration{member_of = MemberOf}, Name) -> local_name(MemberOf, Name);
-needer_name(_, Name) -> atom_to_list(Name).
-
 declaration_text(#env{definition = {_, Name}}) -> Name;
 declaration_text(_) -> "the definition".
 
@@ -4760,10 +4754,11 @@ infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
           end,
     Pending = instance_pending(Type, Span, TypeState, Who),
     %% report §4.9: a call writes nothing for a requirement; what supplies
-    %% it is read at the definition's end, as is what `Io.show` writes by
+    %% it is read at the definition's end, as is what `Io.show` writes by,
+    %% and its errors name the callee as a call's other errors do (§4.2)
     Need = case io_shown(Referent, Env1) of
                {ok, Shown} -> {shown, Shown};
-               none -> {call, needer_name(Referent, Name)}
+               none -> {call, callee_name(Expr)}
            end,
     Supplies = [#pending_member{span = Span, type = Instance, member = Member, need = Need}
                 || {Instance, Member} <- Requirement]

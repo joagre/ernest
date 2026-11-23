@@ -2846,7 +2846,7 @@ fn unique(list : List(a)) : List(a) =
 
 ```console
 $ ern build example.ern
-example.ern:2:23: fromList needs a.compare, which unique does not declare
+example.ern:2:23: OrderedSet.fromList needs a.compare, which unique does not declare
 1 | fn unique(list : List(a)) : List(a) =
 2 |     OrderedSet.toList(OrderedSet.fromList(list))
   |                       ^^^^^^^^^^^^^^^^^^^
@@ -2907,7 +2907,7 @@ let build = OrderedSet.fromList
 
 ```console
 $ ern build example.ern
-example.ern:1:13: fromList needs a.compare, which a top-level let cannot declare
+example.ern:1:13: OrderedSet.fromList needs a.compare, which a top-level let cannot declare
 1 | let build = OrderedSet.fromList
   |             ^^^^^^^^^^^^^^^^^^^
   | = help: declare a `fn` with `needs a.compare`
@@ -2922,7 +2922,7 @@ fn f(counts : Map(Int, Int)) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:2:21: fromList needs Map(Int, Int).compare, and Map(Int, Int) has no compare
+example.ern:2:21: OrderedSet.fromList needs Map(Int, Int).compare, and Map(Int, Int) has no compare
 1 | fn f(counts : Map(Int, Int)) : Int =
 2 |     OrderedSet.size(OrderedSet.fromList([counts]))
   |                     ^^^^^^^^^^^^^^^^^^^
@@ -2959,7 +2959,7 @@ fn sorted() : List((Int) -> Int) =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: sort needs the compare of (Int) -> Int, and (Int) -> Int has no compare
+example.ern:2:5: List.sort needs the compare of (Int) -> Int, and (Int) -> Int has no compare
 1 | fn sorted() : List((Int) -> Int) =
 2 |     List.sort([fn(x : Int) = x])
   |     ^^^^^^^^^
@@ -3114,7 +3114,7 @@ example.ern:2:5: the type a is not known whole here, and Foreign.term gives fore
 $ ern shell
 Ernest 0.11.0, session 1. :help for help.
 > OrderedSet.fromList
-input 1:1:1: fromList needs a.compare, at a type variable no requirement can name
+input 1:1:1: OrderedSet.fromList needs a.compare, at a type variable no requirement can name
 1 | OrderedSet.fromList
   | ^^^^^^^^^^^^^^^^^^^
   | = help: apply it at a known type, or declare a `fn` with the requirement

@@ -1569,21 +1569,79 @@ members_and_requirements_across_an_interface_test() ->
      || {Exporter, Importer, Expected} <-
             [{Unique, "fn g() : List(Int) = A.unique([3, 1])\n", ok},
              {Unique, "fn g(m : Map(Int, Int)) = A.unique([m])\n",
-              "unique needs Map(Int, Int).compare, and Map(Int, Int) has no compare"},
+              "A.unique needs Map(Int, Int).compare, and Map(Int, Int) has no compare"},
              {Unique, "fn g(xs : List(b)) : List(b) = A.unique(xs)\n",
-              "unique needs b.compare, which g does not declare"},
+              "A.unique needs b.compare, which g does not declare"},
              {Unique, "fn g(xs : List(b)) : List(b) needs b.compare = A.unique(xs)\n", ok},
              {Unique, "fn g(xss : List(List(Int))) : List(List(Int)) = List.map(xss, A.unique)\n",
               ok},
              {Unique, "let u = A.unique\n",
-              "unique needs a.compare, which a top-level let cannot declare"},
+              "A.unique needs a.compare, which a top-level let cannot declare"},
              {Describe, "fn g() : String = A.describe(1)\n", ok},
              {Describe, "fn g(x : b) : String = A.describe(x)\n",
-              "describe needs b.show, which g does not declare"},
+              "A.describe needs b.show, which g does not declare"},
              {Describe, "fn g(x : b) : String needs b.show = A.describe(x)\n", ok},
              {Total, "fn g() : Int = A.total([1, 2], 0)\n", ok},
              {Total, "fn g(v : A.Vec) : A.Vec = A.total([v], v)\n",
-              "total needs A.Vec.+ : (A.Vec, A.Vec) -> A.Vec, and A.Vec.+ answers Float"}]].
+              "A.total needs A.Vec.+ : (A.Vec, A.Vec) -> A.Vec, and A.Vec.+ answers Float"}]].
+
+%% report §4.2, §4.9, §11.5: an error over a requirement names the callee
+%% as a call's other errors do, another module's function whole, from the
+%% root, though the call writes it relative to its namespace, through a
+%% compiled interface, and the module's own bare; a function taken as a
+%% value and a top-level `let` of one among them. The help names the
+%% enclosing declaration, and a type is printed whole. A regression test:
+%% every such error named the callee bare
+requirement_callee_named_whole_test() ->
+    Util = "export fn unique(list : List(a)) : List(a) needs a.compare ="
+           " OrderedSet.toList(OrderedSet.fromList(list))\n"
+           "export type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) : Float = 1.0\n"
+           "export fn total(list : List(a), zero : a) : a needs a.+ ="
+           " List.foldLeft(list, zero, fn(acc, x) = acc + x)\n",
+    [?assertEqual({Importer, Expected}, {Importer, nested_refusal(Util, Importer)})
+     || {Importer, Expected} <-
+            [{"fn g() : List(Int) = Util.unique(1, 2)\n",
+              {"App.Util.unique takes 1 argument, not 2", undefined}},
+             {"fn g(m : Map(Int, Int)) : List(Map(Int, Int)) = Util.unique([m])\n",
+              {"App.Util.unique needs Map(Int, Int).compare, and Map(Int, Int) has no compare",
+               "hold it in a type of your own that declares `compare`"}},
+             {"fn g(xs : List(b)) : List(b) = Util.unique(xs)\n",
+              {"App.Util.unique needs b.compare, which g does not declare",
+               "add `needs b.compare` to g's signature"}},
+             {"fn g(xss : List(List(b))) : List(List(b)) = List.map(xss, Util.unique)\n",
+              {"App.Util.unique needs b.compare, which g does not declare",
+               "add `needs b.compare` to g's signature"}},
+             {"let u = Util.unique\n",
+              {"App.Util.unique needs a.compare, which a top-level let cannot declare",
+               "declare a `fn` with `needs a.compare`"}},
+             {"fn g(v : Util.Vec) : Util.Vec = Util.total([v], v)\n",
+              {"App.Util.total needs App.Util.Vec.+ : (App.Util.Vec, App.Util.Vec) ->"
+               " App.Util.Vec, and App.Util.Vec.+ answers Float",
+               "a function over an operation of another shape takes it as a parameter"}},
+             {"fn unique(list : List(a)) : List(a) needs a.compare = list\n"
+              "fn g(xs : List(b)) : List(b) = unique(xs)\n",
+              {"unique needs b.compare, which g does not declare",
+               "add `needs b.compare` to g's signature"}},
+             {"fn unique(list : List(a)) : List(a) needs a.compare = list\n"
+              "fn g(xss : List(List(b))) : List(List(b)) = List.map(xss, unique)\n",
+              {"unique needs b.compare, which g does not declare",
+               "add `needs b.compare` to g's signature"}}]].
+
+%% Importer's first error and its help, Importer the module App.Main and
+%% Exporter App.Util, compiled first, which `Util` names from App.Main
+%% (report §4.2).
+nested_refusal(Exporter, Importer) ->
+    {ok, _, Interface, _} = ern_typecheck:check_string(['App', 'Util'], Exporter),
+    Namespace = ['App', 'Main'],
+    IsNamespace = fun(Candidate) -> lists:member(Candidate, [['App'], ['App', 'Util'], Namespace])
+                  end,
+    {ok, Parsed} = ern_parser:parse_string(Importer),
+    {Declarations, _, TooLong} = ern_resolve:resolved(Parsed, Namespace, IsNamespace),
+    Shortest = ern_resolve:shortest(Namespace, Namespace, IsNamespace),
+    {error, [#diagnostic{message = Message, help = Help} | _]} =
+        ern_typecheck:check_resolved(Namespace, Declarations, [ern_interface:written(Interface)],
+                                     Shortest, TooLong),
+    {Message, Help}.
 
 %% report §11.1, §4.2: the interface carries each private type an exported
 %% signature names wherever an arrow's effect names it, a mailbox type an
@@ -3374,7 +3432,7 @@ block_let_depends_on_itself_test() ->
 %% regression test: `Io.show` of its result was refused as not known whole;
 %% it does not cover a signature itself in error
 failed_declaration_keeps_its_signature_test() ->
-    ?assertEqual(["fromList needs a.compare, which unique does not declare"],
+    ?assertEqual(["OrderedSet.fromList needs a.compare, which unique does not declare"],
                  refusals("fn unique(list : List(a)) : List(a) =\n"
                           "    OrderedSet.toList(OrderedSet.fromList(list))\n"
                           "fn f() : String = Io.show(unique([\"b\", \"a\"]))\n")).
@@ -5939,11 +5997,12 @@ requirement_supplied_test() ->
     ?assertEqual(ok, ok("fn f() : List(Int) = OrderedSet.toList(OrderedSet.fromList([3, 1]))")),
     ?assertEqual(ok, ok("fn unique(list : List(a)) : List(a) needs a.compare =\n"
                         "    OrderedSet.toList(OrderedSet.fromList(list))")),
-    ?assertEqual({"fromList needs a.compare, which unique does not declare",
+    ?assertEqual({"OrderedSet.fromList needs a.compare, which unique does not declare",
                   "add `needs a.compare` to unique's signature"},
                  refusal_and_help("fn unique(list : List(a)) : List(a) =\n"
                          "    OrderedSet.toList(OrderedSet.fromList(list))")),
-    ?assertEqual("fromList needs Map(Int, Int).compare, and Map(Int, Int) has no compare",
+    ?assertEqual("OrderedSet.fromList needs Map(Int, Int).compare, and Map(Int, Int) has no"
+                 " compare",
                  refusal("fn f(m : Map(Int, Int)) : Int =\n"
                          "    OrderedSet.size(OrderedSet.fromList([m]))")),
     %% the member's shape, its result the type itself
@@ -5955,7 +6014,7 @@ requirement_supplied_test() ->
                                   "    List.foldLeft(list, zero, fn(acc, x) = acc + x)\n"
                                   "fn f() : Vec = total([Vec(1.0)], Vec(0.0))")),
     %% a top-level let declares no requirement
-    ?assertEqual({"fromList needs a.compare, which a top-level let cannot declare",
+    ?assertEqual({"OrderedSet.fromList needs a.compare, which a top-level let cannot declare",
                   "declare a `fn` with `needs a.compare`"},
                  refusal_and_help("let f = OrderedSet.fromList")).
 
@@ -5976,7 +6035,8 @@ requirement_reach_test() ->
     %% report §11.5: the variable is build's own, which f's type does not
     %% hold, so that an annotation fixes it and no requirement of f's can
     %% name it (the log's *One Name for Every Order*)
-    ?assertEqual({"fromList needs a.compare, at a type variable no requirement can name",
+    ?assertEqual({"OrderedSet.fromList needs a.compare, at a type variable no requirement"
+                  " can name",
                   "annotate the value where it is bound"},
                  refusal_and_help("fn f(list : List(Int)) : Int = {\n"
                                   "    let build = fn(xs) = OrderedSet.fromList(xs);\n"
@@ -6010,7 +6070,8 @@ derives_test() ->
     ?assertEqual("(M.Task, M.Task) -> Ordering",
                  member_type_of("export type Task = Task(due : Int, done : Bool)"
                                 " derives compare\n", 'Task', compare)),
-    ?assertEqual("fromList needs Pair(Set(Int), Int).compare, and Set(Int) has no compare",
+    ?assertEqual("OrderedSet.fromList needs Pair(Set(Int), Int).compare, and Set(Int) has no"
+                 " compare",
                  refusal(Types ++ "fn f(x : Pair(Set(Int), Int)) : Int =\n"
                          "    OrderedSet.size(OrderedSet.fromList([x]))\n")),
     %% a parameter the comparison does not reach is not required
@@ -6051,10 +6112,11 @@ structural_compare_test() ->
                                 'Row', compare)),
     ?assertEqual("`<` needs #(Int, Path).compare, and Path has no compare",
                  refusal("fn f(x : #(Int, Path)) : Bool = x < x")),
-    ?assertEqual("fromList needs List(Map(Int, Int)).compare, and Map(Int, Int) has no compare",
+    ?assertEqual("OrderedSet.fromList needs List(Map(Int, Int)).compare, and Map(Int, Int) has"
+                 " no compare",
                  refusal("fn f(x : List(Map(Int, Int))) : Int =\n"
                          "    OrderedSet.size(OrderedSet.fromList([x]))")),
-    ?assertEqual({"fromList needs a.compare, which f does not declare",
+    ?assertEqual({"OrderedSet.fromList needs a.compare, which f does not declare",
                   "add `needs a.compare` to f's signature"},
                  refusal_and_help("fn f(x : Optional(a)) : Int =\n"
                                   "    OrderedSet.size(OrderedSet.fromList([x]))")).
@@ -6108,8 +6170,8 @@ member_helps_test() ->
                   "declare `fn Handle.compare`"},
                  refusal_and_help("foreign type Handle\nforeign fn make() : Handle = \"m:f/0\"\n"
                                   "fn f() : Ordering = compare(make(), make())\n")),
-    ?assertMatch({error, [#diagnostic{message = "sort needs the compare of (Int) -> Int, and"
-                                                " (Int) -> Int has no compare",
+    ?assertMatch({error, [#diagnostic{message = "List.sort needs the compare of (Int) -> Int,"
+                                                " and (Int) -> Int has no compare",
                                       help = undefined}]},
                  check("fn f() : List((Int) -> Int) = List.sort([fn(x : Int) = x])\n")),
     ?assertEqual({"fromList needs a.compare, which sorted does not declare",
