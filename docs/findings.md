@@ -655,14 +655,21 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 ##### §0, principle 5, §10's fraction and what a count decides
 
 - **PL1 L14, PL1 L34, PL2 L2 [the count], PL2 L10, PL2 A19, PL2 Matters 3, PL3 8, PL3 L2, PL3 L10 [bullets 3 to 5], PL4 L2 [261], PL4 L9 g, PL4 L9 h, PL4 L10 h, PL5 L4 [the count], PL6 8, PL6 L2 [the refusals' reasons], PL6 L18, PL6 L19** `3` — §0 principle 5 and E.0 (`library.md:135`): verdicts rest on how many programs ask ("a second program", "no need met in use", "rare", feedback 261), where both say a count decides nothing. Fix: each reason restated by the rule that decides it, or §0 says a count measures a cost and is no reason for a rule (PL1 L34). Owner: report+log. Decide: whether those verdicts are taken again under E.0's rules.
+  - **Decided 2026-11-23** (the log's *Principle 5 and Time*): principle 5's sentence gains a clause, "How many programs ask for a feature decides nothing, for it or against it: a count measures a cost and is no reason for a rule." The verdicts that rest on a second program's asking are taken again under E.0's rules, a new line of the library's family. When a thing is built stays the plan's, a need met in use, which one program gives. No entry of the log changes.
 - **P1 20, P2 Counts no earlier review gave** `3` — §0 principle 5: "named where the report states it and counted here", and no count stands; both readers count 28 functions that are no value. Fix: state 28 where §9.6 lists the members, or drop "and counted here". Owner: report. Decide: state the count or drop the words.
+  - **Decided 2026-11-23** (the log's *Principle 5 and Time*): "and counted here" goes, so the sentence ends "named where the report states it". A count in the report goes stale, and each principles review counts.
 - **PL1 L2, PL2 L20, PL5 3, PL5 L13, PL6 1, PL6 14, PL6 L1 [first bullet]** `3` — §10 (`toolchain.md:24`): "a fraction of that operation and never a multiple" stands against eighteen rows the log calls by design, `Os.closeInput` at 3x, and the check that line 29 states with no ratio. Principle 5's count is read both as text and as run time. Fix: §10's sentence narrowed (PL6 L1), and principle 5 says its count is what a program writes (PL1 L2). Owner: report. Decide: what §10's fraction promises.
+  - **Decided 2026-11-23** (the log's *Principle 5 and Time*): principle 5 gains no sentence, since it gives what an operation costs to §10 already. §10's sentence is decided alone, as its own question.
 
 ##### §0, *Time*
 
 - **P3 1, P3 7, PL3 3, PL3 7, PL4 9, PL4 L10 f, PL6 L5, PL6 L11** `3` false — §0 *Time*, §12.1, §8.6, E.18: *Time* says the runtime chooses no time and names §12.5 alone, yet its 50 ms escape, 200 ms paste end and 100 ms deadlock look are stated nowhere (P3's probes), and E.18's 5 s, 3 minutes and once-a-second look now bound `Tcp.close`. Fix: each time where its wait stands, *Time* naming them (P3 7's sentence), or the three minutes go. Owner: report+runtime. Decide: the §0 sentence, and whether the times stand.
+  - **Decided 2026-11-23** (the log's *Principle 5 and Time*): *Time* is recut whole: "A wait of the program's ends by the program's time, by the party it waits on, or by a time the report states where the wait stands, the host's as the host states it. A wait of the runtime's own on a party outside the program, a peer, a far end or a stream's reader, ends without that party, by a signal the report names or by such a time. The runtime retries nothing of a program's, and chooses a time of its own only where nothing signals what the wait is for."
+  - The escape key's 50 ms and a paste's 200 ms are stated in §12.1 and the deadlock look's 100 ms in §8.6, each where its wait stands. Whether E.18's 5 seconds and 3 minutes stand is decided with the runtime's promises, with ernest-httpd's lines 36 and 37.
 - **PL2 L3, PL2 A5** `3` — §0 *Time*, §6.3, E.15: three answers in two days to how a body waits a time (`Time.sleep` out, `Clock.sleep` in), and principle 3 is cited for a wait "at the line that waits". Fix: PL2 L3's sentence, that a wait is written as a call and `receive` waits for a message. Owner: report. Decide: that sentence for *Time*.
+  - **Decided 2026-11-23** (the log's *Principle 5 and Time*): no sentence. §6.3 and E.15 state that a wait is a call and that a `receive` waits for a message.
 - **PL4 L4, PL4 L6, PL4 L10 c, PL4 L10 g** `3` — §0 *Time*: nothing says what ends a wait of the runtime's own on a peer, a far end or a reader, or when a floor is chosen over a poll. A socket's bytes are dropped at once while a stream's are waited for, and Linux before 5.3 is refused while §12.5 polls. Fix: PL4 L4's and L6's sentences for *Time*. Owner: report. Decide: those two sentences.
+  - **Decided 2026-11-23** (the log's *Principle 5 and Time*): both sentences are carried by *Time* as recut on the line *P3 1*, its second and third sentences. The floor, Linux 5.3, is the report's already.
 
 ##### §0, *The host*
 
@@ -969,6 +976,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 - **E1 10** `3` — `ern_int:to_float/1`: catches `float/1`'s `badarg` that one comparison foresees (E.0 rule 1). Fix: compare against the bound, shim `erlang:float/1`; E.8's primitives follow. Owner: stdlib+report. Decide: whether E.8 changes.
 - **E1 2** `3` — `src/stdlib/fs.ern:384`: `Fs.makeTempDir` faults where `TMPDIR` is not UTF-8, its page listing no fault. Fix: answer `Left(NotUtf8(bytes))` and E.17 says so, or the page names the fault. Owner: stdlib+report. Decide: which (the reader marked it the user's).
 - **W38** `3` — §12.2, E.12: no Ernest declaration reads Erlang's `{ok, V}`, so each needs an Erlang helper, which no job compiles. Fix: per decision. Owner: stdlib+report. Decide: whether E.12 reads a tuple's components.
+- **PL3 L2, PL6 L18, PL6 L19 (the verdicts on a count)** `3` — E.0, §0 principle 5 as decided 2026-11-23: five verdicts rest on "a second program asks" or "no program asks": no lock in `Fs`, no names of keys in `Ansi`, no removal of a tree, no tar library, and `Int.toStringBase`'s upper case. Fix: each taken again under E.0's admission rules, the reason restated. Owner: report+stdlib+libs. Decide: each. Added by leg 3, from the verdict on *PL1 L34*.
 
 #### What does a fault's line, a trace or a deadlock's line name?
 
@@ -1248,7 +1256,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 
 ### Counted
 
-**Lines in each bucket**: `1` 152; `1r` 30; `2a` 243; `2b` 14; `3` 422 (The sentences 36, the families 385, Alone 1); `4` 52. 913 in all, Z8's line added by the session after the join, four lines moved to `3` by leg 3's check, and two added by its verdicts.
+**Lines in each bucket**: `1` 152; `1r` 30; `2a` 243; `2b` 14; `3` 423 (The sentences 36, the families 386, Alone 1); `4` 52. 914 in all, Z8's line added by the session after the join, four lines moved to `3` by leg 3's check, and three added by its verdicts.
 
 **The marks, by bucket**: `false`: `1` 0, `1r` 2, `2a` 0, `2b` 6, `3` 19, `4` 0. `user`: `1` 23, `1r` 0, `2a` 0, `2b` 1, `3` 59, `4` 0.
 
