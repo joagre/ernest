@@ -23,16 +23,16 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
-third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
-made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the twenty-two families, 386 lines, and the line that stood
-alone, each under its entry of the log for 2026-11-23, from *What a Diagnostic Says* to
-*The Security Holes and a Node's Keys*.
+fourth leg is next**, on Opus 5.5 at xhigh, after a `/clear`: the `1` and `1r` lines of
+`docs/findings.md` by the session, and the `2a`, `2b` and decided lines by agents, one
+brief to an owner holding all its lines. Each decided line holds its verdict beneath it,
+and a verdict that says a reader reads first, or that a line comes back to the user, is
+done so.
 
-The sentences of *PL6 2* and *PL6 3* are written a third time, against the two cold
-readings. One line is left, taken out of its family to be decided as a batch: the ten
-refusals that rested on a count, with the keys' names in `Ansi` and hexadecimal's case,
-which two lines of the library's names left to it.
+Its third leg, the `decide` round, closed 2026-11-23: the sort checked, the sentences
+for §0 and E.0, the twenty-two families, the line that stood alone and the batch of
+refusals that rested on a count, each under its entry of the log for that day, from
+*What a Diagnostic Says* to *The Refusals That Rested on a Count*.
 
 Its first two legs, the decisions before the readers and the readers, closed 2026-11-23.
 Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22,
@@ -124,8 +124,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
       line of a family and marks the lines whose verdict does not follow plainly, and the
       user answers once a family, taking a line out to decide it alone. In each family the
       lines come first that show the report false or contradicting itself, that touch
-      soundness or security, or that a first user meets. The leg may be cut at a family's
-      end, at a commit.
+      soundness or security, or that a first user meets. Closed 2026-11-23 (the log's
+      *The Refusals That Rested on a Count*).
    4. Opus 5.5 at xhigh: the `1` and `1r` lines by the session, the `2a`, `2b` and decided
       lines by agents, one brief to an owner holding all its lines, the diffs read back,
       `make test-full` and the close.
