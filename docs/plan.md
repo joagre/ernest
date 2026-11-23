@@ -25,14 +25,14 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first twenty-one families, 380 lines, each under its entry
-of the log for 2026-11-23, from *What a Diagnostic Says* to *The Compute and the Node's
-Measures*.
+decided, 36 lines, with the twenty-two families, 386 lines, and the line that stood
+alone, each under its entry of the log for 2026-11-23, from *What a Diagnostic Says* to
+*The Security Holes and a Node's Keys*.
 
 The sentences of *PL6 2* and *PL6 3* are written a third time, against the two cold
-readings. One family is left, 6 lines, the security holes and a node's keys. One line stands alone, and one is taken out of its family to be decided
-as a batch, the ten refusals that rested on a count, with the keys' names in `Ansi` and
-hexadecimal's case, which two lines of the library's names left to it.
+readings. One line is left, taken out of its family to be decided as a batch: the ten
+refusals that rested on a count, with the keys' names in `Ansi` and hexadecimal's case,
+which two lines of the library's names left to it.
 
 Its first two legs, the decisions before the readers and the readers, closed 2026-11-23.
 Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22,
