@@ -73,7 +73,7 @@ HOST = erl -noinput $(CODE_PATH) -pa $(EBIN)
 # variable of the environment, which make would pass the host with this
 # value where the environment sets it.
 EUNIT_ALONE = erl -noshell $(CODE_PATH) -pa $(EBIN) -eval \
-	  'halt(case eunit:test(ern_eunit:alone([$(subst $(space),$(comma) ,$(strip $(1)))])) of \
+	  'halt(case $(EUNIT_TEST)(ern_eunit:alone([$(subst $(space),$(comma) ,$(strip $(1)))])) of \
 	  ok -> 0; _ -> 1 end).'
 space := $(subst ,, )
 
@@ -86,7 +86,7 @@ EUNIT_SIDE_BY_SIDE = erl -noshell $(CODE_PATH) -pa $(EBIN) \
 	  -eval 'N = erlang:system_info(schedulers_online), \
 	  Ms = [$(subst $(space),$(comma) ,$(strip $(1)))], \
 	  Tests = [ern_eunit:side_by_side(N, ern_eunit:alone([M])) || M <- Ms], \
-	  halt(case eunit:test({inparallel, Tests}) of ok -> 0; _ -> 1 end).'
+	  halt(case $(EUNIT_TEST)({inparallel, Tests}) of ok -> 0; _ -> 1 end).'
 
 # The test modules and the build directory, which make test-full readies
 # before it runs the areas side by side.

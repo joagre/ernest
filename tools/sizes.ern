@@ -1,0 +1,277 @@
+//
+// Each module's size and its growth, for a review's readers to start from
+// (docs/reviews/full.md, docs/reviews/release.md): every module of the
+// Erlang under src/ and test/ and of the Ernest under src/, tools/,
+// examples/ and tour/, by its lines now, at the last release's tag and at
+// the tag before it, largest first, with its growth since each. A listing,
+// not a limit.
+//
+// `ern run sizes.erc` writes a line a module on standard output and each
+// language's totals last. It reads the files git tracks in the working
+// directory, the repository's root, and two tags: the last, as `git
+// describe --tags --abbrev=0` names it, and the one that names before it.
+// A module's lines at a tag are its lines now less those git counts it
+// added since the tag and plus those it removed, so a module git finds
+// moved since, from wherever it stood, is counted from its old path, and
+// one git finds no earlier form of is new. The vendored getopt and the Erlang the compiler wrote
+// under test/fixtures/emitted/ are left out.
+//
+
+// A module: its path now, its lines now and its lines at the two tags, 0
+// where it is new since.
+type Module = Module(path : String, lines : Int, last : Int, before : Int)
+
+// What git counts of a file since a tag: its path now, and the lines it
+// added and removed.
+type Change = Change(path : String, added : Int, removed : Int)
+
+// What git counts of the tree since a tag: each file's change by its path
+// now, and the lines of each file gone since by its name, which finds a
+// module moved and changed past what git reads as a move, the name being
+// the module's (docs/code_style.md).
+type Since = Since(changes : Map(String, Change), gone : Map(String, List(Int)))
+
+// The modules, as git names them, whose sizes are listed.
+let modules : List(String) =
+    ["src/*.erl",
+     "test/*.erl",
+     "src/*.ern",
+     "tools/*.ern",
+     "examples/*.ern",
+     "tour/*.ern",
+     ":!src/toolchain/cli/getopt.erl",
+     ":!test/fixtures/emitted/"]
+
+// A file's time and git's, as the other tools give theirs.
+let fileMs : Int = 10000
+
+export fn main() : Unit =
+    match Os.arguments {
+        [] -> List.forEach(listed(), Io.println)
+      | _ -> quit("usage: sizes")
+    }
+
+// The listing's lines: its heading, a line a module and the totals.
+fn listed() : List(String) = {
+    let last = git(["describe", "--tags", "--abbrev=0"]);
+    let before = git(["describe", "--tags", "--abbrev=0", last <> "^"]);
+    let files = Set.fromList(String.lines(git(["ls-files"])));
+    let sinceLast = since(last, files);
+    let sinceBefore = since(before, files);
+    let found = List.map(String.lines(git(["ls-files", "--"] <> modules)), fn(path) = {
+        let lines = lineCount(contents(path));
+        Module(=path,
+               =lines,
+               last = linesAt(sinceLast, path, lines),
+               before = linesAt(sinceBefore, path, lines))
+    });
+    let largest = List.sortBy(found, fn(module) = -module.lines);
+    [heading(last, before)]
+        <> List.map(largest, fn(module) = row(module, module.path))
+        <> ["",
+            total(List.filter(largest, fn(module) = String.endsWith(module.path, ".erl")),
+                  "Erlang"),
+            total(List.filter(largest, fn(module) = String.endsWith(module.path, ".ern")),
+                  "Ernest")]
+}
+
+//
+// The repository
+//
+
+// What git counts of the tree since the tag, its moves found, a file gone
+// since being one the files git tracks now leave out. The whole tree is
+// read, since git finds a move only where it reads both paths, and a module
+// may have moved from a directory the listing does not name.
+fn since(tag : String, files : Set(String)) : Since = {
+    let fields = String.split(git(["diff", "--numstat", "-M", "-z", tag]), "\u{0}");
+    let found = changesOf(fields, []);
+    let gone =
+        List.foldLeft(found, Map.empty, fn(acc, change) = match Path.name(Path(change.path)) {
+            Some(name) when Set.contains(files, change.path) == false ->
+                Map.update(acc,
+                           name,
+                           fn(removed) = change.removed :: Optional.withDefault(removed, []))
+          | _ ->
+                acc
+        });
+    Since(changes = Map.fromList(List.map(found, fn(change) = #(change.path, change))), =gone)
+}
+
+// The changes `git diff --numstat -z` writes, a field each: the lines added,
+// the lines removed and the path, tab between them; a move's path empty,
+// and its old path and its new one the two fields after it.
+fn changesOf(fields : List(String), acc : List(Change)) : List(Change) =
+    match fields {
+        [] ->
+            acc
+      | field :: rest ->
+            match String.split(field, "\t") {
+                [added, removed, ""] ->
+                    match rest {
+                        _ :: path :: following ->
+                            changesOf(following, counted(path, added, removed) :: acc)
+                      | _ ->
+                            acc
+                    }
+              | [added, removed, path] ->
+                    changesOf(rest, counted(path, added, removed) :: acc)
+              | _ ->
+                    changesOf(rest, acc)
+            }
+    }
+
+fn counted(path : String, added : String, removed : String) : Change =
+    Change(=path,
+           added = Optional.withDefault(String.toInt(added), 0),
+           removed = Optional.withDefault(String.toInt(removed), 0))
+
+// A module's lines at a tag: from its change, or, where that finds none,
+// from the one file of its name gone since; 0 where it is new since.
+fn linesAt(since : Since, path : String, lines : Int) : Int =
+    match Map.get(since.changes, path) {
+        Some(change) when change.added == lines && change.removed == 0 ->
+            match Path.name(Path(path)) {
+                Some(name) ->
+                    match Map.get(since.gone, name) {
+                        Some([removed]) -> removed
+                      | _ -> 0
+                    }
+              | None ->
+                    0
+            }
+      | Some(change) ->
+            lines - change.added + change.removed
+      | None ->
+            lines
+    }
+
+// The lines of a text, a last one without its line feed among them.
+fn lineCount(bytes : Bytes) : Int = {
+    let feeds = List.size(Bytes.split(bytes, <<10>>)) - 1;
+    if Bytes.isEmpty(bytes) || Bytes.endsWith(bytes, <<10>>) then feeds else feeds + 1
+}
+
+fn git(arguments : List(String)) : String =
+    match Os.run(Os.command("git", arguments), fileMs) {
+        Right(finished) when finished.status == 0 ->
+            String.trimEnd(text("git " <> String.join(arguments, " "), finished.stdout))
+      | _ ->
+            quit("git " <> String.join(arguments, " ") <> " failed")
+    }
+
+fn contents(path : String) : Bytes =
+    match Fs.read(Path(path), fileMs) {
+        Right(bytes) -> bytes
+      | Left(error) -> quit("cannot read " <> path <> ": " <> Io.show(error))
+    }
+
+fn text(source : String, bytes : Bytes) : String =
+    match String.fromUtf8(bytes) {
+        Some(text) -> text
+      | None -> quit(source <> " is not UTF-8")
+    }
+
+fn quit(message : String) : a = {
+    Io.printlnError("sizes: " <> message);
+    Os.exit(1)
+}
+
+//
+// The lines
+//
+
+fn heading(last : String, before : String) : String =
+    String.join([column("lines"),
+                 column(last),
+                 column("since"),
+                 column(before),
+                 column("since"),
+                 ""],
+                "  ")
+        <> "module"
+
+// A module's line, or a total's, the name last.
+fn row(module : Module, name : String) : String =
+    column(Int.toString(module.lines))
+        <> "  "
+        <> column(atTag(module.last))
+        <> "  "
+        <> column(growth(module.lines, module.last))
+        <> "  "
+        <> column(atTag(module.before))
+        <> "  "
+        <> column(growth(module.lines, module.before))
+        <> "  "
+        <> name
+
+fn column(text : String) : String =
+    String.padStart(text, 7, " ")
+
+fn atTag(lines : Int) : String =
+    if lines == 0 then "-" else Int.toString(lines)
+
+fn growth(lines : Int, at : Int) : String =
+    if at == 0 then
+        "new"
+    else if lines >= at then
+        "+" <> Int.toString(lines - at)
+    else
+        Int.toString(lines - at)
+
+// A language's totals, as a module's line: the lines of its modules now and
+// at each tag.
+fn total(modules : List(Module), language : String) : String = {
+    let summed =
+        List.foldLeft(modules,
+                      Module(path = "", lines = 0, last = 0, before = 0),
+                      fn(acc, module) =
+                          Module(..acc,
+                                 lines = acc.lines + module.lines,
+                                 last = acc.last + module.last,
+                                 before = acc.before + module.before));
+    row(summed, language <> ", " <> Int.toString(List.size(modules)) <> " modules")
+}
+
+//
+// Tests
+//
+
+/// A move is counted at its new path, and a plain change at its own.
+let readsMoves = Test.Case(name = "reads git's moves and changes", run = fn() = {
+    let fields = ["3\t1\tsrc/a.erl", "5\t0\t", "src/old/b.erl", "src/new/b.erl", ""];
+    Test.equal(List.reverse(changesOf(fields, [])),
+               [Change(path = "src/a.erl", added = 3, removed = 1),
+                Change(path = "src/new/b.erl", added = 5, removed = 0)])
+})
+
+/// A module's lines at a tag are its lines now less those added since and
+/// plus those removed; one that is all added is the one file of its name
+/// gone since, and new where there is none or more than one.
+let countsAtTheTag = Test.Case(name = "counts a module's lines at a tag", run = fn() = {
+    let changes =
+        Map.fromList([#("a", Change(path = "a", added = 3, removed = 1)),
+                      #("n/b", Change(path = "n/b", added = 4, removed = 0)),
+                      #("n/c", Change(path = "n/c", added = 2, removed = 0)),
+                      #("n/d", Change(path = "n/d", added = 5, removed = 0))]);
+    let since = Since(=changes, gone = Map.fromList([#("b", [9]), #("c", [1, 2])]));
+    Test.equal([linesAt(since, "a", 10),
+                linesAt(since, "n/b", 4),
+                linesAt(since, "n/c", 2),
+                linesAt(since, "n/d", 5),
+                linesAt(since, "u", 7)],
+               [8, 9, 0, 0, 7])
+})
+
+/// A text's lines count a last line without its line feed.
+let countsLines =
+    Test.Case(name = "counts a text's lines",
+              run = fn() =
+                  Test.equal(#(lineCount(<<>>), lineCount(<<97, 10>>), lineCount(<<97, 10, 98>>)),
+                             #(0, 1, 2)))
+
+/// Growth is signed, and a module absent at the tag is new.
+let showsGrowth =
+    Test.Case(name = "shows a module's growth",
+              run = fn() =
+                  Test.equal(#(growth(10, 8), growth(8, 10), growth(4, 0)), #("+2", "-2", "new")))

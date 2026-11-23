@@ -1,0 +1,449 @@
+//
+// The code repeated, for a review's readers to start from
+// (docs/reviews/full.md, docs/reviews/release.md): each stretch of the
+// Ernest under src/, tools/, examples/ and tour/ that stands twice by its
+// tokens, and each of the Erlang under src/ and test/, Ernest compared with
+// Ernest and Erlang with Erlang, the longest first. A listing, not a limit.
+//
+// `ern run clones.erc` writes a line a clone on standard output, its
+// tokens and the two stretches' paths and lines, under its language's
+// heading, then each language's count. It reads the files git tracks in
+// the working directory, the repository's root, each by its lexer's tokens
+// through the tools' helper, tools/ern_lexemes.erl: Ernest's the
+// toolchain's own, Erlang's the host's scanner's, each comment left out and
+// Erlang's attributes too, an export list or a spec repeating no code. A
+// token stands by its category alone, a name of any name, a literal of any
+// literal, so a stretch renamed is a clone still. A clone is at least
+// `size` tokens long, for its language: two windows of that size alike, by
+// a hash of their tokens, are a clone, and windows alike side by side are
+// one, as long as they run. A clone whose two stretches each overlap a
+// longer one's is left out, as is a window found in more places than
+// `crowded`, which is a pattern, not a stretch copied. The vendored getopt
+// and the Erlang the compiler wrote under test/fixtures/emitted/ are left
+// out.
+//
+
+// A token as the helper gives it: its lexer's category and its line.
+type Token = Token(category : String, line : Int)
+
+// A language's modules: its name, the git pathspecs that name its files,
+// its helper's tokens, whether its attributes are kept, and the shortest
+// clone it lists.
+type Language =
+    Language(name : String,
+             files : List(String),
+             tokens : (String) -> Optional(List(Token)),
+             attributes : Bool,
+             size : Int)
+
+// A module read: its path, its tokens' categories as numbers, which the
+// language's modules share, and each token's line by its place.
+type Module = Module(path : String, codes : List(Int), lines : List(Int))
+
+// A stretch of a module, by its place among the modules and its first and
+// last tokens' places.
+type Stretch = Stretch(module : Int, first : Int, last : Int)
+
+// A clone: its tokens and its two stretches.
+type Clone = Clone(tokens : Int, one : Stretch, other : Stretch)
+
+// The languages, and the shortest clone each lists, in tokens.
+let languages : List(Language) =
+    [Language(name = "Ernest",
+              files = ["src/*.ern", "tools/*.ern", "examples/*.ern", "tour/*.ern"],
+              tokens = ernestTokens,
+              attributes = true,
+              size = 100),
+     Language(name = "Erlang",
+              files = ["src/*.erl",
+                       "test/*.erl",
+                       ":!src/toolchain/cli/getopt.erl",
+                       ":!test/fixtures/emitted/"],
+              tokens = erlangTokens,
+              attributes = false,
+              size = 150)]
+
+// The places a window may stand in and still be a clone's.
+let crowded : Int = 40
+
+// The hash of a window, a polynomial of its tokens' numbers modulo a prime,
+// the Mersenne 2^61 - 1, past which two windows of different tokens alike
+// are too rare to be met.
+let prime : Int = 2305843009213693951
+
+let base : Int = 1000003
+
+// A file's time and git's, as the other tools give theirs.
+let fileMs : Int = 10000
+
+export fn main() : Unit =
+    match Os.arguments {
+        [] -> List.forEach(listed(), Io.println)
+      | _ -> quit("usage: clones")
+    }
+
+// The listing's lines: each language's heading and a line a clone, then
+// each language's count.
+fn listed() : List(String) = {
+    let found = List.map(languages, fn(language) = #(language, cloned(language)));
+    List.flatMap(found, fn(#(language, clones)) = section(language, clones))
+        <> List.map(found, fn(#(language, clones)) = counted(language, clones))
+}
+
+// A language's clones, the longest first, each with its two paths.
+fn cloned(language : Language) : #(List(Module), List(Clone)) = {
+    let paths = String.lines(git(["ls-files", "--"] <> language.files));
+    let modules = read(paths, language);
+    #(modules, clones(List.map(modules, fn(module) = module.codes), language.size))
+}
+
+//
+// The tokens
+//
+
+foreign fn ernestTokens(code : String) : Optional(List(Token)) =
+    "ern_lexemes:ernest_tokens/1"
+
+foreign fn erlangTokens(code : String) : Optional(List(Token)) =
+    "ern_lexemes:erlang_tokens/1"
+
+// The modules of the paths, each category a number, the same in every
+// module of the language; a module its lexer refuses is a defect of the
+// tree, which stops the listing.
+fn read(paths : List(String), language : Language) : List(Module) = {
+    let #(_, modules) =
+        List.mapFold(paths,
+                     Map.empty,
+                     fn(numbers, path) = match language.tokens(text(path, contents(path))) {
+                         Some(tokens) -> {
+                             let kept = if language.attributes then
+                                 tokens
+                             else
+                                 withoutAttributes(tokens, true, []);
+                             let #(next, codes) =
+                                 List.mapFold(kept,
+                                              numbers,
+                                              fn(known, token) =
+                                                  numbered(known, category(token.category)));
+                             #(next,
+                               Module(=path,
+                                      =codes,
+                                      lines = List.map(kept, fn(token) = token.line)))
+                         }
+                       | None ->
+                             quit(path <> " is refused by its lexer")
+                     });
+    modules
+}
+
+// A category's number, given it on its first meeting, from 1.
+fn numbered(known : Map(String, Int), category : String) : #(Map(String, Int), Int) =
+    match Map.get(known, category) {
+        Some(number) ->
+            #(known, number)
+      | None -> {
+            let number = Map.size(known) + 1;
+            #(Map.put(known, category, number), number)
+        }
+    }
+
+// A token's category as a clone compares it: a name of either language's
+// names, a literal of either's literals, any other its own.
+fn category(category : String) : String =
+    if Set.contains(names, category) then
+        "name"
+    else if Set.contains(literals, category) then
+        "literal"
+    else
+        category
+
+let names : Set(String) = Set.fromList(["ident", "typename", "var", "atom"])
+
+let literals : Set(String) = Set.fromList(["int", "float", "char", "string", "bool", "integer"])
+
+// Erlang's tokens with each attribute left out, a form that begins with
+// `-`, to its `.`.
+fn withoutAttributes(tokens : List(Token), atForm : Bool, acc : List(Token)) : List(Token) =
+    match tokens {
+        [] ->
+            List.reverse(acc)
+      | token :: rest when atForm && token.category == "-" ->
+            withoutAttributes(afterForm(rest), true, acc)
+      | token :: rest ->
+            withoutAttributes(rest, token.category == "dot", token :: acc)
+    }
+
+fn afterForm(tokens : List(Token)) : List(Token) =
+    match tokens {
+        [] -> []
+      | token :: rest -> if token.category == "dot" then rest else afterForm(rest)
+    }
+
+//
+// The clones
+//
+
+// The clones of `size` tokens or more among the modules' codes, the
+// longest first, a clone left out whose stretches each overlap a longer
+// one's.
+fn clones(modules : List(List(Int)), size : Int) : List(Clone) = {
+    let windows =
+        List.foldLeft(List.indexed(modules),
+                      Map.empty,
+                      fn(acc, #(module, codes)) = placed(acc, module, hashes(codes, size)));
+    let runs = Map.fold(windows, Map.empty, fn(acc, _, places) = paired(acc, places, size));
+    let found =
+        Map.fold(runs,
+                 [],
+                 fn(acc, #(one, other, offset), starts) =
+                     joined(List.sort(starts), one, other, offset, size) <> acc);
+    let longest =
+        List.sortBy(found,
+                    fn(clone) =
+                        #(-clone.tokens, clone.one.module, clone.one.first, clone.other.module));
+    List.reverse(kept(longest, [], []))
+}
+
+// The places of each window by its hash, a module's windows added.
+fn placed(windows : Map(Int, List(#(Int, Int))),
+          module : Int,
+          hashes : List(Int)) : Map(Int, List(#(Int, Int))) =
+    List.foldLeft(List.indexed(hashes),
+                  windows,
+                  fn(acc, #(place, hash)) = added(acc, hash, #(module, place)))
+
+// The map with the value put at the head of its key's list.
+fn added(map : Map(k, List(v)), key : k, value : v) : Map(k, List(v)) =
+    Map.update(map, key, fn(values) = value :: Optional.withDefault(values, []))
+
+// The hash of each window of `size` codes, by its first code's place, each
+// from the one before it.
+fn hashes(codes : List(Int), size : Int) : List(Int) = {
+    let first =
+        List.foldLeft(List.take(codes, size), 0, fn(hash, code) = (hash * base + code) % prime);
+    let top = List.foldLeft(List.repeat(base, size - 1), 1, fn(power, b) = power * b % prime);
+    if List.size(codes) < size then
+        []
+    else
+        rolled(codes, List.drop(codes, size), first, top, [first])
+}
+
+fn rolled(leaving : List(Int),
+          entering : List(Int),
+          hash : Int,
+          top : Int,
+          acc : List(Int)) : List(Int) =
+    match #(leaving, entering) {
+        #(out :: outs, code :: codes) -> {
+            let next = ((hash + prime - out * top % prime) * base + code) % prime;
+            rolled(outs, codes, next, top, next :: acc)
+        }
+      | _ ->
+            List.reverse(acc)
+    }
+
+// The pairs of a window's places, each by its two modules and the offset
+// from the one to the other, with the place it starts at in the first; a
+// window met once, or in more places than `crowded`, pairs none, and nor
+// do two places of a module that overlap.
+fn paired(runs : Map(#(Int, Int, Int), List(Int)),
+          places : List(#(Int, Int)),
+          size : Int) : Map(#(Int, Int, Int), List(Int)) = {
+    let count = List.size(places);
+    if count < 2 || count > crowded then runs else pairedFrom(runs, List.sort(places), size)
+}
+
+fn pairedFrom(runs : Map(#(Int, Int, Int), List(Int)),
+              places : List(#(Int, Int)),
+              size : Int) : Map(#(Int, Int, Int), List(Int)) =
+    match places {
+        [] ->
+            runs
+      | #(module, place) :: rest -> {
+            let more =
+                List.foldLeft(rest,
+                              runs,
+                              fn(acc, #(other, otherPlace)) =
+                                  if module == other && otherPlace - place < size then
+                                      acc
+                                  else
+                                      added(acc, #(module, other, otherPlace - place), place));
+            pairedFrom(more, rest, size)
+        }
+    }
+
+// The clones of one pair of modules at one offset: each run of windows
+// side by side, its starts in order, one clone.
+fn joined(starts : List(Int), one : Int, other : Int, offset : Int, size : Int) : List(Clone) =
+    match starts {
+        [] ->
+            []
+      | first :: rest -> {
+            let #(last, following) = run(first, rest);
+            Clone(tokens = last - first + size,
+                  one = Stretch(module = one, =first, last = last + size - 1),
+                  other = Stretch(module = other,
+                                  first = first + offset,
+                                  last = last + offset + size - 1))
+                :: joined(following, one, other, offset, size)
+        }
+    }
+
+// The last start of the run that begins at `last`, and the starts after it.
+fn run(last : Int, starts : List(Int)) : #(Int, List(Int)) =
+    match starts {
+        next :: rest when next == last + 1 -> run(next, rest)
+      | _ -> #(last, starts)
+    }
+
+// The clones, the longest first, but each whose two stretches each overlap
+// one a longer clone holds.
+fn kept(clones : List(Clone), held : List(Stretch), acc : List(Clone)) : List(Clone) =
+    match clones {
+        [] ->
+            acc
+      | clone :: rest when overlaps(held, clone.one) && overlaps(held, clone.other) ->
+            kept(rest, held, acc)
+      | clone :: rest ->
+            kept(rest, clone.one :: clone.other :: held, clone :: acc)
+    }
+
+fn overlaps(held : List(Stretch), stretch : Stretch) : Bool =
+    List.any(held,
+             fn(other) =
+                 other.module == stretch.module
+                     && other.first <= stretch.last
+                     && stretch.first <= other.last)
+
+//
+// The lines
+//
+
+fn section(language : Language, found : #(List(Module), List(Clone))) : List(String) = {
+    let #(modules, clones) = found;
+    let lines = List.map(modules, fn(module) = Map.fromList(List.indexed(module.lines)));
+    [heading(language)] <> List.map(clones, fn(clone) = row(modules, lines, clone)) <> [""]
+}
+
+fn heading(language : Language) : String =
+    language.name
+        <> ", clones of "
+        <> Int.toString(language.size)
+        <> " tokens or more"
+        <> (if language.attributes then ":" else ", attributes left out:")
+
+// A clone's line: its tokens and its two stretches, each its path and its
+// lines.
+fn row(modules : List(Module), lines : List(Map(Int, Int)), clone : Clone) : String =
+    String.padStart(Int.toString(clone.tokens), 7, " ")
+        <> " tokens  "
+        <> stretch(modules, lines, clone.one)
+        <> "  "
+        <> stretch(modules, lines, clone.other)
+
+fn stretch(modules : List(Module), lines : List(Map(Int, Int)), stretch : Stretch) : String =
+    match #(List.get(modules, stretch.module), List.get(lines, stretch.module)) {
+        #(Some(module), Some(byPlace)) ->
+            module.path <> ":" <> line(byPlace, stretch.first) <> "-" <> line(byPlace, stretch.last)
+      | _ ->
+            "?"
+    }
+
+fn line(byPlace : Map(Int, Int), place : Int) : String =
+    Int.toString(Optional.withDefault(Map.get(byPlace, place), 0))
+
+// A language's count: its clones, the tokens they repeat, and its modules.
+fn counted(language : Language, found : #(List(Module), List(Clone))) : String = {
+    let #(modules, clones) = found;
+    language.name
+        <> ": "
+        <> Int.toString(List.size(clones))
+        <> " clones, "
+        <> Int.toString(List.foldLeft(clones, 0, fn(acc, clone) = acc + clone.tokens))
+        <> " tokens repeated, among "
+        <> Int.toString(List.size(modules))
+        <> " modules."
+}
+
+//
+// The repository
+//
+
+fn git(arguments : List(String)) : String =
+    match Os.run(Os.command("git", arguments), fileMs) {
+        Right(finished) when finished.status == 0 ->
+            String.trimEnd(text("git " <> String.join(arguments, " "), finished.stdout))
+      | _ ->
+            quit("git " <> String.join(arguments, " ") <> " failed")
+    }
+
+fn contents(path : String) : Bytes =
+    match Fs.read(Path(path), fileMs) {
+        Right(bytes) -> bytes
+      | Left(error) -> quit("cannot read " <> path <> ": " <> Io.show(error))
+    }
+
+fn text(source : String, bytes : Bytes) : String =
+    match String.fromUtf8(bytes) {
+        Some(text) -> text
+      | None -> quit(source <> " is not UTF-8")
+    }
+
+fn quit(message : String) : a = {
+    Io.printlnError("clones: " <> message);
+    Os.exit(1)
+}
+
+//
+// Tests
+//
+
+/// A stretch that stands twice is one clone, as long as its windows run side
+/// by side.
+let findsAClone = Test.Case(name = "finds a stretch that stands twice", run = fn() = {
+    let one = [1, 2, 3, 4, 5, 6, 9, 9];
+    let other = [7, 1, 2, 3, 4, 5, 6, 8];
+    Test.equal(clones([one, other], 3),
+               [Clone(tokens = 6,
+                      one = Stretch(module = 0, first = 0, last = 5),
+                      other = Stretch(module = 1, first = 1, last = 6))])
+})
+
+/// A window's hash rolled from the one before is the hash written whole.
+let rollsHashes = Test.Case(name = "rolls a window's hash", run = fn() = {
+    let codes = [3, 1, 4, 1, 5, 9, 2, 6];
+    let whole =
+        List.map(List.range(0, 5),
+                 fn(place) =
+                     List.foldLeft(List.take(List.drop(codes, place), 3),
+                                   0,
+                                   fn(hash, code) = (hash * base + code) % prime));
+    Test.equal(hashes(codes, 3), whole)
+})
+
+/// A clone whose two stretches each overlap a longer one's is left out, and
+/// one with a stretch of its own is kept.
+let keepsTheLongest = Test.Case(name = "keeps the longest of overlapping clones", run = fn() = {
+    let longer =
+        Clone(tokens = 9,
+              one = Stretch(module = 0, first = 0, last = 8),
+              other = Stretch(module = 1, first = 0, last = 8));
+    let inside =
+        Clone(tokens = 5,
+              one = Stretch(module = 0, first = 2, last = 6),
+              other = Stretch(module = 1, first = 3, last = 7));
+    let elsewhere =
+        Clone(tokens = 5,
+              one = Stretch(module = 0, first = 2, last = 6),
+              other = Stretch(module = 2, first = 0, last = 4));
+    Test.equal(List.reverse(kept([longer, inside, elsewhere], [], [])), [longer, elsewhere])
+})
+
+/// An Erlang attribute is left out to its `.`, and a function is kept.
+let dropsAttributes = Test.Case(name = "leaves Erlang's attributes out", run = fn() = {
+    let tokens =
+        List.map(["-", "atom", "(", "atom", ")", "dot", "atom", "(", ")", "->", "atom", "dot"],
+                 fn(category) = Token(=category, line = 1));
+    Test.equal(List.map(withoutAttributes(tokens, true, []), fn(token) = token.category),
+               ["atom", "(", ")", "->", "atom", "dot"])
+})

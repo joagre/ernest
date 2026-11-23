@@ -12,7 +12,7 @@ own_code_test() ->
     Own = [filename:basename(Beam, ".beam") || Beam <- ern_tree:own_code()],
     ?assertEqual([], ["ern_cli", "ern_tree", "ern_node", "ern_rt", "ern_shell", "ern_json",
                       "ern_http", "ern_uri"] -- Own),
-    ?assertEqual([], [Module || Module <- ["ern_tree_tests", "ern_named", "ern_site"],
+    ?assertEqual([], [Module || Module <- ["ern_tree_tests", "ern_named", "ern_lexemes"],
                                 lists:member(Module, Own)]).
 
 %% docs/design/install.md: the directories of the toolchain's code are the

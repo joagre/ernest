@@ -293,13 +293,14 @@ site:
 # The programs of the build written in Ernest, tools/, compiled into
 # build/tools against the libraries they use: libs/markdown and libs/ansi,
 # which the manual page is written with, and libs/crypto, whose digest
-# names the site's assets. The site's generator reaches the toolchain's lexer
-# through its helper, tools/site/ern_site.erl, compiled to the root of the
-# build, where `ern run` finds it on the load path (report §11.2).
-tools: lib-ansi lib-markdown lib-crypto build/tools/ern_site.beam
+# names the site's assets. The site's generator and the clones' listing
+# reach the toolchain's lexer and the host's scanner through the tools' one
+# helper, tools/ern_lexemes.erl, compiled to the root of the build, where
+# `ern run` finds it on the load path (report §11.2).
+tools: lib-ansi lib-markdown lib-crypto build/tools/ern_lexemes.beam
 	@bin/ern build --verbose --build-root build/tools tools
 
-build/tools/ern_site.beam: tools/site/ern_site.erl
+build/tools/ern_lexemes.beam: tools/ern_lexemes.erl
 	@mkdir -p $(@D)
 	@erlc +debug_info +warn_missing_spec -Werror -o $(@D) $<
 
@@ -343,9 +344,13 @@ test: all
 
 test-full: all
 	@$(MAKE) -s -C test beams
-	@$(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
+	@$(FULL_FIRST)
+	@$(FULL_SECOND)
+
+# make test-full's two phases, which make cover and make slowest run too.
+FULL_FIRST = $(MAKE) -s -j$(JOBS) -O -o all test-guide $(EMACS_JOBS) $(APP_JOBS) test-library \
 	  test-docs test-site test-grammar test-typed dialyzer xref
-	@$(MAKE) -s -j1 -k -o all test-shell test-site-shell $(PROGRAM_PARTS)
+FULL_SECOND = $(MAKE) -s -j1 -k -o all test-shell test-site-shell $(PROGRAM_PARTS)
 
 # The unit tests of the roots under src/, side by side, or of one with
 # APP=checker. A library's shim's tests run under test-library. Each runs
@@ -380,7 +385,7 @@ UNIT_HOST = erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
 	-pa $(CURDIR)/build/$(1) -pa $(CURDIR)/build/$(1)/test
 RUN_UNIT_TESTS = @$(call AREA_RUN,test,$(call UNIT_HOST,$(1)) \
 	  -eval '$(call UNIT_TESTS,$(1),$(2),$(3))$(comma) \
-	  halt(case eunit:test(Mine, []) of ok -> 0; _ -> 1 end).')
+	  halt(case $(EUNIT_TEST)(Mine, []) of ok -> 0; _ -> 1 end).')
 
 $(APP_TESTS) $(SHIM_TESTS): test-app-%: $$(call test_beams,$$(call root,$$*)) \
 	  $$(call test_beams,runtime)
@@ -716,6 +721,41 @@ coverage:
 	         | wc -l); \
 	    printf '%3d cites %5d words  §%s\n' $$c $$w $$s; done | sort -k1,1n -k3,3nr
 
+# The listings a review's readers start from (docs/reviews/full.md,
+# release.md), each printing lines and failing nothing. cover and slowest
+# run make test-full's two phases with each host's EUnit run through
+# ern_recorder (src/runtime/test), which records the lines the toolchain's
+# own Erlang ran or each test's time into the listing's directory, beside
+# what the phases printed, test-full.txt. Each phase runs whole, -k, and the
+# second whatever the first ended with, so that every host records; the
+# listing names each EUnit test and each target that failed, and reads what
+# the hosts recorded.
+# sizes lists each module's lines now and at the last two tags, and clones
+# the code repeated.
+COVER = $(CURDIR)/build/cover
+SLOWEST = $(CURDIR)/build/slowest
+RECORDED = { $(MAKE) -s -C test beams && { $(FULL_FIRST) -k EUNIT_TEST=ern_recorder:test; \
+	  first=$$?; $(FULL_SECOND) EUNIT_TEST=ern_recorder:test && [ $$first = 0 ]; }; } \
+	  > $(2)/test-full.txt 2>&1 || { echo "make $(1): what failed of make test-full," \
+	    "as $(2)/test-full.txt says; the listing reads what was recorded:"; \
+	  grep -E '\.\.\.\*(failed|timed out)\*|^make(\[[0-9]+\])?: \*\*\* ' \
+	    $(2)/test-full.txt | sed 's/^/  /'; echo; }
+cover: all $(call test_beams,runtime)
+	@rm -rf $(COVER) && mkdir -p $(COVER)/runs
+	@erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
+	  -eval 'ern_recorder:covered("$(COVER)"), halt().'
+	@export ERN_COVER_DIR=$(COVER); $(call RECORDED,cover,$(COVER))
+	@erl -noshell $(CODE_PATH) -pa $(CURDIR)/build/runtime/test \
+	  -eval 'ern_recorder:uncovered("$(COVER)"), halt().'
+slowest: all tools $(call test_beams,runtime)
+	@rm -rf $(SLOWEST) && mkdir -p $(SLOWEST)
+	@export ERN_TIMES_DIR=$(SLOWEST); $(call RECORDED,slowest,$(SLOWEST))
+	@bin/ern run build/tools/slowest.erc $(SLOWEST)
+sizes: tools
+	@bin/ern run build/tools/sizes.erc
+clones: tools
+	@bin/ern run build/tools/clones.erc
+
 # Emacs backup (foo~), auto-save (#foo#), and lock (.#foo) files, anywhere.
 clean-emacs:
 	find . -path ./.git -prune -o \( -name '*~' -o -name '#*#' -o -name '.#*' \) -print0 \
@@ -735,5 +775,5 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         uninstall release \
         version site \
         unicode flakes \
-        paragraphs comments \
+        paragraphs comments cover slowest sizes clones \
         dialyzer units sanitize diagnostics

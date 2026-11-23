@@ -123,10 +123,13 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      call against the applications' order and an export nothing calls, `make test-typed` the
      checker's near misses, and a style test a private function nothing calls.
 
-     The listings, which a review runs: `cover` over `make test-full` for the full review,
-     clones and each module's size for the full and the release reviews, and the slowest tests
-     for the release review. `docs/reviews/full.md`, `release.md` and `development.md` name
-     each check in the commit that builds it.
+     The listings are done 2026-11-23 (the log's *The Listings Before a Review, Built*):
+     `make cover`, `make clones`, `make sizes` and `make slowest`, which the reviews name.
+   - **The helper's failure under recording**, found 2026-11-23 by `make cover` (the log's
+     *The Listings Before a Review, Built*). A guide example of `ern_nodes_tests` faulted
+     with `the runtime's helper ern_exec failed` from `Os.host` in two of three recording
+     runs, and in no plain `make test-full`. It is diagnosed before the readers start: a
+     defect a user can meet is mended, and one of the recorder's is mended there.
    - **What is kept, stated once**, done 2026-11-23 (the log's *What Is Kept, Stated
      Once*). The design notes own what a component keeps and when it lets go, and
      `docs/memory_checks.md` points at them.

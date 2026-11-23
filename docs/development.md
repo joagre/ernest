@@ -114,15 +114,19 @@ release/           the release archive's own files, Makefile and README.md, whic
 .github/           ISSUE_TEMPLATE/, the form a defect is reported by, and the chooser
                    that sends a security hole to private reporting, as SECURITY.md does
 tools/             the programs of the build: manual.ern writes ern(1) from the
-                   report's §11, for make; site.ern, with site/ beside it, which holds
-                   its helper ern_site.erl over the toolchain's lexer, writes every page of
-                   the website from the repository into a directory of its own, and
-                   checks every link of it, for make site;
+                   report's §11, for make; site.ern, with its modules in site/ beside
+                   it, writes every page of the website from the repository into a
+                   directory of its own, and checks every link of it, for make site;
+                   ern_lexemes.erl, the tools' one helper, gives the site and the clones'
+                   listing the tokens of the toolchain's lexer and of the host's scanner;
                    unicode_width.ern writes Terminal.width's
                    table, for make unicode; install.sh, with strip.escript, stages,
                    installs and archives, for make install, uninstall and release;
                    words.ern lists the long paragraphs and the long comment blocks, for
                    make paragraphs, make comments and make test-docs;
+                   sizes.ern lists each module's lines and its growth, for make sizes;
+                   clones.ern lists the code repeated, for make clones;
+                   slowest.ern lists the slowest tests, for make slowest;
                    flakes.ern runs the flake hunt's hosts beside busy loops and says
                    what they found, for make flakes;
                    and version.sh sets VERSION and the lines the tests hold to it, for
@@ -139,7 +143,8 @@ build/             build products, not in git, an installation holding what it s
                    generated from; each root's test/ from the tests that compile it,
                    on no job's code path; release/ from make
                    release; units/ from make units; dialyzer.plt from make dialyzer;
-                   sanitize/ from make sanitize; flakes/ from make flakes. The tests under
+                   sanitize/ from make sanitize; flakes/ from make flakes; cover/ and
+                   slowest/ from make cover and make slowest. The tests under
                    test/ build beside themselves, in test/ebin/ and test/build/, as an
                    application's do
 ```
@@ -413,6 +418,31 @@ make sanitize   # the helper in C under Clang's analyzer, and the runtime's and 
                 # programs' tests with it built under the sanitizers
 make sections   # list the report sections no test cites
 make coverage   # every section with how many tests cite it and its length, thinnest first
+make cover      # the lines of the toolchain's own Erlang no test runs, the vendored getopt
+                # left out: make test-full with each host that runs EUnit through
+                # ern_recorder, which loads the modules compiled with the host's line
+                # coverage and records the lines they ran, then each module by its
+                # source's path with its lines run and not run, and each stretch not run
+                # with its function; a host bin/ern starts, a program's, a node's or a
+                # shell's, records nothing; what make test-full printed in
+                # build/cover/test-full.txt, and first each EUnit test and each target
+                # that failed; ern_cli_tests's compiler_digest_of_its_files_test fails on
+                # every run, since it holds each compiler module's loaded code to its
+                # file's digest, and the code loaded is the covered compile; for the full
+                # review
+make slowest    # the 30 slowest tests of make test-full, by EUnit's own times, which
+                # ern_recorder records the same way, each named by its function and its
+                # description, a generator's tests without one summed under its function;
+                # what make test-full printed in build/slowest/test-full.txt; for the
+                # release review
+make sizes      # each module of the Erlang under src/ and test/ and the Ernest under src/,
+                # tools/, examples/ and tour/, largest first, by its lines now and at the
+                # last two releases' tags, with its growth since each; for both reviews
+make clones     # the code repeated, the Ernest of make sizes compared with itself and the
+                # Erlang with itself, each by its lexer's tokens, a name of any name and a
+                # literal of any literal, comments and Erlang's attributes left out: each
+                # clone of 100 Ernest tokens or 150 Erlang ones, the longest first, with
+                # its two stretches' paths and lines; for both reviews
 make golden     # rewrite test/fixtures/emitted/, the Erlang the compiler emits for each
                 # program `golden_names/0` lists: test/fixtures/programs/, hello and
                 # services

@@ -9,6 +9,11 @@ RUN_STARTUP := $(dir $(lastword $(MAKEFILE_LIST)))fixtures/session/startup
 # A comma, which the argument of a call cannot hold as written.
 comma := ,
 
+# The function each host that runs EUnit's tests calls them by, EUnit's
+# own, which make cover and make slowest set to ern_recorder's, in the
+# runtime's tests, to record what the host ran.
+EUNIT_TEST = eunit:test
+
 # The command $(2) in a directory of the run's own, named for $(1), an area
 # or the roots' unit tests, which its tests make their homes, sources and
 # inputs under (ERN_TEST_DIR) and which is removed when the command ends,

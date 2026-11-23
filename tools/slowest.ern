@@ -1,0 +1,154 @@
+//
+// The slowest tests of make test-full, for the release review's readers to
+// start from (docs/reviews/release.md): the 30 tests of the most time,
+// slowest first, by EUnit's own timings, which ern_recorder
+// (src/runtime/test) writes in each host where make test-full runs EUnit,
+// one file a host. A listing, not a limit.
+//
+// `ern run slowest.erc dir` reads every `.times` file in dir, a line a
+// test, its milliseconds, its module, its function and its description,
+// tab between them, and writes a line a test on standard output, its
+// seconds, its name and how many of EUnit's tests it counts, then the
+// totals. A test is named by its module and its function, the function a
+// fun is written in for a fun's, `b_test_` for `-b_test_/0-fun-2-`, and by
+// its description after them where it has one. The tests of one name are
+// counted as one, their times summed, so a generator's tests without a
+// description are its own; a test EUnit canceled has no time, and a
+// library case `ern test` runs is no test of EUnit's, so neither is
+// listed.
+//
+
+// A test's time, under its name: its milliseconds and EUnit's tests it
+// counts.
+type Timed = Timed(name : String, ms : Int, tests : Int)
+
+// How many tests the listing shows.
+let shown : Int = 30
+
+// A file's time, as the other tools give theirs.
+let fileMs : Int = 10000
+
+export fn main() : Unit =
+    match Os.arguments {
+        [directory] -> List.forEach(listed(directory), Io.println)
+      | _ -> quit("usage: slowest dir")
+    }
+
+// The listing's lines: a line a test, the slowest first, and the totals.
+fn listed(directory : String) : List(String) = {
+    let files = match Fs.list(Path(directory), fileMs) {
+        Right(entries) ->
+            List.filter(List.map(entries, fn(entry) = entry.path),
+                        fn(path) = Path.extension(path) == Some("times"))
+      | Left(error) ->
+            quit("cannot list " <> directory <> ": " <> Io.show(error))
+    };
+    let lines = List.flatMap(files, fn(path) = String.lines(contents(path)));
+    let timed = timedOf(lines);
+    let tests = List.foldLeft(timed, 0, fn(acc, function) = acc + function.tests);
+    let ms = List.foldLeft(timed, 0, fn(acc, function) = acc + function.ms);
+    List.map(List.take(timed, shown), row)
+        <> ["",
+            "The records of "
+                <> Int.toString(List.size(files))
+                <> " hosts: "
+                <> Int.toString(tests)
+                <> " tests under "
+                <> Int.toString(List.size(timed))
+                <> " names, "
+                <> seconds(ms)
+                <> " s in all."]
+}
+
+// Each test's time from the recorded lines, the slowest first.
+fn timedOf(lines : List(String)) : List(Timed) = {
+    let summed = List.foldLeft(lines, Map.empty, fn(acc, line) = match String.split(line, "\t") {
+        [time, module, function, description] ->
+            match String.toInt(time) {
+                Some(ms) ->
+                    Map.update(acc, named(module, function, description), fn(entry) = {
+                        let #(before, tests) = Optional.withDefault(entry, #(0, 0));
+                        #(before + ms, tests + 1)
+                    })
+              | None ->
+                    acc
+            }
+      | _ ->
+            acc
+    });
+    let timed = List.map(Map.toList(summed), fn(#(name, #(ms, tests))) = Timed(=name, =ms, =tests));
+    List.sortBy(timed, fn(function) = -function.ms)
+}
+
+// A test's name: its module and function, and its description after them
+// where it has one.
+fn named(module : String, function : String, description : String) : String = {
+    let name = module <> ":" <> testName(function);
+    if String.isEmpty(description) then name else name <> " (" <> description <> ")"
+}
+
+// The test function a test's source names: a fun's is the function it is
+// written in, `-name/0-fun-2-`, and any other is its own.
+fn testName(function : String) : String =
+    match String.stripPrefix(function, "-") {
+        Some(rest) ->
+            match String.splitOnce(rest, "/") {
+                Some(#(name, _)) -> name
+              | None -> function
+            }
+      | None ->
+            function
+    }
+
+fn row(function : Timed) : String =
+    String.padStart(seconds(function.ms), 9, " ")
+        <> " s  "
+        <> function.name
+        <> ", "
+        <> Int.toString(function.tests)
+        <> (if function.tests == 1 then " test" else " tests")
+
+// Milliseconds as seconds, to the millisecond.
+fn seconds(ms : Int) : String =
+    Int.toString(ms / 1000) <> "." <> String.padStart(Int.toString(ms % 1000), 3, "0")
+
+fn contents(path : Path) : String =
+    match Fs.read(path, fileMs) {
+        Right(bytes) ->
+            match String.fromUtf8(bytes) {
+                Some(text) -> text
+              | None -> quit(Path.toString(path) <> " is not UTF-8")
+            }
+      | Left(error) ->
+            quit("cannot read " <> Path.toString(path) <> ": " <> Io.show(error))
+    }
+
+fn quit(message : String) : a = {
+    Io.printlnError("slowest: " <> message);
+    Os.exit(1)
+}
+
+//
+// Tests
+//
+
+/// A generator's tests without a description are summed under the function
+/// they are written in, one with a description is a test of its own, and the
+/// tests come slowest first.
+let sumsAGenerator = Test.Case(name = "sums a generator's tests", run = fn() = {
+    let lines =
+        ["5\tm_tests\ta_test\t",
+         "4\tm_tests\t-b_test_/0-fun-2-\t",
+         "3\tm_tests\t-b_test_/0-fun-0-\t",
+         "6\tm_tests\t-b_test_/0-fun-1-\tnamed",
+         "not a line"];
+    Test.equal(timedOf(lines),
+               [Timed(name = "m_tests:b_test_", ms = 7, tests = 2),
+                Timed(name = "m_tests:b_test_ (named)", ms = 6, tests = 1),
+                Timed(name = "m_tests:a_test", ms = 5, tests = 1)])
+})
+
+/// A time is shown in seconds to the millisecond.
+let showsSeconds =
+    Test.Case(name = "shows a time in seconds",
+              run = fn() = Test.equal(#(seconds(5), seconds(83215)), #("0.005", "83.215")))
