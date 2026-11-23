@@ -742,7 +742,8 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 - **PL1 L8** `3` — E.0 shape rules: constructor names. `LeftAligned` avoids `Left`, while `Io.Unreachable` and `Fs.Other` share prelude names, and `Bool.not` rests on PL1 11's first sentence. Fix: "A constructor takes no name a prelude constructor has", or nothing. Owner: report. Decide: that rule.
   - **Decided 2026-11-23** (the log's *E.0's Shape Rules*): no rule. §4.2 lets a module name its own things freely (*feedback item 59*, 2026-09-26), and a diagnostic prints the two apart as decided on *PL6 3*.
 - **P2 44, K 24, PL1 L5, PL1 L33, PL4 L9 d** `3` — §7.4, E.0 shape rule 4: an argument outside a domain is answered `None`, `Left(Invalid)` or a fault, case by case (`t14`; `Float.sqrt` keeps `None`, `Clock.toString` faults to spare callers a match, base 16's `None` makes five sites fault; `Peer.setUtilization`, `Foreign.atom`, `Os.exit`, `Os.environment`, `Http.renderResponse`). Fix: P2's sentence (input from outside answered in the result), K's (the type decides) or PL1 L5's for §7.4. Owner: report+stdlib+libs. Decide: which rule.
-  - Taken out of the batch of 2026-11-23, to be decided alone with its cases in a table.
+  - **Decided 2026-11-23**, alone (the log's *An Argument Outside a Domain*): the kind of domain decides, by principle 1. In §7.4, "one outside the function's own domain is `None`, or is corrected as this section says" reads "one outside the function's own domain is `None` where the domain is the operation's own, a root, a power, a parse, faults where the domain is a bound this report states as numbers, a status, a year, a base, a scale, and is corrected where this section says". Shape rule 4 points at it.
+  - One function changes: `Int.toStringBase : (Int, Int) -> String` faults on a base outside 2 to 36, its cause stated in E.8, and the sites that match its `None` lose the clause; feedback 253 and 276 close. `Float.sqrt`, `Char.fromCodePoint`, `Peer.setUtilization`, `Clock.toString`, `Os.exit` and `Foreign.atom` stand, now by the rule. `Os.environment` and `Http.writeResponse` are no arguments out of a domain and have lines of their own in the library's family.
 
 #### What does a diagnostic say: each message's text, its help and the order of its checks?
 
@@ -1008,6 +1009,8 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 - **E1 2** `3` — `src/stdlib/fs.ern:384`: `Fs.makeTempDir` faults where `TMPDIR` is not UTF-8, its page listing no fault. Fix: answer `Left(NotUtf8(bytes))` and E.17 says so, or the page names the fault. Owner: stdlib+report. Decide: which (the reader marked it the user's).
 - **W38** `3` — §12.2, E.12: no Ernest declaration reads Erlang's `{ok, V}`, so each needs an Erlang helper, which no job compiles. Fix: per decision. Owner: stdlib+report. Decide: whether E.12 reads a tuple's components.
 - **PL3 L2, PL6 L18, PL6 L19 (the verdicts on a count)** `3` — E.0, §0 principle 5 as decided 2026-11-23: five verdicts rest on "a second program asks" or "no program asks": no lock in `Fs`, no names of keys in `Ansi`, no removal of a tree, no tar library, and `Int.toStringBase`'s upper case. Fix: each taken again under E.0's admission rules, the reason restated. Owner: report+stdlib+libs. Decide: each. Added by leg 3, from the verdict on *PL1 L34*.
+- **P2 44 (`Http.writeResponse`)** `3` — G.11: `Http.writeResponse` has `Protocol(Malformed)` in its type and faults on a header value that holds a line feed, text a request may have carried, as `Http.renderResponse` does, whose `Bytes` has no place for it. Fix: `writeResponse` answers `Left(Protocol(Malformed))`, the renderer keeping its fault. Owner: libs+report. Decide: whether it answers the value. Added by leg 3, from the verdict on *P2 44*.
+- **K 24 (`Os.environment`)** `3` — E.23 `library.md:870`: `Os.environment` faults on a value that is not UTF-8, where `Fs.list` answers `Left(NotUtf8(name))` for a name. The value is what the world holds, which §7.4 has answered as a value with its cause. Fix: the fault stays and E.23 says why, or the function answers the failure. Owner: report+stdlib. Decide: which. Added by leg 3, from the verdict on *P2 44*.
 
 #### What does a fault's line, a trace or a deadlock's line name?
 
@@ -1288,7 +1291,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 
 ### Counted
 
-**Lines in each bucket**: `1` 152; `1r` 30; `2a` 243; `2b` 14; `3` 424 (The sentences 36, the families 387, Alone 1); `4` 52. 915 in all, Z8's line added by the session after the join, four lines moved to `3` by leg 3's check, and four added by its verdicts.
+**Lines in each bucket**: `1` 152; `1r` 30; `2a` 243; `2b` 14; `3` 426 (The sentences 36, the families 389, Alone 1); `4` 52. 917 in all, Z8's line added by the session after the join, four lines moved to `3` by leg 3's check, and six added by its verdicts.
 
 **The marks, by bucket**: `false`: `1` 0, `1r` 2, `2a` 0, `2b` 6, `3` 19, `4` 0. `user`: `1` 23, `1r` 0, `2a` 0, `2b` 1, `3` 59, `4` 0.
 
