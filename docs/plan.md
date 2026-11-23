@@ -98,7 +98,8 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
       beyond the four.
    2. Opus 5.5 at xhigh: the builds before the readers start, the rest of the list below.
       Then the readers are started, and their lists are written whole into the findings
-      file.
+      file. The principles review runs merged with it, 31 agents, decided with the user
+      2026-11-23 (the log's *The Principles Review Inside*).
    3. Fable 5.2 at high: the sort, and the `decide` lines with the user, each verdict and
       each fix's shape written into the findings file.
    4. Opus 5.5 at xhigh: the fixes by agents, the diffs read back, `make test-full` and the
@@ -181,8 +182,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    the floor is what an archive before the release is (the log's *The Floors and the
    Releases*). The rise is the manifests' write above. Ernest's session then names the minor,
    the archive's path and its commit to all three by a message, and asks for the reviews, on
-   the user's word. Each application's own session opens on the new floor, changes what its
-   code needs there and begins its review.
+   the user's word, which waits until Ernest's readers are done (the user, 2026-11-23). Each
+   application's own session opens on the new floor, changes what its code needs there and
+   begins its review. Their findings are sorted after leg 3's, in a sort of their own.
 
    The message names the review's three legs, each ended by a commit: the floor's rise, the
    readers and their lists in the findings file; the sort and the lines to decide, with the
