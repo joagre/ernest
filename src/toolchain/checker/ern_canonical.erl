@@ -38,7 +38,7 @@
 %% or the hash of what it names.
 -module(ern_canonical).
 
--export([form_version/0, chunk_name/0, bytes/1, hashed/1, member_hash/2, type_hash/1,
+-export([form_version/0, chunk_name/0, bytes/1, hashed/1, type_hash/1,
          mailbox_hash/1, module/4, module/5,
          interface/2, declared_type/4, stripped/1, session_source/2, recorded_source/1, lambdas/2,
          unit_reaches/2, scheme_arity/1, references/1, verified/2, is_verified/1, encode/1,

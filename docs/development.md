@@ -238,7 +238,9 @@ make test-grammar # Appendix A read as data, and a thousand programs generated f
                 # parsed, laid out and given as near misses; ERN_SEED=n runs a failing
                 # seed again
 make test-typed # well-typed programs generated, checked, compiled and run in one host,
-                # each printing what an interpreter of it computes;
+                # each printing what an interpreter of it computes, and 400 near misses
+                # of them, each refused with diagnostics of §11.5's form or run to an
+                # end §7.4 names, never a raise of the toolchain or a step past its time;
                 # ERN_SEED=n runs a failing seed again; a fault of the host names no
                 # seed and leaves its core in test/, which gives the function it
                 # faulted in through OTP's etp-commands and the generated module by
@@ -403,8 +405,10 @@ make dialyzer   # Dialyzer over the toolchain and the units, with its warnings o
                 # raises without a spec that says so; its first run builds
                 # build/dialyzer.plt; part of make test-full
 make xref       # the host's xref over what make dialyzer reads: every call names a
-                # function this code or the host's own applications define; about a
-                # second; part of make test
+                # function this code or the host's own applications define, every call
+                # between two of the toolchain's applications goes down their order,
+                # and every export of the toolchain's own is called, the tests read
+                # among the callers; about four seconds; part of make test
 make sanitize   # the helper in C under Clang's analyzer, and the runtime's and the
                 # programs' tests with it built under the sanitizers
 make sections   # list the report sections no test cites

@@ -44,7 +44,7 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([unit/1, source/1, ground_terms/2, function_name/1, held_position/1, caller_sited/1,
+-export([unit/1, source/1, ground_terms/2, function_name/1, held_position/1,
          site_arity/1, raiseless/0, site_name/2]).
 
 -include_lib("checker/include/ern_canonical.hrl").

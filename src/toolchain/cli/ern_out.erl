@@ -15,6 +15,8 @@
 %% own lines go (log/2).
 -module(ern_out).
 
+-behaviour(logger_handler).
+
 -export([take/0, logged/0, log/2, is_terminal/1, finish/1, end_job/1]).
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).

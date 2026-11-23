@@ -115,28 +115,18 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    - **The three tools in Ernest**, done 2026-11-23 (the log's *The Three Tools in
      Ernest*): `tools/words.ern` and `tools/unicode_width.ern`, the scripts and the escript
      gone.
-   - **The checks that cost cycles**, built, decided with the user 2026-11-10, so that the
-     readers start from what a tool lists (the log's *The Listings Before a Review*).
+   - **The checks that cost cycles**, decided with the user 2026-11-10, so that the readers
+     start from what a tool lists (the log's *The Listings Before a Review*).
 
-     The refusals left after the four built before the release review before 0.10.0 (the log's
-     *The Refusals Before the Release Review, Built*), each added with the tree cleaned to
-     zero: `xref`'s unused exports, with a short list of the exports called by name, each
-     with its reason, and near misses for the checker beside the typed programs. From then on
-     each runs with the checks of its kind: `xref`'s in `make xref`, and the near misses in
-     `make test-full`. The layers are done, decided with the user 2026-11-23 (the log's *The
-     Applications' Order*): the build's modules stand in an application of their own,
-     `builder`, and `make xref` refuses a call against the applications' order.
+     The refusals are done 2026-11-23, each with the tree cleaned to zero (the log's *The
+     Applications' Order* and *The Refusals Before the Readers, Built*): `make xref` refuses a
+     call against the applications' order and an export nothing calls, `make test-typed` the
+     checker's near misses, and a style test a private function nothing calls.
 
      The listings, which a review runs: `cover` over `make test-full` for the full review,
      clones and each module's size for the full and the release reviews, and the slowest tests
      for the release review. `docs/reviews/full.md`, `release.md` and `development.md` name
      each check in the commit that builds it.
-
-     Decided 2026-11-23: the checker says nothing of a private function no code calls (the
-     log's *The Decisions Before the Readers*). One refusal more is added for this
-     repository's own Ernest, which holds none today: a style test names each private
-     top-level `fn` of a tracked module under `src/`, `tools/`, `examples/` and `tour/`
-     whose name stands nowhere else in its file, comments aside.
    - **What is kept, stated once**, done 2026-11-23 (the log's *What Is Kept, Stated
      Once*). The design notes own what a component keeps and when it lets go, and
      `docs/memory_checks.md` points at them.

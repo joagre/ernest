@@ -18,7 +18,7 @@
 %% (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, input/5, helper_failed/0, helper/0, signal/2, locked/2, node_signaled/3,
+-export([loop/0, input/5, signal/2, locked/2, node_signaled/3,
          job_locked/1, host/0, umask/0, working_directory/0]).
 
 %% The most bytes an `i` frame carries after its tag: the host writes a

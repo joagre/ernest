@@ -18,7 +18,7 @@
 -module(ern_compile).
 
 -export([compile/4, compile/5, interface/5, from_compiled/5, compiled/2, forms/3, forms/4,
-         erl_source/3, erl_source/4, unit/5, link/5, references/1, named/2]).
+         erl_source/3, erl_source/4, unit/5, references/1, named/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").

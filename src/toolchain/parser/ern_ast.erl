@@ -7,7 +7,7 @@
 %% since copies of one rule drift.
 -module(ern_ast).
 
--export([span/1, walk/3, binder/1, pattern_binders/1, pattern_bindings/1, free_names/2,
+-export([span/1, walk/3, pattern_binders/1, pattern_bindings/1, free_names/2,
          free_uses/2, help_text/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -31,13 +31,11 @@ walk(Visit, Nodes, Acc) when is_list(Nodes) ->
 walk(_, _, Acc) ->
     Acc.
 
-%% Report §5.10: the name a pattern node binds itself, with where the name
-%% stands and the type the node holds: a variable, and the name after
-%% `as`; none for any other node.
--spec binder(tuple()) -> {atom(), term(), term()} | none.
+%% Report §5.10: the name a pattern node binds itself, a variable's or the
+%% name after `as`, with where the name stands and the type the node holds.
+-spec binder(#p_var{} | #p_as{}) -> {atom(), term(), term()}.
 binder(#p_var{span = Span, name = Name, type = Type}) -> {Name, Span, Type};
-binder(#p_as{name_span = Span, name = Name, type = Type}) -> {Name, Span, Type};
-binder(_) -> none.
+binder(#p_as{name_span = Span, name = Name, type = Type}) -> {Name, Span, Type}.
 
 %% Report §5.10: the names a pattern binds, in the order written, each with
 %% where it stands and the type its node holds, undefined before the

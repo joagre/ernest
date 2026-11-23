@@ -129,6 +129,51 @@ matches(Pattern, Text) ->
         nomatch -> []
     end.
 
+%% docs/code_style.md "Ernest": every private top-level function of a
+%% tracked module under src/, tools/, examples/ and tour/ is named
+%% elsewhere in its file, a call of its own among the names, the file read
+%% as the lexer's tokens, so that a name in a comment or a string is none.
+%% The checker says nothing of a function no code calls (report §0's
+%% principle 3), and a compiled unit exports every function, so neither
+%% the host's compiler nor xref sees one. A regression test, written where
+%% the tree held none
+uncalled_function_test() ->
+    Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files -- 'src/*.ern'"
+                                    " 'tools/*.ern' 'examples/*.ern' 'tour/*.ern'"),
+                             "\n"),
+    Files = [File || File <- Tracked, filelib:is_regular(filename:join(?ROOT, File))],
+    ?assert(length(Files) > 50),
+    Private = [{File, Token, Uses} || File <- Files, {Token, Uses} <- private_functions(File)],
+    ?assert(length(Private) > 500),
+    ?assertEqual([], [{File, line(Token), element(3, Token)}
+                      || {File, Token, Uses} <- Private, Uses =:= 0]).
+
+%% Each private top-level function of a module, its name's token with how
+%% many times the name stands elsewhere in the file.
+private_functions(File) ->
+    {ok, Tokens} = ern_lexer:tokenize(unicode:characters_to_list(ern_repository:read(File))),
+    Names = [Name || {ident, _, Name} <- Tokens],
+    [{Token, length([Name || Name <- Names, Name =:= element(3, Token)]) - 1}
+     || Token <- declared_private(Tokens, 0, [])].
+
+%% The name tokens of the functions declared at the top level, outside
+%% every bracket, by a `fn` or a `foreign fn` that no `export` begins; a
+%% member's, `fn Stack.push`, which no expression names, is none.
+declared_private([{fn, _}, {ident, _, _} = Name | Rest], 0, Before) ->
+    case Before of
+        [export | _] -> declared_private(Rest, 0, []);
+        [foreign, export | _] -> declared_private(Rest, 0, []);
+        _ -> [Name | declared_private(Rest, 0, [])]
+    end;
+declared_private([Token | Rest], Depth, Before) ->
+    Kind = element(1, Token),
+    Opens = lists:member(Kind, ['(', '[', '{', '#(', '<<']),
+    Closes = lists:member(Kind, [')', ']', '}', '>>']),
+    Nested = Depth + if Opens -> 1; Closes -> -1; true -> 0 end,
+    declared_private(Rest, Nested, [Kind | lists:sublist(Before, 1)]);
+declared_private([], _, _) ->
+    [].
+
 %% docs/development.md, `make bench`: the programs part's parser,
 %% test/fixtures/bench/parser.ern, is examples/interpreter.ern's lexer, parser and
 %% evaluator, from `fn tokenize` on, its comments aside, and each of its

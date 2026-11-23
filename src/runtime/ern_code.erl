@@ -54,7 +54,7 @@
 %% host: `ern test` over a directory runs many (§11.2).
 -module(ern_code).
 
--export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, own_modules/0, load/3, load/4,
+-export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, own_modules/0, load/4,
          documented/1, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
          holder/1, ground/1, grounded/1, forms/1,
@@ -62,7 +62,7 @@
          present/1, function/2,
          function_text/2, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
          placement/4, running/1, hashes/1, is_unopened/1, binding_keys/1, nearing/0, nearing/1,
-         nearing/2, line/3, counts/0]).
+         nearing/2, counts/0]).
 
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("checker/include/ern_types.hrl").

@@ -188,8 +188,10 @@ docs: $(BEAMS)
 
 # The calls of the toolchain's own Erlang, the shims and the units, which
 # the repository's `make units` links under ../build/units before its
-# `make xref` runs these.
-xref: $(BEAMS)
+# `make xref` runs these, with every module here compiled, the bench's and
+# the loads' harnesses among them, since xref reads each as a caller of the
+# toolchain's exports.
+xref: $(BEAMS) $(patsubst %.erl,$(EBIN)/%.beam,$(notdir $(wildcard *.erl bench/*.erl)))
 	@$(call AREA_RUN,xref,$(call EUNIT_ALONE,$(XREF)))
 
 guide: $(BEAMS) prepare

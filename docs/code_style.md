@@ -25,6 +25,7 @@ For the toolchain's Erlang under `src/`.
 
 - **Every module is `ern_<thing>`**, `<thing>` unique across the repository and not repeating its application, which its directory names; a vendored file keeps its upstream name. A module compiled from Ernest is `ern@<namespace>`, the path with `@` for `/` (report §11.1): `src/stdlib/io.ern` is `ern@io`. The log's *One Token for the Project* says why.
 - **One `-export` list at the top**, in the order the functions appear *(tested)*.
+- **Every export is called**: by the toolchain's own code, by the code the compiler writes, or by a test, which stands in a module of its own and calls what it tests by its export. `make xref` holds it (`test/ern_xref_tests.erl`), with a short list of the exports the host calls by a name the code computes, each with its reason.
 - **`-spec` on every exported function**, under `test/` as under `src/`: `erlc +warn_missing_spec` holds it in the toolchain's modules and the shims, and the style test in the tests', whose tests EUnit exports *(tested)*; a type shared between modules is a `-type` of its owner.
 - **Every `receive` that can wait is named by its function under its kind**, in the module's `-receives` attributes after its `-export` list and its includes, `-receives({own_process, [loop/1]}).`, since the deadlock look reads a process that waits in the toolchain's own Erlang as one that waits as Ernest waits (report §8.6) *(tested)*. The kinds are the glossary's **Receives**. A `receive` with `after 0` waits on nothing and is named by none.
 - **A shared record lives in `include/*.hrl`**, any other in its module. The only macros are the few constants that need a name.
@@ -44,6 +45,7 @@ For every Ernest source and every Ernest block of the report and the guide. The 
 
 - **A comment cites the report section the code implements**, `// Report §8.4: ...`, as the Erlang's does.
 - **A name the report states changes only through the report**, and a new word that departs from the report's goes to the user first.
+- **Every private function is called**: a top-level `fn` without `export`, in a module under `src/`, `tools/`, `examples/` or `tour/`, is named elsewhere in its file, since the checker says nothing of one that no code calls (report §0's principle 3) *(tested)*.
 - **A test that compares answers `Test.equal`**, over a tuple for several values, `Test.equal(#(rowsOf(region), resting(region)), #(["> a"], 0))`, and writes no failure text of its own; one that compares with a tolerance or a predicate answers `Passed` or `Failed` itself.
 
 ### Shims

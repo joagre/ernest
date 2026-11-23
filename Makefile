@@ -656,8 +656,10 @@ sanitize: all
 	@if [ -n "$$(ls $(SANITIZE))" ]; then cat $(SANITIZE)/*; exit 1; fi
 
 # The code Dialyzer reads, held by the host's xref (test/ern_xref_tests.erl):
-# each call names a function that exists.
-xref: units
+# each call names a function that exists and goes down the applications'
+# order, and each export of the toolchain's own is called, the roots' tests,
+# compiled first, read among its callers.
+xref: units $(patsubst src/%.erl,build/%.beam,$(UNIT_TEST_SOURCES))
 	@$(MAKE) -s -C test xref
 
 # Rewrite the outputs of docs/diagnostics.md, the catalog of the front

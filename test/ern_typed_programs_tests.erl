@@ -18,13 +18,26 @@
 %%
 %% The seed is drawn afresh each run and named in a failure; ERN_SEED draws
 %% the same programs again.
+%%
+%% Then the near misses, the checker's as the grammar's tests have the
+%% parser's: programs of both rounds, each with one change that most often
+%% leaves it ill-typed, an expression's, a signature's or a mailbox's. A
+%% near miss is refused with diagnostics of report §11.5's form, or it
+%% compiles and runs to an end §7.4 names; the toolchain never raises, and
+%% no step outlasts its time. Their seed is fixed, so that each run reads
+%% the same near misses.
 -module(ern_typed_programs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("shared/include/ern_diagnostic.hrl").
 
 -define(PURE, 400).
 -define(PROCESSES, 60).
+-define(NEAR_MISSES, 400).
+-define(NEAR_SEED, 1).
+-define(NEAR_MS, 10000).
 -define(MODULE_NAMESPACE, ['Generated']).
+-define(FILE_NAME, "generated.ern").
 
 %% The declarations every program has, which the generator builds on.
 -define(DECLARATIONS,
@@ -46,6 +59,20 @@ pure_programs_test_() ->
 %% ending in the entry process's fault
 process_programs_test_() ->
     {timeout, 600, fun() -> generated(?PROCESSES, fun(Size) -> [process_program(Size)] end) end}.
+
+%% report §11.5, §7.4: every near miss of the two rounds is refused with
+%% diagnostics of §11.5's form, or compiles and runs to an end §7.4 names,
+%% and neither the checker nor the compiler raises or outlasts its time
+near_misses_test_() ->
+    {timeout, 300, fun() ->
+                       rand:seed(exsss, ?NEAR_SEED),
+                       Failures = [#{program => Number, text => Text, outcome => Outcome}
+                                   || Number <- lists:seq(1, ?NEAR_MISSES),
+                                      Text <- [near_miss(Number)],
+                                      Outcome <- [judged(Text)],
+                                      Outcome =/= ok],
+                       ?assertEqual([], first(Failures))
+                   end}.
 
 %% Count programs from a fresh seed, or ERN_SEED's, each a list of cases; the
 %% first case that fails an oracle, with the seed, its number and its text.
@@ -75,11 +102,20 @@ failed([{Text, Expected} | Cases]) ->
     end.
 
 %% A program checked, compiled, loaded and run: what it printed and how it
-%% ended, or the oracle it failed first.
+%% ended, or the oracle it failed first, a refusal by its diagnostics'
+%% first lines.
 outcome(Text) ->
+    case ran(Text) of
+        {refused, Diagnostics} ->
+            {refused, [ern_diagnostic:short("", Diagnostic) || Diagnostic <- Diagnostics]};
+        Ran ->
+            Ran
+    end.
+
+ran(Text) ->
     try ern_typecheck:check_string(?MODULE_NAMESPACE, Text) of
         {error, Diagnostics} ->
-            {refused, [ern_diagnostic:short("", Diagnostic) || Diagnostic <- Diagnostics]};
+            {refused, Diagnostics};
         {ok, Typed, Interface, Env} ->
             Build = #{source_hash => <<>>, deps => []},
             case catch_all(fun() -> ern_compile:compile(?MODULE_NAMESPACE, Typed, Interface,
@@ -135,14 +171,16 @@ pure_program(Size) ->
     %% three values, so that more of what the program computes is printed
     Type = {tuple, [any_type(2), any_type(1), any_type(1)]},
     Value = generate(Type, #{vars => [], helpers => Helpers}, Size),
-    Text = [?DECLARATIONS, [[helper_text(Helper), "\n\n"] || Helper <- Helpers],
-            "fn value() : ", type_text(Type), " =\n    ", expression_text(Value), "\n\n",
-            "export fn main() : Unit = Io.println(Io.show(value()))\n"],
     Expected = try evaluate(Value, #{}, Helpers) of
                    Result -> {ok, <<(show(Result))/binary, "\n">>}
                catch throw:{fault, Cause} -> {{fault, Cause}, <<>>}
                end,
-    {iolist_to_binary(Text), Expected}.
+    {pure_text(Helpers, Type, Value), Expected}.
+
+pure_text(Helpers, Type, Value) ->
+    iolist_to_binary([?DECLARATIONS, [[helper_text(Helper), "\n\n"] || Helper <- Helpers],
+                      "fn value() : ", type_text(Type), " =\n    ", expression_text(Value),
+                      "\n\n", "export fn main() : Unit = Io.println(Io.show(value()))\n"]).
 
 %% A few helper functions, each over the ones before it, and at times one
 %% that folds a list of Int by structural recursion.
@@ -253,6 +291,270 @@ faultless(Type, Scope, Helpers, Size) ->
         Value -> {Expression, Value}
     catch throw:{fault, _} -> faultless(Type, Scope, Helpers, Size)
     end.
+
+%%
+%% The near misses
+%%
+
+%% The text of the Number'th near miss: every fourth a process program's,
+%% the others a pure program's, each larger than the one before.
+near_miss(Number) ->
+    Size = 2 + Number * 4 div ?NEAR_MISSES,
+    case Number rem 4 of
+        0 -> process_near_miss(Size);
+        _ -> pure_near_miss(Size)
+    end.
+
+%% A pure program with one change: a signature's, or a node's of its
+%% expressions (mutations/1).
+pure_near_miss(Size) ->
+    Helpers = helpers(Size),
+    Type = {tuple, [any_type(2), any_type(1), any_type(1)]},
+    Value = generate(Type, #{vars => [], helpers => Helpers}, Size),
+    case rand:uniform(4) of
+        1 -> signature_changed(Helpers, Type, Value);
+        _ -> expression_changed(Helpers, Type, Value)
+    end.
+
+%% The value's type, a helper's result type or a parameter's changed to
+%% another, or a parameter dropped.
+signature_changed(Helpers, Type, Value) ->
+    Changes = [value_type
+               | lists:append([[{result, Name}] ++ [{param, Name, Param} || {Param, _} <- Params]
+                               || {helper, Name, Params, _, _} <- Helpers])],
+    case pick(Changes) of
+        value_type ->
+            pure_text(Helpers, other_type(Type), Value);
+        {result, Name} ->
+            {helper, Name, Params, Result, Body} = lists:keyfind(Name, 2, Helpers),
+            pure_text(lists:keyreplace(Name, 2, Helpers,
+                                       {helper, Name, Params, other_type(Result), Body}),
+                      Type, Value);
+        {param, Name, Param} ->
+            {helper, Name, Params, Result, Body} = lists:keyfind(Name, 2, Helpers),
+            {Param, ParamType} = lists:keyfind(Param, 1, Params),
+            Changed = pick([lists:keyreplace(Param, 1, Params, {Param, other_type(ParamType)}),
+                            lists:keydelete(Param, 1, Params)]),
+            pure_text(lists:keyreplace(Name, 2, Helpers, {helper, Name, Changed, Result, Body}),
+                      Type, Value)
+    end.
+
+%% One node of the value's expression or of a helper's body changed, each
+%% node that mutations/1 can change as likely as any other.
+expression_changed(Helpers, Type, Value) ->
+    Bodies = [Value | [Body || {helper, _, _, _, Body} <- Helpers]],
+    {_, Count} = lists:mapfoldl(fun(Body, Seen) -> changed(Body, 0, Seen) end, 0, Bodies),
+    Target = rand:uniform(Count),
+    {[ChangedValue | ChangedBodies], _} =
+        lists:mapfoldl(fun(Body, Seen) -> changed(Body, Target, Seen) end, 0, Bodies),
+    ChangedHelpers = [{helper, Name, Params, Result, Body}
+                      || {{helper, Name, Params, Result, _}, Body}
+                             <- lists:zip(Helpers, ChangedBodies)],
+    pure_text(ChangedHelpers, Type, ChangedValue).
+
+%% The expression with the Target'th of its nodes that mutations/1 can
+%% change changed, counting on from Seen in the order of the text, and the
+%% count reached; a Target of 0 changes none, and counts them all.
+changed(Expression, Target, Seen) ->
+    Mutations = mutations(Expression),
+    Counted = Seen + min(length(Mutations), 1),
+    case Mutations =/= [] andalso Counted =:= Target of
+        true ->
+            {pick(Mutations), Counted};
+        false ->
+            {Children, Rebuilt} = children(Expression),
+            {Changed, Reached} = lists:mapfoldl(fun(Child, Acc) -> changed(Child, Target, Acc) end,
+                                                Counted, Children),
+            {Rebuilt(Changed), Reached}
+    end.
+
+%% The changes of one node that most often leave the program ill-typed: a
+%% literal of another type, a variable no scope binds, an operator of other
+%% operands, a constructor's field dropped or one added, a call's arguments
+%% swapped, one dropped or one added, a clause dropped or repeated, an
+%% annotation of another type, a field no record has.
+mutations({int, _}) -> [{string, <<"x">>}, {bool, true}];
+mutations({string, _}) -> [{int, 1}];
+mutations({bool, _}) -> [{int, 0}, {string, <<"x">>}];
+mutations(unit) -> [{int, 0}];
+mutations({var, Name}) -> [{var, Name ++ "unbound"}];
+mutations({binop, '::', Left, Right}) -> [{binop, '::', Right, Left}, {binop, '<>', Left, Right}];
+mutations({binop, Operator, Left, Right}) -> [{binop, other_operator(Operator), Left, Right}];
+mutations({negation, Operand}) -> [{'not', Operand}];
+mutations({'not', Operand}) -> [{negation, Operand}];
+mutations({'if', Condition, Then, Else}) -> [{'if', Then, Condition, Else}];
+mutations({block, [{'let', Name, Type, Bound} | Rest], Body}) ->
+    [{block, [{'let', Name, other_type(Type), Bound} | Rest], Body}, {block, Rest, Body}];
+mutations({block, [_ | Rest], Body}) -> [{block, Rest, Body}];
+mutations({match, Scrutinee, [First | Rest]}) ->
+    [{match, Scrutinee, Rest} || Rest =/= []] ++ [{match, Scrutinee, [First, First | Rest]}];
+mutations({con, Name, none}) -> [{con, Name, {positional, {int, 0}}}, {con, 'Missing', none}];
+mutations({con, Name, {positional, Argument}}) ->
+    [{con, Name, none}, {con, Name, {named, [{missing, Argument}]}}];
+mutations({con, Name, {named, [_ | Rest]}}) -> [{con, Name, {named, Rest}}];
+mutations({tuple, [First, Second | Rest]}) ->
+    [{tuple, [Second, First | Rest]}, {tuple, [First, Second | Rest] ++ [unit]}];
+mutations({list, Elements}) -> [{list, Elements ++ [{int, 1}, {string, <<"x">>}]}];
+mutations({select, Record, _}) -> [{select, Record, missing}];
+mutations({update, Name, Base, Fields}) -> [{update, Name, Base, [{missing, {int, 0}} | Fields]}];
+mutations({lambda, Params, Result, Body}) -> [{lambda, Params, other_type(Result), Body}];
+mutations({call, Callee, Args}) ->
+    [{call, Callee, [Second, First | Rest]} || [First, Second | Rest] <- [Args]]
+        ++ [{call, Callee, tl(Args)} || Args =/= []] ++ [{call, Callee, Args ++ [{int, 0}]}];
+mutations(_) -> [].
+
+%% An operator whose operands are of another type.
+other_operator(Operator) when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
+                              Operator =:= '/'; Operator =:= '%' -> '<>';
+other_operator('<>') -> '+';
+other_operator(Operator) when Operator =:= '&&'; Operator =:= '||' -> '+';
+other_operator(_) -> '&&'.
+
+%% A type other than Type.
+other_type(int) -> string;
+other_type(string) -> int;
+other_type(bool) -> int;
+other_type(unit) -> int;
+other_type(shape) -> point;
+other_type(point) -> shape;
+other_type({list, Type}) -> {optional, Type};
+other_type({optional, Type}) -> {list, Type};
+other_type({box, Type}) -> {box, other_type(Type)};
+other_type({tuple, [First | Rest]}) -> {tuple, [other_type(First) | Rest]}.
+
+%% An expression's own expressions, in the order of its text, and the
+%% function that builds it again from them.
+children({binop, Operator, Left, Right}) ->
+    {[Left, Right], fun([NewLeft, NewRight]) -> {binop, Operator, NewLeft, NewRight} end};
+children({negation, Operand}) -> {[Operand], fun([New]) -> {negation, New} end};
+children({'not', Operand}) -> {[Operand], fun([New]) -> {'not', New} end};
+children({'if', Condition, Then, Else}) ->
+    {[Condition, Then, Else], fun([NewCondition, NewThen, NewElse]) ->
+                                      {'if', NewCondition, NewThen, NewElse}
+                              end};
+children({block, Statements, Body}) ->
+    {[statement_body(Statement) || Statement <- Statements] ++ [Body],
+     fun(New) ->
+             {Bodies, [NewBody]} = lists:split(length(Statements), New),
+             {block, [with_body(Statement, Bound)
+                      || {Statement, Bound} <- lists:zip(Statements, Bodies)], NewBody}
+     end};
+children({match, Scrutinee, Clauses}) ->
+    Parts = lists:append([[Guard || Guard =/= none] ++ [Body] || {_, Guard, Body} <- Clauses]),
+    {[Scrutinee | Parts], fun([NewScrutinee | NewParts]) ->
+                                  {match, NewScrutinee, clauses_with(Clauses, NewParts)}
+                          end};
+children({con, Name, {positional, Argument}}) ->
+    {[Argument], fun([New]) -> {con, Name, {positional, New}} end};
+children({con, Name, {named, Fields}}) ->
+    {[Value || {_, Value} <- Fields],
+     fun(New) -> {con, Name, {named, lists:zip([Field || {Field, _} <- Fields], New)}} end};
+children({tuple, Elements}) -> {Elements, fun(New) -> {tuple, New} end};
+children({list, Elements}) -> {Elements, fun(New) -> {list, New} end};
+children({select, Record, Field}) -> {[Record], fun([New]) -> {select, New, Field} end};
+children({update, Name, Base, Fields}) ->
+    {[Base | [Value || {_, Value} <- Fields]],
+     fun([NewBase | New]) ->
+             {update, Name, NewBase, lists:zip([Field || {Field, _} <- Fields], New)}
+     end};
+children({lambda, Params, Result, Body}) ->
+    {[Body], fun([New]) -> {lambda, Params, Result, New} end};
+children({call, {lambda, _, _, _} = Callee, Args}) ->
+    {[Callee | Args], fun([NewCallee | New]) -> {call, NewCallee, New} end};
+children({call, Callee, Args}) -> {Args, fun(New) -> {call, Callee, New} end};
+children(Leaf) -> {[], fun([]) -> Leaf end}.
+
+statement_body({'let', _, _, Bound}) -> Bound;
+statement_body({local_fn, _, _, _, Body}) -> Body.
+
+with_body({'let', Name, Type, _}, Bound) -> {'let', Name, Type, Bound};
+with_body({local_fn, Name, Params, Result, _}, Body) -> {local_fn, Name, Params, Result, Body}.
+
+%% The clauses with their guards and bodies taken from Parts in order.
+clauses_with([], []) ->
+    [];
+clauses_with([{Pattern, none, _} | Clauses], [Body | Parts]) ->
+    [{Pattern, none, Body} | clauses_with(Clauses, Parts)];
+clauses_with([{Pattern, _, _} | Clauses], [Guard, Body | Parts]) ->
+    [{Pattern, Guard, Body} | clauses_with(Clauses, Parts)].
+
+%% A process program with one change of its text, the first place one of
+%% these stands: a `receiving` dropped, added or of another mailbox type, a
+%% constructor's pattern of two positional fields, `self` uncalled, a
+%% reply's arguments swapped or its type another, a request of another
+%% constructor, a time of another type, a clause of another type's
+%% constructor, or a spawned function that takes a parameter.
+process_near_miss(Size) ->
+    {Text, _} = process_program(Size),
+    Changes = [{<<" receiving Main =">>, <<" =">>},
+               {<<" receiving Request =">>, <<" =">>},
+               {<<"receiving Main">>, <<"receiving Shape">>},
+               {<<"receiving Request">>, <<"receiving Shape">>},
+               {<<") : Int =\n">>, <<") : Int receiving Main =\n">>},
+               {<<"Done(value)">>, <<"Done(value, value)">>},
+               {<<"let me = self();">>, <<"let me = self;">>},
+               {<<"answer(reply, total)">>, <<"answer(total, reply)">>},
+               {<<"Reply(Int)">>, <<"Reply(String)">>},
+               {<<"send(server, Add(">>, <<"send(server, Total(">>},
+               {<<", 5000)">>, <<", \"5000\")">>},
+               {<<"| after ">>, <<"| after true || ">>},
+               {<<"receive {\n">>, <<"receive {\n        Dot -> Unit\n      | ">>},
+               {<<"spawn(fn() = ">>, <<"spawn(fn(x) = ">>}],
+    {Old, New} = pick([Change || {Standing, _} = Change <- Changes,
+                                 binary:match(Text, Standing) =/= nomatch]),
+    [Before, After] = binary:split(Text, Old),
+    <<Before/binary, New/binary, After/binary>>.
+
+%% ok where a near miss is refused with diagnostics of report §11.5's form,
+%% or compiles and runs to an end §7.4 names, a return or a fault of
+%% division by zero or of a deadlock; otherwise what happened instead.
+judged(Text) ->
+    case within(fun() -> ran(Text) end, ?NEAR_MS) of
+        {refused, [_ | _] = Diagnostics} ->
+            case [Diagnostic || Diagnostic <- Diagnostics, not is_formed(Text, Diagnostic)] of
+                [] -> ok;
+                Malformed -> {malformed, Malformed}
+            end;
+        {Ended, _} when Ended =:= ok; Ended =:= {fault, <<"division by zero">>};
+                        Ended =:= {fault, <<"deadlock">>} ->
+            ok;
+        Otherwise ->
+            Otherwise
+    end.
+
+%% Whether a diagnostic is of report §11.5's form: its spans within the
+%% text, a message, and its rendering's first line the file, the line, the
+%% column and the message, which no later line begins as.
+is_formed(Text, #diagnostic{span = Span, message = Message, labels = Labels} = Diagnostic) ->
+    Count = length(binary:matches(Text, <<"\n">>)) + 1,
+    try
+        [First | Rest] = string:split(ern_diagnostic:format(?FILE_NAME, Text, Diagnostic), "\n",
+                                      all),
+        lists:all(fun({Line, Column, {_, _}}) -> Line >= 1 andalso Line =< Count andalso Column >= 1
+                  end, [Span | [LabelSpan || {LabelSpan, _} <- Labels]])
+            andalso Message =/= ""
+            andalso First =:= ern_diagnostic:short(?FILE_NAME, Diagnostic)
+            andalso not lists:any(fun(Line) -> lists:prefix(?FILE_NAME, Line) end, Rest)
+    catch _:_ -> false
+    end;
+is_formed(_, _) ->
+    false.
+
+%% What Run answers, in a process of its own, or that it outlasted Ms or
+%% raised there.
+within(Run, Ms) ->
+    {Pid, Monitor} = spawn_monitor(fun() -> exit({answered, Run()}) end),
+    receive
+        {'DOWN', Monitor, process, Pid, {answered, Answer}} -> Answer;
+        {'DOWN', Monitor, process, Pid, Reason} -> {raised, Reason}
+    after Ms ->
+        exit(Pid, kill),
+        receive {'DOWN', Monitor, process, Pid, _} -> {outlasted, Ms} end
+    end.
+
+%% The first failure, the smallest, and how many there were.
+first([]) -> [];
+first([First | _] = Failures) -> [First#{failures => length(Failures)}].
 
 %%
 %% Types

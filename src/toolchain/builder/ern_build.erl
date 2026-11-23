@@ -15,7 +15,7 @@
          library_name/1, compiled_in_order/3,
          report_errors/3, shown/1, path_text/1, sources/1, found_path/1, compiled_under/1,
          bytes_text/1, control_free/1, is_control/1, module_of/2, module_of/3, shape/2,
-         compile_order/2, compile_order/3, parse_all/3, order/1,
+         compile_order/3, parse_all/3, order/1,
          module_cycle/1, resolved_module/3, namespace_test/3, compiled_dependencies/1,
          source_root/3, build_root/2, is_stdlib_root/1, taken_namespaces/0, checked/4,
          stdlib_hash/0, dependency_interfaces/5, load_path/1, load_path_of/1, set_load_path/1,
@@ -23,7 +23,7 @@
          directories/1, looked_in/3, compiled_on/1, is_compiled_against/4, compiler_modules/0,
          compiler_build/0, regular_bytes/1, reason/1, sweep_pages/5, compile_source/5,
          compile_source/6, absolute/1, relative/2, root_of/2, write_whole/2, write_output/2,
-         write_output/3, read/1, read_through/2, source_read/1, is_source/1, make_dirs/1,
+         write_output/3, read/1, read_through/2, make_dirs/1,
          make_private_dir/1, refused/2, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -906,10 +906,6 @@ shape(File, Component, Advice) ->
 %% them is an error naming the modules in it (§11.1). What a module of the
 %% load path records that it uses is not read here: `ern doc` of one file
 %% makes a page and no build.
--spec compile_order([#build_module{}], file:filename()) -> [#build_module{}].
-compile_order(Modules, SourceRoot) ->
-    compile_order(Modules, SourceRoot, load_path_of([])).
-
 -spec compile_order([#build_module{}], file:filename(), load_path()) -> [#build_module{}].
 compile_order(Modules, SourceRoot, DependencyRoots) ->
     order([parse_module(Module, SourceRoot, DependencyRoots) || Module <- Modules]).
