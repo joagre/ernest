@@ -27,8 +27,10 @@ fourth leg is next**, on Opus 5.5 at xhigh, after a `/clear`: the `1` and `1r` l
 `docs/findings.md` by the session, and the `2a`, `2b` and decided lines by agents, one
 brief to an owner holding all its lines. Each decided line holds its verdict beneath it,
 and a verdict that says a reader reads first, or that a line comes back to the user, is
-done so. Four verdicts were changed after the round, and their lines say so (the log's
-*Four Verdicts Changed After the Round*).
+done so. Four verdicts were changed after the round, and a cold reading of the decided
+lines mended thirty places more, twenty plainly and ten with the user. Their lines say
+so (the log's *Four Verdicts Changed After the Round*, *Before Leg 4 Builds* and *The
+Ten of the Cold Reading*).
 
 Its third leg, the `decide` round, closed 2026-11-23: the sort checked, the sentences
 for §0 and E.0, the twenty-two families, the line that stood alone and the batch of
