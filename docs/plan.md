@@ -26,7 +26,7 @@ outside the project depends on it, as MVP 4.4's opening says.
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
 decided, 36 lines, with the first family, what a diagnostic says, 39 lines. The sentences of
-*PL6 2* and *PL6 3* are written a third time against the two cold readings, and the other
+*PL6 2* and *PL6 3* are written a third time, against the two cold readings. The other
 families are next, the largest first. Its first two legs, the decisions before the
 readers and the readers, closed 2026-11-23. Items 2 and 3,
 the cost and the raise a primitive catches, are closed since 2026-11-22, and item 8, a
