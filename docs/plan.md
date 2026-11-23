@@ -25,11 +25,11 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first four families, what a diagnostic says, 39 lines, the
-language's rules, 33, the report's recut, 31, and what the guides repeat, 28. The
-sentences of *PL6 2* and *PL6 3* are written a third time, against the two cold readings.
-The other families are next, the largest first, how the reviews, the log and the plan
-are kept the next of them.
+decided, 36 lines, with the first five families, what a diagnostic says, 39 lines, the
+language's rules, 33, the report's recut, 31, what the guides repeat, 28, and how the
+project's documents are kept, 26. The sentences of *PL6 2* and *PL6 3* are written a third
+time, against the two cold readings. The other families are next, the largest first,
+`guide/language.md`'s order the next of them.
 
 Its first two legs, the decisions before the readers and the readers, closed 2026-11-23.
 Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22,
@@ -423,7 +423,8 @@ What the line left, in the order it is taken:
   beneath it whole, OTP's defect (`docs/otp_bugs.md`, report 28), so `List.map` over 80,000
   texts that `String.toInt` refuses takes 2.7 seconds, against 5 milliseconds where each is
   an integer. §10 states the cost. Where a release of OTP that Ernest requires bounds the
-  walk, the item closes on a log line.
+  walk, the item closes on a log line. Report 28 is the user's to file, taken up on
+  2026-11-23, and the wait for OTP's answer begins with the filing.
 - **168. A row of the library's bench in a process of its own**, found 2026-11-22 by MVP
   4.4's item 2 (the log's *The Cost's Rows Read*). `Bytes.toList` at 10,000 bytes reads 5.4
   times the host's with nothing added: in the harness's process a compiled call of
