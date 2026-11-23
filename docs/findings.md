@@ -1298,22 +1298,39 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 #### Are the deployment guide, `why.md` and the FAQ recut?
 
 - **U 22** `3` — `guide/deployment.md:86-90`, `:135`: stop and reload three ways each, with no word of when the `kill` is the one. Fix: a clause on when, or the `kill` lines go. Owner: guide-other. Decide: which.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the `kill` lines keep a clause on when they are the ones to use: where a service manager sends the signal.
 - **R2 2** `3` — `guide/deployment.md` L380: "certificate and key disagree: a copied or edited directory", yet such a node does not start (shown); rows L378-L379 use "copied" against it. Fix: the row names what can dial with such a certificate, or leaves it to the report's list; "copied" goes. Owner: guide-other. Decide: which of the two.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the row leaves the table, since such a node does not start, and the report's §12.5 owns what a dial refuses; "copied" goes from the two rows above it. Leg 4 reads the table against §12.5 first.
 - **R2 13** `3` — `guide/deployment.md` section 1.2: a bullet that is no entry (L48), a 110-word `listen` bullet, refusals in writing order. Fix: R2 13's outline. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R2 12, R2 34** `3` — `guide/deployment.md` section 1.3: three jobs unbroken; L82 one 111-word sentence; a bare node said at L42, L94, L222-L224 (34). Fix: run-in heads; L94 to section 3.4, which owns the bare node. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken: run-in heads for the three jobs, and line 94 goes to section 3.4, which owns the bare node.
 - **R2 10, R2 27** `3` — `guide/deployment.md` section 2.3: three rare delays between what always happens and the move; the window "the protocol's" at L186 and "the host's" at L190 (27). Fix: R2 10's outline, L190's last sentence goes; one owner for the window. Owner: guide-other. Decide: the recut, and whose the window is.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken, and the window has one owner, the runtime, as the report's §12.6 states it: line 186's "the protocol's" stays, and line 190's last sentence goes.
 - **R2 11** `3` — `guide/deployment.md` section 5.3: the two exceptions before the example. Fix: rule, example and tool, then L287, L289; L310 goes. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R2 8** `3` — `guide/deployment.md` section 6: 1439 words under one heading. Fix: run-in heads as R2 8's outline; L400 joins *The processes*; L316's superuser part beside L156. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R2 6, R2 38** `3` — `guide/deployment.md` sections 5, 6: 5.2 and 5.3 use the attached shell section 6 teaches; 5.2 a précis since `aba5a198` (38). Fix: swap 5 and 6 (16 citations move), or 5.2 owns code sent from a shell, L349 moving there. Owner: guide-other. Decide: the swap, the no-number form, or 5.2 joins 5.3.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): sections 5 and 6 swap, since 5.2 and 5.3 use the attached shell that section 6 teaches. A guide's number may move before the launch (*R1 4*), and the sixteen citations are swept.
 - **R2 35** `3` — `guide/faq.md` L115: the heading omits `global` and `pg`, which the answer covers (L119). Fix: the heading names them, or L119 under the `gen_server` question. Owner: guide-other. Decide: which.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the heading names `global` and `pg`, which its answer covers.
 - **R2 19** `3` — `guide/faq.md` L19-L35: the longest answer in writing order; L23 uses `restarting` and `Supervisor` before they are said. Fix: R2 19's outline. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R2 20** `3` — `guide/faq.md` L5-L17: what differs at L7, L9, L15 with sameness and names between. Fix: L7, L9, L15; L11; L13; L17. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R2 18** `3` — `guide/faq.md`: questions away from their neighbors (Gleam and Unison parted, ETS far from `gen_server`, type class among nodes). Fix: R2 18's outline. Owner: guide-other. Decide: the order.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's order of the questions is taken.
 - **R2 16** `3` — `guide/why.md` L178-L205: the connection's opening said at L180 and taken up at L203. Fix: L180, the file, L197; L203, L205; L199, L201. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R2 9** `3` — `guide/why.md` L20-L96: two subjects under *Code travels*; L48 and L71 say a sentence twice. Fix: R2 9's outline, one of each pair going. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken, one of each pair of sentences going, the one that stands with its program kept.
 - **R2 14** `3` — `guide/why.md` L299-L422: the chapter leaves requirements and returns; the closed set thrice, the module rule twice. Fix: R2 14's outline, one of L375 and L420 kept. Owner: guide-other. Decide: the recut, and which sentence stays.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken. Line 375 stays, since it stands with the session that shows it, and line 420 keeps what it adds, that no program declares a class.
 - **R2 15** `3` — `guide/why.md` L3-L16: "What Ernest adds is where the parts meet" before the parts. Fix: L3; L14; L5 with bullets; L16. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the editor's outline is taken as given. It changes no sentence's content.
 - **R2 5** `3` — `guide/why.md`: *Code travels* first uses the counter, `Reply` and `answer` the second chapter introduces. Fix: the mailbox chapter first, bullets L7, L8 and `README.md` L71-L72 swapped; or L100's first sentence moved before L24. Owner: guide-other+readme. Decide: the order of the claims.
+  - **Decided 2026-11-23** (the log's *The Other Guides Recut*): the claims keep their order, *Code travels* first, in `guide/why.md` and the README: it is the claim Erlang cannot make, and the front page leads with it. Line 100's first sentence, which introduces `Reply` and `answer`, moves before line 24.
 
 #### Do the library's names and vocabulary change before the launch?
 
