@@ -1533,14 +1533,23 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 #### Confirm: is nothing owed where a reader found each reason holds?
 
 - **P2 39** `3` — E.0 shape rule 1: subject first exists for §5.7's pipe and earns its place. Fix: none asked. Owner: report. Decide: none; it stands with P1 5's pipe.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): stands, with the pipe it exists for (*P1 5*).
 - **PL1 L17, PL1 L18, PL1 L19, PL1 L26, PL1 L29** `3` — PL1's cost rows and *build/units*: the reader found each reason holds, and L29 is decided, its mark being PL1 2's. Fix: none asked. Owner: report. Decide: confirm nothing is owed.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): confirmed: nothing is owed. Where a verdict of 2026-11-23 reversed an entry the line names, that verdict's own line holds it.
 - **PL2 L5, PL2 L8, PL2 L9, PL2 L11, PL2 L13, PL2 L15, PL2 L16, PL2 L18, PL2 L19, PL2 L21 to L30, PL2 A11, PL2 A16, PL2 A17** `3` — PL2's decided families and cost rows: each holds, or a later entry settled it, and L13's fix is PL2 What 1's (`2a`). Fix: none asked. Owner: report. Decide: confirm nothing is owed.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): confirmed: nothing is owed. Where a verdict of 2026-11-23 reversed an entry the line names, that verdict's own line holds it.
 - **PL4 L7, PL4 L8, PL4 L9 a, b, e, f, i, j, k, m, n, PL4 L10 e** `3` — PL4's decided families and cost rows: each holds by the reader's reading. Fix: none asked. Owner: report. Decide: confirm nothing is owed.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): confirmed: nothing is owed. Where a verdict of 2026-11-23 reversed an entry the line names, that verdict's own line holds it.
 - **PL5 9, PL5 12, PL5 L5 [the label], PL5 L7, PL5 L11, PL5 L12, PL5 L15, PL5 L16, PL5 L17, PL5 L18, PL5 L20, PL5 L26, PL5 L28** `3` — PL5's kept mechanisms and cost rows: each holds or is closed. L5 calls the `monitor` label undecided, while L17 says it holds. Fix: none asked. Owner: report. Decide: confirm nothing is owed, and the label.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): confirmed: nothing is owed. Where a verdict of 2026-11-23 reversed an entry the line names, that verdict's own line holds it. The label holds, as L17 has it: *A `monitor` in an Adapted Address's Function* left it untrue for a lambda whose every use is open, since the other way has the unifier record a reason at every unification for one rare message.
 - **PL6 L9, PL6 L10, PL6 L12, PL6 L14, PL6 L15, PL6 L16, PL6 L21, PL6 L23, PL6 L24, PL6 L33** `3` — PL6's decided families and cost rows: each holds or is decided. Fix: none asked. Owner: report. Decide: confirm nothing is owed.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): confirmed: nothing is owed. Where a verdict of 2026-11-23 reversed an entry the line names, that verdict's own line holds it.
 - **W30** `3` — §6.3: a `receive` guard calls nothing, and its way around is another program, which the guide says. Fix: kept. Owner: report. Decide: confirm kept.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): kept: a `receive` guard calls nothing, and the guide says the way around.
 - **W35** `3` — E.0 shape rule 2: a value is told from a function of no arguments (`Os.arguments`, `Clock.now()`) by a rule looked up. Fix: kept. Owner: stdlib. Decide: confirm kept.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): kept: a value is told from a function of no arguments by shape rule 2.
 - **W36** `3` — §5.6, shape rule 2: a record with defaults is a function and an update, `Os.Command(..Os.command(…), …)`. Fix: kept. Owner: stdlib. Decide: confirm kept.
+  - **Decided 2026-11-23** (the log's *Nothing Owed*): kept: a record with defaults is a function and an update.
 
 #### What stands on every load path, and which namespaces are taken?
 

@@ -25,13 +25,12 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first seventeen families, 349 lines, each under its entry of
-the log for 2026-11-23, from *What a Diagnostic Says* to *The Examples' and the
-Libraries' Own Defects*.
+decided, 36 lines, with the first eighteen families, 358 lines, each under its entry of
+the log for 2026-11-23, from *What a Diagnostic Says* to *Nothing Owed*.
 
 The sentences of *PL6 2* and *PL6 3* are written a third time, against the two cold
-readings. Five families are left, 37 lines, the largest first, the lines that ask to
-confirm that nothing is owed the next of them. One line stands alone, and one is taken out of its family to be decided
+readings. Four families are left, 28 lines, the largest first, what stands on every
+load path the next of them. One line stands alone, and one is taken out of its family to be decided
 as a batch, the ten refusals that rested on a count, with the keys' names in `Ansi` and
 hexadecimal's case, which two lines of the library's names left to it.
 
