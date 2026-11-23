@@ -995,33 +995,61 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 #### Is a statement the guides and the tour repeat said once, the others pointing?
 
 - **M 14, N H1 (registry), R1 28** `3` user — report `language.md:782` ("There is no registry"), `guide/faq.md:25`, `guide/language.md:1801`, `:3351`, `:3355`: a node keeps offered names against processes (§8.7); "no registry stands on the node" is said twice, and §10's bullet says one thing twice. Fix: "no registry for a node's own processes", one owner for the sentence (the guide's §6.5), the bullet keeping its third paragraph. Owner: report+guide+guide-other. Decide: whether the report's "There is no registry" narrows.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): the report's sentence narrows to "There is no registry of a node's own processes", since §8.7 has a node keep offered names against processes. The guide's §6.5 keeps the guides' sentence, the FAQ and §10.3 pointing, and §10's bullet keeps its third paragraph.
 - **U 17 (repeats) [1376 and 3350]** `3` — `guide/language.md:1376` and `:3350`: a `Down`'s order said twice. Fix: the second place points at the first. Owner: guide. Decide: confirm the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **U 13, N H1 (show), R2 21** `3` — `guide/language.md:2237`, `guide/why.md:422`, `guide/faq.md:111`: the `show` paragraph three times, the FAQ's `why.md`'s verbatim with the guide's clause. Fix: §7.3 keeps it, the others point (the FAQ: L109; L111 to its semicolon; L113). Owner: guide+guide-other. Decide: confirm the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 14** `3` user — `guide/language.md` 149, 804, 3183: a module without `main` loaded "with nothing running" thrice. Fix: §1.2 keeps it. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 23** `3` user — `guide/language.md` 1744, 1795, 1849: the fault's report sentence twice word for word. Fix: §6.3 keeps it. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 26** `3` user — `guide/language.md` 2461, 2832: a node reads every module of its load path, twice. Fix: §8.1 keeps it. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 31** `3` user — `guide/language.md` 3091, 3146, 3154: the move's four limits before and after the program. Fix: 3091 keeps them. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): line 3091 keeps the move's limits, three since the door lost `migrate` and the limit of the same state type with it (*L1, L25, M 17*).
 - **R1 16** `3` user — `guide/language.md` 3152, 3207, 2787: a reload starts a second service, thrice. Fix: §9.3 keeps it. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 18, W7** `3` user — `guide/language.md` 329, 627, 859, 932, 3347: that a wait for a time is `Clock.sleep(ms)`, never a `receive` or an `after` alone, said four or five times. Fix: §4.3 keeps it (859 and 932). Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 37** `3` user — `guide/language.md` 347/550, 598/616, 311/683, 114/3162, 2862/2962: five statements said twice. Fix: the second of each, but §2.2 for the block and §1 for `ern`. Owner: guide. Decide: the cuts.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 34** `3` user — `guide/language.md` 476, 734, 2180: a member "is no value", thrice. Fix: §7.2 keeps it. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 36** `3` user — `guide/language.md` 75, 478, 613: the prelude defined thrice. Fix: §2.9 keeps it, §0 a pointer. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 10, R1 17, W6** `3` user — `guide/language.md` 760, 890-910: §3.3's rule ("A top-level `let` that is not polymorphic, and a `let` at the prompt, must have their types settled") said again in nearly one sentence and shown in §4.1. Fix: 890-910 join §3.3 after 760, 890's sentence going but for its session (R1 4's item 7 is the same move). Owner: guide. Decide: the move.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): the move is made: lines 890 to 910 join §3.3 after 760, 890's sentence going but for its session.
 - **R1 38** `3` user — `guide/language.md` 766, 1711, 1851; 1121, 1125, 1413: what `fault("...")` is, and `Process.status` "for watching what runs", said thrice each. Fix: §6.3; §5.2. Owner: guide. Decide: the cuts.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 19** `3` user — `guide/language.md` 914-916, 951, 964, 966: a late or second answer dropped, said in §4.2 and §4.4. Fix: §4.2 the callee's side, §4.4 the caller's. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R1 22** `3` user — `guide/language.md` 953, 1674, 1849, 1851, 1954: a call "ends at once" five times. Fix: §4.4, the others by pointer. Owner: guide. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **N H1 (Stack), M 20 (count loop)** `3` — the `Stack` module and `sorted` in guide §7.2/§7.3 and `why.md:305`, `:339`; `count`'s loop printed thirteen times across the pages. Fix: per decision. Owner: guide+guide-other. Decide: whether why.md points at the guide's programs.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): not taken. `why.md` is an argument a visitor reads before the guide, and one that points at another page's program is not read. Each page keeps the program it argues from, and `count`'s loop stays where a page runs it.
 - **W5, M 20 (constant rule), U 17 (repeats) [2519 and 3193], R1 12** `3` — the constant rule at `guide/language.md:327`, `:2119`, `:2517`, `:2519`, `:3193` (the last a summary of 2519), `why.md:33`, `tour/README.md:335`, `:534`, `faq.md:103`, `deployment.md:234`, `:254`. Fix: keep §2.2's definition and §8.1's rule, and point from the others. Owner: guide+guide-other+tour. Decide: confirm the cuts (after W15).
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): the cuts are made, the constant staying (*W15*): §2.2 keeps the definition and §8.1 the rule, and the other places point.
 - **R2 7, U 17 (repeats) [deployment 254-257 and 387-389]** `3` — `guide/deployment.md` L254-L257 against L387-L389: the `was not loaded` lines twice, each with its move in two wordings. Fix: section 7 owns them, 4.3 points; a row for the reach line; the fuller move stays. Owner: guide-other. Decide: the recut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R2 42, U 17 (repeats) [2461, deployment 76 and 273]** `3` — `guide/deployment.md`: the first draft's 27 headings unchanged; section 5.1 holds four subjects; the `.erc` of another namespace is said at L76 and L273, and at `guide/language.md:2461`. Fix: R2 8, 10, 12; L273 a pointer to L76. Owner: guide-other. Decide: the cut at L273.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): line 273 becomes a pointer to line 76. The headings and section 5.1 are the deployment guide's recut, *R2 8*, *R2 10* and *R2 12*.
 - **R2 26** `3` — `guide/faq.md` L11: one 97-word sentence and the courtesy to Gleam said twice. Fix: break at "and the look, which Ernest owes Gleam"; one courtesy. Owner: guide-other. Decide: which courtesy stays.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): the sentence breaks at "and the look, which Ernest owes Gleam", and that courtesy stays, the debt, which is a fact. "And made well, in semantics and in syntax" goes.
 - **U 15** `3` — `guide/language.md:3152-3154` and `guide/deployment.md:287-289`, one paragraph twice (U 1 is what the copy cost). Fix: the deployment guide keeps the operator's two sentences and points at §8.9. Owner: guide-other. Decide: confirm the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R2 36** `3` — `guide/why.md` L16, `guide/faq.md` L35, L85: "Not an OTP application" thrice. Fix: `why.md` L16 owns it; the answers keep the pointer. Owner: guide-other. Decide: the cut.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **U 16, N H1 (floor), R1 25** `3` user — sentences shared between the FAQ and the guides (`faq.md:27`, `:31`, `:89`, `:91`, `:109`), and the floor defined four or five times (`guide/language.md:2434`, `:2459`, `:3361`, `why.md:24`, `deployment.md:168`). Fix: the FAQ answers in a sentence and names the section; chapter 8's intro keeps the floor. Owner: guide-other+guide. Decide: confirm the cuts.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **U 14, N H1 (foreign delivery, two workers), M 20 (foreign delivery), R2 17, R2 43** `3` — the late foreign delivery's `deadlock` at `guide/language.md:1432`, `why.md:176`, `:293`, `faq.md:83`, verbatim thrice, and "two workers waiting" at `language.md:1430`, `why.md:295`. Fix: `why.md:293` keeps it, `why.md:176` goes, the FAQ points (at the guide's §5.4, or report §8.6). Owner: guide-other. Decide: confirm the cut and the pointer.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): `why.md:293` keeps it and `why.md:176` goes. The FAQ points at the guide's §5.4, since a guide's reader is sent to a guide.
 - **R3 11** `3` user — `tour/README.md` l.145, l.231, l.262, l.528, l.532; l.578, l.614, l.623; l.264, l.470, l.472; l.466, l.540, l.582; l.139, l.586: five things said in several chapters. Fix: the page-is-one-run in the opening, the others at their first or fullest place. Owner: tour. Decide: the cuts.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R3 14** `3` user — `tour/README.md` l.184, l.190, l.333, l.580: a notation's note in four places. Fix: one place, under the block; l.190's clause joins l.262. Owner: tour. Decide: the moves.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 - **R3 12** `3` user — `tour/README.md` l.511, l.513, l.72: `guide/why.md`'s sentences word for word. Fix: the tour names the claim and says what the session did. Owner: tour. Decide: the cuts.
+  - **Decided 2026-11-23** (the log's *What the Guides Repeat*): taken as the reader gives it, the named place keeping the statement and the others pointing.
 
 #### How are the reviews, the log, the plan, the known issues and their tools kept?
 
