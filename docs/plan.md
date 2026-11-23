@@ -25,9 +25,10 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first family, what a diagnostic says, 39 lines. The sentences of
-*PL6 2* and *PL6 3* are written a third time, against the two cold readings. The other
-families are next, the largest first. Its first two legs, the decisions before the
+decided, 36 lines, with the first two families, what a diagnostic says, 39 lines, and the
+language's rules, 33. The sentences of *PL6 2* and *PL6 3* are written a third time,
+against the two cold readings. The other families are next, the largest first, the
+report's recut the next of them. Its first two legs, the decisions before the
 readers and the readers, closed 2026-11-23. Items 2 and 3,
 the cost and the raise a primitive catches, are closed since 2026-11-22, and item 8, a
 result that is never empty, since 2026-11-23.
@@ -294,8 +295,8 @@ lines of [`known_issues.md`](known_issues.md), each naming the item it was (the 
 Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 158, 165, 166 and 168, and item 167 last, so that OTP's
-answer to its report may come first.
+1 to 4 follow, then items 68, 96, 113, 158, 165, 166 and 168 to 172, and item 167 last, so
+that OTP's answer to its report may come first.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
    operator's prompt, the values by their descriptors (§11.2), with a bound a busy node needs, as
@@ -438,6 +439,26 @@ What the line left, in the order it is taken:
   become loops, which covers every raise in a function `List` calls and leaves a program's
   own recursion. Neither closes the square, and each is weighed against E.0 rule 1 and
   against keeping no code only for speed.
+- **169. One list of generalized values**, from MVP 4.4's item 4, the findings' *W23*
+  (the log's *The Language's Rules*). A top-level `let` is generalized where its
+  initializer is a value (§4.6), and a `let` in a block only where it binds a lambda
+  (§3.9), so `let one = List.take` serves two types at top level and one in a block. To
+  decide with the user: §4.6's values for a block's `let` too, with what §4.8 calls a
+  definition, a cold reading and the argument's paragraph.
+- **170. A prelude type's members written with their prefix**, from the findings' *P1 18,
+  K 27*. `int.ern` declares `fn Int.+` and, unprefixed, `fn compare` and `fn negate`,
+  which costs an exception sentence in §4.2, in §4.8 and in Appendix F. The standard
+  library writes `fn Int.compare` and `fn Int.negate`, and the three sentences go. No
+  program meets the rule.
+- **171. A member's heading in `ern doc`**, from the findings' *P1 17, PL1 L21*. §4.2
+  refuses a member of an exported type and an exported value of the module of its name
+  that share a name, since the page heads both `Main.Stack.compare`. `ern doc` heads a
+  member by its use form, and the rule goes with its error.
+- **172. Whether a definition is still "lacked"**, from the findings' *PL1 L16, PL1 L24*.
+  §12.7 has a unit export what its module exports, and a definition held in no exporting
+  unit lacked, on one bench row of 19.5% from 2026-10-11, before the emitter's calls
+  changed on 2026-10-27. The row is read again; where it is gone, a unit exports all and
+  "lacked" goes, decided with the user.
 
 ---
 
