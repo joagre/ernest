@@ -25,11 +25,11 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first two families, what a diagnostic says, 39 lines, and the
-language's rules, 33. The sentences of *PL6 2* and *PL6 3* are written a third time,
-against the two cold readings. The other families are next, the largest first, the
-report's recut the next of them. Its first two legs, the decisions before the
-readers and the readers, closed 2026-11-23. Items 2 and 3,
+decided, 36 lines, with the first three families, what a diagnostic says, 39 lines, the
+language's rules, 33, and the report's recut, 31. The sentences of *PL6 2* and *PL6 3* are
+written a third time, against the two cold readings. The other families are next, the
+largest first, what the guides and the tour repeat the next of them. Its first two legs,
+the decisions before the readers and the readers, closed 2026-11-23. Items 2 and 3,
 the cost and the raise a primitive catches, are closed since 2026-11-22, and item 8, a
 result that is never empty, since 2026-11-23.
 
@@ -295,7 +295,7 @@ lines of [`known_issues.md`](known_issues.md), each naming the item it was (the 
 Plan Sorted Against the Known Issues*). A find of that kind gets its line there since.
 
 Items 118 and 122 are taken first, since no reading of their kind has come back empty. Items
-1 to 4 follow, then items 68, 96, 113, 158, 165, 166 and 168 to 172, and item 167 last, so
+1 to 4 follow, then items 68, 96, 113, 158, 165, 166 and 168 to 173, and item 167 last, so
 that OTP's answer to its report may come first.
 
 1. **`:trace f`**, a proposal first: each call of `f` on the node and each return printed at the
@@ -459,6 +459,13 @@ What the line left, in the order it is taken:
   unit lacked, on one bench row of 19.5% from 2026-10-11, before the emitter's calls
   changed on 2026-10-27. The row is read again; where it is gone, a unit exports all and
   "lacked" goes, decided with the user.
+- **173. Where a private format stands**, from the findings' *P3 11* (the log's *The
+  Report Recut*). A floor is one release of `ern` on one major release of OTP, so every
+  reader of a definition's form, and of §12.6's frames, is the toolchain that wrote it,
+  and Appendix H's 140 lines bind no second builder. To decide with the user: the layout
+  in the report, or in the design notes with the report keeping what a program sees, what
+  a form holds and what makes two definitions one. `docs/soundness.md` cites the layout
+  and follows.
 
 ---
 
