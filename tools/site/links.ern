@@ -2,8 +2,9 @@
 // A page's links: a citation in the text made a link to the section it
 // names, and a link the source writes for GitHub led to the page the site
 // shows its target on, as docs/design/site.md's *Anchors* and *Links* say. A
-// citation is a form the documents' test reads (test/ern_docs_tests.erl):
-// `§x.y`, alone or after the report, the guide or the deployment guide, an
+// citation is a form the documents' test reads (test/ern_docs_tests.erl),
+// as `Citations` reads it (tools/citations.ern): `§x.y`, alone, after the
+// report, the guide or the deployment guide or in a list after one, an
 // appendix or one of its sections, and `E.n`; and beside them the log's
 // *Title*, which links to the log's entry on GitHub, and a qualified name of
 // the library in backticks, which links to its declaration. A section's
@@ -39,9 +40,6 @@ export type Declaration = Declaration(namespace : String, address : String, anch
 // document that numbers none; or one whose headings no link reaches, a
 // contents page or a module's page.
 type Shown = Book(String) | Numbered(String) | Slugged(String) | Whole(String)
-
-// The document a `§` cites, as the words before it say.
-type Cited = Report | Guide | Deployment | Bare
 
 //
 // The documents the site shows
@@ -199,7 +197,7 @@ export fn number(text : String) : Optional(String) =
     }
 
 fn sectionNumber(chars : List(Char)) : Optional(String) =
-    match digits(chars) {
+    match Citations.numberAt(chars) {
         Some(#(found, rest)) ->
             match rest {
                 ' ' :: _ -> Some(found)
@@ -220,23 +218,6 @@ fn appendixNumber(chars : List(Char)) : Optional(String) =
             }
       | _ ->
             None
-    }
-
-// A section number at the characters' start, `6` or `6.5`, and what
-// follows it.
-fn digits(chars : List(Char)) : Optional(#(String, List(Char))) =
-    match digitRun(chars) {
-        #([], _) ->
-            None
-      | #(whole, '.' :: rest) ->
-            match digitRun(rest) {
-                #([], _) ->
-                    Some(#(String.fromList(whole), '.' :: rest))
-              | #(part, later) ->
-                    Some(#(String.fromList(whole) <> "." <> String.fromList(part), later))
-            }
-      | #(whole, rest) ->
-            Some(#(String.fromList(whole), rest))
     }
 
 fn digitRun(chars : List(Char)) : #(List(Char), List(Char)) =
@@ -355,7 +336,7 @@ fn inlineLinked(previous : Optional(Markdown.Inline),
                 page : Page) : Either(String, List(Markdown.Inline)) =
     match inline {
         Markdown.Text(text) ->
-            cited(String.toList(text), [], page)
+            cited(text, page)
       | Markdown.CodeSpan(code) ->
             Right([match declaration(page, code) {
                       Some(address) -> Markdown.Link(text = [inline], url = address)
@@ -579,9 +560,9 @@ fn declarationAddress(page : Page, found : Declaration) : Optional(String) =
     if List.contains(page.declared, found.namespace) then
         None
     else if found.address == page.address then
-        Some("#" <> found.anchor)
+        Some("#" <> Html.fragment(found.anchor))
     else
-        Some(found.address <> "#" <> found.anchor)
+        Some(found.address <> "#" <> Html.fragment(found.anchor))
 
 /// The declaration a qualified name names, on its module's page at the
 /// address; none for a bare name, which no namespace qualifies.
@@ -653,136 +634,30 @@ fn logLink(page : Page, title : Markdown.Inline, place : String) : Markdown.Inli
 // The citations
 //
 
-// The text, each citation in it a link: the characters read so far stand
-// in `pending`, last first, since the words before a `§` name the document
-// it cites.
-fn cited(chars : List(Char),
-         pending : List(Char),
-         page : Page) : Either(String, List(Markdown.Inline)) =
-    match chars {
-        [] ->
-            Right(flushed(pending, []))
-      | _ when begins(chars, "Appendix ") ->
-            match appendix(charsAfter(chars, "Appendix ")) {
-                Some(#(anchor, rest)) -> {
-                    let #(word, before) = reportWord(pending);
-                    citation(before,
-                             word <> "Appendix " <> anchor,
-                             reportAnchor(anchor, page),
-                             rest,
-                             page)
-                }
-              | None ->
-                    cited(charsAfter(chars, "Appendix "),
-                          List.reverse(String.toList("Appendix ")) <> pending,
-                          page)
-            }
-      | 'E' :: '.' :: rest when isBoundary(pending) ->
-            match digitRun(rest) {
-                #([], _) ->
-                    cited(rest, '.' :: 'E' :: pending, page)
-              | #(run, later) when isBoundary(later) -> {
-                    let anchor = "E." <> String.fromList(run);
-                    citation(pending, anchor, Right("/report/library.html#" <> anchor), later, page)
-                }
-              | _ ->
-                    cited(rest, '.' :: 'E' :: pending, page)
-            }
-      | '§' :: rest ->
-            match digits(rest) {
-                Some(#(found, later)) -> {
-                    let #(document, word, before) = sectionWord(pending);
-                    citation(before,
-                             word <> "§" <> found,
-                             sectionAddress(document, found, page),
-                             later,
-                             page)
-                }
-              | None ->
-                    cited(rest, '§' :: pending, page)
-            }
-      | char :: rest ->
-            cited(rest, char :: pending, page)
-    }
-
-fn citation(pending : List(Char),
-            label : String,
-            led : Either(String, String),
-            rest : List(Char),
-            page : Page) : Either(String, List(Markdown.Inline)) = {
-    let found <- led;
-    let later <- cited(rest, [], page);
-    let link = Markdown.Link(text = [Markdown.Text(label)], url = local(page, found));
-    Right(flushed(pending, link :: later))
+// The text, each citation in it a link to the section it names, as
+// `Citations` reads them: a bare `§` is the guide's own in the guide and
+// the report's in every other document (docs/design/site.md *Links*).
+fn cited(text : String, page : Page) : Either(String, List(Markdown.Inline)) = {
+    let bare = if page.source == "guide/language.md" then Citations.Guide else Citations.Report;
+    List.tryMap(Citations.pieces(text, bare), fn(piece) = match piece {
+        Citations.Text(written) ->
+            Right(Markdown.Text(written))
+      | Citations.Citation(=label, =document, =section) ->
+            Either.map(sectionAddress(document, section, page),
+                       fn(found) =
+                           Markdown.Link(text = [Markdown.Text(label)], url = local(page, found)))
+    })
 }
 
-fn flushed(pending : List(Char), later : List(Markdown.Inline)) : List(Markdown.Inline) =
-    if pending == [] then later else Markdown.Text(String.fromList(List.reverse(pending))) :: later
-
-// An appendix's letter and the section after it, `E` or `E.17`, where no
-// letter follows the letter.
-fn appendix(chars : List(Char)) : Optional(#(String, List(Char))) =
-    match chars {
-        letter :: '.' :: rest when isCapital(letter) ->
-            match digitRun(rest) {
-                #([], _) ->
-                    Some(#(Char.toString(letter), '.' :: rest))
-              | #(run, later) ->
-                    Some(#(Char.toString(letter) <> "." <> String.fromList(run), later))
-            }
-      | letter :: rest when isCapital(letter) && isBoundary(rest) ->
-            Some(#(Char.toString(letter), rest))
-      | _ ->
-            None
-    }
-
-// The words before an appendix that name the report, `report ` or `the
-// report's `, which the link takes in.
-fn reportWord(pending : List(Char)) : #(String, List(Char)) =
-    match List.find(["report's ", "Report's ", "report ", "Report "],
-                    fn(word) = endsIn(pending, word)) {
-        Some(word) -> #(word, charsAfter(pending, word))
-      | None -> #("", pending)
-    }
-
-// The words before a `§` that name the document it cites, as the
-// documents' test reads them: the report, the guide or the deployment
-// guide, with `'s`, a comma and a space after it or not; none for a bare
-// `§`.
-fn sectionWord(pending : List(Char)) : #(Cited, String, List(Char)) = {
-    let documents =
-        [#("deployment guide", Deployment),
-         #("Deployment guide", Deployment),
-         #("report", Report),
-         #("Report", Report),
-         #("guide", Guide),
-         #("Guide", Guide)];
-    let forms =
-        List.flatMap(documents,
-                     fn(#(word, document)) =
-                         List.map(["'s, ", "'s,", "'s ", "'s", ", ", ",", " ", ""],
-                                  fn(tail) = #(word <> tail, document)));
-    match List.find(forms, fn(#(form, _)) = endsIn(pending, form)) {
-        Some(#(form, document)) -> #(document, form, charsAfter(pending, form))
-      | None -> #(Bare, "", pending)
-    }
-}
-
-// Where a `§` leads: a bare one is the guide's own in the guide and the
-// report's in every other document (docs/design/site.md
-// *Links*).
-fn sectionAddress(cited : Cited, found : String, page : Page) : Either(String, String) =
-    match cited {
-        Report ->
-            reportAnchor(found, page)
-      | Guide ->
-            Right("/guide/" <> chapter(found) <> ".html#" <> found)
-      | Deployment ->
-            Right("/deployment/#" <> found)
-      | Bare when page.source == "guide/language.md" ->
-            Right("/guide/" <> chapter(found) <> ".html#" <> found)
-      | Bare ->
-            reportAnchor(found, page)
+// Where a citation leads, a section of the report, the guide or the
+// deployment guide.
+fn sectionAddress(document : Citations.Document,
+                  found : String,
+                  page : Page) : Either(String, String) =
+    match document {
+        Citations.Report -> reportAnchor(found, page)
+      | Citations.Guide -> Right("/guide/" <> chapter(found) <> ".html#" <> found)
+      | Citations.Deployment -> Right("/deployment/#" <> found)
     }
 
 // A report section's address: its citation's first number or letter names
@@ -808,33 +683,4 @@ export fn chapter(found : String) : String =
     match String.splitOnce(found, ".") {
         Some(#(first, _)) -> first
       | None -> found
-    }
-
-// Whether the character list begins with the word's characters.
-fn begins(chars : List(Char), word : String) : Bool = {
-    let wanted = String.toList(word);
-    List.take(chars, List.size(wanted)) == wanted
-}
-
-// The characters after as many as the word has, a word's beginning them,
-// or the read ones, last first, ending in it.
-fn charsAfter(chars : List(Char), word : String) : List(Char) =
-    List.drop(chars, List.size(String.toList(word)))
-
-// Whether the characters read so far, last first, end in the word.
-fn endsIn(pending : List(Char), word : String) : Bool =
-    begins(pending, String.fromList(List.reverse(String.toList(word))))
-
-// Whether a word ends before the characters, last first or next first: the
-// one beside is no ASCII letter, digit or `_`, as a regular expression's
-// `\b` reads a word in the documents' test.
-fn isBoundary(beside : List(Char)) : Bool =
-    match beside {
-        char :: _ ->
-            !(char >= 'a' && char <= 'z'
-                  || isCapital(char)
-                  || Char.isAsciiDigit(char)
-                  || char == '_')
-      | [] ->
-            true
     }

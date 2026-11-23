@@ -1,0 +1,210 @@
+//
+// The citations of a text, as the documents' test reads them
+// (test/ern_docs_tests.erl) and docs/design/site.md's *Links* states them,
+// for the site's links (`Site.Links`) and the documents' listing of the
+// sections cited (tools/documents.ern) alike: `§x.y`, alone or after the
+// report, the guide or the deployment guide; an appendix, `Appendix E`, or
+// one of its sections, `Appendix E.17`; and `E.n`. A bare `§` names a
+// section of the document its reader gives, but in a list after a
+// document's name, each `§` joined to the one before by `, ` or ` and `,
+// where it is that document's to the list's end.
+//
+
+/// The document a citation names a section of.
+export type Document = Report | Guide | Deployment
+
+/// A piece of a text: the text between two citations, or a citation, its
+/// label the words of the text it stands for, the document's name among
+/// them, `report §4.6` or `§8.5`, and the section it names, `4.6`, `E.17`,
+/// or `E` for `Appendix E`.
+export type Piece = Text(String) | Citation(label : String, document : Document, section : String)
+
+/// The text's pieces, a bare `§` the section of the document `bare` where
+/// no list after a document's name holds it.
+export fn pieces(text : String, bare : Document) : List(Piece) =
+    read(String.toList(text), [], None, bare)
+
+// The text from `chars` on, the characters read since the last citation
+// standing in `pending`, last first, since the words before a `§` name the
+// document it cites, and `listed` the document of that citation where it
+// was a `§`'s, which a list after it continues.
+fn read(chars : List(Char),
+        pending : List(Char),
+        listed : Optional(Document),
+        bare : Document) : List(Piece) =
+    match chars {
+        [] ->
+            flushed(pending, [])
+      | _ when begins(chars, "Appendix ") ->
+            match appendix(charsAfter(chars, "Appendix ")) {
+                Some(#(section, rest)) -> {
+                    let #(word, before) = reportWord(pending);
+                    let label = word <> "Appendix " <> section;
+                    cited(before, Citation(=label, document = Report, =section), rest, None, bare)
+                }
+              | None ->
+                    read(charsAfter(chars, "Appendix "),
+                         List.reverse(String.toList("Appendix ")) <> pending,
+                         listed,
+                         bare)
+            }
+      | 'E' :: '.' :: rest when isBoundary(pending) ->
+            match digitRun(rest) {
+                #(run, later) when run != [] && isBoundary(later) -> {
+                    let section = "E." <> String.fromList(run);
+                    cited(pending,
+                          Citation(label = section, document = Report, =section),
+                          later,
+                          None,
+                          bare)
+                }
+              | _ ->
+                    read(rest, '.' :: 'E' :: pending, listed, bare)
+            }
+      | '§' :: rest ->
+            match numberAt(rest) {
+                Some(#(section, later)) -> {
+                    let #(document, word, before) = sectionWord(pending, listed, bare);
+                    cited(before,
+                          Citation(label = word <> "§" <> section, =document, =section),
+                          later,
+                          Some(document),
+                          bare)
+                }
+              | None ->
+                    read(rest, '§' :: pending, listed, bare)
+            }
+      | char :: rest ->
+            read(rest, char :: pending, listed, bare)
+    }
+
+fn cited(pending : List(Char),
+         citation : Piece,
+         rest : List(Char),
+         listed : Optional(Document),
+         bare : Document) : List(Piece) =
+    flushed(pending, citation :: read(rest, [], listed, bare))
+
+fn flushed(pending : List(Char), later : List(Piece)) : List(Piece) =
+    if pending == [] then later else Text(String.fromList(List.reverse(pending))) :: later
+
+// An appendix's letter and the section after it, `E` or `E.17`, where no
+// letter follows the letter.
+fn appendix(chars : List(Char)) : Optional(#(String, List(Char))) =
+    match chars {
+        letter :: '.' :: rest when isCapital(letter) ->
+            match digitRun(rest) {
+                #([], _) ->
+                    Some(#(Char.toString(letter), '.' :: rest))
+              | #(run, later) ->
+                    Some(#(Char.toString(letter) <> "." <> String.fromList(run), later))
+            }
+      | letter :: rest when isCapital(letter) && isBoundary(rest) ->
+            Some(#(Char.toString(letter), rest))
+      | _ ->
+            None
+    }
+
+// The words before an appendix that name the report, `report ` or `the
+// report's `, which the label takes in.
+fn reportWord(pending : List(Char)) : #(String, List(Char)) =
+    match List.find(["report's ", "Report's ", "report ", "Report "],
+                    fn(word) = endsIn(pending, word)) {
+        Some(word) -> #(word, charsAfter(pending, word))
+      | None -> #("", pending)
+    }
+
+// The forms of the words before a `§` that name the document it cites:
+// the report, the guide or the deployment guide, with `'s`, a comma and a
+// space after it or not, the deployment guide's before the guide's.
+let forms : List(#(String, Document)) =
+    List.flatMap([#("deployment guide", Deployment),
+                  #("Deployment guide", Deployment),
+                  #("report", Report),
+                  #("Report", Report),
+                  #("guide", Guide),
+                  #("Guide", Guide)],
+                 fn(#(word, document)) =
+                     List.map(["'s, ", "'s,", "'s ", "'s", ", ", ",", " ", ""],
+                              fn(tail) = #(word <> tail, document)))
+
+// The document a `§` cites and the words before it that name it, which the
+// label takes in: the document its words name, the one of the list it
+// continues, the `§` before it joined to it by `, ` or ` and `, or else
+// `bare`.
+fn sectionWord(pending : List(Char),
+               listed : Optional(Document),
+               bare : Document) : #(Document, String, List(Char)) = {
+    let joined = List.contains([", ", " and "], String.fromList(List.reverse(pending)));
+    match #(List.find(forms, fn(#(form, _)) = endsIn(pending, form)), listed) {
+        #(Some(#(form, document)), _) -> #(document, form, charsAfter(pending, form))
+      | #(None, Some(document)) when joined -> #(document, "", pending)
+      | _ -> #(bare, "", pending)
+    }
+}
+
+/// A section number at the characters' start, `6` or `6.5`, and what
+/// follows it.
+export fn numberAt(chars : List(Char)) : Optional(#(String, List(Char))) =
+    match digitRun(chars) {
+        #([], _) ->
+            None
+      | #(whole, '.' :: rest) ->
+            match digitRun(rest) {
+                #([], _) ->
+                    Some(#(String.fromList(whole), '.' :: rest))
+              | #(part, later) ->
+                    Some(#(String.fromList(whole) <> "." <> String.fromList(part), later))
+            }
+      | #(whole, rest) ->
+            Some(#(String.fromList(whole), rest))
+    }
+
+fn digitRun(chars : List(Char)) : #(List(Char), List(Char)) =
+    List.span(chars, Char.isAsciiDigit)
+
+fn isCapital(char : Char) : Bool =
+    char >= 'A' && char <= 'Z'
+
+// Whether the character list begins with the word's characters.
+fn begins(chars : List(Char), word : String) : Bool = {
+    let wanted = String.toList(word);
+    List.take(chars, List.size(wanted)) == wanted
+}
+
+// The characters after as many as the word has, a word's beginning them,
+// or the read ones, last first, ending in it.
+fn charsAfter(chars : List(Char), word : String) : List(Char) =
+    List.drop(chars, List.size(String.toList(word)))
+
+// Whether the characters read so far, last first, end in the word.
+fn endsIn(pending : List(Char), word : String) : Bool =
+    begins(pending, String.fromList(List.reverse(String.toList(word))))
+
+// Whether a word ends before the characters, last first or next first: the
+// one beside is no ASCII letter, digit or `_`, as a regular expression's
+// `\b` reads a word in the documents' test.
+fn isBoundary(beside : List(Char)) : Bool =
+    match beside {
+        char :: _ ->
+            !(char >= 'a' && char <= 'z'
+                  || isCapital(char)
+                  || Char.isAsciiDigit(char)
+                  || char == '_')
+      | [] ->
+            true
+    }
+
+/// Each `§` of a list after a document's name, joined to the one before by
+/// `, ` or ` and `, is that document's, and one after other words is bare.
+let readsLists =
+    Test.Case(name = "reads a list after a document's name",
+              run = fn() =
+                  Test.equal(pieces("report §4.6, §8.5 and §9, then §2", Guide),
+                             [Citation(label = "report §4.6", document = Report, section = "4.6"),
+                              Text(", "),
+                              Citation(label = "§8.5", document = Report, section = "8.5"),
+                              Text(" and "),
+                              Citation(label = "§9", document = Report, section = "9"),
+                              Text(", then "),
+                              Citation(label = "§2", document = Guide, section = "2")]))

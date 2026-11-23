@@ -26,7 +26,7 @@ in a hard break, and a dot in `List.map` ends no sentence.
 
 ### 1.1 Citations
 
-A bare §1.2 is the guide's own, and so is §2, and §1.1 on its own page is its anchor alone. The guide's §2.1, report §11.2, the report's §5.4 and the deployment guide's §1.5 name their owners. Appendix C, report Appendix E.1, E.0 shape rule 10 and Appendix E.17 are the report's. A § with no number is text.
+A bare §1.2 is the guide's own, and so is §2, and §1.1 on its own page is its anchor alone. The guide's §2.1, report §11.2, the report's §5.4 and the deployment guide's §1.5 name their owners. A list after a document's name is that document's to its end, report §11.2, §5.4 and §9. Appendix C, report Appendix E.1, E.0 shape rule 10 and Appendix E.17 are the report's. A § with no number is text.
 
 ### 1.2 Links
 

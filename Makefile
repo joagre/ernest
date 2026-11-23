@@ -292,12 +292,13 @@ site:
 
 # The programs of the build written in Ernest, tools/, compiled into
 # build/tools against the libraries they use: libs/markdown and libs/ansi,
-# which the manual page is written with, and libs/crypto, whose digest
-# names the site's assets. The site's generator and the clones' listing
-# reach the toolchain's lexer and the host's scanner through the tools' one
-# helper, tools/ern_lexemes.erl, compiled to the root of the build, where
-# `ern run` finds it on the load path (report §11.2).
-tools: lib-ansi lib-markdown lib-crypto build/tools/ern_lexemes.beam
+# which the manual page is written with, libs/crypto, whose digest names
+# the site's assets, and libs/uri, which reads a link's fragment back. The
+# site's generator and the clones' listing reach the toolchain's lexer and
+# the host's scanner through the tools' one helper, tools/ern_lexemes.erl,
+# compiled to the root of the build, where `ern run` finds it on the load
+# path (report §11.2).
+tools: lib-ansi lib-markdown lib-crypto lib-uri build/tools/ern_lexemes.beam
 	@bin/ern build --verbose --build-root build/tools tools
 
 build/tools/ern_lexemes.beam: tools/ern_lexemes.erl

@@ -242,19 +242,6 @@ fn lengthRows(path : String, sections : List(#(Section, Int))) : List(String) =
 // The citations
 //
 
-// The document a `§` cites, as the words before it say.
-type Cited = Report | Guide | Deployment | Bare
-
-// The forms of the words before a `§` that name the document it cites, as
-// the documents' test reads them: the report, the guide or the deployment
-// guide, with `'s`, a comma and a space after it or not, the deployment
-// guide's before the guide's.
-let citedForms : List(#(String, Cited)) =
-    List.flatMap([#("deployment guide", Deployment), #("report", Report), #("guide", Guide)],
-                 fn(#(word, cited)) =
-                     List.map(["'s, ", "'s,", "'s ", "'s", ", ", ",", " ", ""],
-                              fn(tail) = #(word <> tail, cited)))
-
 fn citations() : List(String) = {
     let sections = List.flatMap(reportFiles, fn(path) = List.filterMap(sectionsIn(path), cited));
     let citing = List.flatMap(guideFiles() <> [tourFile], citingPlaces);
@@ -304,7 +291,7 @@ fn numberOf(title : String) : Optional(String) =
                     None
             }
       | None ->
-            Optional.map(leadingNumber(title), fn(#(number, _)) = number)
+            Optional.map(Citations.numberAt(String.toList(title)), fn(#(number, _)) = number)
     }
 
 // The citation a key is shown as, `§3.9`, `Appendix E` or `Appendix E.17`.
@@ -351,87 +338,28 @@ fn citingPlaces(path : String) : List(#(String, String)) =
             []
     })
 
-// The report's sections a line cites: a `§` the report's by the words
-// before it, or bare outside the language guide; an appendix, `Appendix
-// E`, or one of its sections, `Appendix E.17`; and `E.17`.
+// The report's sections a line cites, as `Citations` reads them: a `§`
+// the report's by the words before it or the list it stands in, or bare
+// outside the language guide; an appendix, `Appendix E`, or one of its
+// sections, `Appendix E.17`; and `E.17`.
 fn citedOn(path : String, line : String) : List(String) = {
-    let sections = List.filterMap(pairsAround(line, "§"), fn(#(before, following)) = {
-        let isReport = match citedDocument(before) {
-            Report -> true
-          | Bare -> path != languageGuide
-          | _ -> false
-        };
-        if isReport then Optional.map(leadingNumber(following), fn(#(number, _)) = number) else None
-    });
-    let appendices =
-        List.filterMap(pairsAround(line, "Appendix "),
-                       fn(#(_, following)) = match String.toList(following) {
-                           letter :: rest when Char.isUpper(letter) && isBoundary(rest) ->
-                               Some("Appendix " <> Char.toString(letter))
-                         | letter :: '.' :: rest when Char.isUpper(letter) ->
-                               match leadingDigits(rest) {
-                                   #([], _) ->
-                                       Some("Appendix " <> Char.toString(letter))
-                                 | #(digits, later) when isBoundary(later) ->
-                                       Some(Char.toString(letter) <> "." <> String.fromList(digits))
-                                 | _ ->
-                                       None
-                               }
-                         | _ ->
-                               None
-                       });
-    let library = List.filterMap(pairsAround(line, "E."), fn(#(before, following)) = {
-        let #(digits, later) = leadingDigits(String.toList(following));
-        if isBoundary(List.reverse(String.toList(before))) && digits != [] && isBoundary(later) then
-            Some("E." <> String.fromList(digits))
-        else
-            None
-    });
-    List.unique(sections <> appendices <> library)
+    let bare = if path == languageGuide then Citations.Guide else Citations.Report;
+    List.unique(List.filterMap(Citations.pieces(line, bare), fn(piece) = match piece {
+        Citations.Citation(document = Citations.Report, =section) -> Some(reportKey(section))
+      | _ -> None
+    }))
 }
 
-// The text before and after each place the part stands in the line.
-fn pairsAround(line : String, part : String) : List(#(String, String)) = {
-    let parts = String.split(line, part);
-    List.map(List.indexed(List.drop(parts, 1)),
-             fn(#(index, following)) = #(String.join(List.take(parts, index + 1), part), following))
-}
-
-fn citedDocument(before : String) : Cited = {
-    let lowered = String.toAsciiLower(before);
-    match List.find(citedForms, fn(#(form, _)) = String.endsWith(lowered, form)) {
-        Some(#(_, cited)) -> cited
-      | None -> Bare
-    }
-}
-
-// The number a text begins with, `3.9` of `3.9, ...` and `3` of `3. ...`,
-// with the characters after it.
-fn leadingNumber(text : String) : Optional(#(String, List(Char))) =
-    match leadingDigits(String.toList(text)) {
-        #([], _) ->
-            None
-      | #(first, '.' :: rest) ->
-            match leadingDigits(rest) {
-                #([], _) ->
-                    Some(#(String.fromList(first), '.' :: rest))
-              | #(second, later) ->
-                    Some(#(String.fromList(first) <> "." <> String.fromList(second), later))
-            }
-      | #(first, later) ->
-            Some(#(String.fromList(first), later))
+// A report section's key as a citation of it gives it, `Appendix E` of an
+// appendix's letter alone.
+fn reportKey(section : String) : String =
+    match String.toList(section) {
+        [letter] when Char.isUpper(letter) -> "Appendix " <> section
+      | _ -> section
     }
 
 fn leadingDigits(chars : List(Char)) : #(List(Char), List(Char)) =
     List.span(chars, Char.isAsciiDigit)
-
-// Whether a word ends before the characters: the next is no letter, digit
-// or `_`, as a regular expression's `\b` reads one in the documents' test.
-fn isBoundary(chars : List(Char)) : Bool =
-    match chars {
-        char :: _ -> !isWordChar(char)
-      | [] -> true
-    }
 
 fn isWordChar(char : Char) : Bool =
     Char.isAlpha(char) || Char.isAsciiDigit(char) || char == '_'
@@ -882,7 +810,8 @@ fn isLaunch(line : String) : Bool =
 
 // A tour's chapter's heading, `## 5. Per key`.
 fn isChapter(heading : String) : Bool =
-    match Optional.map(String.stripPrefix(heading, "## "), fn(rest) = leadingNumber(rest)) {
+    match Optional.map(String.stripPrefix(heading, "## "),
+                       fn(rest) = Citations.numberAt(String.toList(rest))) {
         Some(Some(#(_, '.' :: ' ' :: _))) -> true
       | _ -> false
     }
@@ -1124,15 +1053,15 @@ let keysSections =
                              [Some("3.9"), Some("3"), Some("Appendix E"), Some("E.17"), None]))
 
 /// A `§` is the report's after the report's name, the guide's after the
-/// guide's, and bare the report's but in the language guide; an appendix
-/// and `E.n` are the report's.
+/// guide's, each of a list after a name that name's, and bare the report's
+/// but in the language guide; an appendix and `E.n` are the report's.
 let readsCitations = Test.Case(name = "reads a line's citations of the report", run = fn() = {
     let line =
-        "see report §3.9, §4.2, the guide's §2.1, deployment guide §1.1, "
-            <> "Appendix E, Appendix E.17 and E.12.";
+        "see report §3.9, §4.2 and §5.1, the guide's §2.1, deployment guide §1.1, §1.2, "
+            <> "a bare §6.4, Appendix E, Appendix E.17 and E.12.";
     Test.equal(#(citedOn("guide/why.md", line), citedOn(languageGuide, line)),
-               #(["3.9", "4.2", "Appendix E", "E.17", "E.12"],
-                 ["3.9", "Appendix E", "E.17", "E.12"]))
+               #(["3.9", "4.2", "5.1", "6.4", "Appendix E", "E.17", "E.12"],
+                 ["3.9", "4.2", "5.1", "Appendix E", "E.17", "E.12"]))
 })
 
 /// A prose term is counted outside code, in any case and with its plural; a

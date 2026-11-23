@@ -134,13 +134,9 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
      Built*): `make lengths`, `citations`, `terms`, `unchecked` and `edits`, which the full
      review's readers of the report, the guide and the tour start from, and the browser
      test holds every page of the site to no sideways scroll on a phone.
-   - **Two defects the listings found**, 2026-11-23 (the log's *The Documents' Listings,
-     Built*). A page `ern doc` writes links an operator's heading by its name unescaped,
-     `#Int.%`, which is no URL, and the site's script throws on it. A list of sections
-     after "report", "report §4.6, §8.5", is read as the report's first and the guide's
-     after it, where every reader takes all for the report's, at nine sites of the guide;
-     the reading follows the reader, in its three copies, and `docs/design/site.md` says
-     so.
+   - **Two defects the listings found**, done 2026-11-23 (the log's *An Operator's Anchor
+     and a List of Sections*): the site writes an anchor's fragment percent-encoded, and a
+     list of sections after a document's name is that document's to its end.
    - **The checker's cases tabled**, decided with the user 2026-11-17 (the log's *The
      Outside Reviews Read*, its paragraph *The checker's cases*). An agent tables the
      eight groups of cases the paragraph lists, where a fault of inference over mailbox

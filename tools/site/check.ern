@@ -68,17 +68,25 @@ fn unresolvedOf(file : String,
           | None -> #(link, None)
         };
         let target = targetOf(file, path);
-        match fragment {
+        let ids = Optional.withDefault(Map.get(anchors, target), Set.empty);
+        match Optional.map(fragment, decoded) {
             _ when !Set.contains(held, target) ->
                 Some(said(file, link) <> ", which is no file of the site")
-          | Some(anchor) when !Set.contains(Optional.withDefault(Map.get(anchors, target),
-                                                                 Set.empty),
-                                            anchor) ->
+          | Some(None) ->
+                Some(said(file, link) <> ", whose fragment is no percent-encoding")
+          | Some(Some(anchor)) when !Set.contains(ids, anchor) ->
                 Some(said(file, link) <> ", an anchor " <> addressOf(target) <> " does not hold")
           | _ ->
                 None
         }
     }
+
+// The anchor a link's fragment names, as a browser reads it back: its
+// percent-encoding decoded as UTF-8 (docs/design/site.md *Anchors*); none
+// for a fragment that is no percent-encoding, which the browser's script
+// cannot decode.
+fn decoded(fragment : String) : Optional(String) =
+    Optional.andThen(Uri.decode(fragment), String.fromUtf8)
 
 fn said(file : String, link : String) : String =
     "  " <> addressOf(file) <> " links to " <> link

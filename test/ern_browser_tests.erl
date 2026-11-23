@@ -69,6 +69,7 @@ checks() ->
      {"a block's tools placed by its first line", fun tools_placed/1},
      {"the homepage on a narrower page", fun narrower/1},
      {"the navigation that keeps the panel", fun navigation/1},
+     {"an address whose fragment is no percent-encoding", fun unencoded/1},
      {"a page still on its way", fun on_its_way/1},
      {"a whole load and a joined session", fun joined/1},
      {"Hide, the handle and F6", fun keyboard/1},
@@ -283,6 +284,25 @@ navigation(#{page := Page, url := Url}) ->
                        ".getBoundingClientRect().top; return top >= 0 && top < innerHeight; })()")),
     ?assertEqual(1, eval(Page, "stub.sessions.length")),
     stop(Page, Session).
+
+%% docs/design/site.md *Anchors* and *The live shell*: an address from
+%% outside the site's links may hold a fragment that is no
+%% percent-encoding, as one copied before the site encoded its fragments
+%% did, `#Int.%`; back to it under the panel puts its page in place, says
+%% its title and throws nothing, the fragment read as the browser reads it.
+%% A regression test, written after the code.
+unencoded(#{page := Page, url := Url, cdp := Cdp}) ->
+    fresh(Page, Url ++ "/guide/2.html", {1440, 900}),
+    open(Page, Url ++ "/guide/1.html#100%", {1440, 900}),
+    Before = length(exceptions(Cdp)),
+    eval(Page, "document.querySelector('.panel-toggle .beside').click()"),
+    eval(Page, "document.querySelector('.page-nav [rel=\"next\"]').click()"),
+    until(Page, "location.pathname === '/guide/2.html' && document.title.startsWith('2.')"),
+    eval(Page, "history.back()"),
+    until(Page, "shown === '/guide/1.html' && document.querySelector('.announcer').textContent"
+                " === document.title && document.title.startsWith('1.')"),
+    ?assertEqual(<<"#100%">>, eval(Page, "location.hash")),
+    ?assertEqual([], lists:nthtail(Before, exceptions(Cdp))).
 
 %% docs/design/site.md *The live shell*: back and forward go
 %% where the visitor last asked. A move made while a page is on its way
@@ -529,17 +549,33 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
 %% make site writes it, the 404 page and the library's pages among them: a
 %% block of code scrolls within itself, and a long run of inline code breaks
 %% where it would leave its line. A page that does is named with the pixels
-%% it is wider by.
+%% it is wider by. Each page's script throws nothing as it loads, and a page
+%% whose script throws is named with what it threw: an exception stops the
+%% steps of the script after it.
 phone(#{cdp := Cdp, repository := Url, pages := Pages}) ->
     Phone = page(Cdp, {390, 844}, true),
-    Wide = [{Path, Width} || Path <- lists:sort(filelib:wildcard("**/*.html", Pages)),
-                             Width <- [phone_width(Phone, Url ++ "/" ++ Path)], Width > 0],
-    ?assertEqual([], Wide).
+    Read = [{Path, phone_read(Phone, Cdp, Url ++ "/" ++ Path)}
+            || Path <- lists:sort(filelib:wildcard("**/*.html", Pages))],
+    ?assertEqual([], [{Path, Width} || {Path, {Width, _}} <- Read, Width > 0]),
+    ?assertEqual([], [{Path, Thrown} || {Path, {_, Thrown}} <- Read, Thrown =/= []]).
 
-%% The pixels a page is wider than the phone's, once loaded.
-phone_width(Phone, Url) ->
+%% The pixels a page is wider than the phone's, once loaded, and what its
+%% script threw meanwhile, each exception's description, the exceptions the
+%% run kept before it left out.
+phone_read(Phone, Cdp, Url) ->
+    Before = length(exceptions(Cdp)),
     open(Phone, Url, {390, 844}),
-    lists:nth(2, eval(Phone, overflow("document.scrollingElement"))).
+    Width = lists:nth(2, eval(Phone, overflow("document.scrollingElement"))),
+    {Width, [thrown(Exception) || Exception <- lists:nthtail(Before, exceptions(Cdp))]}.
+
+%% An exception as the page's console would say it, or a request that
+%% failed as it is kept.
+thrown(#{<<"exceptionDetails">> := #{<<"exception">> := #{<<"description">> := Text}}}) ->
+    Text;
+thrown(#{<<"exceptionDetails">> := #{<<"text">> := Text}}) ->
+    Text;
+thrown(Other) ->
+    Other.
 
 %%
 %% The world: the site with its stub client, httpd, and Chrome

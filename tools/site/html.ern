@@ -121,7 +121,7 @@ export fn heading(level : Int, text : List(Markdown.Inline), headed : CodeBlock.
                 <> ">"
                 <> inlinesHtml(text)
                 <> "<a class=\"anchor\" href=\"#"
-                <> Template.escaped(id)
+                <> Template.escaped(fragment(id))
                 <> "\" aria-label=\""
                 <> Template.escaped(label)
                 <> "\">#</a></"
@@ -130,6 +130,26 @@ export fn heading(level : Int, text : List(Markdown.Inline), headed : CodeBlock.
       | None ->
             "<" <> tag <> class <> ">" <> inlinesHtml(text) <> "</" <> tag <> ">"
     }
+}
+
+/// An anchor as a link's fragment writes it, `Int.%25` for `Int.%`: each
+/// character of the URL standard's fragment percent-encode set beneath
+/// U+007F, a C0 control, a space, `"`, `<`, `>` and `` ` ``, and `%` itself
+/// percent-encoded, so that the fragment is a URL's and a browser reads it
+/// back as the anchor (docs/design/site.md *Anchors*). A character past
+/// U+007E stays as written, which a URL may hold.
+export fn fragment(anchor : String) : String =
+    String.join(List.map(String.toList(anchor), fragmentPiece), "")
+
+fn fragmentPiece(char : Char) : String = {
+    let code = Char.toCodePoint(char);
+    if code < 32 || List.contains([' ', '"', '<', '>', '`', '%'], char) then
+        match Int.toStringBase(code, 16) {
+            Some(digits) -> "%" <> String.padStart(digits, 2, "0")
+          | None -> fault("Int.toStringBase writes in base 16")
+        }
+    else
+        Char.toString(char)
 }
 
 fn listOpening(start : Optional(Int)) : String =

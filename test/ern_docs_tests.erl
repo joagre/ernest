@@ -60,7 +60,9 @@
 %% report §11, docs/development.md "Building": `make test-docs`
 %% A regression test for the possessive, `the guide's §x.y`, once read as
 %% a bare `§x.y`, the report's, and for `the deployment guide's §x.y`, once
-%% read as the language guide's; it does
+%% read as the language guide's, and for a list after a document's name,
+%% `report §4.6, §8.5`, once read with its later sections bare
+%% (docs/design/site.md *Links*); it does
 %% not read a curly apostrophe, which no document writes before a `§`, nor
 %% a citation whose words a line break parts. The site's fixture stands as
 %% the guide where the site's generator renders it (ern_site_tests), so its
@@ -1141,11 +1143,16 @@ line_section_numbers(Line) ->
 %% Every citation in a document: {Kind, Target} with Kind report, guide,
 %% deployment or bare, a `§x.y` after report, guide or deployment guide,
 %% or after the report's, the guide's or the deployment guide's, being
-%% that document's, and the bare ones resolved by the document's own
-%% convention.
+%% that document's, and so each of a list after it, joined to the one
+%% before by `, ` or ` and `, as tools/citations.ern reads it; the bare ones
+%% resolved by the document's own convention.
 cites(Document) ->
-    Cited = "([Rr]eport|[Dd]eployment guide|[Gg]uide)?(?:'s)?,? ?§([0-9]+(?:\\.[0-9]+)?)",
-    SectionCites = [{kind(Word), Number} || [Word, Number] <- matches(Document, Cited)],
+    Numbered = "§[0-9]+(?:\\.[0-9]+)?",
+    Cited = "([Rr]eport|[Dd]eployment guide|[Gg]uide)?(?:'s)?,? ?(" ++ Numbered
+        ++ "(?:(?:, | and )" ++ Numbered ++ ")*)",
+    SectionCites = [{kind(Word), Number}
+                    || [Word, Listed] <- matches(Document, Cited),
+                       [Number] <- matches(Listed, "§([0-9]+(?:\\.[0-9]+)?)")],
     AppendixCites = [case Appendix of
                          [Letter] -> {report, "Appendix " ++ Letter};
                          [Letter, Section] -> {report, Letter ++ "." ++ Section}

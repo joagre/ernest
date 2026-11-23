@@ -1014,8 +1014,7 @@ function arrive(url, state) {
 }
 
 function scrolled(url, state) {
-    const target = url.hash === "" ? null :
-        document.getElementById(decodeURIComponent(url.hash.slice(1)));
+    const target = indicated(url);
     if (typeof state?.scroll === "number") {
         scroller().scrollTop = state.scroll;
     } else if (target !== null) {
@@ -1024,6 +1023,24 @@ function scrolled(url, state) {
         scroller().scrollTop = 0;
     }
     return target;
+}
+
+// The element a URL's fragment names, as the browser finds it: the
+// fragment as written, then decoded. A link the site writes is
+// percent-encoded, but an address from elsewhere may hold a `%` that is
+// none, which the browser reads as written.
+function indicated(url) {
+    if (url.hash === "") {
+        return null;
+    }
+    const fragment = url.hash.slice(1);
+    let decoded = fragment;
+    try {
+        decoded = decodeURIComponent(fragment);
+    } catch {
+        // no percent-encoding: the fragment as written alone
+    }
+    return document.getElementById(fragment) ?? document.getElementById(decoded);
 }
 
 // The place the next Tab starts from, without a mark the page keeps.

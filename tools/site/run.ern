@@ -155,7 +155,8 @@ fn sidebarEntries(run : Run, entries : List(Entry)) : Either(String, List(List(T
       | entry :: rest -> {
             let #(under, later) = List.span(rest, fn(next) = next.level > entry.level);
             let values =
-                [#("anchor", Template.Plain(entry.anchor)), #("label_html", labeled(entry.text))];
+                [#("anchor", Template.Plain(Html.fragment(entry.anchor))),
+                 #("label_html", labeled(entry.text))];
             let lines <- if under == [] then
                 filled(run, "fragments/contents-entry.html", values)
             else {

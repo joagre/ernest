@@ -51,6 +51,7 @@ generated_test_() ->
       {"unlogged", {timeout, 30, fun unlogged/0}},
       {"absolute", {timeout, 30, fun absolute/0}},
       {"additions", {timeout, 30, fun additions/0}},
+      {"operator", {timeout, 30, fun operator/0}},
       {"dangling", {timeout, 30, fun dangling/0}},
       {"head", {timeout, 60, fun head/0}}]}.
 
@@ -144,10 +145,11 @@ symbol(Icon, Name) ->
 
 %% docs/design/site.md *Links*: a qualified name in code or in
 %% backticks links to its declaration in /man/ where a module's page
-%% heads it, an operator among them, and on the declaration's own page to
-%% its anchor alone; a bare name is text, and so is a name the library does
-%% not declare, a code span that is more than a name, and a member of a type
-%% the page's own code declares (report §4.2).
+%% heads it, an operator among them, its fragment percent-encoded
+%% (*Anchors*), and on the declaration's own page to its anchor alone; a
+%% bare name is text, and so is a name the library does not declare, a code
+%% span that is more than a name, and a member of a type the page's own
+%% code declares (report §4.2).
 qualified() ->
     Guide = read(?OUT, "guide/1.html"),
     List = <<"<a href=\"/man/stdlib/list.html#List.">>,
@@ -155,7 +157,7 @@ qualified() ->
     [?assertMatch({_, _}, binary:match(Guide, Linked))
      || Linked <- [<<List/binary, "size\"><code>List.size</code></a>">>,
                    <<Parse/binary, "<code>Markdown.parse</code></a>">>,
-                   <<List/binary, "&lt;&gt;\"><code>List.&lt;&gt;</code></a>">>,
+                   <<List/binary, "%3C%3E\"><code>List.&lt;&gt;</code></a>">>,
                    <<List/binary, "size\"><span class=\"tok-type\">List</span>.size</a>(list)">>]],
     [?assertMatch({_, _}, binary:match(Guide, <<" <code>", Text/binary, "</code>">>))
      || Text <- [<<"spawn">>, <<"List.map">>, <<"List.size(list)">>]],
@@ -280,12 +282,39 @@ additions() ->
                   <<"id=\"ångströms-½--cafe\x{301}\""/utf8>>,
                   <<"data-shell=\"paste\"><code><span class=\"tok-keyword\">fn</span> pair(">>]].
 
+%% docs/design/site.md *Anchors*: a link's fragment is its anchor
+%% percent-encoded, so that an operator's, `List.%`, is `#List.%25` in its
+%% heading's link to itself, in its page's sidebar and in a link to it from
+%% another page, while its heading's `id` stays the name, which the build's
+%% check reads each fragment back to. A regression test, written after the
+%% generator.
+operator() ->
+    Declared = fun(Bytes) ->
+                       binary:replace(Bytes, <<"\n---\n">>,
+                                      <<"\n## List.%\n\n```ernest\nlist % count : List(a)\n```\n\n"
+                                        "The fixture's operator.\n\n---\n">>)
+               end,
+    {Status, Output} =
+        varied("build/site/operator",
+               [{"build/stdlib/list.md", Declared},
+                {"guide/faq.md", appending("\nAn operator, `List.%`, links to it.\n")}]),
+    ?assertEqual({0, <<>>}, {Status, Output}),
+    Page = read("build/site/operator-out", "man/stdlib/list.html"),
+    [?assertMatch({_, _}, binary:match(Page, Shown))
+     || Shown <- [<<"<h2 id=\"List.%\" class=\"declaration\">">>,
+                  <<"<a class=\"anchor\" href=\"#List.%25\" aria-label=\"Link to List.%\">">>,
+                  <<"<li><a href=\"#List.%25\"><code>%</code></a></li>">>]],
+    ?assertMatch({_, _}, binary:match(read("build/site/operator-out", "faq/index.html"),
+                                      <<"<a href=\"/man/stdlib/list.html#List.%25\">"
+                                        "<code>List.%</code></a>">>)).
+
 %% docs/design/site.md *Links*: the
 %% build's check of every internal link and anchor of the site it wrote,
 %% made or written by hand, refuses a site with one that leads nowhere,
 %% naming each with its page: here a raw block's link to a page that is not
 %% there, to an anchor another page does not hold and to one its own page
-%% does not, and every page's link to an icon whose file is gone, which the
+%% does not, one whose fragment is no percent-encoding (*Anchors*), and
+%% every page's link to an icon whose file is gone, which the
 %% icons' file then holds no symbol of.
 dangling() ->
     Source = "build/site/dangling",
@@ -295,7 +324,8 @@ dangling() ->
      || File <- files(?SOURCE), File =/= "site/root/assets/img/icons/arrow-right.svg"],
     appended(Source ++ "/guide/faq.md",
              ["\n<p>\n<a href=\"/nowhere/\">a page</a>, <a href=\"/guide/1.html#nowhere\">",
-              "another's anchor</a> and <a href=\"#nowhere\">its own</a>\n</p>\n"]),
+              "another's anchor</a>, <a href=\"#nowhere\">its own</a> and <a href=\"#100%\">",
+              "a fragment no browser decodes</a>\n</p>\n"]),
     {Status, Output} =
         ern_integration_tests:sh(generate(Source, "build/site/dangling-out")),
     ?assertEqual(1, Status),
@@ -305,6 +335,7 @@ dangling() ->
                  <<"\n  /faq/ links to /guide/1.html#nowhere, an anchor /guide/1.html does not",
                    " hold\n">>,
                  <<"\n  /faq/ links to #nowhere, an anchor /faq/ does not hold\n">>,
+                 <<"\n  /faq/ links to #100%, whose fragment is no percent-encoding\n">>,
                  <<"\n  /guide/0.html links to /assets/img/icons.">>]],
     Icons = "icons\\.[0-9a-f]{8}\\.svg",
     ?assertMatch({match, [_]},
