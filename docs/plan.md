@@ -260,7 +260,17 @@ the site, since it sends a reader there. Its release is the launch.
    What is Ernest's among it comes as lines of its feedback file, sorted when its session
    sends them, each mended for 0.11.1 or filed as `docs/reviews/full.md`'s *The findings*
    says.
-2. **The release of 0.11.1**, by `docs/reviews/release.md`'s step.
+
+   Three are in hand since 2026-11-23, its feedback's entries 35 to 37 on `Tcp.close` (the
+   log's *The Ten of the Cold Reading*), each with a probe its session ran. Two are
+   defects a first server meets: a close and a kill after a failed TLS handshake wait 5
+   seconds with nothing to send, where E.18 has a kill end a socket at once; and over
+   TCP a close answers up to a second after the far end has read everything, by a look
+   once a second, which is a poll in the runtime. One is a gap: no function ends a
+   socket and drops what its host holds.
+2. **The release of 0.11.1**, by `docs/reviews/release.md`'s step. It is 0.12.0 where a
+   mend of item 1 changes a frame or the form, since a patch moves neither (report §8.7),
+   and the milestone's other items then name that release.
 
    Before the tag, the last read, decided with the user 2026-11-16 (the log's *The Documents
    Before the Launch*). The user reads the tour, the guide and the report on the site built
@@ -314,15 +324,22 @@ the site, since it sends a reader there. Its release is the launch.
    a shell's start line. `make version` does not write it and no test holds it, so the user
    sets it to the release's version before sending it (the log's *The Front Page in the
    Announcement's Manner*).
-6. **Whether seven libraries become packages**, a decision, taken while item 1 waits and
-   built for 0.12 where it is taken (the log's *What Stands on Every Load Path*). `Json`,
-   `Http`, `Uri`, `Time`, `Base64`, `Proxy` and `Utilization` stand on every load path,
-   and no job of the toolchain's calls them. A proposal says how they would ship, in the
-   installation or on the releases page; what a program names where a manifest is flat,
-   `Http` with `Time` and `Uri`; whose version each takes; and what the four examples,
-   the guide's §9.6, the site's pages, the man pages and ernest-httpd's manifest become.
-   It also asks whether the draw of `Peer.computeAnywhere` follows them, as a policy a
-   library holds. It is read against each of those owners before the user decides.
+6. **Which libraries become packages**, a decision, taken while item 1 waits and built
+   for 0.12 where it is taken (the log's *What Stands on Every Load Path*, *The Ten of
+   the Cold Reading*). Ten stand on every load path that no job of the toolchain's calls:
+   `Json`, `Http`, `Uri`, `Time`, `Base64`, `Proxy` and `Utilization`, and `OrderedSet`,
+   `OrderedMap` and `Random`, libraries since 2026-11-23. A proposal weighs the rule that
+   a library stands there only where the toolchain's jobs call it against those three,
+   which are over no specification and which a newcomer would then name in a manifest,
+   and tries the other test, a package where a library is over a published
+   specification.
+
+   It says how a package would ship, in the installation or on the releases page; what a
+   program names where a manifest is flat, `Http` with `Time` and `Uri`; whose version
+   each takes; and what the examples, the guide's §7 and §9.6, the site's pages, the man
+   pages and ernest-httpd's manifest become. It also asks whether the draw of
+   `Peer.computeAnywhere` follows them, as a policy a library holds. It is read against
+   each of those owners before the user decides.
 7. **Three faults that vanish**, taken up by the user on 2026-11-23 from the known
    issues' lines 15, 16 and 20 (the log's *Four Verdicts Changed After the Round*), and
    built while item 1 waits, for 0.11.1: a fault a listener or a socket never meets, after
@@ -583,5 +600,5 @@ What the line left, in the order it is taken:
 | MVP 4.17 | the shell's editing, what a job trusts, and the rest of packages: archives and the guide; `:keys`, the known issues sorted, and the OTP defects read against their issues | 2026-11-21 | | *The Milestone Split*, *The Homepage and the Shell's Editing Planned*, *The Plan Read for Build Order*, *The Trust Said Once*, *A Refusal Holds No Control Character*, *An Input Edited by Its Lines*, *The Shell Says a Refusal in the Jobs' Words*, *Each Value in the Escape of Its Own Notation*, *The Live Region Named Once*, *A Window onto the Input*, *A Window onto the Input, Built*, *SHA-256 Beside SHA-1*, *An Archive Read by the Host*, *A Package in the Guide*, *The Keys Listed by `:keys`*, *The Known Issues Sorted*, *The OTP Defects Read Against Their Issues* |
 | MVP 4.6 | the server owning both ends of its socket: the site's script imports the client the server ships, the generator takes no configuration and the browser test serves a stub client; the homepage and the blocks' tools; the stylesheet in the reader's font size; `Bytes.toHex` in lower case | 2026-11-22 | | the proposals `docs/proposals/ernest_httpd/` and `docs/proposals/homepage/`, gone with item 5; the log's *MVP 4.16, the Proposals Before the Launch*, *MVP 4.6 Before the Launch*, *The Client's Interface Agreed*, *The Homepage and the Shell's Editing Planned*, *The Homepage Built*, *A Line Above the Homepage's Heading*, *The Server's Client in the Site*, *The Stylesheet's Units*, *The Server's Client, Its Proposal Read*, *The Homepage's Proposal Read*, *Three Feedback Entries Decided*, *A Digest in Lower Case* |
 | MVP 4.4 | the cost analysis, the full review and the release of 0.11.0, Linux | | | above |
-| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on seven libraries as packages; and three faults that vanish, from the known issues | | | above |
+| MVP 4.18 | what ernest-httpd's review found of security, the release of 0.11.1, the site live at ernest-lang.org and the announcement: the launch; a decision on which libraries become packages; and three faults that vanish, from the known issues | | | above |
 | MVP 4.5 | the shell's second round, two requests to OTP, for what a purge needs and for the interrupt, a decision on a listener handed over, and what the line of 2026-11-19 left after the launch: six items of MVP 4.16, a test and a flake from the known issues' sort, and the map's square from MVP 4.4's item 3 | | | above |
