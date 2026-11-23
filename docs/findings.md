@@ -1460,17 +1460,29 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 #### What does a guide's example show, and in which form?
 
 - **N C26** `3` — `:browse` alone answers ":browse takes a module", and §2.9 names nineteen modules. Fix: the guide says where the list is, or `:browse` alone prints it. Owner: guide+shell-ern. Decide: which.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): `:browse` alone lists the modules the session can name, the standard library's and the loaded ones, and §11.2 says so.
 - **U 11 (the program)** `3` — `Code.load` named six times in the two guides, and no program in `guide/`, `tour/` or `examples/` calls it. Fix: a program that loads a build in §8.9 or the example, or the mentions cut to one. Owner: guide+examples. Decide: a program, or the six cut to one.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): a program: §8.9 gains a short one that loads a build with `Code.load`, held by the guide's test, and the other five mentions point at it.
 - **W13, M 24** `3` — `guide/language.md:1021-1044` (§4.4, *A library that waits*): taught as a process and a call in thirty lines, where `Process.run` of a function that receives does it shorter (E.21). Fix: teach that form. Owner: guide. Decide: confirm the new form.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): confirmed: *A library that waits* is taught as `Process.run` of a function that receives, and the process and the call go.
 - **U 12** `3` — `guide/language.md:1436`, `:3154`, `guide/deployment.md:343`: line numbers of example files quoted in prose, held by no test but one. Fix: the guide shows the form with the example's name, or a test reads the line from the guide. Owner: guide+tests. Decide: which of the two.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): a test holds each quoted line, as one does already: a line a guide quotes of a run is the program's output, and is run.
 - **U 21** `3` — `guide/language.md:462-465`: `Money.compare` written by hand where `derives compare` gives it. Fix: the example's `compare` does what `derives` cannot. Owner: guide. Decide: the replacement example.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): the example's `compare` does what `derives` cannot: a type whose order is the reverse of its field's, `compare(right, left)`, which is also the wrapper type the verdict on *W24* sends §3.6 to.
 - **W28** `3` — `guide/language.md:73` against `:3058`, `:3066`: `let _ =` drops a `Tcp.write`'s `Left` in the echo server. Fix: the server handles the `Left`, or says why it need not. Owner: guide. Decide: which.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): the echo server ends its session at a `Left` from `Tcp.write`. It is the server a reader copies, and §1 teaches `let _ =` for a failure dropped on purpose.
 - **R1 33** `3` user — `guide/language.md` 420, 659-667, 3383-3385: §2.11's exercise asks what §2.4 just answered, same type and field. Fix: the exercise with another type, or §2.4 without the answer. Owner: guide. Decide: which changes.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): the exercise changes: another type, whose constructors hold a field of one name at two types, which §2.4's sentence covers and its example does not.
 - **U 19** `3` — a module put in scope two ways, `ern shell file.erc` (§3.6, §4.7) and `:load` (§1.4, the tour), neither naming the other. Fix: §1.2 says `ern shell file.erc` is `:load` with its `main`. Owner: guide. Decide: confirm the sentence.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): confirmed, once leg 4 has read §11.2 for whether `:load` with the `main` is the whole of what `ern shell file.erc` does.
 - **W37** `3` — §11.2: a doc example is written by its declaration's visibility, and the guide's one example is the private form (`:2078`). Fix: show the exported form. Owner: guide. Decide: confirm.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): confirmed: the guide's example is the exported form, and the sentence beside it keeps the private one.
 - **W32** `3` — §5.5, §6.9: a function that connects runs under `Process.run` to close what it opened, said in one sentence (`:3077`) and no example. Fix: an example at §8.7. Owner: guide. Decide: confirm the example.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): confirmed: §8.7 gains a short example of a function that connects under `Process.run`.
 - **W26, N L2** `3` — §6.1, shape rule 8: a public service has two message types (`Store.Msg` around `Counter.Msg`), and a process's own tick stands open to every sender; §4 to §6 do not prepare it. Fix: show the two types once in §5.5 on the counter. Owner: guide. Decide: confirm the addition.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): confirmed: §5.5 shows the two types once on the counter, the public one around the process's own.
 - **U 10, L7, R2 40** `3` — `guide/deployment.md:214-359` and `docs/design/nodes.md:123-125` cite each other for the measurements; `guide/why.md:297`'s "the prose here carries no number, since the bench owns it" answers a number removed before 0.9.0, and a reader wants a spawn's cost. Fix: one owner, the guides pointing or giving machine and date; the sentence ends at "against the host's own". Owner: guide-other+docs. Decide: who owns the guides' measured numbers, and whether why.md carries one.
+  - **Decided 2026-11-23** (the log's *What a Guide's Example Shows*): the deployment guide owns the numbers an operator plans with, each with its machine and date, and `docs/design/nodes.md` points at it. `guide/why.md` carries none: its sentence ends at "against the host's own", the bench printing the figure for the reader's own machine.
 
 #### What does the runtime promise at the host's limits and between nodes?
 
