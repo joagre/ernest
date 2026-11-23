@@ -25,12 +25,12 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first six families, what a diagnostic says, 39 lines, the
+decided, 36 lines, with the first seven families, what a diagnostic says, 39 lines, the
 language's rules, 33, the report's recut, 31, what the guides repeat, 28, how the
-project's documents are kept, 26, and `guide/language.md`'s order, 24. The sentences of
-*PL6 2* and *PL6 3* are written a third time, against the two cold readings. The other
-families are next, the largest first, how each of the toolchain's jobs behaves the next
-of them.
+project's documents are kept, 26, `guide/language.md`'s order, 24, and the toolchain's
+jobs, 24. The sentences of *PL6 2* and *PL6 3* are written a third time, against the two
+cold readings. Fifteen families are left, 182 lines, the largest first, what a library
+function answers the next of them, and one line stands alone.
 
 Its first two legs, the decisions before the readers and the readers, closed 2026-11-23.
 Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22,
@@ -318,7 +318,8 @@ that OTP's answer to its report may come first.
    no Erlang code, so §8.6 ends a program at once and tells no subscriber. An agent reads
    OTP's source and its tracker for whether it was asked before, and drafts the request for
    the user to file; nothing is built. Were it granted, a first interrupt would be a
-   termination and a second would end the program at once, decided then.
+   termination and a second would end the program at once, decided then. `ern test` would
+   then name the case that runs at an interrupt, the findings' *B5*.
 4. **Whether `Tcp` hands a listener over**, feedback 261, added with the user on 2026-11-17
    (the log's *The Server's Answers*, its paragraph *A listener handed over*): a listener
    given to another process, or a listen beside a live one, so that a program takes new code
@@ -457,7 +458,9 @@ What the line left, in the order it is taken:
 - **171. A member's heading in `ern doc`**, from the findings' *P1 17, PL1 L21*. §4.2
   refuses a member of an exported type and an exported value of the module of its name
   that share a name, since the page heads both `Main.Stack.compare`. `ern doc` heads a
-  member by its use form, and the rule goes with its error.
+  member by its use form, and the rule goes with its error. The key a member's page is
+  looked up by is decided with it, and `ern_docs` takes a member's type from the checker
+  (the findings' *C3 Clarity 3*).
 - **172. Whether a definition is still "lacked"**, from the findings' *PL1 L16, PL1 L24*.
   §12.7 has a unit export what its module exports, and a definition held in no exporting
   unit lacked, on one bench row of 19.5% from 2026-10-11, before the emitter's calls
