@@ -731,7 +731,12 @@ coverage:
 # listing names each EUnit test and each target that failed, and reads what
 # the hosts recorded.
 # sizes lists each module's lines now and at the last two tags, and clones
-# the code repeated.
+# the code repeated. The documents' five, tools/documents.ern, read the
+# report, the guide and the tour: lengths the words of each section of the
+# guide and the tour, citations each report section with the places that
+# cite it, terms each glossary term's count in each, unchecked each fenced
+# block no test checks, and edits each section by the commits that changed
+# it.
 COVER = $(CURDIR)/build/cover
 SLOWEST = $(CURDIR)/build/slowest
 RECORDED = { $(MAKE) -s -C test beams && { $(FULL_FIRST) -k EUNIT_TEST=ern_recorder:test; \
@@ -755,6 +760,8 @@ sizes: tools
 	@bin/ern run build/tools/sizes.erc
 clones: tools
 	@bin/ern run build/tools/clones.erc
+lengths citations terms unchecked edits: tools
+	@bin/ern run build/tools/documents.erc $@
 
 # Emacs backup (foo~), auto-save (#foo#), and lock (.#foo) files, anywhere.
 clean-emacs:
@@ -775,5 +782,5 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../../%)
         uninstall release \
         version site \
         unicode flakes \
-        paragraphs comments cover slowest sizes clones \
+        paragraphs comments cover slowest sizes clones lengths citations terms unchecked edits \
         dialyzer units sanitize diagnostics

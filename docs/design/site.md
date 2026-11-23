@@ -118,7 +118,7 @@ The log's *Projects, a Page of Their Own*, *The Release's Note, Written Once* an
 - System sans-serif for prose, system monospace for code and the terminal.
 - The browser's light or dark preference. Neutral backgrounds, dark text, and one accent color for links, active navigation and focus. The logo's brown and cream are for warmth, not on every control.
 - Thin rules between sections. No cards, shadows, oversized panels or decorative illustration.
-- Prose is 70 to 80 characters wide, code and the terminal wider. A block of code scrolls sideways, and a long run of inline code breaks where it would leave its line. A narrow contents sidebar stands on a desktop, an expandable contents list on a phone.
+- Prose is 70 to 80 characters wide, code and the terminal wider. A block of code scrolls sideways, and a long run of inline code breaks where it would leave its line, so that no page scrolls sideways on a phone. A narrow contents sidebar stands on a desktop, an expandable contents list on a phone.
 - Keyboard focus is visible.
 - The page follows the reader's font size: the root's size is the browser's, and the page's widths and the widths at which its layout changes are in `rem` and `em`. A line, an outline, a corner, a button's dot and the panel's handle stay in pixels. A size this note gives in pixels is at the browser's default font size, 16 pixels.
 - The logos are the repository's `assets/`, of which the generator copies the three the site shows to `/assets/`, each at its path in the repository. `site/root/` holds no copy. A file the site takes from the repository keeps the repository's hierarchy, as `/man/` keeps the build's pages' under `build/`, `/man/stdlib/list.html` for `build/stdlib/list.md`.

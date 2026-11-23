@@ -78,7 +78,8 @@ checks() ->
      {"a paste waits for the first output", fun waiting/1},
      {"a terminal or a client that does not load", fun unloaded/1},
      {"two starts while the terminal loads", fun started_twice/1},
-     {"the shell's page and a phone", fun pages/1}].
+     {"the shell's page and a phone", fun pages/1},
+     {"every page on a phone", fun phone/1}].
 
 %% docs/design/site.md *The live shell*: no panel opens until
 %% the visitor asks; the header's beside button opens it, pressed, and puts
@@ -491,9 +492,8 @@ started_twice(#{page := Page, url := Url}) ->
 %% the shell's page says the client's limits in its list, the times spoken
 %% and the counts in digits, holds the panel in its frame and scrolls in
 %% neither direction, its terminal filling what the page leaves; on a phone
-%% no panel is offered, no page scrolls sideways, the homepage's among
-%% them, whose blocks are wider than a phone's page, and a Paste opens the
-%% shell's page with the input arriving there.
+%% no panel is offered, and a Paste opens the shell's page with the input
+%% arriving there, which does not scroll sideways.
 pages(#{page := Page, url := Url, cdp := Cdp}) ->
     fresh(Page, Url ++ "/shell/", {1440, 900}),
     until(Page, "document.querySelector('[data-limit]').textContent !== 'a while'"),
@@ -513,12 +513,9 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
     ?assert(eval(Page, "document.querySelector('.panel-toggle').hidden")),
     stop(Page, Session),
     Phone = page(Cdp, {390, 844}, true),
-    fresh(Phone, Url ++ "/", {390, 844}),
-    ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
     fresh(Phone, Url ++ "/guide/1.html", {390, 844}),
     ?assertNot(eval(Phone, "getComputedStyle(document.querySelector('.panel-toggle')).display"
                            " !== 'none'")),
-    ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
     click_tool(Phone, "pre.code[data-shell=\"paste\"]", "Paste into the shell"),
     arrived(Phone, "location.pathname === '/shell/' && document.readyState === 'complete'"),
     PhoneSession = connected(Phone, 0),
@@ -526,6 +523,23 @@ pages(#{page := Page, url := Url, cdp := Cdp}) ->
     ?assertEqual(0, lists:nth(2, eval(Phone, overflow("document.scrollingElement")))),
     stop(Phone, PhoneSession),
     ?assertEqual([], exceptions(Cdp)).
+
+%% docs/design/site.md *The look*: no page the site writes scrolls sideways
+%% on a phone, at 390 by 844, each read on the repository's own site as
+%% make site writes it, the 404 page and the library's pages among them: a
+%% block of code scrolls within itself, and a long run of inline code breaks
+%% where it would leave its line. A page that does is named with the pixels
+%% it is wider by.
+phone(#{cdp := Cdp, repository := Url, pages := Pages}) ->
+    Phone = page(Cdp, {390, 844}, true),
+    Wide = [{Path, Width} || Path <- lists:sort(filelib:wildcard("**/*.html", Pages)),
+                             Width <- [phone_width(Phone, Url ++ "/" ++ Path)], Width > 0],
+    ?assertEqual([], Wide).
+
+%% The pixels a page is wider than the phone's, once loaded.
+phone_width(Phone, Url) ->
+    open(Phone, Url, {390, 844}),
+    lists:nth(2, eval(Phone, overflow("document.scrollingElement"))).
 
 %%
 %% The world: the site with its stub client, httpd, and Chrome
@@ -543,6 +557,7 @@ started() ->
     Cdp = cdp_started(Endpoint),
     Page = page(Cdp, {1440, 900}, false),
     #{httpd => Httpd, own => Own, chrome => Chrome, cdp => Cdp, page => Page, site => Site,
+      pages => Repository,
       url => "http://127.0.0.1:" ++ integer_to_list(Port),
       repository => "http://127.0.0.1:" ++ integer_to_list(OwnPort)}.
 

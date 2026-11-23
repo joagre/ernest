@@ -130,20 +130,17 @@ and 1.0 has no date (the log's *Ernest Stays at 0.x*, which keeps what 1.0 will 
    - **What is kept, stated once**, done 2026-11-23 (the log's *What Is Kept, Stated
      Once*). The design notes own what a component keeps and when it lets go, and
      `docs/memory_checks.md` points at them.
-   - **The documents' listings**, built, decided with the user 2026-11-16, so that the readers
-     of the report, the guide and the tour start from what a tool lists (the log's *The
-     Documents Before the Launch*). `docs/reviews/full.md` names each in the commit that
-     builds it.
-
-     Five listings, which the full review runs. The words of each section of the guide and
-     the tour, as `make coverage` counts the report's. Each section of the report with the
-     places of the guide that cite it, and a section none cites named. Each term of Appendix
-     F with its count in the report, the guide and the tour. Each fenced block no test
-     compiles or runs, by its mark and its file. Each section of the three by the commits
-     that touched it, most first.
-
-     One refusal, added with the site cleaned to zero: the browser test's check that a page
-     does not scroll sideways on a phone reads every page the site writes.
+   - **The documents' listings**, done 2026-11-23 (the log's *The Documents' Listings,
+     Built*): `make lengths`, `citations`, `terms`, `unchecked` and `edits`, which the full
+     review's readers of the report, the guide and the tour start from, and the browser
+     test holds every page of the site to no sideways scroll on a phone.
+   - **Two defects the listings found**, 2026-11-23 (the log's *The Documents' Listings,
+     Built*). A page `ern doc` writes links an operator's heading by its name unescaped,
+     `#Int.%`, which is no URL, and the site's script throws on it. A list of sections
+     after "report", "report §4.6, §8.5", is read as the report's first and the guide's
+     after it, where every reader takes all for the report's, at nine sites of the guide;
+     the reading follows the reader, in its three copies, and `docs/design/site.md` says
+     so.
    - **The checker's cases tabled**, decided with the user 2026-11-17 (the log's *The
      Outside Reviews Read*, its paragraph *The checker's cases*). An agent tables the
      eight groups of cases the paragraph lists, where a fault of inference over mailbox

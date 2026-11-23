@@ -1,0 +1,1204 @@
+//
+// The documents' listings, for the full review's readers of the report, the
+// guide and the tour to start from (docs/reviews/full.md; the log's *The
+// Documents Before the Launch*). Each reads the report's three files, the
+// guide's documents under guide/ and the tour, tour/README.md, and fails
+// nothing: a listing, not a limit.
+//
+// `ern run documents.erc job` writes the job's listing on standard output, a
+// line a fact and its counts last. A section is a heading of the first to
+// the third level outside a fenced block, with its lines up to the next one.
+//
+// - `lengths`: each section of the guide and the tour with its words, every
+//   word of its lines but a fence's own, as `make coverage` counts the
+//   report's, and a heading of the first or second level with the words of
+//   the sections under it too.
+// - `citations`: each section of the report, `§3.9` or `Appendix E.17`, with
+//   the lines of the guide and the tour whose prose cites it, a `§` read as
+//   the documents' test reads it; then each section none cites.
+// - `terms`: each term of Appendix F with its count in the report, the
+//   glossary aside, in the guide and in the tour (*The terms*).
+// - `unchecked`: each fenced block no test compiles, runs or holds to code
+//   that is, by its mark and its place (*The blocks*).
+// - `edits`: each section of the three by the commits that changed a line of
+//   it, most first (*The edits*).
+//
+
+// The listing the command line asks for.
+type Job = Lengths | Citations | Terms | Unchecked | Edits
+
+// Where a line of a document stands: in prose, as a fence's own line, or
+// inside a fenced block.
+type Place = Prose | Fence | Fenced
+
+// A line of a document: its number, counted from 1, its text and its place.
+type Line = Line(number : Int, text : String, place : Place)
+
+// A section: its heading's line, its level and its text after the marks, and
+// the lines after the heading up to the next.
+type Section = Section(heading : Line, level : Int, title : String, lines : List(Line))
+
+let usage : String = "usage: documents lengths|citations|terms|unchecked|edits"
+
+// The report's three files (report §0).
+let reportFiles : List(String) = ["report/language.md", "report/toolchain.md", "report/library.md"]
+
+let tourFile : String = "tour/README.md"
+
+// The guide whose bare `§` is its own (docs/design/site.md *Links*).
+let languageGuide : String = "guide/language.md"
+
+// A file's time and git's, as the other tools give theirs.
+let fileMs : Int = 10000
+
+export fn main() : Unit =
+    match Os.arguments {
+        [name] ->
+            match jobNamed(name) {
+                Some(job) -> List.forEach(listed(job), Io.println)
+              | None -> quit(usage)
+            }
+      | _ ->
+            quit(usage)
+    }
+
+fn jobNamed(name : String) : Optional(Job) =
+    match name {
+        "lengths" -> Some(Lengths)
+      | "citations" -> Some(Citations)
+      | "terms" -> Some(Terms)
+      | "unchecked" -> Some(Unchecked)
+      | "edits" -> Some(Edits)
+      | _ -> None
+    }
+
+fn listed(job : Job) : List(String) =
+    match job {
+        Lengths -> lengths()
+      | Citations -> citations()
+      | Terms -> terms()
+      | Unchecked -> unchecked()
+      | Edits -> edits()
+    }
+
+//
+// The repository
+//
+
+// The guide's documents, as git tracks them.
+fn guideFiles() : List(String) =
+    String.lines(git(["ls-files", "--", "guide/*.md"]))
+
+fn git(arguments : List(String)) : String =
+    text("git " <> String.join(arguments, " "), gitBytes(arguments))
+
+fn gitBytes(arguments : List(String)) : Bytes =
+    match Os.run(Os.command("git", arguments), fileMs) {
+        Right(finished) when finished.status == 0 -> finished.stdout
+      | _ -> quit("git " <> String.join(arguments, " ") <> " failed")
+    }
+
+fn contents(path : String) : String =
+    match Fs.read(Path(path), fileMs) {
+        Right(bytes) -> text(path, bytes)
+      | Left(error) -> quit("cannot read " <> path <> ": " <> Io.show(error))
+    }
+
+fn text(source : String, bytes : Bytes) : String =
+    match String.fromUtf8(bytes) {
+        Some(text) -> text
+      | None -> quit(source <> " is not UTF-8")
+    }
+
+fn quit(message : String) : a = {
+    Io.printlnError("documents: " <> message);
+    Os.exit(1)
+}
+
+//
+// The reading
+//
+
+// A document's lines, each with its place: a line that begins with three
+// backticks opens a fenced block or closes the one open, as the guide's
+// and the documents' tests read a fence.
+fn linesOf(text : String) : List(Line) = {
+    let #(_, lines) = List.mapFold(List.indexed(String.lines(text)), false, fn(fenced, each) = {
+        let #(index, line) = each;
+        if String.startsWith(line, "```") then
+            #(!fenced, Line(number = index + 1, text = line, place = Fence))
+        else
+            #(fenced,
+              Line(number = index + 1, text = line, place = if fenced then Fenced else Prose))
+    });
+    lines
+}
+
+// The sections of a document's lines; a line before the first heading is
+// in none.
+fn sectionsOf(lines : List(Line)) : List(Section) = {
+    let gathered = List.foldLeft(lines, [], fn(acc, line) = match #(levelOf(line), acc) {
+        #(Some(level), _) ->
+            Section(heading = line, =level, title = titleOf(line.text), lines = []) :: acc
+      | #(None, current :: rest) ->
+            Section(..current, lines = line :: current.lines) :: rest
+      | #(None, []) ->
+            []
+    });
+    List.reverse(List.map(gathered,
+                          fn(section) = Section(..section, lines = List.reverse(section.lines))))
+}
+
+// A heading's level, `## 3. Types` 2, from one to three; none for any other
+// line.
+fn levelOf(line : Line) : Optional(Int) =
+    if line.place != Prose then
+        None
+    else {
+        let #(marks, rest) = List.span(String.toList(line.text), fn(char) = char == '#');
+        let level = List.size(marks);
+        match rest {
+            ' ' :: _ when level >= 1 && level <= 3 -> Some(level)
+          | _ -> None
+        }
+    }
+
+fn titleOf(heading : String) : String = {
+    let #(_, rest) = List.span(String.toList(heading), fn(char) = char == '#');
+    String.trimStart(String.fromList(rest))
+}
+
+fn sectionsIn(path : String) : List(Section) =
+    sectionsOf(linesOf(contents(path)))
+
+// A section's place, `guide/language.md:120`.
+fn placeOf(path : String, section : Section) : String =
+    path <> ":" <> Int.toString(section.heading.number)
+
+// A section's heading as the document writes it.
+fn headingOf(section : Section) : String =
+    section.heading.text
+
+fn column(text : String, width : Int) : String =
+    String.padStart(text, width, " ")
+
+//
+// The lengths
+//
+
+fn lengths() : List(String) = {
+    let files = guideFiles() <> [tourFile];
+    let counted =
+        List.map(files,
+                 fn(path) =
+                     #(path, List.map(sectionsIn(path), fn(section) = #(section, words(section)))));
+    let rows = List.flatMap(counted, fn(#(path, sections)) = lengthRows(path, sections));
+    let sections = List.foldLeft(counted, 0, fn(acc, #(_, found)) = acc + List.size(found));
+    let all =
+        List.foldLeft(counted,
+                      0,
+                      fn(acc, #(_, found)) =
+                          List.foldLeft(found, acc, fn(sum, #(_, count)) = sum + count));
+    [column("words", 7) <> column("whole", 7) <> "  section"]
+        <> rows
+        <> ["",
+            Int.toString(sections)
+                <> " sections in "
+                <> Int.toString(List.size(files))
+                <> " documents, "
+                <> Int.toString(all)
+                <> " words."]
+}
+
+// The words of a section's lines, a fence's own line aside, as `make
+// coverage` counts a section of the report's.
+fn words(section : Section) : Int =
+    List.foldLeft(section.lines, 0, fn(acc, line) = match line.place {
+        Fence -> acc
+      | _ -> acc + List.size(String.words(line.text))
+    })
+
+// A section's line each: its words, and for a heading of the first or
+// second level the words of the sections under it with its own.
+fn lengthRows(path : String, sections : List(#(Section, Int))) : List(String) =
+    match sections {
+        [] ->
+            []
+      | #(section, own) :: rest -> {
+            let #(under, _) = List.span(rest, fn(#(next, _)) = next.level > section.level);
+            let whole = List.foldLeft(under, own, fn(acc, #(_, count)) = acc + count);
+            let shownWhole = if section.level < 3 then Int.toString(whole) else "";
+            (column(Int.toString(own), 7)
+                 <> column(shownWhole, 7)
+                 <> "  "
+                 <> placeOf(path, section)
+                 <> "  "
+                 <> headingOf(section))
+                :: lengthRows(path, rest)
+        }
+    }
+
+//
+// The citations
+//
+
+// The document a `§` cites, as the words before it say.
+type Cited = Report | Guide | Deployment | Bare
+
+// The forms of the words before a `§` that name the document it cites, as
+// the documents' test reads them: the report, the guide or the deployment
+// guide, with `'s`, a comma and a space after it or not, the deployment
+// guide's before the guide's.
+let citedForms : List(#(String, Cited)) =
+    List.flatMap([#("deployment guide", Deployment), #("report", Report), #("guide", Guide)],
+                 fn(#(word, cited)) =
+                     List.map(["'s, ", "'s,", "'s ", "'s", ", ", ",", " ", ""],
+                              fn(tail) = #(word <> tail, cited)))
+
+fn citations() : List(String) = {
+    let sections = List.flatMap(reportFiles, fn(path) = List.filterMap(sectionsIn(path), cited));
+    let citing = List.flatMap(guideFiles() <> [tourFile], citingPlaces);
+    let places =
+        List.foldLeft(citing,
+                      Map.empty,
+                      fn(acc, #(key, place)) =
+                          Map.update(acc,
+                                     key,
+                                     fn(found) = place :: Optional.withDefault(found, [])));
+    let rows =
+        List.map(sections,
+                 fn(key) = #(key, List.reverse(Optional.withDefault(Map.get(places, key), []))));
+    let none = List.filter(rows, fn(#(_, found)) = List.isEmpty(found));
+    List.map(rows, citationRow)
+        <> ["",
+            Int.toString(List.size(rows))
+                <> " sections of the report, "
+                <> Int.toString(List.size(rows) - List.size(none))
+                <> " cited by the guide or the tour, "
+                <> Int.toString(List.size(none))
+                <> " by none:",
+            String.join(List.map(none, fn(#(key, _)) = shownKey(key)), ", ")]
+}
+
+// A report section's key as a citation names it, `3.9`, `3`, `Appendix E`
+// or `E.17`, as the documents' test keys a heading; none for a heading
+// that numbers nothing or whose number is unused.
+fn cited(section : Section) : Optional(String) =
+    if section.level < 2 || String.endsWith(section.title, " Unused") then
+        None
+    else
+        numberOf(section.title)
+
+fn numberOf(title : String) : Optional(String) =
+    match String.stripPrefix(title, "Appendix ") {
+        Some(rest) ->
+            match String.toList(rest) {
+                letter :: '.' :: tail when Char.isUpper(letter) ->
+                    match leadingDigits(tail) {
+                        #([], _) ->
+                            Some("Appendix " <> Char.toString(letter))
+                      | #(digits, _) ->
+                            Some(Char.toString(letter) <> "." <> String.fromList(digits))
+                    }
+              | _ ->
+                    None
+            }
+      | None ->
+            Optional.map(leadingNumber(title), fn(#(number, _)) = number)
+    }
+
+// The citation a key is shown as, `§3.9`, `Appendix E` or `Appendix E.17`.
+fn shownKey(key : String) : String =
+    match String.toList(key) {
+        letter :: '.' :: _ when Char.isUpper(letter) -> "Appendix " <> key
+      | _ when String.startsWith(key, "Appendix ") -> key
+      | _ -> "§" <> key
+    }
+
+fn citationRow(row : #(String, List(String))) : String = {
+    let #(key, places) = row;
+    let count = if List.isEmpty(places) then "-" else Int.toString(List.size(places));
+    String.padEnd(shownKey(key), 15, " ") <> column(count, 4) <> "  " <> grouped(places)
+}
+
+// The places by file, `guide/language.md:12,40  tour/README.md:3`, each
+// file in the order it is first met.
+fn grouped(places : List(String)) : String = {
+    let pairs = List.filterMap(places, fn(place) = String.splitOnce(place, ":"));
+    let files = List.unique(List.map(pairs, fn(#(file, _)) = file));
+    String.join(List.map(files,
+                         fn(file) =
+                             file
+                                 <> ":"
+                                 <> String.join(List.filterMap(pairs,
+                                                               fn(#(other, line)) =
+                                                                   if other == file then
+                                                                       Some(line)
+                                                                   else
+                                                                       None),
+                                                ",")),
+                "  ")
+}
+
+// Each citation of the report in a document's prose, its key with its
+// place, a line's each once.
+fn citingPlaces(path : String) : List(#(String, String)) =
+    List.flatMap(linesOf(contents(path)), fn(line) = match line.place {
+        Prose ->
+            List.map(citedOn(path, line.text),
+                     fn(key) = #(key, path <> ":" <> Int.toString(line.number)))
+      | _ ->
+            []
+    })
+
+// The report's sections a line cites: a `§` the report's by the words
+// before it, or bare outside the language guide; an appendix, `Appendix
+// E`, or one of its sections, `Appendix E.17`; and `E.17`.
+fn citedOn(path : String, line : String) : List(String) = {
+    let sections = List.filterMap(pairsAround(line, "§"), fn(#(before, following)) = {
+        let isReport = match citedDocument(before) {
+            Report -> true
+          | Bare -> path != languageGuide
+          | _ -> false
+        };
+        if isReport then Optional.map(leadingNumber(following), fn(#(number, _)) = number) else None
+    });
+    let appendices =
+        List.filterMap(pairsAround(line, "Appendix "),
+                       fn(#(_, following)) = match String.toList(following) {
+                           letter :: rest when Char.isUpper(letter) && isBoundary(rest) ->
+                               Some("Appendix " <> Char.toString(letter))
+                         | letter :: '.' :: rest when Char.isUpper(letter) ->
+                               match leadingDigits(rest) {
+                                   #([], _) ->
+                                       Some("Appendix " <> Char.toString(letter))
+                                 | #(digits, later) when isBoundary(later) ->
+                                       Some(Char.toString(letter) <> "." <> String.fromList(digits))
+                                 | _ ->
+                                       None
+                               }
+                         | _ ->
+                               None
+                       });
+    let library = List.filterMap(pairsAround(line, "E."), fn(#(before, following)) = {
+        let #(digits, later) = leadingDigits(String.toList(following));
+        if isBoundary(List.reverse(String.toList(before))) && digits != [] && isBoundary(later) then
+            Some("E." <> String.fromList(digits))
+        else
+            None
+    });
+    List.unique(sections <> appendices <> library)
+}
+
+// The text before and after each place the part stands in the line.
+fn pairsAround(line : String, part : String) : List(#(String, String)) = {
+    let parts = String.split(line, part);
+    List.map(List.indexed(List.drop(parts, 1)),
+             fn(#(index, following)) = #(String.join(List.take(parts, index + 1), part), following))
+}
+
+fn citedDocument(before : String) : Cited = {
+    let lowered = String.toAsciiLower(before);
+    match List.find(citedForms, fn(#(form, _)) = String.endsWith(lowered, form)) {
+        Some(#(_, cited)) -> cited
+      | None -> Bare
+    }
+}
+
+// The number a text begins with, `3.9` of `3.9, ...` and `3` of `3. ...`,
+// with the characters after it.
+fn leadingNumber(text : String) : Optional(#(String, List(Char))) =
+    match leadingDigits(String.toList(text)) {
+        #([], _) ->
+            None
+      | #(first, '.' :: rest) ->
+            match leadingDigits(rest) {
+                #([], _) ->
+                    Some(#(String.fromList(first), '.' :: rest))
+              | #(second, later) ->
+                    Some(#(String.fromList(first) <> "." <> String.fromList(second), later))
+            }
+      | #(first, later) ->
+            Some(#(String.fromList(first), later))
+    }
+
+fn leadingDigits(chars : List(Char)) : #(List(Char), List(Char)) =
+    List.span(chars, Char.isAsciiDigit)
+
+// Whether a word ends before the characters: the next is no letter, digit
+// or `_`, as a regular expression's `\b` reads one in the documents' test.
+fn isBoundary(chars : List(Char)) : Bool =
+    match chars {
+        char :: _ -> !isWordChar(char)
+      | [] -> true
+    }
+
+fn isWordChar(char : Char) : Bool =
+    Char.isAlpha(char) || Char.isAsciiDigit(char) || char == '_'
+
+//
+// The terms
+//
+// A term is a glossary entry's bold words. One in backticks, `spawn`, is
+// code, counted in code spans and fenced blocks, its tokens as written; any
+// other is prose, counted outside them, its tokens in any case and its last
+// with an `s` or an `es` after it too, `adapted addresses`. A token is a
+// run of letters, digits and `_`, so `request-reply` is two, and a term is
+// met where its tokens stand together on one line.
+//
+
+// A glossary entry: its words, whether they are code, and its tokens.
+type Term = Term(name : String, code : Bool, tokens : List(String))
+
+// A document's tokens counted: how often each run of tokens that begins a
+// term stands in its prose, and in its code.
+type Counted = Counted(prose : Map(String, Int), code : Map(String, Int))
+
+fn terms() : List(String) = {
+    let report =
+        List.flatMap(reportFiles,
+                     fn(path) =
+                         List.flatMap(sectionsIn(path),
+                                      fn(section) =
+                                          if String.startsWith(section.title, "Appendix F.") then
+                                              []
+                                          else
+                                              section.heading :: section.lines));
+    let glossary = glossaryTerms();
+    let guide = List.flatMap(guideFiles(), fn(path) = linesOf(contents(path)));
+    let tour = linesOf(contents(tourFile));
+    let counted = List.map([report, guide, tour], fn(lines) = countedIn(glossary, lines));
+    let rows =
+        List.map(glossary, fn(term) = #(term, List.map(counted, fn(each) = countOf(each, term))));
+    let unused =
+        fn(index) =
+            List.size(List.filter(rows, fn(#(_, counts)) = List.get(counts, index) == Some(0)));
+    [column("report", 7) <> column("guide", 7) <> column("tour", 7) <> "  term"]
+        <> List.map(rows,
+                    fn(#(term, counts)) =
+                        String.join(List.map(counts, fn(count) = column(Int.toString(count), 7)),
+                                    "")
+                            <> "  "
+                            <> term.name)
+        <> ["",
+            Int.toString(List.size(rows))
+                <> " terms: "
+                <> Int.toString(unused(0))
+                <> " the report names nowhere else, "
+                <> Int.toString(unused(1))
+                <> " the guide names none of, "
+                <> Int.toString(unused(2))
+                <> " the tour none of."]
+}
+
+// Appendix F's terms, in its order: each item's bold words.
+fn glossaryTerms() : List(Term) = {
+    let sections = sectionsIn("report/language.md");
+    let glossary =
+        List.filter(sections, fn(section) = String.startsWith(section.title, "Appendix F."));
+    List.filterMap(List.flatMap(glossary, fn(section) = section.lines),
+                   fn(line) =
+                       Optional.andThen(String.stripPrefix(line.text, "- **"),
+                                        fn(rest) =
+                                            Optional.map(String.splitOnce(rest, "**"),
+                                                         fn(#(name, _)) = termOf(name))))
+}
+
+fn termOf(name : String) : Term =
+    match Optional.andThen(String.stripPrefix(name, "`"),
+                           fn(rest) = String.stripSuffix(rest, "`")) {
+        Some(code) -> Term(=name, code = true, tokens = tokensOf(code))
+      | None -> Term(=name, code = false, tokens = List.map(tokensOf(name), String.toLower))
+    }
+
+// The tokens of a text: its runs of letters, digits and `_`.
+fn tokensOf(text : String) : List(String) = {
+    let #(last, found) =
+        List.foldLeft(String.toList(text),
+                      #([], []),
+                      fn(#(current, acc), char) =
+                          if isWordChar(char) then
+                              #(char :: current, acc)
+                          else if current == [] then
+                              #([], acc)
+                          else
+                              #([], String.fromList(List.reverse(current)) :: acc));
+    List.reverse(if last == [] then found else String.fromList(List.reverse(last)) :: found)
+}
+
+// A line's prose and its code: a fenced block's line is code, and a prose
+// line's code spans, between backticks, are code beside its prose.
+fn segmentsOf(line : Line) : #(List(String), List(String)) =
+    match line.place {
+        Fence ->
+            #([], [])
+      | Fenced ->
+            #([], [line.text])
+      | Prose -> {
+            let parts = List.indexed(String.split(line.text, "`"));
+            #(List.filterMap(parts,
+                             fn(#(index, part)) = if index % 2 == 0 then Some(part) else None),
+              List.filterMap(parts,
+                             fn(#(index, part)) = if index % 2 == 1 then Some(part) else None))
+        }
+    }
+
+// The runs of tokens that may be a term's, counted in a document's lines: a
+// run that begins with a term's first token, as long as the term's longest.
+fn countedIn(glossary : List(Term), lines : List(Line)) : Counted = {
+    let #(code, prose) = List.partition(glossary, fn(term) = term.code);
+    let proseFirsts = Set.fromList(List.flatMap(prose, fn(term) = match term.tokens {
+        [only] -> [only, only <> "s", only <> "es"]
+      | first :: _ -> [first]
+      | [] -> []
+    }));
+    let codeFirsts = Set.fromList(List.filterMap(code, fn(term) = List.get(term.tokens, 0)));
+    List.foldLeft(lines, Counted(prose = Map.empty, code = Map.empty), fn(acc, line) = {
+        let #(proseParts, codeParts) = segmentsOf(line);
+        let proseRuns =
+            List.foldLeft(proseParts,
+                          acc.prose,
+                          fn(map, part) =
+                              runsCounted(map,
+                                          List.map(tokensOf(part), String.toLower),
+                                          proseFirsts,
+                                          longestOf(prose)));
+        let codeRuns =
+            List.foldLeft(codeParts,
+                          acc.code,
+                          fn(map, part) =
+                              runsCounted(map, tokensOf(part), codeFirsts, longestOf(code)));
+        Counted(prose = proseRuns, code = codeRuns)
+    })
+}
+
+// The most tokens a term has.
+fn longestOf(terms : List(Term)) : Int =
+    List.foldLeft(terms, 0, fn(acc, term) = Int.max(acc, List.size(term.tokens)))
+
+// Each run of up to `longest` tokens that begins with one of `firsts`,
+// counted.
+fn runsCounted(map : Map(String, Int),
+               tokens : List(String),
+               firsts : Set(String),
+               longest : Int) : Map(String, Int) =
+    match tokens {
+        [] ->
+            map
+      | first :: rest when Set.contains(firsts, first) -> {
+            let counted =
+                List.foldLeft(List.range(1, longest),
+                              map,
+                              fn(acc, size) =
+                                  if size > List.size(tokens) then
+                                      acc
+                                  else
+                                      Map.update(acc,
+                                                 String.join(List.take(tokens, size), " "),
+                                                 fn(found) = Optional.withDefault(found, 0) + 1));
+            runsCounted(counted, rest, firsts, longest)
+        }
+      | _ :: rest ->
+            runsCounted(map, rest, firsts, longest)
+    }
+
+fn countOf(counted : Counted, term : Term) : Int = {
+    let count = fn(map, tokens) = Optional.withDefault(Map.get(map, String.join(tokens, " ")), 0);
+    if term.code then
+        count(counted.code, term.tokens)
+    else {
+        let stem = List.dropLast(term.tokens, 1);
+        List.foldLeft(List.takeLast(term.tokens, 1),
+                      0,
+                      fn(acc, last) =
+                          acc
+                              + count(counted.prose, stem <> [last])
+                              + count(counted.prose, stem <> [last <> "s"])
+                              + count(counted.prose, stem <> [last <> "es"]))
+    }
+}
+
+//
+// The blocks
+//
+// A block is checked where a test reads it as the test's comment says, and
+// this listing reads it the same way: ern_guide_tests compiles a block
+// marked `ernest` or `ernest-rejected` of the report, the language guide,
+// Why and the questions, an `erlang` one that names its module, and holds
+// an `ernest-prelude` one to the prelude; it runs a console that begins a
+// session at `$ ern shell`, one that continues a session it runs, one after
+// a module that runs it, one after a refused program that builds it, the
+// language guide's consoles that start a node under *Work on a peer* and
+// *Services across nodes*, and every block of *Packages*. ern_docs_tests
+// holds its console of *A taste of the rest* to the README's, which
+// ern_tour_tests runs, its fragment of ordered_set.ern to the module, and
+// each `ernest` block of a tour's chapter to the chapter's program, which
+// ern_tour_tests runs.
+//
+// In the report, ern_prelude_tests holds every block of §9 and of
+// Appendices E and G to the compiler's tables, ern_grammar_tests reads
+// Appendix A's, and ern_parser_tests holds each bare block of the sections
+// before Appendix A and of the toolchain's that writes one of Appendix A's
+// rules to it. ern_deployment_tests runs the deployment guide's consoles
+// under *The directory*, *Starting, reloading and stopping* and *A
+// deployment, end to end*, and reads its bare blocks under the last, *A
+// service moved to new code* and *Looking in*.
+// A test that reads a block anew changes this listing with it.
+//
+
+// A fenced block: its document, its fence's line, its mark, the word after
+// the fence, its lines, and the heading it stands under and the second- or
+// first-level one, each as the document writes it.
+type Block =
+    Block(file : String,
+          line : Int,
+          mark : String,
+          code : List(String),
+          heading : String,
+          part : String)
+
+// Where the reading of a document's blocks stands: the headings it is under,
+// the block open, and the blocks found.
+type BlockReading =
+    BlockReading(heading : String, part : String, open : Optional(Block), found : List(Block))
+
+// What a block's check depends on beside it: the block before it, the
+// nearest console before it with whether a test runs it, and Appendix A's
+// rules by name.
+type Around =
+    Around(before : Optional(Block), console : Optional(#(Block, Bool)), rules : Set(String))
+
+// The documents ern_guide_tests compiles and runs the blocks of.
+let examined : List(String) =
+    ["report/language.md",
+     "report/toolchain.md",
+     "report/library.md",
+     "guide/language.md",
+     "guide/why.md",
+     "guide/faq.md"]
+
+// The bytes of a block's first line shown, its last character whole.
+let shownBytes : Int = 60
+
+fn unchecked() : List(String) = {
+    let files = reportFiles <> guideFiles() <> [tourFile];
+    let blocks = List.map(files, fn(path) = blocksOf(path, linesOf(contents(path))));
+    let rules = grammarRules(List.flatMap(blocks, fn(found) = found));
+    let judged = List.flatMap(blocks, fn(found) = judgedAll(found, rules));
+    let open = List.filterMap(judged, fn(#(block, test)) = match test {
+        None -> Some(block)
+      | Some(_) -> None
+    });
+    let marks =
+        List.unique(List.sortBy(List.map(List.map(judged, fn(#(block, _)) = block), markOf),
+                                fn(mark) = mark));
+    let sorted = List.sortBy(open, fn(block) = markOf(block));
+    let all = List.map(judged, fn(#(block, _)) = block);
+    List.map(sorted,
+             fn(block) =
+                 String.padEnd(markOf(block), 16, " ")
+                     <> String.padEnd(block.file <> ":" <> Int.toString(block.line), 26, " ")
+                     <> " "
+                     <> firstOf(block))
+        <> [""]
+        <> List.map(marks, fn(mark) = {
+            let ofMark =
+                fn(found) = List.size(List.filter(found, fn(block) = markOf(block) == mark));
+            String.padEnd(mark, 16, " ")
+                <> column(Int.toString(ofMark(sorted)), 4)
+                <> " of "
+                <> Int.toString(ofMark(all))
+                <> " unchecked"
+        })
+        <> ["",
+            Int.toString(List.size(open))
+                <> " of "
+                <> Int.toString(List.size(all))
+                <> " blocks no test checks."]
+}
+
+fn markOf(block : Block) : String =
+    if block.mark == "" then "none" else block.mark
+
+fn firstLine(block : Block) : String =
+    Optional.withDefault(List.get(block.code, 0), "")
+
+// A block's first line as the listing shows it, a character its bytes cut
+// short left out.
+fn firstOf(block : Block) : String = {
+    let #(shown, _) =
+        String.fromUtf8Piece(Bytes.slice(String.toUtf8(firstLine(block)), 0, shownBytes));
+    shown
+}
+
+// A document's fenced blocks, in order.
+fn blocksOf(path : String, lines : List(Line)) : List(Block) = {
+    let begun = BlockReading(heading = "", part = "", open = None, found = []);
+    let last = List.foldLeft(lines, begun, fn(reading, line) = match #(line.place, reading.open) {
+        #(Fence, None) ->
+            BlockReading(..reading,
+                         open = Some(Block(file = path,
+                                           line = line.number,
+                                           mark = String.trim(String.drop(line.text, 3)),
+                                           code = [],
+                                           heading = reading.heading,
+                                           part = reading.part)))
+      | #(Fence, Some(block)) ->
+            BlockReading(..reading,
+                         open = None,
+                         found = Block(..block, code = List.reverse(block.code)) :: reading.found)
+      | #(Fenced, Some(block)) ->
+            BlockReading(..reading, open = Some(Block(..block, code = line.text :: block.code)))
+      | #(Prose, _) when String.startsWith(line.text, "#") ->
+            BlockReading(..reading,
+                         heading = line.text,
+                         part = if String.startsWith(line.text, "## ")
+                             || String.startsWith(line.text, "# ") then
+                             line.text
+                         else
+                             reading.part)
+      | _ ->
+            reading
+    });
+    List.reverse(last.found)
+}
+
+// The names of Appendix A's rules, each a line of its block that begins
+// `Name =`.
+fn grammarRules(blocks : List(Block)) : Set(String) =
+    Set.fromList(List.flatMap(List.filter(blocks,
+                                          fn(block) =
+                                              block.file == "report/language.md"
+                                                  && String.startsWith(block.part,
+                                                                       "## Appendix A.")),
+                              fn(block) = List.filterMap(block.code, ruleName)))
+
+// The rule a line writes, `Program` of `Program = { Declaration } .`.
+fn ruleName(line : String) : Optional(String) = {
+    let #(name, rest) = List.span(String.toList(line), isWordChar);
+    let #(_, following) = List.span(rest, fn(char) = char == ' ');
+    match following {
+        '=' :: _ when name != [] -> Some(String.fromList(name))
+      | _ -> None
+    }
+}
+
+// A document's blocks, each with the test that checks it, or none.
+fn judgedAll(blocks : List(Block), rules : Set(String)) : List(#(Block, Optional(String))) = {
+    let begun = Around(before = None, console = None, =rules);
+    let #(_, judged) = List.mapFold(blocks, begun, fn(around, block) = {
+        let test = checkedBy(block, around);
+        let isJoined = block.mark == "console" && String.startsWith(firstLine(block), "> ");
+        let console = if block.mark == "console" && !isJoined then
+            Some(#(block, Optional.isSome(test)))
+        else
+            around.console;
+        #(Around(..around, before = Some(block), =console), #(block, test))
+    });
+    judged
+}
+
+// The test that checks a block, as the comment above says.
+fn checkedBy(block : Block, around : Around) : Optional(String) = {
+    let first = firstLine(block);
+    let under =
+        fn(prefixes) = List.any(prefixes, fn(prefix) = String.startsWith(block.heading, prefix));
+    let isGuide = block.file == languageGuide;
+    if isGuide && under(["### 9.6 "]) then
+        Some("ern_guide_tests")
+    else if List.contains(examined, block.file) && examples(block, first, around) then
+        Some("ern_guide_tests")
+    else if isGuide
+        && block.mark == "console"
+        && under(["### 8.1 ", "### 8.2 "])
+        && String.startsWith(first, "$ ern run --config-dir ") then
+        Some("ern_guide_tests")
+    else if isGuide && block.mark == "console" && under(["### 1.4 "]) then
+        Some("ern_docs_tests")
+    else if isGuide
+        && block.mark == "ernest-fragment"
+        && String.startsWith(first, "// src/stdlib/ordered_set.ern") then
+        Some("ern_docs_tests")
+    else if block.file == tourFile && block.mark == "ernest" && isChapter(block.heading) then
+        Some("ern_docs_tests")
+    else if block.file == "guide/deployment.md"
+        && (block.mark == "console" && under(["### 1.1", "### 1.3", "## 8."])
+                || block.mark == "" && under(["## 8.", "### 5.3", "## 6."])) then
+        Some("ern_deployment_tests")
+    else
+        reportChecked(block, around.rules)
+}
+
+// Whether ern_guide_tests compiles or runs a block of a document it reads
+// as examples, the language guide's §9.6 aside.
+fn examples(block : Block, first : String, around : Around) : Bool =
+    match block.mark {
+        "ernest" -> true
+      | "ernest-rejected" -> true
+      | "ernest-prelude" -> true
+      | "erlang" -> String.startsWith(first, "-module(")
+      | "console" when first == "$ ern shell" -> true
+      | "console" when String.startsWith(first, "> ") -> continuesChecked(block, around)
+      | "console" -> afterUnit(block, first, around.before)
+      | _ -> false
+    }
+
+// A console that begins with an input continues the nearest console before
+// it under its heading where that holds a `$ ern shell` command, and runs
+// where that one runs; one that continues none fails the test, so none is
+// left unchecked.
+fn continuesChecked(block : Block, around : Around) : Bool =
+    match around.console {
+        Some(#(console, isRun)) when console.heading == block.heading
+            && List.any(console.code,
+                        fn(line) =
+                            line == "$ ern shell" || String.startsWith(line, "$ ern shell ")) ->
+            isRun
+      | _ ->
+            true
+    }
+
+// A console the block before it, a module, runs, or a refused program
+// builds.
+fn afterUnit(block : Block, first : String, before : Optional(Block)) : Bool =
+    match before {
+        Some(unit) when unit.mark == "ernest-rejected" ->
+            String.startsWith(first, "$ ern build ") && String.endsWith(first, ".ern")
+      | Some(unit) when unit.mark == "ernest"
+            || unit.mark == "erlang" && String.startsWith(firstLine(unit), "-module(") ->
+            List.any(block.code, isLaunch)
+      | _ ->
+            false
+    }
+
+// A command that runs a compiled module, `$ ern run x.erc`, `$ ern test`,
+// `$ ern shell` or one given its input by `printf`.
+fn isLaunch(line : String) : Bool =
+    (String.startsWith(line, "$ ern run ")
+         || String.startsWith(line, "$ ern test ")
+         || String.startsWith(line, "$ ern shell ")
+         || String.startsWith(line, "$ printf '") && String.contains(line, "| ern run "))
+        && String.contains(line, ".erc")
+
+// A tour's chapter's heading, `## 5. Per key`.
+fn isChapter(heading : String) : Bool =
+    match Optional.map(String.stripPrefix(heading, "## "), fn(rest) = leadingNumber(rest)) {
+        Some(Some(#(_, '.' :: ' ' :: _))) -> true
+      | _ -> false
+    }
+
+fn reportChecked(block : Block, rules : Set(String)) : Optional(String) =
+    if block.file == "report/language.md" && String.startsWith(block.part, "## 9.") then
+        Some("ern_prelude_tests")
+    else if block.file == "report/library.md"
+        && (String.startsWith(block.part, "## Appendix E.")
+                || String.startsWith(block.part, "## Appendix G.")) then
+        Some("ern_prelude_tests")
+    else if block.file == "report/language.md"
+        && String.startsWith(block.part, "## Appendix A.") then
+        Some("ern_grammar_tests")
+    else if block.mark == ""
+        && (block.file == "report/language.md" && !String.startsWith(block.part, "## Appendix")
+                || block.file == "report/toolchain.md")
+        && List.any(block.code, fn(line) = match ruleName(line) {
+            Some(name) -> Set.contains(rules, name)
+          | None -> false
+        }) then
+        Some("ern_parser_tests")
+    else
+        None
+
+//
+// The edits
+//
+// A commit touches a section where its diff adds a line that stands in the
+// section now, or takes lines out from between two of its lines. Each line
+// of an earlier version is given to the line it became at HEAD, a line taken
+// out to the section it stood inside, or to none where it stood between two,
+// so that each change counts for one section. One `git log --follow -p -U0`
+// a document gives its history, walked newest first, where `git log -L`
+// walks it once a section: the two agree but where a hunk crosses a
+// section's edge, whose lines `-L` takes into the ranges on both sides. The
+// history goes back past a rename, and not past the commit that copied the
+// document from another, which touches every section it holds.
+//
+
+// A hunk of a diff with no context: the old lines' first and count, and the
+// new lines'.
+type Hunk = Hunk(oldStart : Int, oldCount : Int, newStart : Int, newCount : Int)
+
+// A commit's diff of the document: its hunks, and whether it copied the
+// document from another.
+type Diff = Diff(hunks : List(Hunk), copied : Bool)
+
+// Where the walk of a commit's hunks stands: the later version's lines not
+// yet passed, each by its line at HEAD, 0 for one in no section; how many
+// have been passed; the last of them; the earlier version's lines so far,
+// last first; and the sections touched.
+type Walk =
+    Walk(rest : List(Int), passed : Int, last : Int, earlier : List(Int), touched : List(Int))
+
+let commitLine : Bytes = String.toUtf8("commit ")
+
+let hunkLine : Bytes = String.toUtf8("@@ -")
+
+let copyLine : Bytes = String.toUtf8("copy from ")
+
+fn edits() : List(String) = {
+    let files = reportFiles <> guideFiles() <> [tourFile];
+    let counted = List.map(files, editsOf);
+    let rows = List.flatMap(counted, fn(#(_, rows)) = rows);
+    let commits = List.foldLeft(counted, 0, fn(acc, #(count, _)) = acc + count);
+    let sorted = List.sortBy(rows, fn(#(count, _)) = -count);
+    [column("commits", 7) <> "  section"]
+        <> List.map(sorted, fn(#(count, row)) = column(Int.toString(count), 7) <> "  " <> row)
+        <> ["",
+            Int.toString(List.size(rows))
+                <> " sections in "
+                <> Int.toString(List.size(files))
+                <> " documents, by "
+                <> Int.toString(commits)
+                <> " commits of their histories."]
+}
+
+// A document's commits, and each of its sections at HEAD by the commits
+// that touched it.
+fn editsOf(path : String) : #(Int, List(#(Int, String))) = {
+    let lines = linesOf(git(["show", "HEAD:" <> path]));
+    let sections = sectionsOf(lines);
+    let table =
+        Map.fromList(List.flatMap(List.indexed(sections),
+                                  fn(#(index, section)) =
+                                      List.map(section.heading :: section.lines,
+                                               fn(line) = #(line.number, index))));
+    let sectionAt = fn(line) = Optional.withDefault(Map.get(table, line), -1);
+    let history =
+        diffsOf(gitBytes(["log",
+                          "--follow",
+                          "--format=commit %H",
+                          "-p",
+                          "-U0",
+                          "--no-color",
+                          "--no-ext-diff",
+                          "--",
+                          path]));
+    let #(_, counts) =
+        List.foldLeft(history,
+                      #(List.range(1, List.size(lines)), Map.empty),
+                      fn(#(later, counts), diff) = {
+                          let #(earlier, touched) = if diff.copied then
+                              #([], List.filter(List.map(later, sectionAt), fn(index) = index >= 0))
+                          else
+                              before(later, diff.hunks, sectionAt);
+                          #(earlier,
+                            List.foldLeft(List.unique(touched),
+                                          counts,
+                                          fn(acc, index) =
+                                              Map.update(acc,
+                                                         index,
+                                                         fn(found) =
+                                                             Optional.withDefault(found, 0) + 1)))
+                      });
+    #(List.size(history),
+      List.map(List.indexed(sections),
+               fn(#(index, section)) =
+                   #(Optional.withDefault(Map.get(counts, index), 0),
+                     placeOf(path, section) <> "  " <> headingOf(section))))
+}
+
+// Each commit's diff, newest first, from `git log -p -U0`'s lines, up to
+// the one that copied the document: a commit's own line, a copy's line and
+// a hunk's header; a line of a diff's begins with `+`, `-` or `\`, and is
+// passed by.
+fn diffsOf(bytes : Bytes) : List(Diff) = {
+    let found = List.foldLeft(Bytes.split(bytes, <<10>>), [], fn(acc, line) = match acc {
+        _ when Bytes.startsWith(line, commitLine) ->
+            Diff(hunks = [], copied = false) :: acc
+      | diff :: rest when Bytes.startsWith(line, copyLine) ->
+            Diff(..diff, copied = true) :: rest
+      | diff :: rest when Bytes.startsWith(line, hunkLine) ->
+            match hunkOf(text("git log", line)) {
+                Some(hunk) -> Diff(..diff, hunks = hunk :: diff.hunks) :: rest
+              | None -> acc
+            }
+      | _ ->
+            acc
+    });
+    let diffs =
+        List.reverse(List.map(found, fn(diff) = Diff(..diff, hunks = List.reverse(diff.hunks))));
+    let #(later, copying) = List.span(diffs, fn(diff) = !diff.copied);
+    later <> List.take(copying, 1)
+}
+
+// A hunk's header, `@@ -12,3 +12,0 @@`, a count left out being 1.
+fn hunkOf(line : String) : Optional(Hunk) =
+    match String.split(line, " ") {
+        "@@" :: old :: new :: _ -> {
+            let #(oldStart, oldCount) <- rangeOf(old, "-");
+            let #(newStart, newCount) <- rangeOf(new, "+");
+            Some(Hunk(=oldStart, =oldCount, =newStart, =newCount))
+        }
+      | _ ->
+            None
+    }
+
+fn rangeOf(field : String, sign : String) : Optional(#(Int, Int)) = {
+    let range <- String.stripPrefix(field, sign);
+    match String.split(range, ",") {
+        [start] ->
+            Optional.map(String.toInt(start), fn(first) = #(first, 1))
+      | [start, count] -> {
+            let first <- String.toInt(start);
+            let size <- String.toInt(count);
+            Some(#(first, size))
+        }
+      | _ ->
+            None
+    }
+}
+
+// The lines of the version before a commit, each by its line at HEAD, from
+// those of the version after it, and the sections the commit touched.
+fn before(later : List(Int),
+          hunks : List(Hunk),
+          sectionAt : (Int) -> Int) : #(List(Int), List(Int)) = {
+    let begun = Walk(rest = later, passed = 0, last = 0, earlier = [], touched = []);
+    let walked = List.foldLeft(hunks, begun, fn(walk, hunk) = hunkWalked(walk, hunk, sectionAt));
+    #(List.reverse(walked.earlier) <> walked.rest, walked.touched)
+}
+
+// The walk past a hunk: the lines before it kept, its new lines touched,
+// and its old lines each given to its first new line where it adds some,
+// and where it only takes some out, to the line before them where that
+// and the line after stand in one section, and to none otherwise.
+fn hunkWalked(walk : Walk, hunk : Hunk, sectionAt : (Int) -> Int) : Walk = {
+    let kept = (if hunk.newCount > 0 then hunk.newStart - 1 else hunk.newStart) - walk.passed;
+    let passing = List.take(walk.rest, kept);
+    let last = Optional.withDefault(List.last(passing), walk.last);
+    let added = List.take(List.drop(walk.rest, kept), hunk.newCount);
+    let rest = List.drop(walk.rest, kept + hunk.newCount);
+    let next = Optional.withDefault(List.get(rest, 0), 0);
+    let removedAt = if hunk.newCount > 0 then
+        Optional.withDefault(List.get(added, 0), 0)
+    else if last != 0 && next != 0 && sectionAt(last) == sectionAt(next) then
+        last
+    else
+        0;
+    let touchedLines =
+        List.filter(if hunk.newCount == 0 then [removedAt] else added, fn(line) = line != 0);
+    Walk(=rest,
+         passed = walk.passed + kept + hunk.newCount,
+         last = Optional.withDefault(List.last(added), last),
+         earlier = List.repeat(removedAt, hunk.oldCount) <> List.reverse(passing) <> walk.earlier,
+         touched = List.filter(List.map(touchedLines, sectionAt), fn(index) = index >= 0)
+             <> walk.touched)
+}
+
+//
+// Tests
+//
+
+/// A heading inside a fenced block is none, and a section's words leave
+/// its fences' own lines out; a heading of the first or second level counts
+/// the sections under it too.
+let countsSectionWords = Test.Case(name = "counts a section's words", run = fn() = {
+    let text = "# T\nintro words here\n## 1. A\none two\n```\n# inside\n```\n### 1.1 B\nthree\n";
+    let sections = List.map(sectionsOf(linesOf(text)), fn(section) = #(section, words(section)));
+    Test.equal(lengthRows("f.md", sections),
+               ["      3      8  f.md:1  # T",
+                "      4      5  f.md:3  ## 1. A",
+                "      1         f.md:8  ### 1.1 B"])
+})
+
+/// A report section's heading gives its citation's key, and a heading that
+/// numbers nothing gives none.
+let keysSections =
+    Test.Case(name = "keys a report section by its number",
+              run = fn() =
+                  Test.equal(List.map(["3.9 Type schemes",
+                                       "3. Types",
+                                       "Appendix E. Standard Library",
+                                       "Appendix E.17. `fs.ern`",
+                                       "Ernest Report"],
+                                      numberOf),
+                             [Some("3.9"), Some("3"), Some("Appendix E"), Some("E.17"), None]))
+
+/// A `§` is the report's after the report's name, the guide's after the
+/// guide's, and bare the report's but in the language guide; an appendix
+/// and `E.n` are the report's.
+let readsCitations = Test.Case(name = "reads a line's citations of the report", run = fn() = {
+    let line =
+        "see report §3.9, §4.2, the guide's §2.1, deployment guide §1.1, "
+            <> "Appendix E, Appendix E.17 and E.12.";
+    Test.equal(#(citedOn("guide/why.md", line), citedOn(languageGuide, line)),
+               #(["3.9", "4.2", "Appendix E", "E.17", "E.12"],
+                 ["3.9", "Appendix E", "E.17", "E.12"]))
+})
+
+/// A prose term is counted outside code, in any case and with its plural; a
+/// code term in code spans and fenced blocks alone.
+let countsTerms = Test.Case(name = "counts a term in prose and in code", run = fn() = {
+    let glossary = [termOf("adapted address"), termOf("`as`")];
+    let lines =
+        linesOf("An Adapted address, two adapted addresses.\n`p as x` as prose\n"
+                    <> "```\nlet y = p as q\n```\n");
+    let counted = countedIn(glossary, lines);
+    Test.equal(List.map(glossary, fn(term) = countOf(counted, term)), [2, 2])
+})
+
+/// A console after a module that it runs is checked, a console after a
+/// console and a fragment are not, and a console that continues an
+/// unchecked session is not.
+let judgesBlocks = Test.Case(name = "judges which blocks a test checks", run = fn() = {
+    let text =
+        "### 3.1 A\n```ernest\nfn f() = 1\n```\n```console\n$ ern run f.erc\n```\n"
+            <> "```console\n$ ern shell --config-dir a\n```\n```console\n> 1\n```\n"
+            <> "```ernest-fragment\nx\n```\n";
+    let judged = judgedAll(blocksOf(languageGuide, linesOf(text)), Set.empty);
+    Test.equal(List.map(judged, fn(#(block, test)) = #(block.line, test)),
+               [#(2, Some("ern_guide_tests")),
+                #(5, Some("ern_guide_tests")),
+                #(8, None),
+                #(11, None),
+                #(14, None)])
+})
+
+/// A hunk's header is read with a count left out as 1.
+let readsHunks =
+    Test.Case(name = "reads a hunk's header",
+              run = fn() =
+                  Test.equal(#(hunkOf("@@ -12,3 +12,0 @@ fn"), hunkOf("@@ -4 +5 @@")),
+                             #(Some(Hunk(oldStart = 12, oldCount = 3, newStart = 12, newCount = 0)),
+                               Some(Hunk(oldStart = 4, oldCount = 1, newStart = 5, newCount = 1)))))
+
+/// A line taken out between two lines of one section is that section's, and
+/// one between two sections is none's.
+let mapsRemovals = Test.Case(name = "maps the lines a commit took out", run = fn() = {
+    let hunks =
+        [Hunk(oldStart = 2, oldCount = 1, newStart = 1, newCount = 0),
+         Hunk(oldStart = 5, oldCount = 1, newStart = 3, newCount = 0)];
+    Test.equal(before(List.range(1, 6), hunks, fn(line) = if line <= 3 then 0 else 1),
+               #([1, 1, 2, 3, 0, 4, 5, 6], [0]))
+})
+
+/// Lines replaced are their first new line's, and lines added touch their
+/// sections.
+let mapsReplacements = Test.Case(name = "maps the lines a commit replaced", run = fn() = {
+    let hunks =
+        [Hunk(oldStart = 1, oldCount = 2, newStart = 1, newCount = 1),
+         Hunk(oldStart = 5, oldCount = 0, newStart = 5, newCount = 1)];
+    Test.equal(before(List.range(1, 7), hunks, fn(line) = if line <= 3 then 0 else 1),
+               #([1, 1, 2, 3, 4, 6, 7], [1, 0]))
+})
+
+/// A document's history ends with the commit that copied it.
+let endsAtTheCopy = Test.Case(name = "ends a history at its copy", run = fn() = {
+    let log =
+        "commit a\n@@ -1 +1 @@\n-x\n+y\ncommit b\ncopy from README.md\n"
+            <> "@@ -3,0 +4,2 @@\ncommit c\n@@ -1 +1 @@\n";
+    Test.equal(diffsOf(String.toUtf8(log)),
+               [Diff(hunks = [Hunk(oldStart = 1, oldCount = 1, newStart = 1, newCount = 1)],
+                     copied = false),
+                Diff(hunks = [Hunk(oldStart = 3, oldCount = 0, newStart = 4, newCount = 2)],
+                     copied = true)])
+})

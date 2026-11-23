@@ -126,6 +126,9 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    make paragraphs, make comments and make test-docs;
                    sizes.ern lists each module's lines and its growth, for make sizes;
                    clones.ern lists the code repeated, for make clones;
+                   documents.ern lists the report's, the guide's and the tour's
+                   sections, citations, terms, unchecked blocks and edits, for make
+                   lengths, citations, terms, unchecked and edits;
                    slowest.ern lists the slowest tests, for make slowest;
                    flakes.ern runs the flake hunt's hosts beside busy loops and says
                    what they found, for make flakes;
@@ -443,6 +446,18 @@ make clones     # the code repeated, the Ernest of make sizes compared with itse
                 # literal of any literal, comments and Erlang's attributes left out: each
                 # clone of 100 Ernest tokens or 150 Erlang ones, the longest first, with
                 # its two stretches' paths and lines; for both reviews
+make lengths    # each section of the guide and the tour with its words, as make coverage
+                # counts the report's, a heading of the first or second level with the
+                # sections under it too; for the full review
+make citations  # each section of the report with the lines of the guide and the tour
+                # that cite it, then the sections none cites; for the full review
+make terms      # each term of the report's glossary, Appendix F, with its count in the
+                # rest of the report, in the guide and in the tour; for the full review
+make unchecked  # each fenced block of the report, the guide and the tour that no test
+                # compiles, runs or holds to code, by its mark and its place, with the
+                # counts by mark; for the full review
+make edits      # each section of the report, the guide and the tour by the commits that
+                # changed a line inside it, most first; for the full review
 make golden     # rewrite test/fixtures/emitted/, the Erlang the compiler emits for each
                 # program `golden_names/0` lists: test/fixtures/programs/, hello and
                 # services
