@@ -25,17 +25,14 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is open, and its
 third leg is open**, on Fable 5.2 at high: the two decisions that waited for it are
 made, the sort of `docs/findings.md` is checked, and the sentences for §0 and E.0 are
-decided, 36 lines, with the first eleven families, what a diagnostic says, 39 lines, the
-language's rules, 33, the report's recut, 31, what the guides repeat, 28, how the
-project's documents are kept, 26, `guide/language.md`'s order, 24, the toolchain's
-jobs, 24, what a library function answers, 21, what a fault's line names, 18, the other
-guides' recut, 17, and the library's names, 17.
+decided, 36 lines, with the first twelve families, 291 lines, each under its entry of
+the log for 2026-11-23, from *What a Diagnostic Says* to *What the Front Pages Claim*.
 
 The sentences of *PL6 2* and *PL6 3* are written a third time, against the two cold
-readings. Eleven families are left, 108 lines, the largest first, what the README,
-`why.md` and the FAQ claim the next of them. One line stands alone, and one is taken out of its family to be
-decided as a batch, the ten refusals that rested on a count, with the keys' names in
-`Ansi` and hexadecimal's case, which two lines of the library's names left to it.
+readings. Ten families are left, 95 lines, the largest first, the tour's chapters the
+next of them. One line stands alone, and one is taken out of its family to be decided
+as a batch, the ten refusals that rested on a count, with the keys' names in `Ansi` and
+hexadecimal's case, which two lines of the library's names left to it.
 
 Its first two legs, the decisions before the readers and the readers, closed 2026-11-23.
 Items 2 and 3, the cost and the raise a primitive catches, are closed since 2026-11-22,
