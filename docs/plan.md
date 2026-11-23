@@ -32,6 +32,14 @@ lines mended thirty places more, twenty plainly and ten with the user. Their lin
 so (the log's *Four Verdicts Changed After the Round*, *Before Leg 4 Builds* and *The
 Ten of the Cold Reading*).
 
+Two readers then read the report whole against the verdicts, one `report/language.md`
+and one the other two files, and found 64 places more. Most are a sentence a verdict
+made stale without naming it, and are mended in the verdicts' lines. Three verdicts
+were taken back: a standard namespace stays taken at every depth, `OrderedSet`,
+`OrderedMap` and `Random` stay in Appendix E, and §7.4 sorts no domain by kind (the
+log's *The Report Read Whole Against the Verdicts*). The next cold reading is of the
+report itself, as leg 4 changes it.
+
 Its third leg, the `decide` round, closed 2026-11-23: the sort checked, the sentences
 for §0 and E.0, the twenty-two families, the line that stood alone and the batch of
 refusals that rested on a count, each under its entry of the log for that day, from
@@ -327,14 +335,17 @@ the site, since it sends a reader there. Its release is the launch.
    sets it to the release's version before sending it (the log's *The Front Page in the
    Announcement's Manner*).
 6. **Which libraries become packages**, a decision, taken while item 1 waits and built
-   for 0.12 where it is taken (the log's *What Stands on Every Load Path*, *The Ten of
-   the Cold Reading*). Ten stand on every load path that no job of the toolchain's calls:
-   `Json`, `Http`, `Uri`, `Time`, `Base64`, `Proxy` and `Utilization`, and `OrderedSet`,
-   `OrderedMap` and `Random`, libraries since 2026-11-23. A proposal weighs the rule that
-   a library stands there only where the toolchain's jobs call it against those three,
-   which are over no specification and which a newcomer would then name in a manifest,
-   and tries the other test, a package where a library is over a published
+   for 0.12 where it is taken (the log's *What Stands on Every Load Path*, *The Report
+   Read Whole Against the Verdicts*). Seven stand on every load path that no job of the
+   toolchain's calls: `Json`, `Http`, `Uri`, `Time`, `Base64`, `Proxy` and `Utilization`.
+   A proposal weighs the rule that a library stands there only where the toolchain's
+   jobs call it, and tries the other test, a package where a library is over a published
    specification.
+
+   It also asks whether the standard library keeps `OrderedSet`, `OrderedMap` and
+   `Random`, which E.0 holds by name since 2026-11-23, with what a move changes for each:
+   `:load` at the prompt, definitions hashed where the standard library's agree by the
+   floor, the start, the checking of foreign returns, and Appendix G's status.
 
    It says how a package would ship, in the installation or on the releases page; what a
    program names where a manifest is flat, `Http` with `Time` and `Uri`; whose version
