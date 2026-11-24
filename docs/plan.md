@@ -23,13 +23,20 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
-leg, and its answers to the readings are next**, on Fable 5.2 at high, after a `/clear`.
-The readings were made 2026-11-23: 14 of the 37 hold, and 23 come to the user with the
-five that the findings' *Before leg 4 builds* names and the new line *Z10*, each result
-under its line (the log's *Leg 4's Readings*). They are taken one at a time, each answer
-written under its line.
+leg, and the cold readings of the changed sentences of §3 to §9 are next**, on Opus 5.5
+at xhigh, after a `/clear`. The readings were made 2026-11-23 (the log's *Leg 4's
+Readings*) and answered by the user 2026-11-24, 27 answers taken one at a time, each
+under its line (the log's *Leg 4's Answers*).
 
-The leg then goes on, on Opus 5.5 at xhigh after a `/clear`: the cold readings of the
+Four verdicts were taken back:
+`Supervisor.group` spawns at its call, `Proxy`'s hook stays, a compute that picks
+answers `Unreachable` where it holds no utilization, and the deployment guide keeps its
+row for a certificate that names another host. §7.4's sentence on an argument outside a
+domain was written a third time. Three lines are new: *Z10*, decided, *Z11*, a fix, and
+*Z12*, decided. Where an answer sends its builder to check a thing first, its line says
+what comes back to the user.
+
+The leg goes on so: the cold readings of the
 changed sentences of §3 to §9, the renames with the applications' message, then the `1`
 and `1r` lines of `docs/findings.md` by the session, and the `2a`, `2b` and decided lines
 by agents, one brief to an owner holding all its lines. Each decided line holds its
@@ -155,7 +162,8 @@ says what is left once its readings are in, and no figure stands until then.
       the renames and the other changes the applications meet, with their message, so
       that the three can start; and then the rest. A verdict that comes back needs Fable
       for its answer, so the session stops there as it stops at a cut. The readings
-      were made 2026-11-23 (the log's *Leg 4's Readings*).
+      were made 2026-11-23 (the log's *Leg 4's Readings*) and answered 2026-11-24 (the
+      log's *Leg 4's Answers*).
 
    Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
    the `fix` lines made at once and the `decide` lines after, so that the design is one
