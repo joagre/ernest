@@ -47,12 +47,13 @@ what comes back to the user.
 The leg goes on so: the report written from `cold3/v5/` in one commit with the first
 build, which makes true the five things the report's tests hold: *P2 35*'s names of the
 computes, `Io.debug` out of the prelude, `NotLoaded(String)` and `Int.toStringBase`
-faulting (the log's *The Answers Read Cold's Six*); then the renames of *The Library's
-Names*, which the copy does not hold, with the applications' message on them and on the
-computes'; then the `1` and `1r` lines of `docs/findings.md` by the session, and the `2a`,
-`2b` and decided lines by agents, one brief to an owner holding all its lines. Each
-decided line holds its verdict beneath it, and a verdict that says a reader reads first,
-or that a line comes back to the user, is done so.
+faulting (the log's *The Answers Read Cold's Six*), its brief in `cold3/brief_build1.md`,
+on Opus 5.5 at xhigh; then the renames of *The Library's Names*, which the copy does not
+hold, with the applications' message on them and on the computes'; then the `1` and `1r`
+lines of `docs/findings.md` by the session, and the `2a`, `2b` and decided lines by
+agents, one brief to an owner holding all its lines. Each decided line holds its verdict
+beneath it, and a verdict that says a reader reads first, or that a line comes back to the
+user, is done so.
 
 Four verdicts were changed after the round, and a cold reading of the decided lines mended
 thirty places more, twenty plainly and ten with the user. Their lines say so (the log's
