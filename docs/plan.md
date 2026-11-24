@@ -45,10 +45,12 @@ domain was written a third time. Three lines are new: *Z10*, decided, *Z11*, a f
 what comes back to the user.
 
 The leg goes on so: the report written from `cold3/v5/` in one commit with the first
-build, which makes true the five things the report's tests hold, the computes' renames
-among them (the log's *The Answers Read Cold's Six*); then the applications' message on
-the renames; then the `1` and `1r` lines of `docs/findings.md` by the session, and the
-`2a`, `2b` and decided lines by agents, one brief to an owner holding all its lines. Each
+build, which makes true the five things the report's tests hold: *P2 35*'s names of the
+computes, `Io.debug` out of the prelude, `NotLoaded(String)` and `Int.toStringBase`
+faulting (the log's *The Answers Read Cold's Six*); then the renames of *The Library's
+Names*, which the copy does not hold, with the applications' message on them and on the
+computes'; then the `1` and `1r` lines of `docs/findings.md` by the session, and the `2a`,
+`2b` and decided lines by agents, one brief to an owner holding all its lines. Each
 decided line holds its verdict beneath it, and a verdict that says a reader reads first,
 or that a line comes back to the user, is done so.
 
