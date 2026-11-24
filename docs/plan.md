@@ -23,12 +23,15 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
-leg, and the copy of the report takes the cold reading's answers next**, on Opus 5.5 at
-xhigh, after a `/clear`. The changed sentences of §3 to §9 were read cold 2026-11-24 in a
-copy of the report, 59 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21
-for the user, answered the same day one at a time, with *Z13* and *Z14* closed (the log's
-*The Changed Sentences Read Cold* and *The Cold Reading's Answers*).
-The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered by the
+leg, and six finds of the answers' cold reading wait for the user next.** The changed
+sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59 finds under
+their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered the same day
+one at a time, with *Z13* and *Z14* closed (the log's *The Changed Sentences Read Cold* and
+*The Cold Reading's Answers*).
+
+The copy took the answers, and what they change was read cold once the same day: 32
+finds under their lines as *Read cold again 2026-11-24*, 26 plain and applied in the copy,
+and six for the user (the log's *The Answers Read Cold*). The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered by the
 user 2026-11-24, 27 answers taken one at a time, each under its line (the log's *Leg 4's
 Answers*).
 
@@ -40,8 +43,8 @@ domain was written a third time. Three lines are new: *Z10*, decided, *Z11*, a f
 *Z12*, decided. Where an answer sends its builder to check a thing first, its line says
 what comes back to the user.
 
-The leg goes on so: the copy takes the answers and the plain mends, the sentences they
-change in §3 to §9 are read cold once, the report is written from the copy, then the
+The leg goes on so: the six answers, the copy's paragraphs cut to the style's 150 words,
+the report written from the copy, then the
 renames with the applications' message, then the `1`
 and `1r` lines of `docs/findings.md` by the session, and the `2a`, `2b` and decided lines
 by agents, one brief to an owner holding all its lines. Each decided line holds its
@@ -172,6 +175,8 @@ says what is left once its readings are in, and no figure stands until then.
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold
       2026-11-24 in a copy of the report, whose 21 finds for the user were answered the same
       day (the log's *The Changed Sentences Read Cold* and *The Cold Reading's Answers*).
+      The copy took the answers, and what they change was read cold once, six finds
+      coming to the user (the log's *The Answers Read Cold*).
 
    Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
    the `fix` lines made at once and the `decide` lines after, so that the design is one
