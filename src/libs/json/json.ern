@@ -38,7 +38,8 @@
 /// ```ernest
 /// match Json.parse("{\"name\": \"desk\", \"port\": 4001}") {
 ///     Right(Json.Object(members)) -> Map.get(members, "port")
-///   | _ -> None
+///   | Right(_) -> fault("the text is an object")
+///   | Left(error) -> fault(Io.show(error))
 /// }
 /// // => Some(Json.Integer(4001))
 /// ```
@@ -132,7 +133,9 @@ export type Error =
   | UnexpectedSequence(text : String, at : Position)
 
 /// The value `text` writes, or why it writes none. White space may stand
-/// before the value and after it, and nothing else may.
+/// before the value and after it, and nothing else may. A text the host's
+/// decoder refuses costs its raise, which beneath a recursion whose call is
+/// not in tail position costs the recursion's depth (report §10).
 ///
 /// ### Examples
 ///
@@ -580,16 +583,22 @@ let loneSurrogate =
                               Right(Text("\\ud800"))])
               })
 
+// The digits of an integer longer than the host holds, which the tests of
+// a too-long integer share, a function so that no program holds them.
+fn longDigits() : String =
+    String.repeat("9", 1300000)
+
+// What `parse` answers for the too-long integer at the column.
+fn longAt(column : Int) : Either(Error, Value) =
+    Left(UnexpectedSequence(text = longDigits(), at = Position(line = 1, =column)))
+
 // report Appendix G.6
 let tooLong =
     Test.Case(name = "a too-long integer is not read, and is found past a string holding it",
               run = fn() = {
-                  let digits = String.repeat("9", 1300000);
-                  let sequence =
-                      fn(column) =
-                          Left(UnexpectedSequence(text = digits, at = Position(line = 1, =column)));
+                  let digits = longDigits();
                   Test.equal(#(parse(digits), parse("[\"" <> digits <> "\", " <> digits <> "]")),
-                             #(sequence(1), sequence(1300006)))
+                             #(longAt(1), longAt(1300006)))
               })
 
 // report Appendix G.6: a regression test: the digits were looked for at
@@ -597,12 +606,10 @@ let tooLong =
 // or after its first digit.
 let tooLongAfterReal =
     Test.Case(name = "a too-long integer is found past a real holding its digits", run = fn() = {
-        let digits = String.repeat("9", 1300000);
-        let sequence =
-            fn(column) = Left(UnexpectedSequence(text = digits, at = Position(line = 1, =column)));
+        let digits = longDigits();
         Test.equal(#(parse("[0." <> digits <> ", " <> digits <> "]"),
                      parse("[1" <> digits <> "e-1300000, " <> digits <> "]")),
-                   #(sequence(1300006), sequence(1300014)))
+                   #(longAt(1300006), longAt(1300014)))
     })
 
 // report Appendix G.6: a regression test, written after the code: a real
@@ -611,13 +618,10 @@ let tooLongAfterReal =
 let tooLongAfterItsDigits =
     Test.Case(name = "a too-long integer is found past a real that begins with its digits",
               run = fn() = {
-                  let digits = String.repeat("9", 1300000);
-                  let sequence =
-                      fn(column) =
-                          Left(UnexpectedSequence(text = digits, at = Position(line = 1, =column)));
+                  let digits = longDigits();
                   Test.equal(#(parse("[" <> digits <> "e-1300000, " <> digits <> "]"),
                                parse("[" <> digits <> ".5e-1300000, " <> digits <> "]")),
-                             #(sequence(1300013), sequence(1300015)))
+                             #(longAt(1300013), longAt(1300015)))
               })
 
 // report Appendix G.6: a regression test: the digits were compared at every
@@ -627,10 +631,9 @@ let tooLongAfterItsDigits =
 let tooLongReadOnce =
     Test.Case(name = "a too-long integer after a real one digit shorter is found reading once",
               run = fn() = {
-                  let digits = String.repeat("9", 1300000);
+                  let digits = longDigits();
                   Test.equal(parse("[0." <> String.repeat("9", 1299999) <> ", " <> digits <> "]"),
-                             Left(UnexpectedSequence(text = digits,
-                                                     at = Position(line = 1, column = 1300005))))
+                             longAt(1300005))
               })
 
 // report Appendix G.6: a regression test: the host answered the end of

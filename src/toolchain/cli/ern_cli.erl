@@ -1635,7 +1635,7 @@ no_main_file(run) ->
 %% service manager's journal, each line begins with the moment the fault was
 %% met, the report's `time`, in UTC as RFC 3339 writes it. A fault of a
 %% process Test.faults started never comes here, the runtime telling no one
-%% of it (Appendix E.24, ern_rt:expected/1). Report §12.4: beneath a
+%% of it (Appendix E.24, ern_rt:expected/2). Report §12.4: beneath a
 %% deadlock's trace, the processes it left waiting (left_waiting/1).
 report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, From, Time},
              Peer, Stamped) ->
@@ -2078,11 +2078,15 @@ ended_reason({gone, _}) -> none.
 %% cause on the line of an example's entry process's fault (carried/2). A
 %% case's own fault is its line, and so, in an example's launch, is the
 %% entry process's, an initializer's among them, which the outcome carries
-%% (example_launch/3); every other fault is reported as `ern run` reports
-%% it, and makes what the launch told a failure, since §11.8 has `ern test`
-%% exit with status 1 where any process faulted during the run, but one a
-%% case started, directly or through one it started, while the case runs,
-%% and those `Test.faults` started, which reach no report (Appendix E.24).
+%% (example_launch/3).
+%%
+%% Every other fault is reported as `ern run` reports it, and makes what
+%% the launch told a failure, since §11.8 has `ern test` exit with status 1
+%% where any process faulted during the run, but one a case started,
+%% directly or through one it started, while the case runs, and those
+%% `Test.faults` started, which reach no report (Appendix E.24); the trace
+%% of a fault one of those met that was not the one asked for is kept for
+%% the case's line (run_test/3).
 %%
 %% A signal the job took during the launch makes its outcome the signal's,
 %% whatever began the end (ern_signals:taken/0).
@@ -2113,7 +2117,16 @@ cases_launch(Cases, Entry, Site, Init, ErrorDevice, Node) ->
                                reported(Running, Report, FaultReport, Peer)
                        end
                end,
-    Outcome = ern_rt:run_main(Entry(Running), Site, RunOptions#{faults => Reporter}),
+    %% Appendix E.24: the first fault of a case's `Test.faults` that met
+    %% another cause than the one asked for, its trace kept under the case
+    %% for its line
+    Unasked = fun(Process, Trace) ->
+                      Root = ern_rt:root_of(Process),
+                      ets:member(Running, Root)
+                          andalso ets:insert_new(Running, {{unasked, Root}, Trace})
+              end,
+    Outcome = ern_rt:run_main(Entry(Running), Site,
+                              RunOptions#{faults => Reporter, unasked => Unasked}),
     Carried = case ets:lookup(Running, entry) of
                   [{entry, EntryCarried}] -> EntryCarried;
                   [] -> []
@@ -2190,10 +2203,11 @@ tests_entry(ErlangModule, HasExamples, Caller, Running) ->
 %% standard output's process, after what the test wrote there, a fault's
 %% cause followed by the callee or the peer it was carried from, and the
 %% trace of its fault beneath it, both of which the reporter kept in its
-%% row, the trace written by
-%% Frames, which names a doc example's frames as its case is
-%% (ern_examples); whether it passed, or, for an example that only
-%% compiles, compiled, is returned.
+%% row; Appendix E.24: a case that failed carries beneath its line the
+%% trace of the first fault its `Test.faults` met that was not the one
+%% asked for. A trace is written by Frames, which names a doc example's
+%% frames as its case is (ern_examples); whether it passed, or, for an
+%% example that only compiles, compiled, is returned.
 run_test({'Case', Name, Run}, Running, Frames) ->
     Self = erlang:self(),
     Ref = make_ref(),
@@ -2216,9 +2230,14 @@ run_test({'Case', Name, Run}, Running, Frames) ->
                   {Ref, down, {'Down', _, Reason, _}} -> ended(Reason)
               end,
     ok = ern_rt:deadlock_victim(none),
-    {Trace, Carried} = case ets:take(Running, Pid) of
-                           [{_, Faulted, FaultCarried}] -> {Faulted, FaultCarried};
-                           [{_}] -> {<<>>, []}
+    Unasked = case ets:take(Running, {unasked, Pid}) of
+                  [{_, UnaskedTrace}] -> UnaskedTrace;
+                  [] -> <<>>
+              end,
+    {Trace, Carried} = case {ets:take(Running, Pid), Outcome} of
+                           {[{_, Faulted, FaultCarried}], _} -> {Faulted, FaultCarried};
+                           {[{_}], <<"failed: ", _/binary>>} -> {Unasked, []};
+                           {[{_}], _} -> {<<>>, []}
                        end,
     ern_rt:send(ern_rt:system_process(stdout),
                 iolist_to_binary([case_line(Name, [Outcome, Carried], Frames(Trace)),

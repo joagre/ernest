@@ -444,8 +444,9 @@ export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) 
 /// ### Errors
 ///
 /// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, or `callee was closed` where `close` ended it as
-/// the call was made.
+/// cause `callee had ended`, `callee was closed` where `close` ended it as the
+/// call was made, or `callee was killed` where it is killed or its owner dies
+/// while the read waits.
 ///
 /// ### Examples
 ///

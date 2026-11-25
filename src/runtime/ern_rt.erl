@@ -51,7 +51,7 @@
          processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
          writes_through/1, faults/1, termination/1,
-         expected/1, is_ernest/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
+         expected/2, is_ernest/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
          end_source/2,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, at_receive/0, peer_wait/1,
          peer_waited/0,
@@ -345,7 +345,7 @@
 %% launch's updates wait for (the log's *The Sitting on §8.6's
 %% Bookkeeping*, its *Measured* paragraphs on the launch's start).
 -record(launch, {runner, tag, reaper = none, killer = none, stderr = none, reporter = none,
-                 arguments = [], exit = program, node = false}).
+                 unasked = none, arguments = [], exit = program, node = false}).
 
 %% A subscriber the end has told and waits for (report §8.6): its spawn
 %% order and its spawn site, which the end's lines name it by (§11.2), its
@@ -1600,7 +1600,7 @@ reaper_loop(Reaper, Wait) ->
             case ets:lookup(?PROCESSES, Pid) of
                 [#process_row{peer = Peer, expected = false}] ->
                     report(Pid, Site, Peer, Fault, true);
-                [#process_row{expected = true}] -> ok;
+                [#process_row{}] -> ok;
                 [] -> report(Pid, Site, none, Fault, true)
             end,
             reaper_loop(Reaper);
@@ -3086,7 +3086,8 @@ answered_compute({faulted, Fault}, Alias) ->
 %% subscription to faults or to the program's end it held ends with it.
 %% Report Appendix E.24: a process `Test.faults` started, whose fault is
 %% expected, is reported to no job and told no subscriber, since the
-%% test's answer carries it.
+%% test's answer carries it; a fault of another cause than the one asked
+%% for gives its trace to the launch's `unasked`, for the case's line.
 died(Pid, Site, Peer, Expected, ExitReason, Fault) ->
     faults_ended(Pid),
     ets:delete(?TERMINATING, Pid),
@@ -3095,7 +3096,19 @@ died(Pid, Site, Peer, Expected, ExitReason, Fault) ->
         %% once, on the caller's node, and told no subscriber here
         {carried, _, _} -> ok;
         {_, {'Fault', Cause}, false} -> report(Pid, Site, Peer, ended_fault(Fault, Cause), false);
+        {_, {'Fault', Cause}, {asked, Asked}} when Cause =/= Asked ->
+            unasked(Pid, ended_fault(Fault, Cause));
         _ -> ok
+    end.
+
+%% Report Appendix E.24, §11.2: the trace of a fault that met a
+%% `Test.faults` asking for another, given to the launch's `unasked`
+%% with the process that met it, before its end reaches the process
+%% that waits on it, so that the test's answer finds it.
+unasked(Pid, #fault{trace = Trace}) ->
+    case launch_field(#launch.unasked, none) of
+        none -> ok;
+        Unasked -> Unasked(Pid, Trace)
     end.
 
 %% The fault a process ended with, its row's, written as it ended
@@ -3105,14 +3118,16 @@ ended_fault(#fault{} = Fault, _) -> Fault;
 ended_fault(none, Cause) -> #fault{cause = Cause, trace = <<>>, time = now()}.
 
 %% Report Appendix E.24: the function `Test.faults` hands `Process.run`,
-%% which marks the row of the process it runs in expected before it runs
-%% Function, so
-%% that its fault reaches no job's report and no subscriber (died/6): the
-%% mark the runtime's, set as the process begins, and no text of its site.
--spec expected(fun(() -> term())) -> fun(() -> term()).
-expected(Function) ->
+%% which marks the row of the process it runs in expected, with the cause
+%% asked for, before it runs Function, so that its fault reaches no job's
+%% report and no subscriber, and one of another cause gives its trace to
+%% the case's line (died/6): the mark the runtime's, set as the process
+%% begins, and no text of its site.
+-spec expected(fun(() -> term()), binary()) -> fun(() -> term()).
+expected(Function, Cause) ->
     fun() ->
-        true = ets:update_element(?PROCESSES, erlang:self(), {#process_row.expected, true}),
+        true = ets:update_element(?PROCESSES, erlang:self(),
+                                  {#process_row.expected, {asked, Cause}}),
         Function()
     end.
 
@@ -4546,11 +4561,16 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% ending the program, as in the shell and under `ern test` (report §11.2).
 %% faults => fun((FaultReport, Peer) -> any()), given every fault as it
 %% happens with the node of the peer whose spawn started the process, or
-%% none (report §11.2, §8.7). node => fun(() -> ok), run in the entry
-%% process after `init`, which starts a node's carrier once the bindings
-%% have their values, a node detecting no deadlock (report §8.6, §8.7).
-%% time => fun(() -> integer()), the clock the Clock process reads in
-%% place of the host's, for tests.
+%% none (report §11.2, §8.7). unasked => fun((Pid, Trace) -> any()),
+%% given the trace of each fault that met a `Test.faults` asking for
+%% another cause, with its process, before its end is delivered (Appendix
+%% E.24).
+%%
+%% node => fun(() -> ok), run in the entry process after `init`, which
+%% starts a node's carrier once the bindings have their values, a node
+%% detecting no deadlock (report §8.6, §8.7). time => fun(() ->
+%% integer()), the clock the Clock process reads in place of the host's,
+%% for tests.
 %%
 %% Options of the streams and the screen: stdout, stderr =>
 %% fun((binary()) -> any()), or {fd, N} to write to the file descriptor
@@ -5051,6 +5071,7 @@ launched(Options) ->
     Launch = make_ref(),
     true = ets:insert(?LAUNCH, #launch{runner = erlang:self(), tag = Launch,
                                        reporter = maps:get(faults, Options, none),
+                                       unasked = maps:get(unasked, Options, none),
                                        arguments = maps:get(arguments, Options, []),
                                        exit = maps:get(exit, Options, program),
                                        node = is_map_key(node, Options)}),

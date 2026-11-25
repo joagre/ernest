@@ -1,15 +1,8 @@
-%% The shims behind Int.toFloat and Int.shiftLeft (report Appendix E.8):
-%% the two operations whose faults Erlang does not raise in the report's
-%% words (§7.4).
+%% The shim behind Int.shiftLeft (report Appendix E.8): the operation
+%% whose fault Erlang does not raise in the report's words (§7.4).
 -module(ern_int).
 
--export([to_float/1, shift_left/2]).
-
--spec to_float(integer()) -> float().
-to_float(Integer) ->
-    try float(Integer)
-    catch error:badarg -> ern_rt:fault(<<"Int out of Float range">>)
-    end.
+-export([shift_left/2]).
 
 %% Report §7.4: a result beyond the host's integers is a limit of the host
 %% met, the same cause `*` gives, and not a foreign function's raise.

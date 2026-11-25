@@ -1131,14 +1131,20 @@ flush() ->
     receive Message -> [Message | flush()] after 0 -> [] end.
 
 %% report Appendix E.24, E.21, §11.2: a process whose function `Test.faults`
-%% gives it, ern_rt:expected/1's, is marked in its row as it begins, and its
-%% fault, a restart's among them, reaches neither a subscriber nor the
-%% runtime's reporter, whatever its site says, while a fault of a process
-%% beside it reaches both. Written with the mark, which took the place of a
-%% match on the site's text
+%% gives it, ern_rt:expected/2's, is marked in its row as it begins, with
+%% the cause asked for, and its fault, a restart's among them, reaches
+%% neither a subscriber nor the runtime's reporter, whatever its site says,
+%% while a fault of a process beside it reaches both. One marked asking for
+%% another cause gives its fault's trace to the launch's `unasked` alone,
+%% before its end reaches the process that monitors it, and one that met
+%% the cause asked for gives none. Written with the mark, which took the
+%% place of a match on the site's text; the trace given was written with
+%% the request
 expected_fault_told_to_no_one_test() ->
     Self = self(),
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
+    Given = ets:new(given, [public, bag]),
+    Unasked = fun(Pid, Trace) -> ets:insert(Given, {Pid, Trace}) end,
     ok = ern_rt:run_main(
            fun() ->
                ern_rt:faults(ern_rt:adapted(ern_rt:self(), fun(Report) -> {report, Report} end)),
@@ -1148,23 +1154,32 @@ expected_fault_told_to_no_one_test() ->
                                                Self ! {row, ets:lookup(ern_processes,
                                                                        erlang:self())},
                                                Twice()
-                                           end),
+                                           end, <<"division by zero">>),
                _ = ern_rt:spawn_monitored(Expected, fun(Down) -> {expected, Down} end,
                                           <<"M.main:4">>),
                _ = ern_rt:spawn_monitored(Twice, fun(Down) -> {plain, Down} end,
                                           <<"M.main:5">>),
+               Other = ern_rt:spawn_monitored(ern_rt:expected(fun() -> 1 div zero() end,
+                                                              <<"bad argument">>),
+                                              fun(Down) -> {other, Down} end, <<"M.main:6">>),
                ern_rt:timed(),
                receive {expected, _} -> ok end,
                receive {plain, _} -> ok end,
+               receive {other, _} -> Self ! {given, ets:lookup(Given, Other)} end,
                %% every report given the subscription's courier delivered
                ern_rt:wait_for_deliveries(),
                ern_rt:untimed(),
                Self ! {heard, lists:sort([{Site, Restarted}
                                           || {report, {'FaultReport', _, Site, _, Restarted, _,
                                                        _, _, _, _}} <- flush()])}
-           end, <<"M.main">>, ern_helpers:quiet(#{faults => Reporter})),
-    ?assertMatch([#process_row{site = <<"M.main:4">>, peer = none, expected = true}],
+           end, <<"M.main">>, ern_helpers:quiet(#{faults => Reporter, unasked => Unasked})),
+    ?assertMatch([#process_row{site = <<"M.main:4">>, peer = none,
+                               expected = {asked, <<"division by zero">>}}],
                  ern_waits:wait(row)),
+    %% its trace empty, the frames here no program's (Appendix E.21)
+    ?assertMatch([{_, Trace}] when is_binary(Trace), ern_waits:wait(given)),
+    ?assertEqual(1, ets:info(Given, size)),
+    ets:delete(Given),
     ?assertEqual([{<<"M.main:5">>, false}, {<<"M.main:5">>, true}], ern_waits:wait(heard)),
     ?assertEqual([<<"M.main:5">>, <<"M.main:5">>],
                  [Site || {reported, {'FaultReport', _, Site, _, _, _, _, _, _, _}} <- flush()]).

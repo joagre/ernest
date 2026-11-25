@@ -99,9 +99,10 @@ fn totalTime(#(_, _, time) : #(Int, Int, Int)) : Int =
 /// The fraction of the processor's time busy, from 0.0 to 1.0, since the
 /// calling process's previous call, by the host's `cpu_sup`, which keeps the
 /// time of each process's call; `None` where the node's `measures` do not run
-/// it. At a process's first call, and its first since the service started
-/// again, the host does not promise the value, which is on most systems the
-/// fraction since the machine started.
+/// it, and where the service does not answer in time, 5 seconds by the host's
+/// measure. At a process's first call, and its first since the service
+/// started again, the host does not promise the value, which is on most
+/// systems the fraction since the machine started.
 ///
 /// ### Examples
 ///
@@ -110,7 +111,15 @@ fn totalTime(#(_, _, time) : #(Int, Int, Int)) : Int =
 /// // => None
 /// ```
 export fn cpu() : Optional(Float) =
-    if runs("cpu_sup") then Some(cpuPercent() / 100.0) else None
+    if runs("cpu_sup") then Optional.map(percent(cpuUtil()), fn(busy) = busy / 100.0) else None
+
+// Report Appendix G.4: the percent `cpu_sup` answers, a number, or `None`
+// for its `{error, timeout}`, where its measurement does not answer.
+fn percent(answer : Foreign.Term) : Optional(Float) =
+    match Foreign.toFloat(answer) {
+        Some(busy) -> Some(busy)
+      | None -> Optional.map(Foreign.toInt(answer), Int.toFloat)
+    }
 
 /// The fraction of the machine's memory in use, from 0.0 to 1.0, by the
 /// host's `memsup`: what is not available, of the total; `None` where the
@@ -168,14 +177,14 @@ fn runs(service : String) : Bool =
     registered(Foreign.atom(service)) != Foreign.atom("undefined")
 
 //
-// The tests (report §9.3, Appendix G.4), run by `ern test` as every library's are. A
-// regression test, written after the code: the measure left its setting of
-// the host's keeping of the schedulers' time standing where the host kept
-// the time already. It stands here, and not among the integration tests,
-// since a test, a binding, keeps no function of the module from a peer
-// (report §8.7).
+// The tests (report §9.3), run by `ern test` as every library's are. They
+// stand here, and not among the integration tests, since a test, a
+// binding, keeps no function of the module from a peer (report §8.7).
 //
 
+// report Appendix G.4: a regression test, written after the code: the
+// measure left its setting of the host's keeping of the schedulers' time
+// standing where the host kept the time already.
 let schedulersTakeBack =
     Test.Case(name = "a measure of the schedulers takes back its own setting of the host's keeping",
               run = fn() = {
@@ -184,6 +193,20 @@ let schedulersTakeBack =
                   let _ = schedulers(1);
                   let _ = setFlag(flag, Foreign.term(false));
                   Test.equal(statistic(flag) != Foreign.atom("undefined"), false)
+              })
+
+// report Appendix G.4: `cpu` answers `None` where `cpu_sup` does not answer
+// in time, which its `{error, timeout}` says, and the fraction of the
+// number it answers otherwise, an integer among them. Written with the
+// code; the host's timeout itself is not met
+let cpuTimeout =
+    Test.Case(name = "the processor's measure is None where the host's service does not answer",
+              run = fn() = {
+                  let timedOut = Foreign.term(#(Foreign.atom("error"), Foreign.atom("timeout")));
+                  Test.equal([percent(Foreign.term(12.5)),
+                              percent(Foreign.term(0)),
+                              percent(timedOut)],
+                             [Some(12.5), Some(0.0), None])
               })
 
 //
@@ -205,7 +228,7 @@ foreign fn setFlag(flag : Foreign.Term, value : Foreign.Term) : Bool =
 foreign fn registered(name : Foreign.Term) : Foreign.Term =
     "erlang:whereis/1"
 
-foreign fn cpuPercent() : Float =
+foreign fn cpuUtil() : Foreign.Term =
     "cpu_sup:util/0"
 
 foreign fn memoryData() : List(#(Foreign.Term, Int)) =

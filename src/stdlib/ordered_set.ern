@@ -74,18 +74,19 @@ export let empty : Set(a) = Set([])
 /// // => ["a", "b"]
 /// ```
 export fn fromList(list : List(a)) : Set(a) needs a.compare =
-    Set(firstOfEach(List.sort(list)))
+    Set(oneOfEach(List.sort(list)))
 
-// The first of each run the order calls `Equal` in a sorted list. The sort
+// One element of each run the order calls `Equal` in a sorted list, the
+// run's first, as `OrderedMap`'s `oneOfEach` makes one pair of each. The sort
 // is stable, so the list's earlier occurrence comes first and is the one
 // kept, as `put` keeps the element already there.
-fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
+fn oneOfEach(sorted : List(a)) : List(a) needs a.compare =
     match sorted {
         first :: second :: rest ->
             if compare(first, second) == Equal then
-                firstOfEach(first :: rest)
+                oneOfEach(first :: rest)
             else
-                first :: firstOfEach(second :: rest)
+                first :: oneOfEach(second :: rest)
       | _ ->
             sorted
     }

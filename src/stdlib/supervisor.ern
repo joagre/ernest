@@ -98,6 +98,9 @@ export type Strategy = OneForOne | OneForAll | RestForOne
 /// since 0.5.0
 export abstract type GroupMsg =
     Join(process : Process,
+         // a function, which binds `GroupMsg` and a supervisor's address
+         // to their node (report §3.11), so that a capture of one in
+         // `Peer.spawn` is refused when the program is compiled
          stop : () -> Unit receiving WatcherMsg,
          reply : Reply(Address(WatcherMsg)))
   | Paused(process : Process, cause : Start, question : Int)
@@ -117,7 +120,10 @@ type WatcherMsg =
   | SupervisorDied
 
 // A child as the watcher holds it: its process, where it stands in the
-// order of spawns, and how to kill it, which needs its address.
+// order of spawns, and `stop`, which kills it. `stop` is a function that
+// `Join` carries, which binds `GroupMsg` and a supervisor's address to
+// their node (report §3.11): a capture of one in `Peer.spawn` is refused
+// when the program is compiled.
 type Member = Member(process : Process, spawned : Int, stop : () -> Unit receiving WatcherMsg)
 
 // A run of the supervisor as the watcher begins it: the children that wait

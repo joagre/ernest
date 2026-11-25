@@ -230,6 +230,43 @@ since(File, Declarations) ->
                                             Tags)],
     ?assertEqual([], Wrong).
 
+%% Appendix E.0 shape rule 6: a declaration says that an `Optional` it
+%% answers is never `None` for the arguments it names, and a cost its name
+%% does not suggest. Held here are the declarations whose `None` programs
+%% were found handling where their arguments ruled it out, and those whose
+%% refusal is the host's raise answered, which costs as a raise does
+%% (report §10). Written with the sentences
+stated_test() ->
+    Docs = maps:from_list(
+             [{{ern_namespace:text(Namespace), atom_to_list(Name)},
+               re:replace(Doc, "\\s+", " ", [global, {return, binary}])}
+              || {Namespace, _, Declarations} <- modules(),
+                 Declaration <- Declarations,
+                 {Name, Doc} <- [named_doc(Declaration)],
+                 is_binary(Doc)]),
+    NeverNone = [{"List", "get"}, {"List", "last"}, {"List", "minimum"}, {"List", "maximum"},
+                 {"List", "minimumBy"}, {"List", "maximumBy"}, {"Map", "get"},
+                 {"Bytes", "fromList"}, {"Path", "parent"}, {"Path", "name"},
+                 {"Path", "extension"}, {"Float", "sqrt"}, {"Float", "pow"},
+                 {"String", "fromUtf8"}, {"String", "indexOf"}, {"Char", "fromCodePoint"},
+                 {"Time", "fromCivil"}, {"Time", "weekday"}, {"Ets", "get"},
+                 {"Template", "pop"}],
+    Raising = [{"String", "toInt"}, {"String", "toIntBase"}, {"String", "toFloat"},
+               {"Bytes", "fromHex"}, {"Float", "div"}, {"Json", "parse"}],
+    Unstated = [{Key, Phrase}
+                || {Keys, Phrase} <- [{NeverNone, <<"It is never `None` ">>},
+                                      {Raising, <<"raise, which beneath a recursion whose call"
+                                                  " is not in tail position costs the"
+                                                  " recursion's depth (report §10)"/utf8>>}],
+                   Key <- Keys,
+                   binary:match(maps:get(Key, Docs, <<>>), Phrase) =:= nomatch],
+    ?assertEqual([], Unstated).
+
+%% A top-level function's name and doc block, none for any other declaration.
+named_doc(#fn_declaration{member_of = undefined, name = Name, doc = Doc}) -> {Name, Doc};
+named_doc(#foreign_fn_declaration{member_of = undefined, name = Name, doc = Doc}) -> {Name, Doc};
+named_doc(_) -> {none, none}.
+
 %% docs/reviews/release.md, step 5, report §12.5, Appendix H: a patch release
 %% adds nothing and stands on its minor's floor: where VERSION names a
 %% release no tag holds yet, a patch of the last tag's minor, the library's

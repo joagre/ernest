@@ -2415,13 +2415,13 @@ A service with state needs none of the three: two processes of different represe
 export abstract type Set(a) = Set(List(a))
 
 export fn fromList(list : List(a)) : Set(a) needs a.compare =
-    Set(firstOfEach(List.sort(list)))
+    Set(oneOfEach(List.sort(list)))
 
 export fn map(Set(list) : Set(a), f : (a) -> b receiving e) : Set(b) receiving e needs b.compare =
     fromList(List.map(list, f))
 ```
 
-`fromList` declares the requirement, which `List.sort` declares too and is supplied from it. `firstOfEach`, a private helper generic in the element, not shown, calls `compare` and so declares the requirement too; the member goes along from `fromList`, which calls it. `map` declares `needs b.compare`, the order of the set it builds.
+`fromList` declares the requirement, which `List.sort` declares too and is supplied from it. `oneOfEach`, a private helper generic in the element, not shown, calls `compare` and so declares the requirement too; the member goes along from `fromList`, which calls it. `map` declares `needs b.compare`, the order of the set it builds.
 
 ### 7.4 Exercise
 

@@ -123,7 +123,9 @@ export fn put(table : Table(k, v), key : k, value : v) : Unit = {
 foreign fn rawInsert(table : Table(k, v), entry : #(k, v)) : Bool =
     "ets:insert/2"
 
-/// The value at that key, or `None` where the table has no entry for it.
+/// The value at that key, or `None` where the table has no entry for it. It
+/// is never `None` for a key that a `put` stored and no `remove` or `clear`
+/// has taken since.
 ///
 /// ### Errors
 ///

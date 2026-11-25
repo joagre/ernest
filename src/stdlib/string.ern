@@ -133,7 +133,8 @@ export fn contains(text : String, part : String) : Bool =
     Optional.isSome(indexOf(text, part))
 
 /// The index, in graphemes, at which `part` first begins in `text`, or `None`
-/// where it is not there. An empty `part` is at 0.
+/// where it is not there. It is never `None` where `contains(text, part)` is
+/// `true`. An empty `part` is at 0.
 ///
 /// ### Examples
 ///
@@ -170,10 +171,8 @@ export fn startsWith(text : String, prefix : String) : Bool =
 
 /// `true` when `text` ends with `suffix`, as whole graphemes. Every string ends
 /// with the empty string.
-export fn endsWith(text : String, suffix : String) : Bool = {
-    let count = size(suffix);
-    size(text) >= count && drop(text, size(text) - count) == suffix
-}
+export fn endsWith(text : String, suffix : String) : Bool =
+    Optional.isSome(stripSuffix(text, suffix))
 
 /// The text after `prefix`, or `None` where `text` does not begin with it, as
 /// whole graphemes. Every string begins with the empty string.
@@ -211,7 +210,17 @@ export fn stripPrefix(text : String, prefix : String) : Optional(String) =
 ///
 /// since 0.10.0
 export fn stripSuffix(text : String, suffix : String) : Optional(String) =
-    if endsWith(text, suffix) then Some(slice(text, 0, size(text) - size(suffix))) else None
+    if Bytes.endsWith(toUtf8(text), toUtf8(suffix)) then {
+        // Report Appendix E.5: the text without as many graphemes at its
+        // end as the suffix holds is what precedes the suffix's bytes where
+        // the suffix begins where a grapheme of the text does
+        let before = slice(text, 0, size(text) - size(suffix));
+        if Bytes.size(toUtf8(before)) + Bytes.size(toUtf8(suffix)) == Bytes.size(toUtf8(text)) then
+            Some(before)
+        else
+            None
+    } else
+        None
 
 /// `text` with each occurrence of `old` replaced by `new`. Occurrences are
 /// found from the left and do not overlap, so `replace("aaa", "aa", "b")` is
@@ -523,7 +532,9 @@ foreign fn concatenated(parts : List(String)) : String =
 /// Reads `text` as a decimal integer. It answers `Some(n)` where `text` is
 /// digits with an optional leading `-`. Other text answers `None`, text with a
 /// space, a `+`, an `_` or a point among it, and so does an integer the host
-/// cannot hold.
+/// cannot hold. A text it refuses costs the host's raise, which beneath a
+/// recursion whose call is not in tail position costs the recursion's depth
+/// (report §10).
 ///
 /// ### Examples
 ///
@@ -537,7 +548,9 @@ export fn toInt(text : String) : Optional(Int) =
 /// Reads `text` as an integer in `base`, from 2 to 36. It answers `Some(n)`
 /// where `text` is digits and letters of the base, in either case, with an
 /// optional leading `-`. Other text answers `None`, a leading `+` among it, and
-/// so do a base outside 2 to 36 and an integer the host cannot hold.
+/// so do a base outside 2 to 36 and an integer the host cannot hold. A text it
+/// refuses costs the host's raise, which beneath a recursion whose call is not
+/// in tail position costs the recursion's depth (report §10).
 ///
 /// ### Examples
 ///
@@ -568,7 +581,9 @@ export fn toBool(text : String) : Optional(Bool) =
 /// both, and an optional leading `-`. A whole number, `"1"`, answers `None`, as
 /// do `"2."`, `".5"`, a `+` or an `_`, other text, and a value too large for a
 /// `Float`. A value too small to hold is the nearest `Float`, `0.0` among them
-/// (report §2.5, §3.1).
+/// (report §2.5, §3.1). A text it refuses costs the host's raise, which beneath
+/// a recursion whose call is not in tail position costs the recursion's depth
+/// (report §10).
 ///
 /// ### Examples
 ///
@@ -607,6 +622,7 @@ export foreign fn toUtf8(text : String) : Bytes =
     "ern_string:to_utf8/1"
 
 /// The string that `bytes` holds in UTF-8, or `None` where they are not UTF-8.
+/// It is never `None` for what `toUtf8` writes.
 export foreign fn fromUtf8(bytes : Bytes) : Optional(String) =
     "ern_string:from_utf8/1"
 

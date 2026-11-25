@@ -11,10 +11,9 @@
 /// to the host's counts of module names, export entries, function entries and
 /// atoms, which never fall while the node runs (report §11.2).
 ///
-/// `running` is a form, as `Peer.spawn` is: it is called where it is named, with
-/// the name of a top-level `fn` whose result type is `Unit`, and answers
-/// the processes that run that function at the moment of the call (report
-/// §3.11).
+/// `running` is called where it is named, as `Peer.spawn` is, with the name of
+/// a top-level `fn` whose result type is `Unit`, and answers the processes
+/// that run that function at the moment of the call (report §3.11).
 ///
 /// ## Examples
 ///

@@ -28,7 +28,7 @@
 ///     Some(Uri.Reference(authority = Some(authority), =path)) ->
 ///         #(authority.host, authority.port, path)
 ///   | _ ->
-///         #("", None, "")
+///         fault("the text is a URL with an authority")
 /// }
 /// // => #("example.com", Some(8443), "/docs/index.html")
 /// ```

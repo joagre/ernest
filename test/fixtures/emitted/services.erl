@@ -74,8 +74,7 @@
         receive
             '$ern_restart' -> ern_rt:restart_now();
             {'$ern_fault', Fault_15} -> erlang:throw(Fault_15);
-            {'Record', Entry_13} ->
-                '$11'(ern@list:'$1'(Entries_12, [Entry_13]));
+            {'Record', Entry_13} -> '$11'(Entries_12 ++ [Entry_13]);
             {'Entries', Reply_14} ->
                 ern_rt:answer(Reply_14, Entries_12),
                 '$11'(Entries_12)

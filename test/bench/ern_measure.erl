@@ -176,13 +176,25 @@ pure_row(#{module := Module, name := Name, scheme := Scheme, display := Display}
     Host = maps:get(iolist_to_binary(Display), hosts(), none),
     try
         {timed, [sized(Module, Name, Scheme, Size, Mode, Types, Host, Counter)
-                 || Size <- Sizes]}
+                 || Size <- sizes(iolist_to_binary(Display), Sizes, Mode)]}
     catch
         throw:{no_value, Type} ->
             {not_measured, iolist_to_binary(io_lib:format("no argument drawn for ~p", [Type]))};
         Class:Reason ->
             {failed, iolist_to_binary(io_lib:format("~p:~p", [Class, Reason]))}
     end.
+
+%% The sizes a function is timed at: Sizes, and for a few the sizes a
+%% decision was measured at beside them.
+sizes(Display, Sizes, timed) ->
+    lists:usort(Sizes ++ maps:get(Display, extra_sizes(), []));
+sizes(_, Sizes, once) ->
+    Sizes.
+
+%% Report §9.6, Appendix E.0 rule 1: `List.<>`, the host's `++`, at a
+%% thousand elements as well, where speed was weighed.
+extra_sizes() ->
+    #{<<"List.<>">> => [1000]}.
 
 sized(Module, Name, Scheme, Size, Mode, Types, Host, Counter) ->
     Arguments = arguments(Module, Name, Scheme, Size, Types),
@@ -461,6 +473,7 @@ path(Size) ->
 
 hosts() ->
     #{<<"List.size">> => fun erlang:length/1,
+      <<"List.<>">> => fun erlang:'++'/2,
       <<"List.isEmpty">> => fun(List) -> List =:= [] end,
       <<"List.contains">> => fun(List, X) -> lists:member(X, List) end,
       <<"List.get">> => fun(List, Index) -> lists:nth(min(Index + 1, length(List)), List) end,

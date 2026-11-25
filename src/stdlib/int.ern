@@ -138,8 +138,8 @@ export foreign fn bitXor(left : Int, right : Int) : Int =
 /// #(Int.bitNot(0), Int.bitNot(5))
 /// // => #(-1, -6)
 /// ```
-export fn bitNot(int : Int) : Int =
-    -int - 1
+export foreign fn bitNot(int : Int) : Int =
+    "erlang:bnot/1"
 
 /// `int` shifted left by `count` bits, which is `int` times two to the power
 /// `count`. A `count` below 0 shifts nothing.
@@ -227,5 +227,12 @@ foreign fn inBase(int : Int, base : Int) : String =
 /// Int.toFloat(7)
 /// // => 7.0
 /// ```
-export foreign fn toFloat(int : Int) : Float =
-    "ern_int:to_float/1"
+export fn toFloat(int : Int) : Float =
+    if abs(int) < floatLimit then asFloat(int) else fault("Int out of Float range")
+
+// Report §3.1: the least integer in magnitude that rounds beyond the largest
+// finite `Float`, 2^1024 - 2^970, the first the host's conversion refuses.
+let floatLimit : Int = shiftLeft(1, 1024) - shiftLeft(1, 970)
+
+foreign fn asFloat(int : Int) : Float =
+    "erlang:float/1"

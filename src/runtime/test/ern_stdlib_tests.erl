@@ -103,6 +103,29 @@ list_test() ->
     ?assertEqual([2, 3, 4], List(range)(2, 4)),
     ?assertEqual([], List(range)(3, 2)).
 
+%% report Appendix E.2: `map`, `filter`, `partition`, `forEach`, `flatMap`,
+%% `any`, `all` and `splitWhile` call their function on the elements in the
+%% list's order, once each, and `any`, `all` and `splitWhile` on none after
+%% the one that decides. Written after the code
+callback_order_test() ->
+    List = ern_named:functions('ern@list'),
+    Called = fun(Run, Answer) ->
+                 put(seen, []),
+                 _ = Run(fun(X) -> put(seen, [X | get(seen)]), Answer(X) end),
+                 lists:reverse(get(seen))
+             end,
+    Whole = [1, 2, 3, 4],
+    ?assertEqual(Whole, Called(fun(F) -> List(map)(Whole, F) end, fun(X) -> X end)),
+    ?assertEqual(Whole, Called(fun(F) -> List(filter)(Whole, F) end, fun(X) -> X > 2 end)),
+    ?assertEqual(Whole, Called(fun(F) -> List(partition)(Whole, F) end, fun(X) -> X > 2 end)),
+    ?assertEqual(Whole, Called(fun(F) -> List(forEach)(Whole, F) end, fun(_) -> 'Unit' end)),
+    ?assertEqual(Whole, Called(fun(F) -> List(flatMap)(Whole, F) end, fun(X) -> [X] end)),
+    %% `any` decides at the first it holds for, `all` and `splitWhile` at the
+    %% first they do not
+    ?assertEqual([1, 2], Called(fun(F) -> List(any)(Whole, F) end, fun(X) -> X >= 2 end)),
+    ?assertEqual([1, 2], Called(fun(F) -> List(all)(Whole, F) end, fun(X) -> X < 2 end)),
+    ?assertEqual([1, 2], Called(fun(F) -> List(splitWhile)(Whole, F) end, fun(X) -> X < 2 end)).
+
 %% report Appendix E.2: mapFold answers the accumulator after the last
 %% element and what step maps each element to, in order, and for the empty
 %% list the accumulator and no element; step is called in the caller's
@@ -859,16 +882,18 @@ int_test() ->
     ?assertThrow({ern, fault, <<"a base is from 2 to 36">>}, Int(toStringBase)(5, 1)).
 
 %% report Appendix E.8, §3.1, §7.4: Int.toFloat rounds to the nearest
-%% Float and faults only where the rounding gives no finite Float: the
-%% largest finite Float as an Int, plus 2^970 - 1, rounds down to it, and
-%% plus 2^970 faults, of either sign. Int.pow(0, 0) is 1, and a count
-%% below 0 shifts by none. A regression test, written after the code;
-%% it does not cover the rounding of an Int within the range
+%% Float and faults only where the rounding gives no finite Float, which
+%% its comparison against the bound finds: the largest finite Float as an
+%% Int, plus 2^970 - 1, the integer just below the bound, rounds down to
+%% it, and plus 2^970 faults, of either sign. Int.pow(0, 0) is 1, and a
+%% count below 0 shifts by none. A regression test, written after the
+%% code; it does not cover the rounding of an Int within the range
 int_edges_test() ->
     Int = ern_named:functions('ern@int'),
     Max = (1 bsl 53 - 1) bsl 971,
     ?assertEqual(1.7976931348623157e308, Int(toFloat)(Max)),
     ?assertEqual(1.7976931348623157e308, Int(toFloat)(Max + (1 bsl 970) - 1)),
+    ?assertEqual(-1.7976931348623157e308, Int(toFloat)(-(Max + (1 bsl 970) - 1))),
     ?assertThrow({ern, fault, <<"Int out of Float range">>}, Int(toFloat)(Max + (1 bsl 970))),
     ?assertThrow({ern, fault, <<"Int out of Float range">>}, Int(toFloat)(-(Max + (1 bsl 970)))),
     ?assertEqual({'Some', 1}, Int(pow)(0, 0)),
@@ -1584,6 +1609,33 @@ fs_hard_links_test() ->
         ?assertEqual({'Left', 'NotFound'}, OfNone),
         ?assertEqual({'Right', 'Unit'}, Removed),
         ?assertEqual({'Right', <<"o">>}, Read)
+    end).
+
+%% report Appendix E.17: `makeDir` alone of the functions that make an entry
+%% answers `Right(Unit)` where its path names a directory; where it names a
+%% file it answers `Left(Exists)`, as `makeFile`, `makeSymlink` and
+%% `makeHardLink` answer where theirs names a directory, and the file is
+%% left as it was. Written after the code
+fs_make_dir_test() ->
+    Self = self(),
+    scratch("ern_make_dir_", fun(Dir) ->
+        ok = filelib:ensure_path(filename:join(Dir, "shelf")),
+        ok = file:write_file(filename:join(Dir, "note"), <<"n">>),
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(makeDir)(InDir("shelf"), 1000)},
+                               Self ! {fs, Fs(makeDir)(InDir("note"), 1000)},
+                               Self ! {fs, Fs(makeFile)(InDir("shelf"), <<"x">>, 1000)},
+                               Self ! {fs, Fs(makeSymlink)(InDir("shelf"), {'Path', <<"note">>},
+                                                          1000)},
+                               Self ! {fs, Fs(makeHardLink)(InDir("shelf"), InDir("note"), 1000)},
+                               Self ! {fs, Fs(read)(InDir("note"), 1000)}
+                           end, <<"fs_make_dir_test">>, #{})),
+        ?assertEqual([{'Right', 'Unit'}, {'Left', 'Exists'}, {'Left', 'Exists'},
+                      {'Left', 'Exists'}, {'Left', 'Exists'}, {'Right', <<"n">>}],
+                     ern_helpers:taken(fs))
     end).
 
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at

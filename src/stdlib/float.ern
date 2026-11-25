@@ -116,7 +116,9 @@ export fn max(left : Float, right : Float) : Float =
 
 /// The quotient `dividend / divisor`, rounded to the nearest `Float`, or
 /// `None` where `/` would fault: a `divisor` of 0.0, or a quotient too large
-/// to be finite.
+/// to be finite. A `None` costs the host's raise, which beneath a recursion
+/// whose call is not in tail position costs the recursion's depth (report
+/// §10).
 ///
 /// ### Examples
 ///
@@ -191,7 +193,8 @@ export foreign fn floor(float : Float) : Int =
 export foreign fn ceil(float : Float) : Int =
     "erlang:ceil/1"
 
-/// The square root, or `None` for a number below zero.
+/// The square root, or `None` for a number below zero. It is never `None` for
+/// zero and above, a sum of squares among them.
 ///
 /// ### Examples
 ///
@@ -206,7 +209,10 @@ foreign fn squareRoot(float : Float) : Float =
     "math:sqrt/1"
 
 /// `base` raised to `exponent`, or `None` where the result is no real number: a
-/// negative base with a fractional exponent, or zero to a negative power.
+/// negative base with a fractional exponent, or zero to a negative power. It
+/// is never `None` for a base above zero, for a whole exponent with a base
+/// other than zero, or for an exponent of zero or above with a base of zero or
+/// above.
 ///
 /// ### Errors
 ///

@@ -130,7 +130,7 @@ export type Block =
 /// ```ernest
 /// match Markdown.parse("| a |\n| - |") {
 ///     [Markdown.Table(=columns)] -> columns
-///   | _ -> []
+///   | _ -> fault("the text is one table")
 /// }
 /// // => [Markdown.Column(text = [Markdown.Text("a")], alignment = Markdown.LeftAligned)]
 /// ```
@@ -146,7 +146,7 @@ export type Column = Column(text : List(Inline), alignment : Alignment)
 /// ```ernest
 /// match Markdown.parse("| a | b |\n| :-: | --: |") {
 ///     [Markdown.Table(=columns)] -> List.map(columns, fn(column) = column.alignment)
-///   | _ -> []
+///   | _ -> fault("the text is one table")
 /// }
 /// // => [Markdown.Centered, Markdown.RightAligned]
 /// ```
@@ -207,6 +207,19 @@ type Marker = Marker(start : Optional(Int), mark : Char, width : Int)
 // The font text is set in: roff has one for each of the four.
 type Font = Roman | Bold | Italic | BoldItalic
 
+// A run of a row's text, in the spans around it, outermost first, which
+// a row writes in their styles (report Appendix G.2).
+type Piece = Piece(text : String, spans : List(Span))
+
+// A style around inlines, told from another span of its style by its
+// place among them: the index of each inline it is within, the innermost
+// first, and none for a heading's own.
+type Span = Span(place : List(Int), style : Ansi.Style)
+
+// A line's words and the runs of spaces between them, in turn, each with
+// the pieces that write it.
+type Run = Run(spaces : Bool, pieces : List(Piece))
+
 //
 // Reading the blocks
 //
@@ -259,7 +272,8 @@ fn opened(openers : List((String, List(String)) -> Optional(#(Block, List(String
     }
 
 // Each kind of block that may begin at a line, in the order they are tried;
-// a function rather than a `let`, which would be a cycle, since they reach back to it (§8.5).
+// a function rather than a `let`, which would be a cycle, since they reach
+// back to it (report §8.5).
 fn openers() : List((String, List(String)) -> Optional(#(Block, List(String)))) =
     [headingStart, ruleStart, fenceStart, quoteStart, listStart, htmlStart, tableStart]
 
@@ -328,8 +342,13 @@ fn markerSize(chars : List(Char)) : Optional(Int) = {
     }
 }
 
+// Report Appendix G.2: whether the line holds only spaces and tabs, as
+// CommonMark 0.31 has a blank line, or nothing.
 fn isBlank(line : String) : Bool =
-    String.isEmpty(String.trim(line))
+    List.all(String.toList(line), isSpaceOrTab)
+
+fn isSpaceOrTab(char : Char) : Bool =
+    char == ' ' || char == '\t'
 
 fn indent(line : String) : Int = {
     let #(spaces, _) = List.splitWhile(String.toList(spacedPrefix(line)), fn(char) = char == ' ');
@@ -366,7 +385,9 @@ fn cut(chars : List(Char), column : Int, count : Int) : List(Char) =
 //
 
 // A heading of one to six `#`s and the space or the tab after them, the
-// closing `#`s dropped.
+// closing `#`s dropped, which spaces or tabs stand before and after. Its
+// text loses the spaces and tabs at its ends, and keeps other white space,
+// as CommonMark 0.31 has an ATX heading (report Appendix G.2).
 fn atx(line : String) : Optional(Block) = {
     let #(marks, rest) = List.splitWhile(String.toList(line), fn(char) = char == '#');
     let level = List.size(marks);
@@ -378,17 +399,21 @@ fn atx(line : String) : Optional(Block) = {
     else if !String.startsWith(text, " ") && !String.startsWith(text, "\t") then
         None
     else
-        Some(Heading(=level, text = inlines(closed(String.trim(text)))))
+        Some(Heading(=level, text = inlines(closed(strippedText(text)))))
 }
 
 fn closed(text : String) : String = {
     let chars = List.reverse(String.toList(text));
     let #(marks, rest) = List.splitWhile(chars, fn(char) = char == '#');
     match #(marks, rest) {
-        #([], _) -> text
-      | #(_, []) -> ""
-      | #(_, ' ' :: _) -> String.trim(String.fromList(List.reverse(rest)))
-      | _ -> text
+        #([], _) ->
+            text
+      | #(_, []) ->
+            ""
+      | #(_, before :: _) when isSpaceOrTab(before) ->
+            strippedText(String.fromList(List.reverse(rest)))
+      | _ ->
+            text
     }
 }
 
@@ -403,12 +428,14 @@ fn isRule(line : String) : Bool =
             fault("a line asked whether it is a rule is not blank")
     }
 
-// An opening fence: its character, its length, and its info string.
+// An opening fence: its character, its length, and its info string, the
+// text after the fence without the spaces and tabs at its ends, as
+// CommonMark 0.31 has it (report Appendix G.2).
 fn fenceOf(line : String) : Optional(#(Char, Int, String)) =
     match String.toList(line) {
         mark :: _ when mark == '`' || mark == '~' -> {
             let #(marks, rest) = List.splitWhile(String.toList(line), fn(char) = char == mark);
-            let info = String.trim(String.fromList(rest));
+            let info = strippedText(String.fromList(rest));
             if List.size(marks) < 3 || (mark == '`' && String.contains(info, "`")) then
                 None
             else
@@ -641,10 +668,12 @@ fn isHtml(line : String) : Bool =
 fn htmlOpens(line : String) : Bool =
     Optional.isSome(closingMark(line))
 
-// A tag alone on its line, `<div>` or `</div>`, which begins an HTML block
-// but does not end a paragraph.
-fn isTagAlone(line : String) : Bool =
-    match String.toList(String.trimEnd(line)) {
+// A tag alone on its line, `<div>` or `</div>`, spaces or tabs alone after
+// it (report Appendix G.2), which begins an HTML block but does not end a
+// paragraph.
+fn isTagAlone(line : String) : Bool = {
+    let #(_, kept) = List.splitWhile(List.reverse(String.toList(line)), isSpaceOrTab);
+    match List.reverse(kept) {
         '<' :: first :: rest -> {
             let #(tag, beyond) = List.splitWhile(rest, fn(char) = char != '>');
             (Char.isAlpha(first) || first == '/')
@@ -654,6 +683,7 @@ fn isTagAlone(line : String) : Bool =
       | _ ->
             false
     }
+}
 
 fn raw(lines : List(String), acc : List(String)) : #(Block, List(String)) =
     match lines {
@@ -704,13 +734,17 @@ fn paragraph(lines : List(String), acc : List(String)) : #(Block, List(String)) 
 fn textOf(lines : List(String)) : List(Inline) =
     inlines(String.join(List.reverse(lines), "\n"))
 
-// 1 for a line of `=`, 2 for a line of `-`, 0 for any other.
-fn underlineLevel(line : String) : Int =
-    match String.toList(String.trim(line)) {
+// 1 for a line of `=`, 2 for a line of `-`, either followed by spaces or
+// tabs alone, as CommonMark 0.31 has a setext underline (report Appendix
+// G.2); 0 for any other. The line is read from its end.
+fn underlineLevel(line : String) : Int = {
+    let #(_, marks) = List.splitWhile(List.reverse(String.toList(line)), isSpaceOrTab);
+    match marks {
         char :: rest when (char == '=' || char == '-')
             && List.all(rest, fn(other) = other == char) -> if char == '=' then 1 else 2
       | _ -> 0
     }
+}
 
 //
 // Tables
@@ -743,10 +777,11 @@ fn tableStart(line : String, rest : List(String)) : Optional(#(Block, List(Strin
     }
 
 // The cells of a table's line: its text without a `|` at its start or one
-// no backslash escapes at its end, split at each `|` no backslash escapes,
-// each cell trimmed.
+// no backslash escapes at its end, split at each `|` no backslash escapes.
+// The line and each cell lose the spaces and tabs at their ends, and keep
+// other white space, as GitHub's tables trim a cell (report Appendix G.2).
 fn cellTexts(line : String) : List(String) = {
-    let chars = String.toList(String.trim(line));
+    let chars = stripped(String.toList(line));
     let opened = match chars {
         '|' :: rest -> rest
       | _ -> chars
@@ -756,7 +791,7 @@ fn cellTexts(line : String) : List(String) = {
       | '|' :: before -> List.reverse(before)
       | _ -> opened
     };
-    List.map(pipeSeparated(closed, [], []), String.trim)
+    List.map(pipeSeparated(closed, [], []), strippedText)
 }
 
 // The text between the `|`s no backslash escapes, `current` the cell read so
@@ -816,7 +851,19 @@ fn fitted(row : List(List(Inline)), count : Int) : List(List(Inline)) =
 //
 
 fn inlines(text : String) : List(Inline) =
-    merged(scan(String.toList(String.trim(text)), []))
+    merged(scan(stripped(String.toList(text)), []))
+
+// Report Appendix G.2: the characters without the spaces and tabs at their
+// ends, as CommonMark 0.31 strips a paragraph's, so that a line a blank one
+// is not leaves text.
+fn stripped(chars : List(Char)) : List(Char) = {
+    let #(_, fromFirst) = List.splitWhile(chars, isSpaceOrTab);
+    let #(_, fromLast) = List.splitWhile(List.reverse(fromFirst), isSpaceOrTab);
+    List.reverse(fromLast)
+}
+
+fn strippedText(text : String) : String =
+    String.fromList(stripped(String.toList(text)))
 
 // The inlines of the characters, `pending` holding the text read so far,
 // last first.
@@ -1149,10 +1196,9 @@ export fn render(blocks : List(Block), width : Int, output : Output) : List(Stri
 fn rendered(block : Block, width : Int, output : Output) : List(String) =
     match block {
         Heading(=text) ->
-            standing(output,
-                     wrapped(paint(output, Ansi.Bold, spans(unstrong(text), output)), width))
+            List.map(wrapped(headingPieces(text, output), width), written)
       | Paragraph(text) ->
-            standing(output, wrapped(spans(text, output), width))
+            List.map(wrapped(piecesOf(text, output, [], []), width), written)
       | Code(=lines) ->
             List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
       // an empty row of the quote is the bar alone, with no space after it
@@ -1166,7 +1212,7 @@ fn rendered(block : Block, width : Int, output : Output) : List(String) =
       | Raw(lines) ->
             lines
       | Table(=columns, =rows) ->
-            standing(output, tableLines(columns, rows, output))
+            tableLines(columns, rows, output)
     }
 
 // A table's lines, each cell as the output shows inlines and the headings
@@ -1174,15 +1220,13 @@ fn rendered(block : Block, width : Int, output : Output) : List(String) =
 fn tableLines(columns : List(Column),
               rows : List(List(List(Inline))),
               output : Output) : List(String) = {
-    let headings = List.map(columns, fn(column) = {
-        let text = spans(unstrong(column.text), output);
-        oneLine(paint(output, Ansi.Bold, text))
-    });
+    let headings =
+        List.map(columns, fn(column) = oneLine(written(headingPieces(column.text, output))));
     let body =
         List.map(rows,
                  fn(row) =
                      List.map(fitted(row, List.size(columns)),
-                              fn(cell) = oneLine(spans(cell, output))));
+                              fn(cell) = oneLine(written(piecesOf(cell, output, [], [])))));
     columned(List.map(columns, fn(column) = column.alignment), headings, body)
 }
 
@@ -1287,39 +1331,81 @@ fn unemphasized(inlines : List(Inline)) : List(Inline) =
       | other -> [other]
     })
 
-fn spans(inlines : List(Inline), output : Output) : String =
-    String.join(List.map(inlines, fn(inline) = span(inline, output)), "")
+// A heading's text as pieces, bold with styles, as is a table's heading; a
+// heading is bold already, so strong emphasis inside it is its text.
+fn headingPieces(text : List(Inline), output : Output) : List(Piece) =
+    if output == Styled then
+        edged([Span(place = [], style = Ansi.Bold)],
+              fn(spans) = piecesOf(unstrong(text), output, spans, []))
+    else
+        piecesOf(unstrong(text), output, [], [])
 
-fn span(inline : Inline, output : Output) : String =
+// The inlines as pieces of text, each in the spans `around` them and its
+// own, an inline's place the index of each it is within, from `at`.
+fn piecesOf(inlines : List(Inline),
+            output : Output,
+            around : List(Span),
+            at : List(Int)) : List(Piece) =
+    List.flatMap(List.indexed(inlines),
+                 fn(#(index, inline)) = pieceOf(inline, output, around, index :: at))
+
+fn pieceOf(inline : Inline, output : Output, around : List(Span), place : List(Int)) : List(Piece) =
     match inline {
         Text(text) ->
-            text
+            [Piece(=text, spans = around)]
       | CodeSpan(code) ->
-            marked(output, Ansi.Foreground(Ansi.Cyan), "`", code)
+            marked(output,
+                   Span(=place, style = Ansi.Foreground(Ansi.Cyan)),
+                   "`",
+                   around,
+                   fn(spans) = [Piece(text = code, =spans)])
       // italics inside italics would turn the outer ones off where they end
       | Emphasis(inner) ->
             marked(output,
-                   Ansi.Italic,
+                   Span(=place, style = Ansi.Italic),
                    "*",
-                   spans(if output == Styled then unemphasized(inner) else inner, output))
+                   around,
+                   fn(spans) =
+                       piecesOf(if output == Styled then unemphasized(inner) else inner,
+                                output,
+                                spans,
+                                place))
       | Strong(inner) ->
-            marked(output, Ansi.Bold, "**", spans(inner, output))
+            marked(output,
+                   Span(=place, style = Ansi.Bold),
+                   "**",
+                   around,
+                   fn(spans) = piecesOf(inner, output, spans, place))
       | Link(=text, =url) ->
-            if plain(text) == url then url else spans(text, output) <> " (" <> url <> ")"
+            if plain(text) == url then
+                [Piece(text = url, spans = around)]
+            else
+                piecesOf(text, output, around, place)
+                    <> [Piece(text = " (" <> url <> ")", spans = around)]
       | Break ->
-            "\n"
+            [Piece(text = "\n", spans = around)]
     }
 
-// Text in the terminal's style where the rendering is styled; the terminal
-// turns a style off by its own code, so one inside another leaves the
-// outer one on (report Appendix E.16).
-fn paint(output : Output, style : Ansi.Style, text : String) : String =
-    if output == Styled then Ansi.styled(text, style) else text
+// Inline markup: in the span's style where the terminal has styles, and
+// as it is written between its marks where there are none, the only way
+// plain text can show it.
+fn marked(output : Output,
+          span : Span,
+          mark : String,
+          around : List(Span),
+          inside : (List(Span)) -> List(Piece)) : List(Piece) =
+    if output == Styled then
+        edged(around <> [span], inside)
+    else
+        Piece(text = mark, spans = around) :: inside(around) <> [Piece(text = mark, spans = around)]
 
-// Inline markup: in the terminal's style where there is one, and as it is
-// written where there is none, the only way plain text can show it.
-fn marked(output : Output, style : Ansi.Style, mark : String, text : String) : String =
-    if output == Styled then paint(output, style, text) else mark <> text <> mark
+// The pieces within the spans, and an empty one at each end, which stands
+// where the innermost span's codes stand: a row is filled around a span as
+// around a word, and a span around nothing still writes its codes.
+fn edged(spans : List(Span), inside : (List(Span)) -> List(Piece)) : List(Piece) = {
+    let edge = Piece(text = "", =spans);
+    edge :: inside(spans) <> [edge]
+}
 
 fn plain(inlines : List(Inline)) : String =
     String.join(List.map(inlines, fn(inline) = match inline {
@@ -1332,106 +1418,131 @@ fn plain(inlines : List(Inline)) : String =
                 }),
                 "")
 
-// Each styled row stands alone: a style a row leaves on is turned off at
-// its end and on again at the next row's start, so that a row shown
-// without those after it, as a listing cut short shows it, leaves no
-// style on. The styles are Ansi.styled's, each turned off by a code of its
-// own.
-fn standing(output : Output, rows : List(String)) : List(String) =
-    if output == Styled then balanced(rows, []) else rows
-
-// The rows, `codes` the styles' codes on as the first begins, the latest
-// first.
-fn balanced(rows : List(String), codes : List(String)) : List(String) =
-    match rows {
+// A row's pieces as text, each run of pieces within one span written in
+// its style by `Ansi.styled`, outermost first, so that each row stands
+// alone: a style is turned on and off within the row that shows it, and a
+// row shown without those after it, as a listing cut short shows it, leaves
+// no style on. The terminal turns a style off by its own code, so one
+// inside another leaves the outer one on (report Appendix E.16, G.3).
+fn written(pieces : List(Piece)) : String =
+    match pieces {
         [] ->
-            []
-      | row :: rest -> {
-            let left = codesAfter(String.toList(row), codes);
-            let reopened = String.join(List.map(List.reverse(codes), sgr), "");
-            let closed = String.join(List.map(left, fn(code) = sgr(offCode(code))), "");
-            (reopened <> row <> closed) :: balanced(rest, left)
+            ""
+      | Piece(=text, spans = []) :: rest ->
+            text <> written(rest)
+      | Piece(spans = span :: _) :: _ -> {
+            let #(inside, outside) = List.splitWhile(pieces, fn(piece) = isIn(piece, span));
+            let inner =
+                List.map(inside, fn(piece) = Piece(..piece, spans = List.drop(piece.spans, 1)));
+            Ansi.styled(written(inner), span.style) <> written(outside)
         }
     }
 
-// The codes on after the characters, given those on before them.
-fn codesAfter(chars : List(Char), codes : List(String)) : List(String) =
-    match chars {
-        [] ->
-            codes
-      | '\u{1b}' :: '[' :: rest -> {
-            let #(digits, beyond) = List.splitWhile(rest, Char.isAsciiDigit);
-            match beyond {
-                'm' :: more -> codesAfter(more, switched(String.fromList(digits), codes))
-              | _ -> codesAfter(beyond, codes)
-            }
-        }
-      | _ :: rest ->
-            codesAfter(rest, codes)
+// Whether the piece's outermost span is the span.
+fn isIn(piece : Piece, span : Span) : Bool =
+    match piece.spans {
+        outermost :: _ -> outermost.place == span.place
+      | [] -> false
     }
 
-// A code turns its style on, or turns off every style it ends; `0` ends
-// all.
-fn switched(code : String, codes : List(String)) : List(String) =
-    if code == "0" then
-        []
-    else if List.contains(["22", "23", "24", "39"], code) then
-        List.filter(codes, fn(other) = offCode(other) != code)
-    else
-        code :: codes
-
-fn offCode(code : String) : String =
-    match code {
-        "1" -> "22"
-      | "2" -> "22"
-      | "3" -> "23"
-      | "4" -> "24"
-      | _ -> if String.startsWith(code, "3") then "39" else "0"
-    }
-
-fn sgr(code : String) : String =
-    "\u{1b}[" <> code <> "m"
-
-// Text broken at spaces into rows of at most the width, a word longer
+// The pieces broken at spaces into rows of at most the width, a word longer
 // than the width alone on its row; a hard break always starts a row, and
 // the spaces between two words on one row are kept as they were.
-fn wrapped(text : String, width : Int) : List(String) =
-    List.flatMap(String.split(text, "\n"),
-                 fn(line) = filled(pieces(String.toList(line), [], []), width, "", []))
+fn wrapped(pieces : List(Piece), width : Int) : List(List(Piece)) =
+    List.flatMap(lined(pieces, [], []), fn(line) = filled(runs(line), width, [], 0, []))
 
-// The words and the runs of spaces between them, alternately, in order.
-fn pieces(chars : List(Char), current : List(Char), acc : List(String)) : List(String) =
+// The pieces parted at each line feed, a hard break's, into lines, the
+// line under way `line`, its last piece first; the text on each side of a
+// feed is kept where it is not empty, so an empty piece is a span's edge.
+fn lined(pieces : List(Piece), line : List(Piece), lines : List(List(Piece))) : List(List(Piece)) =
+    match pieces {
+        [] ->
+            List.reverse(List.reverse(line) :: lines)
+      | piece :: rest ->
+            match String.splitOnce(piece.text, "\n") {
+                None ->
+                    lined(rest, piece :: line, lines)
+              | Some(#(before, beyond)) ->
+                    lined(kept(piece, beyond, rest),
+                          [],
+                          List.reverse(kept(piece, before, line)) :: lines)
+            }
+    }
+
+// The pieces with the piece's span over `text` before them, where the text
+// is not empty.
+fn kept(piece : Piece, text : String, pieces : List(Piece)) : List(Piece) =
+    if String.isEmpty(text) then pieces else Piece(..piece, =text) :: pieces
+
+// A line's words and the runs of spaces between them, in turn, each of
+// the pieces that write it.
+fn runs(line : List(Piece)) : List(Run) =
+    grouped(List.flatMap(line, partedPiece))
+
+// The piece parted into runs of spaces and runs of other characters, in
+// order, each with whether it is spaces; an empty piece is a word's.
+fn partedPiece(piece : Piece) : List(#(Bool, Piece)) =
+    if String.isEmpty(piece.text) then
+        [#(false, piece)]
+    else
+        List.map(parted(String.toList(piece.text), [], []),
+                 fn(chars) =
+                     #(List.contains(chars, ' '), Piece(..piece, text = String.fromList(chars))))
+
+// The characters in runs of spaces and runs of other characters,
+// alternately, in order.
+fn parted(chars : List(Char), current : List(Char), acc : List(List(Char))) : List(List(Char)) =
     match chars {
         [] ->
-            List.reverse(if current == [] then
-                             acc
-                         else
-                             String.fromList(List.reverse(current)) :: acc)
+            List.reverse(if current == [] then acc else List.reverse(current) :: acc)
       | char :: rest ->
             match current {
                 previous :: _ when (previous == ' ') != (char == ' ') ->
-                    pieces(rest, [char], String.fromList(List.reverse(current)) :: acc)
+                    parted(rest, [char], List.reverse(current) :: acc)
               | _ ->
-                    pieces(rest, char :: current, acc)
+                    parted(rest, char :: current, acc)
             }
     }
 
-fn filled(pieces : List(String), width : Int, row : String, rows : List(String)) : List(String) =
-    match pieces {
+// Consecutive runs of one kind made one.
+fn grouped(parts : List(#(Bool, Piece))) : List(Run) =
+    match parts {
         [] ->
-            List.reverse(if String.isEmpty(row) then rows else row :: rows)
-      | spaces :: word :: rest when String.startsWith(spaces, " ") ->
-            if String.isEmpty(row) then
-                filled(rest, width, word, rows)
-            else if Terminal.width(row) + String.size(spaces) + Terminal.width(word) <= width then
-                filled(rest, width, row <> spaces <> word, rows)
-            else
-                filled(rest, width, word, row :: rows)
-      | [spaces] when String.startsWith(spaces, " ") ->
-            filled([], width, row, rows)
-      | word :: rest ->
-            filled(rest, width, row <> word, rows)
+            []
+      | #(spaces, _) :: _ -> {
+            let #(same, rest) = List.splitWhile(parts, fn(#(other, _)) = other == spaces);
+            Run(=spaces, pieces = List.map(same, fn(#(_, piece)) = piece)) :: grouped(rest)
+        }
     }
+
+// The rows the runs fill, the row under way `row`, of `columns` columns.
+fn filled(runs : List(Run),
+          width : Int,
+          row : List(Piece),
+          columns : Int,
+          rows : List(List(Piece))) : List(List(Piece)) =
+    match runs {
+        [] ->
+            List.reverse(if List.isEmpty(row) then rows else row :: rows)
+      | Run(spaces = true, pieces = spaces) :: Run(pieces = word) :: rest -> {
+            let wordColumns = columnsOf(word);
+            let spaced = columns + columnsOf(spaces) + wordColumns;
+            if List.isEmpty(row) then
+                filled(rest, width, word, wordColumns, rows)
+            else if spaced <= width then
+                filled(rest, width, row <> spaces <> word, spaced, rows)
+            else
+                filled(rest, width, word, wordColumns, row :: rows)
+        }
+      | [Run(spaces = true)] ->
+            filled([], width, row, columns, rows)
+      | Run(pieces = word) :: rest ->
+            filled(rest, width, row <> word, columns + columnsOf(word), rows)
+    }
+
+// The columns the pieces' text takes.
+fn columnsOf(pieces : List(Piece)) : Int =
+    Terminal.width(String.join(List.map(pieces, fn(piece) = piece.text), ""))
 
 //
 // Manual pages
@@ -1537,7 +1648,7 @@ fn roffCell(cell : List(Inline)) : #(String, Int) =
     #(String.replace(roffSpans(cell, Roman), "\n", " "), shownWidth(cell))
 
 fn shownWidth(cell : List(Inline)) : Int = {
-    let #(_, columns) = oneLine(spans(cell, Styled));
+    let #(_, columns) = oneLine(written(piecesOf(cell, Styled, [], [])));
     columns
 }
 
@@ -1703,6 +1814,7 @@ fn upToStop(inlines : List(Inline)) : List(Inline) =
 // The tests (report §9.3), run by `ern test` as every library's are.
 //
 
+// report Appendix G.2
 let headings =
     Test.Case(name = "an ATX heading drops its closing marks",
               run = fn() =
@@ -1710,14 +1822,15 @@ let headings =
                              [Heading(level = 3, text = [Text("Three")]),
                               Paragraph([Text("####### seven")])]))
 
-// a regression test: a tab after the marks made the line a paragraph
+// report Appendix G.2: a regression test: a tab after the marks made the
+// line a paragraph
 let tabbedHeading =
     Test.Case(name = "an ATX heading's marks may be followed by a tab",
               run = fn() =
                   Test.equal(parse("#\tTitle"), [Heading(level = 1, text = [Text("Title")])]))
 
-// a regression test: the inner emphasis turned the italics off for the
-// rest of the outer
+// report Appendix G.2: a regression test: the inner emphasis turned the
+// italics off for the rest of the outer
 let nestedEmphasis =
     Test.Case(name = "emphasis inside emphasis keeps the italics on", run = fn() = {
         let rows = render(parse("*a **b *c* d** e*"), 80, Styled);
@@ -1725,20 +1838,21 @@ let nestedEmphasis =
         Test.equal(offs, [1])
     })
 
-// a regression test: a tab after a leading run of digits and points in
-// text was expanded, as one after a list's number is
+// report Appendix G.2: a regression test: a tab after a leading run of
+// digits and points in text was expanded, as one after a list's number is
 let tabInText =
     Test.Case(name = "a tab after text that is no marker is kept",
               run = fn() = Test.equal(parse("3.14\tpi"), [Paragraph([Text("3.14\tpi")])]))
 
-// a regression test: a lazy line of `=` under a quoted paragraph made it
-// a heading
+// report Appendix G.2: a regression test: a lazy line of `=` under a quoted
+// paragraph made it a heading
 let lazyUnderline =
     Test.Case(name = "a lazy line of = is the quoted paragraph's text",
               run = fn() =
                   Test.equal(parse("> foo\nbar\n==="), [Quote([Paragraph([Text("foo bar ===")])])]))
 
-// a regression test: a URL in angle brackets was not read
+// report Appendix G.2: a regression test: a URL in angle brackets was not
+// read
 let angledUrl =
     Test.Case(name = "a URL in angle brackets may hold a space",
               run = fn() =
@@ -1747,6 +1861,7 @@ let angledUrl =
                                          Text(" and "),
                                          Link(text = [Text("d")], url = "e")])]))
 
+// report Appendix G.2
 let setext =
     Test.Case(name = "a line of = or - under a paragraph makes it a heading",
               run = fn() =
@@ -1754,6 +1869,7 @@ let setext =
                              [Heading(level = 1, text = [Text("One")]),
                               Heading(level = 2, text = [Text("Two")])]))
 
+// report Appendix G.2
 let fences =
     Test.Case(name = "a fence runs to one as long, and keeps what is inside",
               run = fn() =
@@ -1761,23 +1877,26 @@ let fences =
                              [Code(info = "ernest", lines = ["```", "# not a heading"]),
                               Paragraph([Text("after")])]))
 
+// report Appendix G.2
 let unclosedFence =
     Test.Case(name = "a fence that never closes runs to the end",
               run = fn() =
                   Test.equal(parse("```\na\n\nb"), [Code(info = "", lines = ["a", "", "b"])]))
 
+// report Appendix G.2
 let indentedCode =
     Test.Case(name = "an indented block keeps its inner blank lines",
               run = fn() =
                   Test.equal(parse("    a\n\n    b\n\nc"),
                              [Code(info = "", lines = ["a", "", "b"]), Paragraph([Text("c")])]))
 
+// report Appendix G.2
 let tabs =
     Test.Case(name = "a tab is four columns",
               run = fn() = Test.equal(parse("\tcode"), [Code(info = "", lines = ["code"])]))
 
-// a regression test: every tab was expanded, a code block's content among
-// them, so a Makefile's lines lost theirs
+// report Appendix G.2: a regression test: every tab was expanded, a code
+// block's content among them, so a Makefile's lines lost theirs
 let tabsInCode =
     Test.Case(name = "a tab in a code block's content is kept",
               run = fn() =
@@ -1786,6 +1905,7 @@ let tabsInCode =
                               Code(info = "", lines = ["a\tb"]),
                               Quote([Paragraph([Text("quoted")])])]))
 
+// report Appendix G.2
 let quotes =
     Test.Case(name = "a quote holds blocks, and a lazy line continues it",
               run = fn() =
@@ -1793,6 +1913,7 @@ let quotes =
                              [Quote([Heading(level = 1, text = [Text("In")]),
                                      Paragraph([Text("text lazy")])])]))
 
+// report Appendix G.2
 let ordered =
     Test.Case(name = "an ordered list keeps its first number",
               run = fn() =
@@ -1800,6 +1921,7 @@ let ordered =
                              [Items(start = Some(3),
                                     items = [[Paragraph([Text("a")])], [Paragraph([Text("b")])]])]))
 
+// report Appendix G.2
 let kinds =
     Test.Case(name = "a different bullet begins a new list",
               run = fn() =
@@ -1807,6 +1929,7 @@ let kinds =
                              [Items(start = None, items = [[Paragraph([Text("a")])]]),
                               Items(start = None, items = [[Paragraph([Text("b")])]])]))
 
+// report Appendix G.2
 let looseItems =
     Test.Case(name = "an item holds the indented blocks after a blank line",
               run = fn() =
@@ -1815,6 +1938,7 @@ let looseItems =
                                     items = [[Paragraph([Text("a")]), Paragraph([Text("b")])],
                                              [Paragraph([Text("c")])]])]))
 
+// report Appendix G.2
 let interrupted =
     Test.Case(name = "a list interrupts a paragraph, a number other than 1 does not",
               run = fn() =
@@ -1823,8 +1947,8 @@ let interrupted =
                               Items(start = None, items = [[Paragraph([Text("b")])]]),
                               Paragraph([Text("c 2. d")])]))
 
-// a regression test: the line after a quoted heading was read into the
-// quote, though only paragraph text continues lazily
+// report Appendix G.2: a regression test: the line after a quoted heading
+// was read into the quote, though only paragraph text continues lazily
 let lazyAfterHeading =
     Test.Case(name = "a line after a quoted heading is outside the quote",
               run = fn() =
@@ -1832,8 +1956,9 @@ let lazyAfterHeading =
                              [Quote([Heading(level = 1, text = [Text("Heading")])]),
                               Paragraph([Text("lazy")])]))
 
-// a regression test: a comment ran to a blank line, so the paragraph after
-// it was swallowed into the Raw block, and a blank line inside it ended it
+// report Appendix G.2: a regression test: a comment ran to a blank line, so
+// the paragraph after it was swallowed into the Raw block, and a blank line
+// inside it ended it
 let closedComment =
     Test.Case(name = "a comment runs to the line that closes it",
               run = fn() =
@@ -1843,16 +1968,16 @@ let closedComment =
                               Raw(["<!-- c -->"]),
                               Paragraph([Text("para")])]))
 
-// a regression test: `<![x` and `<!-x` began an HTML block that ran to a
-// blank line, though they open none
+// report Appendix G.2: a regression test: `<![x` and `<!-x` began an HTML
+// block that ran to a blank line, though they open none
 let notHtml =
     Test.Case(name = "an opening no HTML block has is text",
               run = fn() =
                   Test.equal(parse("<![x y\n\n<!-x"),
                              [Paragraph([Text("<![x y")]), Paragraph([Text("<!-x")])]))
 
-// a regression test: a tag that began a line made the line a Raw block,
-// and ended the paragraph before it
+// report Appendix G.2: a regression test: a tag that began a line made the
+// line a Raw block, and ended the paragraph before it
 let inlineHtml =
     Test.Case(name = "a tag with text after it is inline HTML, and ends no paragraph",
               run = fn() =
@@ -1860,6 +1985,7 @@ let inlineHtml =
                              [Paragraph([Text("Some text <b>bold</b> more")]),
                               Paragraph([Text("<em>hi</em> there")])]))
 
+// report Appendix G.2
 let html =
     Test.Case(name = "an HTML block is kept as written, an autolink is not HTML",
               run = fn() =
@@ -1868,34 +1994,40 @@ let html =
                               Paragraph([Link(url = "https://a.org",
                                               text = [Text("https://a.org")])])]))
 
+// report Appendix G.2
 let escapes =
     Test.Case(name = "a backslash escapes punctuation and ends a line hard",
               run = fn() =
                   inlinesAre("\\*a\\* b\\\nc  \nd",
                              [Text("*a* b"), Break, Text("c"), Break, Text("d")]))
 
+// report Appendix G.2
 let codeSpans =
     Test.Case(name = "a code span is literal, and trims one space at each end",
               run = fn() =
                   inlinesAre("`` a ` b `` and `*x*`",
                              [CodeSpan("a ` b"), Text(" and "), CodeSpan("*x*")]))
 
+// report Appendix G.2
 let nesting =
     Test.Case(name = "emphasis nests inside strong emphasis",
               run = fn() =
                   inlinesAre("**a *b* c**",
                              [Strong([Text("a "), Emphasis([Text("b")]), Text(" c")])]))
 
+// report Appendix G.2
 let intraword =
     Test.Case(name = "an underscore inside a word is text",
               run = fn() =
                   inlinesAre("snake_case_name and _it_",
                              [Text("snake_case_name and "), Emphasis([Text("it")])]))
 
+// report Appendix G.2
 let unmatched =
     Test.Case(name = "a mark that nothing closes is text",
               run = fn() = inlinesAre("a * b and *c", [Text("a * b and *c")]))
 
+// report Appendix G.2
 let links =
     Test.Case(name = "a link's title is read past, an image is a link",
               run = fn() =
@@ -1904,16 +2036,68 @@ let links =
                               Text(" "),
                               Link(url = "p", text = [Text("i")])]))
 
+// report Appendix G.2
 let notALink =
     Test.Case(name = "brackets with no URL after them are text",
               run = fn() = inlinesAre("[a] and [b][ref]", [Text("[a] and [b][ref]")]))
 
+// report Appendix G.2
 let lineEndings =
     Test.Case(name = "a line may end in a carriage return, alone or before a feed",
               run = fn() =
                   Test.equal(parse("a\r\nb\r\n\r\nc\rd"),
                              [Paragraph([Text("a b")]), Paragraph([Text("c d")])]))
 
+// report Appendix G.2: a blank line holds spaces and tabs alone, as
+// CommonMark 0.31 has it, and a paragraph is stripped of those alone
+let otherSpaces =
+    Test.Case(name = "a line of other white space is a paragraph's, not a blank one",
+              run = fn() =
+                  Test.equal(List.map(["\u{a0}", "a\n\u{2003}\nb", "a\n \t\nb", "\u{a0}a\u{a0} "],
+                                      parse),
+                             [[Paragraph([Text("\u{a0}")])],
+                              [Paragraph([Text("a \u{2003} b")])],
+                              [Paragraph([Text("a")]), Paragraph([Text("b")])],
+                              [Paragraph([Text("\u{a0}a\u{a0}")])]]))
+
+// report Appendix G.2: a heading's text, an info string, an underline, a
+// table's line and cells, and a tag alone on its line lose the spaces and
+// tabs at their ends, and keep a no-break space there
+let otherSpacesAtEdges =
+    Test.Case(name = "a no-break space at a block's edge is kept where a space is stripped",
+              run = fn() = {
+                  let texts =
+                      ["# \u{a0}a\u{a0} #",
+                       "# a #\u{a0}",
+                       "# a\t#",
+                       "```\u{a0}ern\u{a0}\nx\n```",
+                       "``` \tern \t\nx\n```",
+                       "a\n=\u{a0}",
+                       "a\n= \t",
+                       "| \u{a0}a\u{a0} |\n| --- |",
+                       "|\ta\t|\n|\t--- \t|\t",
+                       "| a |\n| -\u{a0} |",
+                       "| a |\n| - |\u{a0}",
+                       "<span>\u{a0}\nx",
+                       "<span> \t\nx"];
+                  let column = fn(text) = Column(=text, alignment = LeftAligned);
+                  Test.equal(List.map(texts, parse),
+                             [[Heading(level = 1, text = [Text("\u{a0}a\u{a0}")])],
+                              [Heading(level = 1, text = [Text("a #\u{a0}")])],
+                              [Heading(level = 1, text = [Text("a")])],
+                              [Code(info = "\u{a0}ern\u{a0}", lines = ["x"])],
+                              [Code(info = "ern", lines = ["x"])],
+                              [Paragraph([Text("a =\u{a0}")])],
+                              [Heading(level = 1, text = [Text("a")])],
+                              [Table(columns = [column([Text("\u{a0}a\u{a0}")])], rows = [])],
+                              [Table(columns = [column([Text("a")])], rows = [])],
+                              [Paragraph([Text("| a | | -\u{a0} |")])],
+                              [Paragraph([Text("| a | | - |\u{a0}")])],
+                              [Paragraph([Text("<span>\u{a0} x")])],
+                              [Raw(["<span> \t", "x"])]])
+              })
+
+// report Appendix G.2
 let asciiNumbers =
     Test.Case(name = "a list number is ASCII digits, not any script's",
               run = fn() = Test.equal(parse("\u{661}. x"), [Paragraph([Text("\u{661}. x")])]))
@@ -1948,24 +2132,28 @@ let noEmptyBlocks =
                        "<?x?>",
                        "[]()",
                        "a  ",
+                       "\u{a0}",
+                       "- \u{3000}",
                        "\\\n"];
                   Test.equal(List.filter(texts, fn(text) = !List.all(parse(text), isFilled)), [])
               })
 
+// report Appendix G.2
 let styles =
     Test.Case(name = "with styles, each is turned off by its own code",
               run = fn() =
                   Test.equal(render(parse("**a *b* `c`**"), 80, Styled),
                              ["\u{1b}[1ma \u{1b}[3mb\u{1b}[23m \u{1b}[36mc\u{1b}[39m\u{1b}[22m"]))
 
+// report Appendix G.2
 let wrapping =
     Test.Case(name = "a word longer than the width stands alone on its row",
               run = fn() =
                   Test.equal(render(parse("a abcdefghijklmnopqrstuvwxyz b"), 20, Plain),
                              ["a", "abcdefghijklmnopqrstuvwxyz", "b"]))
 
-// a regression test: bold was turned on in the first row and off in the
-// last, so a listing cut after the first left it on
+// report Appendix G.2: a regression test: bold was turned on in the first
+// row and off in the last, so a listing cut after the first left it on
 let styledRowsStandAlone =
     Test.Case(name = "a style a row leaves on is turned off at its end and on again after",
               run = fn() =
@@ -1974,6 +2162,7 @@ let styledRowsStandAlone =
                               "\u{1b}[1mheading\u{1b}[22m",
                               "\u{1b}[1mhere\u{1b}[22m"]))
 
+// report Appendix G.2
 let styledWidth =
     Test.Case(name = "a style takes no column when a row is filled",
               run = fn() =
@@ -1982,25 +2171,29 @@ let styledWidth =
                                                    fn(word) = "\u{1b}[3m" <> word <> "\u{1b}[23m"),
                                           " ")]))
 
+// report Appendix G.2
 let boldHeading =
     Test.Case(name = "strong emphasis in a heading leaves the heading bold",
               run = fn() =
                   Test.equal(render(parse("# a **b** c"), 80, Styled),
                              ["\u{1b}[1ma b c\u{1b}[22m"]))
 
+// report Appendix G.2
 let separated =
     Test.Case(name = "blocks are separated by one empty row",
               run = fn() =
                   Test.equal(render(parse("a\n\n\n\nb\n\n    c"), 80, Plain),
                              ["a", "", "b", "", "    c"]))
 
+// report Appendix G.2
 let nestedRows =
     Test.Case(name = "a quote inside an item is under the item's text",
               run = fn() =
                   Test.equal(render(parse("1. a\n\n   > q\n2. b"), 80, Plain),
                              ["1. a", "", "   │ q", "2. b"]))
 
-// a regression test: an empty row of a quote ended in a space
+// report Appendix G.2: a regression test: an empty row of a quote ended in
+// a space
 let emptyQuoteRow =
     Test.Case(name = "an empty row of a quote is the bar alone",
               run = fn() = Test.equal(render(parse("> a\n>\n> b"), 80, Plain), ["│ a", "│", "│ b"]))
@@ -2018,29 +2211,34 @@ let manualHeader =
                               ".SH NAME",
                               "hello \\- greet"]))
 
+// report Appendix G.2
 let manualDescription =
     Test.Case(name = "the blocks before a first section are the page's DESCRIPTION",
               run = fn() =
                   Test.equal(List.drop(roff(parse("Text.\n\n# USAGE\n\nMore."), hello()), 6),
                              [".SH DESCRIPTION", ".PP", "Text.", ".SH", "USAGE", ".PP", "More."]))
 
+// report Appendix G.2
 let manualSection =
     Test.Case(name = "a page that begins with a section has no DESCRIPTION of its own",
               run = fn() =
                   Test.equal(List.drop(roff(parse("# USAGE"), hello()), 6), [".SH", "USAGE"]))
 
+// report Appendix G.2
 let manualHeadings =
     Test.Case(name = "a heading of level 2 is a subsection and a deeper one a bold paragraph",
               run = fn() =
                   Test.equal(List.drop(roff(parse("## Two `x`\n### Three *y*"), hello()), 7),
                              [".SS", "Two x", ".PP", "\\fBThree \\f(BIy\\fB\\fR"]))
 
+// report Appendix G.2
 let manualFonts =
     Test.Case(name = "each font returns to the one around it",
               run = fn() =
                   Test.equal(List.drop(roff(parse("**a *b* `c`** `d` *e `f`*"), hello()), 8),
                              ["\\fBa \\f(BIb\\fB c\\fR \\fBd\\fR \\fIe \\f(BIf\\fI\\fR"]))
 
+// report Appendix G.2
 let manualEscapes =
     Test.Case(name = "what roff would change is written by its escape, and the rest as it is",
               run = fn() =
@@ -2048,6 +2246,7 @@ let manualEscapes =
                                        8),
                              ["a\\-b \\(rs \\(aqc\\(aq \\(ti \\(ha \\(dqd\\(dq § \u{1f600}"]))
 
+// report Appendix G.2
 let manualLineStarts =
     Test.Case(name = "a line that begins with a period is not a request",
               run = fn() =
@@ -2062,12 +2261,14 @@ let manualLineStarts =
                               ".fi",
                               ".RE"]))
 
+// report Appendix G.2
 let manualCode =
     Test.Case(name = "a code block keeps its lines and its spaces, blank lines among them",
               run = fn() =
                   Test.equal(List.drop(roff(parse("```\nf(x)\n\n  `y`\n```"), hello()), 7),
                              [".PP", ".RS 4", ".nf", "f(x)", "", "  \\(gay\\(ga", ".fi", ".RE"]))
 
+// report Appendix G.2
 let manualItems =
     Test.Case(name = "an item follows its label, and its later blocks stand under its text",
               run = fn() =
@@ -2085,12 +2286,14 @@ let manualItems =
                               "d",
                               ".RE"]))
 
+// report Appendix G.2
 let manualNumbers =
     Test.Case(name = "an ordered list's text is as far in as its widest number",
               run = fn() =
                   Test.equal(List.drop(roff(parse("9. a\n10. b"), hello()), 7),
                              [".IP 9. 4", "a", ".IP 10. 4", "b"]))
 
+// report Appendix G.2
 let manualRest =
     Test.Case(name = "a quote is indented, a rule is asterisks, raw lines are as written",
               run = fn() =
@@ -2107,6 +2310,7 @@ let manualRest =
                               "</div>",
                               ".fi"]))
 
+// report Appendix G.2
 let manualLinks =
     Test.Case(name = "a link is its text with its URL after it",
               run = fn() =
@@ -2115,6 +2319,7 @@ let manualLinks =
                                        8),
                              ["home (https://a.org) https://b.org"]))
 
+// report Appendix G.2
 let tables =
     Test.Case(name = "a table reads its headings, its alignments and its rows",
               run = fn() =
@@ -2125,6 +2330,7 @@ let tables =
                                                       alignment = RightAligned)],
                                     rows = [[[Text("1")], [Text("2")], [Text("3")]]])]))
 
+// report Appendix G.2
 let tableCells =
     Test.Case(name = "a table's outer pipes are optional, and an escaped pipe is a cell's",
               run = fn() =
@@ -2135,6 +2341,7 @@ let tableCells =
                                             [[Text("e")], []],
                                             [[Text("f")], []]])]))
 
+// report Appendix G.2
 let notTables =
     Test.Case(name = "no table where the cells' counts differ, nor inside a paragraph",
               run = fn() =
@@ -2142,6 +2349,7 @@ let notTables =
                              [Paragraph([Text("| a | b | | - |")]),
                               Paragraph([Text("text | c | | - |")])]))
 
+// report Appendix G.2
 let tableEnds =
     Test.Case(name = "a table ends at a blank line and at a line that begins a block",
               run = fn() =
@@ -2153,12 +2361,14 @@ let tableEnds =
                                     rows = []),
                               Paragraph([Text("c")])]))
 
+// report Appendix G.2
 let tableLayout =
     Test.Case(name = "a table's columns are as wide as their widest cells, aligned as they say",
               run = fn() =
                   Test.equal(render(parse("| a | bb |\n|:-:|--:|\n| ccc | d |"), 80, Plain),
                              [" a  │ bb", "────┼───", "ccc │  d"]))
 
+// report Appendix G.2
 let styledTable =
     Test.Case(name = "a table's headings are bold, each cell's style ended in it",
               run = fn() =
@@ -2167,6 +2377,7 @@ let styledTable =
                               "──┼──",
                               "\u{1b}[3mc\u{1b}[23m │ d"]))
 
+// report Appendix G.2
 let tableBreaks =
     Test.Case(name = "a hard break in a cell is a space, and a cell beyond the columns is dropped",
               run = fn() = {
@@ -2176,6 +2387,7 @@ let tableBreaks =
                   Test.equal(render([table], 80, Plain), ["a", "───", "b c"])
               })
 
+// report Appendix G.2
 let manualTable =
     Test.Case(name = "a table is laid out as render lays it out, its headings bold",
               run = fn() =
@@ -2188,6 +2400,7 @@ let manualTable =
                               "\\fBc\\fR │ d\\-e",
                               ".fi"]))
 
+// report Appendix G.2
 let sentences =
     Test.Case(name = "the first sentence ends at a period a space follows outside emphasis",
               run = fn() =

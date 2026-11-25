@@ -110,7 +110,8 @@ export fn toCivil(time : Int) : Civil = {
 }
 
 /// The time, in milliseconds since the epoch, at which the civil second
-/// begins; `None` for a date or a time of day the calendar has not.
+/// begins; `None` for a date or a time of day the calendar has not. It is
+/// never `None` for a civil second that `toCivil` answers.
 ///
 /// A month outside 1 to 12, a day outside its month, a 29th of February
 /// outside a leap year, an hour outside 0 to 23, and a minute or a second
@@ -145,7 +146,8 @@ let epoch = 62167219200
 
 /// The day of the week of `civil`'s date, its time of day not read; `None`
 /// for a date the calendar has not, a 30th of February or a 13th month, as
-/// `fromCivil` answers it.
+/// `fromCivil` answers it. It is never `None` for a civil second that
+/// `toCivil` answers.
 ///
 /// ### Examples
 ///

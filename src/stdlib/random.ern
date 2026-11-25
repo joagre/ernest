@@ -51,7 +51,7 @@ export abstract type Seed = Seed(Int)
 /// The seed `int` names. The same number gives the same sequence, and so do two
 /// numbers equal in their low 64 bits.
 export fn seed(int : Int) : Seed =
-    Seed(Int.bitAnd(int, mask))
+    Seed(Int.bitAnd(int, low64))
 
 /// The seed to draw with next, and a number from 0 to below `bound`, each
 /// equally likely: a die is `nextInt(seed, 6)` plus 1.
@@ -103,13 +103,13 @@ fn spanning(seed : Seed, bound : Int, value : Int, span : Int) : #(Int, Int, See
 fn splitMix(seed : Seed) : #(Int, Seed) =
     match seed {
         Seed(state) -> {
-            let counter = Int.bitAnd(state + 0x9E37_79B9_7F4A_7C15, mask);
+            let counter = Int.bitAnd(state + 0x9E37_79B9_7F4A_7C15, low64);
             let mixed =
                 Int.bitAnd(Int.bitXor(counter, Int.shiftRight(counter, 30)) * 0xBF58_476D_1CE4_E5B9,
-                           mask);
+                           low64);
             let mixed =
                 Int.bitAnd(Int.bitXor(mixed, Int.shiftRight(mixed, 27)) * 0x94D0_49BB_1331_11EB,
-                           mask);
+                           low64);
             #(Int.bitXor(mixed, Int.shiftRight(mixed, 31)), Seed(counter))
         }
     }
@@ -131,10 +131,11 @@ export fn nextFloat(seed : Seed) : #(Seed, Float) = {
     #(seed, (Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / fractionSpan)
 }
 
-let mask = 0xFFFF_FFFF_FFFF_FFFF
+// The low 64 bits, 2^64 - 1.
+let low64 = 0xFFFF_FFFF_FFFF_FFFF
 
 // How many values one draw takes, 2^64.
-let drawSpan = mask + 1
+let drawSpan = low64 + 1
 
 // How many fractions a draw's top 52 bits write, 2^52.
 let fractionSpan = Int.toFloat(Int.shiftLeft(1, 52))

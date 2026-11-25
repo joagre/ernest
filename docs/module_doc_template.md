@@ -40,7 +40,7 @@ A stack of shapes, pushed and popped:
     let stack = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
     match Template.pop(stack) {
         Some(#(top, _)) -> Template.area(top)
-      | None -> -1.0
+      | None -> fault("a stack pushed holds a shape")
     }
 }
 // => 0.0
@@ -135,7 +135,8 @@ Template.pop(Stack) : Optional(#(Shape, Stack))
 *Since 0.2.0.*
 
 The top shape and the stack without it, or `None` when the stack is
-empty. The stack given is left as it was.
+empty. It is never `None` for a stack that `push` answers. The stack given
+is left as it was.
 
 ### Examples
 

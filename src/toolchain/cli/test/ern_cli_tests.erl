@@ -4233,11 +4233,14 @@ test_equal_test() ->
 
 %% report Appendix E.24, §11.2: `Test.faults` passes where the call faults
 %% with the cause given, and otherwise fails naming what came instead,
-%% another cause, a return or the reason; `ern test` reports no fault of a
+%% another cause, a return or the reason; where another fault came, the
+%% case's line carries that fault's trace beneath it, its frame the
+%% call's, and no other case's does; `ern test` reports no fault of a
 %% process `Test.faults` started, and a fault outside it, of a worker a
 %% test spawned, on standard error as before, its trace beneath it. A
-%% regression test, written after the code; the faults a `Test.faults`
-%% run's own spawns meet are the worker's case, their sites the program's
+%% regression test, written after the code, the trace beneath the line
+%% written with it; the faults a `Test.faults` run's own spawns meet are
+%% the worker's case, their sites the program's
 test_faults_test() ->
     Dir = tmp(),
     File = write(Dir, "faults.ern",
@@ -4258,13 +4261,22 @@ test_faults_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     {Errors, Status} = standard_error_of(["test", filename:join(Dir, "faults.erc")]),
     ?assertEqual(1, Status),
+    Output = iolist_to_binary(?capturedOutput),
     ?assertEqual(<<"divides: passed\n"
                    "wrong: failed: expected the fault division by zero,"
                    " got the fault float arithmetic error\n"
                    "returns: failed: expected the fault division by zero, got a return\n"
                    "killed: failed: expected the fault division by zero, got Killed\n"
                    "worker: passed\n">>,
-                 iolist_to_binary(?capturedOutput)),
+                 untraced(Output)),
+    ?assertMatch([<<"divides: passed">>,
+                  <<"wrong: failed: ", _/binary>>,
+                  <<"    Faults.wrong:5", _/binary>> | _],
+                 binary:split(Output, <<"\n">>, [global])),
+    ?assertMatch([<<"returns: ", _/binary>>, <<"killed: ", _/binary>>,
+                  <<"worker: passed">>, <<>>],
+                 lists:dropwhile(fun(Line) -> not is_returns(Line) end,
+                                 binary:split(Output, <<"\n">>, [global]))),
     %% report §11.2: a spawned process's line names it the process of its site
     ?assertEqual(<<"the process of Faults.worker:11 faulted: division by zero\n">>,
                  untraced(Errors)),
@@ -5692,6 +5704,10 @@ callee_fault_line_test() ->
     ?assertEqual(<<"the process of Calls.ask:4 faulted: division by zero\n"
                    "the process of Calls.ask:4 faulted: division by zero\n">>,
                  untraced(Tests)).
+
+%% Whether a line is test_faults_test's case `returns`.
+is_returns(<<"returns: ", _/binary>>) -> true;
+is_returns(_) -> false.
 
 %% What was written, without the trace beneath each fault's line, its
 %% frames each indented by four spaces (report §11.2), which fault_test

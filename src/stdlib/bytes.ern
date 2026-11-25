@@ -106,7 +106,9 @@ export fn drop(bytes : Bytes, count : Int) : Bytes =
 export foreign fn toList(bytes : Bytes) : List(Int) =
     "erlang:binary_to_list/1"
 
-/// The `Bytes` of those numbers, or `None` where one is outside 0 to 255.
+/// The `Bytes` of those numbers, or `None` where one is outside 0 to 255. It
+/// is never `None` for numbers that are each from 0 to 255, those `toList`
+/// answers among them.
 ///
 /// ### Examples
 ///
@@ -313,6 +315,8 @@ foreign fn hex(bytes : Bytes, letters : Foreign.Term) : String =
 
 /// The bytes that `text` writes two hexadecimal digits each, letters in either
 /// case, or `None` for an odd number of digits or a character that is no digit.
+/// A text it refuses costs the host's raise, which beneath a recursion whose
+/// call is not in tail position costs the recursion's depth (report §10).
 ///
 /// ### Examples
 ///

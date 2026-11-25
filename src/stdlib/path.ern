@@ -87,9 +87,10 @@ fn written(segments : List(String)) : String =
                 String.join(segments, separator())
     }
 
-// Whether the text's last code point is the separator.
+// Whether the text's last code point is the separator, found by its bytes,
+// as `parts` finds it.
 fn endsInSeparator(text : String) : Bool =
-    !String.isEmpty(text) && List.last(parts(text, separator(), global)) == Some("")
+    Bytes.endsWith(String.toUtf8(text), String.toUtf8(separator()))
 
 // Report Appendix E.14: a path's separator.
 fn separator() : String =
@@ -125,7 +126,8 @@ fn withoutEmpty(segments : List(String)) : List(String) =
     List.filter(segments, fn(segment) = !String.isEmpty(segment))
 
 /// The path without its last segment, or `None` for a bare name, which has no
-/// parent written, and for the root.
+/// parent written, and for the root. It is never `None` for a path that
+/// `split` parts into two segments or more.
 ///
 /// ### Examples
 ///
@@ -144,7 +146,9 @@ export fn parent(path : Path) : Optional(Path) =
       | segments -> Some(join(segments))
     }
 
-/// The path's last segment, or `None` for the root, which has none.
+/// The path's last segment, or `None` for the root, which has none, and for
+/// `Path("")`. It is never `None` for any other path, an entry's path that
+/// `Fs.list` answers among them.
 ///
 /// ### Examples
 ///
@@ -160,7 +164,8 @@ export fn name(path : Path) : Optional(String) =
 
 /// What follows the last `.` of the path's name, without the dot, or `None`
 /// where the name has none. A dot that begins the name begins no extension, so
-/// `.bashrc`, `.` and `..` have none.
+/// `.bashrc`, `.` and `..` have none. It is never `None` for a name that holds
+/// a `.` after a character other than `.`.
 export fn extension(path : Path) : Optional(String) = {
     let named <- name(path);
     let #(_, found) = atLastDot(named);
@@ -189,10 +194,7 @@ fn atLastDot(named : String) : #(String, Optional(String)) = {
 /// // => #("a/b.md", "a/b.")
 /// ```
 export fn withExtension(path : Path, extension : String) : Path =
-    if List.contains([None, Some("."), Some("..")], name(path)) then
-        path
-    else
-        extended(path, "." <> extension)
+    if hasStem(path) then extended(path, "." <> extension) else path
 
 /// The path without its extension, the rest as it was written. The root, `.`
 /// and `..` have no name to shorten, and are answered as they are.
@@ -207,7 +209,15 @@ export fn withExtension(path : Path, extension : String) : Path =
 ///
 /// since 0.2.0
 export fn withoutExtension(path : Path) : Path =
-    if List.contains([None, Some("."), Some("..")], name(path)) then path else extended(path, "")
+    if hasStem(path) then extended(path, "") else path
+
+// Whether the path has a name that an extension can follow: neither the
+// root, which has none, nor a step, `.` or `..`.
+fn hasStem(path : Path) : Bool =
+    match name(path) {
+        Some(named) -> !isStep(named)
+      | None -> false
+    }
 
 // The name's extension replaced by the suffix, the rest of the text as it
 // was written: the name is the last part between separators that is not
@@ -228,10 +238,11 @@ fn extended(path : Path, suffix : String) : Path = {
 
 /// `path` placed below `root`, or `None` where it could name something outside
 /// it: where `path` is absolute or empty, or has a `.` or `..` segment. Use it
-/// for a name that comes from outside the program, a request or a file a peer
-/// sends, where `<>` would let it leave `root`. It reads the text alone: a link
-/// under `root` may still lead out, which the file system decides. `from` is
-/// its inverse.
+/// for a name that comes from outside the program, a file a peer sends, where
+/// `<>` would let it leave `root`; a request's path is `Http.filePath`'s, which
+/// decodes its segments before it places them here. It reads the text alone: a
+/// link under `root` may still lead out, which the file system decides. `from`
+/// is its inverse.
 ///
 /// ### Examples
 ///
@@ -244,12 +255,7 @@ fn extended(path : Path, suffix : String) : Path = {
 ///
 /// since 0.3.0
 export fn under(root : Path, path : Path) : Optional(Path) =
-    match split(path) {
-        [] ->
-            None
-      | segments ->
-            if isAbsolute(path) || List.any(segments, isStep) then None else Some(root <> path)
-    }
+    if isWithin(split(path)) then Some(root <> path) else None
 
 /// `path` named from `directory`, the inverse of `under`: the path that `under`
 /// places there to give `path`. `None` where `path` does not begin with the
@@ -271,12 +277,20 @@ export fn under(root : Path, path : Path) : Optional(Path) =
 export fn from(path : Path, directory : Path) : Optional(Path) = {
     let leading = split(directory);
     let segments = split(path);
-    let rest = join(List.drop(segments, List.size(leading)));
-    if List.take(segments, List.size(leading)) == leading then
-        Optional.map(under(directory, rest), fn(_) = rest)
+    let rest = List.drop(segments, List.size(leading));
+    if List.take(segments, List.size(leading)) == leading && isWithin(rest) then
+        Some(join(rest))
     else
         None
 }
+
+// Whether a path's segments, as `split` answers them, name a path below
+// where they begin: there is one, the first is no root, and none is a step.
+fn isWithin(segments : List(String)) : Bool =
+    match segments {
+        [] -> false
+      | first :: _ -> !isAbsolute(Path(first)) && !List.any(segments, isStep)
+    }
 
 // A segment that names no entry but a step from where it stands.
 fn isStep(segment : String) : Bool =

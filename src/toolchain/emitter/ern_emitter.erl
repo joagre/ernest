@@ -2197,8 +2197,12 @@ binop('%', {tcon, ['Int'], []}, Left, Right, _) ->
     erl_syntax:infix_expr(Left, erl_syntax:operator('rem'), Right);
 binop('<>', {tcon, ['String'], []}, Left, Right, _) -> binary_append(Left, Right);
 binop('<>', {tcon, ['Bytes'], []}, Left, Right, _) -> binary_append(Left, Right);
+%% Report §9.6: `<>` on `List`, of any element type, is the runtime's own
+%% operation, the host's `++`
+binop('<>', {tcon, ['List'], _}, Left, Right, _) ->
+    erl_syntax:infix_expr(Left, erl_syntax:operator('++'), Right);
 %% Report §9.6: `<>` on a prelude type whose module provides it in Ernest,
-%% `List.<>` and `Path.<>`, a call of that module's, and a local call within it
+%% `Path.<>`, a call of that module's, and a local call within it
 binop('<>', {tcon, [Name], _}, Left, Right, Context) ->
     member_call({named, [Name, '<>']}, [Left, Right], Context);
 binop('==', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=:='), Right);

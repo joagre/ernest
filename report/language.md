@@ -326,7 +326,7 @@ fn same(f : () -> Int, g : () -> Int) : Bool =
 
 Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering` (§9.3). For a type a module declares, that is its member `T.compare` (§4.2); a function named `compare` outside the type's namespace gives no ordering. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. They resolve against the operand type as the operators of §4.8 do. A type without `compare` has no ordering, and `<` on it is a type error.
 
-The prelude defines `compare` for `Int`, `Float`, `String`, `Char`, and `Bool`, on which `false` is before `true` (§9.6); for `Optional` and `Either` where their element types have one, `None` before `Some` and `Left` before `Right`, then by the element (§9.3); and for a tuple and a list where every component type has one, component by component from the left, a shorter list before a longer one it begins. `Path`, `Map` and `Set` have no ordering, and neither has a tuple or a list whose component type has none. `List.compare`, `Optional.compare` and `Either.compare` are the prelude's (§9.6), each provided by its module as `List.<>` is (Appendix E.2, E.10, E.11); a tuple's `compare` is the language's.
+The prelude defines `compare` for `Int`, `Float`, `String`, `Char`, and `Bool`, on which `false` is before `true` (§9.6); for `Optional` and `Either` where their element types have one, `None` before `Some` and `Left` before `Right`, then by the element (§9.3); and for a tuple and a list where every component type has one, component by component from the left, a shorter list before a longer one it begins. `Path`, `Map` and `Set` have no ordering, and neither has a tuple or a list whose component type has none. `List.compare`, `Optional.compare` and `Either.compare` are the prelude's (§9.6), each provided by its module (Appendix E.2, E.10, E.11); a tuple's `compare` is the language's.
 
 `compare(a, b)`, §9.6, is `T.compare(a, b)` for operand type `T`, resolved as `<` is, and reaches every order the operators reach, a tuple's among them. An order is used through `compare` and the operators alone: `T.compare` names the declaration (§4.5), and a function that needs an order declares the requirement (§4.9).
 
@@ -479,7 +479,7 @@ A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn s
 
 `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other. A type-member name, `fn T.f`, is a top-level form; in a block it is an error.
 
-A type's operations are functions of its module. A member, `fn T.f`, is declared only for what the language resolves by the operand's type: an operator of §2.6, `compare` (§3.10), and `negate` (§5.1); a `let` declares no member. A type whose declaration ends in `derives compare` has that member without declaring it (§3.5). A function declaration may end in a requirement, which names members of its type variables (§4.9).
+A type's operations are functions of its module. A member, `fn T.f` or `foreign fn T.f`, is declared only for what the language resolves by the operand's type: an operator of §2.6, `compare` (§3.10), and `negate` (§5.1); a `let` declares no member. A type whose declaration ends in `derives compare` has that member without declaring it (§3.5). A function declaration may end in a requirement, which names members of its type variables (§4.9).
 
 A member is reached by what resolves to it alone, the operator of §4.8, prefix `-` (§5.1) and `compare` (§3.10); its name, `T.f` and a requirement's `a.f`, stands in a declaration and in a requirement and in no expression, where it is an error naming the operator to write: `Int.negate(x)` is written `-x`, and `Int.compare(a, b)` is written `compare(a, b)`. A program that needs an operation as a value writes the lambda, `fn(x) = -x`. A module reaches its abstract type's constructors by being its module (§4.4).
 
@@ -1237,14 +1237,14 @@ Float.compare : (Float, Float) -> Ordering
 String.compare : (String, String) -> Ordering
 Char.compare : (Char, Char) -> Ordering
 Bool.compare : (Bool, Bool) -> Ordering // §3.10: false before true
-List.compare : (List(a), List(a)) -> Ordering needs a.compare // Appendix E.2 provides it, as List.<>
+List.compare : (List(a), List(a)) -> Ordering needs a.compare // Appendix E.2 provides it
 Optional.compare : (Optional(a), Optional(a)) -> Ordering needs a.compare // Appendix E.10 provides it
 Either.compare : (Either(e, a), Either(e, a)) -> Ordering needs e.compare, a.compare // Appendix E.11 provides it
 fault : (String) -> a // §7.4: faults with the cause given
 compare : (a, a) -> Ordering needs a.compare // §3.10: the operand type's compare, as < is
 ```
 
-On `Int`, `Float`, `String`, and `Bytes` an operator is the runtime's own operation; `List.<>` and `Path.<>` are Ernest in their modules. The operator is the primitive, and the function of its name in the type's module is written with it: the body of `fn Int.+(left : Int, right : Int) : Int = left + right` applies the runtime's `+`. On `Int`, `Float`, `String`, `Char`, and `Bool`, `<`, `<=`, `>`, and `>=` are likewise the runtime's own ordering, and `compare` in the type's module is written with them. On `Int` and `Float`, prefix `-` is the runtime's own negation, and `negate` in the type's module is written with it. `compare` is the operators' resolution itself, `T.compare` for the operand type, and no module provides it. Each `T.f` this section lists is a member (§4.5).
+On `Int`, `Float`, `String`, and `Bytes` an operator is the runtime's own operation, and so is `<>` on `List`; `Path.<>` is Ernest in its module. The operator is the primitive, and the function of its name in the type's module is written with it: the body of `fn Int.+(left : Int, right : Int) : Int = left + right` applies the runtime's `+`. On `Int`, `Float`, `String`, `Char`, and `Bool`, `<`, `<=`, `>`, and `>=` are likewise the runtime's own ordering, and `compare` in the type's module is written with them. On `Int` and `Float`, prefix `-` is the runtime's own negation, and `negate` in the type's module is written with it. `compare` is the operators' resolution itself, `T.compare` for the operand type, and no module provides it. Each `T.f` this section lists is a member (§4.5).
 
 ### 9.7 System references
 

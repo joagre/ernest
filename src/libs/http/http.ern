@@ -51,8 +51,10 @@
 ///     match Http.parseRequest(bytes, Http.defaultLimits) {
 ///         Right(Http.Parsed(head = request)) ->
 ///             #(request.method, request.target, Http.header(request.headers, "host"))
-///       | _ ->
-///             #("", "", None)
+///       | Right(Http.Incomplete) ->
+///             fault("the bytes hold the whole head")
+///       | Left(error) ->
+///             fault(Io.show(error))
 ///     }
 /// }
 /// // => #("GET", "/hello.txt", Some("www.example.com"))
@@ -240,7 +242,8 @@ export type Parsed(a) =
 /// The error of every function over a socket: `Protocol` for what was read
 /// and refused, `Socket` for the socket's own error.
 ///
-/// A write's `Left` is `Socket` alone.
+/// A write's `Left` is `Socket`, or `Protocol(Malformed)` for a header's value
+/// that holds a carriage return, a line feed or U+0000.
 ///
 /// ### Examples
 ///
@@ -251,7 +254,7 @@ export type Parsed(a) =
 ///
 /// since 0.10.0
 export type SocketError =
-    /// The head or the body read is refused.
+    /// The head or the body read is refused, or a header's value written.
     Protocol(Error)
   /// The socket answered an error: `Timeout` where the milliseconds passed,
   /// `Closed` where the connection closed before the read or the write was
@@ -284,7 +287,8 @@ export type SocketError =
 ///     let bytes = String.toUtf8("GET /a HTTP/1.1\r\n\r\nGET /b HTTP/1.1\r\n\r\n");
 ///     match Http.parseRequest(bytes, Http.defaultLimits) {
 ///         Right(Http.Parsed(head = first, =rest)) -> #(first.target, String.fromUtf8(rest))
-///       | _ -> #("", None)
+///       | Right(Http.Incomplete) -> fault("the bytes hold the whole head")
+///       | Left(error) -> fault(Io.show(error))
 ///     }
 /// }
 /// // => #("/a", Some("GET /b HTTP/1.1\r\n\r\n"))
@@ -309,7 +313,8 @@ export fn parseRequest(bytes : Bytes, limits : Limits) : Either(Error, Parsed(Re
 ///     let bytes = String.toUtf8("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
 ///     match Http.parseResponse(bytes, Http.defaultLimits) {
 ///         Right(Http.Parsed(head = response)) -> #(response.status, response.headers)
-///       | _ -> #(0, [])
+///       | Right(Http.Incomplete) -> fault("the bytes hold the whole head")
+///       | Left(error) -> fault(Io.show(error))
 ///     }
 /// }
 /// // => #(404, [Http.Header(name = "Content-Length", value = "0")])
@@ -1447,6 +1452,73 @@ fn encoding(char : Char) : Optional(#(Char, Char)) =
       | _ -> None
     }
 
+/// The request's path placed under `root`, the file a server would read for
+/// it, or `None` where the target is of no form or its path could name
+/// something outside `root`.
+///
+/// It reads `target`'s path. An empty path is `/` where the target has a
+/// scheme, as RFC 9110, section 4.2.3 has it, and a path that does not begin
+/// with `/` is `None`, a `CONNECT` request's and an `OPTIONS` request's `*`
+/// among them. The path is parted at `/` while still encoded, its empty
+/// segments dropped, and each segment is decoded as `Uri.decode` decodes it:
+/// one whose octets hold a separator or U+0000, or are not UTF-8, is `None`,
+/// so that `%2F` parts nothing. The segments are placed under `root` by
+/// `Path.under`, which refuses a segment `.` or `..`, `%2E%2E` among them; a
+/// path of no segment, `/`, is `root` itself.
+///
+/// It reads the text alone: a link under `root` may still lead out of it,
+/// which the file system decides (report Appendix E.14). It answers a name
+/// that begins with a dot, `/.git/config` among them, which is the server's
+/// to refuse. Its one `None` stands for a target of no form and for a path
+/// refused alike. A trailing `/` is dropped, so `/docs/` and `/docs` are one
+/// path.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let placed = fn(target) = {
+///         let request =
+///             Http.Request(method = "GET", =target, version = Http.http11, headers = []);
+///         Optional.map(Http.filePath(request, Path("/srv")), Path.toString)
+///     };
+///     List.map(["/docs/index.html", "/caf%C3%A9", "/", "/%2e%2e/etc/passwd", "/a%2Fb"], placed)
+/// }
+/// // => [Some("/srv/docs/index.html"), Some("/srv/café"), Some("/srv"), None, None]
+/// ```
+///
+/// since 0.11.0
+export fn filePath(request : Request, root : Path) : Optional(Path) = {
+    let reference <- target(request);
+    let path = if reference.path == "" && Optional.isSome(reference.scheme) then
+        "/"
+    else
+        reference.path;
+    let relative <- String.stripPrefix(path, "/");
+    let encoded = List.filter(String.split(relative, "/"), fn(segment) = !String.isEmpty(segment));
+    let segments <- decodedSegments(encoded, []);
+    if List.isEmpty(segments) then Some(root) else Path.under(root, Path.join(segments))
+}
+
+// Report Appendix G.11, G.12: the segments decoded, in order, or `None`
+// where one does not decode, or its octets hold a separator of the path
+// syntax (report Appendix E.14) or U+0000, or are not UTF-8.
+fn decodedSegments(encoded : List(String), acc : List(String)) : Optional(List(String)) =
+    match encoded {
+        [] ->
+            Some(List.reverse(acc))
+      | segment :: rest -> {
+            let octets <- Uri.decode(segment);
+            // by its octets, as a path reads a separator by its code point
+            if Bytes.contains(octets, <<'/':utf8>>) || Bytes.contains(octets, <<0>>) then
+                None
+            else {
+                let text <- String.fromUtf8(octets);
+                decodedSegments(rest, text :: acc)
+            }
+        }
+    }
+
 /// The response's head and `body` after it, as bytes to write: the status
 /// line, each header as `name: value`, an empty line and the body, each line
 /// ending in a carriage return and a line feed.
@@ -1602,8 +1674,7 @@ fn checkTarget(target : String) : Unit =
 fn checkHeader(header : Header) : Unit =
     if !isToken(String.toUtf8(header.name)) then
         fault("the header name " <> Io.show(header.name) <> " is no token")
-    else if List.any(String.toList(header.value),
-                     fn(char) = char == '\r' || char == '\n' || char == '\u{0}') then
+    else if !isWritable(header) then
         fault("the value of the header "
                   <> header.name
                   <> ", "
@@ -1611,6 +1682,12 @@ fn checkHeader(header : Header) : Unit =
                   <> ", holds a carriage return, a line feed or U+0000")
     else
         Unit
+
+// Report Appendix G.11: whether the header's value holds no carriage
+// return, line feed or U+0000, which `parseRequest` and `parseResponse`
+// would refuse, and which a writer answers as `Protocol(Malformed)`.
+fn isWritable(header : Header) : Bool =
+    isPlain(String.toUtf8(header.value))
 
 // RFC 9110, section 5.6.2: whether the bytes are a token, one or more of
 // the ASCII letters and digits and of ``!#$%&'*+-.^_`|~``.
@@ -1657,12 +1734,14 @@ export fn chunk(bytes : Bytes) : Bytes =
 ///
 /// A `Left` is `Socket(error)`, as `Tcp.write` answers the error:
 /// `Socket(Timeout)` where the milliseconds pass first, and `Socket(Closed)`
-/// once the connection has closed.
+/// once the connection has closed. It is `Protocol(Malformed)` where a
+/// header's value holds a carriage return, a line feed or U+0000, text
+/// another party may have sent, and nothing is written.
 ///
 /// ### Errors
 ///
-/// Faults where `renderRequest` faults, at a header, the method or the
-/// target, with its cause, and nothing is written.
+/// Faults where `renderRequest` faults for another reason, at a header's
+/// name, the method or the target, with its cause, and nothing is written.
 ///
 /// ### Examples
 ///
@@ -1686,18 +1765,23 @@ export fn writeRequest(socket : Address(Tcp.SocketMsg),
                        request : Request,
                        body : Bytes,
                        ms : Int) : Either(SocketError, Unit) =
-    sent(socket, renderRequest(request, body), ms)
+    if List.all(request.headers, isWritable) then
+        sent(socket, renderRequest(request, body), ms)
+    else
+        Left(Protocol(Malformed))
 
 /// Writes the response's head and `body` to `socket`, as `renderResponse`
 /// renders them, within `ms` milliseconds.
 ///
-/// A `Left` is `Socket(error)`, as `writeRequest` answers it.
+/// A `Left` is `Socket(error)`, or `Protocol(Malformed)` for a header's value
+/// that holds a carriage return, a line feed or U+0000, as `writeRequest`
+/// answers it.
 ///
 /// ### Errors
 ///
-/// Faults where `renderResponse` faults, at a header, the status, or a body
-/// given with a status of 1xx, 204 or 304, with its cause, and nothing is
-/// written.
+/// Faults where `renderResponse` faults for another reason, at a header's
+/// name, the status, or a body given with a status of 1xx, 204 or 304, with
+/// its cause, and nothing is written.
 ///
 /// ### Examples
 ///
@@ -1721,7 +1805,10 @@ export fn writeResponse(socket : Address(Tcp.SocketMsg),
                         response : Response,
                         body : Bytes,
                         ms : Int) : Either(SocketError, Unit) =
-    sent(socket, renderResponse(response, body), ms)
+    if List.all(response.headers, isWritable) then
+        sent(socket, renderResponse(response, body), ms)
+    else
+        Left(Protocol(Malformed))
 
 /// Writes one chunk of the chunked transfer coding to `socket`, as `chunk`
 /// renders it, within `ms` milliseconds; empty bytes write the last chunk.
@@ -1822,9 +1909,13 @@ export fn reason(status : Int) : String =
 /// `time`, in milliseconds since the epoch, as RFC 9110's IMF-fixdate writes
 /// it, in UTC: `Sun, 06 Nov 1994 08:49:37 GMT`.
 ///
-/// The milliseconds within the second are dropped. A year is four digits,
-/// and one outside 0 to 9999, which the form cannot write, is written with
-/// as many as it has, a year before 0 with its sign before them.
+/// The milliseconds within the second are dropped. A year is four digits.
+///
+/// ### Errors
+///
+/// Faults where `time` is past the year 9999, with the cause `the time is past
+/// the year 9999`, and where it is before the year 0, with the cause `the time
+/// is before the year 0`, years the form cannot write (report §7.4).
 ///
 /// ### Examples
 ///
@@ -1832,16 +1923,28 @@ export fn reason(status : Int) : String =
 /// Http.date(784111777000)
 /// // => "Sun, 06 Nov 1994 08:49:37 GMT"
 /// ```
-export fn date(time : Int) : String = {
-    let civil = Time.toCivil(time);
-    String.join([String.slice(dayName(civil), 0, 3) <> ",",
-                 twoDigits(civil.day),
-                 monthName(civil.month),
-                 yearText(civil.year),
-                 timeOfDay(civil),
-                 "GMT"],
-                " ")
-}
+export fn date(time : Int) : String =
+    if time >= year10000 then
+        fault("the time is past the year 9999")
+    else if time < yearZero then
+        fault("the time is before the year 0")
+    else {
+        let civil = Time.toCivil(time);
+        String.join([String.slice(dayName(civil), 0, 3) <> ",",
+                     twoDigits(civil.day),
+                     monthName(civil.month),
+                     yearText(civil.year),
+                     timeOfDay(civil),
+                     "GMT"],
+                    " ")
+    }
+
+// Report Appendix G.11: the first millisecond of the year 10000 and of the
+// year 0, in milliseconds since the epoch, the bounds of the years
+// IMF-fixdate writes in four digits.
+let year10000 = 253402300800000
+
+let yearZero = -62167219200000
 
 /// The time, in milliseconds since the epoch, that `text` writes as an
 /// HTTP date; `None` for a text of no such form.
@@ -2960,11 +3063,30 @@ let reasons =
 let dates =
     Test.Case(name = "a date is IMF-fixdate's, without its milliseconds, its year in four digits",
               run = fn() =
-                  Test.equal(List.map([784111777000, 784111777999, 0, -62135596800000], date),
+                  Test.equal(List.map([784111777000,
+                                       784111777999,
+                                       0,
+                                       -62135596800000,
+                                       yearZero,
+                                       year10000 - 1],
+                                      date),
                              ["Sun, 06 Nov 1994 08:49:37 GMT",
                               "Sun, 06 Nov 1994 08:49:37 GMT",
                               "Thu, 01 Jan 1970 00:00:00 GMT",
-                              "Mon, 01 Jan 0001 00:00:00 GMT"]))
+                              "Mon, 01 Jan 0001 00:00:00 GMT",
+                              "Sat, 01 Jan 0000 00:00:00 GMT",
+                              "Fri, 31 Dec 9999 23:59:59 GMT"]))
+
+// report Appendix G.11, §7.4: a time outside the years 0 to 9999, which
+// IMF-fixdate cannot write, faults with the cause the listing gives.
+// Written with the code
+let datesOutside =
+    Test.Case(name = "a date outside the years 0 to 9999 faults",
+              run = fn() =
+                  Test.equal([Test.faults(fn() = date(year10000), "the time is past the year 9999"),
+                              Test.faults(fn() = date(yearZero - 1),
+                                          "the time is before the year 0")],
+                             [Test.Passed, Test.Passed]))
 
 // report Appendix G.11
 let threeForms =
@@ -3183,12 +3305,13 @@ type TrickleMsg = Stop
 
 type Watched = Ended(Down)
 
-// A client that writes one byte at a time until it is told to stop.
+// A client that writes one byte at a time, 10 milliseconds apart, a
+// client that writes slowly, until it is told to stop.
 fn trickle(client : Address(Tcp.SocketMsg)) : Unit receiving TrickleMsg =
     receive {
         Stop ->
             Tcp.close(client)
-      | after 0 -> {
+      | after 10 -> {
             let _ = Tcp.write(client, <<97>>, 1000);
             trickle(client)
         }
@@ -3769,6 +3892,66 @@ let chunksWritten =
                              Right(#(Right(Unit), Right(#(String.toUtf8("Wikipedia"), <<>>)))))
               })
 
+// report Appendix G.11, G.12, E.14: a request's path placed under a root:
+// a target of no form, a path that does not begin with `/`, and a segment
+// whose octets hold a separator or U+0000, are not UTF-8 or are a step,
+// encoded or not, are `None`; an empty path of a target with a scheme is
+// `/`; empty segments are dropped, a query parted off, and a name that
+// begins with a dot kept. Written with the code, the targets those the
+// steps were weighed on
+let filePaths =
+    Test.Case(name = "a request's path is placed under a root, its segments decoded first",
+              run = fn() = {
+                  let placed = fn(#(method, text)) = {
+                      let request = Request(=method, target = text, version = http11, headers = []);
+                      Optional.map(filePath(request, Path("/srv")), Path.toString)
+                  };
+                  let targets =
+                      [#("GET", "/"),
+                       #("GET", "/index.html"),
+                       #("GET", "/css/site.css?v=3"),
+                       #("GET", "/a%20b/caf%C3%A9.txt"),
+                       #("GET", "//a//b/"),
+                       #("GET", "/.git/config"),
+                       #("GET", "/.../x"),
+                       #("GET", "http://example.org/a/b"),
+                       #("GET", "http://example.org"),
+                       #("GET", "/a%2Fb"),
+                       #("GET", "/a%2fb"),
+                       #("GET", "/%2e%2e/etc/passwd"),
+                       #("GET", "/a/..%2F..%2Fetc"),
+                       #("GET", "/a/./b"),
+                       #("GET", "/a/%2E/b"),
+                       #("GET", "/a%00b"),
+                       #("GET", "/%FF.txt"),
+                       #("GET", "/%C0%AF..%C0%AFetc"),
+                       #("GET", "/a#top"),
+                       #("OPTIONS", "*"),
+                       #("CONNECT", "example.org:443")];
+                  Test.equal(List.map(targets, placed),
+                             [Some("/srv"),
+                              Some("/srv/index.html"),
+                              Some("/srv/css/site.css"),
+                              Some("/srv/a b/café.txt"),
+                              Some("/srv/a/b"),
+                              Some("/srv/.git/config"),
+                              Some("/srv/.../x"),
+                              Some("/srv/a/b"),
+                              Some("/srv"),
+                              None,
+                              None,
+                              None,
+                              None,
+                              None,
+                              None,
+                              None,
+                              None,
+                              None,
+                              None,
+                              None,
+                              None])
+              })
+
 // report Appendix G.11: written with the code.
 let writtenAfterClose =
     Test.Case(name = "a write to a connection the far end has closed is the socket's Closed",
@@ -3817,6 +4000,34 @@ let writeFaults =
                       Tcp.close(server);
                       Test.equal(#(faults, read),
                                  #(List.repeat(Test.Passed, 2), Right(#(response, <<>>))))
+                  }
+                | Left(error) ->
+                      Test.Failed(Io.show(error))
+              })
+
+// report Appendix G.11: a header's value that holds a carriage return, a
+// line feed or U+0000, text another party may have sent, is a writer's
+// `Protocol(Malformed)`, and nothing is written. Written with the code
+let writtenMalformed =
+    Test.Case(name = "a write of a header value that would break the head is Malformed",
+              run = fn() = match connection() {
+                  Right(#(server, client)) -> {
+                      let header = fn(value) = [Header(name = "X", =value)];
+                      let written =
+                          [writeRequest(server, asked(header("a\r\nSet-Cookie: evil")), <<>>, 1000),
+                           writeRequest(server, asked(header("a\u{0}b")), <<>>, 1000),
+                           writeResponse(server, answered(header("a\rb")), <<>>, 1000),
+                           writeResponse(server, answered(header("a\nb")), <<>>, 1000)];
+                      // the first bytes the client reads are the next write's
+                      let response = Response(..answered([]), status = 204);
+                      let read =
+                          Either.andThen(writeResponse(server, response, <<>>, 1000),
+                                         fn(_) = readResponse(client, <<>>, defaultLimits, 1000));
+                      Tcp.close(client);
+                      Tcp.close(server);
+                      Test.equal(#(written, read),
+                                 #(List.repeat(Left(Protocol(Malformed)), 4),
+                                   Right(#(response, <<>>))))
                   }
                 | Left(error) ->
                       Test.Failed(Io.show(error))

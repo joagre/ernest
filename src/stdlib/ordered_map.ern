@@ -61,19 +61,20 @@ export let empty : Map(k, v) = Map([])
 /// // => [#(1, "a"), #(2, "c")]
 /// ```
 export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
-    Map(heldKeys(List.sortBy(pairs, fn(#(key, _)) = key)))
+    Map(oneOfEach(List.sortBy(pairs, fn(#(key, _)) = key)))
 
-// Each run of pairs whose keys the order calls `Equal`, in a sorted list,
-// made one: the first pair's key with the last pair's value. The sort is
-// stable, so the list's order holds within a run, as `put` keeps the key
-// the map holds and replaces its value.
-fn heldKeys(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
+// One pair of each run whose keys the order calls `Equal` in a sorted list,
+// as `OrderedSet`'s `oneOfEach` keeps one element of each: the first pair's
+// key with the last pair's value. The sort is stable, so the list's order
+// holds within a run, as `put` keeps the key the map holds and replaces its
+// value.
+fn oneOfEach(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
     match sorted {
         #(key, value) :: #(other, later) :: rest ->
             if compare(key, other) == Equal then
-                heldKeys(#(key, later) :: rest)
+                oneOfEach(#(key, later) :: rest)
             else
-                #(key, value) :: heldKeys(#(other, later) :: rest)
+                #(key, value) :: oneOfEach(#(other, later) :: rest)
       | _ ->
             sorted
     }

@@ -57,10 +57,7 @@
 /// // => [1, 2, 3]
 /// ```
 export fn List.<>(list : List(a), other : List(a)) : List(a) =
-    match list {
-        [] -> other
-      | head :: rest -> head :: (rest <> other)
-    }
+    list <> other
 
 /// The order of two lists: element by element from the first, by the
 /// element type's `compare`, and a list before a longer one it begins
@@ -122,8 +119,8 @@ export fn contains(list : List(a), element : a) : Bool =
     }
 
 /// The element at `index`, counting from 0, or `None` where the list has
-/// no element there: past its end, or at an index below 0. The list is
-/// walked to the index.
+/// no element there: past its end, or at an index below 0. It is never `None`
+/// for an index from 0 below the list's size. The list is walked to the index.
 ///
 /// ### Examples
 ///
@@ -168,7 +165,8 @@ export fn map(list : List(a), f : (a) -> b receiving e) : List(b) receiving e =
       | head :: rest -> f(head) :: map(rest, f)
     }
 
-/// The elements `keep` answers `true` for, in their order.
+/// The elements `keep` answers `true` for, in their order. `keep` is called
+/// once for each element, from the first.
 ///
 /// ### Examples
 ///
@@ -279,7 +277,7 @@ export fn forEach(list : List(a), f : (a) -> Unit receiving e) : Unit receiving 
         [] ->
             Unit
       | head :: rest -> {
-            let _ = f(head);
+            f(head);
             forEach(rest, f)
         }
     }
@@ -321,8 +319,8 @@ export fn find(list : List(a), test : (a) -> Bool receiving e) : Optional(a) rec
       | head :: rest -> if test(head) then Some(head) else find(rest, test)
     }
 
-/// The last element, or `None` for the empty list. The whole list is walked
-/// to reach it.
+/// The last element, or `None` for the empty list. It is never `None` for a
+/// list that is not empty. The whole list is walked to reach it.
 ///
 /// ### Examples
 ///
@@ -397,7 +395,9 @@ export fn dropLast(list : List(a), count : Int) : List(a) =
     if count <= 0 then list else take(list, size(list) - count)
 
 /// The list split where `test` first fails: the elements before that one,
-/// all of which `test` holds for, and the rest, from that one on.
+/// all of which `test` holds for, and the rest, from that one on. `test` is
+/// called for the elements from the first, once each, and not after the
+/// first it fails for.
 ///
 /// ### Examples
 ///
@@ -421,7 +421,7 @@ export fn splitWhile(list : List(a),
     }
 
 /// The elements `test` holds for, and those it does not, each in their
-/// order.
+/// order. `test` is called once for each element, from the first.
 ///
 /// ### Examples
 ///
@@ -565,7 +565,8 @@ fn Keyed.compare(left : Keyed(k, a), right : Keyed(k, a)) : Ordering needs k.com
     compare(left.key, right.key)
 
 /// The least element by the order of its type, or `None` for the empty list
-/// (report §3.10). Of elements `compare` calls `Equal`, the first is answered.
+/// (report §3.10). It is never `None` for a list that is not empty. Of
+/// elements `compare` calls `Equal`, the first is answered.
 ///
 /// ### Examples
 ///
@@ -579,8 +580,8 @@ export fn minimum(list : List(a)) : Optional(a) needs a.compare =
     extreme(list, Less)
 
 /// The greatest element by the order of its type, or `None` for the empty
-/// list (report §3.10). Of elements `compare` calls `Equal`, the first is
-/// answered.
+/// list (report §3.10). It is never `None` for a list that is not empty. Of
+/// elements `compare` calls `Equal`, the first is answered.
 ///
 /// since 0.11.0
 export fn maximum(list : List(a)) : Optional(a) needs a.compare =
@@ -601,8 +602,9 @@ fn kept(list : List(a), chosen : a, beyond : Ordering) : a needs a.compare =
     }
 
 /// The element whose `key` is the least by the key type's `compare`, or `None`
-/// for the empty list. Of elements whose keys `compare` calls `Equal`, the
-/// first is answered. `key` is called once for each element, in order.
+/// for the empty list. It is never `None` for a list that is not empty. Of
+/// elements whose keys `compare` calls `Equal`, the first is answered. `key` is
+/// called once for each element, in order.
 ///
 /// ### Examples
 ///
@@ -620,8 +622,9 @@ export fn minimumBy(list : List(a),
     extremeBy(list, key, Less)
 
 /// The element whose `key` is the greatest by the key type's `compare`, or
-/// `None` for the empty list. Of elements whose keys `compare` calls `Equal`,
-/// the first is answered. `key` is called once for each element, in order.
+/// `None` for the empty list. It is never `None` for a list that is not empty.
+/// Of elements whose keys `compare` calls `Equal`, the first is answered.
+/// `key` is called once for each element, in order.
 ///
 /// since 0.4.0
 export fn maximumBy(list : List(a),
@@ -671,17 +674,11 @@ export fn zip(list : List(a), other : List(b)) : List(#(a, b)) =
 /// List.unzip([#(1, "a"), #(2, "b")])
 /// // => #([1, 2], ["a", "b"])
 /// ```
-export fn unzip(pairs : List(#(a, b))) : #(List(a), List(b)) =
-    match pairs {
-        [] ->
-            #([], [])
-      | #(first, second) :: rest -> {
-            let #(firsts, seconds) = unzip(rest);
-            #(first :: firsts, second :: seconds)
-        }
-    }
+export foreign fn unzip(pairs : List(#(a, b))) : #(List(a), List(b)) =
+    "lists:unzip/1"
 
-/// The lists `f` answers for the elements, joined in order.
+/// The lists `f` answers for the elements, joined in order. `f` is called
+/// once for each element, from the first.
 ///
 /// ### Examples
 ///

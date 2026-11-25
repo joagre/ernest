@@ -14,18 +14,16 @@
 ///
 /// A message that comes while the service is away, and whose find fails,
 /// goes to the last address held, where it is lost as a message to an ended
-/// process is, or reaches the service where its node is back; a call through
-/// the proxy's address then answers `None` at its own time, which says
-/// nothing of whether the request ran. A service the configuration does not
-/// list is never found. A find that answers `OtherType` is no absence but a
-/// protocol the two builds disagree on: the process faults, naming the
-/// service, and the address is dead from then on.
+/// process is, or reaches the service where its node is back, and is lost
+/// where none is held; a call through the proxy's address then answers `None`
+/// at its own time, which says nothing of whether the request ran. A service
+/// the configuration does not list is never found. A find that answers
+/// `OtherType` is no absence but a protocol the two builds disagree on: the
+/// process faults, naming the service, and the address is dead from then on.
 ///
 /// At a shell prompt the caller is the input's process, which ends with the
 /// input, so a proxy used from the prompt is started in a process that lives
-/// on. `start` spawns two processes, the forwarder and one that ends at once
-/// and stands where no address has been found. The process ends with the
-/// process that called `start`.
+/// on. The process ends with the process that called `start`.
 ///
 /// **What it is not.** It is an ordinary process on the message's way: a
 /// message through it may pass one sent to the service directly, and it
@@ -51,14 +49,19 @@
 // of the service it holds or of the process that started it.
 type Msg(m) = Message(m) | Went(Down)
 
+// Where the next message goes (report Appendix G.7): to the service, found
+// and monitored; to the address where it was last, which may have ended;
+// or nowhere, where no find has given an address.
+type Target(m) = Found(Address(m)) | Away(Address(m)) | Never
+
 /// Spawns the process of a proxy for `service`, and answers the proxy's
 /// address. The process finds the service within `ms` milliseconds, and again
 /// within `ms` at the first message after the find failed, the service ended
 /// or its node was lost, a message that comes during a find sharing its
 /// outcome, and forwards each message to the service. A message that comes
 /// while the service is away and whose find fails goes to the last address
-/// held, lost where that process has ended (report §6.2); a call through the
-/// address then answers `None` at its own time. A find that answers
+/// held, lost where that process has ended (report §6.2) and where none is
+/// held; a call through the address then answers `None` at its own time. A find that answers
 /// `OtherType` faults the process with a cause that names the service by its
 /// name, `the service counter is offered at another type`. The process ends
 /// with the process that called `start`.
@@ -76,11 +79,7 @@ export fn start(service : Peer.Service(m), ms : Int) : Address(m) = {
     let caller = Process.current();
     let proxy = spawn(fn() : Unit receiving Msg(m) = {
         monitor(caller, Went);
-        // where a message goes while the service has never been found: a
-        // process that has ended, at which a message is lost (report §6.2)
-        let nowhere : Address(m) = spawn(fn() = Unit);
-        let #(address, present) = found(service, ms, nowhere);
-        held(service, ms, caller, shared(address, present))
+        held(service, ms, caller, shared(found(service, ms, Never)))
     });
     endsWithCaller(Process.fromAddress(proxy));
     adapted(proxy, Message)
@@ -92,55 +91,61 @@ export fn start(service : Peer.Service(m), ms : Int) : Address(m) = {
 foreign fn endsWithCaller(process : Process) : Unit =
     "ern_rt:ends_with_caller/1"
 
-// The address the next message goes to, and whether it is the service's:
-// the service's where a find gives it, monitored from then on, and else
-// `away`, where the service was last, which may have ended. A service
-// offered at another type is no absence, and no later find mends it: the
-// process faults.
-fn found(service : Peer.Service(m),
-         ms : Int,
-         away : Address(m)) : #(Address(m), Bool) receiving Msg(m) =
+// Where the next message goes: to the service where a find gives it,
+// monitored from then on, and else where `away` says. A service offered at
+// another type is no absence, and no later find mends it: the process
+// faults.
+fn found(service : Peer.Service(m), ms : Int, away : Target(m)) : Target(m) receiving Msg(m) =
     match Peer.find(service, ms) {
         Right(address) -> {
             monitor(Process.fromAddress(address), Went);
-            #(address, true)
+            Found(address)
         }
       | Left(Io.OtherType) ->
             fault("the service " <> Peer.name(service) <> " is offered at another type")
       | Left(_) ->
-            #(away, false)
+            away
+    }
+
+// The message sent where the target says, and lost where it says nowhere,
+// as a message to an ended process is (report §6.2).
+fn sent(target : Target(m), message : m) : Unit =
+    match target {
+        Found(address) -> send(address, message)
+      | Away(address) -> send(address, message)
+      | Never -> Unit
     }
 
 // The target a find gave, each message that came while the find was under
-// way sent to it first, so that one find is under way at a time: the
-// messages the mailbox holds now, none waited for.
-fn shared(address : Address(m), present : Bool) : #(Address(m), Bool) receiving Msg(m) =
+// way sent where it says first, so that one find is under way at a time:
+// the messages the mailbox holds now, none waited for.
+fn shared(target : Target(m)) : Target(m) receiving Msg(m) =
     receive {
         Message(message) -> {
-            send(address, message);
-            shared(address, present)
+            sent(target, message);
+            shared(target)
         }
       | after 0 ->
-            #(address, present)
+            target
     }
 
-// Each message forwarded, the service found again first where it is away,
-// until the process that started this one ends.
+// Each message forwarded, the service found again first where it is away
+// or was never found, until the process that started this one ends.
 fn held(service : Peer.Service(m),
         ms : Int,
         caller : Process,
-        target : #(Address(m), Bool)) : Unit receiving Msg(m) =
+        target : Target(m)) : Unit receiving Msg(m) =
     receive {
         Message(message) ->
             match target {
-                #(address, true) -> {
+                Found(address) -> {
                     send(address, message);
                     held(service, ms, caller, target)
                 }
-              | #(away, false) -> {
-                    let #(address, present) = found(service, ms, away);
-                    send(address, message);
-                    held(service, ms, caller, shared(address, present))
+              | _ -> {
+                    let next = found(service, ms, target);
+                    sent(next, message);
+                    held(service, ms, caller, shared(next))
                 }
             }
       | Went(down) ->
@@ -150,12 +155,11 @@ fn held(service : Peer.Service(m),
                 held(service, ms, caller, without(target, down.process))
     }
 
-// The target, no longer the service's where the process that ended is the
-// service.
-fn without(target : #(Address(m), Bool), ended : Process) : #(Address(m), Bool) =
+// The target, away where the process that ended is the service.
+fn without(target : Target(m), ended : Process) : Target(m) =
     match target {
-        #(address, true) -> #(address, Process.fromAddress(address) != ended)
-      | #(_, false) -> target
+        Found(address) when Process.fromAddress(address) == ended -> Away(address)
+      | _ -> target
     }
 
 //

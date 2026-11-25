@@ -4,7 +4,9 @@
 /// `monotonic` is the clock to measure a duration by, since `now` moves when
 /// the host's clock is set, and `monotonicMicros` is the same clock in
 /// microseconds. `alarm` and `alarmAt` put a message in the caller's mailbox
-/// later, and `sleep` waits a time and takes no message.
+/// later, and `sleep` waits a time and takes no message. A time, a duration
+/// and a monotonic reading are each an `Int`, of milliseconds but for
+/// `monotonicMicros`, told apart by the function that gives or takes them.
 ///
 /// **Alarms.** An alarm fires once, and `alarm` and `alarmAt` answer it as an
 /// `Alarm`, which `cancel` can end before it fires. A fired alarm's message is

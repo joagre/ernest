@@ -149,7 +149,8 @@ fn partsAt(expected : List(String), actual : List(String), at : Int) : Optional(
 /// long it takes, as a direct call of `run` would. Where the caller ends or
 /// restarts first, the process is killed; a process `run` spawns lives on
 /// after it. No job reports a fault of a process `faults` started, since the
-/// test's answer carries it (report §11.2).
+/// test's answer carries it; where another fault came, the case's line under
+/// `ern test` carries its trace beneath it (report §11.2).
 ///
 /// ### Examples
 ///
@@ -170,26 +171,27 @@ fn partsAt(expected : List(String), actual : List(String), at : Int) : Optional(
 ///
 /// since 0.5.0
 export fn faults(run : () -> a receiving m, cause : String) : Result =
-    verdict(Process.run(expected(run)), cause)
+    verdict(Process.run(marked(run, cause)), cause)
 
 // Report Appendix E.24, §11.2: the function a process `faults` starts,
-// which marks the process in its row as it begins and then runs `f`, so
-// that the process's fault reaches no job's report and no subscriber of
-// `Process.subscribeFaults`.
-foreign fn expected(f : () -> a receiving m) : () -> a receiving m =
-    "ern_rt:expected/1"
+// which marks the process in its row as it begins, with the cause asked
+// for, and then runs `f`, so that the process's fault reaches no job's
+// report and no subscriber of `Process.subscribeFaults`, and a fault of
+// another cause gives its trace to the case's line.
+foreign fn marked(f : () -> a receiving m, cause : String) : () -> a receiving m =
+    "ern_rt:expected/2"
 
 // The verdict on a call that was to fault with `cause` and whose process
 // answered `ran`.
 fn verdict(ran : Either(Reason, a), cause : String) : Result = {
-    let expected = "expected the fault " <> cause <> ", got ";
+    let prefix = "expected the fault " <> cause <> ", got ";
     match ran {
         Left(Fault(faulted)) ->
-            if faulted == cause then Passed else Failed(expected <> "the fault " <> faulted)
+            if faulted == cause then Passed else Failed(prefix <> "the fault " <> faulted)
       | Left(reason) ->
-            Failed(expected <> Io.show(reason))
+            Failed(prefix <> Io.show(reason))
       | Right(_) ->
-            Failed(expected <> "a return")
+            Failed(prefix <> "a return")
     }
 }
 
@@ -198,12 +200,12 @@ fn verdict(ran : Either(Reason, a), cause : String) : Result = {
 /// `Failed`, which says what the test saw, in place of a `Timeout` (report
 /// Appendix E.0 shape rule 8).
 ///
-/// `run` runs once at least, in the caller's process, and again after a
-/// `Failed`, the caller yielding the scheduler between runs and waiting for
-/// nothing else, so that what the test waits for gets the scheduler: the wait
-/// is the test's own running. It is how a test waits for an effect that has
-/// no order with what the test can wait on: what a server did with a `Down`
-/// the runtime delivered it (report §6.9).
+/// It polls: `run` runs once at least, in the caller's process, and again
+/// after a `Failed`, the caller yielding the scheduler between runs and
+/// waiting for nothing else, so that what the test waits for gets the
+/// scheduler: the wait is the test's own running. It is for a test alone, and
+/// waits for an effect no message announces, what a server did with a `Down`
+/// the runtime delivered it among them (report §6.9).
 ///
 /// ### Examples
 ///

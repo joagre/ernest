@@ -577,7 +577,7 @@ compiled_in_order(Order, SourceRoot, BuildRoot) ->
 %% is checked in order, and emitted once every module of the build its
 %% forms reference is checked, by the positions their interfaces give: a
 %% module of the standard library's own build that names another by a
-%% prelude name or an operator alone, `<>` on lists naming `List.<>`, does
+%% prelude name or an operator alone, `<>` on paths naming `Path.<>`, does
 %% not depend on it (§11.1), and its code calls it all the same. The
 %% modules that failed, each with its file and its errors, with
 %% `{refused, Refusal}` where something it needs was refused, or with

@@ -954,6 +954,28 @@ close_answers_the_waits_without_a_time_test() ->
     ?assertEqual({'Left', 'Closed'}, ern_waits:wait(accept)),
     ?assertEqual({'Left', 'Closed'}, ern_waits:wait(read)).
 
+%% Appendix E.18, report §6.6: a `readForever` waiting on a socket that is
+%% killed faults with `callee was killed`, as a call does whose callee is
+%% killed. The kill comes once the socket watches the read's caller.
+%% Written after the code
+killed_socket_faults_a_waiting_read_forever_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
+    {ok, FarPort} = inet:port(Listen),
+    FarEnd = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(FarPort, 2000),
+               Reader = ern_rt:spawn_monitored(fun() -> read_forever(Socket) end,
+                                               fun(Down) -> {ended, Down} end, <<"reader">>),
+               ok = ern_waits:watching(ern_rt:process_of(Socket), ern_rt:process_of(Reader)),
+               ern_rt:kill(ern_rt:process_of(Socket)),
+               Self ! {ended, receive {ended, {'Down', _, Reason, _}} -> Reason end}
+           end, <<"main">>, ern_helpers:quiet()),
+    FarEnd ! done,
+    gen_tcp:close(Listen),
+    ?assertEqual({'Fault', <<"callee was killed">>}, ern_waits:wait(ended)).
+
 %% report §6.6, Appendix E.18: an `acceptForever` and a `readForever` fault
 %% as `accept` and `read` do on a listener or a socket that has ended: with
 %% `callee was closed` where the close ends it while the call waits in its

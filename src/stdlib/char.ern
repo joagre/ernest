@@ -266,7 +266,8 @@ export foreign fn toCodePoint(char : Char) : Int =
     "ern_char:to_code_point/1"
 
 /// The character with code point `code`, or `None` outside U+0000 to U+10FFFF
-/// and for a surrogate, U+D800 to U+DFFF.
+/// and for a surrogate, U+D800 to U+DFFF. It is never `None` for a code that
+/// `toCodePoint` answers.
 ///
 /// since 0.4.0
 export fn fromCodePoint(code : Int) : Optional(Char) =

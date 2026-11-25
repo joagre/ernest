@@ -14,10 +14,12 @@
 %% its place in the order of spawns; root: the process at the head of its
 %% spawn chain (ern_rt:started_by/1); peer: the node of the peer whose
 %% spawn started it, which its fault's line names (§11.2), or none;
-%% expected: whether its fault is expected, a process `Test.faults`
-%% started (ern_rt:expected/1, Appendix E.24), or a load's evaluator, whose
-%% fault the load answers (ern_rt:evaluate/2, Appendix E.28), which no job
-%% reports and no subscriber is told of; fault: the #fault{} it ended
+%% expected: whether its fault is expected, which no job reports and no
+%% subscriber is told of: {asked, Cause} for a process `Test.faults`
+%% started, asking for the fault of Cause, whose fault of another cause
+%% gives its trace to the case's line (ern_rt:expected/2, Appendix E.24),
+%% true for a load's evaluator, whose fault the load answers
+%% (ern_rt:evaluate/2, Appendix E.28), or false; fault: the #fault{} it ended
 %% with, written as it ends (ern_rt:ended_with/2), which the reaper reports
 %% beside the host's term of its end (§12.2); `carried` for a compute's
 %% process whose fault went to its caller, which no one here is told of

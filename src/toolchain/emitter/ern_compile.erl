@@ -525,10 +525,11 @@ references_in(_) ->
     [].
 
 %% Report §9.6: the `<>` of a prelude type whose module provides it in
-%% Ernest, `List.<>` and `Path.<>`, which the runtime's own operation at
-%% that type calls (Appendix H's `{runtime, Type}`), by its name.
+%% Ernest, `Path.<>`, which the runtime's own operation at that type calls
+%% (Appendix H's `{runtime, Type}`), by its name; `<>` on `String`, `List`
+%% and `Bytes` is the runtime's own operation, and calls none.
 appended_in({operator, '<>', Left, Right, {runtime, {applied, {named, [Name]}, _}}})
-  when Name =/= 'String', Name =/= 'Bytes' ->
+  when Name =/= 'String', Name =/= 'List', Name =/= 'Bytes' ->
     [{named, [Name, '<>']} | appended_in([Left, Right])];
 appended_in(Term) when is_tuple(Term) ->
     appended_in(tuple_to_list(Term));
