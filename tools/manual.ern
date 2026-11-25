@@ -177,9 +177,7 @@ fn seeAlso(files : List(String)) : List(Markdown.Block) = {
          Markdown.CodeSpan("apropos Ernest."),
          Markdown.Text(" lists; and the Ernest report, installed with Ernest in "),
          Markdown.CodeSpan("share/doc/ernest/report"),
-         Markdown.Text(", whose "),
-         Markdown.CodeSpan("toolchain.md"),
-         Markdown.Text(" holds the sections this page cites.")];
+         Markdown.Text(", whose three files hold the sections this page cites.")];
     [Markdown.Heading(level = 1, text = [Markdown.Text("SEE ALSO")]),
      Markdown.Paragraph(references(prelude <> modules) <> rest)]
 }

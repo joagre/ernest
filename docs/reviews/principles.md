@@ -15,7 +15,7 @@ As the full review's readers run ([`full.md`](full.md), *How it runs*), with thr
 
 Four readers in five agents.
 
-- **P, the principles**, with the full review's brief, in two parts: §0 to §11 with Appendices A to D, and Appendix E with F and G. Beside the report it reads what the plan proposes to add, told that it is proposed and not decided, so that the addition is judged with what is there.
+- **P, the principles**, with the full review's brief, in two parts: §0 to §12 with Appendices A to D and H, and Appendix E with F and G. Beside the report it reads what the plan proposes to add, told that it is proposed and not decided, so that the addition is judged with what is there.
 
   For each rule it also says whether the principles as written would admit the opposite rule as well; where they would, the principles do not decide it, and the reader proposes the sentence for §0 or E.0 that would.
 - **K, the cold reader**, with the full review's brief, over the whole report: what "consistent" means, a rule another rule contradicts or makes unreachable, and a builder made to guess. In Appendix E it also reads every function against E.0's rules and every rule against its functions, and reports every list of exceptions inside a rule, which is a rule stated at the wrong level, with the rule restated so that the list falls out and only the exception the report must keep remains.

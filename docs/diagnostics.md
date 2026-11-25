@@ -341,14 +341,14 @@ example.ern:1:10: expected `type` after `abstract`
 ```ernest-rejected
 type Coin = Coin(Int)
 
-fn Coin.1() -> Int = 1
+fn Coin.1() : Int = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:3:9: expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.` instead of integer 1
 2 |
-3 | fn Coin.1() -> Int = 1
+3 | fn Coin.1() : Int = 1
   |         ^
 ```
 
@@ -453,13 +453,13 @@ example.ern:1:23: `+` after `.` names a member, which an expression reaches thro
 ### A declaration with no name (§4.5)
 
 ```ernest-rejected
-fn 1() -> Int = 1
+fn 1() : Int = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:4: expected a name instead of integer 1
-1 | fn 1() -> Int = 1
+1 | fn 1() : Int = 1
   |    ^
 ```
 
@@ -1104,7 +1104,7 @@ example.ern:1:10: Supervisor.WatcherMsg is a type Supervisor keeps private
   |          ^^^^^^^^^^^^^^^^^^^^^
 ```
 
-### A function or a binding another module keeps private (§4.2, §11.5)
+### A function another module keeps private (§4.2, §11.5)
 
 ```ernest-rejected
 fn f() : Bool = Test.yield()
@@ -1115,6 +1115,19 @@ $ ern build example.ern
 example.ern:1:17: Test.yield is a function Test keeps private
 1 | fn f() : Bool = Test.yield()
   |                 ^^^^^^^^^^
+```
+
+### A binding another module keeps private (§4.2, §11.5)
+
+```ernest-rejected
+fn f() : Int = Clock.year10000
+```
+
+```console
+$ ern build example.ern
+example.ern:1:16: Clock.year10000 is a binding Clock keeps private
+1 | fn f() : Int = Clock.year10000
+  |                ^^^^^^^^^^^^^^^
 ```
 
 ### `Prelude.` before a type the prelude lacks (§4.2)
@@ -1305,6 +1318,30 @@ $ ern build example.ern
 example.ern:1:16: type variable a is not a parameter of the type
 1 | type Box = Box(a)
   |                ^
+```
+
+### A value of a type's previous version at the prompt (§11.2, §8.7)
+
+```console
+$ ern shell
+Ernest 0.11.0, session 1. :help for help.
+> Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int)\n"), 1000)
+Right(Unit) : Either(Io.Error, Unit)
+> :load Counter
+Counter, compiled from counter.ern
+> let inc = Counter.Inc
+inc : (Int) -> Counter.Msg
+> Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int) | Reset\n"), 1000)
+Right(Unit) : Either(Io.Error, Unit)
+> :reload
+Counter, compiled again
+Counter.Msg changed: the binding inc is of its previous version, Counter$1.Msg
+> let m : Counter.Msg = inc(1)
+input 6:1:23: the value does not have the declared type: expected Counter.Msg, found Counter$1.Msg
+1 | let m : Counter.Msg = inc(1)
+  |         ----------- declared Counter.Msg here
+  |                       ^^^^^^
+  | = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
 ```
 
 ### A recursive type named at other than its parameters (§3.9)
@@ -1530,6 +1567,22 @@ example.ern:2:5: the implementation names ern@util, a unit of Ernest's, whose fu
   | = help: call an Ernest function by its name, and name the host's own module here
 ```
 
+### `Foreign.term` on a type variable (§8.4, Appendix E.12)
+
+```ernest-rejected
+fn give(x : a) : Foreign.Term =
+    Foreign.term(x)
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: the type a is not known whole here, and Foreign.term gives foreign code a value by its type
+1 | fn give(x : a) : Foreign.Term =
+2 |     Foreign.term(x)
+  |     ^^^^^^^^^^^^
+  | = help: a value of a type variable is given by a `foreign fn` whose parameter is of that variable
+```
+
 ### A refutable parameter pattern (§4.5)
 
 ```ernest-rejected
@@ -1572,6 +1625,34 @@ example.ern:1:16: the body does not have the declared result type: expected Int,
   |                ^^^^^
 ```
 
+### `receiving m` on a body that receives nothing (§4.5)
+
+```ernest-rejected
+fn k() : Int receiving m = 5
+```
+
+```console
+$ ern build example.ern
+example.ern:1:24: k receives nothing, and `receiving m` names no parameter's mailbox type
+1 | fn k() : Int receiving m = 5
+  |                        ^
+  | = help: write k's type without `receiving`
+```
+
+### `receiving m` on a lambda that receives nothing (§4.5)
+
+```ernest-rejected
+let f = fn() : Int receiving m = 5
+```
+
+```console
+$ ern build example.ern
+example.ern:1:30: the lambda receives nothing, and `receiving m` names no parameter's mailbox type
+1 | let f = fn() : Int receiving m = 5
+  |                              ^
+  | = help: write the lambda's type without `receiving`
+```
+
 ### A value that does not have the declared type (§4.6)
 
 ```ernest-rejected
@@ -1584,6 +1665,42 @@ example.ern:1:15: the value does not have the declared type: expected Int, found
 1 | let n : Int = "one"
   |         --- declared Int here
   |               ^^^^^
+```
+
+### A refutable `let` pattern (§4.6)
+
+```ernest-rejected
+fn f(o : Optional(Int)) : Int = {
+    let Some(x) = o;
+    x
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: a `let` pattern must be irrefutable
+1 | fn f(o : Optional(Int)) : Int = {
+2 |     let Some(x) = o;
+  |     ^^^^^^^^^^^^^^^
+  | = help: use `match` for a pattern that can fail
+```
+
+### A `let` pattern that does not fit the value (§4.6)
+
+```ernest-rejected
+fn f() : Int = {
+    let #(a, b) = 1;
+    a
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:9: the pattern does not fit the value: expected Int, found #(c, d)
+1 | fn f() : Int = {
+2 |     let #(a, b) = 1;
+  |         ^^^^^^^
+  |                   - the value has type Int
 ```
 
 ### A top-level `let` that depends on itself through a function (§8.5)
@@ -1910,6 +2027,58 @@ main/stack.ern:2:8: Main.Stack.compare is a member of the type Stack in the modu
 2 | export fn compare(left : Int, right : Int) : Ordering = Equal
   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: this module's compare is Main.Stack.compare too; rename it
+```
+
+### A module's own name written qualified where nothing hides it (§4.2)
+
+```ernest-rejected
+fn helper() : Int = 1
+
+export fn main() : Unit = Io.println(Int.toString(Example.helper()))
+```
+
+```console
+$ ern build example.ern
+example.ern:3:51: Example.helper is written only where a binding hides helper
+2 |
+3 | export fn main() : Unit = Io.println(Int.toString(Example.helper()))
+  |                                                   ^^^^^^^^^^^^^^
+  | = help: nothing here hides it; write `helper`
+```
+
+### A module's own constructor written qualified (§4.2)
+
+```ernest-rejected
+type Box = Box(Int)
+
+fn f() : Box = Example.Box(1)
+```
+
+```console
+$ ern build example.ern
+example.ern:3:16: Example.Box is the module's own Box, which no binding hides
+2 |
+3 | fn f() : Box = Example.Box(1)
+  |                ^^^^^^^^^^^
+  | = help: write `Box`
+```
+
+### A name written longer than its shortest resolving form (§4.2, §11.5)
+
+```ernest-rejected
+// shop/cart.ern
+fn count() : Int = 1
+
+export fn twice(count : Int) : Int = count + Shop.Cart.count()
+```
+
+```console
+$ ern build shop/cart.ern
+shop/cart.ern:4:46: Shop.Cart.count is written longer than its shortest resolving form
+3 |
+4 | export fn twice(count : Int) : Int = count + Shop.Cart.count()
+  |                                              ^^^^^^^^^^^^^^^
+  | = help: write `Cart.count`
 ```
 
 ## Fields and construction (report §3.5, §5.6)
@@ -2242,86 +2411,6 @@ example.ern:3:27: `..` is allowed only on a type with one constructor, and Shape
   | = help: give every field of Circle
 ```
 
-### `receiving m` on a body that receives nothing (§4.5)
-
-```ernest-rejected
-fn k() : Int receiving m = 5
-```
-
-```console
-$ ern build example.ern
-example.ern:1:24: k receives nothing, and `receiving m` names no parameter's mailbox type
-1 | fn k() : Int receiving m = 5
-  |                        ^
-  | = help: write k's type without `receiving`
-```
-
-### `receiving m` on a lambda that receives nothing (§4.5)
-
-```ernest-rejected
-let f = fn() : Int receiving m = 5
-```
-
-```console
-$ ern build example.ern
-example.ern:1:30: the lambda receives nothing, and `receiving m` names no parameter's mailbox type
-1 | let f = fn() : Int receiving m = 5
-  |                              ^
-  | = help: write the lambda's type without `receiving`
-```
-
-### A module's own name written qualified where nothing hides it (§4.2)
-
-```ernest-rejected
-fn helper() : Int = 1
-
-export fn main() : Unit = Io.println(Int.toString(Example.helper()))
-```
-
-```console
-$ ern build example.ern
-example.ern:3:51: Example.helper is written only where a binding hides helper
-2 |
-3 | export fn main() : Unit = Io.println(Int.toString(Example.helper()))
-  |                                                   ^^^^^^^^^^^^^^
-  | = help: nothing here hides it; write `helper`
-```
-
-### A module's own constructor written qualified (§4.2)
-
-```ernest-rejected
-type Box = Box(Int)
-
-fn f() : Box = Example.Box(1)
-```
-
-```console
-$ ern build example.ern
-example.ern:3:16: Example.Box is the module's own Box, which no binding hides
-2 |
-3 | fn f() : Box = Example.Box(1)
-  |                ^^^^^^^^^^^
-  | = help: write `Box`
-```
-
-### A name written longer than its shortest resolving form (§4.2, §11.5)
-
-```ernest-rejected
-// shop/cart.ern
-fn count() : Int = 1
-
-export fn twice(count : Int) : Int = count + Shop.Cart.count()
-```
-
-```console
-$ ern build shop/cart.ern
-shop/cart.ern:4:46: Shop.Cart.count is written longer than its shortest resolving form
-3 |
-4 | export fn twice(count : Int) : Int = count + Shop.Cart.count()
-  |                                              ^^^^^^^^^^^^^^^
-  | = help: write `Cart.count`
-```
-
 ### A fill that lacks a field (§5.6)
 
 ```ernest-rejected
@@ -2629,7 +2718,7 @@ example.ern:1:35: `+` is not defined on Bool
   |                                   ^^^^^
 ```
 
-### An ordering operator on a type without compare (§3.10, §4.8)
+### An ordering operator on a type of the program's without compare (§3.10, §4.8)
 
 ```ernest-rejected
 type Score = Score(Int)
@@ -2647,7 +2736,7 @@ example.ern:4:5: `<` needs Score.compare, and Score has no compare
   | = help: give Score a compare, `derives compare` on its declaration or `fn Score.compare`
 ```
 
-### An ordering operator on a type without one (§3.10, §4.8)
+### An ordering operator on a type of the prelude's without compare (§3.10, §4.8)
 
 ```ernest-rejected
 fn less(a : Set(Int), b : Set(Int)) : Bool =
@@ -2699,7 +2788,7 @@ example.ern:5:39: Vec.+ does not fit two operands of Vec(String): expected (Vec(
   | = help: the types differ at String and Int
 ```
 
-### A `compare` that returns no Ordering, used as it is declared (§4.8)
+### A `compare` that returns no Ordering (§4.8)
 
 ```ernest-rejected
 type Money = Money(Int)
@@ -3092,22 +3181,6 @@ example.ern:2:5: the type List(a) is not known whole here, and Io.show writes a 
   | = help: bind the value with an annotation, `let value : List(...) = ...`, and show that; at a type variable of the signature, a requirement `needs a.show` lets it write the value
 ```
 
-### `Foreign.term` on a type variable (§8.4, Appendix E.12)
-
-```ernest-rejected
-fn give(x : a) : Foreign.Term =
-    Foreign.term(x)
-```
-
-```console
-$ ern build example.ern
-example.ern:2:5: the type a is not known whole here, and Foreign.term gives foreign code a value by its type
-1 | fn give(x : a) : Foreign.Term =
-2 |     Foreign.term(x)
-  |     ^^^^^^^^^^^^
-  | = help: a value of a type variable is given by a `foreign fn` whose parameter is of that variable
-```
-
 ### A declaration with a requirement as a value at the prompt (§4.9, §11.2)
 
 ```console
@@ -3118,30 +3191,6 @@ input 1:1:1: OrderedSet.fromList needs a.compare, at a type variable no requirem
 1 | OrderedSet.fromList
   | ^^^^^^^^^^^^^^^^^^^
   | = help: apply it at a known type, or declare a `fn` with the requirement
-```
-
-### A value of a type's previous version at the prompt (§11.2, §8.7)
-
-```console
-$ ern shell
-Ernest 0.11.0, session 1. :help for help.
-> Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int)\n"), 1000)
-Right(Unit) : Either(Io.Error, Unit)
-> :load Counter
-Counter, compiled from counter.ern
-> let inc = Counter.Inc
-inc : (Int) -> Counter.Msg
-> Fs.write(Path("counter.ern"), String.toUtf8("export type Msg = Inc(Int) | Reset\n"), 1000)
-Right(Unit) : Either(Io.Error, Unit)
-> :reload
-Counter, compiled again
-Counter.Msg changed: the binding inc is of its previous version, Counter$1.Msg
-> let m : Counter.Msg = inc(1)
-input 6:1:23: the value does not have the declared type: expected Counter.Msg, found Counter$1.Msg
-1 | let m : Counter.Msg = inc(1)
-  |         ----------- declared Counter.Msg here
-  |                       ^^^^^^
-  | = help: Counter$1.Msg is of a previous version of Counter, which a reload replaced
 ```
 
 ### A derived compare over a field without one (§3.5)
@@ -3164,7 +3213,7 @@ example.ern:1:38: Date.compare cannot be derived: Set(String) has no compare
 type Coin = Coin(Int) derives compare
 
 fn Coin.compare(Coin(a) : Coin, Coin(b) : Coin) : Ordering =
-    Int.compare(a, b)
+    compare(a, b)
 ```
 
 ```console
@@ -3339,63 +3388,6 @@ example.ern:1:14: list elements must have one type: expected Int, found String
   |              ^^^^^
 ```
 
-### A statement whose value is dropped (§5.4)
-
-```ernest-rejected
-fn f() : Int = {
-    1;
-    2
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:2:5: this statement's value is discarded: expected Unit, found Int
-1 | fn f() : Int = {
-2 |     1;
-  |     ^
-  | = help: `let _ = ...` discards it on purpose
-```
-
-### A local function declared twice (§5.4)
-
-```ernest-rejected
-fn f() : Int = {
-    fn g() : Int = 1;
-    let n = 1;
-    fn g() : Int = 2;
-    g()
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:4:5: local function g is declared twice in the block
-1 | fn f() : Int = {
-2 |     fn g() : Int = 1;
-  |     ---------------- first declared here
-...
-4 |     fn g() : Int = 2;
-  |     ^^^^^^^^^^^^^^^^
-```
-
-### A type-member name on a local function (§5.4)
-
-```ernest-rejected
-fn f() : Int = {
-    fn Int.negate(n : Int) : Int = n;
-    1
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:2:5: a member, `fn Int.negate`, is a top-level form; a local function has a plain name
-1 | fn f() : Int = {
-2 |     fn Int.negate(n : Int) : Int = n;
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-```
-
 ### A body at another type than its uses gave its result (§3.9)
 
 ```ernest-rejected
@@ -3475,7 +3467,64 @@ example.ern:1:26: the body does not have the declared result type: expected a, f
   | = help: `a` and `b` stand for types a caller chooses apart, which may differ
 ```
 
-## Names in a block (report §5.4)
+## Blocks (report §5.4)
+
+### A statement whose value is dropped (§5.4)
+
+```ernest-rejected
+fn f() : Int = {
+    1;
+    2
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: this statement's value is discarded: expected Unit, found Int
+1 | fn f() : Int = {
+2 |     1;
+  |     ^
+  | = help: `let _ = ...` discards it on purpose
+```
+
+### A local function declared twice (§5.4)
+
+```ernest-rejected
+fn f() : Int = {
+    fn g() : Int = 1;
+    let n = 1;
+    fn g() : Int = 2;
+    g()
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:4:5: local function g is declared twice in the block
+1 | fn f() : Int = {
+2 |     fn g() : Int = 1;
+  |     ---------------- first declared here
+...
+4 |     fn g() : Int = 2;
+  |     ^^^^^^^^^^^^^^^^
+```
+
+### A type-member name on a local function (§5.4)
+
+```ernest-rejected
+fn f() : Int = {
+    fn Int.negate(n : Int) : Int = n;
+    1
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: a member, `fn Int.negate`, is a top-level form; a local function has a plain name
+1 | fn f() : Int = {
+2 |     fn Int.negate(n : Int) : Int = n;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
 
 ### A local function with a variable's name (§5.4)
 
@@ -3630,42 +3679,6 @@ example.ern:2:14: `<-` on an Either: a type that would contain itself (Either(a,
 3 |     if true then Right(o) else Right(y)
   |                  -------- the block's value has type Either(a, b) here
   |                                -------- and here
-```
-
-### A refutable `let` pattern (§4.6)
-
-```ernest-rejected
-fn f(o : Optional(Int)) : Int = {
-    let Some(x) = o;
-    x
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:2:5: a `let` pattern must be irrefutable
-1 | fn f(o : Optional(Int)) : Int = {
-2 |     let Some(x) = o;
-  |     ^^^^^^^^^^^^^^^
-  | = help: use `match` for a pattern that can fail
-```
-
-### A `let` pattern that does not fit the value (§4.6)
-
-```ernest-rejected
-fn f() : Int = {
-    let #(a, b) = 1;
-    a
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:2:9: the pattern does not fit the value: expected Int, found #(c, d)
-1 | fn f() : Int = {
-2 |     let #(a, b) = 1;
-  |         ^^^^^^^
-  |                   - the value has type Int
 ```
 
 ## Clauses and patterns (report §5.9, §5.10)
@@ -3994,6 +4007,24 @@ example.ern:3:20: the alternatives of a clause bind different variables: `x` is 
 3 |         Left(x) or Right(y) -> 1
   |                    ^^^^^^^^
   | = help: bind each name in every alternative, as `Some(1) as x or Some(2) as x`
+```
+
+### An `or` inside a pattern (§5.10)
+
+```ernest-rejected
+fn f(pair : #(Int, Int)) : Int = match pair {
+    #(1 or 2, _) -> 1
+  | _ -> 0
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:7: an `or` stands between a clause's whole patterns
+1 | fn f(pair : #(Int, Int)) : Int = match pair {
+2 |     #(1 or 2, _) -> 1
+  |       ^^^^^^
+  | = help: write the clause's alternatives out: `#(1, _) or #(2, _)`
 ```
 
 ### A `match` that misses a constructor (§5.9)
@@ -4985,7 +5016,9 @@ example.ern:2:16: Code.running is called where it is named, so that the compiler
   | = help: call it: `Code.running(f)`, `f` a top-level `fn` (report §3.11)
 ```
 
-### `Code.running` of a local (§3.11)
+## The processes running a function (report Appendix E.28)
+
+### `Code.running` of a local (Appendix E.28)
 
 ```ernest-rejected
 type Msg = Stop
@@ -5010,7 +5043,7 @@ example.ern:10:31: Code.running lists the processes that run a declaration, and 
    | = help: name a top-level `fn` of this program whose result type is `Unit`
 ```
 
-### `Code.running` of a lambda (§3.11)
+### `Code.running` of a lambda (Appendix E.28)
 
 ```ernest-rejected
 fn listed() : Int =
@@ -5026,7 +5059,7 @@ example.ern:2:28: Code.running lists the processes that run a declaration, and a
   | = help: declare the function with `fn` at the top level and name it
 ```
 
-### `Code.running` of a top-level `let` (§3.11)
+### `Code.running` of a top-level `let` (Appendix E.28)
 
 ```ernest-rejected
 let loop : () -> Unit = fn() = Unit
@@ -5044,7 +5077,7 @@ example.ern:4:28: Code.running lists the processes that run a declaration, and l
   | = help: declare loop with `fn` and name it, `Code.running(loop)`
 ```
 
-### `Code.running` of a foreign declaration (§3.11)
+### `Code.running` of a foreign declaration (Appendix E.28)
 
 ```ernest-rejected
 foreign fn waits() : Unit = "erlang:yield/0"
@@ -5062,7 +5095,7 @@ example.ern:4:28: Code.running lists the processes that run a declaration, and w
   | = help: declare a top-level `fn` that calls waits, and name it
 ```
 
-### `Code.running` of the prelude's function (§3.11)
+### `Code.running` of the prelude's function (Appendix E.28)
 
 ```ernest-rejected
 fn listed() : Int =
@@ -5078,7 +5111,7 @@ example.ern:2:28: Code.running lists the processes that run a declaration, and s
   | = help: name a top-level `fn` of this program whose result type is `Unit`
 ```
 
-### `Code.running` of a function whose result type is not `Unit` (§3.11)
+### `Code.running` of a function whose result type is not `Unit` (Appendix E.28)
 
 ```ernest-rejected
 fn total() : Int receiving Int =
@@ -5099,7 +5132,7 @@ example.ern:7:28: Code.running lists the processes that run total, whose result 
   | = help: name the function the processes run, a top-level `fn` whose result type is `Unit`
 ```
 
-### `Code.running` of a function whose mailbox type holds a type variable (§3.11)
+### `Code.running` of a function whose mailbox type holds a type variable (Appendix E.28)
 
 ```ernest-rejected
 fn hold(value : a) : Unit receiving List(a) =

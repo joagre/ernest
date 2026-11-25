@@ -109,7 +109,7 @@ A requirement (§4.9) is held in these places:
 - in the environment's `requirement`, the members in force;
 - in a use's `supplies` or an operator's `member`, a `#pending_member{}` until the definition ends, when `supplied/2` replaces each with a supply of `ern_types.hrl` (the glossary's *Supply*).
 
-`derived_members/2` makes each `derives compare` an `fn T.compare` declaration before the values are checked, each field compared by an `#e_member{}` of `ern_types.hrl`, an expression no source writes (§3.5). `filled/7` reads `Ops(..Set)` as a construction, and `updated_through_paths/7` a path in a record update as bindings and constructions (§5.6).
+`derived_members/2` makes each `derives compare` an `fn T.compare` declaration before the values are checked, each field compared by a call of the prelude's `compare`, which at the field's type is that type's (`derived_compare/5`, §3.5). `filled/7` reads `Ops(..Set)` as a construction, and `updated_through_paths/7` a path in a record update as bindings and constructions (§5.6).
 
 A block's local `fn`s (§5.4), an initializer (§4.6, `is_value_form/1`) and a built-in type's operators (`builtin_operators/2`, §4.8) are checked in the same module.
 
@@ -159,7 +159,7 @@ Each construct's function says how it is written:
 
 `'$code'/0` lists what the unit holds, which the code table reads. `compile/5` alone writes it, so the golden files and `--emit-erl` have none. `ern_emitter:source/1` is `--emit-erl`, each function under a comment that names it.
 
-A unit is the module's Erlang name, `ern@` and its path (§11.1), unless `compile/5`'s `units` names another: the shell's unit of a reload's version, `ern@counter$2` (`ern_compile:unit_of/2`, §11.2). An input of the shell's session has its lines counted as the session counts them before the emitter reads its forms (`ern_compile:session_lined/2`), so that its code's lines, its sites' and its trace's agree.
+A unit is the module's Erlang name, `ern@` and its path (§11.1), unless `compile/5`'s `units` names another: the shell's unit of a reload's version, `ern@counter$2` (`ern_compile:unit_of/2`, §11.2). An input of the shell's session has its lines counted as the session counts them before the emitter reads its forms (`ern_compile:session_lined/3`), so that its code's lines, its sites' and its trace's agree.
 
 ### The chunks
 
@@ -218,7 +218,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | a courier of faults | the reaper (`subscribed_to_faults/3`) | the reaper (`reaper_held/2`) | applies one subscriber's wrap to its fault reports (E.21) |
 | a request's worker | `fs` | | does one `Fs` request (E.17) |
 | a listener's or a socket's process | `tcp` (`opened/4`) | `ern_held`, as opened | a listener or a socket (E.18) |
-| a connect's or an accept's worker | `tcp` (`spawn_counted/1`) | `ern_held`, as a source | one connect or accept (E.18) |
+| a connect's or an accept's worker | `tcp` (`counted_request/2`) | `ern_held`, as a source | one connect or accept (E.18) |
 | a closer | a socket as it ends (`close_socket/3`) | | closes a host socket once the far end has taken its bytes (`lingering/6`, E.18) |
 | a running program's process | `os` | `ern_held`, as opened | owns the program's `ern_exec` port (E.23) |
 | the code table's holder | `ern_code`, at the table's first use | | holds `ern_code` and `ern_code_sums` for the host's life |
@@ -257,7 +257,7 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 
 The runner's `init` is `ern_rt:init_modules/1` over the modules it loaded, ordered by each one's `'$deps'/0`, the shell's own among them for `ern shell`.
 
-At the end the runner tells the subscribers of `Os.subscribeTermination` (`told/3`, §8.6), ends every process with `ProgramEnd`, and flushes `stdout` and `stderr` (`sink_flushed/1`). `ern_cli:report_outcome/2` makes the outcome §11.8's status.
+At the end the runner tells the subscribers of `Os.subscribeTermination` (`told/3`, §8.6), ends every process with `ProgramEnd`, and flushes `stdout` and `stderr` (`sink_flushed/1`). `ern_cli:report_outcome/3` makes the outcome §11.8's status.
 
 A reference tags each launch, held with its runner, its reaper, its killer, its standard error process and what its options give in the launch's row of `ern_launch`, `#launch{}`, which goes with the table at the end (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
 
@@ -265,12 +265,12 @@ A reference tags each launch, held with its runner, its reaper, its killer, its 
 
 - `stdout` and `stderr` write through a function or a port on a descriptor, `{fd, N}`, which learns when the stream has gone (§12.1). `stdin` is a port on descriptor 0, opened for each request. All three are `ern_rt`'s, and so is the clock.
 - A write by a process whose chain has a row of `ern_captures` goes to the collector of its last such row first, which answers once it holds the bytes (`ern_rt:capture_writes/0`, `captured/1`, `is_taken/3`, `is_captured/3`, Appendix E.24).
-- A write by a process whose root has a row of `ern_screens` goes through that row's sink instead (`ern_rt:screen/2`, `drop_screens/1`, `screen_of/1`), and the same row keeps the process from `stdin` and the terminal (`is_kept_from_terminal/1`) and has its `Os.exit` fault it (`exit_program/1`, §12.1, §11.2). A session marks its own processes in their rows, which `processes/0` leaves out (`own/1`, `disown/1`, E.21).
+- A write by a process whose root has a row of `ern_screens` goes through that row's sink instead (`ern_rt:screen/2`, `drop_screens/1`, `screen_of/1`), and the same row keeps the process from `stdin` and the terminal (`is_kept_from_terminal/1`) and has its `Os.exit` fault it (`exit_program/1`, §12.1, §11.2). A session marks its own processes in their rows, which `processes/0` leaves out (`own/1`, `own_input/1`, E.21).
 - `ern_fs`, `ern_tty` and `ern_tcp` are the processes behind `Fs`, `Terminal` and `Tcp` (E.17, E.16, E.18), each speaking its module's message types.
 - The terminal reads keys through standard input in `stty`'s raw mode, which a shell the first subscription opens sets and holds, the settings it found kept until the end or the host's, when it gives them back. `ern_tty_signal`, added to OTP's signal server at the first subscription, sends it each `SIGWINCH`.
 - A socket is a process over its `gen_tcp` port, alive until `Tcp.close`. One whose bytes the far end has not taken, or one over TLS, hands its host socket as it ends to a closer it makes then, `close_socket/3`, and a `Tcp.close` answers once the closer has ended.
 - `ern_os` (E.23) answers `Start` and `StartTerminal` with the program's process, which owns a port of `ern_exec` (`src/runtime/c_src/ern_exec.c`), its `run` mode with pipes or its `terminal` mode under a pseudo-terminal. Run with no program, the helper answers `ern_os:host/0`, for `Os.user` and `Os.environment`.
-- `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§12.5, §11.2). Its `hold` mode holds a job's lock on a file, waiting while another holds it, until its port closes, for `ern_os:job_locked/1` (§11.9).
+- `ern_exec` also holds a node's lock on `ernest.pid`, its `lock` mode, and signals the node that holds one, its `node` mode (§12.5, §11.2). Its `hold` mode holds a job's lock on a file, waiting while another holds it, until its port closes, for `ern_os:job_locked/1` (§11.9), and its `signal` mode sends a process a signal, by which `ern` ends by the signal that ended a running program (§11.2).
 
 ### A node
 
@@ -347,21 +347,21 @@ A library under `src/libs/` stands on the host as the standard library does. The
 `ern run`, `ern test` and `ern shell` also install `ern_signals`, for a test that calls the job, and lower the host's logger to warnings.
 
 - **`ern build`** (§11.1): `modules_of/4` finds the modules, and `compile_order/3` orders them over a `digraph` that holds the build root's and the load path's modules too (`recorded_uses/4`), each after those it uses and otherwise in the order of their paths (`ordered/2`); `module_cycle/1` refuses a cycle. A checked module is written once every module its forms name is checked (`built/4`).
-- **`ern run`** (§11.2): `program/2` loads the `.erc` and its dependencies (`loaded_unit/3`, `no_cycle/2`) and calls `run_main`. `reporting_options/2` gives the run `report_fault/3` as its `faults`.
+- **`ern run`** (§11.2): `program/2` loads the `.erc` and its dependencies (`loaded_unit/5`, `no_cycle/2`) and calls `run_main`. `reporting_options/2` gives the run `report_fault/3` as its `faults`.
 - With `--config-dir` and no `.erc`, `ern run` starts a bare node (`as_node/4`, `run_bare/2`, §8.7).
 - **`ern shell`** loads a file and names its entry point (`shell_entry/2`); `ern_cli:shell/3` starts the shell (*The shell*).
 - **`ern test`** is `run_tests/6`: the module's tests in one launch (`cases_launch/6`), each in a monitored process of its own, which `ern_rt:deadlock_victim/1` names to the reaper (§11.2); then each of its doc examples in a launch of its own (`run_examples/4`, `example_launch/3`), which initializes the modules the example uses, and whose end before the example returns is the example's line alone, the reporter knowing the entry process's fault by `ern_rt:entry_process/0`; a fault the reporter reports apart from a case's line fails the launch, but one of a process whose root is a case that runs, each case heading a spawn chain of its own (`ern_rt:spawn_monitored_root/3`, `reported/4`, §11.8).
 
   `ern_examples:cases/4` compiles the examples before the run, each in a module of its own, a private declaration's and an abstract type's constructor's inside its module's source in a unit of its own, and checks each against the modules it names too, which `ern_build:compiled_dependencies/1` finds on the load path as a build finds those a source names, and which the run's load loads with those they use; `in_directory/3` makes an example's empty directory, the host's working directory while its launch runs; and `unload/1` takes their units out after the last.
 - **`ern format`** is `ern_format:format/1`, printed by `ern_pretty` in 100 columns; `ern_format:markdown/1` lays out a CommonMark text's Ernest blocks (§11.6).
-- **`ern doc`** renders a page with `ern_page:page/1` from the two chunks (§11.4). `doc_dir/3` writes a directory's pages that are `outdated/2`; `--man` renders through `libs/markdown`'s `roff` in a started runtime (`in_runtime/2`). `ern(1)` is `tools/manual.ern`'s, which `make manual` runs over §11.
+- **`ern doc`** renders a page with `ern_page:page/2` from the two chunks (§11.4). `doc_dir/3` writes a directory's pages that are `outdated/2`; `--man` renders through `libs/markdown`'s `roff` in a started runtime (`in_runtime/2`). `ern(1)` is `tools/manual.ern`'s, which `make manual` runs over §11.
 - **`ern config`** writes Appendix C's file and an Ed25519 key pair (`ern_node:create/2`, §11.3), and with `--peer-dir` lists in the file a node of this machine, read from its own directory (`ern_node:add_peer/2`).
 - **`ern reload`** and **`ern stop`** signal the node that holds their directory's `ernest.pid`, through the helper's `node` mode (`ern_node:signaled/2`, `ern_node:stopped/1`, §12.5).
 - **`ern unpack`** is `unpack/3`, which hands the root package's entries to `ern_unpack` and runs `Ernest.Unpack.main` as `ern run` runs an entry point (*The unpacking*, §11.9).
 
 ### The shell
 
-The shell is an Ernest program over `Terminal`: `src/shell/ernest/shell.ern`, the module `Ernest.Shell`, and its modules under `src/shell/ernest/shell/`, compiled by `make` into `build/shell` against `libs/markdown` and `libs/ansi` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`design/shell.md`](design/shell.md) holds the design.
+The shell is an Ernest program over `Terminal`: `src/shell/ernest/shell.ern`, the module `Ernest.Shell`, and its modules under `src/shell/ernest/shell/`, compiled by `make` into `build/shell` against `libs/markdown`, `libs/ansi`, `libs/ets` and `libs/crypto` in `build/libs`. [`src/shell/README.md`](../src/shell/README.md) guides a reader through the code, and [`design/shell.md`](design/shell.md) holds the design.
 
 `ern_shell` is the front end the shell reaches through `foreign fn`. It holds the session and checks an input with `ern_typecheck:check/5`, the input a module of its own (§11.2). A session's rows stand under the root of its processes (`kept/2`, `session_root/0`), and the node's modules, which every session's next input is checked against, are a row of the node's (`synced/1`, `published/1`, `node_load/2`).
 

@@ -16,7 +16,7 @@ It writes only while the application's session is not at work and its tree is cl
 
 What the program says is the application's own session's: its sources, tests and examples beyond a moved file's paths, its design, its plan, its log beyond that entry, its findings and its feedback file.
 
-The program holds its proposal in its own repository, and what it asks of Ernest stays in Ernest's `docs/proposals/` under the program's name, the two citing each other by address. A proposal begun in Ernest's repository before the application's exists is written whole, and split along that line in the commit that makes the repository.
+The program holds its proposal in its own repository, and what it asks of Ernest is Ernest's to hold, a proposal of `docs/proposals/` going once it is built as every built proposal goes; the two cite each other by address. A proposal begun in Ernest's repository before the application's exists is written whole, and split along that line in the commit that makes the repository.
 
 `ernest-template` holds no program, and Ernest's session writes it whole.
 
@@ -38,7 +38,7 @@ What the application meets of Ernest's that feels against a principle, a workaro
 
 ## The reading here
 
-Each line is read in Ernest's session: its program is run here, the log is searched for the decision the line may sharpen, and the verdict is weighed on the principles, as CLAUDE.md's *Who decides* and *The work* say. A verdict is a report change, a milestone's item or a line of the log saying that the line was dropped (CLAUDE.md, *The work*). One made now is built as *Who decides* says, a rule after its cold reading, with its regression test. The line takes Ernest's feedback number as it is decided, the header of `docs/language_feedback.md` moving its next number on; a decided line stands in the log, never in that file. The log entry argues the verdict, with the argument against it where the line is not taken, and the plan's item for the application records what was met.
+Each line is read in Ernest's session: its program is run here, the log is searched for the decision the line may sharpen, and the verdict is weighed on the principles, as CLAUDE.md's *Who decides* and *The work* say. A verdict is a report change, a milestone's item or a line of the log saying that the line was dropped, as [`language_feedback.md`](language_feedback.md)'s opening has it. One made now is built as *Who decides* says, a rule after its cold reading, with its regression test. The line takes Ernest's feedback number as it is decided, the header of `docs/language_feedback.md` moving its next number on; a decided line stands in the log, never in that file. The log entry argues the verdict, with the argument against it where the line is not taken, and the plan's item for the application records what was met.
 
 ## The answer
 

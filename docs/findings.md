@@ -81,6 +81,17 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 
 ### 1
 
+**Done 2026-11-25** (the log's *The Plain Lines of Leg 4*), each line as its fix says, by the session, but:
+
+- *R2 31*, *U 32, M 15*, the two lexer entries of *X 27* and *C7 Clarity 1 (the glossary's part)* go with the builds, since each needs a test or a module the builds make: the deployment test reads §8's five consoles, no test reads `why.md`'s session, the catalog's harness writes a program from its block, which holds no byte that is not UTF-8 and no raw control character, and the glossary's entry follows the tools' shared module of its `2a` line. *U 32*'s banner is written.
+- *M 1 (the sentence)* is dropped: the first build of leg 4 put a function's qualified name in its form (`toolchain.md:958`), so two alike helpers are two definitions.
+- *U 33*'s console at `:2463` is §8.1's, which its own test replays.
+- *X 25*'s two entries whose citations no section's heading names stand beside the entries that cite the same: `Foreign.term` beside §8.4's under *Declarations*, a type's previous version beside the session's types under *Types*. *Names in a block* is *Blocks*, holding §5.4's five. *X 8*'s seven stand in a section of their own at the end, and `Code.running` taken as a value stays under §3.11.
+- *K 3*'s functions are seven: a scan of the standard library's foreign declarations found `List.sort`'s private `sorted` beside the six.
+- *PL1 10*: the 10-26 numbers are the feedback file's; the two of 10-24, which the file never numbered, lose their numbers instead.
+- *PL1 8*: the 10-09 line follows its file. The index's order within a day is the file's on 42 days and newest first on 15, and seven days' lines follow neither, which waits for the user.
+- *E1 1* held already.
+
 #### guide
 
 - **N C5** `1` user — `README.md:40`, `guide/language.md:134` and the banners: "session 1" never said. Fix: a clause in §1.2 on what the session's number counts. Owner: guide.

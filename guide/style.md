@@ -10,9 +10,17 @@ What a program written in Ernest looks like: what a tool writes, what the report
 
 Appendix E.0 has four admission rules, which decide whether an operation is the standard library's, and eleven *shape rules*, which give an operation its name and its arguments.
 
-Shape rules 1 to 5, 7 and 9 to 11 bind a library outside the standard library too: the *subject*, the value an operation acts on, comes first and its *callbacks*, the functions passed to it, last, so that `x |> f(a)` is `f(x, a)`; one verb per operation on each kind of type; a conversion named by the other type, `toInt`, `fromList`; a partial operation, one with no answer for some inputs, answering `Optional` and one with a cause `Either`.
+Nine of the shape rules bind a library outside the standard library too:
 
-The rest bind it too: a function's type naming a mailbox only where the function's own process's mailbox is involved; an exported type listed as the functions are and named for what it is, never for its module; no `Bool` that chooses between two behaviors; and a name that is the word a reader who knows the operation predicts; and a library whose error wraps `Io.Error` reading and writing the resource for the program, so that a program meets `Io.Error` only where it opens the resource.
+- **Rule 1.** The *subject*, the value an operation acts on, comes first and its *callbacks*, the functions passed to it, last, so that `x |> f(a)` is `f(x, a)`.
+- **Rule 2.** One verb per operation on each kind of type.
+- **Rule 3.** A conversion is named by the other type, `toInt`, `fromList`.
+- **Rule 4.** A partial operation, one with no answer for some inputs, answers `Optional`, and one with a cause `Either`.
+- **Rule 5.** A function's type names a mailbox only where the function's own process's mailbox is involved.
+- **Rule 7.** An exported type is listed as the functions are, and named for what it is, never for its module.
+- **Rule 9.** No `Bool` chooses between two behaviors.
+- **Rule 10.** A name is the word a reader who knows the operation predicts.
+- **Rule 11.** A library whose error wraps `Io.Error` reads and writes the resource for the program, so that a program meets `Io.Error` only where it opens the resource.
 
 Shape rule 6 says what a module's documentation holds, which `ern doc` writes as a page and the shell's `:doc` shows.
 

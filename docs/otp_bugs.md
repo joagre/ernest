@@ -483,7 +483,7 @@ The two waits are `?DEFAULT_TIMEOUT` of `ssl_internal.hrl`. A program that close
 
 ## 11. `json:decode` answers a broken literal by the count of bytes after it, not by the byte that differs
 
-Filed 2026-11-15 as [erlang/otp#12213](https://github.com/erlang/otp/issues/12213). Found on 2026-11-02 by the release review before 0.9.0 (its finding E4-2); `src/libs/json/ern_json.erl`'s `broken_literal/2` reads the text for the byte that differs instead.
+Filed 2026-11-15 as [erlang/otp#12213](https://github.com/erlang/otp/issues/12213). Found on 2026-11-02 by the release review before 0.9.0 (its finding E4-2); `src/libs/json/json.ern`'s `firstBroken` reads the text for the byte that differs instead.
 
 **Title:** json:decode/1,3: a broken `true`, `false` or `null` raises unexpected_end, or invalid_byte at the byte after its first, whichever byte differs
 

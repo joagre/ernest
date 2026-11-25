@@ -66,6 +66,16 @@ export type Result = Passed | Failed(String)
 /// What a call `capture` ran wrote: to standard output, and to standard
 /// error, each in the order it was written.
 ///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let #(_, captured) = Test.capture(fn() = Io.println("ready"));
+///     String.fromUtf8Lossy(captured.stdout)
+/// }
+/// // => "ready\n"
+/// ```
+///
 /// since 0.10.0
 export type Captured = Captured(stdout : Bytes, stderr : Bytes)
 

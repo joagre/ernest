@@ -8,7 +8,7 @@ The report, in three files under [`report/`](../report/), is the one normative d
 
 What each document is, those under `docs/` and the READMEs that stand beside the code, is listed in [`README.md`](README.md), the index of this directory.
 
-The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `src/libs/` are Appendix G's; each one's build ends every job's load path, so a program uses one without naming it (report §11.1, §11.2), and which are first-party is the plan's MVP 4.1.
+The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `src/libs/` are Appendix G's; each one's build ends every job's load path, so a program uses one without naming it (report §11.1, §11.2).
 
 ## The layout of the repository
 
@@ -22,6 +22,9 @@ CLAUDE.md          the working rules
 Makefile           the build and the tests' targets
 LICENSE, THIRD_PARTY_LICENSES  the license, and the third-party code's
 ACKNOWLEDGMENTS.md the people Ernest stands on
+CHANGES.md         each release's note, newest first
+CONTRIBUTING.md    that Ernest takes no contributions before 1.0
+SECURITY.md        how to report a security hole
 report/            the report (normative), in three files: language.md, §0 to §9 and
                    Appendices A, B and F; toolchain.md, §10 to §12 and Appendices C and H;
                    library.md, Appendices D, E and G
@@ -32,7 +35,8 @@ guide/             the guides: language.md, the language guide; deployment.md,
 tour/              the tour, README.md, one program grown through eight chapters, and
                    1/ to 8/, the program as it stands at each chapter's end, which a
                    test holds equal to the document's blocks
-site/              the website's own files, which tools/site.ern reads: templates/,
+site/              the website's own files, which tools/site.ern reads, with README.md,
+                   which says what they are: templates/,
                    each page's template and its fragments, with README.md, the tokens
                    each binds; root/, the assets laid out as served, but the icons'
                    file, which the generator gathers from the icons; example.md,
@@ -62,15 +66,18 @@ test/              what spans the roots of src/: the integration, nodes, deploym
                    reads Appendix A; ern_repository.erl, which the document and style
                    tests read the repository through; ern_machine, ern_machine_node
                    and ern_machines, which run nodes on the machines of test/machines/,
-                   with their tests, ern_machine_tests; and run.mk, the run's directory
+                   with their tests, ern_machine_tests; ern_xref_tests, the host's xref
+                   over the toolchain's calls; ern_browser_tests, the site's client in a
+                   headless browser; and run.mk, the run's directory
                    and its home, which test/Makefile and the repository's Makefile
                    include
 test/fixtures/     what the tests read: target/, the hand-written target modules;
                    programs/, the programs the tests keep: the first test programs, a
                    two-module tree, the module of docs/module_doc_template.md and the
-                   echo measurement; refused/, the README's refused program; outputs/ and emitted/, what programs/, hello,
-                   services print, interpreter's session among
-                   them, and the Erlang they compile to; site/, under tree/ the
+                   echo measurement; refused/, the README's refused program; outputs/ and
+                   emitted/, what the programs of programs/, hello and services print,
+                   the interpreter's session among it, and the Erlang they compile to;
+                   site/, under tree/ the
                    documents the site's generator renders and the log it links to, each
                    at the path of the one it plays, client.js, the stub of the
                    server's client the browser test serves, and under expected/ the
@@ -126,6 +133,8 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    make paragraphs, make comments and make test-docs;
                    sizes.ern lists each module's lines and its growth, for make sizes;
                    clones.ern lists the code repeated, for make clones;
+                   citations.ern reads a text's citations, for the site's links and
+                   documents.ern alike;
                    documents.ern lists the report's, the guide's and the tour's
                    sections, citations, terms, unchecked blocks and edits, for make
                    lengths, citations, terms, unchecked and edits;
@@ -158,14 +167,14 @@ A module's path follows report §11.1. A file that is not a module is named with
 
 A list that lives in two places is held equal by a test where one is cheap, whose comment names both places. These are kept equal by hand, and a change to one place changes the other in its commit:
 
-- the logo's `<picture>` block, in `assets/README.md`, the README, the release's README and the two guides that show the logo;
+- the logo's `<picture>` block, in `assets/README.md`, the README, the release's README, the tour and the two guides that show the logo;
 - the Emacs mode's tests, in `docs/design/emacs_mode.md`'s table, `editors/emacs/test/` and the Makefile's `EMACS_TESTS`;
 - the stages' modules, the runtime's shims, the processes and the code table's keys in `docs/architecture.md`, against the code;
 - the rows of the runtime's tables in `docs/architecture.md` and `docs/design/runtime.md`, but the names of `ern_rt`'s tables and the map's row of `ern_launch`, which a test holds;
 - the frames' count in `docs/design/nodes.md`, and the frames the glossary of `docs/code_style.md` names;
 - the shell's foreign functions, in `docs/design/shell.md`'s *The foreign interface* and the shell's `foreign fn`s;
 - the memory's regression tests, in `docs/memory_checks.md`;
-- the first-party libraries, in this document's layout, the plan's MVP 4.1, Appendix G and the libraries' directory;
+- the first-party libraries, in this document's layout, Appendix G and the libraries' directory;
 - the documents, in `docs/README.md` and this document's layout;
 - this document's layout of `test/` and of `tools/`, against their files;
 - the launcher's flags, in `docs/design/install.md` and `bin/ern`;
@@ -184,6 +193,12 @@ make            # build the helper, with the C library's checks of its buffers a
                 # (+warn_missing_spec), then src/stdlib/, src/libs/, src/shell/ and tools/,
                 # and write each manual page that is missing or older than what it is
                 # made from
+make beams      # the toolchain's Erlang alone, side by side
+make stdlib     # the standard library alone, into build/stdlib
+make libs       # each library under src/libs/, into build/libs
+make shell      # the shell, against the four libraries it is compiled against
+make tools      # the tools, into build/tools
+make runtime-test-beams # the runtime's test modules, which other roots' tests call
 make test       # build, then the unit tests of every root, the library's doc
                 # examples, the document and style tests, the site's generator over
                 # its fixture and over an export of HEAD, and make xref, side by side:
@@ -402,8 +417,7 @@ make site TAG=v0.x.y
                 # the commit; about 10 seconds, nearly all of them the export's build
 make version V=x.y.z
                 # set VERSION, the release the checkout works toward, and every line the
-                # tests hold to it, the documents' start lines and the session fixtures',
-                # by tools/version.sh; the next make doc writes the pages again with
+                # tests hold to it, which tools/version.sh's header lists; the next make doc writes the pages again with
                 # the version (docs/reviews/release.md, step 5)
 make units      # link each unit of src/stdlib/, src/shell/ and src/libs/, its .erc,
                 # into build/units/ under its module's name, which make dialyzer and

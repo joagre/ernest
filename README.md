@@ -48,11 +48,11 @@ far : Address(Counter.CounterMsg)
 Some(5) : Optional(Int)
 ```
 
-`foo` compiled `count` and its type before the process started. The two nodes are two configuration directories, `a` and `foo`. Each names the other's public key. They share one TLS connection: no cookie, no epmd, no mesh.
+`foo` compiled `count` and its type before the process started. Each input runs in a process of its own, so the `Get` may reach `foo` before the `Inc` and answer `Some(0)`. The two nodes are two configuration directories, `a` and `foo`. Each names the other's public key. They share one TLS connection: no cookie, no epmd, no mesh.
 
 You can run this in your browser. The front page of [ernest-lang.org](https://ernest-lang.org) has the same counter with a Try it button, and each visitor gets a shell and a bare `foo` of their own. The site and its shell are served by [a web server written in Ernest](https://github.com/joagre/ernest-httpd).
 
-The compiler checks more than sends. `count` receives from the mailbox of the process that runs it, so a call from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make.
+The compiler checks more than sends. `count` receives from the mailbox of the process that runs it, so a call from a `main` with another mailbox is refused before the program runs. A Gleam `Subject` lets this through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make, unless the subject is a named one.
 
 ```console
 $ ern build other.ern
@@ -75,7 +75,7 @@ What Ernest adds, which [Why Ernest](guide/why.md) argues:
 - [Abstract types and requirements](guide/why.md#abstract-types-and-requirements)
 - [Little else](guide/why.md#little-else)
 
-Ernest runs on the BEAM without OTP's behaviors. There is no `gen_server` and no supervisor, and a process's end arrives as a message from a monitor. [The questions](guide/faq.md) say what stands in their place, and how Ernest differs from Gleam and Unison.
+Ernest runs on the BEAM without OTP's behaviors: a server is a `receive` loop, a supervision tree is the library's `Supervisor`, and a process's end arrives as a message from a monitor. [The questions](guide/faq.md) say what stands in their place, and how Ernest differs from Gleam and Unison.
 
 ## Where to begin
 
@@ -94,7 +94,7 @@ Young: the [releases page](https://github.com/joagre/ernest/releases) names the 
 
 ## Installing
 
-On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages `make` and `gcc`, and OTP 29 is installed as below, since their own `erlang` package is older. A node needs Linux 5.3 or later. Ernest is tested on Linux; on macOS the same steps are expected to work:
+On Linux, with Erlang/OTP 29 on your `PATH`, GNU make and a C compiler. On Debian and Ubuntu the last two are the packages `make` and `gcc`, and OTP 29 is installed as below, since their own `erlang` package is older. On Linux a node needs 5.3 or later. Ernest is tested on Linux; on macOS the same steps are expected to work:
 
 ```
 git clone https://github.com/joagre/ernest.git
@@ -108,13 +108,13 @@ man ern                     # the toolchain
 man Ernest.List             # a module
 ```
 
-OTP 29 is built from its source at [erlang.org/downloads](https://www.erlang.org/downloads), or installed by a version manager such as kerl, where a distribution's own packages hold an older release.
+OTP 29 is built from its source at [erlang.org/downloads](https://www.erlang.org/downloads), or installed by a version manager such as kerl, where a distribution's own packages hold an older release. `erl -noshell -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'` prints the release of the OTP on `PATH`. To try Ernest before installing anything, the front page of [ernest-lang.org](https://ernest-lang.org) runs a shell in the browser.
 
 Or from a release: download `ern-<version>.tar.gz` and its checksum, `ern-<version>.tar.gz.sha256`, from the [releases page](https://github.com/joagre/ernest/releases), check the archive with `sha256sum -c ern-<version>.tar.gz.sha256`, and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive holds the source, which `make` compiles, with OTP 29 as above.
 
 Two nodes on one machine take four more commands, each run once for each node: `ern config --config-dir` makes the node's directory with its key, `ern config --peer-dir` lists the other node in its file, `ern run --config-dir` starts the node, and `ern stop --config-dir` ends it; [the deployment guide](guide/deployment.md) walks through them.
 
-`make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, as `share/emacs/site-lisp/ernest-mode.el`, and [`editors/emacs/README.md`](editors/emacs/README.md) says how to turn it on.
+`make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, as `share/emacs/site-lisp/ernest-mode.el`, and [`editors/emacs/README.md`](editors/emacs/README.md) says how to turn it on. There is no language server, so another editor has no mode of Ernest's.
 
 ## License
 

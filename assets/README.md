@@ -5,11 +5,11 @@ This directory holds Ernest's logos, and this file says where each is used.
 | File | What it is | Where it is used |
 |---|---|---|
 | `ernest-mark.svg` | the stoat alone | the site's header, beside the word "Ernest", on every page |
-| `ernest-combined-light.svg` | the full logo, for a light background | the README, the release's README, `guide/language.md` and `guide/deployment.md`; not the site, which shows the stoat alone |
+| `ernest-combined-light.svg` | the full logo, for a light background | the README, the release's README, the tour, `guide/language.md` and `guide/deployment.md`; not the site, which shows the stoat alone |
 | `ernest-combined-dark.svg` | the full logo, for a dark background | the same places, in dark mode |
 | `ernest-avatar-512.png` | the stoat, square, 512 × 512 | GitHub's organization avatar |
 | `ernest-avatar-64.png` | the stoat, square, 64 × 64 | the site's favicon |
-| `ernest-social-light.png` | the full logo on a light background, 1280 × 640 | GitHub's social preview |
+| `ernest-social-light.png` | the full logo on a light background, 1280 × 640 | GitHub's social preview, and the site's `og:image` |
 
 A Markdown page shows the full logo with this block, and the browser picks the file for its mode:
 
@@ -19,9 +19,11 @@ A Markdown page shows the full logo with this block, and the browser picks the f
           srcset="assets/ernest-combined-dark.svg">
   <source media="(prefers-color-scheme: light)"
           srcset="assets/ernest-combined-light.svg">
-  <img src="assets/ernest-combined-light.svg" alt="Ernest" width="520">
+  <img src="assets/ernest-combined-light.svg" alt="Ernest" width="256">
 </picture>
 ```
+
+The width is each page's own: 256 on the README, the tour and the guides, and 520 on the release's README.
 
 The suffix names the background: `-light` is for a light background, `-dark` for a dark one.
 

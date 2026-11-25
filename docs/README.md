@@ -26,3 +26,5 @@ The project's own documents: what each file and directory here is, and the READM
 - **[`examples/README.md`](../examples/README.md)**: the example programs by topic, with what each shows and how to run it.
 - **[`release/README.md`](../release/README.md)**: what a reader of the release archive, or of an installation, needs first.
 - **[`assets/README.md`](../assets/README.md)**: the logos, and where each is used.
+- **[`site/README.md`](../site/README.md)** and **[`site/templates/README.md`](../site/templates/README.md)**: the website's own files, and the tokens each template binds.
+- **[`CHANGES.md`](../CHANGES.md)**, **[`CONTRIBUTING.md`](../CONTRIBUTING.md)** and **[`SECURITY.md`](../SECURITY.md)**: each release's note, that no contribution is taken before 1.0, and how to report a security hole.

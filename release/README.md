@@ -40,7 +40,7 @@ Beside them:
 - `share/doc/ernest/guide/why.md` is the argument for the design, and `share/doc/ernest/guide/faq.md` answers the questions a reader of another language on the runtime asks first.
 - `share/doc/ernest/guide/deployment.md` is *Running Ernest*, the operator's guide to nodes, their configuration and a program's upgrade.
 - `share/doc/ernest/guide/style.md` is what a program written in Ernest looks like: what `ern format` writes, what the report asks of a library's names, and the names the standard library uses.
-- `share/doc/ernest/examples/` holds the programs the guide runs, and its `README.md` lists them by topic.
+- `share/doc/ernest/examples/` holds the example programs, which its `README.md` lists by topic.
 - `man ern` is the toolchain's page and `man Ernest.List` a module's; the prelude, every module of the standard library and every library has one.
 - `share/emacs/site-lisp/ernest-mode.el` is the Emacs mode, and `share/doc/ernest/editors/emacs/README.md` says how to turn it on.
 - `share/doc/ernest/CHANGES.md` is what changed in each release, newest first, a line each naming where it is read.

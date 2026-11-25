@@ -50,7 +50,9 @@
 /// - `NotATerminal`: a standard stream an operation needs is not a terminal, or
 ///   is one with no rows or no columns; or a program `Os.resize` is given runs
 ///   under none.
-/// - `NotAFile`: a path names something other than a regular file.
+/// - `NotAFile`: a path names something other than what the function works
+///   on, a regular file, a device too for `Fs.append`, or a directory for
+///   `Fs.list`.
 /// - `Exists`: the path already names something, where the operation needs it
 ///   free, as when a directory is made that is there.
 /// - `NotUtf8(bytes)`: text that is not UTF-8, a name or a link's target among
@@ -59,8 +61,10 @@
 ///   out of range or a time it cannot hold among them.
 /// - `NotListed`: `ernest.conf` lists no peer for a service's name, or no peer
 ///   of the name.
-/// - `Unreachable`: no connection to the peer could be opened, the peer refused
-///   it, or it was lost while waiting.
+/// - `Unreachable`: no connection to the peer could be opened, the peer's
+///   handshake refused it, it was lost while waiting, the request reached the
+///   peer while it stopped or between two runs of `ern test`, or
+///   `Peer.computeAnywhere` held no utilization to use.
 /// - `NotOffered`: the peer offers nothing under the service's name.
 /// - `OtherType`: the peer offers the name at another message type.
 /// - `NotLoaded(text)`: a binding the function reaches has no value on the

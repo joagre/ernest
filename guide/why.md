@@ -8,12 +8,12 @@ What Ernest adds is where the parts meet:
 - **The mailbox in the function's type.** A process's mailbox type is part of its function's type, so the compiler checks every send against the mailbox it reaches.
 - **A distribution built for a WAN.** A node lists its peers in a file, each by name, public key and address, accepts a connection only from a key it lists, and opens one TLS connection to a peer when it first needs it.
 - **A deadlock of the whole program is found.** A program that is no node, in which every process waits for a message none can send, ends with a fault and a trace under `ern run` and `ern test`, where the host would wait forever.
-- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows.
+- **Abstract types and requirements.** A type declared abstract keeps its constructor to its own module, so the representation can change and no caller knows, and a function generic in a type names what it needs of it.
 - **Little else.** Functions and processes are the whole language, with one way to do each thing.
 
-Its parts come from elsewhere: Unison's small core and its code known by the hash of its definition, the types of ML, which Gleam made ordinary on that runtime, and Erlang's processes.
+Its parts come from elsewhere: Unison's small core and its code known by the hash of its definition, the types of ML, which Gleam made ordinary on the Erlang runtime, and Erlang's processes.
 
-Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part, the supervisor, the release and `sys` among them, is the guide's §10 and [the questions](faq.md).
+Ernest is for programs written in it from the start. An Ernest program is not an OTP application, and its own code is Ernest: what ships with Erlang/OTP, and any library of the host's, a package from hex, the BEAM's package index, among them, is reached through declarations that give it Ernest types, which a program may write for itself. What an OTP programmer finds in place of each part is the guide's §10 and [the questions](faq.md): `sys` is [*Where are `gen_server` and the supervisors?*](faq.md#where-are-gen_server-and-the-supervisors), and the release [*Where are ETS, tracing, `observer`, back pressure and releases?*](faq.md#where-are-ets-tracing-observer-back-pressure-and-releases).
 
 ## The claims, in code
 
@@ -45,7 +45,7 @@ match Peer.computeAnywhere(fn() = render(scene, row), 5000) {
 
 Nothing of the program was installed on the peer, and nothing names it: the node that ran `render` was the less busy of two peers drawn at random when the row was asked for, and `scene` and `row`, which the function captured, crossed with each call. The tour's chapter 7 runs such a compute three times between two bare nodes.
 
-On one node the message type's hash finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. The hash is what finds the processes such a message is for. `Code.running(f)` lists, typed, the processes of the node that run `f`, or another version of it with the same message type. It finds them by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
+On one node `Code.running` finds the processes a new version is for. The door by which a counter replaces its own code is ordinary: a message of its type carries the new loop, and the process switches to it with a tail call, keeping its address and its state, as any language with closures in messages writes it; the old loop keeps running wherever a process still runs it. `Code.running(f)` lists, typed, the processes of the node that run `f`, or another version of it: it finds them by `f`'s name and the hash of its message type, which a fix leaves as it is (the tour's chapter 8). `countTwice`, a loop of the same type that the guide's §4.6 writes, is sent as a value:
 
 ```ernest-fragment
 type CounterMsg =
@@ -76,6 +76,7 @@ Here the counter is the module `Counter`, and `CounterMsg` gained a `Reset` betw
 
 ```
 $ ern shell
+Ernest 0.11.0, session 1. :help for help.
 > :load Counter
 Counter, compiled from counter.ern
 > let old = spawn(fn() = Counter.count(0))
@@ -136,7 +137,7 @@ A fault, a division by zero or a `fault` call, ends the process, and nothing cat
 
 A function that receives runs only in a process of its mailbox's type. `spawn` takes the address's type from the function, `spawn(fn() = count(0))` being an `Address(CounterMsg)` and nothing else, and the one channel a program makes is a `Reply`, which a caller makes and hands over in its request (report §6.6). A Gleam `process.spawn` answers a `Pid`, which takes no message: the child makes a `Subject` with `process.new_subject()` and sends it back to its parent before the parent can send to it.
 
-No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make:
+No process reads another's mailbox, since `receive` reads the mailbox of the process it runs in, the one the function's type names. Called in a process whose mailbox takes another type, here `main`'s, `count` is refused, though no address is in sight. This is the mistake a Gleam `Subject` lets through: `process.receive(subject, 1000)` compiles wherever a subject is in hand, and panics at run time in a process given a subject it did not make, unless the subject is a named one:
 
 ```ernest-rejected
 type CounterMsg = Inc(Int)
@@ -177,7 +178,7 @@ A delivery that foreign code arranges after its call has returned, by a host tim
 
 ### A distribution built for a WAN
 
-A node is Ernest started from a configuration directory, with a program or with none. Nodes talk over Erlang's own distribution, set up one way and not through its options ([the questions](faq.md#what-does-built-for-a-wan-mean)). Its `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
+A node is Ernest started from a configuration directory, with a program or with none. Nodes talk over Erlang's own distribution, set up one way and not through its options ([the questions](faq.md#what-does-built-for-a-wan-mean)). A node's `ernest.conf` lists the peers it knows, each by a name, a public key and an address. A connection is accepted from a listed key alone, under the name listed beside that key, and is opened over TLS when an operation first needs it:
 
 ```json
 {
@@ -419,7 +420,7 @@ $ ern run unique.erc
 
 A requirement is a type class's constraint, declared again by each generic caller and supplied by the compiler at each call by the type, but for two things: the set it names is closed, `compare`, `negate`, the six operators and `show`, which no program adds to, and a type's member is declared in its type's own module alone (report §4.9). No program declares a class, so no abstraction stands on one, no functor, no monad, no tower of them, and that closed set is the whole of what a type can promise.
 
-`show` is no member a type declares, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report §12.3). The guide's §7 teaches requirements.
+`show` is no member a type declares, and every value has it through `Io.show` (report §4.9). A function generic in `a` that shows a value writes `needs a.show` all the same, since `Io.show` writes a value by its type, which the function does not know and each call supplies (the guide's §7.3). The type tells what the value does not carry: which of `String` and `Bytes`, or of `Char` and `Int`, a host value is, since each pair is one host value, `"hi"` and `<<104, 105>>` as `'a'` and `97` (report §12.2). The guide's §7 teaches requirements.
 
 ### Little else
 
