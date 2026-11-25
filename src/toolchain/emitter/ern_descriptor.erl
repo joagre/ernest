@@ -5,9 +5,17 @@
 %% exposes an address with, and `Io.show` prints by (ern_emitter, report
 %% §8.4); this module owns their type, which one printer reads. A
 %% recursive type refers back to its mu.
+%%
+%% Two describers stand because the shell describes an input's value before
+%% the input is compiled, from the type the checker gave it, which no form
+%% holds, the type `let p <- e` binds among them, while the emitter
+%% describes from the forms and the link of the unit it makes. They share
+%% how a constructor and a recursive type are described, and
+%% ern_shell_tests' prompt_shows_as_io_show_test holds what the two print
+%% equal for each kind of value.
 -module(ern_descriptor).
 
--export([describe/3, constructor_namespace/1]).
+-export([describe/3, constructor_namespace/1, constructor_descriptor/3, refers/2]).
 
 -export_type([descriptor/0, named_cause/0]).
 
@@ -136,9 +144,17 @@ constructor_descriptors(Constructors, Args, Seen, Scope) ->
                             descriptors(field_types(Constructor, Args, Scope), Seen, Scope))
      || #constructor_info{name = Tag, fields = Fields} = Constructor <- Constructors].
 
+%% Report §3.5, Appendix E.1: a constructor's descriptor, its fields'
+%% descriptors, and a named one's fields' names, in declared order, for
+%% printing.
+-spec constructor_descriptor(atom(), {named, [atom()]} | term(), [descriptor()]) ->
+          {atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}.
 constructor_descriptor(Tag, {named, Names}, FieldDescriptors) -> {Tag, FieldDescriptors, Names};
 constructor_descriptor(Tag, _, FieldDescriptors) -> {Tag, FieldDescriptors}.
 
+%% Whether a descriptor refers to the mu that binds Id, so that a type
+%% that does not recur is described without one.
+-spec refers(term(), pos_integer()) -> boolean().
 refers({ref, Id}, Id) -> true;
 refers(Part, Id) when is_tuple(Part) ->
     lists:any(fun(Inner) -> refers(Inner, Id) end, tuple_to_list(Part));

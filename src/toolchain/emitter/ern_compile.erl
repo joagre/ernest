@@ -25,6 +25,11 @@
 -include_lib("checker/include/ern_canonical.hrl").
 -include_lib("emitter/include/ern_unit.hrl").
 
+%% What a link reads a reference by (link/5): the module's namespace, the
+%% namespace its forms write its names under, the checker's environment and
+%% the unit of each namespace whose unit is not its module's Erlang name.
+-record(scope, {namespace, form_namespace, env, units}).
+
 -spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env) ->
     compile(Namespace, Declarations, Interface, Env, #{source_hash => <<>>, deps => []}).
@@ -35,7 +40,7 @@ compile(Namespace, Declarations, Interface, Env) ->
 %% marks an input of the shell, which is compiled and not written, and is
 %% not kept, with the lines before its first, after which its code, its
 %% spawn sites and its recorded forms count its lines, a foreign
-%% declaration's among them (session_lined/2); `form_namespace`, which the
+%% declaration's among them (session_lined/3); `form_namespace`, which the
 %% shell gives an input, is the namespace its forms and its '$code'/0 name
 %% what the session declares under, the session's one (Appendix H, §11.2),
 %% and is not kept; `standard` marks a module of the standard library's own
@@ -156,10 +161,11 @@ held(#interface{back_end = BackEnd} = Interface,
 %% with the chunks of the compiled form, its interface, its documentation
 %% and its forms, so that it is that module whatever its unit's name.
 %%
-%% The shell loads so a compiled module beside another unit of its name,
-%% which no source makes again. What the forms reference outside the module
-%% is a definition of a module whose interface the session holds, so a
-%% failure here is the toolchain's.
+%% The shell, and a node's load (ern_code_load), load so a compiled module
+%% beside another unit of its name, which no source makes again. What the
+%% forms reference outside the module is a definition of a module whose
+%% interface the session or the node holds, so a failure here is the
+%% toolchain's.
 -spec from_compiled(binary(), atom(), [#interface{}], ern_typecheck:env(),
                     #{[atom()] => atom()}) -> {ok, binary()}.
 from_compiled(Beam, Unit, Interfaces, Prelude, Units) ->
@@ -351,7 +357,7 @@ session_line({Line, Column, none}, Offset) ->
 %% which a definition is shipped onward and a compiled module loaded beside
 %% another unit of its name is made a unit of its own (§11.2): each
 %% definition with the lines of its source, an input's as its session
-%% counts them (session_lined/2), the locals' names left out, the name its
+%% counts them (session_lined/3), the locals' names left out, the name its
 %% sites write it by where that is not its qualified name, and what prints
 %% a type in a cause as its module writes it (§11.5); its foreign
 %% declarations, each by its qualified name as the forms write it, an
@@ -412,16 +418,21 @@ exported(#let_declaration{export = Export}) -> Export;
 exported(_) -> false.
 
 qualified(Namespace, #fn_declaration{member_of = MemberOf, name = Name}) ->
-    [Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name]];
+    [qualified_name(Namespace, MemberOf, Name)];
 qualified(Namespace, #let_declaration{name = Name}) ->
-    [Namespace ++ [Name]].
+    [qualified_name(Namespace, undefined, Name)].
+
+%% Report §4.2, §4.5: a declaration's qualified name, a member's under its
+%% type's name.
+qualified_name(Namespace, undefined, Name) -> Namespace ++ [Name];
+qualified_name(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 
 %% Report §4.7, §8.4: the module's foreign functions, in the order it
 %% declares them, each with its scheme as a form writes it and what its
 %% implementation names.
 foreign_functions(Namespace, Declarations, ForeignSchemes) ->
     [begin
-         QualifiedName = Namespace ++ [MemberOf || MemberOf =/= undefined] ++ [Name],
+         QualifiedName = qualified_name(Namespace, MemberOf, Name),
          {ok, {HostModule, HostFunction, _}} =
              ern_typecheck:foreign_implementation(Implementation),
          {Line, Column, _} = ern_diagnostic:span(Span),
@@ -456,7 +467,8 @@ link(Namespace, FormNamespace, #{definitions := Definitions, links := Links,
     Forms = [Form || #definition{form = Form} <- Definitions] ++ maps:values(ForeignSchemes),
     Own = own_references(Definitions, maps:keys(ForeignSchemes), Namespace, FormNamespace),
     External = [Reference || Reference <- references(Forms), not is_own(Reference, Own)],
-    Scope = {Namespace, FormNamespace, Env, Units},
+    Scope = #scope{namespace = Namespace, form_namespace = FormNamespace, env = Env,
+                   units = Units},
     {Types, Named1} = types([Reference || Reference <- External, is_type(Reference, Named, Env)],
                             #{}, Named, Scope),
     #link{functions = maps:from_list([{Reference, Linked}
@@ -503,7 +515,7 @@ references(Forms) ->
 %% links so what its forms name by name (ern_arrival).
 -spec named({named, [atom()]}, ern_typecheck:env()) -> [#linked{}].
 named(Reference, Env) ->
-    linked(Reference, #{}, {[], [], Env, #{}}).
+    linked(Reference, #{}, #scope{namespace = [], form_namespace = [], env = Env, units = #{}}).
 
 %% Every reference to a declaration a term makes (Appendix H).
 references_in({hash, Hash} = Reference) when is_binary(Hash), byte_size(Hash) =:= 32 ->
@@ -566,7 +578,8 @@ types([], Types, Named, _) ->
     {Types, Named};
 types([Reference | References], Types, Named, Scope) when is_map_key(Reference, Types) ->
     types(References, Types, Named, Scope);
-types([Reference | References], Types, Named, {Namespace, FormNamespace, Env, _} = Scope) ->
+types([Reference | References], Types, Named,
+      #scope{namespace = Namespace, form_namespace = FormNamespace, env = Env} = Scope) ->
     QualifiedName = named_by(Reference, Named),
     case ern_canonical:declared_type(QualifiedName, Env, Namespace, FormNamespace) of
         foreign ->
@@ -583,7 +596,7 @@ types([Reference | References], Types, Named, {Namespace, FormNamespace, Env, _}
 %% the link holds it, a foreign function of the standard library's with
 %% the host's function its call calls (§11.1); none for a name of the
 %% prelude's that is no value.
-linked(Reference, Named, {_, _, Env, Units}) ->
+linked(Reference, Named, #scope{env = Env, units = Units}) ->
     QualifiedName = named_by(Reference, Named),
     case ern_typecheck:global_scheme(QualifiedName, Env) of
         undefined ->
@@ -611,8 +624,7 @@ linked(Reference, Named, {_, _, Env, Units}) ->
 %% requirement's members (report §4.9), and a binding's getter none.
 scheme_arity(_, value) -> 0;
 scheme_arity(#scheme{type = {tfn, Params, _, _}, requirement = Requirement}, function) ->
-    length(Params) + length(Requirement);
-scheme_arity(#scheme{}, function) -> 0.
+    length(Params) + length(Requirement).
 
 identity({hash, Hash}, _, _) -> Hash;
 identity({binding, _, Hash}, _, _) -> Hash;

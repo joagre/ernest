@@ -4828,7 +4828,9 @@ prelude_values_test() ->
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
     %% report §9.7: the prelude binds no system reference
-    ?assertEqual("unknown name Sys.stdout", refusal("let out = Sys.stdout")).
+    ?assertEqual("unknown name Sys.stdout", refusal("let out = Sys.stdout")),
+    %% report §9.6: the prelude faults by `fault`, and names no `todo`
+    ?assertEqual("unknown name todo", refusal("fn later() : Int = todo(\"x\")")).
 
 %% What reaches a prelude type's member, `compare`, prefix `-` or its
 %% operator, or none for a name that is no member.

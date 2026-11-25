@@ -1,6 +1,6 @@
 %% Report §8.6: a program's end at a deadlock, which the runtime's reaper
 %% finds, and the waits the reaper holds, in programs run as the runner
-%% runs them (ern_emitter_tests:run/3).
+%% runs them (ern_program:run/3).
 -module(ern_reaper_tests).
 
 -export([answered_later/0, called_back/1, called_back_in_tail/1, reaper_words/0, looks/1,
@@ -14,11 +14,11 @@
 %% the entry process's stack where the runtime finds it waiting, `main`'s
 %% frame, a regression test written after the code, where it had none
 deadlock_test() ->
-    {Result1, _} = ern_emitter_tests:run(
+    {Result1, _} = ern_program:run(
         "type Msg = Ping\n"
         "export fn main() : Unit receiving Msg = receive { Ping -> Unit }\n"),
     ?assertEqual({fault, <<"deadlock">>, <<"M.main:2\n">>}, Result1),
-    {Result2, Output} = ern_emitter_tests:run(
+    {Result2, Output} = ern_program:run(
         "type Msg = Ping\n"
         "export fn main() : Unit receiving Msg = receive {\n"
         "    Ping -> Unit\n"
@@ -34,7 +34,7 @@ deadlock_test() ->
 %% will deliver, a timer among it, which would need a time chosen. Not
 %% covered: a foreign function that waits on a process of the program's
 foreign_wait_is_no_deadlock_test() ->
-    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<"42\n">>}, ern_program:run(
         "foreign fn answered() : Int = \"ern_reaper_tests:answered_later/0\"\n"
         "export fn main() : Unit = Io.println(Int.toString(answered()))\n")).
 
@@ -51,14 +51,14 @@ callback_inside_foreign_is_no_deadlock_test() ->
                   "        n -> n\n"
                   "    })))\n"
               end,
-    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(Program("called_back"))),
-    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(Program("called_back_in_tail"))).
+    ?assertEqual({ok, <<"42\n">>}, ern_program:run(Program("called_back"))),
+    ?assertEqual({ok, <<"42\n">>}, ern_program:run(Program("called_back_in_tail"))).
 
 %% report §8.6, Appendix E.0 rule 1: a function the standard library is
 %% given runs as Ernest code, so a receive in `Map.map`'s function with
 %% nothing in flight is a deadlock, the host's `maps` frames beneath it
 map_callback_deadlock_test() ->
-    {Result, _} = ern_emitter_tests:run(
+    {Result, _} = ern_program:run(
         "export fn main() : Unit receiving Int = {\n"
         "    let _ = Map.map(Map.fromList([#(1, 1)]), fn(k : Int, v : Int) : Int receiving Int =\n"
         "        receive { n -> n + k + v });\n"
@@ -98,7 +98,7 @@ later(Count, Message) ->
 %% written after the code; a callForever to a process that has ended is
 %% call_ends_with_callee_test_'s
 call_forever_deadlock_test() ->
-    {Result, _} = ern_emitter_tests:run(
+    {Result, _} = ern_program:run(
         "type Req = Get(reply : Reply(Int)) | Other\n"
         "fn server() : Unit receiving Req = receive { Other -> Unit }\n"
         "export fn main() : Unit = {\n"
@@ -119,7 +119,7 @@ call_forever_deadlock_test() ->
 %% monitor. The runtime's memory for waits is read after 100 of each and
 %% after 1,100.
 monitors_let_go_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Ended(Down) | Go\n"
         "foreign fn waits() : Int = \"ern_reaper_tests:reaper_words/0\"\n"
         "fn rounds(keeper : Address(Msg), n : Int) : Unit receiving Msg =\n"
@@ -191,7 +191,7 @@ alarms_are_no_deadlock_test_() ->
     {timeout, 120, fun alarms_are_no_deadlock/0}.
 
 alarms_are_no_deadlock() ->
-    ?assertEqual({ok, <<"done\n">>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<"done\n">>}, ern_program:run(
         "type Msg = Tick(Int)\n"
         "fn loop(n : Int) : Unit receiving Msg =\n"
         "    if n == 0 then Unit\n"
@@ -208,7 +208,7 @@ alarms_are_no_deadlock() ->
 %% looked twice while its caller waits, and then answers. A regression
 %% test, written after the code
 computing_callee_is_no_deadlock_test() ->
-    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<"42\n">>}, ern_program:run(
         looked_while() ++
         "type WorkerMsg = Compute(Reply(Int))\n"
         "export fn main() : Unit = {\n"
@@ -229,7 +229,7 @@ computing_callee_is_no_deadlock_test() ->
 %% end a correct program
 handed_reply_ends_a_cycle_test() ->
     ?assertEqual({ok, <<"main is answered 41\nthe second is answered 42\nall finished\n">>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
         looked_while() ++
         "type MainMsg = AskBack(Reply(Int)) | Finished\n"
         "type SecondMsg = Ask(Reply(Int))\n"
@@ -263,7 +263,7 @@ handed_reply_ends_a_cycle_test() ->
 %% reaper has looked twice, and then waits for a message none can send. A
 %% regression test, written after the code
 stuck_part_is_found_with_the_whole_test() ->
-    {Result, Output} = ern_emitter_tests:run(
+    {Result, Output} = ern_program:run(
         looked_while() ++
         "type FirstMsg = Meet(Address(SecondMsg)) | AskFirst(Reply(Int))\n"
         "type SecondMsg = AskSecond(Reply(Int))\n"
@@ -312,18 +312,18 @@ delivery_foreign_code_arranges_test() ->
             "      | Ended(_) -> Io.println(\"the sender ended first\")\n"
             "    }\n"
             "}\n",
-    {Unwatched, _} = ern_emitter_tests:run(
+    {Unwatched, _} = ern_program:run(
         Sender ++
         "export fn main() : Unit receiving MainMsg = {\n"
         "    let _ = later(Foreign.term(self()), Foreign.atom(\"Done\"));\n" ++ Waits),
     ?assertMatch({fault, <<"deadlock">>, _}, Unwatched),
-    ?assertEqual({ok, <<"done\n">>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<"done\n">>}, ern_program:run(
         Sender ++
         "export fn main() : Unit receiving MainMsg = {\n"
         "    monitor(later(Foreign.term(self()), Foreign.atom(\"Done\")), Ended);\n" ++ Waits)),
     %% the timer ends with its recipient, which the deadlock ends at the
     %% reaper's first look, so its time is only one no look comes after: a day
-    {Timed, _} = ern_emitter_tests:run(
+    {Timed, _} = ern_program:run(
         "type MainMsg = Done\n"
         "foreign fn sendAfter(ms : Int, to : Foreign.Term, sent : Foreign.Term) : Foreign.Term =\n"
         "    \"erlang:send_after/3\"\n"
@@ -346,7 +346,7 @@ delivery_foreign_code_arranges_test() ->
 %% message one checker passes to another, through an adapted address over a
 %% checker's address
 held_at_checker_is_no_deadlock_test() ->
-    ?assertEqual({ok, <<"done\n">>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<"done\n">>}, ern_program:run(
         "type MainMsg = Done\n"
         "foreign fn sendHeld(to : Foreign.Term, message : Foreign.Term) : Unit =\n"
         "    \"ern_reaper_tests:send_held/2\"\n"
@@ -371,7 +371,7 @@ held_at_checker_is_no_deadlock_test() ->
 %% checker passes to another, through an adapted address over a checker's
 %% address
 call_at_checker_is_no_deadlock_test() ->
-    ?assertEqual({ok, <<"Some(42)\n">>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<"Some(42)\n">>}, ern_program:run(
         "type MainMsg = Done(Optional(Int))\n"
         "type ServerMsg = Ask(Reply(Int)) | Go\n"
         "foreign fn sent(to : Foreign.Term, message : Foreign.Term) : Foreign.Term =\n"
@@ -404,7 +404,7 @@ call_at_checker_is_no_deadlock_test() ->
 %% longer reaches the look's leaving out of an ended checker, which only a
 %% checker that ends while a look reads meets, and which it does not place
 ended_checker_is_no_delivery_test() ->
-    {Result, _} = ern_emitter_tests:run(
+    {Result, _} = ern_program:run(
         "type MainMsg = Done\n"
         "foreign fn exited(to : Foreign.Term, reason : Foreign.Term) : Foreign.Term =\n"
         "    \"erlang:exit/2\"\n"
@@ -433,8 +433,8 @@ foreign_callee_is_no_deadlock_test() ->
                   "    Io.println(Int.toString(n))\n"
                   "}\n"
               end,
-    ?assertEqual({ok, <<"42\n">>}, ern_emitter_tests:run(Program("answering_later"))),
-    {Ended, _} = ern_emitter_tests:run(Program("ending_later")),
+    ?assertEqual({ok, <<"42\n">>}, ern_program:run(Program("answering_later"))),
+    {Ended, _} = ern_program:run(Program("ending_later")),
     ?assertMatch({fault, <<"callee returned without answering">>, _}, Ended).
 
 %% The Ernest side of the tests above of a process that computes while the

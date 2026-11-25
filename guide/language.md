@@ -1439,7 +1439,7 @@ When every process waits in a `receive` or a `callForever` that nothing can ever
 
 A delivery that foreign code arranges for after its call has returned, from a timer or a process of the host's, is one the runtime does not see coming, so `ern run` and `ern test` fault a program that waits for it alone with `deadlock` (§8.3).
 
-The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line.
+The fault's trace is the entry process's. A frame of a process waiting in a `receive` names the `receive`'s line (report Appendix E.21).
 
 Beneath the trace the report lists the other processes left waiting, a line for each group with one spawn site, one frame they wait in and one callee, with their count. A process waiting in a call has the call's callee, which the line names by its spawn site after `on`. One waiting in a `receive` has none. [`examples/lease_broker.ern`](../examples/lease_broker.ern) run with the argument `deadlock` writes so of its three clients, which call the broker: `3 processes of LeaseBroker.started:350 wait in LeaseBroker.holding:368 on LeaseBroker.broker:160` (report §12.4).
 

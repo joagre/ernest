@@ -125,17 +125,16 @@ reach_test() ->
          end || {code_frame, _, Hashes, Bytes, Sources} <- [Group | Frames]],
         [{code_frame, _, _, _, WorkSources}] =
             [Frame || {code_frame, _, [Of], _, _} = Frame <- Frames, Of =:= Hash(work)],
-        %% report §12.7: the definition's name as text and its source's lines
+        %% report §12.7, Appendix H: a function's source's lines, and no
+        %% name beside its form, which holds it
         [{WorkName, {'$at', {WorkLine, _, none}, _}, _, _}] = binary_to_term(WorkSources),
-        ?assertEqual({[<<"Exreach">>, <<"work">>], 9}, {WorkName, WorkLine}),
-        [{'$at', {OddLine, _, none}, _}] =
-            [Source || {[<<"Exreach">>, <<"isOdd">>], Source, _, _}
-                           <- binary_to_term(element(5, Group))],
+        ?assertEqual({none, 9}, {WorkName, WorkLine}),
+        [_, {none, {'$at', {OddLine, _, none}, _}, _, _}] = binary_to_term(element(5, Group)),
         ?assertEqual(7, OddLine),
         %% report §12.7: a definition that calls a foreign function carries
         %% its declaration's host module and function beside its form, and
         %% where it is written
-        ?assertMatch([{[<<"Exreach">>, <<"timed">>], _, {[<<"Exreach">>], []},
+        ?assertMatch([{none, _, {[<<"Exreach">>], []},
                        [#foreign_function{qualified_name = [<<"Exreach">>, <<"now">>],
                                           scheme = none, host_module = <<"erlang">>,
                                           host_function = <<"monotonic_time">>, export = false,
@@ -231,9 +230,10 @@ received_whole_test() ->
         ?assertMatch([{Unit, _, 0, _}, {Unit, _, 1, _}, {Unit, _, 1, _}], Spawnable),
         ?assertMatch("ern$" ++ _, atom_to_list(Unit)),
         {ok, #recorded{definitions = Kept}} = ern_code:forms(Unit),
-        ?assertEqual(lists:sort([[<<"Exwhole">>, Name]
-                                 || Name <- [<<"Shape">>, <<"area">>, <<"work">>,
-                                             <<"isEven">>, <<"isOdd">>]]),
+        %% report §12.7, Appendix H: a function and a type by the qualified
+        %% name their forms hold
+        ?assertEqual(lists:sort([['Exwhole', Name]
+                                 || Name <- ['Shape', area, work, isEven, isOdd]]),
                      lists:sort([Name || #definition{qualified_name = Name} <- Kept])),
         ?assertEqual([], Said()),
         unloaded(Unit)
@@ -458,9 +458,9 @@ received_beyond_reach_test() ->
         unloaded(Unit)
     end.
 
-%% heavy's form is this test's own: the host keeps every unit a test loads
-%% (ern_code), and one that exports a function of the same form, `n * n`,
-%% holds heavy's hash, which the node then does not lack (§12.7)
+%% heavy's form is this test's own, its qualified name in it (Appendix H):
+%% the host keeps every unit a test loads (ern_code), and one that held
+%% heavy's hash would keep the node from lacking it (§12.7)
 -define(IN_LET,
         "fn heavy(n : Int) : Int = n * n + 7\n"
         "export let job = fn() = Peer.compute(\"p\", fn() = heavy(4), 100)\n").
@@ -510,6 +510,8 @@ in_let_test() ->
         ?assertEqual(lists:usort([Job, Heavy]), Identities),
         ?assertMatch([{code_frame, _, [Heavy], _, _}, {code_frame, _, [Job], _, _}], Frames),
         [_, {code_frame, _, _, _, JobSources}] = Frames,
+        %% report §12.7, Appendix H: a binding's name beside its form, which
+        %% does not hold it
         ?assertMatch([{[<<"Exinlet">>, <<"job">>], {'$at', {2, _, none}, _}, _, []}],
                      binary_to_term(JobSources))
     after
@@ -565,7 +567,8 @@ bound_hash(Beam) ->
 %% Other with the node's reason in a line, which the node says, and nothing
 %% of it is in the code table
 unlinked_reach_test() ->
-    Form = {function, {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
+    Form = {function, ['Crafted', bad],
+            {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
             {var, {hash, <<77:256>>}, []}},
     Hash = crypto:hash(sha256, ern_canonical:bytes(ern_canonical:hashed([Form]))),
     Work = {function, Hash},
@@ -583,8 +586,7 @@ unlinked_reach_test() ->
                    Exchange ! {ern_frame, self(),
                                {code_frame, Ref, [Hash], ern_canonical:bytes(
                                                            ern_canonical:hashed([Form])),
-                                term_to_binary([{[<<"Crafted">>, <<"bad">>], Form, {[], []},
-                                                 []}])}},
+                                term_to_binary([{none, Form, {[], []}, []}])}},
                    Answer = receive {ern_frame, _, {answer, SpawnRef, A}} -> A end,
                    %% the node says the line once it has answered
                    ok = catch_up(),
@@ -707,7 +709,7 @@ faulty_frame_test() ->
                                                             HostModule, <<"monotonic_time">>,
                                                             none, Source)]}])
                           end,
-               Other = setelement(2, Form, {scheme, [], {arrow, [], none, int}, []}),
+               Other = setelement(3, Form, {scheme, [], {arrow, [], none, int}, []}),
                Faults = [fun(Ref) ->
                                  {code_frame, Ref, [Hash], <<Bytes/binary, 0>>, Sources}
                          end,
@@ -944,10 +946,16 @@ code_frame(Ref, Members, Foreign) ->
     Forms = [Form || #definition{form = Form} <- Members],
     {code_frame, Ref, [Hash || #definition{hash = Hash} <- Members],
      ern_canonical:bytes(ern_canonical:hashed(Forms)),
-     term_to_binary([{ern_namespace:text_segments(QualifiedName), Sourced, Printing,
-                      calls(Form, Foreign)}
-                     || #definition{qualified_name = QualifiedName, form = Form,
-                                    sourced = Sourced, printing = Printing} <- Members])}.
+     term_to_binary([{frame_name(Definition), Sourced, Printing, calls(Form, Foreign)}
+                     || #definition{form = Form, sourced = Sourced, printing = Printing}
+                            = Definition <- Members])}.
+
+%% Report §12.7, Appendix H: a binding's name, which its form does not
+%% hold, and none for a function's or a type's, which their forms hold.
+frame_name(#definition{kind = binding, qualified_name = QualifiedName}) ->
+    ern_namespace:text_segments(QualifiedName);
+frame_name(_) ->
+    none.
 
 %% The foreign declarations a form calls, in the order of their names, as a
 %% code frame carries them, with no scheme.

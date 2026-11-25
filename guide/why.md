@@ -231,13 +231,13 @@ fn work(main : Address(MainMsg)) : Unit receiving WorkerMsg =
 ```console
 $ ern run dead.erc
 Dead.main faulted: deadlock
-    Dead.main:7
-    1 process of Dead.main:7 waits in Dead.work:13
+    Dead.main:8
+    1 process of Dead.main:7 waits in Dead.work:14
 ```
 
-The trace names line 7, the `spawn`, and not the `receive` below it: a wait leaves no frame of its own, so a waiting process's frame names the last call before the wait (report Appendix E.21).
+The trace names line 8, the `receive` that `main` waits in (report Appendix E.21).
 
-Beneath the trace the fault lists the processes left waiting, a line for each spawn site and the frame its processes wait in: here the worker, spawned on line 7, waiting in `work` (report §12.4).
+Beneath the trace the fault lists the processes left waiting, a line for each spawn site and the frame its processes wait in: here the worker, spawned on line 7, waiting in `work`'s `receive` on line 14 (report §12.4).
 
 Two servers that call each other wait the same way. The first answers `AskFirst` by calling the second, the second answers `AskSecond` by calling the first, and `main` calls the first, each call with `Address.callForever`, which waits as long as its callee lives:
 

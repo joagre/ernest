@@ -4446,3 +4446,124 @@ tellers_outside_a_run_test() ->
                  [ern_rt:terminal_gone(), ern_rt:input_not_utf8(),
                   ern_rt:input_unreadable(system_limit), ern_rt:signal(sigterm),
                   ern_rt:stream_gone(stdout)]).
+
+%%
+%% Programs run as the runner runs them (ern_program)
+%%
+
+%% report §6.6, §7.4: a call ends at once when its callee faults, is killed,
+%% returns, or had ended, before it answers: Address.call answers None, and
+%% callForever faults the caller with the callee's cause, or says how it
+%% ended; a restart ends the calls waiting on the process the same way. A
+%% regression test of the rule's first build: a callForever to a dead callee
+%% waited for a deadlock, and a call for its time; the cause the callee's
+%% alone, the site left to the trace, which this test does not read. Each
+%% callee ends once the request has come: it faults, returns, or tells the
+%% process that kills it, and waits for nothing more
+call_ends_with_callee_test_() ->
+    {timeout, 30, fun call_ends_with_callee/0}.
+
+call_ends_with_callee() ->
+    Types = "type Msg = Ask(reply : Reply(Int)) | Stop\n"
+            "type MainMsg = Died(Down)\n"
+            "type KillerMsg = Arrived(Address(Msg))\n",
+    Faulty = "fn faulty() : Unit receiving Msg = receive {\n"
+             "    Ask(reply = r) -> { fault(\"bad request\"); answer(r, 1) }\n"
+             "  | Stop -> Unit\n"
+             "}\n",
+    Ask = "fn(r) = Ask(reply = r)",
+    Forever = fun(Setup) ->
+        Types ++ Faulty ++
+        "fn returns() : Unit receiving Msg = receive { Ask(reply = _) -> Unit | Stop -> Unit }\n"
+        "fn told(killer : Address(KillerMsg)) : Unit receiving Msg = receive {\n"
+        "    Ask(reply = _) -> { send(killer, Arrived(self())); receive { Stop -> Unit } }\n"
+        "  | Stop -> Unit\n"
+        "}\n"
+        "fn killer() : Unit receiving KillerMsg = receive { Arrived(callee) ->"
+        " kill(Process.fromAddress(callee)) }\n"
+        "export fn main() : Unit receiving MainMsg = {\n" ++ Setup ++
+        "    Io.println(Int.toString(Address.callForever(s, " ++ Ask ++ ")))\n"
+        "}\n"
+    end,
+    ?assertMatch({{fault, <<"bad request">>, _}, _},
+                 ern_program:run(Forever("    let s = spawn(faulty);\n"))),
+    ?assertMatch({{fault, <<"callee was killed">>, _}, _},
+                 ern_program:run(Forever("    let k = spawn(killer);\n"
+                                         "    let s = spawn(fn() = told(k));\n"))),
+    ?assertMatch({{fault, <<"callee returned without answering">>, _}, _},
+                 ern_program:run(Forever("    let s = spawn(returns);\n"))),
+    ?assertMatch({{fault, <<"callee had ended">>, _}, _},
+                 ern_program:run(
+                     Forever("    let s = spawnMonitored(fn() : Unit receiving Msg = Unit,\n"
+                             "        Died);\n"
+                             "    receive { Died(_) -> Unit };\n"))),
+    ?assertMatch({{fault, <<"bad request">>, _}, _},
+                 ern_program:run(
+                     Forever("    let limit = RestartLimit(restarts = 5, within = 60000);\n"
+                             "    let s = spawn(restarting(limit, faulty));\n"))),
+    {ok, Output} = ern_program:run(Types ++ Faulty ++
+                                   "export fn main() : Unit receiving MainMsg = {\n"
+                                   "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
+                                   "    let s = spawn(restarting(limit, faulty));\n"
+                                   "    let t = spawn(faulty);\n"
+                                   "    let _ = Io.debug(Address.call(s, " ++ Ask ++ ", 60000));\n"
+                                   "    let _ = Io.debug(Address.call(t, " ++ Ask ++ ", 60000));\n"
+                                   "    Unit\n"
+                                   "}\n"),
+    ?assertEqual(<<"None\nNone\n">>, Output).
+
+%% report §10: processes are scheduled preemptively, so one that computes
+%% for ever does not keep another from running; and Int has arbitrary
+%% precision
+preemption_and_precision_test() ->
+    {ok, Output} = ern_program:run(
+        "fn spin(n : Int) : Int = spin(n + 1)\n"
+        "fn power(b : Int, e : Int) : Int = if e == 0 then 1 else b * power(b, e - 1)\n"
+        "foreign fn running(process : Process) : Foreign.Term = \"ern_waits:running/1\"\n"
+        "export fn main() : Unit = {\n"
+        "    let w = spawn(fn() = { let _ = spin(0); Unit });\n"
+        "    let _ = running(Process.fromAddress(w));\n"
+        "    Io.println(Int.toString(power(2, 100)));\n"
+        "    kill(Process.fromAddress(w))\n"
+        "}\n"),
+    ?assertEqual(<<"1267650600228229401496703205376\n">>, Output).
+
+%% report §6.9: kill on a process that has already ended has no effect,
+%% and a monitor placed after the end answers Unknown, with no spawn site,
+%% since the runtime keeps nothing of an ended process, and names the
+%% process still. A regression test, written after the code; it does not
+%% cover kill on a system process
+kill_dead_test() ->
+    {ok, Output} = ern_program:run(
+        "type Msg = Died(Down)\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let z = List.size([]);\n"
+        "    let w = spawn(fn() = { let _ = 1 / z; Unit });\n"
+        "    monitor(Process.fromAddress(w), Died);\n"
+        "    receive { Died(_) -> Unit };\n"
+        "    kill(Process.fromAddress(w));\n"
+        "    monitor(Process.fromAddress(w), Died);\n"
+        "    receive {\n"
+        "        Died(Down(process = p, reason = r, site = s)) ->\n"
+        "            Io.println(Io.show(#(p == Process.fromAddress(w), r, s)))\n"
+        "    }\n"
+        "}\n"),
+    ?assertEqual(<<"#(true, Unknown, \"\")\n">>, Output).
+
+%% Appendix E.21, report §6.5, §6.9: `kill` ends a process by its identity: its
+%% monitor sees `Killed`, a second kill of the ended process does nothing, and
+%% the caller goes on. A regression test, written after the code; the kill of a
+%% process of another node is ern_rt_tests' and ern_peer_tests'
+kill_by_identity_test() ->
+    {ok, Output} = ern_program:run(
+        "type Msg = Died(Down)\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let w : Address(Int) = spawn(fn() = receive { _ -> Unit });\n"
+        "    let p = Process.fromAddress(w);\n"
+        "    monitor(p, Died);\n"
+        "    kill(p);\n"
+        "    let reason = receive { Died(d) -> d.reason };\n"
+        "    kill(p);\n"
+        "    Io.println(Io.show(#(reason, Process.status(p))))\n"
+        "}\n"),
+    ?assertEqual(<<"#(Killed, None)\n">>, Output).

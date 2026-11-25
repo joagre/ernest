@@ -1,5 +1,5 @@
 %% Report §6.9 and Appendix E.22: a supervisor's group, in programs run as
-%% the runner runs them (ern_emitter_tests:run/3).
+%% the runner runs them (ern_program:run/3).
 -module(ern_supervisor_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -21,7 +21,7 @@
 %% deliveries (Appendix E.21), so a wait on the deliveries alone would not
 %% find a report that is still on its way.
 supervised(Strategy, Limit, Names, Main) ->
-    ern_emitter_tests:run(
+    ern_program:run(
         ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
          "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.",
          Strategy, ", ", Limit, "))\n",
@@ -93,7 +93,7 @@ rest_for_one_restarts_later_children_test() ->
 %% regression test: the order read was the order of joins, which the
 %% scheduler decides, and a race of it failed examples/services.ern
 rest_for_one_reads_the_order_of_spawns_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom | Go\n"
          "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group("
          "Supervisor.RestForOne, ", ?LIMIT, "))\n"
@@ -151,7 +151,7 @@ restart_asked_for_is_no_fault_test() ->
 %% says so; the child restarts at the wait inside its handling of the
 %% request, where it tells the trigger to make its sibling fault
 call_ends_at_asked_restart_test() ->
-    {Result, _} = ern_emitter_tests:run(
+    {Result, _} = ern_program:run(
              "type Msg = Slow(reply : Reply(Int), trigger : Address(Unit)) | Boom\n"
         "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
@@ -228,7 +228,7 @@ kill_stops_in_reverse_order_test() ->
 %% answered every Restarted there is to hear is in main's mailbox, and a
 %% third, of `a` asked again, would be read there
 nested_group_restarts_in_place_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
@@ -288,7 +288,7 @@ nested_group_restarts_in_place_test() ->
 %% again is nested_group_restarts_in_place_test's and
 %% held_child_waits_for_its_siblings_test's.
 count_survives_restart_in_place_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
@@ -350,7 +350,7 @@ count_survives_restart_in_place_test() ->
 %% regression test for a child that joined inside its restart loop and
 %% restarted without end
 child_of_ended_supervisor_test() ->
-    {Result, _} = ern_emitter_tests:run(
+    {Result, _} = ern_program:run(
              "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
         "type Seen = Ended(Down)\n"
@@ -382,7 +382,7 @@ child_inside_restarting_faults_test() ->
 %% The cause of the first fault of a program that spawns Spawned, a function
 %% of no message, beside a group of its own.
 first_fault_cause(Spawned) ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         ["let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForOne, ",
          ?LIMIT, "))\n"
          "export fn main() : Unit receiving Process.FaultReport = {\n"
@@ -429,7 +429,7 @@ limit_reports_only_real_faults_test() ->
 %% runs it faults, since the process that keeps the group's children is
 %% the function's. Written with the rule (report §6.9's emptied mailbox)
 group_runs_in_one_process_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type MainMsg = Died(Down)\n"
         "export fn main() : Unit receiving MainMsg = {\n"
         "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
@@ -444,7 +444,7 @@ group_runs_in_one_process_test() ->
 %% runs. A regression test: the second was told the watcher had returned
 %% without answering
 group_runs_once_after_its_end_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type MainMsg = Died(Down)\n"
         "foreign fn waiting(process : Process) : Foreign.Term = \"ern_waits:waiting/1\"\n"
         "export fn main() : Unit receiving MainMsg = {\n"
@@ -465,7 +465,7 @@ group_runs_once_after_its_end_test() ->
 %% it, and the program ends while it waits. Written with the sentence,
 %% after the code
 group_no_process_runs_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "foreign fn waiting(process : Process) : Foreign.Term = \"ern_waits:waiting/1\"\n"
         "export fn main() : Unit = {\n"
         "    let before = Process.live();\n"
@@ -495,7 +495,7 @@ group_no_process_runs_test() ->
 %% sent to it in its mailbox; `queued` waits until a process's mailbox
 %% holds a count of messages, a suspended one's among them.
 crunching(Main) ->
-    ern_emitter_tests:run(
+    ern_program:run(
         ["type Msg = Ask(reply : Reply(Int)) | Peek(reply : Reply(Int)) | Boom | Crunch | Crash\n",
          Main,
          "fn count(n : Int) : Unit receiving Msg = receive {\n"
@@ -718,7 +718,7 @@ child_waits_through_its_supervisors_restart_at_its_parents_ask_test() ->
 %% twice. The starts are counted once the child answers; one sent to the
 %% log and not yet taken then is not seen
 held_child_runs_once_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "type LogMsg = Started | Count(reply : Reply(Int))\n"
         "let log : Address(LogMsg) = spawn(fn() = logging(0))\n"
@@ -761,7 +761,7 @@ held_child_runs_once_test() ->
 %% running. The log tells main of each start of the child, and a child
 %% never restarted leaves main in a deadlock
 parent_restarts_subtree_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
@@ -810,7 +810,7 @@ parent_restarts_subtree_test() ->
 %% and starts fresh; a child whose outer function never runs again leaves
 %% main in a deadlock
 restart_reaches_the_outer_function_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "type LogMsg = Started | Watch(watcher : Address(Unit), reply : Reply(Int))\n"
         "let log : Address(LogMsg) = spawn(fn() = logging(0, None))\n"
@@ -886,9 +886,9 @@ supervisor_counts_before_the_restart() ->
         "}\n"
     end,
     ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nsupervisor restart limit reached\n">>},
-                 ern_emitter_tests:run(Program("RestartLimit(restarts = 2, within = 60000)"))),
+                 ern_program:run(Program("RestartLimit(restarts = 2, within = 60000)"))),
     ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nrun 4\nrun 5\nrun 6\nkept\n">>},
-                 ern_emitter_tests:run(Program("Unlimited"))).
+                 ern_program:run(Program("Unlimited"))).
 
 %% Appendix E.22: the child whose fault restarts its siblings runs again
 %% once each of them has restarted, so that a call to it after its fault is
@@ -901,7 +901,7 @@ supervisor_restarts_whole_test_() ->
     {timeout, 30, fun supervisor_restarts_whole/0}.
 
 supervisor_restarts_whole() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type AMsg = Crash | Ping(reply : Reply(Int))\n"
         "type BMsg = Inc | Busy(Process) | Count(reply : Reply(Int))\n"
         "fn a() : Unit receiving AMsg =\n"

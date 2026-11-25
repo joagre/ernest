@@ -2,6 +2,8 @@
 %% report §9.6 that live in them.
 -module(ern_stdlib_tests).
 
+-export([taken/0]).
+
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
 -include_lib("runtime/include/ern_rt.hrl").
@@ -1995,3 +1997,246 @@ ordered_map_test() ->
     ?assertEqual({{'Some', {1, a}}, {'Some', {2, c}}, 'None', 'None'},
                  {Map(minimum)(Ages), Map(maximum)(Ages), Map(minimum)(Map(empty)()),
                   Map(maximum)(Map(empty)())}).
+
+%%
+%% Programs run as the runner runs them (ern_program)
+%%
+
+%% report §3.9, §4.6, §5.9, §6.5, §6.9, Appendix E.15: `Clock.sleep` takes
+%% no message, so a function that sleeps receives nothing and runs where
+%% one that receives nothing is expected: in an initializer, at `Never`; in
+%% a match guard; in a monitor's wrap and an alarm's, which a delivery
+%% applies; and in an adapted address's function, which the send applies
+%% in the sender. Each sleep is the one under test, its time immaterial. A
+%% regression test, written after the code; the delivery of a peer's
+%% message is sleep_on_delivery_test's
+sleep_receives_nothing_test() ->
+    {ok, Output} = ern_program:run(
+        "type Msg = Died(Down) | Rang | Got(Int)\n"
+        "let ready : Int = { Clock.sleep(1); 5 }\n"
+        "fn positive(n : Int) : Bool =\n"
+        "    match n { k when { Clock.sleep(1); k > 0 } -> true | _ -> false }\n"
+        "fn short() : Process = Process.fromAddress(spawn(fn() = Unit))\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    Io.println(Int.toString(ready));\n"
+        "    Io.println(Bool.toString(positive(1)));\n"
+        "    monitor(short(), fn(d) = { Clock.sleep(1); Died(d) });\n"
+        "    receive { Died(_) -> Io.println(\"wrapped\") };\n"
+        "    let _ = Clock.alarm(0, fn(_) = { Clock.sleep(1); Rang });\n"
+        "    receive { Rang -> Io.println(\"rang\") };\n"
+        "    send(adapted(self(), fn(n : Int) = { Clock.sleep(1); Got(n) }), 3);\n"
+        "    receive { Got(n) -> Io.println(Int.toString(n)) }\n"
+        "}\n"),
+    ?assertEqual(<<"5\ntrue\nwrapped\nrang\n3\n">>, Output).
+
+%% report §3.9, §6.5, §6.6, §6.9, §8.6, Appendix E.15: a sleep is a wait of
+%% the process that runs it, as `Address.call`'s is: a fault met in an
+%% adapted address's function on its way to the process reaches the
+%% process at that wait, as it reaches one waiting in a call, and a restart
+%% a supervisor asks for reaches a sibling there, which runs its function
+%% again. Each sleeps past the host's longest wait, 2^32 - 1 ms, which a
+%% sleep waits as any other time (§6.3), and what reaches it does not wait
+%% for the time. A regression test, written after the code; it does not
+%% cover a restart a supervisor of another node asks for
+sleep_meets_a_fault_and_a_restart_test() ->
+    {ok, Faulted} = ern_program:run(
+        "type Msg = Died(what : String, down : Down)\n"
+        "fn idle() : Unit = Clock.sleep(5000000000)\n"
+        "fn calling(callee : Address(Reply(Int))) : Unit = {\n"
+        "    let _ = Address.callForever(callee, fn(reply) = reply);\n"
+        "    Unit\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let silent : Address(Reply(Int)) = spawn(fn() = receive { _ -> idle() });\n"
+        "    let waiting = spawnMonitored(idle, fn(d) = Died(what = \"sleep\", down = d));\n"
+        "    let called = spawnMonitored(fn() = calling(silent),"
+        " fn(d) = Died(what = \"call\", down = d));\n"
+        "    send(adapted(waiting, fn(n : Int) = 10 / n), 0);\n"
+        "    send(adapted(called, fn(n : Int) = 10 / n), 0);\n"
+        "    List.forEach([1, 2], fn(_) = receive {\n"
+        "        Died(what = name, down = d) -> Io.println(name <> \" \" <> Io.show(d.reason))\n"
+        "    })\n"
+        "}\n"),
+    ?assertEqual([<<"call Fault(\"division by zero\")">>, <<"sleep Fault(\"division by zero\")">>],
+                 lists:sort(binary:split(Faulted, <<"\n">>, [global, trim]))),
+    {ok, Restarted} = ern_program:run(
+        "type Msg = Began(String) | Boom\n"
+        "let sup : Address(Supervisor.GroupMsg) = spawn(Supervisor.group(Supervisor.OneForAll,"
+        " RestartLimit(restarts = 3, within = 60000)))\n"
+        "fn booms() : Unit receiving Msg = receive {"
+        " Boom -> { let z = List.size([]); let _ = 1 / z; Unit } }\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    let a = spawn(Supervisor.child(sup, fn() = { send(me, Began(\"a\")); booms() }));\n"
+        "    let _ = spawn(Supervisor.child(sup, fn() = {\n"
+        "        send(me, Began(\"b\"));\n"
+        "        Clock.sleep(5000000000)\n"
+        "    }));\n"
+        "    let began = fn(_) = receive { Began(name) -> name };\n"
+        "    let first = List.map([1, 2], began);\n"
+        "    send(a, Boom);\n"
+        "    let again = List.map([1, 2], began);\n"
+        "    Io.println(String.join(List.sort(first), \" \") <> \", \""
+        " <> String.join(List.sort(again), \" \"))\n"
+        "}\n"),
+    ?assertEqual(<<"a b, a b\n">>, Restarted).
+
+%% report §3.9, §6.5, Appendix E.15: an adapted address's function that
+%% sleeps, and so receives nothing, is applied on delivery by the process
+%% the node keeps for the address and a peer that sends to it, handed the
+%% message as a peer's worker hands it one, and what it answers reaches the
+%% target. A regression test, written after the code; the peer is stood in
+%% for, as the runtime's tests stand in for it (ern_rt_tests:kept_applied/1)
+sleep_on_delivery_test() ->
+    Text = "export fn doubled(n : Int) : Int = { Clock.sleep(1); n * 2 }\n",
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
+    Build = #{source_hash => <<>>, deps => [], standard => false},
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env, Build),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    Doubled = ern_named:function(ErlangModule, doubled),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Kept = ern_rt:kept(ern_rt:adapted(ern_rt:self(), Doubled)),
+               Kept ! {apply, 21},
+               receive {applied, Kept} -> Kept ! stop end,
+               receive Delivered -> Self ! {delivered, Delivered} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(42, receive {delivered, Delivered} -> Delivered end).
+
+%% report Appendix E.15, §8.6, §6.9: `Clock.cancel` ends an alarm that has
+%% neither fired nor ended and answers true, and any process of the node
+%% may cancel it; an alarm canceled already, one that fired, and one its
+%% process's restart canceled it leaves and answers false, and a fired
+%% alarm's message is delivered, its wrap having told the caller it fired.
+%% No message comes of a canceled alarm, which is no source then: a
+%% `receive` for it alone is a deadlock
+cancel_test() ->
+    {{fault, <<"deadlock">>, _}, Output} = ern_program:run(
+        "type Msg = Rang | Fired | Canceled(Bool)\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    let alarm = Clock.alarm(60000, fn(_) = Rang);\n"
+        "    Io.println(Bool.toString(Clock.cancel(alarm)));\n"
+        "    Io.println(Bool.toString(Clock.cancel(alarm)));\n"
+        "    let other = Clock.alarm(60000, fn(_) = Rang);\n"
+        "    let _ = spawn(fn() = send(me, Canceled(Clock.cancel(other))));\n"
+        "    receive { Canceled(done) -> Io.println(Bool.toString(done)) };\n"
+        "    let fired = Clock.alarm(0, fn(_) = { send(me, Fired); Rang });\n"
+        "    receive { Fired -> Unit };\n"
+        "    Io.println(Bool.toString(Clock.cancel(fired)));\n"
+        "    receive { Rang -> Io.println(\"rang\") };\n"
+        "    receive { Rang -> Io.println(\"rang again\") }\n"
+        "}\n"),
+    ?assertEqual(<<"true\nfalse\ntrue\nfalse\nrang\n">>, Output),
+    {ok, Restarted} = ern_program:run(
+        "type SetterMsg = Arm | Crash | Rang\n"
+        "type Msg = Began | Armed(Clock.Alarm)\n"
+        "fn setter(me : Address(Msg)) : Unit receiving SetterMsg = {\n"
+        "    send(me, Began);\n"
+        "    receive {\n"
+        "        Arm -> {\n"
+        "            send(me, Armed(Clock.alarm(60000, fn(_) = Rang)));\n"
+        "            receive { Crash -> fault(\"crash\") }\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let me = self();\n"
+        "    let limit = RestartLimit(restarts = 1, within = 60000);\n"
+        "    let s = spawn(restarting(limit, fn() = setter(me)));\n"
+        "    receive { Began -> send(s, Arm) };\n"
+        "    let alarm = receive { Armed(alarm) -> alarm };\n"
+        "    send(s, Crash);\n"
+        "    receive { Began -> Io.println(Bool.toString(Clock.cancel(alarm))) };\n"
+        "    kill(Process.fromAddress(s))\n"
+        "}\n"),
+    ?assertEqual(<<"false\n">>, Restarted).
+
+%% report Appendix E.3, E.4, §3.10: Map and Set end to end, with
+%% structural equality
+maps_sets_test() ->
+    {ok, Output} = ern_program:run(
+        "export fn main() : Unit = {\n"
+        "    let m = Map.put(Map.put(Map.empty, \"a\", 1), \"b\", 2);\n"
+        "    let s = Set.put(Set.fromList([1, 2]), 3);\n"
+        "    Io.println(Int.toString(Optional.withDefault(Map.get(m, \"b\"), 0)));\n"
+        "    Io.println(Int.toString(Map.fold(m, 0, fn(acc, _, v) = acc + v)));\n"
+        "    Io.println(Bool.toString(Set.contains(s, 3)));\n"
+        "    Io.println(Int.toString(Set.size(Set.union(s, Set.fromList([3, 4])))));\n"
+        "    Io.println(Bool.toString(Set.fromList([1, 2]) == Set.fromList([2, 1])))\n"
+        "}\n"),
+    ?assertEqual(<<"2\n3\ntrue\n4\ntrue\n">>, Output).
+
+%% report Appendix E.13, §4.2, §3.8: a standard library foreign type in its
+%% namespace, and every draw within its bound, which it is below
+random_seed_in_its_namespace_test() ->
+    {ok, Output} = ern_program:run(
+        "fn draw(s : Random.Seed, n : Int) : List(Int) = if n == 0 then [] else {\n"
+        "    let #(s1, x) = Random.nextInt(s, 5);\n"
+        "    x :: draw(s1, n - 1)\n"
+        "}\n"
+        "export fn main() : Unit = {\n"
+        "    let xs = draw(Random.seed(42), 50);\n"
+        "    Io.println(Bool.toString(List.all(xs, fn(x) = x >= 0 && x < 5)))\n"
+        "}\n"),
+    ?assertEqual(<<"true\n">>, Output).
+
+%% report Appendix E.15, E.14, §9.3: Clock.alarm delivers the wrapped Unit to
+%% the caller, Clock.now is a time, Path is the prelude's
+clock_path_test() ->
+    {ok, Output} = ern_program:run(
+        "type Msg = Tick\n"
+        "export fn main() : Unit receiving Msg = {\n"
+        "    let t0 = Clock.now();\n"
+        "    let _ = Clock.alarm(10, fn(_) = Tick);\n"
+        "    receive { Tick -> Unit };\n"
+        "    Io.println(Bool.toString(Clock.now() >= t0 + 10));\n"
+        "    Io.println(Path.toString(Path(\"a\") <> Path(\"b\")))\n"
+        "}\n"),
+    ?assertEqual(<<"true\na/b\n">>, Output).
+
+%% report §12.1: a write to standard output returns once the stream has taken
+%% it, so a program writing to a slow stream goes at its pace: after each
+%% write the stream has taken it and every write before it, which the
+%% stream counts and the program reads
+io_write_waits_test() ->
+    Self = self(),
+    Taken = counters:new(1, []),
+    persistent_term:put({?MODULE, taken}, Taken),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
+        "foreign fn taken() : Int = \"ern_stdlib_tests:taken/0\"\n"
+        "export fn main() : Unit = {\n"
+        "    let kept = List.all(List.range(1, 10), fn(n) = {\n"
+        "        Io.println(Int.toString(n));\n"
+        "        taken() >= n\n"
+        "    });\n"
+        "    Io.printlnError(Io.show(kept))\n"
+        "}\n"),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    ok = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
+                         #{stdout => fun(_) -> counters:add(Taken, 1, 1) end,
+                           stderr => fun(Text) -> Self ! {err, Text} end}),
+    persistent_term:erase({?MODULE, taken}),
+    ?assertEqual(<<"true\n">>, receive {err, Text} -> Text after 0 -> none end).
+
+%% The writes io_write_waits_test's standard output has taken.
+-spec taken() -> non_neg_integer().
+taken() ->
+    counters:get(persistent_term:get({?MODULE, taken}), 1).
+
+%% report Appendix E.1: Io.writeError writes its bytes to standard error as
+%% they are, a byte that is not UTF-8 among them, and nothing to standard
+%% output. Written with the code
+io_write_error_test() ->
+    Self = self(),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
+        "export fn main() : Unit = Io.writeError(<<104, 105, 255>>)\n"),
+    {ok, ErlangModule, Beam} = ern_compile:compile(['M'], Typed, Interface, Env),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    ok = ern_rt:run_main(fun() -> (ern_named:main(ErlangModule))() end, <<"main">>,
+                         #{stdout => fun(Text) -> Self ! {out, Text} end,
+                           stderr => fun(Text) -> Self ! {err, Text} end}),
+    ?assertEqual(<<104, 105, 255>>, receive {err, Text} -> Text after 0 -> none end),
+    ?assertEqual(none, receive {out, Written} -> Written after 0 -> none end).

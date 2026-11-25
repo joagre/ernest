@@ -2584,6 +2584,52 @@ deadlock_lists_the_waiting_test() ->
                                [dotall, {capture, [1], binary}]),
     ?assertEqual(Waiting, Tested).
 
+%% Appendix E.21, report §12.4: a frame of a process that waits in a
+%% `receive` names the `receive`'s own line, after the calls before it in
+%% its function and in a function whose body the `receive` is, the
+%% faulting process's trace among them. Written with the change: such a
+%% frame named the last call before the wait, `Waits.worker:5`, or its
+%% function's head, `Waits.plain:15`
+deadlock_names_the_receive_test() ->
+    Dir = tmp(),
+    write(Dir, "src/waits.ern",
+          "type Msg = Ping | Stop\n"
+          "\n"
+          "fn worker() : Unit receiving Msg = {\n"
+          "    let a = 1 + 2;\n"
+          "    Io.println(Int.toString(a));\n"
+          "    let b = a * 3;\n"
+          "    let c = b + 1;\n"
+          "\n"
+          "    receive {\n"
+          "        Ping -> Io.println(Int.toString(c))\n"
+          "      | Stop -> Unit\n"
+          "    }\n"
+          "}\n"
+          "\n"
+          "fn plain() : Unit receiving Msg =\n"
+          "    receive {\n"
+          "        Ping -> Unit\n"
+          "      | Stop -> Unit\n"
+          "    }\n"
+          "\n"
+          "export fn main() : Unit receiving Down = {\n"
+          "    let w = spawn(worker);\n"
+          "    let p = spawn(plain);\n"
+          "    monitor(Process.fromAddress(w), fn(d) = d);\n"
+          "    receive {\n"
+          "        d -> Io.println(\"down\")\n"
+          "    }\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    {Errors, 1} = standard_error_of(["run", Dir ++ "/build/waits.erc"]),
+    {match, [Report]} = re:run(Errors, "(Waits.main faulted: deadlock\n.*)$",
+                               [dotall, {capture, [1], binary}]),
+    ?assertEqual(<<"Waits.main faulted: deadlock\n"
+                   "    Waits.main:25\n"
+                   "    1 process of Waits.main:22 waits in Waits.worker:9\n"
+                   "    1 process of Waits.main:23 waits in Waits.plain:16\n">>, Report).
+
 %% report §12.4: a deadlock's lines are ordered by their sites' lines as
 %% numbers, a spawn on line 9 before one on line 10, whose order as text is
 %% the reverse. A regression test: the lines were ordered as text

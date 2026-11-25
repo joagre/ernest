@@ -3,8 +3,9 @@
 %% build adds that is no definition's, and the link of what the forms
 %% reference outside the unit. ern_compile gives it for a build and the
 %% shell's loads, ern_arrival for the definitions of one exchange, and the
-%% shell for a compiled module it loads beside another unit of its name;
-%% the emitter (ern_emitter:unit/1) reads nothing else.
+%% shell and a node's load (ern_code_load) for a compiled module they load
+%% beside another unit of its name; the emitter (ern_emitter:unit/1) reads
+%% nothing else.
 
 -ifndef(ERN_UNIT_HRL).
 -define(ERN_UNIT_HRL, true).
@@ -21,8 +22,10 @@
 %% with its sourced form where the source is given
 %% (ern_canonical:source()); a definition without one is made from its
 %% form alone, its code without lines and its spawn sites without one; a
-%% definition of an exchange's unit is named by its name as text, which
-%% its sites and a fault's trace show (§12.7, §11.2);
+%% definition of an exchange's unit is named as its code frame names it, a
+%% function and a type by the qualified name its form holds, a binding, and
+%% a function whose code shows another name, by its name as text, which
+%% its sites and a fault's trace show (§12.7, §11.2, Appendix H);
 %% foreign_functions: the module's #foreign_function{}s, in the order it
 %% declares them, which have no form (Appendix H);
 %% exported: the qualified names of the functions it exports (§11.1), its

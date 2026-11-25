@@ -1041,6 +1041,32 @@ hashes_test() ->
                  ern_code:hashes({'Path', list_to_binary(filename:join(Dir, "none.erc"))})),
     ?assertEqual({'Left', 'Invalid'}, ern_code:hashes({'Path', list_to_binary(File)})).
 
+%% Appendix E.28, Appendix H, report §8.7: a top-level function's qualified
+%% name is in its form, so two functions of one body are two definitions
+%% with two hashes, and so are two that each call themselves alone; two
+%% bindings of one initializer keep one hash, and are told apart by their
+%% names. Written with the change that put the name in the form, where
+%% `same` and `same2` had one hash
+one_body_two_hashes_test() ->
+    Dir = tmp(),
+    File = write(Dir, "lib.ern",
+                 "fn make() : List(Int) = List.range(1, 3)\n\n"
+                 "export let x = make()\n\n"
+                 "export let y = make()\n\n"
+                 "export fn same(n : Int) : Int = n + 1\n\n"
+                 "export fn same2(n : Int) : Int = n + 1\n\n"
+                 "fn rec1(n : Int) : Int = if n == 0 then 0 else rec1(n - 1)\n\n"
+                 "fn rec2(n : Int) : Int = if n == 0 then 0 else rec2(n - 1)\n"),
+    built(Dir, "lib.ern"),
+    {'Right', Hashes} =
+        ern_code:hashes({'Path', list_to_binary(filename:rootname(File) ++ ".erc")}),
+    Hash = fun(Name) -> proplists:get_value(<<"Lib.", Name/binary>>, Hashes) end,
+    ?assertEqual(Hash(<<"x">>), Hash(<<"y">>)),
+    ?assertNotEqual(Hash(<<"same">>), Hash(<<"same2">>)),
+    ?assertNotEqual(Hash(<<"rec1">>), Hash(<<"rec2">>)),
+    ?assertEqual(6, length(lists:usort([Held || {_, Held} <- Hashes]))),
+    ?assertEqual(7, length(Hashes)).
+
 %% Under Dir, a named pipe at `f.erc`, a link to a device at `dev.erc`,
 %% and a directory at `d.erc`, each by its path.
 unopened(Dir) ->
@@ -1082,12 +1108,10 @@ hashes_unopened_test() ->
 %% frame of the declaration named: a process waiting in it, one whose
 %% frame of it lies beneath thirty-two frames of others, and the caller
 %% itself, but not a process a lambda written in it started; a process
-%% moved off it by its own message, and ended, is listed no more. Two
-%% declarations whose forms are one term are one definition (Appendix H),
-%% so idle differs from waiter. A process in a receive with an `after` is
-%% listed, and a process in such a receive written in a lambda is not: a
-%% regression test: a receive with an `after` in a function's tail was no
-%% frame of the function's
+%% moved off it by its own message, and ended, is listed no more. A
+%% process in a receive with an `after` is listed, and a process in such a
+%% receive written in a lambda is not: a regression test: a receive with an
+%% `after` in a function's tail was no frame of the function's
 running_test() ->
     Dir = tmp(),
     Main = write(Dir, "main.ern", running_program()),
@@ -1374,10 +1398,13 @@ running_after_a_fallthrough_program() ->
 %% Appendix E.28: a definition of the named function's qualified name whose
 %% mailbox type is its own, on whichever version of its module the node
 %% holds, is found: a build whose fix in the loop's callee gives the loop a
-%% hash of its own finds the counter the program's build started, and so
-%% does a function of that build that is one with the loop (Appendix H),
-%% while a build whose message type changed finds none. A regression test,
-%% written after the code: before it the fixed build found none. A
+%% hash of its own finds the counter the program's build started, while a
+%% function of that build of the loop's body under another name is another
+%% definition, its qualified name being in its form (Appendix H), and finds
+%% none, and so does a build whose message type changed. A regression test,
+%% written after the code: before it the fixed build found none; the other
+%% name's written with the change that put the name in the form, where the
+%% two were one definition and it found the counter. A
 %% shell's reload is ern_shell_tests' reload_running_by_name_test_; an
 %% arrival, which the table reads alike (ern_code:namespaces/1), is not
 %% covered
@@ -1415,7 +1442,7 @@ running_by_name_test() ->
                   "}\n"]),
     built(Dir, "plug/counter.ern"),
     built(Dir, "main.ern"),
-    ?assertEqual([<<"fixed 1">>, <<"tally 1">>, <<"Right(Unit)">>, <<"changed 0">>,
+    ?assertEqual([<<"fixed 1">>, <<"tally 0">>, <<"Right(Unit)">>, <<"changed 0">>,
                   <<"Right(Unit)">>],
                  ran(filename:rootname(Main) ++ ".erc")).
 

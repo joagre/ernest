@@ -47,8 +47,9 @@
 %% load, which would make a persistent term collect every process each
 %% time, and read where a definition is found by its identity, a spawn by
 %% hash among them (§8.7), at the cost of one lookup, a fraction of the
-%% spawn. Two definitions with one hash are one definition (§8.7), so a
-%% hash may have rows in two units, and the table is a bag. It is made at
+%% spawn. A function or a type of one hash is one definition wherever it
+%% is held (§8.7), so a hash may have rows in two units, and the table is
+%% a bag. It is made at
 %% its first use, by a process of its own that holds it for the host's
 %% life, since the units it describes stay loaded across every run of the
 %% host: `ern test` over a directory runs many (§11.2).
@@ -1035,9 +1036,9 @@ dependencies(Unit) ->
 %% names (loaded/2), so that a unit the build loaded and one an arrival or
 %% a load made of the same definition count alike (§8.7). Its names are
 %% those the units that hold Hash list it under, since the call names Hash
-%% alone, two where two definitions are one (Appendix H); a definition of
-%% one of them is found in the code lists of the units that hold functions
-%% under its namespace, a module's every version among them (namespaces/1).
+%% alone; a definition of one of them is found in the code lists of the
+%% units that hold functions under its namespace, a module's every version
+%% among them (namespaces/1).
 %%
 %% A lambda's and a local function's frames are their own functions', '$N.P'
 %% or a fun, and no definition's, and so are those of the clauses a guard

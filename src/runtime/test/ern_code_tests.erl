@@ -15,8 +15,13 @@
 %% the '$code'/0 the table reads, loaded, and put in the table as the
 %% runner puts a unit; its compiled bytes.
 loaded(Namespace, Text) ->
+    loaded(Namespace, Text, #{}).
+
+%% The same, Units naming the unit of the module's namespace, as the shell
+%% names a reload's version (ern_compile:compile/5).
+loaded(Namespace, Text, Units) ->
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
-    Build = #{source_hash => <<>>, deps => []},
+    Build = #{source_hash => <<>>, deps => [], units => Units},
     {ok, Unit, Beam} = ern_compile:compile(Namespace, Typed, Interface, Env, Build),
     code:purge(Unit),
     {module, Unit} = code:load_binary(Unit, "test", Beam),
@@ -298,17 +303,19 @@ unit_loaded_again_replaces_its_rows_test() ->
     code:purge('ern@tablereload'),
     code:delete('ern@tablereload').
 
-%% report §8.7: two definitions with one body are one definition, held by
-%% two units; one unit's unload leaves the other's row
+%% report §8.7, Appendix H: one definition held by two units, a module's
+%% and a version of it a reload made of the same code, is one hash; one
+%% unit's unload leaves the other's row
 one_hash_in_two_units_test() ->
     Text = "export fn same(n : Int) : Int = n * 3\n",
     Hash = hash(['Tablesame', same], definitions(loaded(['Tablesame'], Text))),
-    Hash = hash(['Tableother', same], definitions(loaded(['Tableother'], Text))),
+    Version = #{['Tablesame'] => 'ern@tablesame$2'},
+    Hash = hash(['Tablesame', same], definitions(loaded(['Tablesame'], Text, Version))),
     ern_code:unloaded('ern@tablesame'),
-    ?assertEqual({'ern@tableother', '$1', 1, {[], []}}, ern_code:spawnable({hash, Hash})),
-    ern_code:unloaded('ern@tableother'),
+    ?assertEqual({'ern@tablesame$2', '$1', 1, {[], []}}, ern_code:spawnable({hash, Hash})),
+    ern_code:unloaded('ern@tablesame$2'),
     ?assertEqual(none, ern_code:spawnable({hash, Hash})),
-    [begin code:purge(Unit), code:delete(Unit) end || Unit <- ['ern@tablesame', 'ern@tableother']].
+    [begin code:purge(Unit), code:delete(Unit) end || Unit <- ['ern@tablesame', 'ern@tablesame$2']].
 
 %% report §8.7, §8.5, §11.1: a binding by its identity has its value in the
 %% run in progress where its unit's initializers have run, and none where

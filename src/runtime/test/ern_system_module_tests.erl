@@ -1,5 +1,5 @@
 %% Report §8.2: the system modules, Terminal, Os, Fs and Tcp, in programs
-%% run as the runner runs them (ern_emitter_tests:run/3).
+%% run as the runner runs them (ern_program:run/3).
 -module(ern_system_module_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -11,7 +11,7 @@
 %% report §12.1: keys and lines are the same terminal, so the process that
 %% claims it the other way faults, naming the side that holds it
 terminal_is_lines_or_keys_test() ->
-    {Result1, _} = ern_emitter_tests:run_at_terminal(
+    {Result1, _} = ern_program:run_at_terminal(
         "type Msg = Pressed(Terminal.Event)\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let _ = Io.readLine();\n"
@@ -26,7 +26,7 @@ terminal_is_lines_or_keys_test() ->
 %% regression test: the entry process faulted, whoever asked
 terminal_claim_faults_its_caller_test() ->
     ?assertEqual({ok, <<"the terminal is already read as lines\nread on\n">>},
-                 ern_emitter_tests:run_at_terminal(
+                 ern_program:run_at_terminal(
                      "type Msg = Pressed(Terminal.Event)\n"
                      "type MainMsg = Ended(Down)\n"
                      "fn watch() : Unit receiving Msg = {\n"
@@ -51,7 +51,7 @@ terminal_claim_faults_its_caller_test() ->
 
 %% A program that prints what Os.run answered for one command.
 os_run(Program, Arguments, Input, Ms) ->
-    ern_emitter_tests:run(
+    ern_program:run(
         ["fn show(r : Either(Io.Error, Os.Finished)) : String = match r {\n"
          "    Right(f) -> Int.toString(f.status) <> \"|\" <> Io.show(String.fromUtf8(f.stdout))\n"
          "        <> \"|\" <> Io.show(String.fromUtf8(f.stderr))\n"
@@ -100,7 +100,7 @@ os_run_refusals_test() ->
 %% have left its mark within its own second, so the test waits that second
 %% from the run's return
 os_run_timeout_kills_test() ->
-    Mark = filename:join(ern_emitter_tests:scratch(), "mark"),
+    Mark = filename:join(ern_program:scratch(), "mark"),
     {ok, Output} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
     ?assertEqual(<<"Io.Timeout\n">>, Output),
     timer:sleep(1000),
@@ -113,8 +113,8 @@ os_run_timeout_kills_test() ->
 %% have left its mark within its own second, which began before it was
 %% killed, so the test waits that second from the end of the run
 os_run_dies_with_its_caller_test() ->
-    Mark = filename:join(ern_emitter_tests:scratch(), "mark"),
-    {ok, _} = ern_emitter_tests:run(
+    Mark = filename:join(ern_program:scratch(), "mark"),
+    {ok, _} = ern_program:run(
         "type Msg = Started\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let me = self();\n"
@@ -138,7 +138,7 @@ os_run_dies_with_its_caller_test() ->
 %% times out kills it as before, which os_run_timeout_kills_test reads of
 %% the program
 os_run_leaves_no_process_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Ended(Down)\n"
         "fn ended(left : List(Process)) : Unit receiving Msg = match left {\n"
         "    [] -> Unit\n"
@@ -209,7 +209,7 @@ drain() ->
 %% Appendix E.23: each read answers the next piece from either stream, in
 %% the order the host delivered them, and last the exit status
 os_start_reads_in_order_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [drain(),
         "export fn main() : Unit = match Os.start(Os.command(\"sh\",\n"
         "    [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"])) {\n"
@@ -225,10 +225,10 @@ os_start_reads_in_order_test() ->
 %% timed at first, so the test waits twice that, rounded up to the
 %% millisecond, before it looks for the mark
 os_start_output_waits_for_a_read_test() ->
-    Scratch = ern_emitter_tests:scratch(),
+    Scratch = ern_program:scratch(),
     Mark = filename:join(Scratch, "mark"),
     Timed = filename:join(Scratch, "timed"),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [
         "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int = match Os.read(p, 5000) {\n"
         "    Right(Os.Exited(_)) -> n\n"
@@ -259,7 +259,7 @@ os_start_output_waits_for_a_read_test() ->
 %% until closeInput; what is written after that is dropped, and the write
 %% answers Left(Closed)
 os_start_write_then_close_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [
         "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes =\n"
         "    match Os.read(p, 5000) {\n"
@@ -285,7 +285,7 @@ os_start_write_then_close_test() ->
 %% starts once the close has returned. Written before the code, a regression
 %% test, which the old code passed
 os_close_input_under_pipes_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Written(Either(Io.Error, Unit))\n"
         "fn size(p : Address(Os.ProgramMsg), count : Int) : Int = match Os.read(p, 5000) {\n"
         "    Right(Os.Stdout(b)) -> size(p, count + Bytes.size(b))\n"
@@ -314,7 +314,7 @@ os_close_input_under_pipes_test() ->
 %% 20 runs of 20, and the new 129 in 20 of 20; without the wait the old
 %% code ended 129 in 55 runs of 55
 os_close_input_hangs_up_first_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [rest(), read_to(),
          "export fn main() : Unit =\n"
          "    match Os.startTerminal(Os.command(\"sh\", [\"-c\", \"echo $$; exec sleep 1000\"]),\n"
@@ -335,7 +335,7 @@ os_close_input_hangs_up_first_test() ->
 %% test, which the old code passed, its close a send; the runtime's look
 %% while the close waits is ern_os_tests'
 os_last_act_closes_input_test() ->
-    ?assertEqual({ok, <<>>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<>>}, ern_program:run(
         "export fn main() : Unit = match Os.start(Os.command(\"cat\", [])) {\n"
         "    Right(cat) ->\n"
         "        match Os.startTerminal(Os.command(\"cat\", []),\n"
@@ -354,9 +354,9 @@ os_last_act_closes_input_test() ->
 %% with it; one that has answered its exit status lives on, answering it
 %% again, until it is killed
 os_program_is_a_process_test() ->
-    Dir = ern_emitter_tests:scratch(),
+    Dir = ern_program:scratch(),
     Pids = filename:join(Dir, "pids"),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [
         "type Msg = Ended(Down)\n"
         "fn started(script : String) : Address(Os.ProgramMsg) receiving Msg =\n"
@@ -392,7 +392,7 @@ os_program_is_a_process_test() ->
 %% Timeout and the program runs on, the next read taking what it wrote. A
 %% regression test: before the rule, the start's time killed the program
 os_read_time_limit_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "export fn main() : Unit = match Os.start(Os.command(\"sh\",\n"
         "    [\"-c\", \"sleep 0.3; echo late\"])) {\n"
         "    Right(p) -> {\n"
@@ -480,9 +480,9 @@ script(Path, Text) ->
 %% inherited; a name without `/` is found in the directories of the `PATH`
 %% the program starts with
 os_command_environment_test() ->
-    Dir = ern_emitter_tests:scratch(),
+    Dir = ern_program:scratch(),
     script(filename:join(Dir, "tool"), "echo tool"),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [ran(),
          "export fn main() : Unit = {\n"
          "    Io.println(ran(\"sh\", [\"-c\", \"echo $A $B\"],\n"
@@ -499,7 +499,7 @@ os_command_environment_test() ->
 %% resolved against it, after the directory is entered; a relative
 %% directory of `PATH` is not covered
 os_command_working_directory_test() ->
-    Dir = ern_emitter_tests:scratch(),
+    Dir = ern_program:scratch(),
     Sub = filename:join(Dir, "sub"),
     ok = file:make_dir(Sub),
     script(filename:join(Sub, "tool"), "pwd -P"),
@@ -508,7 +508,7 @@ os_command_working_directory_test() ->
     %% root and down again
     Relative = filename:join(lists:duplicate(length(filename:split(Cwd)) - 1, "..")
                              ++ tl(filename:split(Sub))),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [ran(),
          "export fn main() : Unit = {\n"
          "    Io.println(ran(\"pwd\", [\"-P\"], [], Path(\"", Relative, "\")));\n"
@@ -526,9 +526,9 @@ os_command_working_directory_test() ->
 %% directory that holds U+0000 answer Invalid. A directory the program may
 %% not enter is not covered, since the superuser enters any
 os_command_refusals_test() ->
-    Dir = ern_emitter_tests:scratch(),
+    Dir = ern_program:scratch(),
     ok = file:write_file(filename:join(Dir, "file"), <<>>),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [ran(),
          "export fn main() : Unit = {\n"
          "    Io.println(ran(\"no-such-program-ern\", [], [], Path(\"", Dir, "/none\")));\n"
@@ -552,7 +552,7 @@ os_command_refusals_test() ->
 %% does not handle ends it, its status 128 and the signal's number, and one
 %% it handles is its own; once it has exited the answer is Closed
 os_signal_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [rest(),
          "fn ended(signal : Os.Signal) : String =\n"
          "    match Os.start(Os.command(\"sleep\", [\"10\"])) {\n"
@@ -590,9 +590,9 @@ os_signal_test() ->
 %% it started: the shell's child, which a signal to the group would end,
 %% reads the line its parent writes to it at the termination
 os_signal_to_the_program_alone_test() ->
-    Dir = ern_emitter_tests:scratch(),
+    Dir = ern_program:scratch(),
     Fifo = filename:join(Dir, "fifo"),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [rest(),
          "export fn main() : Unit =\n"
          "    match Os.start(Os.command(\"sh\", [\"-c\", \"mkfifo $0; trap 'echo > $0' TERM;\"\n"
@@ -615,7 +615,7 @@ os_signal_to_the_program_alone_test() ->
 %% shell ignores the interrupt, so the signal is sent until it answers
 %% Closed, which says the shell has exited, and its status is 0
 os_signal_after_an_unread_exit_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
          "    match Os.start(Os.command(\"sh\", [\"-c\", \"trap '' INT; echo started\"])) {\n"
@@ -635,7 +635,7 @@ os_signal_after_an_unread_exit_test() ->
 %% until it answers Closed, which says the program has exited, and its
 %% status is 0
 os_write_after_an_unread_exit_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
          "    match Os.start(Os.command(\"python3\", [\"-c\", ", holding_input(), "])) {\n"
@@ -655,7 +655,7 @@ os_write_after_an_unread_exit_test() ->
 %% the helper did so before the sentence said it; a terminal a child holds
 %% is not covered
 os_write_to_an_input_a_child_holds_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [rest(), read_to(),
          "export fn main() : Unit =\n"
          "    match Os.start(Os.command(\"sh\", [\"-c\", \"exec 3<&0;\"\n"
@@ -676,7 +676,7 @@ os_write_to_an_input_a_child_holds_test() ->
 %% exit nor the hangup it sends reaches. The hangup `closeInput` makes ends
 %% the run, as the program has exited
 os_resize_after_an_unread_exit_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [rest(), read_to(), closed(),
          "export fn main() : Unit =\n"
          "    match Os.startTerminal(Os.command(\"python3\", [\"-c\", ", holding_input(), "]),\n"
@@ -699,25 +699,25 @@ os_resize_after_an_unread_exit_test() ->
 %% outside 0 to 255 faults the caller (§7.4)
 os_exit_test() ->
     ?assertEqual({{exit, 3}, <<"bye\n">>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
                      "export fn main() : Unit = {\n"
                      "    Io.println(\"bye\");\n"
                      "    Os.exit(3)\n"
                      "}\n")),
     ?assertEqual({{exit, 5}, <<>>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
                      "export fn main() : Unit receiving Unit = {\n"
                      "    let _ = spawn(fn() = Os.exit(5));\n"
                      "    receive { _ -> Unit }\n"
                      "}\n")),
     ?assertMatch({{fault, <<"an exit status is from 0 to 255">>, _}, <<>>},
-                 ern_emitter_tests:run("export fn main() : Unit = Os.exit(256)\n")).
+                 ern_program:run("export fn main() : Unit = Os.exit(256)\n")).
 
 %% report §11.2: where Os.exit faults its caller, as in the shell and under
 %% `ern test`, it ends only the process that calls it
 os_exit_faults_where_asked_test() ->
     ?assertMatch({{fault, <<"exited with status 2">>, _}, <<>>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
                      ['M'], "export fn main() : Unit = Os.exit(2)\n",
                      #{exit => fault})).
 
@@ -726,9 +726,9 @@ os_exit_faults_where_asked_test() ->
 os_arguments_test() ->
     Main = "export fn main() : Unit = Io.println(Io.show(Os.arguments))\n",
     ?assertEqual({ok, <<"[\"a\", \"b c\", \"--x\"]\n">>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
                      ['M'], Main, #{arguments => [<<"a">>, <<"b c">>, <<"--x">>]})),
-    ?assertEqual({ok, <<"[]\n">>}, ern_emitter_tests:run(Main)).
+    ?assertEqual({ok, <<"[]\n">>}, ern_program:run(Main)).
 
 %%
 %% Report Appendix E.17: Fs.
@@ -737,7 +737,7 @@ os_arguments_test() ->
 %% Appendix E.17: a path that holds U+0000 names no file, `Invalid`. A
 %% regression test for the host's own term, badarg, answered as the cause
 fs_path_with_nul_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "export fn main() : Unit =\n"
         "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
     ?assertEqual(<<"Left(Io.Invalid)\n">>, Output).
@@ -747,10 +747,10 @@ fs_path_with_nul_test() ->
 %% warning printed in its place, and of the rule, before which the name was
 %% left out
 fs_list_names_a_name_not_utf8_test() ->
-    Dir = ern_emitter_tests:scratch(),
+    Dir = ern_program:scratch(),
     ok = file:write_file(<<(list_to_binary(Dir))/binary, "/caf", 16#e9>>, <<>>),
     ok = file:write_file(filename:join(Dir, "ok"), <<>>),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         ["export fn main() : Unit = match Fs.list(Path(\"", Dir,
          "\"), 1000) {\n"
          "    Right(entries) -> Io.println(Io.show(List.map(entries,\n"
@@ -769,7 +769,7 @@ fs_list_names_a_name_not_utf8_test() ->
 %% given to a process that has ended is killed at once. A regression test:
 %% a socket outlived a handler that faulted, one leaked connection each
 socket_owner_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Opened(Address(Tcp.SocketMsg)) | Ended(Down)\n"
         "fn opener(port : Int, to : Address(Msg)) : Unit =\n"
         "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
@@ -827,7 +827,7 @@ socket_owner_test() ->
 %% test; a close that waits on an accept the listener holds, and the
 %% runtime's look during it, are ern_tcp_tests'
 last_act_closes_the_listener_test() ->
-    ?assertEqual({ok, <<>>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<>>}, ern_program:run(
         "export fn main() : Unit = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(listener) -> Tcp.closeListener(listener)\n"
         "  | Left(error) -> Io.println(Io.show(error))\n"
@@ -843,7 +843,7 @@ last_act_closes_the_listener_test() ->
 %% too; the cases of the runtime's own are ern_tcp_tests'
 tcp_tls_test() ->
     #{dir := Dir, ca := Ca, server := {Certificate, Key}} = ern_tcp_tests:pki(),
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         ["fn site(p : Process) : String = match Process.status(p) {\n"
          "    Some(Process.Status(site = s, queued = _, activity = _)) -> s\n"
          "  | None -> \"none\"\n"
@@ -892,7 +892,7 @@ tcp_tls_test() ->
 %% gives the function that opened each as its site. A regression test: the
 %% runtime did not know them
 opened_processes_are_live_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [
         "fn site(p : Process) : String = match Process.status(p) {\n"
         "    Some(Process.Status(site = s, queued = _, activity = _)) -> s\n"
@@ -924,7 +924,7 @@ opened_processes_are_live_test() ->
 %% accept answered, and `Tcp.acceptForever` for one an accept without a
 %% time answered. Written with the site; a socket over TLS is not covered
 accepted_sockets_sites_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [
         "fn site(p : Process) : String = match Process.status(p) {\n"
         "    Some(Process.Status(site = s, queued = _, activity = _)) -> s\n"
@@ -950,7 +950,7 @@ accepted_sockets_sites_test() ->
 %% and as an `Address(Never)`. A regression test, written after the code;
 %% such a process on another node is not covered
 host_process_has_no_status_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "foreign fn leader() : Process = \"erlang:group_leader/0\"\n"
         "foreign fn leaderAddress() : Address(Never) = \"erlang:group_leader/0\"\n"
         "export fn main() : Unit = {\n"
@@ -967,7 +967,7 @@ host_process_has_no_status_test() ->
 %% test, written after the code; the tables and a proxy's process, which
 %% the libraries make, are ern_shell_tests' owned_said_test_'s
 owned_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [
         "type Msg = Opened(listener : Process, socket : Address(Tcp.SocketMsg)) | Ended(Down)\n"
         "fn sites(ps : List(Process)) : List(String) =\n"
@@ -1024,7 +1024,7 @@ process_run_test() ->
     Faults = fun({'FaultReport', _, Site, Cause, _, _, _, _, _, _}, _) ->
                      Self ! {fault, Site, Cause}
              end,
-    {ok, Output} = ern_emitter_tests:run(['M'],
+    {ok, Output} = ern_program:run(['M'],
         "type Msg = Ended(Down)\n"
         "type Waits = Waits\n"
         "fn waits() : Unit receiving Waits = receive { Waits -> Unit }\n"
@@ -1068,7 +1068,7 @@ process_run_test() ->
 %% plain monitor is not told of; `Process.owned` does not list it among the
 %% caller's. A regression test, written after the code
 process_run_caller_ends_test() ->
-    {ok, Output} = ern_emitter_tests:run(['M'],
+    {ok, Output} = ern_program:run(['M'],
         "type Msg = Started(Process) | Ended(Down)\n"
         "type ChildMsg = Go(Address(Msg)) | Boom\n"
         "type Waits = Waits\n"
@@ -1117,7 +1117,7 @@ process_run_caller_ends_test() ->
 %% close is learned here by a read, so that the answer does not depend on
 %% when the host reports it
 tcp_write_answers_closed_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         [
         "export fn main() : Unit = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(l) -> match Tcp.port(l) {\n"
@@ -1156,7 +1156,7 @@ tcp_write_answers_closed_test() ->
 %% as they come, are timed first, and the writer read by no one is looked
 %% at once twice that time, rounded up to the millisecond, has passed.
 paced(Setup) ->
-    ern_emitter_tests:run(
+    ern_program:run(
         ["type Msg = Done | Ended(Down) | Gone(Down)\n",
          Setup,
          "fn chunk() : Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
@@ -1270,7 +1270,7 @@ tcp_write_waits_test() ->
 %% `Os.startTerminal`, and a process ended by its owner's death are not
 %% covered
 ended_given_no_time_faults_test() ->
-    {ok, Output} = ern_emitter_tests:run(['M'],
+    {ok, Output} = ern_program:run(['M'],
         "type Gone = Gone(Down)\n"
         "fn ended(p : Process) : Unit receiving Gone = {\n"
         "    monitor(p, Gone);\n"

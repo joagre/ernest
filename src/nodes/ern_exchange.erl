@@ -52,10 +52,12 @@
 %% order, Bytes what that definition or group is hashed as (Appendix H), and
 %% Sources the bytes of the host's external term format of a list of {Name,
 %% Sourced, Printing, Calls}, one for each of Hashes in order: the
-%% definition's name, its form with the lines of its source, the locals'
-%% names left out (§11.1), which, stripped of its source, is the form the
-%% bytes hold, and holds no atom the form does not, so that it is read once
-%% the form is, making none.
+%% definition's name where its form does not hold it, a binding's and a
+%% function's whose code shows another than its form's, `Counter$2.worker`
+%% for a reload's version (§11.2), or none, its form with the lines of its
+%% source, the locals' names left out (§11.1), which, stripped of its
+%% source, is the form the bytes hold, and holds no atom the form does not,
+%% so that it is read once the form is, making none.
 %%
 %% A source's Printing is {Namespace, Shadows}, the namespace its module's
 %% forms write its types under and the prelude names its types shadow, as
@@ -290,8 +292,10 @@ exchange(From, Ref, #state{exchanges = Exchanges}) ->
         #{} -> late
     end.
 
-%% Report §12.7: a code frame's members, each a #definition{} named by the
-%% name the frame gave it, with its form and its form with the lines of
+%% Report §12.7, Appendix H: a code frame's members, each a #definition{}
+%% named by the name the frame gave it, a function or a type the frame
+%% gave none by the qualified name its form holds, with its form and its
+%% form with the lines of
 %% its source, which must be the form the bytes hold once its source is
 %% taken out, a group's by its hash and its member's position; and beside
 %% it the foreign declarations it calls, which must be those its form calls,
@@ -307,14 +311,27 @@ framed(Hashes, Bytes, Forms, Sources) ->
             <- lists:enumerate(lists:zip3(Hashes, Forms, binary_to_term(Sources, [safe])))].
 
 member(Hash, Form, {Name, Sourced, Printing, Calls}, Group) ->
-    true = is_name(Name) andalso is_printing(Printing) andalso is_list(Calls)
+    Kind = kind(Form),
+    true = is_frame_name(Kind, Name) andalso is_printing(Printing) andalso is_list(Calls)
         andalso lists:all(fun is_call/1, Calls),
     Form = ern_canonical:stripped(Sourced),
     true = [Called || #foreign_function{qualified_name = Called} <- Calls]
         =:= called_names(Form),
-    {#definition{qualified_name = Name, kind = kind(Form), hash = Hash, form = Form,
+    QualifiedName = case Name of
+                        none -> element(2, Form);
+                        _ -> Name
+                    end,
+    {#definition{qualified_name = QualifiedName, kind = Kind, hash = Hash, form = Form,
                  group = Group, sourced = Sourced, printing = Printing},
      Calls}.
+
+%% Report §12.7, Appendix H: a code frame's name for a definition of Kind:
+%% a binding's, which its form does not hold; a function's, or none where
+%% its form's is the name its code shows; and none for a type, whose form
+%% holds the name.
+is_frame_name(binding, Name) -> is_name(Name);
+is_frame_name(function, Name) -> Name =:= none orelse is_name(Name);
+is_frame_name(type, Name) -> Name =:= none.
 
 is_call(#foreign_function{scheme = none} = Call) -> is_declaration(Call);
 is_call(_) -> false.
@@ -330,7 +347,7 @@ is_declaration(#foreign_function{qualified_name = Name, host_module = HostModule
 is_declaration(_) ->
     false.
 
-kind({function, _, _, _}) -> function;
+kind({function, _, _, _, _}) -> function;
 kind({binding, _, _}) -> binding;
 kind({type, _, _, _, _, _}) -> type.
 
@@ -715,7 +732,8 @@ first_needed(Key, Groups, ByHash, {Order, Seen}) ->
 
 %% Report Appendix H, §12.7: a definition alone, or a group's members in
 %% order, as a code frame carries it: the hashes, the bytes they are taken
-%% of, and each member's name, its form with the lines of its source, what
+%% of, and each member's name where its form does not hold it
+%% (frame_name/1), its form with the lines of its source, what
 %% prints a type in a cause as its module writes it, and the foreign
 %% declarations it calls, as the node
 %% holds them (§11.2), a form without its source where it holds none, and
@@ -732,10 +750,7 @@ code_frame(Members, Forms, Calls) ->
         true ->
             none;
         false ->
-            Sources = [{case Name of
-                            none -> ern_namespace:text_segments(QualifiedName);
-                            _ -> Name
-                        end,
+            Sources = [{frame_name(Definition),
                         case Sourced of
                             none -> Form;
                             _ -> Sourced
@@ -745,11 +760,25 @@ code_frame(Members, Forms, Calls) ->
                             _ -> Printing
                         end,
                         Called}
-                       || {#definition{qualified_name = QualifiedName, name = Name, form = Form,
-                                       sourced = Sourced, printing = Printing}, Called}
+                       || {#definition{form = Form, sourced = Sourced,
+                                       printing = Printing} = Definition, Called}
                               <- lists:zip(Members, Calls)],
             {[Hash || #definition{hash = Hash} <- Members],
              ern_canonical:bytes(ern_canonical:hashed(Forms)), term_to_binary(Sources)}
+    end.
+
+%% Report §12.7, Appendix H: the name a code frame carries for a
+%% definition, as text: a binding's, which its form does not hold; a
+%% function's where its code shows another than its form's, an input's of
+%% a shell's session or a reload's version's, or where it arrived so; and
+%% none for any other, the form holding it.
+frame_name(#definition{kind = Kind, qualified_name = QualifiedName, name = Name,
+                       form = Form}) ->
+    case {Kind, Name} of
+        {type, _} -> none;
+        {function, none} when element(2, Form) =:= QualifiedName -> none;
+        {_, none} -> ern_namespace:text_segments(QualifiedName);
+        {_, _} -> Name
     end.
 
 %% Report §12.7: the foreign declarations a definition's form calls, in the

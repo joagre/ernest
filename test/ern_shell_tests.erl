@@ -522,6 +522,53 @@ prelude_shown() ->
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)).
 
+%% report §11.2, Appendix E.1: the prompt prints a value as `Io.show`
+%% writes it at its type, below the depth and the length it prints to, and
+%% then the type: each kind of value, a number, a negative zero, a Bool, a
+%% Char, a string and bytes with their escapes, a tuple, a list, a Set, a
+%% Map, Optional and Either, a constructor of no field, of a positional and
+%% of named fields, a recursive type, a function, an address, a process, a
+%% foreign term, a prelude type, an abstract type and a value of nested
+%% kinds. The prompt's describer reads the checker's type and `Io.show`'s
+%% the form's (ern_descriptor), so that this holds the two to one text. A
+%% Reply, which no prompt holds, is not covered
+prompt_shows_as_io_show_test_() ->
+    ern_nodes_tests:counted_test({waits, 1}, fun prompt_shows_as_io_show/0).
+
+prompt_shows_as_io_show() ->
+    Declarations = ["type Shape = Circle(Int) | Rect(width : Int, height : Int) | Dot",
+                    "type Tree = Leaf | Node(left : Tree, item : Int, right : Tree)",
+                    "type Msg = Ping", "let a : Address(Msg) = self()",
+                    "let none : Optional(Int) = None", "let empty : List(Int) = []",
+                    "let either : Either(String, Int) = Left(\"e\")"],
+    Values = ["42", "-7", "1.5", "-0.0", "1.0e100", "true", "'a'", "'\\n'", "\"a\\\"b\\n\"",
+              "<<1, 2, 255>>", "#(1, \"a\", 'c')", "[1, 2, 3]", "empty",
+              "Set.fromList([3, 1, 2])", "Map.fromList([#(1, \"a\"), #(2, \"b\")])", "Some(1)",
+              "none", "either", "Circle(3)", "Rect(width = 2, height = 3)", "Dot",
+              "Node(left = Leaf, item = 1, right = Node(left = Leaf, item = 2, right = Leaf))",
+              "fn(x : Int) = x + 1", "a", "Process.fromAddress(a)", "Foreign.term(1)",
+              "Path(\"a/b\")", "Less", "OrderedSet.fromList([2, 1])",
+              "#(Some([Circle(1)]), Map.fromList([#(\"k\", Set.fromList(['x']))]))"],
+    Inputs = [[Line, "\n"] || Line <- Declarations]
+        ++ [[Value, "\nIo.println(Io.show(", Value, "))\n"] || Value <- Values],
+    {0, Output} = line_session(Inputs),
+    %% the banner, a line for each declaration, two for each value, and the
+    %% prompt at the input's end
+    [_ | Lines] = binary:split(Output, <<"\n">>, [global]),
+    {Declared, Printed} = lists:split(length(Declarations), Lines),
+    ?assertEqual(length(Declarations), length([Line || <<"> ", Line/binary>> <- Declared])),
+    ?assertEqual({2 * length(Values) + 2, [<<"> ">>, <<>>]},
+                 {length(Printed), lists:nthtail(2 * length(Values), Printed)}),
+    lists:foreach(fun({Value, [<<"> ", Prompt/binary>>, <<"> ", Shown/binary>>]}) ->
+                          [Prompted, _Type] = string:split(Prompt, <<" : ">>, trailing),
+                          ?assertEqual({Value, Shown}, {Value, Prompted})
+                  end, lists:zip(Values, pairs(lists:sublist(Printed, 2 * length(Values))))).
+
+%% The lines of a session two to a value: what the prompt printed of it and
+%% what `Io.show` wrote.
+pairs([First, Second | Rest]) -> [[First, Second] | pairs(Rest)];
+pairs([]) -> [].
+
 %% report §11.2, §9: `:browse Address` lists the prelude's functions under
 %% `Address`, each with its type, as `:browse Prelude` lists them, though
 %% no module is named so; a name that names no module nor such a namespace

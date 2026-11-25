@@ -784,7 +784,7 @@ mark_abstract(Declarations, #env{local_types = LocalTypes, types = Types} = Env)
 %% that module: what a module's code is linked through once the modules it
 %% names are compiled, the build's emit of a module after those its forms
 %% reference (ern_build), and the shell's load of a compiled module beside
-%% another unit of its name (ern_compile:from_compiled/4).
+%% another unit of its name (ern_compile:from_compiled/5).
 -spec with_interfaces([#interface{}], env()) -> env().
 with_interfaces(Interfaces, Env) ->
     lists:foldl(fun add_interface/2, Env, Interfaces).

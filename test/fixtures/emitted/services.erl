@@ -22,27 +22,30 @@
 
 %% Services.storing
 '$7'(Stock_1) ->
-    receive
-        '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Fault_8} -> erlang:throw(Fault_8);
-        {'Change', Key_2, By_3, Reply_4} ->
-            Held_5 = '$18'(Stock_1, Key_2),
-            case Held_5 + By_3 < 0 of
-                true ->
-                    try ern_rt:fault(<<Key_2/binary, ": cannot take ",
-                                       (erlang:integer_to_binary(-By_3))/binary,
-                                       " of ",
-                                       (erlang:integer_to_binary(Held_5))/binary>>)
-                    after
-                        ok
-                    end;
-                false ->
-                    ern_rt:answer(Reply_4, Held_5 + By_3),
-                    '$7'(ern@map:'$4'(Stock_1, Key_2, Held_5 + By_3))
-            end;
-        {'Get', Key_6, Reply_7} ->
-            ern_rt:answer(Reply_7, '$18'(Stock_1, Key_6)),
-            '$7'(Stock_1)
+    begin
+        ern_rt:at_receive(),
+        receive
+            '$ern_restart' -> ern_rt:restart_now();
+            {'$ern_fault', Fault_8} -> erlang:throw(Fault_8);
+            {'Change', Key_2, By_3, Reply_4} ->
+                Held_5 = '$18'(Stock_1, Key_2),
+                case Held_5 + By_3 < 0 of
+                    true ->
+                        try ern_rt:fault(<<Key_2/binary, ": cannot take ",
+                                           (erlang:integer_to_binary(-By_3))/binary,
+                                           " of ",
+                                           (erlang:integer_to_binary(Held_5))/binary>>)
+                        after
+                            ok
+                        end;
+                    false ->
+                        ern_rt:answer(Reply_4, Held_5 + By_3),
+                        '$7'(ern@map:'$4'(Stock_1, Key_2, Held_5 + By_3))
+                end;
+            {'Get', Key_6, Reply_7} ->
+                ern_rt:answer(Reply_7, '$18'(Stock_1, Key_6)),
+                '$7'(Stock_1)
+        end
     end.
 
 %% Services.ids
@@ -50,12 +53,15 @@
 
 %% Services.counting
 '$9'(Next_9) ->
-    receive
-        '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Fault_11} -> erlang:throw(Fault_11);
-        {'NextId', Reply_10} ->
-            ern_rt:answer(Reply_10, Next_9),
-            '$9'(Next_9 + 1)
+    begin
+        ern_rt:at_receive(),
+        receive
+            '$ern_restart' -> ern_rt:restart_now();
+            {'$ern_fault', Fault_11} -> erlang:throw(Fault_11);
+            {'NextId', Reply_10} ->
+                ern_rt:answer(Reply_10, Next_9),
+                '$9'(Next_9 + 1)
+        end
     end.
 
 %% Services.audit
@@ -63,14 +69,17 @@
 
 %% Services.recording
 '$11'(Entries_12) ->
-    receive
-        '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Fault_15} -> erlang:throw(Fault_15);
-        {'Record', Entry_13} ->
-            '$11'(ern@list:'$1'(Entries_12, [Entry_13]));
-        {'Entries', Reply_14} ->
-            ern_rt:answer(Reply_14, Entries_12),
-            '$11'(Entries_12)
+    begin
+        ern_rt:at_receive(),
+        receive
+            '$ern_restart' -> ern_rt:restart_now();
+            {'$ern_fault', Fault_15} -> erlang:throw(Fault_15);
+            {'Record', Entry_13} ->
+                '$11'(ern@list:'$1'(Entries_12, [Entry_13]));
+            {'Entries', Reply_14} ->
+                ern_rt:answer(Reply_14, Entries_12),
+                '$11'(Entries_12)
+        end
     end.
 
 %% Services.main

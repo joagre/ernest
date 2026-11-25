@@ -23,15 +23,18 @@
 
 %% Counter.count
 '$3'(Total_4) ->
-    receive
-        '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Fault_9} -> erlang:throw(Fault_9);
-        {'Inc', Amount_5} -> '$3'(Total_4 + Amount_5);
-        {'Get', Reply_6} ->
-            ern_rt:answer(Reply_6, Total_4),
-            '$3'(Total_4);
-        {'Upgrade', Migrate_7, Next_8} ->
-            Next_8(Migrate_7(Total_4))
+    begin
+        ern_rt:at_receive(),
+        receive
+            '$ern_restart' -> ern_rt:restart_now();
+            {'$ern_fault', Fault_9} -> erlang:throw(Fault_9);
+            {'Inc', Amount_5} -> '$3'(Total_4 + Amount_5);
+            {'Get', Reply_6} ->
+                ern_rt:answer(Reply_6, Total_4),
+                '$3'(Total_4);
+            {'Upgrade', Migrate_7, Next_8} ->
+                Next_8(Migrate_7(Total_4))
+        end
     end.
 
 '$spawned'('$2', []) -> '$2'().

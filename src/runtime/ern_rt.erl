@@ -52,7 +52,8 @@
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
          writes_through/1, faults/1, termination/1,
          expected/1, is_ernest/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
-         opened/3, forget_opened/1, spent/1, timed/0, untimed/0, peer_wait/1, peer_waited/0,
+         opened/3, forget_opened/1, spent/1, timed/0, untimed/0, at_receive/0, peer_wait/1,
+         peer_waited/0,
          deadline/1, deadline/2, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
          undefined_function/3, undefined_lambda/3, met/3, host_cause/2, fault/1, fault/2, trace/1,
@@ -3422,6 +3423,14 @@ timed() ->
 -spec untimed() -> ok.
 untimed() ->
     _ = erlang:erase(?TIMED),
+    ok.
+
+%% Appendix E.21: the call the compiler writes before a receive without an
+%% `after`, at the receive's line, which does nothing: the host's wait holds
+%% no line, and gives a process that waits the line of the last call before
+%% it, so that a waiting frame names the receive's own line.
+-spec at_receive() -> ok.
+at_receive() ->
     ok.
 
 %% Appendix E.21, E.27: a wait for a peer's answer that is no call, a

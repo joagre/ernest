@@ -33,14 +33,18 @@
 %% The unit is named from the node's pool (name/1), `ern$1`, `ern$2` and
 %% on, the first the host holds no unit of from the exchange's count, which
 %% grows with the units the node holds, for its life (§11.2), an arrival
-%% that fails taking no name. It names each definition by the name its
-%% code frame gave it, as text, which makes no atom here, so that a fault's
-%% trace and a spawn site its body writes show the sender's names and
-%% lines, `Counter.worker:23`, a foreign function's frame the line of its
-%% declaration, which its reach or its code frame carries, and a check's
-%% cause prints a type as the definition's module writes it, by the
-%% module's namespace and shadows the frame gave (§11.5). A type keeps the
-%% qualified name its form holds.
+%% that fails taking no name.
+%%
+%% The unit names each definition as its code frame does (ern_exchange): a
+%% function and a type by the qualified name its form holds, whose atoms
+%% the form's decoding made, and a binding, and a function whose code shows
+%% another name, by the name the frame gave it, as text, which makes no
+%% atom here (Appendix H); so that a fault's trace and a spawn site its
+%% body writes show the sender's names and lines, `Counter.worker:23`, a
+%% foreign function's frame the line of its declaration, which its reach
+%% or its code frame carries, and a check's cause prints a type as the
+%% definition's module writes it, by the module's namespace and shadows the
+%% frame gave (§11.5).
 %%
 %% The unit exports every function it holds (§11.1), since a later
 %% exchange's definitions call into it by hash. A binding that crosses,
@@ -191,17 +195,12 @@ binding_references(Bindings) ->
         error:badarg -> reason(["it names a binding this node does not hold"])
     end.
 
-%% A definition as the back end compiles it: a function and a binding by
-%% the name its frame gave it, a type by its form's qualified name, and the
-%% members of its group that are bindings named by their identities.
-compiled_definition(#definition{kind = Kind, form = Form, sourced = Sourced,
-                                group = Group} = Definition, ByPosition) ->
-    QualifiedName = case Kind of
-                        type -> element(2, Form);
-                        _ -> Definition#definition.qualified_name
-                    end,
-    Definition#definition{qualified_name = QualifiedName,
-                          form = in_group(Form, Group, ByPosition),
+%% A definition as the back end compiles it, by the name its code frame
+%% gave it, the members of its group that are bindings named by their
+%% identities.
+compiled_definition(#definition{form = Form, sourced = Sourced, group = Group} = Definition,
+                    ByPosition) ->
+    Definition#definition{form = in_group(Form, Group, ByPosition),
                           sourced = in_group(Sourced, Group, ByPosition)}.
 
 in_group(Term, none, _) ->

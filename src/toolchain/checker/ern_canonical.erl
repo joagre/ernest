@@ -23,8 +23,9 @@
 %% shape as a form writes it, by which the build links a type of another
 %% module (declared_type/4).
 %%
-%% The chunk records beside each form the lines of its source and its name,
-%% the locals' names left out, so that a definition shipped onward or loaded
+%% The chunk records beside each form the lines of its source and the name
+%% its definition is known by, which a binding's form does not hold, the
+%% locals' names left out, so that a definition shipped onward or loaded
 %% from its compiled form is compiled with them (recorded_source/1, §12.7,
 %% §11.1); and each reach a unit's `'$code'/0` lists, computed from its
 %% forms (unit_reaches/2).
@@ -50,7 +51,7 @@
 -include_lib("checker/include/ern_types.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
--define(FORM_VERSION, 2).
+-define(FORM_VERSION, 3).
 -define(CHUNK, <<"ErnC">>).
 %% Appendix H: the form of the prelude's type Never.
 -define(NEVER_FORM, {applied, {named, ['Never']}, []}).
@@ -193,9 +194,9 @@ module(Namespace, Typed, Env, Standard) ->
 %% forms under FormNamespace: the module's own, or, for an input of a
 %% shell's session, the session's one namespace, as is every name another
 %% input or a holder of the session declares, a type's, a top-level
-%% binding's and a foreign declaration's, whatever input declares it, so
-%% that one declaration is one definition in every session and at every
-%% input (Appendix H, §11.2). The checker's names, the unit, the
+%% function's, a binding's and a foreign declaration's, whatever input
+%% declares it, so that one declaration is one definition in every session
+%% and at every input (Appendix H, §11.2). The checker's names, the unit, the
 %% references the build compares and what prints keep the input's
 %% namespace.
 -spec module([atom()], [tuple()], ern_typecheck:env(), boolean(), [atom()]) -> canonical().
@@ -316,9 +317,13 @@ qualified(Namespace, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 %% walk that made it, which holds the other modules' definitions it
 %% references by hash, its lambdas' and local functions' spans, and its
 %% services' types.
-opened(#fn_declaration{} = Declaration, Walk) ->
-    {Form, Walk1} = function(Declaration, Walk),
-    {at(Declaration, Form, none), Walk1};
+opened(#fn_declaration{member_of = MemberOf, name = Name} = Declaration,
+       #walk{namespace = Namespace} = Walk) ->
+    %% report Appendix H: a top-level function holds its qualified name,
+    %% so that two of one body are two definitions
+    {{function, Scheme, Params, Body}, Walk1} = function(Declaration, Walk),
+    QualifiedName = form_name(qualified(Namespace, MemberOf, Name), Walk1),
+    {at(Declaration, {function, QualifiedName, Scheme, Params, Body}, none), Walk1};
 opened(#let_declaration{scheme = Scheme, body = Body} = Declaration, Walk) ->
     {SchemeForm, Walk1} = scheme(Scheme, Walk),
     {BodyForm, Walk2} = expr(Body, Walk1),
@@ -507,7 +512,7 @@ open_references(_) ->
 lambdas(Hash, Form) ->
     [{{Hash, Position}, Function} || {Position, Function} <- lists:enumerate(functions(Form))].
 
-functions({function, Scheme, Params, Body}) ->
+functions({function, _, Scheme, Params, Body}) ->
     within([Scheme, Params, Body]);
 functions(Form) ->
     within(Form).
@@ -1356,7 +1361,7 @@ bind(Name, #walk{scope = Scope, bound = Bound, locals = Locals} = Walk) ->
 %%
 
 %% The chunk's bytes: the form's version and what the unit records of its
-%% definitions, each with the lines of its source and its name, its
+%% definitions, each with the lines of its source and its qualified name, its
 %% foreign declarations and its bindings' order, compressed by the host,
 %% since a form names each hash it references in full wherever it stands
 %% (report §11.1); a hash is taken of a form's own bytes, uncompressed

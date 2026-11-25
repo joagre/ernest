@@ -14,10 +14,13 @@
                                         <<"Pingpong.main:16">>),
     _ = ern_rt:spawn(fun () -> '$4'(Opponent_2, 3) end,
                      <<"Pingpong.main:17">>),
-    receive
-        '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Fault_3} -> erlang:throw(Fault_3);
-        {'PongDone', _} -> 'Unit'
+    begin
+        ern_rt:at_receive(),
+        receive
+            '$ern_restart' -> ern_rt:restart_now();
+            {'$ern_fault', Fault_3} -> erlang:throw(Fault_3);
+            {'PongDone', _} -> 'Unit'
+        end
     end.
 
 %% Pingpong.ping
@@ -41,15 +44,18 @@
 
 %% Pingpong.pong
 '$5'() ->
-    receive
-        '$ern_restart' -> ern_rt:restart_now();
-        {'$ern_fault', Fault_9} -> erlang:throw(Fault_9);
-        {'Ping', Round_7, Reply_8} ->
-            ern@io:'$8'(<<"pong ",
-                          (erlang:integer_to_binary(Round_7))/binary>>),
-            ern_rt:answer(Reply_8, Round_7),
-            '$5'();
-        'Stop' -> 'Unit'
+    begin
+        ern_rt:at_receive(),
+        receive
+            '$ern_restart' -> ern_rt:restart_now();
+            {'$ern_fault', Fault_9} -> erlang:throw(Fault_9);
+            {'Ping', Round_7, Reply_8} ->
+                ern@io:'$8'(<<"pong ",
+                              (erlang:integer_to_binary(Round_7))/binary>>),
+                ern_rt:answer(Reply_8, Round_7),
+                '$5'();
+            'Stop' -> 'Unit'
+        end
     end.
 
 '$spawned'('$3', []) -> '$3'();

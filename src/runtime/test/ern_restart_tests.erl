@@ -1,5 +1,5 @@
 %% Report §6.9: a restarting function, in programs run as the runner runs
-%% them (ern_emitter_tests:run/3).
+%% them (ern_program:run/3).
 -module(ern_restart_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -22,7 +22,7 @@
 %% answered by the new run, since a call pending at a restart ends with it
 %% (call_ends_with_callee_test_)
 restart_keeps_address_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Bump | Crash | Get(reply : Reply(Int)) | Ping(reply : Reply(Unit))\n"
         "fn loop(n : Int) : Unit receiving Msg = receive {\n"
         "    Bump -> loop(n + 1)\n"
@@ -79,9 +79,9 @@ restart_limit_test() ->
         "    receive { Died(_) -> Io.println(\"twice\") | after 0 -> Unit }\n"
         "}\n"
     end,
-    ?assertEqual({ok, <<"start\nstart\nended 1\n">>}, ern_emitter_tests:run(Program("1"))),
-    ?assertEqual({ok, <<"start\nended 1\n">>}, ern_emitter_tests:run(Program("0"))),
-    ?assertEqual({ok, <<"start\nended 1\n">>}, ern_emitter_tests:run(Program("-2"))).
+    ?assertEqual({ok, <<"start\nstart\nended 1\n">>}, ern_program:run(Program("1"))),
+    ?assertEqual({ok, <<"start\nended 1\n">>}, ern_program:run(Program("0"))),
+    ?assertEqual({ok, <<"start\nended 1\n">>}, ern_program:run(Program("-2"))).
 
 %% report §6.9, §9.5: a service monitor, `monitorService` called and taken
 %% as a value, is told of a restart with the reason `Restarted` and the
@@ -89,7 +89,7 @@ restart_limit_test() ->
 %% told as a monitor is; a `monitor` beside it is told of the end alone,
 %% so the restart gives two messages and the kill three
 service_monitor_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Crash\n"
         "type MainMsg = Told(Down)\n"
         "fn loop() : Unit receiving Msg =\n"
@@ -126,7 +126,7 @@ service_monitor_test() ->
 %% Restarted then Take each time. Written with the ordering, after the
 %% service monitor's first build, whose Take overtook the Restarted
 service_monitor_told_before_the_new_run_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type HolderMsg = Crash\n"
         "type GuardMsg = Take | Told(Down)\n"
         "fn holder(guard : Address(GuardMsg)) : Unit receiving HolderMsg = {\n"
@@ -175,7 +175,7 @@ service_monitor_told_before_the_new_run_test() ->
 %% service monitor of another node's process, which a restart tells by a
 %% frame (§8.7, §12.6), held by ern_nodes_tests' restart_told_test_
 restarted_watcher_reaches_the_new_run_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type HolderMsg = Crash | Count(Reply(Int))\n"
         "type WatcherMsg = Told(Down)\n"
         "fn holder(count : Int) : Unit receiving HolderMsg =\n"
@@ -230,9 +230,9 @@ restart_unlimited() ->
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "}\n"
     end,
-    ?assertEqual({ok, <<"Returned\n">>}, ern_emitter_tests:run(Program("Unlimited", "loop", "50"))),
+    ?assertEqual({ok, <<"Returned\n">>}, ern_program:run(Program("Unlimited", "loop", "50"))),
     ?assertEqual({ok, <<"Fault(\"boom\")\n">>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
                      Program("RestartLimit(restarts = 3, within = 0)", "boom", "0"))).
 
 %% report §6.9, §6.6: a restart empties the mailbox, so a plain send and
@@ -240,7 +240,7 @@ restart_unlimited() ->
 %% process faulted, are not taken by the new run: the ended call was not
 %% done. A regression test: the new run took both, and the total was 6
 restart_empties_the_mailbox_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Add(n : Int, reply : Reply(Int)) | Total(reply : Reply(Int)) | Plain(Int)"
         " | Busy\n"
         "fn count(total : Int) : Unit receiving Msg =\n"
@@ -301,18 +301,18 @@ restart_cancels_what_it_asked_for() ->
         "}\n"
     end,
     %% an alarm set by the old run, its time passed twice over
-    ?assertEqual({ok, <<"0\n">>}, ern_emitter_tests:run(
+    ?assertEqual({ok, <<"0\n">>}, ern_program:run(
         Program("let _ = Clock.alarm(100, fn(_) = Heard)", "Clock.sleep(2 * 100)"))),
     %% a monitor made by the old run, of a process killed after the restart
     ?assertEqual({ok, <<"0\n">>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
                      Program("monitor(Process.fromAddress(other), fn(_) = Heard)",
                              "monitor(Process.fromAddress(other), Gone);"
                              " kill(Process.fromAddress(other));"
                              " receive { Gone(_) -> Unit }"))),
     %% a subscription to faults, and a fault after the restart
     ?assertEqual({ok, <<"0\n">>},
-                 ern_emitter_tests:run(
+                 ern_program:run(
                      Program("Process.subscribeFaults(fn(_) = Heard)",
                              "Process.subscribeFaults(Report);"
                              " let _ = spawn(fn() = fault(\"other\"));"
@@ -321,7 +321,7 @@ restart_cancels_what_it_asked_for() ->
 %% report §6.9: returning and a kill end a restarting process as they end
 %% any; only a fault restarts
 restart_only_on_fault_test() ->
-    {ok, Output} = ern_emitter_tests:run(
+    {ok, Output} = ern_program:run(
         "type Msg = Stop\n"
         "type MainMsg = Died(Down)\n"
         "fn waits() : Unit receiving Msg = receive { Stop -> Unit }\n"
@@ -344,7 +344,7 @@ restart_only_on_fault_test() ->
 %% test, written after the code; it does not cover a
 %% restart a supervisor asks for, which §6.9 gives to the outer function
 nested_restarting_test() ->
-    {Result, Output} = ern_emitter_tests:run(
+    {Result, Output} = ern_program:run(
         "export fn main() : Unit =\n"
         "    restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"
         "        Io.println(\"outer\");\n"

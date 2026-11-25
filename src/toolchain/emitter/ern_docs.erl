@@ -87,8 +87,8 @@ member(MemberOf, Name, _) ->
 %% under its Ernest name, a member's its type's and its own joined by `.`,
 %% and the arity of its unit's function, a requirement's members after its
 %% parameters (report §4.9). The unit names its functions by their
-%% position (§11.1); the documentation names them as the program does. The names the
-%% host gives every module, `module_info` and `record_info`, get a `$`, as
+%% position (§11.1); the documentation names them as the program does. The
+%% names the host gives every module, `module_info` and `record_info`, get a `$`, as
 %% no Ernest name can spell, so that the host's own documentation tools,
 %% which read the chunk, do not take one for the host's function.
 doc_key(#type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
@@ -97,15 +97,15 @@ doc_key(#abstract_declaration{declaration = #type_declaration{name = Name, param
 doc_key(#foreign_type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
 doc_key(#fn_declaration{member_of = MemberOf, name = Name, params = Params,
                         requirement = Requirement}) ->
-    {function, function_name(MemberOf, Name), length(Params) + length(Requirement)};
+    {function, ernest_name(MemberOf, Name), length(Params) + length(Requirement)};
 doc_key(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
                                 scheme = #scheme{requirement = Requirement}}) ->
-    {function, function_name(MemberOf, Name), length(Params) + length(Requirement)};
+    {function, ernest_name(MemberOf, Name), length(Params) + length(Requirement)};
 doc_key(#let_declaration{name = Name}) ->
-    {function, function_name(undefined, Name), 0}.
+    {function, ernest_name(undefined, Name), 0}.
 
-function_name(undefined, Name) -> function_atom(Name);
-function_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
+ernest_name(undefined, Name) -> function_atom(Name);
+ernest_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
 
 function_atom(module_info) -> 'module_info$';
 function_atom(record_info) -> 'record_info$';
@@ -210,15 +210,14 @@ doc_of(#foreign_fn_declaration{doc = Doc}) -> Doc.
 %% schemes, with the restrictions and the requirement every printed type
 %% shows (§11.5, §9.4); the declaration itself for the type forms, an
 %% abstract type without its representation.
-signature(#fn_declaration{member_of = MemberOf, name = Name, params = Params, scheme = Scheme},
-          Prefix, Env) ->
-    head(Prefix, shown_name(MemberOf, Name), Params, Scheme, Env);
+signature(#fn_declaration{name = Name, params = Params, scheme = Scheme}, Prefix, Env) ->
+    head(Prefix, Name, Params, Scheme, Env);
 signature(#let_declaration{name = Name, scheme = Scheme}, Prefix, Env) ->
     text([Prefix, atom_to_list(Name), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
-signature(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
-                                  scheme = Scheme}, Prefix, Env) ->
-    head(Prefix, shown_name(MemberOf, Name), Params, Scheme, Env);
+signature(#foreign_fn_declaration{name = Name, params = Params, scheme = Scheme}, Prefix,
+          Env) ->
+    head(Prefix, Name, Params, Scheme, Env);
 signature(#type_declaration{} = Declaration, _, _) ->
     text(type_text(Declaration));
 signature(#abstract_declaration{declaration = #type_declaration{name = TypeName, params = Params}},
@@ -232,8 +231,8 @@ signature(#foreign_type_declaration{name = Name, params = Params, equality = Equ
                            false -> Param
                        end || {Param, Written} <- lists:zip(Params, Equality)])]).
 
-%% Report §11.4: a function's head, `List.take(list : List(a!), count : Int)
-%% : List(a!)`, as `Shift-Tab` prints a signature, its parameters named.
+%% Report §11.4: a function's head, `List.take(list : List(a), count : Int)
+%% : List(a)`, as `Shift-Tab` prints a signature, its parameters named.
 head(Prefix, Name, Params, Scheme, Env) ->
     Names = param_names(Params),
     {Head, Marked, Rest} = ern_types:format_call(Scheme, Names, length(Names),
@@ -284,6 +283,3 @@ syntax_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
     ["(", lists:join(", ", [syntax_text(Param) || Param <- Params]), ") -> ", ResultText,
      case Effect of undefined -> ""; _ -> [" receiving ", syntax_text(Effect)] end].
 
-%% The name as the program writes it.
-shown_name(undefined, Name) -> Name;
-shown_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).

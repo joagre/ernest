@@ -343,12 +343,12 @@ $ ern build .
 $ ern test counter.erc
 counts per key: passed
 reports: faulted: deadlock
-    Counter.reports:70
-    1 process of Counter.countsPerKey:62 waits in Counter.count:10
-    1 process of Counter.reports:69 waits in Counter.count:10
+    Counter.reports:71
+    1 process of Counter.countsPerKey:62 waits in Counter.count:11
+    1 process of Counter.reports:69 waits in Counter.count:11
 ```
 
-A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21). That is *Why Ernest*'s claim *A deadlock of the whole program is found*: a program that is no node, in which every process waits for a message none can send, ends with a fault and a trace.
+A module worth keeping gets a test: `ern build .` compiles both modules, and `ern test` runs every `Test.Case` the program declares (the guide's §7.1). The planted test waits for a `Reported` that no process sends, and the runtime ends it with a fault where your test framework would wait for its timeout, the trace naming the line of the `receive` it waits in (report Appendix E.21). That is *Why Ernest*'s claim *A deadlock of the whole program is found*: a program that is no node, in which every process waits for a message none can send, ends with a fault and a trace.
 
 Beneath the trace come the processes left waiting, a line for each spawn site and the frame its processes wait in (report §12.4): the planted test's counter, and the first test's, which outlived its test.
 

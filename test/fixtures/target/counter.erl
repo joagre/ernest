@@ -74,20 +74,25 @@
 %% §6.9), which arrives before every other message, and then the fault a
 %% foreign message that did not match, or a function on a message's way,
 %% left in its place (§8.4, §6.5), raised here, so that its trace holds
-%% this function where the fault was met here (§7.3).
+%% this function where the fault was met here (§7.3). A call of the
+%% runtime's that does nothing stands before it, at its line, which the
+%% frame of a process that waits in it names (Appendix E.21).
 '$3'(Total) ->
-    receive
-        '$ern_restart' ->
-            ern_rt:restart_now();
-        {'$ern_fault', Fault} ->
-            erlang:throw(Fault);
-        {'Inc', Amount} ->
-            '$3'(Total + Amount);
-        {'Get', Reply} ->
-            ern_rt:answer(Reply, Total),
-            '$3'(Total);
-        {'Upgrade', Migrate, Next} ->
-            Next(Migrate(Total))
+    begin
+        ern_rt:at_receive(),
+        receive
+            '$ern_restart' ->
+                ern_rt:restart_now();
+            {'$ern_fault', Fault} ->
+                erlang:throw(Fault);
+            {'Inc', Amount} ->
+                '$3'(Total + Amount);
+            {'Get', Reply} ->
+                ern_rt:answer(Reply, Total),
+                '$3'(Total);
+            {'Upgrade', Migrate, Next} ->
+                Next(Migrate(Total))
+        end
     end.
 
 %% A function of this module a spawn on a peer may start, by its position,

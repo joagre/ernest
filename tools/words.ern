@@ -12,7 +12,8 @@
 // on standard output, its path, line, words and first characters, and
 // `ern run words.erc comments [count]` the comment blocks, with path, line
 // and words. Each reads the files git tracks in the working directory, the
-// repository's root, in git's order.
+// repository's root, in git's order; one the working directory no longer
+// holds has no words.
 //
 // A paragraph ends at a blank line, at a fence, at a list item, and where a
 // list item's lines stop being indented past the item; a heading, a table
@@ -135,9 +136,11 @@ fn tracked(pathspecs : List(String)) : List(String) =
 fn isOurs(file : String) : Bool =
     String.endsWith(file, "/getopt.erl") == false
 
+// A tracked file's text, none where the working directory no longer holds it.
 fn contents(file : String) : String =
     match Fs.read(Path(file), fileMs) {
         Right(bytes) -> text(file, bytes)
+      | Left(Io.NotFound) -> ""
       | Left(error) -> quit("cannot read " <> file <> ": " <> Io.show(error))
     }
 

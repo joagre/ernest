@@ -73,7 +73,7 @@ What each component keeps, and when it lets it go, is its design note's, which a
 A growth found becomes a regression test in `make test-full` where one can show it in seconds:
 
 - `declarations_kept_while_reached_test_`, `expressions_leave_no_code_test_` and `expressions_again_leave_no_code_test_` in `test/ern_shell_tests.erl`;
-- `monitors_let_go_test` in `src/toolchain/emitter/test/ern_reaper_tests.erl`, and `tellers_leave_no_monitor_test` in `src/toolchain/emitter/test/ern_terminating_tests.erl`;
+- `monitors_let_go_test` in `src/runtime/test/ern_reaper_tests.erl`, and `tellers_leave_no_monitor_test` in `src/runtime/test/ern_terminating_tests.erl`;
 - `work_makes_no_atoms_test_` in `src/toolchain/emitter/test/ern_emitter_tests.erl`;
 - `kept_tables_stay_bounded_test` in `src/runtime/test/ern_rt_tests.erl`, and `tls_connection_hibernates_test` in `src/runtime/test/ern_tcp_tests.erl`;
 - the editor's `lastThousand` in `src/shell/ernest/shell/editor.ern`.

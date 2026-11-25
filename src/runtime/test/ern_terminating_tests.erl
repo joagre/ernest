@@ -1,6 +1,6 @@
 %% Report §8.6 and Appendix E.23: the program's end told to the subscribers
 %% of Os.subscribeTermination, in programs run as the runner runs them
-%% (ern_emitter_tests:run/3). A termination is the runtime's own word of
+%% (ern_program:run/3). A termination is the runtime's own word of
 %% one, ern_rt:signal/1, which the signal handler calls (ern_signals), asked
 %% by the program through a foreign function. Regression tests, written
 %% after the code; a node's end, a peer finding and calling a node whose
@@ -21,7 +21,7 @@ kept(Told, Main) ->
     kept(Told, Main, #{}).
 
 kept(Told, Main, Options) ->
-    ern_emitter_tests:run(
+    ern_program:run(
       ['M'],
       ["type Msg = Add(Int) | Ready(Reply(Unit)) | Terminating(Reply(Unit))\n"
        "fn count(n : Int) : Unit receiving Msg = receive {\n"
@@ -207,7 +207,7 @@ restarted(First) ->
     Faults = fun({'FaultReport', _, Site, Cause, Restarted, _, _, _, _, _}, _Peer) ->
                  Self ! {fault, Site, Cause, Restarted}
              end,
-    ern_emitter_tests:run(
+    ern_program:run(
       ['M'],
       ["type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
        "fn hold(main : Address(Msg)) : Unit receiving Msg = {\n"
@@ -250,7 +250,7 @@ restarted(First) ->
 %% holder answers once it has. A regression test, written after the fix:
 %% each teller's monitor stayed in the reaper until the subscriber died.
 tellers_leave_no_monitor_test() ->
-    {Result, Output} = ern_emitter_tests:run(
+    {Result, Output} = ern_program:run(
         "type Msg = Ready | Done | Terminating(Reply(Unit))\n"
         "type Count = Next(Reply(Int)) | Keep(Int) | Kept(Reply(Int))\n"
         "foreign fn waits() : Int = \"ern_reaper_tests:reaper_words/0\"\n"
@@ -323,7 +323,7 @@ faults(Acc) ->
 %% find its subscription standing. So the test no longer covers an end that
 %% races a subscription or a subscriber's end
 subscribed_while_the_end_waits_test() ->
-    {Result, Output} = ern_emitter_tests:run(
+    {Result, Output} = ern_program:run(
         "type Msg = Ready | Ended(Down) | Terminating(Reply(Unit))\n"
         "fn second(first : Address(Msg)) : Unit receiving Msg = {\n"
         "    Os.subscribeTermination(Terminating);\n"
@@ -387,7 +387,7 @@ waiting_for_the_end_is_no_deadlock_test() ->
                        ok = ern_rt:signal(sigterm)
                    end),
     register(ern_terminating_tests_waiter, Waiter),
-    {Result, Output} = ern_emitter_tests:run(
+    {Result, Output} = ern_program:run(
         "type Msg = Terminating(Reply(Unit))\n"
         "foreign fn waiting(name : Foreign.Term, word : Foreign.Term) : Foreign.Term"
         " = \"erlang:send/2\"\n"
