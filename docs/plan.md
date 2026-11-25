@@ -24,10 +24,10 @@ outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
 leg: the report written from the copy, the renames of *The Library's Names*, and the
-builds of the front end, the checker, the emitter and the runtime, in two, are done, and
-the first Fable round that item 4 names is next, before the nodes' build (the log's *The
+builds of the front end, the checker, the emitter and the runtime, in two, are done, the
+first Fable round that item 4 names is held, and the nodes' build is next (the log's *The
 First Build of Leg 4*, *The Renames of the Library's Names*, *The Runtime's Second Build*
-and *A Fable Round at a Cut*).** The changed
+and *The First Fable Round*).** The changed
 sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59 finds under
 their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered the same day
 one at a time, with *Z13* and *Z14* closed (the log's *The Changed Sentences Read Cold* and
@@ -183,31 +183,22 @@ says what is left once its readings are in, and no figure stands until then.
       started, the first after the runtime's second build, and the last before `make
       test-full` and the close (the log's *One Fable Round Before the Close* and *A Fable
       Round at a Cut*). The builds go on meanwhile, and each question that waits is named
-      here as it comes, its ways under its line in the findings:
+      here as it comes, its ways under its line in the findings. None waits now.
 
-      - **Decision: what E.21's `FaultReport` carries** (*B8*, *B10*). Whether it gains a
-        field, or what stands in one, for the host's description of a raise, which §12.3's
-        held sentence writes beneath the fault's line, and for a callee's end told from a
-        fault a call carried up a chain, so that the shell's line and `ern run`'s can say
-        `, the callee X` and `, the fault of the callee X` apart.
-      - **Decision: a clash with a toolchain's namespace** (*P1 11, K 19, W17*, the
-        finding's other half): one verdict, said in §4.2, where the reader of 2026-11-25
-        found eight, its table under the line; with it the texts §4.2 does not quote, the
-        taken refusal's among them, and a help where a module at the root hides a
-        library's.
-      - **Decision: `List.<>`, a shim or the runtime's own** (*PL1 L32, …*, §9.6's cold
-        reading): whether `List.<>` is a shim of the host's `++`, as decided, or the
-        runtime's own operation, as `String.<>` is, with the sentences of §9.6, §11.1 and
-        Appendix H that follow, and rule 1's "this rule's measure".
+      A round's session runs on Fable 5.2 at high, after a `/clear`, with no agent
+      running, and reads `docs/agents.md` and each waiting line in the findings. It puts
+      each decision to the user, one at a time, the argument first and a recommendation
+      naming its principle, and writes each answer under its line as *Answered*, the
+      report's sentences it settles beside it; it builds nothing. It commits the findings,
+      the log's entry and the plan, each decision struck from this list, and stops for the
+      switch back to Opus 5.5 at xhigh.
 
-      The first round's session runs on Fable 5.2 at high, after a `/clear`, with no agent
-      running, and reads `docs/agents.md`, the three lines in the findings and the table the
-      second points at. It puts each
-      decision to the user, one at a time, the argument first and a recommendation naming
-      its principle, and writes each answer under its line as *Answered*, the report's
-      sentences it settles beside it; it builds nothing. It commits the findings, the log's
-      entry and the plan, each decision struck from this list, and stops for the switch
-      back to Opus 5.5 at xhigh, where the nodes' build is next.
+      The first round was held 2026-11-25 (the log's *The First Fable Round*), its three
+      decisions answered under *B8*, *B10*, *P1 11, K 19, W17* and *PL1 L32, …*. *B8* and
+      *B10* are built with the shell's lines, their part of the runtime among them; the
+      taken refusal's text and the help where a root module hides a library's with the
+      cli's; `:load`'s answer with the shell's; and `List.<>` with the standard
+      library's. The nodes' build is next, on Opus 5.5 at xhigh.
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold
