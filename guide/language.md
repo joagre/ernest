@@ -2433,11 +2433,11 @@ A peer has a name, which the program uses, a public key and a network address. A
 
 Two nodes connect when the first operation needs it, over TLS, each accepting the other by its listed key alone, and only where both stand on one *floor*, one minor release of `ern`, any patch, on one major release of OTP, the Erlang release Ernest runs on; their builds may differ (§8.2). What a node says on its standard error is report §12.5's, and `ern reload` and `ern stop` are §9.2's; this chapter teaches what a program writes.
 
-Every example here runs under `ern run` without `--config-dir` too: a program with no configuration has no peers, and `Peer.find`, `Peer.spawn` and `Peer.compute` answer `Left(Io.NotListed)`.
+Every example here runs under `ern run` without `--config-dir` too: a program with no configuration has no peers, and `Peer.find`, `Peer.spawn` and `Peer.computeAnywhere` answer `Left(Io.NotListed)`.
 
 ### 8.1 Work on a peer
 
-Work runs on a peer by the peer's name. `Peer.computeAt(name, f, ms)` runs `f` in a process started on the peer named `name`, and answers its value within `ms` milliseconds, or an `Io.Error` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
+Work runs on a peer by the peer's name. `Peer.compute(name, f, ms)` runs `f` in a process started on the peer named `name`, and answers its value within `ms` milliseconds, or an `Io.Error` that says why not; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.7, Appendix E.27):
 
 ```ernest
 // square.ern
@@ -2445,7 +2445,7 @@ fn heavy(a : Int, b : Int) : Int =
     a * a + b * b
 
 export fn main() : Unit =
-    match Peer.computeAt("foo", fn() = heavy(3, 4), 5000) {
+    match Peer.compute("foo", fn() = heavy(3, 4), 5000) {
         Right(value) -> Io.println("foo computed " <> Int.toString(value))
       | Left(error) -> Io.println("no foo: " <> Io.show(error))
     }
@@ -2512,18 +2512,18 @@ Where the process ends on the peer before it answers, killed or with the peer's 
 
 The compiler must see what the function captures, so the function a compute or a spawn on a peer runs is written where it can see it: a declaration's name, or, in the same definition, a lambda written at the compute or bound by a `let`, a local `fn`, or `restarting` applied to one of these. A function that came as a value, a parameter or a message, is refused (report §3.11).
 
-The function runs on the peer once the peer holds it and what it reaches, which cross where the peer lacks them, and only where every top-level binding the function reaches has its value on the peer and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(Io.NotLoaded)`, and the peer says on its standard error what it lacked. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7, Appendix E.27).
+The function runs on the peer once the peer holds it and what it reaches, which cross where the peer lacks them, and only where every top-level binding the function reaches has its value on the peer and every module a foreign declaration it reaches calls is there; otherwise the compute answers `Left(Io.NotLoaded(text))`, and the peer says on its standard error what it lacked, `text` its words for it. A binding the function does not reach keeps it from no peer, whatever its module holds (report §8.7, Appendix E.27).
 
 So a value a spawned function needs from where it was written is a parameter, a local it captures, or a constant: a binding whose initializer is a constant, `let limit = 10` or `let empty = Stack([])`, has its value wherever its code is (§2.2), and any other binding is the node's own. The standard library's bindings, `Map.empty` among them, have their values on every node, since every node holds the library from its start; a program's own binding of it, `let index = Map.empty`, is the node's own, so a function spawned on a bare node names `Map.empty` itself.
 
-A `let` typed at the shell's prompt binds a name of the session's node, which no peer has, so a function that captures it is not started on a peer (§9.3): after `let below = 2000`, `Peer.computeAt("foo", fn() = below + 1, 5000)` answers `Left(Io.NotLoaded)`. The prompt shows that alone, and the reason is on the peer's standard error, `the binding $Session1.below has no value here`. A local the lambda captures crosses with it: `{ let n = below; Peer.computeAt("foo", fn() = n + 1, 5000) }` answers `Right(2001)` (report §11.2, *Inputs*).
+A `let` typed at the shell's prompt binds a name of the session's node, which no peer has, so a function that captures it is not started on a peer (§9.3): after `let below = 2000`, `Peer.compute("foo", fn() = below + 1, 5000)` answers `Left(Io.NotLoaded("the binding $Session1.below has no value here"))`, the reason the peer also says on its standard error. A local the lambda captures crosses with it: `{ let n = below; Peer.compute("foo", fn() = n + 1, 5000) }` answers `Right(2001)` (report §11.2, *Inputs*).
 
-**Which peer.** A computation needs room more than a place, so `Peer.compute(f, ms)` names no peer: the node picks one, and runs `f` there as `Peer.computeAt` runs it on the peer named (report §8.7, Appendix E.27):
+**Which peer.** A computation needs room more than a place, so `Peer.computeAnywhere(f, ms)` names no peer: the node picks one, and runs `f` there as `Peer.compute` runs it on the peer named (report §8.7, Appendix E.27):
 
 ```ernest
 // placed.ern
 export fn computed(n : Int) : Either(Io.Error, Int) =
-    match Peer.compute(fn() = heavy(n), 5000) {
+    match Peer.computeAnywhere(fn() = heavy(n), 5000) {
         Left(Io.Unreachable) or Left(Io.NotListed) -> Right(heavy(n))
       | result -> result
     }
@@ -2532,7 +2532,7 @@ fn heavy(n : Int) : Int =
     n * n
 ```
 
-The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is, a *telling*, every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, but for an attached shell's own node, which tells none (report §11.2, *The attached shell*); on the scale lower is less busy. `Peer.compute` draws two of the peers it has heard from, at random, and takes the less busy. What the scale measures, how old a telling may be used and what a peer's loss does are the report's (Appendix C, Appendix E.27).
+The node picks by what its peers tell it. A node that lists peers tells each one it is connected to how busy it is, a *telling*, every `utilization-interval` milliseconds its `ernest.conf` names, 5000 where it names none, but for an attached shell's own node, which tells none (report §11.2, *The attached shell*); on the scale lower is less busy. `Peer.computeAnywhere` draws two of the peers it has heard from, at random, and takes the less busy. What the scale measures, how old a telling may be used and what a peer's loss does are the report's (Appendix C, Appendix E.27).
 
 Where no peer has told a utilization the node may use, the compute answers `Left(Io.Unreachable)`, and where the node lists no peer, as a program that is no node lists none, `Left(Io.NotListed)`; at both, `placed.ern` runs the work here, `heavy(n)`: a node has no name for itself, and `compute` takes none. `Peer.utilization(name, ms)` asks one peer how busy it is now, where the node's table holds what each said last.
 
@@ -2542,7 +2542,7 @@ A rule of the program's own is a function over `Peer.utilizations()`, the utiliz
 // least.ern
 export fn computed(n : Int) : Either(Io.Error, Int) =
     match List.minimumBy(Peer.utilizations(), fn(#(_, utilization, _)) = utilization) {
-        Some(#(name, _, _)) -> Peer.computeAt(name, fn() = heavy(n), 5000)
+        Some(#(name, _, _)) -> Peer.compute(name, fn() = heavy(n), 5000)
       | None -> Right(heavy(n))
     }
 
@@ -2574,7 +2574,7 @@ $ ern run gathered.erc
 
 The pieces arrive in the order their computes end, so each carries its number, and `main` sorts them. A helper whose compute faulted sends no piece: its number is missing from the list, and `ern run` reports the fault, as it reports every fault (§6.3).
 
-In a burst the draw of two matters. Every piece reads the utilizations told before the burst began, so `least.ern`'s rule would send them all to one peer, where `Peer.compute` draws two peers at random for each piece and spreads them among three peers or more (report Appendix E.27). With two peers the draw takes both each time, so a burst within one telling goes to the one less busy at it.
+In a burst the draw of two matters. Every piece reads the utilizations told before the burst began, so `least.ern`'s rule would send them all to one peer, where `Peer.computeAnywhere` draws two peers at random for each piece and spreads them among three peers or more (report Appendix E.27). With two peers the draw takes both each time, so a burst within one telling goes to the one less busy at it.
 
 A program that knows how busy it is better than its node's measure does, by a queue's depth or work it has promised, says so with `Peer.setUtilization`, a number at or above 0.0 on the same scale: from then on its node tells its peers that number, and answers it to a `Peer.utilization`, until the program sets it again or its run ends. A number below 0.0 faults the caller (report Appendix E.27).
 
@@ -3190,7 +3190,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 An input runs in a process of its own, and at a terminal `C-c` ends it, which answers `Killed`, the session and its bindings kept (report §11.2).
 
-A `let` at the prompt binds a name of the session's node, the one its inputs run on, which no peer has: a function that captures the name is not started on a peer, its spawn or compute answering `Left(Io.NotLoaded)`, and the peer says on its standard error what it lacked. A local of a block that the lambda captures crosses with it, as a value (§8.1; report §11.2, *Inputs*).
+A `let` at the prompt binds a name of the session's node, the one its inputs run on, which no peer has: a function that captures the name is not started on a peer, its spawn or compute answering `Left(Io.NotLoaded(text))`, `text` what the peer lacked, which it says on its standard error too. A local of a block that the lambda captures crosses with it, as a value (§8.1; report §11.2, *Inputs*).
 
 A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so.
 

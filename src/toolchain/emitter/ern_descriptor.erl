@@ -2,9 +2,9 @@
 %% type the checker gave an input's value, by which the shell prints it
 %% (ern_show). The emitter describes from forms the descriptors of a
 %% program's code, which the boundary checks a value against, a checker
-%% exposes an address with, and `Io.show` and `Io.debug` print by
-%% (ern_emitter, report §8.4); this module owns their type, which one
-%% printer reads. A recursive type refers back to its mu.
+%% exposes an address with, and `Io.show` prints by (ern_emitter, report
+%% §8.4); this module owns their type, which one printer reads. A
+%% recursive type refers back to its mu.
 -module(ern_descriptor).
 
 -export([describe/3, constructor_namespace/1]).
@@ -13,8 +13,8 @@
 
 -include_lib("checker/include/ern_types.hrl").
 
-%% A type as a descriptor holds it, which `Io.show`, `Io.debug` and the
-%% shell print a value by (ern_show) and the emitter builds the runtime's
+%% A type as a descriptor holds it, which `Io.show` and the shell print a
+%% value by (ern_show) and the emitter builds the runtime's
 %% form of for the boundary (ern_boundary): a function's is tagged
 %% `function` here, and the built one `'fun'`, since the two carry other
 %% parts. mu binds Id for each `{ref, Id}` inside it, which is how a

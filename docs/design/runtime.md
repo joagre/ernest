@@ -196,7 +196,7 @@ Rows 1 and 14 are [`code.md`](code.md)'s, and rows 2 to 4, 11, 12, 15, 25 and 36
 | | The mechanism | The promise it keeps | The claim it holds | The log's entries |
 |---|---|---|---|---|
 | 1 | The exchange and the code table | A function spawned or computed on a peer that lacks it runs there, carried as its form by its hash (§8.7, §12.7) | a process on a peer runs the code it was typed with (7) | *What the Design Notes Argued*, *Code Travels Only With a Spawn* |
-| 2 | How busy a node is: the measure, the telling, the rows held and the pick | `Peer.compute` runs on the less busy of two peers, and `Peer.utilization` answers (§8.7, §12.8, E.27) |  | *Placing Work by Name*, *The Placement Proposals Swept* |
+| 2 | How busy a node is: the measure, the telling, the rows held and the pick | `Peer.computeAnywhere` runs on the less busy of two peers, and `Peer.utilization` answers (§8.7, §12.8, E.27) |  | *Placing Work by Name*, *The Placement Proposals Swept* |
 | 3 | The carrier: its keys, its floor, its own acceptor and port map | A node connects only to a listed key, on one floor (§8.7, §12.5) | its floor: a process on a peer runs the code it was typed with (7) | *The Nodes' Reasons, Kept* |
 | 4 | The gateway, a worker for each peer, and the seventeen frames | What a message cannot do on a peer is done there in order, and the runtime's own processes wait on no peer (§8.7, §12.6) |  | *The Nodes' Reasons, Kept* |
 | 5 | The eight system processes | Each system module is answered by a process the runtime starts (§8.2, §12.1) |  | *Ambient Sys, Five Principles* |

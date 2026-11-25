@@ -826,9 +826,13 @@ int_test() ->
     ?assertEqual({'Some', 1}, Int(pow)(7, 0)),
     ?assertEqual({'Some', -8}, Int(pow)(-2, 3)),
     ?assertEqual('None', Int(pow)(2, -1)),
-    ?assertEqual({'Some', <<"FF">>}, Int(toStringBase)(255, 16)),
-    ?assertEqual({'Some', <<"-11">>}, Int(toStringBase)(-3, 2)),
-    ?assertEqual('None', Int(toStringBase)(5, 37)).
+    ?assertEqual(<<"FF">>, Int(toStringBase)(255, 16)),
+    ?assertEqual(<<"-11">>, Int(toStringBase)(-3, 2)),
+    ?assertEqual(<<"Z">>, Int(toStringBase)(35, 36)),
+    %% report §7.4, Appendix E.8: a base outside 2 to 36 faults, with the
+    %% cause E.8 gives
+    ?assertThrow({ern, fault, <<"a base is from 2 to 36">>}, Int(toStringBase)(5, 37)),
+    ?assertThrow({ern, fault, <<"a base is from 2 to 36">>}, Int(toStringBase)(5, 1)).
 
 %% report Appendix E.8, §3.1, §7.4: Int.toFloat rounds to the nearest
 %% Float and faults only where the rounding gives no finite Float: the
@@ -969,8 +973,9 @@ either_test() ->
 
 %% report Appendix E.1, §8.2: print and println write to Io's stdout,
 %% printError, printlnError and debug to its stderr, each as a message;
-%% report §9.4, §4.9: debug takes its requirement's member, the
-%% descriptor of the value's type, after the value
+%% report §4.9, Appendix E.1: debug, a function of io.ern under `needs
+%% a.show`, takes its requirement's member, the descriptor of the value's
+%% type, after the value, as any requirement's member is taken
 io_test() ->
     Self = self(),
     Sink = fun(Tag) -> fun(Bytes) -> Self ! {Tag, Bytes} end end,

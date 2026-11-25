@@ -6,8 +6,8 @@
 %%
 %% A spawn sends the function's identity and captures to the peer's
 %% gateway, which finds the function in the peer's code table and starts
-%% the process through the peer's runtime, or answers `NotLoaded`, or,
-%% where the peer lacks the function, hands the spawn to the peer's
+%% the process through the peer's runtime, or answers `NotLoaded(text)`,
+%% or, where the peer lacks the function, hands the spawn to the peer's
 %% exchange (ern_exchange), and answers through the spawner's gateway,
 %% which ends a process no one waits for any more. A compute sends them so
 %% too, its frame the call's first note, and its process answers the
@@ -28,10 +28,11 @@
 -module(ern_peer).
 
 -export([configure/2, tables/0, name/1, peer_of/1, host_of/1, digest/1, service/1, service/2,
-         offer/2, find/2, spawn/3, spawn/4, spawn_monitored/4, spawn_monitored/5, compute/2,
-         compute/3, compute_at/3, compute_at/4, pick/0, utilization/2, peers/0, utilizations/0,
-         set_utilization/1, hold_utilization/3, drop_utilization/1, frame/2, restart_told/1,
-         watchers_told/1, failed/4, unstarted/2, ms/1, reach_lacked/2, foreign_lacked/1, lost/2]).
+         offer/2, find/2, spawn/3, spawn/4, spawn_monitored/4, spawn_monitored/5, compute/3,
+         compute/4, compute_anywhere/2, compute_anywhere/3, pick/0, utilization/2, peers/0,
+         utilizations/0, set_utilization/1, hold_utilization/3, drop_utilization/1, frame/2,
+         restart_told/1, watchers_told/1, lacking/1, failed/4, unstarted/2, ms/1, reach_lacked/2,
+         foreign_lacked/1, lost/2]).
 
 -export_type([identity/0]).
 
@@ -329,35 +330,18 @@ started({spawned, Pid}, Ref, Wrap) ->
 started({failed, Error}, _Ref, _Wrap) ->
     {'Left', Error}.
 
-%% Report §8.7, Appendix E.27: a function run on a peer the node picks by
-%% the utilizations it holds (pick/0), as compute_at/4 runs it on the peer
-%% named once the pick is made; `NotListed` where no peer is listed, and
-%% `Unreachable` where none has a utilization to use. compute/2 is the
+%% Report §8.7, Appendix E.27: a function run on the peer named, in a
+%% process started there as a spawn starts one, its value answered within
+%% the time, or a failure, and a fault in it the caller's. compute/3 is the
 %% declaration's, which the compiler calls with the function's identity and
 %% captures in place of the function (ern_emitter's spawned/2) and the
 %% compute's site after them.
--spec compute(fun(), integer()) -> no_return().
-compute(_Function, _Ms) ->
+-spec compute(binary(), fun(), integer()) -> no_return().
+compute(_Name, _Function, _Ms) ->
     erlang:error(compute_without_site).
 
--spec compute(spawned(), integer(), binary()) -> {'Right', term()} | {'Left', term()}.
-compute(Spawned, Ms, Site) ->
-    case pick() of
-        {picked, Node, Name} -> computed(Node, Name, Spawned, Ms, Site);
-        Error -> {'Left', Error}
-    end.
-
-%% Report §8.7, Appendix E.27: a function run on the peer named, in a
-%% process started there as a spawn starts one, its value answered within
-%% the time, or a failure, and a fault in it the caller's; compute_at/3 is
-%% the declaration's, which the compiler calls as it calls compute/2's.
--spec compute_at(binary(), fun(), integer()) -> no_return().
-compute_at(_Name, _Function, _Ms) ->
-    erlang:error(compute_without_site).
-
--spec compute_at(binary(), spawned(), integer(), binary()) ->
-          {'Right', term()} | {'Left', term()}.
-compute_at(Name, Spawned, Ms, Site) ->
+-spec compute(binary(), spawned(), integer(), binary()) -> {'Right', term()} | {'Left', term()}.
+compute(Name, Spawned, Ms, Site) ->
     case node_of(Name) of
         none ->
             {'Left', 'NotListed'};
@@ -365,6 +349,22 @@ compute_at(Name, Spawned, Ms, Site) ->
             {'Left', 'Unreachable'};
         Node ->
             computed(Node, Name, Spawned, Ms, Site)
+    end.
+
+%% Report §8.7, Appendix E.27: a function run on a peer the node picks by
+%% the utilizations it holds (pick/0), as compute/4 runs it on the peer
+%% named once the pick is made; `NotListed` where no peer is listed, and
+%% `Unreachable` where none has a utilization to use. compute_anywhere/2 is
+%% the declaration's, which the compiler calls as it calls compute/3's.
+-spec compute_anywhere(fun(), integer()) -> no_return().
+compute_anywhere(_Function, _Ms) ->
+    erlang:error(compute_without_site).
+
+-spec compute_anywhere(spawned(), integer(), binary()) -> {'Right', term()} | {'Left', term()}.
+compute_anywhere(Spawned, Ms, Site) ->
+    case pick() of
+        {picked, Node, Name} -> computed(Node, Name, Spawned, Ms, Site);
+        Error -> {'Left', Error}
     end.
 
 %% The compute on the peer's node, whose frame is the call's first note,
@@ -505,9 +505,9 @@ drop_utilization(Node) ->
 
 %% Report §12.6: a frame a peer sent, read by the gateway's worker for that
 %% peer, each field of it checked. A find is answered at once. A spawn is
-%% started through this node's runtime, or answered `NotLoaded`, with what
-%% this node lacked, which the gateway says; a compute so too, its process
-%% answering its caller, the gateway having noted it as it came
+%% started through this node's runtime, or answered `NotLoaded(text)`,
+%% `text` what this node lacked, which the gateway says; a compute so too,
+%% its process answering its caller, the gateway having noted it as it came
 %% (ern_rt:note_compute/2). A spawn or a compute of a function this node
 %% lacks gives the identity the exchange asks the peer for (ern_exchange),
 %% which answers it. A spawn's answer is handed to the process that waits
@@ -586,12 +586,12 @@ frame(From, {compute, Alias, Spawned, Site, Ms})
 frame(From, {answer, Ref, {spawned, Pid} = Answer})
   when is_reference(Ref), is_pid(Pid), node(Pid) =:= node(From) ->
     answered(From, Ref, Answer);
-frame(From, {answer, Ref, {failed, Error} = Answer})
-  when is_reference(Ref), Error =:= 'NotLoaded' orelse Error =:= 'Unreachable' ->
+frame(From, {answer, Ref, {failed, 'Unreachable'} = Answer}) when is_reference(Ref) ->
     answered(From, Ref, Answer);
-%% report §12.6: a peer's reason, its words, read as UTF-8 as a site is
-frame(From, {answer, Ref, {failed, {'Other', Text}} = Answer})
-  when is_reference(Ref), is_binary(Text) ->
+%% report §12.6: a peer's reason, and what it lacked, its words, read as
+%% UTF-8 as a site is
+frame(From, {answer, Ref, {failed, {Error, Text}} = Answer})
+  when is_reference(Ref), Error =:= 'Other' orelse Error =:= 'NotLoaded', is_binary(Text) ->
     case ern_fs:is_utf8(Text) of
         true -> answered(From, Ref, Answer);
         false -> unreadable
@@ -682,12 +682,12 @@ watchers_told({Alias, MonitorRef}) ->
 %% progress holds the value of every binding its reach names, each as the
 %% code of the unit that runs it reads it (ern_code:called/1), its row
 %% keeping the peer's node, which its fault's line names (§11.2); else
-%% `NotLoaded` and what this node lacked, the first met, `Unreachable`
-%% where no run is in progress to start it, or `Other` with the host's
-%% class and reason where its table of processes is full (ern_io:limited/0),
-%% answered as a spawn of its own faults, since the peer's spawn faults for
-%% nothing the peer does (§7.4, §12.5, Appendix E.27); the exchange answers
-%% one so too (ern_exchange).
+%% `NotLoaded(text)`, `text` what this node lacked, the first met,
+%% `Unreachable` where no run is in progress to start it, or `Other` with
+%% the host's class and reason where its table of processes is full
+%% (ern_io:limited/0), answered as a spawn of its own faults, since the
+%% peer's spawn faults for nothing the peer does (§7.4, §12.5, Appendix
+%% E.27); the exchange answers one so too (ern_exchange).
 spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
     case absent_module(Unit, Foreigns) of
         none ->
@@ -704,9 +704,9 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
 
 %% Report §8.7, Appendix E.27: a process a peer's compute starts here as a
 %% spawn's is started, where this node would start it for a spawn, which
-%% runs the function and answers the caller itself; else `NotLoaded` and
-%% what this node lacked, or `Unreachable` where no run is in progress to
-%% start it, or where the compute's note has gone before its process could
+%% runs the function and answers the caller itself; else `NotLoaded(text)`
+%% with what this node lacked, or `Unreachable` where no run is in progress
+%% to start it, or where the compute's note has gone before its process could
 %% start, its caller no longer waiting, or never was written, the compute
 %% having come between two runs (ern_rt:asked_of_run/1), or `Other` where
 %% its table of processes is full (ern_io:limited/0).
@@ -725,18 +725,26 @@ computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) 
             not_loaded(compute, Site, Lacked)
     end.
 
-%% Report §8.7, §12.5, §11.2: `NotLoaded`, and what the gateway says of the spawn
-%% or the compute, the site the caller's words as they came, read as UTF-8
-%% as the frame arrived (frame/2), and written as they are, as a fault's
-%% line and the end's lines write a site.
+%% Report §8.7, §12.5, §11.2: `NotLoaded(text)`, `text` what this node
+%% lacked, the words the gateway says after `was not loaded:`, so that the
+%% spawner is told what this node's terminal says (Appendix E.1); and what
+%% the gateway says of the spawn or the compute, the site the caller's
+%% words as they came, read as UTF-8 as the frame arrived (frame/2), and
+%% written as they are, as a fault's line and the end's lines write a site.
 not_loaded(Kind, Site, Lacked) ->
-    {{failed, 'NotLoaded'}, {not_loaded, Kind, Site, Lacked}}.
+    {{failed, lacking(Lacked)}, {not_loaded, Kind, Site, Lacked}}.
+
+%% Report §8.7, Appendix E.1: the `NotLoaded` that carries what this node
+%% lacked, as it says it.
+-spec lacking(iodata()) -> {'NotLoaded', binary()}.
+lacking(Lacked) ->
+    {'NotLoaded', iolist_to_binary(Lacked)}.
 
 %% Report §8.7, §12.5: a spawn or a compute frame, read by frame/2 and handed to
 %% the exchange, that this node starts no process for, answered with Error,
-%% `NotLoaded` or `Other(text)`, as frame/2 answers one; and what the node
-%% says of it, Lacked being what it lacked or why it did not start it.
--spec failed(pid(), tuple(), 'NotLoaded' | {'Other', binary()}, iodata()) ->
+%% `NotLoaded(text)` or `Other(text)`, as frame/2 answers one; and what the
+%% node says of it, Lacked being what it lacked or why it did not start it.
+-spec failed(pid(), tuple(), {'NotLoaded', binary()} | {'Other', binary()}, iodata()) ->
           {not_loaded, spawn | compute, binary(), iodata()}.
 failed(From, {spawn, Ref, _Spawned, _Site, _Monitored, _Ms} = Body, Error, Lacked) ->
     erlang:send({ern_gateway, node(From)},

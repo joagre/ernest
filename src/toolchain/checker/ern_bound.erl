@@ -173,23 +173,23 @@ statement(Expr, Scope, Env) ->
     Scope.
 
 %% Appendix E.27: `Peer.spawn`, `Peer.spawnMonitored`, `Peer.compute` and
-%% `Peer.computeAt`, the module's own functions as the checker resolved
-%% them, not names spelled so.
+%% `Peer.computeAnywhere`, the module's own functions as the checker
+%% resolved them, not names spelled so.
 spawn_name(#remote_declaration{namespace = ['Peer'], member_of = undefined, name = Name})
-  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute; Name =:= computeAt ->
+  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute; Name =:= computeAnywhere ->
     "Peer." ++ atom_to_list(Name);
 spawn_name(_) ->
     none.
 
 %% Appendix E.27: the peer's name an operation takes before its function,
-%% as a help writes the call: every one's but `Peer.compute`'s, whose peer
-%% the node picks.
-peer_argument("Peer.compute") -> "";
+%% as a help writes the call: every one's but `Peer.computeAnywhere`'s,
+%% whose peer the node picks.
+peer_argument("Peer.computeAnywhere") -> "";
 peer_argument(_) -> "name, ".
 
 %% The function the operation takes among its arguments, at its position
 %% among its parameters: after the peer's name, where it takes one.
-function_position("Peer.compute") -> 1;
+function_position("Peer.computeAnywhere") -> 1;
 function_position(_) -> 2.
 
 %% Appendix E.28: `Code.running`, the module's own function as the checker
@@ -494,7 +494,7 @@ mailbox_crosses(Name, Span, Mailbox, Env) ->
 %% Appendix E.27: whether the operation is a compute, on a peer named or on
 %% one the node picks, whose function's value crosses back.
 is_compute(Name) ->
-    Name =:= "Peer.compute" orelse Name =:= "Peer.computeAt".
+    Name =:= "Peer.compute" orelse Name =:= "Peer.computeAnywhere".
 
 %% What the operation does with its function, in the report's words
 %% (§3.11): a spawn starts it, a compute runs it; and the operation as a
@@ -508,7 +508,7 @@ here(Name) -> by_kind(Name, "run the function on this node, `f()`", "spawn on th
 started_there(Name) ->
     by_kind(Name, "spawn the process in the function the compute runs, which answers an adapted"
                   " address of a type that crosses",
-            "start it on the peer from `Peer.computeAt`, whose function spawns it and answers an"
+            "start it on the peer from `Peer.compute`, whose function spawns it and answers an"
             " adapted address of a type that crosses").
 
 annotated(Name) -> by_kind(Name, "`fn() : Int receiving Msg = ...`",

@@ -3,7 +3,7 @@
 %% test/machines/machines.txt. From a measuring node, a burst of a hundred
 %% computes of a hundred milliseconds' work, sent as fast as the node can,
 %% then a steady stream, one every fifty milliseconds for a minute; how they
-%% fall over the peers under `Peer.compute`'s pick, two drawn at random and
+%% fall over the peers under `Peer.computeAnywhere`'s pick, two drawn at random and
 %% the less busy taken (report Appendix E.27), and under the least busy of
 %% them all, a rule of the program's own over `Peer.utilizations()` (the
 %% guide's §8.1); and beside them, the packets each of the measuring node's

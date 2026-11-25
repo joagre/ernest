@@ -92,8 +92,8 @@
 %% another module's, the two of checker/include/ern_types.hrl; {prelude,
 %% QualifiedName}. A qualified function, operator, or value: namespace is
 %% the name's prefix (report §4.2). supplies, which the checker sets: what the declaration's
-%% requirement is supplied with at this use (report §4.9), and Io.show's or
-%% Io.debug's descriptor (Appendix E.1), each a supply of ern_types.hrl.
+%% requirement is supplied with at this use (report §4.9), and Io.show's
+%% descriptor (Appendix E.1), each a supply of ern_types.hrl.
 -record(e_constructor, {span, namespace = [], name, base, args = none, written = [], type}).
 %% base: the Expr after `..`, a record update's base or a fill's namespace,
 %% or undefined (report §5.6);

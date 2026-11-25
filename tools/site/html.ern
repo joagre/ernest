@@ -144,10 +144,7 @@ export fn fragment(anchor : String) : String =
 fn fragmentPiece(char : Char) : String = {
     let code = Char.toCodePoint(char);
     if code < 32 || List.contains([' ', '"', '<', '>', '`', '%'], char) then
-        match Int.toStringBase(code, 16) {
-            Some(digits) -> "%" <> String.padStart(digits, 2, "0")
-          | None -> fault("Int.toStringBase writes in base 16")
-        }
+        "%" <> String.padStart(Int.toStringBase(code, 16), 2, "0")
     else
         Char.toString(char)
 }

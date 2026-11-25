@@ -345,7 +345,7 @@ received_linked_test() ->
         "export fn outer() : Either(Io.Error, Int) = {\n"
         "    absent();\n"
         "    let _ = now() + note;\n"
-        "    Peer.computeAt(\"p\", fn() = 6 * 7, 100)\n"
+        "    Peer.compute(\"p\", fn() = 6 * 7, 100)\n"
         "}\n").
 
 %% report §12.7, §8.4, §11.2: a lambda crosses as the definition that
@@ -463,7 +463,7 @@ received_beyond_reach_test() ->
 %% holds heavy's hash, which the node then does not lack (§12.7)
 -define(IN_LET,
         "fn heavy(n : Int) : Int = n * n + 7\n"
-        "export let job = fn() = Peer.computeAt(\"p\", fn() = heavy(4), 100)\n").
+        "export let job = fn() = Peer.compute(\"p\", fn() = heavy(4), 100)\n").
 
 %% report §8.7, §12.7, §11.1, Appendix H: a lambda written in a top-level binding,
 %% as every `Test.Case` is one, is spawned on a peer and computed there as
@@ -617,7 +617,9 @@ pool_test() ->
 %% reach calls, or the function in it, or the value of a binding it names,
 %% the spawn is answered NotLoaded before any code crosses, no lacks
 %% asked, and the node says what it lacked, the names the peer's text,
-%% which make no atom here
+%% which make no atom here; report §8.7, Appendix E.1: `NotLoaded(text)`
+%% carries the words the node writes after `was not loaded:`, each of the
+%% three
 not_loaded_from_reach_test() ->
     Work = {function, <<3:256>>},
     Scheme = {scheme, [], {arrow, [], none, {applied, {named, ['Unit']}, []}}, []},
@@ -650,15 +652,14 @@ not_loaded_from_reach_test() ->
            end,
     {Said, Options} = said(),
     ?assertEqual(ok, run(Main, Options)),
-    ?assertEqual({answered, lists:duplicate(3, {{failed, 'NotLoaded'}, []})},
+    Lacked = [<<"the binding Exabsent.note has no value here">>,
+              <<"the module ern_exchange_tests_absent, which Exabsent.only calls, is not here">>,
+              <<"the module lists, which Exabsent.sorted calls, has no function"
+                " ern_exchange_tests_unsorted/0 here">>],
+    ?assertEqual({answered, [{{failed, {'NotLoaded', Text}}, []} || Text <- Lacked]},
                  receive {answered, _} = Got -> Got end),
-    ?assertEqual([<<"the node nohost's spawn at M.f:1 was not loaded: the binding Exabsent.note"
-                    " has no value here\n">>,
-                  <<"the node nohost's spawn at M.f:1 was not loaded: the module"
-                    " ern_exchange_tests_absent, which Exabsent.only calls, is not here\n">>,
-                  <<"the node nohost's spawn at M.f:1 was not loaded: the module lists, which"
-                    " Exabsent.sorted calls, has no function ern_exchange_tests_unsorted/0"
-                    " here\n">>],
+    ?assertEqual([<<"the node nohost's spawn at M.f:1 was not loaded: ", Text/binary, "\n">>
+                  || Text <- Lacked],
                  Said()),
     [?assertError(badarg, binary_to_existing_atom(Name))
      || Name <- [<<"Exabsent">>, <<"ern_exchange_tests_unsorted">>]].

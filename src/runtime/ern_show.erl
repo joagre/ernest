@@ -3,7 +3,7 @@
 %% `any` and the value is read by its runtime representation (§12.2).
 %%
 %% Report §11.2: the shell prints to a depth and a length and shows what it
-%% cut as `...`; `Io.debug` prints the value whole, which is show/2, the
+%% cut as `...`; `Io.show` writes the value whole, which is show/2, the
 %% same printer with neither bound.
 -module(ern_show).
 

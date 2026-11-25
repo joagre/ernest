@@ -1192,18 +1192,25 @@ computed_answer(Alias, MonitorRef, Deadline) ->
 %% Report §8.7, Appendix E.27: the peer's answer as the caller takes it. A
 %% fault crosses as the peer's #fault{}, of which the caller takes the
 %% cause, the trace and the callee's site, each text, and only where each is
-%% UTF-8, since the caller's fault is reported as text (§11.2); an answer of
-%% another shape, or a fault that is not text, is none a peer's runtime
-%% writes, and answers `Other` with this node's reason. The answer comes
-%% through the caller's alias and not through the gateway, which ends the
-%% connection of a peer whose frame it cannot read.
+%% UTF-8, since the caller's fault is reported as text (§11.2); a failure's
+%% text, `NotLoaded`'s and `Other`'s, so too, as a spawn's answer is read
+%% (ern_peer:frame/2); an answer of another shape, or a fault or a failure
+%% that is not text, is none a peer's runtime writes, and answers `Other`
+%% with this node's reason. The answer comes through the caller's alias and
+%% not through the gateway, which ends the connection of a peer whose frame
+%% it cannot read.
 answer_taken(Message) ->
     closed(),
     case Message of
         {_, computed, Value} ->
             {'Right', Value};
-        {_, failed, Error} ->
-            {'Left', Error};
+        {_, failed, 'Unreachable'} ->
+            {'Left', 'Unreachable'};
+        {_, failed, {Error, Text}} when Error =:= 'NotLoaded'; Error =:= 'Other' ->
+            case is_text(Text) of
+                true -> {'Left', {Error, Text}};
+                false -> unreadable_answer()
+            end;
         {_, ended, Reason} ->
             {ended, Reason};
         {_, faulted, #fault{cause = Cause, trace = Trace, callee = Callee}} ->
@@ -6262,11 +6269,12 @@ note_compute(Caller, Alias) ->
 
 %% Report §8.7, Appendix E.27: a compute this node starts no process for
 %% answered, its note let go as an answer given here lets it go:
-%% `NotLoaded`, `Other(text)` with this node's reason where the exchange
-%% brought its function and it did not run it, or `Unreachable` where no
-%% launch is in progress to start it. Between two launches there is no
-%% table, and no note.
--spec computed(reference(), 'NotLoaded' | 'Unreachable' | {'Other', binary()}) -> ok.
+%% `NotLoaded(text)` with what this node lacked, `Other(text)` with this
+%% node's reason where the exchange brought its function and it did not run
+%% it, or `Unreachable` where no launch is in progress to start it. Between
+%% two launches there is no table, and no note.
+-spec computed(reference(), {'NotLoaded', binary()} | 'Unreachable' | {'Other', binary()}) ->
+          ok.
 computed(Alias, Error) ->
     try dropped_note(Alias) catch error:badarg -> false end,
     Alias ! {Alias, failed, Error},

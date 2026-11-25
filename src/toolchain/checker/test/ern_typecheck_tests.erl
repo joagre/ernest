@@ -1076,10 +1076,10 @@ spawn_captures_inside_values_test() ->
     ?assertEqual(ok, peer_ok("fn f(t : Address(Int)) : Unit = {\n"
                              ++ spawning("let c = adapted(t, fn(s : String) = String.size(s));\n"
                                          "    ", Lambda))),
-    ?assertEqual({error, "the function Peer.computeAt runs captures c, whose type"
+    ?assertEqual({error, "the function Peer.compute runs captures c, whose type"
                          " List((Int) -> Int) is bound to its node, since it holds a function"},
                  peer_ok("fn f(c : List((Int) -> Int)) : Unit = {\n"
-                         ++ computing("Peer.computeAt", "", "fn() = { let _ = c; 1 }"))),
+                         ++ computing("Peer.compute", "", "fn() = { let _ = c; 1 }"))),
     ?assertEqual({error, "the function Peer.spawnMonitored starts captures c, whose type Job is"
                          " bound to its node, since it holds a function"},
                  peer_ok(Types ++ "type Msg = Died(Down)\n"
@@ -1106,9 +1106,9 @@ spawn_captures_read_at_definition_end_test() ->
     ?assertEqual({error, "the function Peer.spawn starts captures c, whose type"
                          " List((Int) -> Int) is bound to its node, since it holds a function"},
                  Then(Spawn, Functions)),
-    ?assertEqual({error, "the function Peer.compute runs captures c, whose type"
+    ?assertEqual({error, "the function Peer.computeAnywhere runs captures c, whose type"
                          " List((Int) -> Int) is bound to its node, since it holds a function"},
-                 Then("Peer.compute(fn() = { let _ = c; 1 }, 5000)", Functions)).
+                 Then("Peer.computeAnywhere(fn() = { let _ = c; 1 }, 5000)", Functions)).
 
 %% report §3.11, §4.9: the captures are the locals the body names, in a
 %% pun, a selection, an update's base, a `<-`, a pipe, a guard and an inner
@@ -1198,17 +1198,17 @@ spawn_mailbox_test() ->
                              "fn loop() : Unit receiving Msg = receive { Add(_) -> loop() }\n"
                              "fn f() : Unit = {\n" ++ spawning("", "loop"))).
 
-%% A function body that computes Function by Form, `Peer.computeAt` on the
-%% peer `p` or `Peer.compute` on a peer the node picks, and drops what the
-%% compute answers, after the given statements.
+%% A function body that computes Function by Form, `Peer.compute` on the
+%% peer `p` or `Peer.computeAnywhere` on a peer the node picks, and drops
+%% what the compute answers, after the given statements.
 computing(Form, Statements, Function) ->
     "    " ++ Statements ++ "let _ = " ++ Form ++ "(" ++ peer_name(Form) ++ Function
         ++ ", 5000);\n"
     "    Unit\n"
     "}\n".
 
-peer_name("Peer.computeAt") -> "\"p\", ";
-peer_name("Peer.compute") -> "".
+peer_name("Peer.compute") -> "\"p\", ";
+peer_name("Peer.computeAnywhere") -> "".
 
 %% report §3.11, §8.7, Appendix E.27: the function a compute runs, on a peer
 %% named or on one the node picks, is checked as a spawn's, each error
@@ -1216,10 +1216,11 @@ peer_name("Peer.compute") -> "".
 %% a member of a requirement in force, its mailbox type, which is Never
 %% where it is a variable nothing fixed, and
 %% `restarting` over a function it admits; each form is called where it is
-%% named. A regression test, written after the code, of `Peer.computeAt`,
-%% today's form of the compute on a named peer, and of `Peer.compute`
+%% named. A regression test, written after the code, of `Peer.compute`,
+%% the compute on a named peer, and of `Peer.computeAnywhere`, the one on a
+%% peer the node picks
 compute_function_test() ->
-    lists:foreach(fun compute_function/1, ["Peer.computeAt", "Peer.compute"]).
+    lists:foreach(fun compute_function/1, ["Peer.compute", "Peer.computeAnywhere"]).
 
 compute_function(Form) ->
     Head = "fn work(x : Int) : Int = x\n"
@@ -1268,7 +1269,7 @@ compute_function(Form) ->
                  peer_refusal("fn f() : Unit = { let c = " ++ Form ++ "; Unit }\n")).
 
 %% report §3.11, Appendix E.27: the help of a form taken as a value writes
-%% the call as the form takes its arguments, `Peer.compute` without a
+%% the call as the form takes its arguments, `Peer.computeAnywhere` without a
 %% peer's name. A regression test, written after the code
 compute_as_value_help_test() ->
     Help = fun(Form) ->
@@ -1276,9 +1277,10 @@ compute_as_value_help_test() ->
                    with_peer("fn f() : Unit = { let c = " ++ Form ++ "; Unit }\n"),
                Text
            end,
-    ?assertEqual("call it: `Peer.compute(fn() = ..., ms)` (report §3.11)", Help("Peer.compute")),
-    ?assertEqual("call it: `Peer.computeAt(name, fn() = ..., ms)` (report §3.11)",
-                 Help("Peer.computeAt")).
+    ?assertEqual("call it: `Peer.computeAnywhere(fn() = ..., ms)` (report §3.11)",
+                 Help("Peer.computeAnywhere")),
+    ?assertEqual("call it: `Peer.compute(name, fn() = ..., ms)` (report §3.11)",
+                 Help("Peer.compute")).
 
 %% report §3.11, §11.5: each help of what crosses names the fix, in the
 %% names the program wrote. A regression test (the log's *The Review's
@@ -1308,7 +1310,7 @@ crossing_helps_name_the_fix_test() ->
                  " or spawn on this node (report §3.11)",
                  Help("fn f(describe : (Int) -> String) : Unit = {\n"
                       ++ Spawn("fn() = Io.println(describe(1))"))),
-    ?assertEqual("start it on the peer from `Peer.computeAt`, whose function spawns it and"
+    ?assertEqual("start it on the peer from `Peer.compute`, whose function spawns it and"
                  " answers an adapted address of a type that crosses, or keep the address of a"
                  " socket on this node and send the process values that cross (report §3.11)",
                  Help(Serve ++ "fn f() : Unit = {\n" ++ Spawn("serve"))),
@@ -1317,17 +1319,17 @@ crossing_helps_name_the_fix_test() ->
                  " and send the process values that cross (report §3.11)",
                  Help(Serve ++ "fn g() : Int receiving Msg = receive { Run(_) -> g() }\n"
                       "fn f() : Unit = {\n"
-                      "    let _ = Peer.computeAt(\"p\", g, 1000);\n    Unit\n}\n")),
+                      "    let _ = Peer.compute(\"p\", g, 1000);\n    Unit\n}\n")),
     ?assertEqual("answer a value that crosses, from which this node builds what it needs"
                  " (report §3.11)",
                  Help("fn f() : Unit = {\n"
-                      "    let _ = Peer.compute(fn() = fn(n : Int) = n + 1, 1000);\n"
+                      "    let _ = Peer.computeAnywhere(fn() = fn(n : Int) = n + 1, 1000);\n"
                       "    Unit\n}\n")),
     ?assertEqual("give the function its result type, `fn() : List(...) = ...`: the value crosses"
                  " back to this node, and its type is known whole where the compute is written"
                  " (report §3.11)",
                  Help("fn f() : Unit = {\n"
-                      "    let _ = Peer.computeAt(\"p\", fn() = [], 1000);\n    Unit\n}\n")),
+                      "    let _ = Peer.compute(\"p\", fn() = [], 1000);\n    Unit\n}\n")),
     Loop = "type Stop = Stop\nfn loop() : Unit receiving Stop = receive { Stop -> Unit }\n",
     Listed = fun(Argument) ->
                  "fn listed() : Int = List.size(Code.running(" ++ Argument ++ "))\n"
@@ -1463,7 +1465,7 @@ code_running_never_test() ->
 %% and the compute refused every function with a mailbox type
 compute_result_test() ->
     lists:foreach(fun compute_result/1,
-                  [{"Peer.computeAt", computeAt, 2}, {"Peer.compute", compute, 1}]).
+                  [{"Peer.compute", compute, 2}, {"Peer.computeAnywhere", computeAnywhere, 1}]).
 
 compute_result({Form, Name, Position}) ->
     ?assertEqual(Form ++ " answers a value of type (Int) -> Int, which is bound to its"
@@ -2034,9 +2036,42 @@ show_under_a_requirement_test() ->
     ?assertEqual("Io.show needs b.show, which wrap does not declare",
                  refusal("fn wrap(pair : #(a, b)) : String needs a.show = Io.show(pair)")).
 
-%% report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
-%% at which the name is used, as a callee or an argument, known whole once
-%% the definition is inferred; a type variable in it is a type error, and an
+%% report Appendix E.1, §4.9, §9, §3.9: `Io.debug` is a function of io.ern
+%% under `needs a.show`, no primitive, its `show` supplied as any
+%% requirement's: at a type known whole, at a type variable the requirement
+%% in force names, and at a type built from such variables. A type variable
+%% of the signature that no requirement names is a call that needs its
+%% `show`; any other type not known whole is refused as a call too, with
+%% the help to annotate it, as every `show` a requirement is supplied with
+%% is, `log`'s as `Io.debug`'s. A regression test of the help: the line had
+%% none, where `Io.show`'s asked for the annotation
+debug_through_a_requirement_test() ->
+    ?assertEqual(ok, ok("fn f() : Int = Io.debug(1) + 1")),
+    ?assertEqual(ok, ok("fn f(x : a) : a needs a.show = Io.debug(x)")),
+    ?assertEqual(ok, ok("fn f(xs : List(a)) : List(a) needs a.show = Io.debug(xs)")),
+    ?assertEqual(ok, ok("fn f(xs : List(Int)) : List(Int) = List.map(xs, Io.debug)")),
+    ?assertEqual({"Io.debug needs a.show, which f does not declare",
+                  "add `needs a.show` to f's signature"},
+                 refusal_and_help("fn f(x : a) : a = Io.debug(x)")),
+    ?assertEqual("Io.debug needs b.show, which f does not declare",
+                 refusal("fn f(pair : #(a, b)) : #(a, b) needs a.show = Io.debug(pair)")),
+    Help = fun(Type) ->
+                   "bind the value with an annotation, `let value : " ++ Type ++ " = ...`, and"
+                   " show that; at a type variable of the signature, a requirement `needs"
+                   " a.show` lets it write the value"
+           end,
+    ?assertEqual({"Io.debug needs Optional(a).show, and Io.show writes a type known whole, or a"
+                  " requirement's type variable", Help("Optional(...)")},
+                 refusal_and_help("fn f() : Unit = { let _ = Io.debug(None); Unit }")),
+    ?assertEqual({"log needs List(a).show, and Io.show writes a type known whole, or a"
+                  " requirement's type variable", Help("List(...)")},
+                 refusal_and_help("fn log(x : a) : Unit needs a.show = Io.println(Io.show(x))
+"
+                                  "fn f() : Unit = log([])")).
+
+%% report Appendix E.1: `Io.show` writes a value by the type at which the
+%% name is used, as a callee or an argument, known whole once the
+%% definition is inferred; a type variable in it is a type error, and an
 %% effect variable is none, a function being written `<function>`. A
 %% regression test: before the rule, a type variable wrote the runtime's
 %% representation; and the help binds the value with an annotation, a
@@ -2048,9 +2083,6 @@ show_needs_a_known_type_test() ->
     ?assertEqual({"the type List(a) is not known whole here, and Io.show writes a value by its"
                   " type", Help},
                  refusal_and_help("fn f() : String = Io.show([])")),
-    ?assertEqual("the type Optional(a) is not known whole here, and Io.debug writes a value by"
-                 " its type",
-                 refusal("fn f() : Unit = { let _ = Io.debug(None); Unit }")),
     ?assertEqual(ok, ok("fn f() : String = { let xs : List(Int) = []; Io.show(xs) }")),
     ?assertEqual(ok, ok("fn f() : String = Io.show(fn(n : Int) = n)")),
     ?assertEqual(ok, ok("fn f(xs : List(Int)) : List(String) = List.map(xs, Io.show)")).

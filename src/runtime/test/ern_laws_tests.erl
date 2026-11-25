@@ -613,9 +613,9 @@ char_compare({First, Second}) ->
 %% Int
 %%
 
-%% report Appendix E.8, §3.1: integer arithmetic exact, `div` and `rem`
-%% truncating with the sign of the first, the bits, the shifts, the writing
-%% in a base read back
+%% report Appendix E.8, §3.1, §7.4: integer arithmetic exact, `div` and
+%% `rem` truncating with the sign of the first, the bits, the shifts, the
+%% writing in a base read back, a base outside 2 to 36 a fault
 int_laws_test_() ->
     laws([{"abs, min, max, negate, compare", fun two_ints_any/1, fun int_order/1},
           {"div and rem: a / b * b + a % b is a, the sign of a, None where b is 0",
@@ -625,7 +625,8 @@ int_laws_test_() ->
            fun int_shifts/1},
           {"pow exact, None for a negative exponent, 0 to 0 is 1", fun two_small/1,
            fun int_pow/1},
-          {"toString and toStringBase, read back by String", fun int_and_base/1,
+          {"toString and toStringBase, read back by String, faulting outside 2 to 36",
+           fun int_and_base/1,
            fun int_written/1},
           {"toFloat: the nearest Float", fun int/1, fun int_to_float/1}]).
 
@@ -661,11 +662,13 @@ int_pow({Base, Exponent}) when Exponent < 0 -> ?INT(pow)(Base, Exponent) =:= 'No
 int_pow({Base, Exponent}) -> ?INT(pow)(Base, Exponent) =:= {'Some', power(Base, Exponent)}.
 
 int_written({Int, Base}) when Base < 2; Base > 36 ->
-    ?INT(toString)(Int) =:= integer_to_binary(Int) andalso ?INT(toStringBase)(Int, Base) =:= 'None';
+    ?INT(toString)(Int) =:= integer_to_binary(Int)
+        andalso (try ?INT(toStringBase)(Int, Base) catch throw:Fault -> Fault end)
+                =:= {ern, fault, <<"a base is from 2 to 36">>};
 int_written({Int, Base}) ->
     Written = integer_to_binary(Int, Base),
     ?INT(toString)(Int) =:= integer_to_binary(Int)
-        andalso ?INT(toStringBase)(Int, Base) =:= {'Some', Written}
+        andalso ?INT(toStringBase)(Int, Base) =:= Written
         andalso ?STRING(toIntBase)(Written, Base) =:= {'Some', Int}.
 
 int_to_float(Int) ->

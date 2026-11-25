@@ -4885,24 +4885,24 @@ example.ern:9:34: Peer.spawn starts a process whose mailbox type Msg is bound to
 8 | fn start() : Unit = {
 9 |     let _ = Peer.spawn("worker", serve, 1000);
   |                                  ^^^^^
-  | = help: start it on the peer from `Peer.computeAt`, whose function spawns it and answers an adapted address of a type that crosses, or keep the address of a socket on this node and send the process values that cross (report §3.11)
+  | = help: start it on the peer from `Peer.compute`, whose function spawns it and answers an adapted address of a type that crosses, or keep the address of a socket on this node and send the process values that cross (report §3.11)
 ```
 
 ### A compute whose function answers a value bound to its node (§3.11)
 
 ```ernest-rejected
 fn adder() : Unit = {
-    let _ = Peer.compute(fn() = fn(n : Int) = n + 1, 1000);
+    let _ = Peer.computeAnywhere(fn() = fn(n : Int) = n + 1, 1000);
     Unit
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:26: Peer.compute answers a value of type (Int) -> Int, which is bound to its node, since it holds a function
+example.ern:2:34: Peer.computeAnywhere answers a value of type (Int) -> Int, which is bound to its node, since it holds a function
 1 | fn adder() : Unit = {
-2 |     let _ = Peer.compute(fn() = fn(n : Int) = n + 1, 1000);
-  |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |     let _ = Peer.computeAnywhere(fn() = fn(n : Int) = n + 1, 1000);
+  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: answer a value that crosses, from which this node builds what it needs (report §3.11)
 ```
 
@@ -4910,17 +4910,17 @@ example.ern:2:26: Peer.compute answers a value of type (Int) -> Int, which is bo
 
 ```ernest-rejected
 fn empties() : Unit = {
-    let _ = Peer.computeAt("worker", fn() = [], 1000);
+    let _ = Peer.compute("worker", fn() = [], 1000);
     Unit
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:38: Peer.computeAt answers a value of type List(a), which holds a type variable, so whether it crosses is not known here
+example.ern:2:36: Peer.compute answers a value of type List(a), which holds a type variable, so whether it crosses is not known here
 1 | fn empties() : Unit = {
-2 |     let _ = Peer.computeAt("worker", fn() = [], 1000);
-  |                                      ^^^^^^^^^
+2 |     let _ = Peer.compute("worker", fn() = [], 1000);
+  |                                    ^^^^^^^^^
   | = help: give the function its result type, `fn() : List(...) = ...`: the value crosses back to this node, and its type is known whole where the compute is written (report §3.11)
 ```
 
@@ -4935,36 +4935,36 @@ fn serve() : Int receiving Msg =
     }
 
 fn start() : Unit = {
-    let _ = Peer.computeAt("worker", serve, 1000);
+    let _ = Peer.compute("worker", serve, 1000);
     Unit
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:9:38: Peer.computeAt starts a process whose mailbox type Msg is bound to its node, since it holds the address of a socket
+example.ern:9:36: Peer.compute starts a process whose mailbox type Msg is bound to its node, since it holds the address of a socket
 8 | fn start() : Unit = {
-9 |     let _ = Peer.computeAt("worker", serve, 1000);
-  |                                      ^^^^^
+9 |     let _ = Peer.compute("worker", serve, 1000);
+  |                                    ^^^^^
   | = help: spawn the process in the function the compute runs, which answers an adapted address of a type that crosses, or keep the address of a socket on this node and send the process values that cross (report §3.11)
 ```
 
-### `Peer.compute` taken as a value (§3.11)
+### `Peer.computeAnywhere` taken as a value (§3.11)
 
 ```ernest-rejected
 fn computer() : Unit = {
-    let run = Peer.compute;
+    let run = Peer.computeAnywhere;
     Unit
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:15: Peer.compute is called where it is named, so that the compiler sees the function it starts
+example.ern:2:15: Peer.computeAnywhere is called where it is named, so that the compiler sees the function it starts
 1 | fn computer() : Unit = {
-2 |     let run = Peer.compute;
-  |               ^^^^^^^^^^^^
-  | = help: call it: `Peer.compute(fn() = ..., ms)` (report §3.11)
+2 |     let run = Peer.computeAnywhere;
+  |               ^^^^^^^^^^^^^^^^^^^^
+  | = help: call it: `Peer.computeAnywhere(fn() = ..., ms)` (report §3.11)
 ```
 
 ### `Code.running` taken as a value (§3.11)

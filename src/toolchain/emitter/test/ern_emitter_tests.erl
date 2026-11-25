@@ -1034,7 +1034,7 @@ foreign_line_test() ->
 %% and `Code.load` themselves are not run
 from_compiled_lambda_in_binding_test() ->
     Text = "fn heavy(n : Int) : Int = n * n\n"
-           "export let job = fn() = Peer.computeAt(\"p\", fn() = heavy(4), 100)\n",
+           "export let job = fn() = Peer.compute(\"p\", fn() = heavy(4), 100)\n",
     {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Inbound'], Text),
     {ok, Built, Beam} = ern_compile:compile(['Inbound'], Typed, Interface, Env,
                                             #{source_hash => <<>>, deps => []}),

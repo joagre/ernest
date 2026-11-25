@@ -209,7 +209,7 @@ A node measures how busy it is on one scale: 1.0 is every scheduler busy, below 
 
 A program may set the number itself, when it knows its load better than the host does; then this entry is the default it starts from.
 
-A node that lists peers tells each of them its utilization, a *telling*, every `utilization-interval` milliseconds, 5000 where the entry is absent, and once as a peer connects; an attached shell's own node tells none, so that no compute that names no node runs on it (report §11.2, *The attached shell*). Each node holds the last number heard from each peer, and `Peer.compute`, the function a program runs a compute with when it names no peer, picks the less busy of two peers drawn from them; a number older than twice the interval of the peer that sent it is not used, and a peer never heard from is not chosen. Where a program places work by its own rule, the language guide's §8.1 shows it over `Peer.utilizations()`.
+A node that lists peers tells each of them its utilization, a *telling*, every `utilization-interval` milliseconds, 5000 where the entry is absent, and once as a peer connects; an attached shell's own node tells none, so that no compute that names no node runs on it (report §11.2, *The attached shell*). Each node holds the last number heard from each peer, and `Peer.computeAnywhere`, the function a program runs a compute with when it names no peer, picks the less busy of two peers drawn from them; a number older than twice the interval of the peer that sent it is not used, and a peer never heard from is not chosen. Where a program places work by its own rule, the language guide's §8.1 shows it over `Peer.utilizations()`.
 
 The cost of the telling is one small frame per peer per interval, which replaces the host's own idle ticks rather than adding to them: three idle nodes exchanged about 1.2 packets a second at the default interval, on one machine and across machines alike, each connection carrying two packets a telling. A shorter interval buys fresher numbers for more frames; a longer one the reverse.
 
@@ -256,7 +256,7 @@ A spawn or a compute a peer asked for that this node did not start is said on th
 - `the peer a's spawn at Counter.main:17 was not loaded: this node could not take the code it received: ...`: the host refused to compile or load what arrived. Restart the node.
 - `the peer a's spawn at Counter.main:19 was not loaded: the spawner's node no longer holds the function's reach`: the spawning side let go of the code between asking and sending. Nothing to do here; the spawner sees `Io.Other`.
 
-The program on the spawning side sees each of these as a failed result, a `Left`, with `Io.NotLoaded` for the first two and `Io.Other` for the rest.
+The program on the spawning side sees each of these as a failed result, a `Left`, with `Io.NotLoaded(text)` for the first two, `text` the words after `was not loaded:`, and `Io.Other` for the rest (report Appendix E.1).
 
 The list is a selection: report §12.5, *What it says*, names every line a spawn or a compute can leave, a compute's lines beside these and the exchange's time run out among them.
 

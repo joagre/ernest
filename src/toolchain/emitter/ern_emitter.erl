@@ -675,8 +675,8 @@ members_taken(Requirement, Context) ->
 
 %% Report §4.7, §8.4: a foreign function, its implementation called in
 %% place, an exception it raises turned into a fault, and its return
-%% checked; report §9.4: `Io.show` and `Io.debug` take their requirement's
-%% member, the descriptor, after their argument, and pass it to the host.
+%% checked; report §9.4: `Io.show` takes its requirement's member, the
+%% descriptor, after its argument, and passes it to the host.
 foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
                                             scheme = {scheme, Quantified,
                                                       {arrow, ParamTypes, _Effect, ResultType},
@@ -1485,11 +1485,11 @@ name_form(Source, {local, Number}, [], _, Context) ->
     local_value(Source, Number, Context);
 name_form(_, {read, ReadName}, [], _, Context) ->
     {erl_syntax:variable(ReadName), Context};
-%% Appendix E.1: the library's Io.show and Io.debug as values too, by what
-%% the checker supplied for the argument's type, named by the form's
-%% reference from another module and from the library's own alike
-name_form(_, {named, ['Io', Name]}, [Shown], _, Context) when Name =:= show; Name =:= debug ->
-    io_value(Name, Shown, Context);
+%% Appendix E.1: the library's Io.show as a value too, by what the checker
+%% supplied for the argument's type, named by the form's reference from
+%% another module and from the library's own alike
+name_form(_, {named, ['Io', show]}, [Shown], _, Context) ->
+    io_value(Shown, Context);
 %% Report §8.4, Appendix E.12: Foreign.term as a value, which gives its
 %% argument as a foreign function's argument of the supplied type crosses
 name_form(_, {named, ['Foreign', term]}, [{shown, Crossing}], _, Context) ->
@@ -1713,13 +1713,12 @@ callee(_, {var, {local, Number}, Supplies}, _, Args, Context) ->
                                                  Captures ++ ArgForms ++ SupplyForms),
             {Application, Context2}
     end;
-%% Appendix E.1: the library's Io.show and Io.debug, as name_form/5 names
-%% them, written by what the checker supplied for the argument's type
-callee(_, {var, {named, ['Io', Name]}, [Shown]}, _, [Argument], Context)
-  when Name =:= show; Name =:= debug ->
+%% Appendix E.1: the library's Io.show, as name_form/5 names it, written by
+%% what the checker supplied for the argument's type
+callee(_, {var, {named, ['Io', show]}, [Shown]}, _, [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
     {DescriptorForm, Context2} = supply_form(Shown, Context1),
-    {call_remote(ern_io, Name, [ArgumentForm, DescriptorForm]), Context2};
+    {call_remote(ern_io, show, [ArgumentForm, DescriptorForm]), Context2};
 %% Report §8.4, Appendix E.12: Foreign.term, the value as a foreign
 %% function's argument of its type crosses, by what the checker supplied
 callee(_, {var, {named, ['Foreign', term]}, [{shown, Crossing}]}, _, [Argument], Context) ->
@@ -1727,17 +1726,17 @@ callee(_, {var, {named, ['Foreign', term]}, [{shown, Crossing}]}, _, [Argument],
     exposed({Crossing, ArgumentForm}, Context1);
 %% Report §8.7, §12.6, Appendix E.27: Peer.service makes its service with its
 %% message type's hash, of the type the checker supplied; Peer.spawn,
-%% Peer.spawnMonitored, Peer.computeAt and Peer.compute send the function's
-%% identity and captures in place of the function, and the spawn's or the
-%% compute's site, as a spawn on this node keeps it (§6.9)
+%% Peer.spawnMonitored, Peer.compute and Peer.computeAnywhere send the
+%% function's identity and captures in place of the function, and the
+%% spawn's or the compute's site, as a spawn on this node keeps it (§6.9)
 callee(_, {var, {named, ['Peer', service]}, [ServiceType]}, _, [Argument], Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
     {call_remote(ern_peer, service, [ArgumentForm, service_hash(ServiceType)]), Context1};
-callee(Source, {var, {named, ['Peer', compute]}, _}, _, [Spawned | Rest], Context) ->
+callee(Source, {var, {named, ['Peer', computeAnywhere]}, _}, _, [Spawned | Rest], Context) ->
     %% the node picks its peer
-    peer_spawn(Source, compute, [], Spawned, Rest, Context);
+    peer_spawn(Source, computeAnywhere, [], Spawned, Rest, Context);
 callee(Source, {var, {named, ['Peer', Name]}, _}, _, [PeerName, Spawned | Rest], Context)
-  when Name =:= spawn; Name =:= spawnMonitored; Name =:= computeAt ->
+  when Name =:= spawn; Name =:= spawnMonitored; Name =:= compute ->
     peer_spawn(Source, Name, [PeerName], Spawned, Rest, Context);
 %% Appendix E.28, report §3.11: Code.running, the identity of the
 %% declaration it names in place of the function, its hash (Appendix H),
@@ -1836,10 +1835,10 @@ shim(Reference, #emit_context{own = #own{forms = Forms, foreign = Foreign},
             end
     end.
 
-io_value(Name, Shown, Context) ->
+io_value(Shown, Context) ->
     {[Value], Context1} = fresh_variables(1, "Argument", Context),
     {DescriptorForm, Context2} = supply_form(Shown, Context1),
-    {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), DescriptorForm])),
+    {lambda([Value], call_remote(ern_io, show, [erl_syntax:variable(Value), DescriptorForm])),
      Context2}.
 
 term_value(Crossing, Context) ->
@@ -2868,8 +2867,8 @@ peer_spawn(Source, Name, Peered, Spawned, Rest, Context) ->
     Function = case Name of
                    spawn -> spawn;
                    spawnMonitored -> spawn_monitored;
-                   computeAt -> compute_at;
-                   compute -> compute
+                   compute -> compute;
+                   computeAnywhere -> compute_anywhere
                end,
     {call_remote(ern_peer, Function,
                  PeerForms ++ [SpawnedForm | RestForms] ++ [site(Source, Context)]),

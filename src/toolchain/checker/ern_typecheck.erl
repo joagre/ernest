@@ -2436,11 +2436,10 @@ unmarked(Node) when is_tuple(Node) -> list_to_tuple(unmarked(tuple_to_list(Node)
 unmarked(Nodes) when is_list(Nodes) -> [unmarked(Node) || Node <- Nodes];
 unmarked(Other) -> Other.
 
-%% Report §9.4: `Io.show` and `Io.debug` need `a.show`, the requirement
-%% their type states; a foreign function declares none of its own.
-shown_requirement(#foreign_fn_declaration{member_of = undefined, name = Name},
-                  {tfn, [{tvar, Id}], _, _}, #env{namespace = ['Io']})
-  when Name =:= show; Name =:= debug ->
+%% Report §9.4: `Io.show` needs `a.show`, the requirement its type
+%% states; a foreign function declares none of its own.
+shown_requirement(#foreign_fn_declaration{member_of = undefined, name = show},
+                  {tfn, [{tvar, Id}], _, _}, #env{namespace = ['Io']}) ->
     [{Id, show}];
 shown_requirement(_, _, _) ->
     [].
@@ -2946,8 +2945,8 @@ spawned_position(#remote_declaration{namespace = ['Peer'], member_of = undefined
     case Name of
         spawn -> {2, "a spawned function"};
         spawnMonitored -> {2, "a spawned function"};
-        computeAt -> {2, "a spawned function"};
-        compute -> {1, "a spawned function"};
+        compute -> {2, "a spawned function"};
+        computeAnywhere -> {1, "a spawned function"};
         _ -> none
     end;
 spawned_position(#remote_declaration{namespace = ['Process'], member_of = undefined, name = run}) ->
@@ -2999,11 +2998,11 @@ needless(_Declared, _Effect, _Type, _Held, _TypeState) ->
 body(#fn_declaration{body = Body}) -> Body;
 body(#let_declaration{body = Body}) -> Body.
 
-%% Report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
-%% at which the name is used, as a callee or an argument, the library's
-%% own uses in io.ern among them; the type is read once the definition is
-%% inferred, as an operator's operand type is (§4.8), and supplied as a
-%% requirement's `show` is (§4.9).
+%% Report Appendix E.1: `Io.show` writes a value by the type at which the
+%% name is used, as a callee or an argument, the library's own uses in
+%% io.ern among them; the type is read once the definition is inferred, as
+%% an operator's operand type is (§4.8), and supplied as a requirement's
+%% `show` is (§4.9).
 %% Report §8.4, Appendix E.12: `Foreign.term` gives its value by the type
 %% at which the name is used, read the same way.
 %% Report §8.7, §3.11, Appendix E.27: `Peer.service` makes its service at
@@ -3019,11 +3018,11 @@ shown(Span, Referent, Type, Env) ->
             []
     end.
 
-%% Report §9.4, Appendix E.1: `Io.show` and `Io.debug`, whose requirement is
-%% named for the function in what a refusal says.
+%% Report §9.4, Appendix E.1: `Io.show`, whose requirement is named for
+%% the function in what a refusal says.
 io_shown(Referent, Env) ->
     case declared(Referent, Env) of
-        {'Io', Name} when Name =:= show; Name =:= debug -> {ok, Name};
+        {'Io', show} -> {ok, show};
         _ -> none
     end.
 
@@ -4357,20 +4356,27 @@ open_help(Variable, Outer, #env{definition_type = DefinitionType,
 requirement_help(Wanted, Declaration) ->
     "add `needs " ++ Wanted ++ "` to " ++ Declaration ++ "'s signature".
 
+%% Report Appendix E.1, §4.9, §11.5: a `show` supplied at a type not known
+%% whole, `Io.show`'s, and every other a requirement is supplied with,
+%% `Io.debug`'s among them, which is refused as a call that needs its
+%% `show`; each has the help. An annotation stands where a value is bound,
+%% so the help binds it with one, its type written with `...` for what the
+%% writer chooses.
 -spec not_shown(ern_diagnostic:span(), term(), term(), env()) -> no_return().
-not_shown(Span, Type, {shown, Name}, #env{type_state = TypeState}) ->
-    %% report §11.5: an annotation stands where a value is bound, so the
-    %% help binds it with one, its type written with `...` for what the
-    %% writer chooses
-    fail(Span, "the type " ++ ern_types:format(Type, TypeState) ++ " is not known whole here, and"
-               " Io." ++ atom_to_list(Name) ++ " writes a value by its type", [],
+not_shown(Span, Type, Need, #env{type_state = TypeState}) ->
+    Message = case Need of
+                  {shown, Name} ->
+                      "the type " ++ ern_types:format(Type, TypeState) ++ " is not known whole"
+                          " here, and Io." ++ atom_to_list(Name) ++ " writes a value by its type";
+                  _ ->
+                      needer_text(Need) ++ " needs " ++ ern_types:format(Type, TypeState)
+                          ++ ".show, and Io.show writes a type known whole, or a requirement's"
+                          " type variable"
+              end,
+    fail(Span, Message, [],
          "bind the value with an annotation, `let value : "
          ++ ern_types:format_annotation(Type, TypeState) ++ " = ...`, and show that; at a type"
-         " variable of the signature, a requirement `needs a.show` lets it write the value");
-not_shown(Span, Type, Need, #env{type_state = TypeState}) ->
-    fail(Span, needer_text(Need) ++ " needs " ++ ern_types:format(Type, TypeState)
-               ++ ".show, and Io.show writes a type known whole, or a requirement's type"
-               " variable").
+         " variable of the signature, a requirement `needs a.show` lets it write the value").
 
 %% Report §11.5, E.12: a type that holds a signature's variable is no
 %% annotation's to fix, and a `foreign fn` gives such a value.

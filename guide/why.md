@@ -34,10 +34,10 @@ match Peer.spawn("foo", fn() = count(0), 5000) {
 
 So a counter whose messages carry no function may run on a peer that holds none of its code: a spawned function crosses as code, by its hash, where a function in a message would have to cross as a value, which none does (the guide's §8.4). A type that holds a function, a foreign type or a resource such as a socket is *bound to its node*, and `Peer.spawn` refuses before the run a function whose mailbox type is bound (report §3.11).
 
-A computation need not name a node at all. `Peer.compute(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason (the guide's §8.1, report Appendix E.27):
+A computation need not name a node at all. `Peer.computeAnywhere(f, ms)` runs `f` on the less busy of two peers drawn at random from those that have told the node how busy they are, carrying its code there as the spawn does, and answers the value within `ms` milliseconds, or `Left` with the reason (the guide's §8.1, report Appendix E.27):
 
 ```ernest-fragment
-match Peer.compute(fn() = render(scene, row), 5000) {
+match Peer.computeAnywhere(fn() = render(scene, row), 5000) {
     Right(pixels) -> putRow(row, pixels)
   | Left(error) -> Io.println("no peer: " <> Io.show(error))
 }

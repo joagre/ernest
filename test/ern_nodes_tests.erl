@@ -3348,7 +3348,8 @@ fn held() : Unit receiving Unit = receive { _ -> held() }
 %% a failure within the time. A function the store holds spawns there with
 %% what it captured, writing to the store's standard output; a name that is
 %% no peer's is NotListed. A function that names a binding with no value on
-%% the store is NotLoaded, which the store says, and nothing is initialized
+%% the store is NotLoaded, carrying what the store says (Appendix E.1),
+%% which the store says, and nothing is initialized
 %% for it; a function that names no binding spawns though its module's
 %% binding has no value there.
 %%
@@ -3370,7 +3371,8 @@ spawn_on_peer(Base) ->
     {Out, _} = said(Desk),
     {StoreOut, StoreErr} = said(Store),
     [has(Out, Line)
-     || Line <- ["spawn: Right", "not listed: Io.NotListed", "not loaded: Io.NotLoaded",
+     || Line <- ["spawn: Right", "not listed: Io.NotListed",
+                 "not loaded: Io.NotLoaded(\"the binding Lonely.greeting has no value here\")\n",
                  "names no binding: Right", "bindings: Right", "monitored: Returned",
                  "late: Io.Timeout", "no upper bound: Right"]],
     Spawned = desk_site("spawns", "spawn(\"store\", Lonely.speak"),
@@ -3385,7 +3387,8 @@ spawn_on_peer(Base) ->
 %% function run there for its value, answered within the time or a failure.
 %% A value comes back; a name that is no peer's answers NotListed; a
 %% function whose binding has no value on the store answers NotLoaded, which
-%% the store says. A fault in the function is the caller's, with the
+%% the store says, and the answer carries (Appendix E.1). A fault in the
+%% function is the caller's, with the
 %% function's cause, which the caller's node reports once, with the caller's
 %% site and `, on the peer store` after the cause, its subscriber of faults
 %% told of it with the peer, the trace that crossed with it beneath, then
@@ -3426,7 +3429,8 @@ compute_on_peer(Base) ->
     Raised = RaisedCause ++ ", on the peer store",
     [has(Out, Line)
      || Line <- ["value: Right(42)", "not listed: Left(Io.NotListed)",
-                 "not loaded: Left(Io.NotLoaded)",
+                 "not loaded: Left(Io.NotLoaded(\"the binding Lonely.greeting has no value"
+                 " here\"))",
                  "divided: Fault(\"division by zero\")",
                  "reported here: " ++ Faulted ++ " division by zero Some(\"store\") true",
                  "raised: Fault(\"foreign function erlang:binary_to_integer/1 raised"
@@ -3442,7 +3446,7 @@ compute_on_peer(Base) ->
     Division = desk_site("computes", "fn() = 1 / List.size([])"),
     has(Err, Divided ++ "    erlang:'div'/2\n    " ++ Division ++ "\n    " ++ Division ++ "\n"),
     has(Err, Faulted ++ " faulted:" ++ Raised ++ "\n    erlang:binary_to_integer/1\n"),
-    Computed = desk_site("computes", "computeAt(\"store\", Lonely.speak"),
+    Computed = desk_site("computes", "compute(\"store\", Lonely.speak"),
     has(StoreErr, "the peer desk's compute at " ++ Computed ++ " was not loaded: the binding"
                   " Lonely.greeting has no value here"),
     [?assertEqual(nomatch, string:find(Text, Part))
@@ -5024,7 +5028,8 @@ twins(Dir, Changed) ->
 %%
 %% A function that names a binding the server's program never ran answers
 %% NotLoaded, and so does one whose reach calls a host module the server
-%% lacks, the server saying which. A function that names no binding of a
+%% lacks, the server saying which, and the answer carrying it (Appendix
+%% E.1). A function that names no binding of a
 %% module whose binding the server never ran spawns. A lambda and a local fn
 %% spawn by identity with what they captured, and `restarting(limit, f)`
 %% spawns. Written with the code, after it: a regression test
@@ -5053,8 +5058,10 @@ two_builds(Base) ->
     [has(Out, Line)
      || Line <- ["stable: Some(42)", "shape: Io.OtherType", "same: Right",
                  "changed: Right",
-                 "binding: Io.NotLoaded", "module: Io.NotLoaded", "names no binding: Right",
-                 "lambda: Right", "local: Right", "restarting: Right"]],
+                 "binding: Io.NotLoaded(\"the binding Aside.note has no value here\")\n",
+                 "module: Io.NotLoaded(\"the module ern_twins_host, which Twin.absent calls, is"
+                 " not here\")\n",
+                 "names no binding: Right", "lambda: Right", "local: Right", "restarting: Right"]],
     [has(ServerOut, Line)
      || Line <- ["same ran", "quiet ran", "lambda ran 42", "local ran 43", "restarting ran",
                  "the first build"]],
@@ -5133,7 +5140,7 @@ exchanged(Base) ->
              "        [receiver, _] -> {\n"
              "            let plain = Peer.spawn(receiver, Lacked.plain, waitMs());\n"
              "            Io.println(\"plain: \" <> outcome(plain));\n"
-             "            let counted = Peer.computeAt(receiver, Lacked.counted, waitMs());\n"
+             "            let counted = Peer.compute(receiver, Lacked.counted, waitMs());\n"
              "            Io.println(\"counted: \" <> Io.show(counted));\n"
              "            let told = Peer.spawn(receiver, Lacked.told, waitMs());\n"
              "            Io.println(\"told: \" <> outcome(told));\n"
@@ -5154,7 +5161,7 @@ exchanged(Base) ->
              "    Io.println(\"spawner: \" <> outcome(spawner));\n"
              "    let yielded = Peer.spawn(receiver, Lacked.yielded, waitMs());\n"
              "    Io.println(\"yielded: \" <> outcome(yielded));\n"
-             "    let collected = Peer.computeAt(receiver, Lacked.collected, waitMs());\n"
+             "    let collected = Peer.compute(receiver, Lacked.collected, waitMs());\n"
              "    Io.println(\"collected: \" <> Io.show(collected));\n"
              "    let named = Peer.spawn(receiver, Lacked.only, waitMs());\n"
              "    Io.println(\"only by name: \" <> outcome(named));\n"
@@ -5239,11 +5246,11 @@ exchanged(Base) ->
 %% is NotLoaded. A function whose reach names a binding the receiver never
 %% ran, or a foreign declaration whose module it lacks, answers NotLoaded
 %% from the reach, before any code crosses, the receiver saying what it
-%% lacked. A call whose reply a function captured whose spawn failed is
-%% answered by the spawner, which keeps its copy, with the failure,
-%% NotLoaded or NotListed alike. A regression test, written after the code;
-%% that no code frame moves before NotLoaded is ern_exchange_tests', since
-%% no line marks it here.
+%% lacked, which the answer carries (Appendix E.1). A call whose reply a
+%% function captured whose spawn failed is answered by the spawner, which
+%% keeps its copy, with the failure, NotLoaded or NotListed alike. A
+%% regression test, written after the code; that no code frame moves
+%% before NotLoaded is ern_exchange_tests', since no line marks it here.
 %%
 %% Each spawn, compute and call of the sender waits as long as the test
 %% waits for the sender, and the test's limit is the sum of its eighteen
@@ -5290,13 +5297,18 @@ exchange(Base) ->
     stop(Receiver, WaitReceiver),
     {Out, _} = said(Sender),
     {ReceiverOut, ReceiverErr} = said(Receiver),
+    Note = "Io.NotLoaded(\"the binding Lacked.note has no value here\")",
+    Only = "Io.NotLoaded(\"the module ern_sender_host, which Lacked.only calls, is not here\")",
     [has(Out, Line)
      || Line <- ["plain: Right", "counted: Right(Lacked.Count(2))",
-                 "told: Io.NotLoaded", "calls only: Io.NotLoaded",
-                 "server receiver: Io.NotLoaded", "server nobody: Io.NotListed",
-                 "call receiver: Some(Left(Io.NotLoaded))", "call nobody: Some(Left(Io.NotListed))",
+                 "told: " ++ Note ++ "\n", "calls only: " ++ Only ++ "\n",
+                 "server receiver: " ++ Note ++ "\n", "server nobody: Io.NotListed",
+                 "call receiver: Some(Left(" ++ Note ++ "))",
+                 "call nobody: Some(Left(Io.NotListed))",
                  "raises: Right", "spawner: Right", "yielded: Right", "collected: Right(true)",
-                 "only by name: Io.NotLoaded", "counts: Right", "absent function: Io.NotLoaded"]],
+                 "only by name: " ++ Only ++ "\n", "counts: Right",
+                 "absent function: Io.NotLoaded(\"the module lists, which Lacked.absent calls, has"
+                 " no function ern_absent_function/0 here\")\n"]],
     has(ReceiverOut, "Count(1)"),
     ?assertEqual(1, length(string:split(ReceiverErr, Served, all)) - 1),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
@@ -5365,8 +5377,8 @@ bare_build(Base) ->
              "        Right(address) -> send(address, 1)\n"
              "      | Left(_) -> Unit\n"
              "    };\n"
-             "    Io.println(\"compute: \" <> Io.show(Peer.computeAt(bare, answer, waitMs())));\n"
-             "    Io.println(\"entry shown: \" <> Io.show(Peer.computeAt(bare, entryShown,"
+             "    Io.println(\"compute: \" <> Io.show(Peer.compute(bare, answer, waitMs())));\n"
+             "    Io.println(\"entry shown: \" <> Io.show(Peer.compute(bare, entryShown,"
              " waitMs())));\n"
              "    let told = self();\n"
              "    let offering = Peer.spawn(bare, fn() : Unit receiving Int = offers(told),"
@@ -5392,7 +5404,7 @@ bare_build(Base) ->
              "    };\n"
              "    Io.println(\"utilization: \" <> utilization);\n"
              "    heard(bare, interval);\n"
-             "    Io.println(\"picked: \" <> Io.show(Peer.compute(answer, waitMs())));\n"
+             "    Io.println(\"picked: \" <> Io.show(Peer.computeAnywhere(answer, waitMs())));\n"
              "    Io.println(\"binding: \" <> outcome(Peer.spawn(bare, Shared.greet, waitMs())));\n"
              "    Io.println(\"ground: \" <> outcome(Peer.spawn(bare, Shared.bid, waitMs())));\n"
              "    Io.println(\"divides: \" <> outcome(Peer.spawn(bare, divides, waitMs())));\n"
@@ -5580,12 +5592,12 @@ constant_crosses(Base) ->
             "let tags = [#(\"a\", 1), #(\"b\", -2)]\n"
             "let computed = List.size([1, 2])\n"
             "export fn main() : Unit = {\n"
-            "    let added = Peer.computeAt(\"b\", fn() = limit + 1, waitMs());\n"
+            "    let added = Peer.compute(\"b\", fn() = limit + 1, waitMs());\n"
             "    Io.println(\"limit: \" <> Io.show(added));\n"
-            "    let summed = Peer.computeAt(\"b\", fn() = origin.x + origin.y, waitMs());\n"
+            "    let summed = Peer.compute(\"b\", fn() = origin.x + origin.y, waitMs());\n"
             "    Io.println(\"origin: \" <> Io.show(summed));\n"
-            "    Io.println(\"tags: \" <> Io.show(Peer.computeAt(\"b\", fn() = tags, waitMs())));\n"
-            "    let read = Peer.computeAt(\"b\", fn() = computed, waitMs());\n"
+            "    Io.println(\"tags: \" <> Io.show(Peer.compute(\"b\", fn() = tags, waitMs())));\n"
+            "    let read = Peer.compute(\"b\", fn() = computed, waitMs());\n"
             "    Io.println(\"computed: \" <> Io.show(read))\n"
             "}\n",
             wait_ms_declaration()]),
@@ -5604,7 +5616,8 @@ constant_crosses(Base) ->
     {Out, _} = said(A),
     [has(Out, Line) || Line <- ["limit: Right(11)", "origin: Right(3)",
                                 "tags: Right([#(\"a\", 1), #(\"b\", -2)])",
-                                "computed: Left(Io.NotLoaded)"]].
+                                "computed: Left(Io.NotLoaded(\"the binding Main.computed has no"
+                                " value here\"))"]].
 
 %% report §4.6, §8.7, §12.7: libs/ansi's bindings are constants, so a
 %% program's lambda that names one has its value on a bare node, the form
@@ -5646,7 +5659,7 @@ lambda_reach_on_a_bare_node(Base) ->
               "}\n"
               "\n"
               "fn computed(bare : String) : Unit =\n"
-              "    Io.println(\"computed: \" <> Io.show(Peer.computeAt(bare,"
+              "    Io.println(\"computed: \" <> Io.show(Peer.compute(bare,"
               " fn() = Ansi.clearScreen, waitMs())))\n"
               "\n"
               "fn outcome(spawned : Either(Io.Error, Address(m))) : String =\n"
@@ -5713,7 +5726,7 @@ binding_linked_to_its_holder(Base) ->
              "        [bare, path] -> {\n"
              "            placed(bare, false);\n"
              "            placed(bare, true);\n"
-             "            let loaded = Peer.computeAt(bare, fn() = Code.load(Path(path)),"
+             "            let loaded = Peer.compute(bare, fn() = Code.load(Path(path)),"
              " waitMs());\n"
              "            Io.println(\"loaded: \" <> Io.show(loaded));\n"
              "            placed(bare, true)\n"
@@ -5728,7 +5741,7 @@ binding_linked_to_its_holder(Base) ->
              "        let greeted = Peer.spawn(bare, fn() = Io.println(Config.greeting),"
              " waitMs());\n"
              "        Io.println(\"greeted: \" <> outcome(greeted));\n"
-             "        let computed = Peer.computeAt(bare, fn() = Config.greeting, waitMs());\n"
+             "        let computed = Peer.compute(bare, fn() = Config.greeting, waitMs());\n"
              "        Io.println(\"computed: \" <> Io.show(computed))\n"
              "    } else {\n"
              "        let shouted = Peer.spawn(bare, fn() = Io.println(Config.shout(\"plain\")),"
@@ -5765,7 +5778,8 @@ binding_linked_to_its_holder(Base) ->
     ?assertEqual(143, WaitB()),
     {Out, _} = said(A),
     {_, ErrB} = said(B),
-    ?assertEqual(["shouted: Right", "greeted: Io.NotLoaded", "computed: Left(Io.NotLoaded)",
+    Lacked = "Io.NotLoaded(\"the binding Config.greeting has no value here\")",
+    ?assertEqual(["shouted: Right", "greeted: " ++ Lacked, "computed: Left(" ++ Lacked ++ ")",
                   "loaded: Right(Right(Unit))", "greeted: Right", "computed: Right(\"HELD\")",
                   ""],
                  string:split(Out, "\n", all)),
@@ -5818,14 +5832,14 @@ foreign_type_crosses(Base) ->
               "    }\n"
               "\n"
               "fn tokened(bare : String) : Either(Io.Error, Bool) =\n"
-              "    Peer.computeAt(bare, fn() = isToken(token()), waitMs())\n"
+              "    Peer.compute(bare, fn() = isToken(token()), waitMs())\n"
               "\n"
               "fn reversed(bare : String) : Either(Io.Error, Bool) =\n"
-              "    Peer.computeAt(bare, fn() = List.isEmpty(List.reverse(unboxed([]))),"
+              "    Peer.compute(bare, fn() = List.isEmpty(List.reverse(unboxed([]))),"
               " waitMs())\n"
               "\n"
               "fn emptied(bare : String) : Either(Io.Error, Bool) =\n"
-              "    Peer.computeAt(bare, fn() = List.isEmpty(unboxed([])), waitMs())\n",
+              "    Peer.compute(bare, fn() = List.isEmpty(unboxed([])), waitMs())\n",
               wait_ms_declaration()])),
     0 = built([ProgramDir]),
     A = made(Base, "a", none),
@@ -5873,6 +5887,42 @@ attach_unreadable_home(Base) ->
     ?assertMatch({0, _}, signaled("stop", Node)),
     ?assertEqual(143, WaitNode()),
     ?assertEqual(nomatch, string:find(written(Node, err), "faulted")).
+
+%% report §11.2 *The attached shell*, §8.7, Appendix E.1: a node that lacks
+%% a module the shell's definitions call answers the attach's spawn
+%% `NotLoaded(text)`, and the shell says `ern shell: the node node could not
+%% load the shell: text`, `text` what the node says after `was not loaded:`,
+%% and exits with status 1. The shell and the node run from two releases of
+%% this tree's version made under Base, which stand on one floor (§12.5),
+%% the node's without `ern_shell`, the host module the shell's definitions
+%% call.
+attach_not_loaded_test_() ->
+    nodes_test({waits, 6}, fun attach_not_loaded/1).
+
+attach_not_loaded(Base) ->
+    {ok, Text} = file:read_file(filename:join(ern_tree:tree(), "VERSION")),
+    Version = string:trim(binary_to_list(Text)),
+    [Whole, Lacking] = [released(filename:join(Base, Dir), ern_tree:build("shell"), Version)
+                        || Dir <- ["whole", "lacking"]],
+    ok = file:delete(filename:join([Base, "lacking", "build", "shell", "ebin", "ern_shell.beam"])),
+    Node = made(Base, "node", 0),
+    Ops = made(Base, "ops", none),
+    lists(Node, [{"ops", Ops, none}]),
+    {_, WaitNode} = launched(Node, [Lacking, " run --config-dir ", Node]),
+    lists(Ops, [{"node", Node, bound_port(Node)}]),
+    Home = Ops ++ ".home",
+    ok = filelib:ensure_path(Home),
+    {_, WaitShell} = launched(Ops, ["HOME=", Home, " ", Whole, " shell --config-dir ", Ops,
+                                    " --attach node"]),
+    ?assertEqual(1, WaitShell()),
+    {_, Err} = said(Ops),
+    Refused = "ern shell: the node node could not load the shell: the module ern_shell, which"
+              " Ernest\\.Shell\\.",
+    ?assertMatch({match, _}, re:run(Err, ["^", Refused, "[A-Za-z.]+ calls, is not here\n$"])),
+    [_, Lacked] = string:split(Err, "could not load the shell: "),
+    says(Node, "was not loaded: " ++ Lacked),
+    ?assertMatch({0, _}, signaled("stop", Node)),
+    ?assertEqual(143, WaitNode()).
 
 %% report §8.7, §11.2 *The attached shell*, *What a node holds*: a node
 %% holds the shell of its own build of `ern` from its start, so a shell of
@@ -6122,10 +6172,11 @@ attached_utilization(Base) ->
     {Shell, WaitShell} = attached(Ops, "node", Base),
     prints(Ops, ":help for help.\n> "),
     Ms = wait_ms_text(),
-    true = port_command(Shell, ["Peer.computeAt(\"ops\", fn() = Peer.peers(), ", Ms, ")\n"]),
+    true = port_command(Shell, ["Peer.compute(\"ops\", fn() = Peer.peers(), ", Ms, ")\n"]),
     prints(Ops, "Right([\"node\"]) : Either(Io.Error, List(String))\n"),
     true = port_command(Shell, ["Peer.utilizations()\n",
-                                "Peer.compute(fn() = Peer.peers(), ", Ms, ")\n", ":quit\n"]),
+                                "Peer.computeAnywhere(fn() = Peer.peers(), ", Ms, ")\n",
+                                ":quit\n"]),
     ?assertEqual(0, WaitShell()),
     {Out, _} = said(Ops),
     has(Out, "> [] : List(#(String, Float, Int))\n"),
@@ -6816,7 +6867,7 @@ attached_functions(Base) ->
                                               " let pair = Pair(left = 3, right = n);",
                                               " pair.left * pair.right }"],
                                              ["let p = spawn(fn() = Keep.applying(fn(n) =",
-                                              " match Peer.computeAt(\"peer\", fn() = tripled(n), ",
+                                              " match Peer.compute(\"peer\", fn() = tripled(n), ",
                                               Ms, ") { Right(v) -> v | Left(_) -> 0 }))"],
                                              ["let s = spawn(restarting(RestartLimit(restarts = 3,",
                                               " within = 60000), fn() = {",
@@ -8177,11 +8228,11 @@ shell_service(Base) ->
 %% that are nodes, each its node's session 1, are two bindings and two
 %% functions. A name a prompt `let` binds is its node's binding, read where
 %% the code that names it runs: a compute from b on a of a lambda that
-%% reads `below`, and one of b's function, answer `Left(NotLoaded)`, b's
-%% binding having no value on a, and a names it without the key,
+%% reads `below`, and one of b's function, answer `Left(NotLoaded(text))`,
+%% b's binding having no value on a, and a names it without the key,
 %% `$Session1.below`, on its screen, where a plain shell's node writes its
-%% lines; a local the lambda captures crosses with it, and b's own function
-%% runs on b over b's value.
+%% lines, and in b's answer (Appendix E.1); a local the lambda captures
+%% crosses with it, and b's own function runs on b over b's value.
 %%
 %% A regression test, written after the code (the log's *Sites, Sessions and
 %% Their Names*): a's value was read, the two sessions' declarations being
@@ -8207,12 +8258,13 @@ shell_binding_spawned(Base) ->
     prints(A, "typed"),
     {InputB, WaitB} = shell_started(B, Root),
     Limit = wait_ms_text(),
-    true = port_command(InputB, [Typed, "Peer.computeAt(\"a\", fn() = below + 1, ", Limit, ")\n",
-                                 "Peer.computeAt(\"a\", later, ", Limit, ")\n",
-                                 "{ let n = below; Peer.computeAt(\"a\", fn() = n + 1, ", Limit,
+    true = port_command(InputB, [Typed, "Peer.compute(\"a\", fn() = below + 1, ", Limit, ")\n",
+                                 "Peer.compute(\"a\", later, ", Limit, ")\n",
+                                 "{ let n = below; Peer.compute(\"a\", fn() = n + 1, ", Limit,
                                  ") == Right(below + 1) }\n",
                                  "later() == below + 1\n"]),
-    prints(B, "Left(Io.NotLoaded) : Either(Io.Error, Int)", 2, ?WAIT_MS),
+    prints(B, "Left(Io.NotLoaded(\"the binding $Session1.below has no value here\")) :"
+              " Either(Io.Error, Int)", 2, ?WAIT_MS),
     prints(B, "true : Bool", 2, ?WAIT_MS),
     prints(A, "the binding $Session1.below has no value here"),
     true = port_command(InputB, ":quit\n"),
@@ -8254,10 +8306,10 @@ shell_compute(Base) ->
     prints(Worker, "declared"),
     {InputDesk, WaitDesk} = shell_started(Desk, Root),
     Limit = wait_ms_text(),
-    true = port_command(InputDesk, [Declared, "Peer.computeAt(\"worker\", answer, ", Limit, ")\n",
-                                    "Peer.computeAt(\"worker\", fn() = 6 * 7, ", Limit, ")\n",
+    true = port_command(InputDesk, [Declared, "Peer.compute(\"worker\", answer, ", Limit, ")\n",
+                                    "Peer.compute(\"worker\", fn() = 6 * 7, ", Limit, ")\n",
                                     "fn alone() : Int = 6 * 9\n",
-                                    "Peer.computeAt(\"worker\", alone, ", Limit, ")\n",
+                                    "Peer.compute(\"worker\", alone, ", Limit, ")\n",
                                     "type Count = Count(Int)\n",
                                     "foreign fn wrong() : Count = \"erlang:yield/0\"\n",
                                     "fn counts() : Unit = {\n"
@@ -9276,10 +9328,11 @@ pick_build(Base) ->
              "fn ran() : List(String) = Os.arguments\n"
              "\n"
              "fn picks(interval : Int) : Unit receiving Unit = {\n"
-             "    Io.println(\"before a telling: \" <> Io.show(Peer.compute(ran, waitMs())));\n"
-             "    let set1 = Peer.computeAt(\"p1\", fn() = Peer.setUtilization(0.9), waitMs());\n"
+             "    Io.println(\"before a telling: \" <> Io.show(Peer.computeAnywhere(ran,"
+             " waitMs())));\n"
+             "    let set1 = Peer.compute(\"p1\", fn() = Peer.setUtilization(0.9), waitMs());\n"
              "    Io.println(\"p1 set: \" <> Io.show(set1));\n"
-             "    let set2 = Peer.computeAt(\"p2\", fn() = Peer.setUtilization(0.1), waitMs());\n"
+             "    let set2 = Peer.compute(\"p2\", fn() = Peer.setUtilization(0.1), waitMs());\n"
              "    Io.println(\"p2 set: \" <> Io.show(set2));\n"
              "    heard(\"p1\", 0.9, interval);\n"
              "    heard(\"p2\", 0.1, interval);\n"
@@ -9288,15 +9341,16 @@ pick_build(Base) ->
              "    Io.println(\"utilizations: \" <> Io.show(told));\n"
              "    Io.println(\"utilization of p1: \" <> Io.show(Peer.utilization(\"p1\","
              " waitMs())));\n"
-             "    let computed = List.map(List.range(1, 20), fn(_) = Peer.compute(ran,"
+             "    let computed = List.map(List.range(1, 20), fn(_) = Peer.computeAnywhere(ran,"
              " waitMs()));\n"
              "    Io.println(\"computed: \" <> Io.show(List.unique(computed)));\n"
-             "    Io.println(\"named: \" <> Io.show(Peer.computeAt(\"p1\", ran, waitMs())));\n"
+             "    Io.println(\"named: \" <> Io.show(Peer.compute(\"p1\", ran, waitMs())));\n"
              "    Io.println(\"now stop p2\");\n"
              "    let _ = Io.readLine();\n"
              "    let left = List.map(Peer.utilizations(), fn(#(name, _, _)) = name);\n"
              "    Io.println(\"after the loss: \" <> Io.show(left));\n"
-             "    Io.println(\"computed alone: \" <> Io.show(Peer.compute(ran, waitMs())))\n"
+             "    Io.println(\"computed alone: \" <> Io.show(Peer.computeAnywhere(ran,"
+             " waitMs())))\n"
              "}\n"
              "\n"
              "// Report Appendix E.27: until the node holds the utilization given of the peer\n"
@@ -9312,7 +9366,7 @@ pick_build(Base) ->
              "    }\n"
              "\n"
              "fn alone() : Unit receiving Unit = {\n"
-             "    Io.println(\"no peer: \" <> Io.show(Peer.compute(ran, waitMs())));\n"
+             "    Io.println(\"no peer: \" <> Io.show(Peer.computeAnywhere(ran, waitMs())));\n"
              "    Io.println(\"no utilization: \" <> Io.show(Peer.utilizations()))\n"
              "}\n"
              "\n"
@@ -9338,7 +9392,7 @@ pick_build(Base) ->
 %%
 %% Every compute that names no peer runs on p2, the less busy of the two
 %% the draw takes, each utilization aged by its teller's interval and not
-%% the spawner's, by which it would mostly be too old, and `Peer.computeAt`
+%% the spawner's, by which it would mostly be too old, and `Peer.compute`
 %% runs on the peer named, p1. With p2 stopped, its utilization is dropped
 %% at the loss, which the spawner says, and a compute runs on p1, the one
 %% peer left, taken as it is; and a node that lists no peer answers
@@ -12432,7 +12486,7 @@ fn askedInTheWindow(watcher : Address(WatchMsg),
     Io.println(\"called: \" <> Io.show(Address.call(echo, Echo, waitMs())));
     watched([watcher], \"the idle process, in the window\", idle);
     Io.println(\"spawned: \" <> Io.show(Peer.spawn(\"desk\", fn() = Unit, waitMs())));
-    Io.println(\"computed: \" <> Io.show(Peer.computeAt(\"desk\", fn() = 42, waitMs())));
+    Io.println(\"computed: \" <> Io.show(Peer.compute(\"desk\", fn() = 42, waitMs())));
     Io.println(\"asked in the window\")
 }
 "/utf8>>, wait_ms_declaration()]),
@@ -12645,7 +12699,7 @@ upgraded_builds(Base) ->
            "// after.\n"
            "fn loaded(bare : String, path : String) : Unit = {\n"
            "    Io.println(\"before load: \" <> started(bare));\n"
-           "    let loading = Peer.computeAt(bare, fn() = Code.load(Path(path)), waitMs());\n"
+           "    let loading = Peer.compute(bare, fn() = Code.load(Path(path)), waitMs());\n"
            "    Io.println(\"load: \" <> Io.show(loading));\n"
            "    Io.println(\"after load: \" <> started(bare))\n"
            "}\n"

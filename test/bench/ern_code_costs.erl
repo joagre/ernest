@@ -252,10 +252,10 @@ costs() ->
      "          sizes : List(Int),\n"
      "          spawned : (Int, Int) -> Either(Io.Error, Address(Never)) receiving m)"
      " : Unit receiving m = {\n"
-     "    let _ = Peer.computeAt(node, traced, 30000);\n"
-     "    let _ = Peer.computeAt(node, counts, 30000);\n"
-     "    let _ = Peer.computeAt(node, steps, 30000);\n"
-     "    let _ = Peer.computeAt(node, steps, 30000);\n"
+     "    let _ = Peer.compute(node, traced, 30000);\n"
+     "    let _ = Peer.compute(node, counts, 30000);\n"
+     "    let _ = Peer.compute(node, steps, 30000);\n"
+     "    let _ = Peer.compute(node, steps, 30000);\n"
      "    let _ = steps();\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(variant) =\n"
      "        List.forEach(sizes, fn(size) = {\n"
@@ -264,13 +264,13 @@ costs() ->
      "            timedSaid(scenario, label, fn() = spawned(size, variant));\n"
      "            countsSaid(scenario <> \"_after\", label, node);\n"
      "            stepsSaid(scenario <> \"_receiver\", label,\n"
-     "                      Peer.computeAt(node, steps, 30000));\n"
+     "                      Peer.compute(node, steps, 30000));\n"
      "            stepsSaid(scenario <> \"_sender\", label, Right(steps()))\n"
      "        }))\n"
      "}\n"
      "\n"
      "fn countsSaid(scenario : String, label : String, node : String) : Unit =\n"
-     "    match Peer.computeAt(node, counts, 30000) {\n"
+     "    match Peer.compute(node, counts, 30000) {\n"
      "        Right(text) -> said([scenario, label, text])\n"
      "      | Left(failure) -> said([scenario, label, \"failed\", Io.show(failure)])\n"
      "    }\n"
@@ -287,7 +287,7 @@ costs() ->
      "// runs the load, and the host's counts around it; the loader crosses\n"
      "// with a first load, of load0.\n"
      "fn loading(node : String, loads : String) : Unit = {\n"
-     "    let _ = Peer.computeAt(node, counts, 30000);\n"
+     "    let _ = Peer.compute(node, counts, 30000);\n"
      "    let _ = loadedOn(node, loads <> \"/load0.erc\");\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(index) = {\n"
      "        let label = Int.toString(index);\n"
@@ -299,7 +299,7 @@ costs() ->
      "}\n"
      "\n"
      "fn loadedOn(node : String, path : String) : Either(Io.Error, Unit) =\n"
-     "    match Peer.computeAt(node, fn() = Code.load(Path(path)), 30000) {\n"
+     "    match Peer.compute(node, fn() = Code.load(Path(path)), 30000) {\n"
      "        Right(loaded) -> loaded\n"
      "      | Left(failure) -> Left(failure)\n"
      "    }\n"
@@ -308,7 +308,7 @@ costs() ->
      "// spawned onto one bare node one after another, the host's counts read\n"
      "// before the first and after each.\n"
      "fn day(node : String) : Unit = {\n"
-     "    let _ = Peer.computeAt(node, counts, 30000);\n"
+     "    let _ = Peer.compute(node, counts, 30000);\n"
      "    countsSaid(\"day_counts\", \"0\", node);\n"
      "    List.forEach(List.range(1, ", integer_to_list(?DAY), "), fn(index) = {\n"
      "        let label = Int.toString(index);\n"
@@ -325,7 +325,7 @@ costs() ->
      "// draw, each peer holding `one` first, so that no compute carries code.\n"
      "fn placing(q1 : String) : Unit = {\n"
      "    List.forEach(Peer.peers(), fn(node) = {\n"
-     "        let _ = Peer.computeAt(node, one, 30000);\n"
+     "        let _ = Peer.compute(node, one, 30000);\n"
      "        Unit\n"
      "    });\n"
      "    List.forEach(List.range(1, ", Runs, "), fn(run) = {\n"
@@ -334,12 +334,12 @@ costs() ->
      "            let _ = Peer.utilization(q1, 5000);\n"
      "            Unit\n"
      "        });\n"
-     "        rounds(\"compute\", label, fn() = {\n"
-     "            let _ = Peer.compute(one, 5000);\n"
+     "        rounds(\"compute_anywhere\", label, fn() = {\n"
+     "            let _ = Peer.computeAnywhere(one, 5000);\n"
      "            Unit\n"
      "        });\n"
-     "        rounds(\"compute_at\", label, fn() = {\n"
-     "            let _ = Peer.computeAt(q1, one, 5000);\n"
+     "        rounds(\"compute_named\", label, fn() = {\n"
+     "            let _ = Peer.compute(q1, one, 5000);\n"
      "            Unit\n"
      "        });\n"
      "        rounds(\"utilizations\", label, fn() = {\n"
@@ -362,13 +362,13 @@ costs() ->
      "// computes that open the others' fall outside its own; then what crossed\n"
      "// each connection, read once every window has closed.\n"
      "fn idle(q1 : String, q2 : String) : Unit = {\n"
-     "    let _ = Peer.computeAt(q1, utilizationOfQ2, 30000);\n"
-     "    let _ = Peer.computeAt(q1, window, 30000);\n"
-     "    let _ = Peer.computeAt(q2, window, 30000);\n"
+     "    let _ = Peer.compute(q1, utilizationOfQ2, 30000);\n"
+     "    let _ = Peer.compute(q1, window, 30000);\n"
+     "    let _ = Peer.compute(q2, window, 30000);\n"
      "    window();\n"
      "    List.forEach(windowed(), fn(line) = said([\"idle\", \"a\", line]));\n"
      "    List.forEach([q1, q2], fn(node) =\n"
-     "        stepsSaid(\"idle\", node, Peer.computeAt(node, windowed, 30000)))\n"
+     "        stepsSaid(\"idle\", node, Peer.compute(node, windowed, 30000)))\n"
      "}\n"
      "\n"
      "fn utilizationOfQ2() : Either(Io.Error, Float) = Peer.utilization(\"q2\", 5000)\n"].
@@ -402,7 +402,7 @@ reach_module(Variant, Reaches) ->
      [chain(Size, Variant) || {Size, _} <- Reaches],
      dispatch("spawned", "size", "Address(Never)", "Peer.spawn",
               [{integer_to_list(Size), reach_name(Size, Variant, 1)} || {Size, _} <- Reaches]),
-     dispatch("computed", "size", "Unit", "Peer.computeAt",
+     dispatch("computed", "size", "Unit", "Peer.compute",
               [{integer_to_list(Size), reach_name(Size, Variant, 1)} || {Size, _} <- Reaches])].
 
 %% A reach of Size definitions, each named for its size, its variant and
@@ -918,8 +918,8 @@ pick_table(Lines) ->
     heading("a utilization and a compute, between nodes", "µs"),
     [row(Name, [list_to_integer(Micros) / ?ROUNDS || {_, [Micros]} <- lines(Scenario, Lines)])
      || {Scenario, Name} <- [{"utilization", "Peer.utilization of one peer"},
-                             {"compute", "Peer.compute, a peer picked of eight"},
-                             {"compute_at", "Peer.computeAt, the peer named"},
+                             {"compute_anywhere", "Peer.computeAnywhere, a peer picked of eight"},
+                             {"compute_named", "Peer.compute, the peer named"},
                              {"utilizations", "Peer.utilizations, eight peers' read"},
                              {"pick", "the pick alone, the utilizations read and the draw"}]].
 

@@ -1031,17 +1031,9 @@ fn escapedChar(char : Char) : String =
             "\\r"
       | code ->
             if code < 32 || code >= 127 && code <= 159 then
-                "\\u{" <> hexadecimal(code) <> "}"
+                "\\u{" <> Int.toStringBase(code, 16) <> "}"
             else
                 Char.toString(char)
-    }
-
-// Base 16 is one `Int.toStringBase` writes in, so `None` does not come,
-// and would be a defect of the library's.
-fn hexadecimal(int : Int) : String =
-    match Int.toStringBase(int, 16) {
-        Some(digits) -> digits
-      | None -> fault("Int.toStringBase writes no digits in base 16")
     }
 
 // A diagnostic, its first line colored as a fault (report §11.2).
@@ -2077,8 +2069,9 @@ fn holdKeys() : Optional(Terminal.Size) receiving LocalMsg =
 // the spawn's `Io.Error` (Appendix E.27), and dials again never; a node
 // that could not compile or load the shell's definitions answers why
 // (§12.7), which the shell says as it is, and one that lacks a module the
-// shell calls answers `NotLoaded` (§8.7). An error the spawn cannot answer
-// is shown as `Io` shows it.
+// shell calls answers `NotLoaded(text)` (§8.7), `text` what it lacked, which
+// the shell says so too. An error the spawn cannot answer is shown as `Io`
+// shows it.
 fn refusal(name : String, error : Io.Error) : String = {
     let peer = "ern shell: the peer " <> Refusal.controlFree(name);
     match error {
@@ -2088,10 +2081,8 @@ fn refusal(name : String, error : Io.Error) : String = {
             peer <> " is unreachable"
       | Io.Timeout ->
             peer <> " did not answer in time"
-      | Io.Other(text) ->
+      | Io.Other(text) or Io.NotLoaded(text) ->
             nodeRefusal(name, "could not load the shell: " <> text)
-      | Io.NotLoaded ->
-            nodeRefusal(name, "could not load the shell: it lacks a module the shell calls")
       | other ->
             peer <> ": " <> Io.show(other)
     }

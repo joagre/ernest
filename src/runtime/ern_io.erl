@@ -1,11 +1,11 @@
-%% The shims behind Io.show and Io.debug (report Appendix E.1): the value
-%% is written by the descriptor of its type at the call, which the compiler
-%% passes, and by the runtime's representation where the call has no type
-%% to give. And Io.Error for a reason of the host's, which the system
-%% modules answer, the one mapping of the host's errors to it.
+%% The shim behind Io.show (report Appendix E.1): the value is written by
+%% the descriptor of its type at the call, which the compiler passes, and
+%% by the runtime's representation where the call has no type to give. And
+%% Io.Error for a reason of the host's, which the system modules answer,
+%% the one mapping of the host's errors to it.
 -module(ern_io).
 
--export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, helper_reason/1,
+-export([show/1, show/2, host_error/2, helper_error/1, helper_reason/1,
          path_error/2, other/2, limited/0]).
 
 -spec show(term()) -> binary().
@@ -13,19 +13,6 @@ show(Value) -> show(Value, any).
 
 -spec show(term(), ern_descriptor:descriptor()) -> binary().
 show(Value, Descriptor) -> ern_show:show(Descriptor, Value).
-
--spec debug(term()) -> term().
-debug(Value) -> debug(Value, any).
-
--spec debug(term(), ern_descriptor:descriptor()) -> term().
-debug(Value, Descriptor) ->
-    Line = <<(show(Value, Descriptor))/binary, "\n">>,
-    %% report §12.1, Appendix E.1: to standard error, as Io.OutMsg's
-    %% Write(bytes, reply), answered once written; report §8.6: a call to a
-    %% system process, which the look takes for one in progress
-    %% (ern_rt:calling_the_system/2)
-    ern_rt:call_forever(ern_rt:system_process(stderr), fun(Reply) -> {'Write', Line, Reply} end),
-    Value.
 
 %% Report Appendix E.1: Io.Error for a reason of the host's, the constructor
 %% that names it, or Other.

@@ -182,7 +182,7 @@ The cut: the operator's machine is the terminal and the files, everything else i
 
 **The shell's units on the node.** A node holds the shell of its own build of `ern` from its start, so a session of that build ships nothing to it (§8.7, §11.2; the log's *A Node Holds the Shell*). A session of another build sends what the node lacks of it by the exchange, as a program's code crosses, once for each shell build that attaches (§8.7, §12.7), so a node of another release on the shell's floor runs it, and the start line names the node's release, which the session's `version()` answers there (§11.2 *Startup and history*).
 
-A node that could not compile or load it answers `Other(r)`, its reason, which the local half says as it is, and one that lacks a module the shell calls answers `NotLoaded`, which it says in the same form (`refusal`; the log's *Four Lines From the Deployment*, *The Shell Attaches as a Program Spawns*, *The Shell Says a Refusal in the Jobs' Words*).
+A node that could not compile or load it answers `Other(r)`, its reason, which the local half says as it is, and one that lacks a module the shell calls answers `NotLoaded(text)`, whose text it says in the same form (`refusal`; the log's *Four Lines From the Deployment*, *The Shell Attaches as a Program Spawns*, *The Shell Says a Refusal in the Jobs' Words*).
 
 The bindings the session's reach names are constants. Those that are not, its history's paths and `colorAllowed`, are the local half's, which no spawn's reach names, so a node holds them without values and no arrival links one. An end of the chain's root before the session began is the start's refusal (`startRefusal`).
 

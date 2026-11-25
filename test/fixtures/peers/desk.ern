@@ -485,7 +485,7 @@ fn reconnected() : Unit receiving Msg = {
     let _ = Io.readLine();
     let total = Address.call(counter, Counter.Get, limit);
     Io.println("the same process: " <> Io.show(total));
-    Io.println("computed after: " <> Io.show(Peer.computeAt("store", fn() = 6 * 7, limit)));
+    Io.println("computed after: " <> Io.show(Peer.compute("store", fn() = 6 * 7, limit)));
     Io.println("spawned after: " <> started(Work.squareOn("store", 6, limit)));
     Io.println("found after: " <> started(Peer.find(Counter.service, limit)));
     let measured = Either.isRight(Peer.utilization("store", limit));
@@ -507,14 +507,14 @@ fn callSleeper(sleeper : Address(Calls.Msg), limit : Int) : Unit = {
 // waits for a number no one sends, and what the compute answered.
 fn computeWaiting(desk : Address(Msg), limit : Int) : Unit = {
     let computed =
-        Peer.computeAt("store",
-                       fn() : Int receiving Int = {
-                           send(desk, Started("computing"));
-                           receive {
-                               n -> n
-                           }
-                       },
-                       limit);
+        Peer.compute("store",
+                     fn() : Int receiving Int = {
+                         send(desk, Started("computing"));
+                         receive {
+                             n -> n
+                         }
+                     },
+                     limit);
     Io.println("the compute: " <> Io.show(computed))
 }
 
@@ -667,7 +667,7 @@ fn asked(owner : Address(Msg)) : Unit receiving AskedMsg =
 fn namedThere(limit : Int) : Unit receiving Msg = {
     let me = self();
     let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
-    let named = Peer.computeAt("store", fn() = Process.fromAddress(held) == p, limit);
+    let named = Peer.compute("store", fn() = Process.fromAddress(held) == p, limit);
     Io.println("there, the process behind it is P: " <> Io.show(named))
 }
 
@@ -706,9 +706,9 @@ fn faultedThere(limit : Int) : Unit receiving Msg = {
     let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
     monitor(p, Died);
     let _ =
-        Peer.computeAt("store",
-                       fn() = send(Prelude.adapted(held, fn(n : Int) = Retyped.Note(100 / n)), 0),
-                       limit);
+        Peer.compute("store",
+                     fn() = send(Prelude.adapted(held, fn(n : Int) = Retyped.Note(100 / n)), 0),
+                     limit);
     receive {
         Died(down) -> Io.println("a fault in f there: " <> Io.show(down.reason))
     }
@@ -720,7 +720,7 @@ fn badThere(limit : Int) : Unit receiving Msg = {
     let me = self();
     let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
     monitor(p, Died);
-    let _ = Peer.computeAt("store", fn() = sentBad(held), limit);
+    let _ = Peer.compute("store", fn() = sentBad(held), limit);
     receive {
         Died(down) -> Io.println("a bad message there: " <> Io.show(down.reason))
     }
@@ -736,7 +736,7 @@ fn sentBad(held : Address(Retyped.Msg)) : Unit = {
 fn calledThere(limit : Int) : Unit receiving Msg = {
     let me = self();
     let #(_, crashing) = askedAndRetyped(spawn(fn() = asked(me)));
-    let crashed = Peer.computeAt("store", fn() = calledForever(crashing, Retyped.Crash), limit);
+    let crashed = Peer.compute("store", fn() = calledForever(crashing, Retyped.Crash), limit);
     Io.println("callForever there, its callee faulted: " <> Io.show(crashed));
     let #(stalling, held) = askedAndRetyped(spawn(fn() = asked(me)));
     let _ = Shared.answered(Peer.spawn("store", fn() = stalledAndTold(held, me), limit));
@@ -761,7 +761,7 @@ fn killedThere(limit : Int) : Unit receiving Msg = {
     let me = self();
     let #(p, held) = askedAndRetyped(spawn(fn() = asked(me)));
     monitor(p, Died);
-    let _ = Peer.computeAt("store", fn() = kill(Process.fromAddress(held)), limit);
+    let _ = Peer.compute("store", fn() = kill(Process.fromAddress(held)), limit);
     receive {
         Died(down) -> Io.println("killed there: " <> Io.show(down.reason))
     }
@@ -773,7 +773,7 @@ fn restartedThere(limit : Int) : Unit receiving Msg = {
     let #(_, restarted) =
         askedAndRetyped(spawn(restarting(RestartLimit(restarts = 3, within = 60000),
                                          fn() = asked(me))));
-    let called = Peer.computeAt("store", fn() = callRestarted(restarted, limit), limit);
+    let called = Peer.compute("store", fn() = callRestarted(restarted, limit), limit);
     Io.println("a call there, its callee restarted: " <> Io.show(called))
 }
 
@@ -916,10 +916,11 @@ fn reloaded() : Unit receiving Msg = {
 // desk does not.
 fn placed(interval : Int) : Unit receiving Msg = {
     Io.println("before a telling: "
-                   <> Io.show(Peer.compute(fn() = Peer.peers(), Harness.waitMs())));
+                   <> Io.show(Peer.computeAnywhere(fn() = Peer.peers(), Harness.waitMs())));
     Io.println("readings: " <> started(Placing.readingsOn("store")));
     Placing.heard("store", interval);
-    Io.println("computed: " <> Io.show(Peer.compute(fn() = Peer.peers(), Harness.waitMs())));
+    Io.println("computed: "
+                   <> Io.show(Peer.computeAnywhere(fn() = Peer.peers(), Harness.waitMs())));
     Io.println("held: " <> Io.show(List.map(Peer.utilizations(), fn(#(name, _, _)) = name)));
     Io.println("readings here: " <> Placing.readings())
 }
@@ -1057,7 +1058,7 @@ fn costs() : Unit receiving Msg = {
                    })));
     Io.println("compute "
                    <> Io.show(timed(rounds, fn() = {
-                       let _ = Peer.computeAt("store", fn() = 1, Harness.waitMs());
+                       let _ = Peer.compute("store", fn() = 1, Harness.waitMs());
                        Unit
                    })));
     Io.println("utilization "
@@ -1108,42 +1109,42 @@ foreign fn pings(process : Process, count : Int) : Float =
 // the test has stopped the store.
 fn computes() : Unit receiving Msg = {
     Process.faults(Reported);
-    Io.println("value: " <> Io.show(Peer.computeAt("store", fn() = 6 * 7, Harness.waitMs())));
-    Io.println("not listed: " <> Io.show(Peer.computeAt("nobody", fn() = 6 * 7, Harness.waitMs())));
-    Io.println("not loaded: " <> Io.show(Peer.computeAt("store", Lonely.speak, Harness.waitMs())));
+    Io.println("value: " <> Io.show(Peer.compute("store", fn() = 6 * 7, Harness.waitMs())));
+    Io.println("not listed: " <> Io.show(Peer.compute("nobody", fn() = 6 * 7, Harness.waitMs())));
+    Io.println("not loaded: " <> Io.show(Peer.compute("store", Lonely.speak, Harness.waitMs())));
     faulted("divided", fn() = {
-        let _ = Peer.computeAt("store", fn() = 1 / List.size([]), Harness.waitMs());
+        let _ = Peer.compute("store", fn() = 1 / List.size([]), Harness.waitMs());
         Unit
     });
     reported();
     faulted("raised", fn() = {
-        let _ = Peer.computeAt("store", fn() = toInteger("x"), Harness.waitMs());
+        let _ = Peer.compute("store", fn() = toInteger("x"), Harness.waitMs());
         Unit
     });
     reported();
     let killed =
-        Peer.computeAt("store",
-                       fn() : Int receiving Int = {
-                           kill(Process.current());
-                           receive {
-                               n -> n
-                           }
-                       },
-                       Harness.waitMs());
+        Peer.compute("store",
+                     fn() : Int receiving Int = {
+                         kill(Process.current());
+                         receive {
+                             n -> n
+                         }
+                     },
+                     Harness.waitMs());
     Io.println("killed: " <> Io.show(killed));
     let watcher = Shared.found(Counter.watcher);
     let me = self();
     let abandoned = spawn(fn() = {
         let _ =
-            Peer.computeAt("store",
-                           fn() : Int receiving Int = {
-                               watchedBy(watcher, "the abandoned compute's process");
-                               send(me, Started("abandoned"));
-                               receive {
-                                   n -> n
-                               }
-                           },
-                           Harness.waitMs());
+            Peer.compute("store",
+                         fn() : Int receiving Int = {
+                             watchedBy(watcher, "the abandoned compute's process");
+                             send(me, Started("abandoned"));
+                             receive {
+                                 n -> n
+                             }
+                         },
+                         Harness.waitMs());
         Unit
     });
     receive {
@@ -1158,14 +1159,14 @@ fn computes() : Unit receiving Msg = {
     let outlasting = 4 * Harness.waitMs();
     let _ = spawnMonitored(fn() = {
                                let ended =
-                                   Peer.computeAt("store",
-                                                  fn() : Int receiving Int = {
-                                                      send(me, Started("ending"));
-                                                      receive {
-                                                          n -> n
-                                                      }
-                                                  },
-                                                  outlasting);
+                                   Peer.compute("store",
+                                                fn() : Int receiving Int = {
+                                                    send(me, Started("ending"));
+                                                    receive {
+                                                        n -> n
+                                                    }
+                                                },
+                                                outlasting);
                                Io.println("with the store's end: " <> Io.show(ended))
                            },
                            Died);
@@ -1211,15 +1212,15 @@ fn killedFromTheStore(watcher : Address(Counter.WatcherMsg)) : Unit receiving Ms
 fn callerKilled(watcher : Address(Counter.WatcherMsg)) : Unit receiving Unit = {
     let caller = self();
     let _ =
-        Peer.computeAt("store",
-                       fn() : Int receiving Int = {
-                           watchedBy(watcher, "the killing compute's process");
-                           kill(Process.fromAddress(caller));
-                           receive {
-                               n -> n
-                           }
-                       },
-                       Harness.waitMs());
+        Peer.compute("store",
+                     fn() : Int receiving Int = {
+                         watchedBy(watcher, "the killing compute's process");
+                         kill(Process.fromAddress(caller));
+                         receive {
+                             n -> n
+                         }
+                     },
+                     Harness.waitMs());
     Unit
 }
 
@@ -1230,15 +1231,15 @@ fn callerKilled(watcher : Address(Counter.WatcherMsg)) : Unit receiving Unit = {
 fn timedOut(watcher : Address(Counter.WatcherMsg), ms : Int) : Unit receiving Msg = {
     let me = self();
     let late =
-        Peer.computeAt("store",
-                       fn() : Int receiving Int = {
-                           watchedBy(watcher, "the timed-out compute's process");
-                           send(me, Started("timed out"));
-                           receive {
-                               n -> n
-                           }
-                       },
-                       ms);
+        Peer.compute("store",
+                     fn() : Int receiving Int = {
+                         watchedBy(watcher, "the timed-out compute's process");
+                         send(me, Started("timed out"));
+                         receive {
+                             n -> n
+                         }
+                     },
+                     ms);
     receive {
         Started("timed out") -> Io.println("timed out: " <> Io.show(late))
       | after 0 -> timedOut(watcher, ms * 2)

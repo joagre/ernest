@@ -316,7 +316,7 @@ Appendix E is one Erlang module per namespace, `ern@list` and so on, compiled by
 
 - A shimmed module's Erlang helper is `ern_` and the module's name: `ern_bytes`, `ern_char`, `ern_float`, `ern_foreign`, `ern_int`, `ern_io`, `ern_map`, `ern_path`, `ern_set` and `ern_string`, each saying in its header comment what it holds that no host function does as it stands (E.0 rule 1). The rest of the primitives are host functions named in their `foreign fn`s.
 - `ern_char` reads E.6's predicates from the host's `unicode_util` tables. A `Set` is `{set, S}`, `S` a version 2 `sets:set`.
-- `ern_io:show/2` and `ern_io:debug/2` write through `ern_show`, which reads a value by its type's descriptor (`ern_descriptor`, E.1); the shell prints through `ern_show` with a depth and a length.
+- `ern_io:show/2` writes through `ern_show`, which reads a value by its type's descriptor (`ern_descriptor`, E.1); the shell prints through `ern_show` with a depth and a length.
 - `ern_bits` makes the checks of §5.11 and §7.4 that the host's bit syntax does not.
 - The foreign boundary is `ern_boundary` (§8.4): `expose/2,3`, `raised/6`, `check/3` and `value/3`, with `conformed/3` beneath them (§3.1). A function value's wrappers call `result/4`, `argument/5` and `raised/4`, whose causes name the function, which the descriptor leaves for them to write in (§12.3).
 

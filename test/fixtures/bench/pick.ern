@@ -7,7 +7,7 @@
 // kind and what was read, which ern_pick_costs reads.
 //
 
-// Where a compute is sent: by `Peer.compute`'s pick, by the least busy of
+// Where a compute is sent: by `Peer.computeAnywhere`'s pick, by the least busy of
 // the peers, or to the peer named.
 type Rule = TwoChoices | LeastBusy | At(String)
 
@@ -58,7 +58,7 @@ fn said(words : List(String)) : Unit =
 // it ran, asked of the peer, which dials it and brings the probe's
 // function there.
 fn named(peers : List(String)) : List(#(String, String)) =
-    List.map(peers, fn(peer) = match Peer.computeAt(peer, here, 60000) {
+    List.map(peers, fn(peer) = match Peer.compute(peer, here, 60000) {
         Right(carrier) -> {
             said(["peer", peer, carrier]);
             #(carrier, peer)
@@ -72,7 +72,7 @@ fn named(peers : List(String)) : List(#(String, String)) =
 //
 
 // Where each rule sends the work (report §8.7, Appendix E.27):
-// `Peer.compute`'s pick, two peers drawn at random and the less busy taken; the least busy
+// `Peer.computeAnywhere`'s pick, two peers drawn at random and the less busy taken; the least busy
 // of every peer the node holds a utilization of, a rule of the program's
 // own over the table, as the guide's §8.1 writes it; and the peer named.
 // A compute waits as long as the stream lasts, which none of the
@@ -80,14 +80,14 @@ fn named(peers : List(String)) : List(#(String, String)) =
 fn computed(rule : Rule, steps : Int) : Either(Io.Error, #(String, Int)) =
     match rule {
         TwoChoices ->
-            Peer.compute(fn() = worked(steps), 60000)
+            Peer.computeAnywhere(fn() = worked(steps), 60000)
       | LeastBusy ->
             match List.minimumBy(Peer.utilizations(), fn(#(_, utilization, _)) = utilization) {
-                Some(#(name, _, _)) -> Peer.computeAt(name, fn() = worked(steps), 60000)
+                Some(#(name, _, _)) -> Peer.compute(name, fn() = worked(steps), 60000)
               | None -> Left(Io.Unreachable)
             }
       | At(name) ->
-            Peer.computeAt(name, fn() = worked(steps), 60000)
+            Peer.compute(name, fn() = worked(steps), 60000)
     }
 
 // The work: the loop's steps, timed where they run, and the node they ran
@@ -124,7 +124,7 @@ fn alone(peer : String, steps : Int) : Unit =
 fn measured(setup : Setup, bursts : Int, streams : Int) : Unit receiving PickMsg = {
     List.forEach(setup.peers, fn(peer) = {
         let _ = computed(At(peer), 1);
-        let _ = Peer.computeAt(peer, sampled, 60000);
+        let _ = Peer.compute(peer, sampled, 60000);
         Unit
     });
     let _ = sampled();
@@ -280,7 +280,7 @@ fn closed(setup : Setup, label : List(String)) : Unit = {
 }
 
 fn peerSampled(label : List(String), peer : String) : Unit =
-    match Peer.computeAt(peer, sampled, 60000) {
+    match Peer.compute(peer, sampled, 60000) {
         Right(lines) -> List.forEach(lines, fn(line) = said(label <> [peer, line]))
       | Left(error) -> said(label <> [peer, "failed", Io.show(error)])
     }

@@ -428,7 +428,7 @@ ACROSS_ARGUMENTS = ["build/bench/$(1)-machines", "machines/machines.txt"]
 # The push's experiment across the machines of machines/machines.txt (the
 # log's *The Numbers Across Machines*, ern_pick_costs): a burst and a
 # stream of computes from a measuring node, falling over bare nodes under
-# `Peer.compute`'s pick and under the least busy, with the packets and the
+# `Peer.computeAnywhere`'s pick and under the least busy, with the packets and the
 # processors' time beside them. MEASURING names the machine the measuring node runs
 # on, this one by default; PEERS the peers, machine:count,..., in place of
 # the two arrangements of the default; INTERVALS the utilization-intervals

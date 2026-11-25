@@ -1648,12 +1648,9 @@ fn isTokenByte(byte : Int) : Bool =
 ///
 /// since 0.10.0
 export fn chunk(bytes : Bytes) : Bytes =
-    // Base 16 is one `Int.toStringBase` writes in, so `None` does not come,
-    // and would be a defect of the library's.
-    match Int.toStringBase(Bytes.size(bytes), 16) {
-        Some(size) -> String.toUtf8(size <> "\r\n") <> bytes <> String.toUtf8("\r\n")
-      | None -> fault("Int.toStringBase writes no digits in base 16")
-    }
+    String.toUtf8(Int.toStringBase(Bytes.size(bytes), 16) <> "\r\n")
+        <> bytes
+        <> String.toUtf8("\r\n")
 
 /// Writes the request's head and `body` to `socket`, as `renderRequest`
 /// renders them, within `ms` milliseconds.

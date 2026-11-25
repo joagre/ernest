@@ -506,17 +506,18 @@ prelude_shown() ->
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"type Reason\n">>, <<"spawn(f : () -> Unit receiving n) : Address(n)">>,
                  <<"Ernest prelude">>, <<"Starts a process that runs">>,
-                 %% report §9.4, §9.6: every prelude function, `Io.show`,
-                 %% `Io.debug` and `String.compare` among them; a regression
-                 %% test, the listing left them out
+                 %% report §9.4, §9.6: every prelude function, `Io.show`
+                 %% and `String.compare` among them; a regression test, the
+                 %% listing left them out
                  <<"\nIo.show(value : a) : String needs a.show\n">>,
-                 <<"\nIo.debug(value : a) : a needs a.show\n">>,
                  %% report §11.4, §11.2: a member is listed under its type
                  %% after the functions, in the form a program writes
                  <<"\nString\n    compare(left, right) : Ordering\n    left <> right : String\n">>,
                  <<"\nInt\n    compare(left, right) : Ordering\n    dividend % divisor : Int\n">>,
                  <<"    dividend / divisor : Int\n    -int : Int\n">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"\nString.compare">>)),
+    %% report §9, Appendix E.1: `Io.debug` is `io.ern`'s, no prelude name
+    ?assertEqual(nomatch, binary:match(Output, <<"Io.debug">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)).

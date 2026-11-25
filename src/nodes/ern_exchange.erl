@@ -334,9 +334,10 @@ kind({function, _, _, _}) -> function;
 kind({binding, _, _}) -> binding;
 kind({type, _, _, _, _, _}) -> type.
 
-%% Report §12.7: the reach read: `NotLoaded` for every spawn that waits
-%% where this node lacks the module a foreign declaration names, or the
-%% function in it, or a binding's value, before any code crosses;
+%% Report §12.7, §8.7: the reach read: `NotLoaded(text)` for every spawn
+%% that waits where this node lacks the module a foreign declaration names,
+%% or the function in it, or a binding's value, before any code crosses,
+%% `text` what it lacked as the node says it;
 %% otherwise the identities it lacks asked for, or, where it lacks none,
 %% the reach received at once. An identity it holds in no unit that
 %% exports its function is lacked (§12.7, §11.1), since a unit made of what
@@ -354,7 +355,7 @@ reached(Ref, #exchange{reach = {Identities, Bindings, Foreigns}, node = Node} = 
                     kept(Ref, Exchange1, State)
             end;
         Lacked ->
-            answered(Exchange#exchange.waiting, 'NotLoaded', Lacked),
+            answered(Exchange#exchange.waiting, ern_peer:lacking(Lacked), Lacked),
             ended(Ref, State)
     end.
 

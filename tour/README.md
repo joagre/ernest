@@ -445,11 +445,11 @@ Counter.CounterMsg changed: the binding counter is of its previous version, Coun
 input 29:1:19: Peer.spawn starts a process whose mailbox type Counter.CounterMsg is bound to its node, since it holds a function
 1 | Peer.spawn("foo", fn() = Counter.count(Tally.empty()), 5000)
   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: start it on the peer from `Peer.computeAt`, whose function spawns it and answers an adapted address of a type that crosses, or keep a function on this node and send the process values that cross (report §3.11)
+  | = help: start it on the peer from `Peer.compute`, whose function spawns it and answers an adapted address of a type that crosses, or keep a function on this node and send the process values that cross (report §3.11)
 > kill(Process.fromAddress(counter))
 > let counter = Counter.start()
 counter : Address(Counter.ClientMsg)
-> let far <- Peer.computeAt("foo", fn() = Counter.start(), 5000)
+> let far <- Peer.compute("foo", fn() = Counter.start(), 5000)
 far : Address(Counter.ClientMsg)
 > Counter.apply(counter, "inc apples 2")
 "ok" : String
@@ -467,7 +467,7 @@ The fix will come through the door as a new loop beside `count`, and `count` sta
 
 So the counter's messages are two types: `ClientMsg`, what a client sends, which crosses, and `CounterMsg`, which wraps each client message in `Client` and adds the door. `start` spawns the loop and answers an *adapted address*, an `Address(ClientMsg)` whose messages reach the counter as `Client(...)` (§5.5), and the client, `apply`, knows nothing of the door. Such an address crosses to another node though it holds `Client`, since its function never leaves the node that made it. A message to the address from elsewhere takes one step more: it is wrapped on that node, by a process the runtime keeps for the address, before the counter sees it (the guide's §8.2).
 
-The type changed again, so chapter 5's counter is killed and its tally lost, as a restart loses one; from here the counter's type does not change, and the tally is kept through everything that follows. `start` runs on `foo` by `Peer.computeAt`, which runs a function on the named peer and answers its value, here the address. `Tally`, which `foo` never had, crossed with the compute, as `count` did with the spawn in chapter 2, the claim *Code travels* once more. A program that did not start a process finds it as a service, by its name and the hash of its message type, which the deployment guide's §3.1 and the guide's §8.2 have; the tour's shell started both counters and holds their addresses.
+The type changed again, so chapter 5's counter is killed and its tally lost, as a restart loses one; from here the counter's type does not change, and the tally is kept through everything that follows. `start` runs on `foo` by `Peer.compute`, which runs a function on the named peer and answers its value, here the address. `Tally`, which `foo` never had, crossed with the compute, as `count` did with the spawn in chapter 2, the claim *Code travels* once more. A program that did not start a process finds it as a service, by its name and the hash of its message type, which the deployment guide's §3.1 and the guide's §8.2 have; the tour's shell started both counters and holds their addresses.
 
 Both counters are spawned plain, with no `restarting` around them: a restart runs the function it was given, so a counter moved to new code through its door would fall back to the old loop at its next fault (report §6.9); how a service under `restarting` takes new code is the deployment guide's §5.3.
 
@@ -501,9 +501,9 @@ First the question, asked on each bare node:
 ```console
 > :reload
 Counter, compiled again
-> Peer.computeAt("foo", fn() = Counter.schedulers(), 5000)
+> Peer.compute("foo", fn() = Counter.schedulers(), 5000)
 Right(8) : Either(Io.Error, Int)
-> Peer.computeAt("bar", fn() = Counter.schedulers(), 5000)
+> Peer.compute("bar", fn() = Counter.schedulers(), 5000)
 the peer bar connected
 Right(8) : Either(Io.Error, Int)
 ```
@@ -517,21 +517,21 @@ Then the work, three times, naming no node:
 ```console
 > Peer.utilizations()
 [#("foo", 0.0, 720), #("bar", 0.25, 387)] : List(#(String, Float, Int))
-> Peer.compute(fn() = Counter.primes(200000), 5000)
+> Peer.computeAnywhere(fn() = Counter.primes(200000), 5000)
 Right(17984) : Either(Io.Error, Int)
-> Peer.compute(fn() = Counter.primes(200000), 5000)
+> Peer.computeAnywhere(fn() = Counter.primes(200000), 5000)
 Right(17984) : Either(Io.Error, Int)
-> Peer.compute(fn() = Counter.primes(200000), 5000)
+> Peer.computeAnywhere(fn() = Counter.primes(200000), 5000)
 Right(17984) : Either(Io.Error, Int)
 ```
 
 Each compute printed `counting the primes below 200000` in the terminal of the node that ran it, `foo`'s all three times in the run the page shows. Each node tells its peers how busy it is, on a scale where 1.0 is every scheduler busy, and `Peer.utilizations()` is what the shell has heard: each peer, its utilization and how many milliseconds ago it said so.
 
-`Peer.compute` draws two of the peers at random, both of them here, and runs the function on the one that was less busy at its last telling, carrying its code there as the spawn did, and answers the value; the tellings come every few seconds, so which node ran each is the terminals' to show, and the program never names one (the guide's §8.1, *Which peer*). With two peers the draw takes both each time, so the computes made within one telling go to the one less busy at it; a draw spreads them only among three peers or more.
+`Peer.computeAnywhere` draws two of the peers at random, both of them here, and runs the function on the one that was less busy at its last telling, carrying its code there as the spawn did, and answers the value; the tellings come every few seconds, so which node ran each is the terminals' to show, and the program never names one (the guide's §8.1, *Which peer*). With two peers the draw takes both each time, so the computes made within one telling go to the one less busy at it; a draw spreads them only among three peers or more.
 
 The numbers are one run's. A peer's first telling is made as its connection opens, with the processes that open it counted as running (the deployment guide's §3.2), so a peer just connected may read busy with no work of yours; its next telling, five seconds later, reads it idle.
 
-The number is written into each lambda, since a `let` typed at the prompt binds a name of the session's node, which no peer has, and a function that captures it is not started on a peer (the guide's §9.3): after `let below = 200000`, `Peer.compute(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded)`, and the prompt says no more: the peer that drew it says why on its terminal, `the binding $Session1.below has no value here`.
+The number is written into each lambda, since a `let` typed at the prompt binds a name of the session's node, which no peer has, and a function that captures it is not started on a peer (the guide's §9.3): after `let below = 200000`, `Peer.computeAnywhere(fn() = Counter.primes(below), 5000)` answers `Left(Io.NotLoaded("the binding $Session1.below has no value here"))`, which the peer that drew it says on its terminal too.
 
 Nothing was installed on `foo` or `bar`, and nothing named either: that is *Why Ernest*'s claim *Code travels*, a computation that names no node goes to the less busy of two peers drawn at random, and no program is deployed first.
 

@@ -183,11 +183,10 @@ called_by_name() ->
         %% writes by the function its case picks (ern_emitter's
         %% peer_spawn/6), with the function's identity in place of the
         %% function and the site after the declaration's arguments
-        ++ [{ern_peer, spawn, 4}, {ern_peer, spawn_monitored, 5}, {ern_peer, compute, 3},
-            {ern_peer, compute_at, 4}]
-        %% Report §8.4, §9.4: the functions Io.show's and Io.debug's
-        %% declarations name, at the count of their parameters, which the
-        %% checker holds a declaration to; the compiler calls show/2 and
-        %% debug/2, the descriptor of the value's type after the value, and
-        %% no code calls these two
-        ++ [{ern_io, show, 1}, {ern_io, debug, 1}].
+        ++ [{ern_peer, spawn, 4}, {ern_peer, spawn_monitored, 5}, {ern_peer, compute, 4},
+            {ern_peer, compute_anywhere, 3}]
+        %% Report §8.4, §9.4: the function Io.show's declaration names, at
+        %% the count of its parameters, which the checker holds a
+        %% declaration to; the compiler calls show/2, the descriptor of the
+        %% value's type after the value, and no code calls this one
+        ++ [{ern_io, show, 1}].

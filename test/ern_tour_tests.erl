@@ -467,12 +467,12 @@ door(#tour{shell = Shell} = Tour) ->
            " bound to its node, since it holds a function",
            "1 | Peer.spawn(\"foo\", fn() = Counter.count(Tally.empty()), 5000)",
            "  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-           "  | = help: start it on the peer from `Peer.computeAt`, whose function spawns it"
+           "  | = help: start it on the peer from `Peer.compute`, whose function spawns it"
            " and answers an adapted address of a type that crosses, or keep a function on this"
            " node and send the process values that cross (report §3.11)"]},
          {"kill(Process.fromAddress(counter))", []},
          {"let counter = Counter.start()", ["counter : Address(Counter.ClientMsg)"]},
-         {"let far <- Peer.computeAt(\"foo\", fn() = Counter.start(), 5000)",
+         {"let far <- Peer.compute(\"foo\", fn() = Counter.start(), 5000)",
           ["far : Address(Counter.ClientMsg)"]},
          {"Counter.apply(counter, \"inc apples 2\")", [?SENT]},
          {"Counter.apply(far, \"inc apples 3\")", [?SENT]},
@@ -490,13 +490,13 @@ anywhere(#tour{bar = Bar, shell = Shell} = Tour) ->
     Schedulers = "Right(" ++ integer_to_list(erlang:system_info(schedulers))
         ++ ") : Either(Io.Error, Int)",
     Utilization = "[0-9]+\\.[0-9]+(?:e-?[0-9]+)?, [0-9]+",
-    Primes = {"Peer.compute(fn() = Counter.primes(200000), 5000)",
+    Primes = {"Peer.computeAnywhere(fn() = Counter.primes(200000), 5000)",
               ["Right(17984) : Either(Io.Error, Int)"]},
     Typed = session(
         Shell,
         [{":reload", ["Counter, compiled again"]},
-         {"Peer.computeAt(\"foo\", fn() = Counter.schedulers(), 5000)", [Schedulers]},
-         {"Peer.computeAt(\"bar\", fn() = Counter.schedulers(), 5000)", [Schedulers],
+         {"Peer.compute(\"foo\", fn() = Counter.schedulers(), 5000)", [Schedulers]},
+         {"Peer.compute(\"bar\", fn() = Counter.schedulers(), 5000)", [Schedulers],
           [["the peer bar connected"]]},
          {"Peer.utilizations()",
           [{re, "\\[#\\(\"foo\", " ++ Utilization ++ "\\), #\\(\"bar\", " ++ Utilization

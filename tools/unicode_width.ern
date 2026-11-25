@@ -199,12 +199,8 @@ fn entry(run : Run) : String =
     "#(0x" <> code(run.low) <> ", 0x" <> code(run.high) <> ", " <> widthName(run.width) <> ")"
 
 // A code point in hexadecimal, at least four digits, as Unicode writes it.
-// Base 16 is one `Int.toStringBase` writes in, so `None` does not come.
 fn code(point : Int) : String =
-    match Int.toStringBase(point, 16) {
-        Some(digits) -> String.padStart(digits, 4, "0")
-      | None -> fault("Int.toStringBase writes no digits in base 16")
-    }
+    String.padStart(Int.toStringBase(point, 16), 4, "0")
 
 fn widthName(width : Width) : String =
     match width {

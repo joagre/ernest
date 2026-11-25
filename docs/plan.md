@@ -23,7 +23,8 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
-leg, and its builds start next, the first writing the report from the copy.** The changed
+leg, whose first build is done: the report written from the copy, and the code made true
+of the four lines its tests hold (the log's *The First Build of Leg 4*).** The changed
 sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59 finds under
 their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered the same day
 one at a time, with *Z13* and *Z14* closed (the log's *The Changed Sentences Read Cold* and
@@ -44,12 +45,8 @@ domain was written a third time. Three lines are new: *Z10*, decided, *Z11*, a f
 *Z12*, decided. Where an answer sends its builder to check a thing first, its line says
 what comes back to the user.
 
-The leg goes on so: the report written from `cold3/v5/` in one commit with the first
-build, which makes true the five things the report's tests hold: *P2 35*'s names of the
-computes, `Io.debug` out of the prelude, `NotLoaded(String)` and `Int.toStringBase`
-faulting (the log's *The Answers Read Cold's Six*), its brief in `cold3/brief_build1.md`,
-on Opus 5.5 at xhigh; then the renames of *The Library's Names*, which the copy does not
-hold, with the applications' message on them and on the computes'; then the `1` and `1r`
+The leg goes on so: the renames of *The Library's Names*, which the copy did not hold,
+with the applications' message on them and on the computes'; then the `1` and `1r`
 lines of `docs/findings.md` by the session, and the `2a`, `2b` and decided lines by
 agents, one brief to an owner holding all its lines. Each decided line holds its verdict
 beneath it, and a verdict that says a reader reads first, or that a line comes back to the
@@ -183,7 +180,8 @@ says what is left once its readings are in, and no figure stands until then.
       day (the log's *The Changed Sentences Read Cold* and *The Cold Reading's Answers*).
       The copy took the answers, and what they change was read cold once, six finds
       coming to the user and answered (the log's *The Answers Read Cold* and *The
-      Answers Read Cold's Six*).
+      Answers Read Cold's Six*). The report was written from the copy 2026-11-25, in
+      one commit with the first build (the log's *The First Build of Leg 4*).
 
    Leg 3 puts the `decide` round before a fix is built, where `docs/reviews/full.md` has
    the `fix` lines made at once and the `decide` lines after, so that the design is one

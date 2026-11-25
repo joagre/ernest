@@ -15,11 +15,11 @@
 /// Work on a peer is a process spawned there, whose result reaches another
 /// process as a message, or a function run there for its value, which the
 /// caller waits for as for a call's answer. A spawn names its peer, and so
-/// does `computeAt`; `compute` runs on a peer the node picks by the
+/// does `compute`; `computeAnywhere` runs on a peer the node picks by the
 /// utilizations it holds. Each node that lists peers tells them how busy it
 /// is every `utilization-interval` of its `ernest.conf`, but for an attached
 /// shell's own node, which tells none (report §11.2), and holds what each
-/// told it: `compute` draws two of them and takes the less busy, and
+/// told it: `computeAnywhere` draws two of them and takes the less busy, and
 /// `utilizations` answers the table, over which a program writes a rule of
 /// its own. A program that knows how busy it is better than its node's
 /// measure says so with `setUtilization` (report §8.7, Appendix E.27).
@@ -61,10 +61,10 @@
 /// // => Left(Io.NotListed)
 /// ```
 ///
-/// A value computed on a peer the node picks, and on the peer named `worker`:
+/// A value computed on the peer named `worker`, and on a peer the node picks:
 ///
 /// ```ernest
-/// #(Peer.compute(fn() = 6 * 7, 5000), Peer.computeAt("worker", fn() = 6 * 7, 5000))
+/// #(Peer.compute("worker", fn() = 6 * 7, 5000), Peer.computeAnywhere(fn() = 6 * 7, 5000))
 /// // => #(Left(Io.NotListed), Left(Io.NotListed))
 /// ```
 ///
@@ -175,13 +175,13 @@ export foreign fn find(service : Service(m), ms : Int) : Either(Io.Error, Addres
 ///
 /// `f` runs only where every top-level binding it reaches has its value on the
 /// peer and every module a foreign declaration it reaches calls is there;
-/// otherwise the spawn answers `NotLoaded`, and the peer says on its standard
-/// error what it lacked. A binding `f` does not reach keeps it from no peer. A
-/// process whose answer came too late is killed as it comes, and where the
-/// connection was lost meanwhile it runs on. A spawn meets `NotListed`,
-/// `Unreachable`, `Timeout`, `NotLoaded` and `Other`, the last where the peer
-/// cannot take the code it was sent. `spawn` is called where it is named, and
-/// is no value.
+/// otherwise the spawn answers `NotLoaded(text)`, and the peer says on its
+/// standard error what it lacked, `text` its words for it. A binding `f` does
+/// not reach keeps it from no peer. A process whose answer came too late is
+/// killed as it comes, and where the connection was lost meanwhile it runs on.
+/// A spawn meets `NotListed`, `Unreachable`, `Timeout`, `NotLoaded` and
+/// `Other`, the last where the peer cannot take the code it was sent. `spawn`
+/// is called where it is named, and is no value.
 export foreign fn spawn(name : String,
                         f : () -> Unit receiving m,
                         ms : Int) : Either(Io.Error, Address(m)) =
@@ -203,49 +203,20 @@ export foreign fn spawnMonitored(name : String,
                                  ms : Int) : Either(Io.Error, Address(m)) receiving n =
     "ern_peer:spawn_monitored/4"
 
-/// The value of `f()`, run on a peer this node picks, as `computeAt` runs it
-/// on the peer named. Of the peers whose utilizations the node holds, each
-/// told within two of the intervals at which that peer tells, two are drawn
-/// at random and the less busy taken, the first drawn of two equally busy;
-/// a single one is taken as it is. Where no peer is listed the compute
-/// answers `NotListed`, and where none has told a utilization the node may
-/// use, `Unreachable`; once the peer is picked, the compute is `computeAt`'s,
-/// and meets what it meets. `compute` is called where it is named, and is no
-/// value.
-///
-/// ### Errors
-///
-/// A fault in `f` faults the caller with its cause, as `computeAt` says.
-///
-/// ### Examples
-///
-/// A value computed where there is room, or here where no peer has told how
-/// busy it is, as in a program that is no node:
-///
-/// ```ernest
-/// match Peer.compute(fn() = 6 * 7, 5000) {
-///     Right(value) -> value
-///   | Left(_) -> 6 * 7
-/// }
-/// // => 42
-/// ```
-export foreign fn compute(f : () -> a receiving m, ms : Int) : Either(Io.Error, a) =
-    "ern_peer:compute/2"
-
 /// The value of `f()`, run in a process started on the peer of that name as
 /// `spawn` starts one, answered within `ms` milliseconds. `f` is what a spawn's
 /// may be, as report §3.11 says, and its result type is known whole where
-/// `computeAt` is written and is not bound to its node, since the value crosses
+/// `compute` is written and is not bound to its node, since the value crosses
 /// back. The peer runs `f` only where it would start it for a spawn; otherwise
-/// the compute answers `NotLoaded`, and the peer says on its standard error
-/// what it lacked.
+/// the compute answers `NotLoaded(text)`, and the peer says on its standard
+/// error what it lacked, `text` its words for it.
 ///
 /// Where the process ends before it answers, killed or with the peer's
 /// program, the compute answers `Left(Other(text))`, `text` its `Reason` as
 /// `Io.show` writes it, `"Killed"` or `"ProgramEnd"`. Where the time runs out,
 /// or the caller ends while it waits, the process is killed where it still
 /// runs; where the connection was lost, it runs on. A compute meets
-/// `NotListed`, `Unreachable`, `Timeout`, `NotLoaded` and `Other`. `computeAt`
+/// `NotListed`, `Unreachable`, `Timeout`, `NotLoaded` and `Other`. `compute`
 /// is called where it is named, and is no value; work on the running node is
 /// `f()`.
 ///
@@ -258,13 +229,42 @@ export foreign fn compute(f : () -> a receiving m, ms : Int) : Either(Io.Error, 
 /// ### Examples
 ///
 /// ```ernest
-/// Peer.computeAt("worker", fn() = 6 * 7, 5000)
+/// Peer.compute("worker", fn() = 6 * 7, 5000)
 /// // => Left(Io.NotListed)
 /// ```
-export foreign fn computeAt(name : String,
-                            f : () -> a receiving m,
-                            ms : Int) : Either(Io.Error, a) =
-    "ern_peer:compute_at/3"
+export foreign fn compute(name : String, f : () -> a receiving m, ms : Int) : Either(Io.Error, a) =
+    "ern_peer:compute/3"
+
+/// The value of `f()`, run on a peer this node picks, as `compute` runs it
+/// on the peer named. Of the peers whose utilizations the node holds, each
+/// told within two of the intervals at which that peer tells, two are drawn
+/// at random and the less busy taken, the first drawn of two equally busy;
+/// a single one is taken as it is. Where no peer is listed the compute
+/// answers `NotListed`, and where none has told a utilization the node may
+/// use, `Unreachable`; once the peer is picked, the compute is `compute`'s,
+/// and meets what it meets. `computeAnywhere` is called where it is named, and
+/// is no value.
+///
+/// ### Errors
+///
+/// A fault in `f` faults the caller with its cause, as `compute` says.
+///
+/// ### Examples
+///
+/// A value computed where there is room, or here where no peer has told how
+/// busy it is, as in a program that is no node:
+///
+/// ```ernest
+/// match Peer.computeAnywhere(fn() = 6 * 7, 5000) {
+///     Right(value) -> value
+///   | Left(_) -> 6 * 7
+/// }
+/// // => 42
+/// ```
+///
+/// since 0.11.0
+export foreign fn computeAnywhere(f : () -> a receiving m, ms : Int) : Either(Io.Error, a) =
+    "ern_peer:compute_anywhere/2"
 
 /// How busy the peer of that name is, answered within `ms` milliseconds: a
 /// `Float` on one scale, 1.0 every scheduler busy, below it room, above it
@@ -303,8 +303,9 @@ export foreign fn peers() : List(String) =
 /// `utilization-interval` of its own `ernest.conf`; a peer not heard from
 /// since its connection opened is left out, and so is one whose connection
 /// was lost. A utilization older than two of its peer's intervals, which
-/// `compute` does not use, is answered as it is, with its age, so that a
-/// rule of the program's own sees what the node sees (report Appendix E.27).
+/// `computeAnywhere` does not use, is answered as it is, with its age, so
+/// that a rule of the program's own sees what the node sees (report Appendix
+/// E.27).
 ///
 /// ### Examples
 ///
@@ -313,7 +314,7 @@ export foreign fn peers() : List(String) =
 ///
 /// ```ernest
 /// match List.sortBy(Peer.utilizations(), fn(#(_, utilization, _)) = utilization) {
-///     #(name, _, _) :: _ -> Peer.computeAt(name, fn() = 6 * 7, 5000)
+///     #(name, _, _) :: _ -> Peer.compute(name, fn() = 6 * 7, 5000)
 ///   | [] -> Right(6 * 7)
 /// }
 /// // => Right(42)

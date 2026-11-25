@@ -2,7 +2,7 @@
 %% interface the shell in `src/shell/` calls. An input is a module of its
 %% own, `$Input<s>_<n>`, checked against the node's modules and the session,
 %% compiled, and run in a process of its own; the value is printed by E.1's
-%% printer, which `Io.debug` uses, over the descriptor of the input's type.
+%% printer, which `Io.show` uses, over the descriptor of the input's type.
 %% An expression and a `let` are the module's entry point, and what the
 %% input declares is the module's declarations.
 %%
@@ -2068,12 +2068,10 @@ prelude_listing(Session) ->
     Env = prelude(),
     TypeState = ern_typecheck:type_state(Env),
     {Types, _} = ern_typecheck:prelude_names(Env),
-    %% report §9.4: `Io.show` and `Io.debug` are the prelude's, typed by
-    %% `io.ern`'s interface, since the table's text has no place for their
-    %% requirement
-    Shown = [{['Io', Name], Scheme} || Name <- [show, debug],
-                                      {ok, Scheme} <- [ern_typecheck:declared_scheme(['Io'], Name,
-                                                                                     Env)]],
+    %% report §9.4: `Io.show` is the prelude's, typed by `io.ern`'s
+    %% interface, since the table's text has no place for its requirement
+    Shown = [{['Io', show], Scheme}
+             || {ok, Scheme} <- [ern_typecheck:declared_scheme(['Io'], show, Env)]],
     %% the environment holds the standard library's types too, each under
     %% its module's name; the prelude's own are unqualified
     Values = ern_typecheck:prelude_values(Env) ++ Shown,

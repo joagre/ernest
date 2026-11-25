@@ -366,7 +366,7 @@ make bench-pick # the push's experiment, the log's *The Numbers Across Machines*
                 # across the machines of test/machines/machines.txt: from a measuring
                 # node, a burst of a hundred computes of a hundred milliseconds' work and
                 # a stream of one every 50 ms for a minute, counted on each peer under
-                # Peer.compute's pick and under the least busy over Peer.utilizations(),
+                # Peer.computeAnywhere's pick and under the least busy over Peer.utilizations(),
                 # with their round trips, the packets each connection carried a second,
                 # each node's schedulers busy and each machine's processors idle, over
                 # the stream and at rest; by default the measuring node here and bare

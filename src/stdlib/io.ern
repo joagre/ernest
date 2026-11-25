@@ -63,9 +63,10 @@
 ///   it, or it was lost while waiting.
 /// - `NotOffered`: the peer offers nothing under the service's name.
 /// - `OtherType`: the peer offers the name at another message type.
-/// - `NotLoaded`: the peer does not have the function, a binding it reaches has
-///   no value there, or a module a foreign declaration it reaches calls is not
-///   there.
+/// - `NotLoaded(text)`: a binding the function reaches has no value on the
+///   peer, or a module a foreign declaration it reaches calls, or the function
+///   in it, is not there; `text` is what the peer says it lacked, `"the binding
+///   M.limit has no value here"`.
 /// - `Other(text)`: another reason, in the host's words, `"address already in
 ///   use"`.
 ///
@@ -94,7 +95,7 @@ export type Error =
   | Unreachable
   | NotOffered
   | OtherType
-  | NotLoaded
+  | NotLoaded(String)
   | Other(String)
 
 // What standard input takes.
@@ -271,6 +272,19 @@ export foreign fn show(value : a) : String =
 
 /// Writes the value to standard error as `show` writes it, with a line feed,
 /// and answers the value, so it wraps an expression where it stands: `let n =
-/// Io.debug(f(x))`. Like `show`, a generic function needs `a.show` to use it.
-export foreign fn debug(value : a) : a =
-    "ern_io:debug/1"
+/// Io.debug(f(x))`. Its requirement is supplied as any is (report §4.9): at a
+/// type known whole, and in a function generic in `a` that declares `needs
+/// a.show`.
+///
+/// ### Examples
+///
+/// Prints `[1, 2]` and a line feed on standard error:
+///
+/// ```ernest
+/// Io.debug([1, 2])
+/// // => [1, 2]
+/// ```
+export fn debug(value : a) : a needs a.show = {
+    printlnError(show(value));
+    value
+}
