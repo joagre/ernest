@@ -89,7 +89,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 - *X 25*'s two entries whose citations no section's heading names stand beside the entries that cite the same: `Foreign.term` beside §8.4's under *Declarations*, a type's previous version beside the session's types under *Types*. *Names in a block* is *Blocks*, holding §5.4's five. *X 8*'s seven stand in a section of their own at the end, and `Code.running` taken as a value stays under §3.11.
 - *K 3*'s functions are seven: a scan of the standard library's foreign declarations found `List.sort`'s private `sorted` beside the six.
 - *PL1 10*: the 10-26 numbers are the feedback file's; the two of 10-24, which the file never numbered, lose their numbers instead.
-- *PL1 8*: the 10-09 line follows its file. The index's order within a day is the file's on 42 days and newest first on 15, and seven days' lines follow neither, which waits for the user.
+- *PL1 8*: every day's line follows its file, decided with the user the same day, where the index had the file's order on 42 days, newest first on 15 and neither on seven.
 - *E1 1* held already.
 
 #### guide
