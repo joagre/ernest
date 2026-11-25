@@ -77,7 +77,8 @@ export type Strategy = OneForOne | OneForAll | RestForOne
 // A child joins its supervisor, and after every restart asks through the
 // watcher whether it may run. The watcher, which a restart in place does
 // not end, holds who waits, and the supervisor decides when each goes. It
-// does not subscribe to `Process.faults`, every fault of the runtime.
+// does not subscribe to every fault of the runtime with
+// `Process.subscribeFaults`.
 
 /// What a supervisor takes. Its constructors are hidden; only this module makes
 /// them.

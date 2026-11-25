@@ -96,12 +96,12 @@ fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, Li
       | '-' :: '>' :: rest ->
             lex(rest, index + 2, Arrow :: acc)
       | char :: _ when Char.isAsciiDigit(char) -> {
-            let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+            let #(digits, rest) = List.splitWhile(chars, Char.isAsciiDigit);
             let value = Optional.withDefault(String.toInt(String.fromList(digits)), 0);
             lex(rest, index + List.size(digits), Number(value) :: acc)
         }
       | char :: _ when Char.isAlpha(char) -> {
-            let #(word, rest) = List.span(chars, Char.isAlpha);
+            let #(word, rest) = List.splitWhile(chars, Char.isAlpha);
             let token = match String.fromList(word) {
                 "let" -> LetKeyword
               | "fun" -> FunKeyword

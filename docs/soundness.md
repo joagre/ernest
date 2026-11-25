@@ -339,7 +339,7 @@ The peer is trusted as a peer is (§8.7): what a faulty peer sends is outside th
 
 A unit of a run of `ern test` over a directory is held for its run, whose processes have all ended with it (§8.6) and whose adapted addresses are dead after it, so that no message applies a function of it (§11.2). So no process loses the code it runs or a function it holds, and a process's typed body stands while it runs.
 
-**No process runs after the end.** The runtime delivers `wrap(reply)` to each subscriber of `Os.termination` at its own mailbox type, as every message the runtime delivers (section 5), so I1 holds. The reply is fresh, of the type the wrap takes, and answered through the alias, so I3 holds.
+**No process runs after the end.** The runtime delivers `wrap(reply)` to each subscriber of `Os.subscribeTermination` at its own mailbox type, as every message the runtime delivers (section 5), so I1 holds. The reply is fresh, of the type the wrap takes, and answered through the alias, so I3 holds.
 
 The end waits for the answer, the subscriber's end or its restart, or its delivery killed. A telling the runtime cannot make for want of room faults the subscriber and so ends it (§7.4). Each of these ends the wait as the callee's end ends a call (§6.6, §8.6).
 

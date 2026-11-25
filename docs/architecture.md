@@ -211,7 +211,7 @@ Each chunk is read through `ern_chunk`. A name a shell session declares is writt
 | the reaper | the runner | | spawns and monitors every process of the program, and finds a deadlock (*The reaper*) |
 | `stdout`, `stderr`, `stdin`, `fs`, `terminal`, `tcp`, `os`, `clock` | the runner (`started_system/1`) | `persistent_term`, `{ern_rt, Name}`, read by `system_process/1` | the system processes (§8.2, *The system processes*) |
 | a delivery | the reaper, the clock or an end's teller (`counted_link/2`, `wrapped/3`) | a link to its starter | applies a wrap and delivers the message (§6.5, §6.9) |
-| an end's teller | the runner (`told/3`) | the reaper (`reaper_held/2`) | tells one subscriber of `Os.termination` (§8.6, E.23) |
+| an end's teller | the runner (`told/3`) | the reaper (`reaper_held/2`) | tells one subscriber of `Os.subscribeTermination` (§8.6, E.23) |
 | a kept process | a gateway's worker (`kept/1`) | the reaper (`reaper_held/2`) | applies an adapted address's function to a peer's messages (§6.5, §12.6) |
 | a checker | `ern_rt:checker_for/3` | `ern_checkers` | checks each message foreign code sends (§8.4) |
 | a courier | the terminal | a link to the terminal | applies one subscriber's wrap to its keys (E.16) |
@@ -257,7 +257,7 @@ The gateway and the exchange are the only registered processes. A delivery, a co
 
 The runner's `init` is `ern_rt:init_modules/1` over the modules it loaded, ordered by each one's `'$deps'/0`, the shell's own among them for `ern shell`.
 
-At the end the runner tells the subscribers of `Os.termination` (`told/3`, §8.6), ends every process with `ProgramEnd`, and flushes `stdout` and `stderr` (`sink_flushed/1`). `ern_cli:report_outcome/2` makes the outcome §11.8's status.
+At the end the runner tells the subscribers of `Os.subscribeTermination` (`told/3`, §8.6), ends every process with `ProgramEnd`, and flushes `stdout` and `stderr` (`sink_flushed/1`). `ern_cli:report_outcome/2` makes the outcome §11.8's status.
 
 A reference tags each launch, held with its runner, its reaper, its killer, its standard error process and what its options give in the launch's row of `ern_launch`, `#launch{}`, which goes with the table at the end (`launch/0`). Each adapted address its processes make holds it (§8.7, §11.2).
 

@@ -1721,13 +1721,13 @@ export fn main() : Unit receiving Down = {
 %% shows, a spawn takes its place.
 %%
 %% Report §8.6, §11.2: a program that fills its table and faults ends with
-%% its fault reported, its end telling its subscriber of `Os.termination`
-%% by a delivery that cannot be made, so that the subscriber faults and is
-%% waited for no longer. Report §12.1: the host's own report of each spawn
-%% refused is not written, the fault's line saying it. Report §8.4, §7.4:
-%% an address given to foreign code at the full table, whose checker
-%% cannot be made, faults the process that gives it with the host's class
-%% and reason, the foreign function not having run.
+%% its fault reported, its end telling its subscriber of
+%% `Os.subscribeTermination` by a delivery that cannot be made, so that the
+%% subscriber faults and is waited for no longer. Report §12.1: the host's
+%% own report of each spawn refused is not written, the fault's line saying
+%% it. Report §8.4, §7.4: an address given to foreign code at the full
+%% table, whose checker cannot be made, faults the process that gives it
+%% with the host's class and reason, the foreign function not having run.
 %%
 %% A regression test, written after the fix: the reaper and the system
 %% processes died of the host's `system_limit`, and the node hung; a kill
@@ -1831,7 +1831,7 @@ fn requested(step : Int, held : Address(HeldMsg)) : Unit receiving Int =
     ok = file:write_file(filename:join(Source, "ending.ern"), <<"
 // The subscriber of the program's end, which answers once told.
 fn subscribed() : Unit receiving Reply(Unit) = {
-    Os.termination(fn(reply) = reply);
+    Os.subscribeTermination(fn(reply) = reply);
     receive { reply -> answer(reply, Unit) }
 }
 
@@ -2185,7 +2185,7 @@ fn said() : Unit receiving Process.FaultReport =
     }
 
 export fn main() : Unit receiving Process.FaultReport = {
-    Process.faults(fn(report) = report);
+    Process.subscribeFaults(fn(report) = report);
     let _ = spawn(restarting(RestartLimit(restarts = 2, within = 60000), fn() = overfilled()));
     said()
 }
@@ -2907,11 +2907,11 @@ carrier_not_started(Base) ->
     ?assertNot(filelib:is_file(filename:join(A, "ernest.pid"))).
 
 %% report §8.6, §12.5, Appendix E.23: a node whose carrier cannot start ends
-%% as any program ends, so the subscriber of `Os.termination` its
-%% initializers started is told, and the end waits for its answer, which
-%% the runtime says, before the job's line. A regression test, written
-%% after the report named the end in §8.6 (the log's *The Release Review
-%% Before 0.7.0*, *The round*): the code already told it
+%% as any program ends, so the subscriber of `Os.subscribeTermination` its
+%% initializers started is told, and the end waits for its answer, which the
+%% runtime says, before the job's line. A regression test, written after the
+%% report named the end in §8.6 (the log's *The Release Review Before
+%% 0.7.0*, *The round*): the code already told it
 carrier_not_started_tells_test_() ->
     nodes_test({waits, 2}, fun carrier_not_started_tells/1).
 
@@ -2924,7 +2924,7 @@ carrier_not_started_tells(Base) ->
     ok = file:write_file(filename:join(Root, "prog.ern"),
                          "type Msg = Ending(Reply(Unit)) | Ready(Reply(Unit))\n\n"
                          "fn told() : Unit receiving Msg = {\n"
-                         "    Os.termination(Ending);\n"
+                         "    Os.subscribeTermination(Ending);\n"
                          "    waiting()\n"
                          "}\n\n"
                          "fn waiting() : Unit receiving Msg =\n"
@@ -4063,7 +4063,7 @@ stopping(Base) ->
 type Msg = Terminating(Reply(Unit))
 
 export fn main() : Unit receiving Msg = {
-    Os.termination(Terminating);
+    Os.subscribeTermination(Terminating);
     Io.println(\"subscribed\");
     receive {
         Terminating(reply) -> {
@@ -4359,7 +4359,7 @@ fn subscribe(holder : Address(HoldMsg)) : Unit receiving MainMsg = {
 }
 
 fn subscriber(holder : Address(HoldMsg), main : Address(MainMsg)) : Unit receiving SubscriberMsg = {
-    Os.termination(Terminating);
+    Os.subscribeTermination(Terminating);
     send(main, Subscribed);
     receive {
         Terminating(_) -> {
@@ -4499,7 +4499,7 @@ export fn main() : Unit receiving Msg = {
 }
 
 fn early(main : Address(Msg)) : Unit receiving Msg = {
-    Os.termination(Terminating);
+    Os.subscribeTermination(Terminating);
     send(main, Ready);
     receive {
         Terminating(reply) -> {
@@ -4514,7 +4514,7 @@ fn early(main : Address(Msg)) : Unit receiving Msg = {
 }
 
 fn late(earlier : Address(Msg)) : Unit receiving Msg = {
-    Os.termination(Terminating);
+    Os.subscribeTermination(Terminating);
     receive {
         Terminating(reply) -> {
             Io.printlnError(\"late told\");
@@ -4592,16 +4592,16 @@ run_signaled(Run, Name) ->
 
 %% report §11.8, §11: `ern test` ends by a termination that cut short the
 %% end of a launch, and runs no later launch. Here the first of two modules
-%% leaves a subscriber of Os.termination that never answers, so that its
-%% tests' launch's end waits; once standard error says so, a termination
-%% cuts the wait, and the job ends by it, 143, the second module's name and
-%% lines never written.
+%% leaves a subscriber of Os.subscribeTermination that never answers, so
+%% that its tests' launch's end waits; once standard error says so, a
+%% termination cuts the wait, and the job ends by it, 143, the second
+%% module's name and lines never written.
 test_ends_at_a_cut_wait_test_() ->
     nodes_test({waits, 4}, fun test_ends_at_a_cut_wait/1).
 
 test_ends_at_a_cut_wait(Base) ->
     Root = two_modules(filename:join(Base, "build"), <<"
-// Report §8.6, §11.2: a test that leaves a subscriber of Os.termination
+// Report §8.6, §11.2: a test that leaves a subscriber of Os.subscribeTermination
 // that never answers, so that the end of its launch waits for it.
 
 type Msg = Subscribed
@@ -4617,7 +4617,7 @@ let waits : Test.Case(Msg) = Test.Case(name = \"waits\", run = fn() = {
 })
 
 fn subscriber(test : Address(Msg)) : Unit receiving SubscriberMsg = {
-    Os.termination(Terminating);
+    Os.subscribeTermination(Terminating);
     send(test, Subscribed);
     unanswered()
 }
@@ -7009,7 +7009,7 @@ attached_code_load(Base) ->
                          "let evaluated : Unit = Io.println(\"evaluated at the prompt\")\n"
                          "\n"
                          "fn told() : Unit receiving Msg = {\n"
-                         "    Os.termination(Ending);\n"
+                         "    Os.subscribeTermination(Ending);\n"
                          "    receive {\n"
                          "        Ending(reply) -> {\n"
                          "            Io.println(\"told at the end\");\n"
@@ -10926,7 +10926,7 @@ fn offered() : Unit receiving MakerMsg = {
 }
 
 fn subscribed(maker : Address(MakerMsg)) : Unit receiving Reply(Unit) = {
-    Os.termination(fn(reply) = reply);
+    Os.subscribeTermination(fn(reply) = reply);
     send(maker, Subscribed);
     receive {
         reply -> {

@@ -313,7 +313,7 @@ fn prefixExpanded(chars : List(Char), column : Int) : List(Char) =
 // and their delimiter, where a space, a tab or the end follows it, as
 // `markerOf` reads one; none where the characters are text.
 fn markerSize(chars : List(Char)) : Optional(Int) = {
-    let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+    let #(digits, rest) = List.splitWhile(chars, Char.isAsciiDigit);
     let size = match #(digits, rest) {
         #([], mark :: _) when mark == '-' || mark == '*' || mark == '+' -> 1
       | #(_ :: _, delimiter :: _) when (delimiter == '.' || delimiter == ')')
@@ -332,7 +332,7 @@ fn isBlank(line : String) : Bool =
     String.isEmpty(String.trim(line))
 
 fn indent(line : String) : Int = {
-    let #(spaces, _) = List.span(String.toList(spacedPrefix(line)), fn(char) = char == ' ');
+    let #(spaces, _) = List.splitWhile(String.toList(spacedPrefix(line)), fn(char) = char == ' ');
     List.size(spaces)
 }
 
@@ -368,7 +368,7 @@ fn cut(chars : List(Char), column : Int, count : Int) : List(Char) =
 // A heading of one to six `#`s and the space or the tab after them, the
 // closing `#`s dropped.
 fn atx(line : String) : Optional(Block) = {
-    let #(marks, rest) = List.span(String.toList(line), fn(char) = char == '#');
+    let #(marks, rest) = List.splitWhile(String.toList(line), fn(char) = char == '#');
     let level = List.size(marks);
     let text = String.fromList(rest);
     if level < 1 || level > 6 then
@@ -383,7 +383,7 @@ fn atx(line : String) : Optional(Block) = {
 
 fn closed(text : String) : String = {
     let chars = List.reverse(String.toList(text));
-    let #(marks, rest) = List.span(chars, fn(char) = char == '#');
+    let #(marks, rest) = List.splitWhile(chars, fn(char) = char == '#');
     match #(marks, rest) {
         #([], _) -> text
       | #(_, []) -> ""
@@ -407,7 +407,7 @@ fn isRule(line : String) : Bool =
 fn fenceOf(line : String) : Optional(#(Char, Int, String)) =
     match String.toList(line) {
         mark :: _ when mark == '`' || mark == '~' -> {
-            let #(marks, rest) = List.span(String.toList(line), fn(char) = char == mark);
+            let #(marks, rest) = List.splitWhile(String.toList(line), fn(char) = char == mark);
             let info = String.trim(String.fromList(rest));
             if List.size(marks) < 3 || (mark == '`' && String.contains(info, "`")) then
                 None
@@ -441,7 +441,7 @@ fn closes(line : String, mark : Char, size : Int) : Bool =
     indent(line) < 4
         && {
             let #(marks, rest) =
-                List.span(String.toList(unindented(line)), fn(char) = char == mark);
+                List.splitWhile(String.toList(unindented(line)), fn(char) = char == mark);
             List.size(marks) >= size && isBlank(String.fromList(rest))
         }
 
@@ -452,7 +452,7 @@ fn indented(lines : List(String), acc : List(String)) : #(Block, List(String)) =
         line :: rest when isBlank(line) || indent(line) >= 4 ->
             indented(rest, dedented(line, 4) :: acc)
       | _ -> {
-            let #(blanks, kept) = List.span(acc, isBlank);
+            let #(blanks, kept) = List.splitWhile(acc, isBlank);
             #(Code(info = "", lines = List.reverse(kept)), List.map(blanks, fn(_) = "") <> lines)
         }
     }
@@ -529,7 +529,7 @@ fn markerOf(line : String) : Optional(Marker) =
             spaced(None, char, 1, rest)
       | chars -> {
             // a list number is ASCII digits, where `Char.isDigit` is any script's
-            let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+            let #(digits, rest) = List.splitWhile(chars, Char.isAsciiDigit);
             match rest {
                 delimiter :: later when (delimiter == '.' || delimiter == ')')
                     && digits != []
@@ -547,7 +547,7 @@ fn markerOf(line : String) : Optional(Marker) =
 // The marker is followed by one to four spaces, or by the end of the
 // line; more than four leave the rest to the item as indentation.
 fn spaced(start : Optional(Int), mark : Char, size : Int, rest : List(Char)) : Optional(Marker) = {
-    let #(spaces, text) = List.span(rest, fn(char) = char == ' ');
+    let #(spaces, text) = List.splitWhile(rest, fn(char) = char == ' ');
     let count = List.size(spaces);
     if text == [] || count > 4 then
         Some(Marker(=start, =mark, width = size + 1))
@@ -572,7 +572,7 @@ fn listed(lines : List(String),
                     let more = items <> [blocks(body)];
                     match later {
                         next :: _ when isBlank(next) -> {
-                            let #(_, beyond) = List.span(later, isBlank);
+                            let #(_, beyond) = List.splitWhile(later, isBlank);
                             match beyond {
                                 nextItem :: _ when startsItem(nextItem, first) ->
                                     listed(beyond, first, more)
@@ -646,7 +646,7 @@ fn htmlOpens(line : String) : Bool =
 fn isTagAlone(line : String) : Bool =
     match String.toList(String.trimEnd(line)) {
         '<' :: first :: rest -> {
-            let #(tag, beyond) = List.span(rest, fn(char) = char != '>');
+            let #(tag, beyond) = List.splitWhile(rest, fn(char) = char != '>');
             (Char.isAlpha(first) || first == '/')
                 && beyond == ['>']
                 && !List.any(tag, fn(char) = char == ':' || char == '@')
@@ -829,14 +829,14 @@ fn scan(chars : List(Char), pending : List(Char)) : List(Inline) =
       | '\\' :: char :: rest when isAsciiPunctuation(char) ->
             scan(rest, char :: pending)
       | '\n' :: rest -> {
-            let #(spaces, before) = List.span(pending, fn(char) = char == ' ');
+            let #(spaces, before) = List.splitWhile(pending, fn(char) = char == ' ');
             if List.size(spaces) >= 2 then
                 flushed(before, Break :: scan(rest, []))
             else
                 scan(rest, ' ' :: before)
         }
       | '`' :: _ -> {
-            let #(ticks, rest) = List.span(chars, fn(char) = char == '`');
+            let #(ticks, rest) = List.splitWhile(chars, fn(char) = char == '`');
             match closingTicks(rest, List.size(ticks), []) {
                 Some(#(code, later)) -> flushed(pending, CodeSpan(code) :: scan(later, []))
               | None -> scan(rest, List.reverse(ticks) <> pending)
@@ -888,7 +888,7 @@ fn closingTicks(chars : List(Char),
         [] ->
             None
       | '`' :: _ -> {
-            let #(ticks, rest) = List.span(chars, fn(char) = char == '`');
+            let #(ticks, rest) = List.splitWhile(chars, fn(char) = char == '`');
             if List.size(ticks) == size then
                 Some(#(spanText(List.reverse(acc)), rest))
             else
@@ -912,7 +912,7 @@ fn spanText(chars : List(Char)) : String =
 // not begin or end with a space; `_` inside a word is text. A run with no
 // closing one, and a run of three or more, is text.
 fn emphasis(mark : Char, chars : List(Char), pending : List(Char)) : List(Inline) = {
-    let #(run, rest) = List.span(chars, fn(char) = char == mark);
+    let #(run, rest) = List.splitWhile(chars, fn(char) = char == mark);
     let size = List.size(run);
     // what is read so far is held last first, so its head is the character
     // before the run
@@ -945,7 +945,7 @@ fn closingRun(chars : List(Char),
         [] ->
             None
       | '`' :: _ -> {
-            let #(ticks, rest) = List.span(chars, fn(char) = char == '`');
+            let #(ticks, rest) = List.splitWhile(chars, fn(char) = char == '`');
             match closingTicks(rest, List.size(ticks), []) {
                 Some(#(_, later)) -> {
                     let spanned = List.take(chars, List.size(chars) - List.size(later));
@@ -956,7 +956,7 @@ fn closingRun(chars : List(Char),
             }
         }
       | char :: _ when char == mark -> {
-            let #(run, rest) = List.span(chars, fn(next) = next == mark);
+            let #(run, rest) = List.splitWhile(chars, fn(next) = next == mark);
             let afterText = match acc {
                 previous :: _ -> previous != ' ' && previous != '\n'
               | [] -> fault("the opening run is followed by a character that is no mark")
@@ -1067,15 +1067,15 @@ fn destination(chars : List(Char),
     }
 
 fn titled(chars : List(Char)) : Optional(List(Char)) = {
-    let #(_, rest) = List.span(chars, fn(char) = char == ' ' || char == '\n');
+    let #(_, rest) = List.splitWhile(chars, fn(char) = char == ' ' || char == '\n');
     match rest {
         ')' :: later ->
             Some(later)
       | quote :: more when quote == '"' || quote == '\'' -> {
-            let #(_, tail) = List.span(more, fn(char) = char != quote);
+            let #(_, tail) = List.splitWhile(more, fn(char) = char != quote);
             match tail {
                 _ :: later -> {
-                    let #(_, closing) = List.span(later, fn(char) = char == ' ');
+                    let #(_, closing) = List.splitWhile(later, fn(char) = char == ' ');
                     match closing {
                         ')' :: beyond -> Some(beyond)
                       | _ -> None
@@ -1360,7 +1360,7 @@ fn codesAfter(chars : List(Char), codes : List(String)) : List(String) =
         [] ->
             codes
       | '\u{1b}' :: '[' :: rest -> {
-            let #(digits, beyond) = List.span(rest, Char.isAsciiDigit);
+            let #(digits, beyond) = List.splitWhile(rest, Char.isAsciiDigit);
             match beyond {
                 'm' :: more -> codesAfter(more, switched(String.fromList(digits), codes))
               | _ -> codesAfter(beyond, codes)

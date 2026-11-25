@@ -1,5 +1,5 @@
 %% Report §8.6 and Appendix E.23: the program's end told to the subscribers
-%% of Os.termination, in programs run as the runner runs them
+%% of Os.subscribeTermination, in programs run as the runner runs them
 %% (ern_emitter_tests:run/3). A termination is the runtime's own word of
 %% one, ern_rt:signal/1, which the signal handler calls (ern_signals), asked
 %% by the program through a foreign function. Regression tests, written
@@ -29,7 +29,7 @@ kept(Told, Main, Options) ->
        "  | Terminating(reply) -> ", Told, "\n"
        "}\n"
        "fn keeper() : Unit receiving Msg = {\n"
-       "    Os.termination(Terminating);\n"
+       "    Os.subscribeTermination(Terminating);\n"
        "    count(0)\n"
        "}\n"
        "foreign fn signal(name : Foreign.Term) : Foreign.Term = \"ern_rt:signal/1\"\n"
@@ -195,13 +195,13 @@ answered_subscriber_restarting_test() ->
                  naming(Output, <<"M.main:26">>)),
     ?assertEqual([{<<"M.main:26">>, <<"division by zero">>, true}], faults([])).
 
-%% A program whose keeper, a subscriber of Os.termination that may restart
-%% once, is told at the end with 1 in its count and does what First says,
-%% which faults; its new run subscribes again and, told with 0, prints
+%% A program whose keeper, a subscriber of Os.subscribeTermination that may
+%% restart once, is told at the end with 1 in its count and does what First
+%% says, which faults; its new run subscribes again and, told with 0, prints
 %% `told again`, lets the holder answer and answers. The holder, a second
-%% subscriber, answers once the keeper's new run has been told. Main
-%% returns once both have subscribed; the keeper's spawn site is
-%% M.main:26, the holder's M.main:24.
+%% subscriber, answers once the keeper's new run has been told. Main returns
+%% once both have subscribed; the keeper's spawn site is M.main:26, the
+%% holder's M.main:24.
 restarted(First) ->
     Self = self(),
     Faults = fun({'FaultReport', _, Site, Cause, Restarted, _, _, _, _, _}, _Peer) ->
@@ -211,14 +211,14 @@ restarted(First) ->
       ['M'],
       ["type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
        "fn hold(main : Address(Msg)) : Unit receiving Msg = {\n"
-       "    Os.termination(Terminating);\n"
+       "    Os.subscribeTermination(Terminating);\n"
        "    send(main, Ready);\n"
        "    receive {\n"
        "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
        "    }\n"
        "}\n"
        "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit receiving Msg = {\n"
-       "    Os.termination(Terminating);\n"
+       "    Os.subscribeTermination(Terminating);\n"
        "    send(main, Ready);\n"
        "    count(holder, 0)\n"
        "}\n"
@@ -260,7 +260,7 @@ tellers_leave_no_monitor_test() ->
         "  | Kept(reply) -> { answer(reply, kept); count(n, kept) }\n"
         "}\n"
         "fn hold(main : Address(Msg)) : Unit receiving Msg = {\n"
-        "    Os.termination(Terminating);\n"
+        "    Os.subscribeTermination(Terminating);\n"
         "    send(main, Ready);\n"
         "    receive {\n"
         "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
@@ -268,7 +268,7 @@ tellers_leave_no_monitor_test() ->
         "}\n"
         "fn keeper(counter : Address(Count), holder : Address(Msg), main : Address(Msg))"
         " : Unit receiving Msg = {\n"
-        "    Os.termination(Terminating);\n"
+        "    Os.subscribeTermination(Terminating);\n"
         "    send(main, Ready);\n"
         "    receive {\n"
         "        Terminating(reply) -> told(counter, holder, reply)\n"
@@ -326,7 +326,7 @@ subscribed_while_the_end_waits_test() ->
     {Result, Output} = ern_emitter_tests:run(
         "type Msg = Ready | Ended(Down) | Terminating(Reply(Unit))\n"
         "fn second(first : Address(Msg)) : Unit receiving Msg = {\n"
-        "    Os.termination(Terminating);\n"
+        "    Os.subscribeTermination(Terminating);\n"
         "    send(first, Ready);\n"
         "    receive {\n"
         "        Terminating(reply) -> { Io.println(\"second told\"); answer(reply, Unit) }\n"
@@ -334,7 +334,7 @@ subscribed_while_the_end_waits_test() ->
         "    }\n"
         "}\n"
         "fn first(main : Address(Msg)) : Unit receiving Msg = {\n"
-        "    Os.termination(Terminating);\n"
+        "    Os.subscribeTermination(Terminating);\n"
         "    send(main, Ready);\n"
         "    receive {\n"
         "        Terminating(reply) -> {\n"
@@ -350,8 +350,8 @@ subscribed_while_the_end_waits_test() ->
         "}\n"
         "export fn main() : Unit receiving Msg = {\n"
         "    let me = self();\n"
-        "    let _ = spawnMonitored(fn() : Unit receiving Msg = Os.termination(Terminating),"
-        " Ended);\n"
+        "    let _ = spawnMonitored(fn() : Unit receiving Msg ="
+        " Os.subscribeTermination(Terminating), Ended);\n"
         "    let _ = spawn(fn() : Unit receiving Msg = first(me));\n"
         "    receive { Ended(_) -> Unit };\n"
         "    receive { Ready -> Unit }\n"
@@ -392,7 +392,7 @@ waiting_for_the_end_is_no_deadlock_test() ->
         "foreign fn waiting(name : Foreign.Term, word : Foreign.Term) : Foreign.Term"
         " = \"erlang:send/2\"\n"
         "export fn main() : Unit receiving Msg = {\n"
-        "    Os.termination(Terminating);\n"
+        "    Os.subscribeTermination(Terminating);\n"
         "    let _ = waiting(Foreign.term(Foreign.atom(\"ern_terminating_tests_waiter\")),"
         " Foreign.term(Foreign.atom(\"waiting\")));\n"
         "    receive {\n"

@@ -133,9 +133,9 @@ $(filter-out lib-markdown lib-http,$(LIB_BUILDS)): lib-%: stdlib
 # beside it (§11.9): src/shell/ compiled by ern build into build/shell,
 # where `ern shell` and `ern unpack` load them by namespace, with
 # libs/ansi and libs/markdown, which the shell renders and styles
-# documentation with, libs/ets, whose `owned` it says an input's tables by,
-# and libs/crypto, whose `sha256` the job checks an archive by, each
-# compiled against from its build under build/libs.
+# documentation with, libs/ets, whose `ownedCount` it says an input's
+# tables by, and libs/crypto, whose `sha256` the job checks an archive by,
+# each compiled against from its build under build/libs.
 shell: lib-ansi lib-markdown lib-ets lib-crypto
 	@bin/ern build --verbose --build-root build/shell src/shell
 

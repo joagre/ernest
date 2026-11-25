@@ -26,7 +26,7 @@ export fn main() : Unit receiving Unit = {
     Io.println("the store's peers: " <> Io.show(Shared.listed()));
     let me = self();
     let _ = spawn(fn() : Unit receiving Process.FaultReport = {
-        Process.faults(fn(report) = report);
+        Process.subscribeFaults(fn(report) = report);
         send(me, Unit);
         reports()
     });

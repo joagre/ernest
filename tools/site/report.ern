@@ -162,7 +162,7 @@ fn contentsWritten(run : Run.Run, files : List(File)) : Either(String, Unit) = {
     let source = "report/README.md";
     let document <- Run.documentOf(run.root, source);
     let #(_, rest) <- Run.titleOf(source, document);
-    let #(opening, _) = List.span(rest, fn(block) = match block {
+    let #(opening, _) = List.splitWhile(rest, fn(block) = match block {
         Markdown.Table() -> false
       | _ -> true
     });

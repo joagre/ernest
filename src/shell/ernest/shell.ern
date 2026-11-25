@@ -39,11 +39,12 @@ type Outcome =
 // line mode the local half sends `Line` for each line it reads, `None` at
 // the end of input; the input's process sends `Done` as it ends, its
 // outcome carrying the input's serial, so that the outcome of one
-// `Interrupted` killed is known wherever it arrives; `Process.faults` sends
-// `Reported` for every fault, and the front end `Reloaded` for a reload by
-// another session of the node, the modules it compiled again and the
-// session's number; and the monitors on the reader, the screen and the
-// local half `ReaderDied`, `ScreenDied` and `LocalEnded` for their ends.
+// `Interrupted` killed is known wherever it arrives;
+// `Process.subscribeFaults` sends `Reported` for every fault, and the front
+// end `Reloaded` for a reload by another session of the node, the modules
+// it compiled again and the session's number; and the monitors on the
+// reader, the screen and the local half `ReaderDied`, `ScreenDied` and
+// `LocalEnded` for their ends.
 type ShellMsg =
     Typed(String)
   | InputEnded
@@ -354,7 +355,7 @@ fn session(desk : Desk) : Unit receiving ShellMsg = {
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs
-    Process.faults(Reported);
+    Process.subscribeFaults(Reported);
     // report §11.2: the file's entry point is spawned beside the prompt
     if attached then Unit else spawnProgram();
     List.forEach(desk.notes, fn(note) = say(screen, note));
@@ -830,7 +831,7 @@ fn endedLines(binder : Process, names : List(String)) : List(String) = {
     List.filterMap(Process.owned(binder),
                    fn(process) =
                        Optional.map(Process.status(process), fn(status) = status.site <> ended))
-        <> List.repeat("Ets.new" <> ended, Ets.owned(binder))
+        <> List.repeat("Ets.new" <> ended, Ets.ownedCount(binder))
 }
 
 // Report §11.2: with timing on, a result is followed by the time the input

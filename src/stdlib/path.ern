@@ -35,8 +35,8 @@
 ///
 /// since 0.1.0
 
-/// `under` placed below `path`: the segments of both, joined, so `Path("a//b")
-/// <> Path("c")` is `Path("a/b/c")`. An absolute `under` is answered as it was
+/// `other` placed below `path`: the segments of both, joined, so `Path("a//b")
+/// <> Path("c")` is `Path("a/b/c")`. An absolute `other` is answered as it was
 /// written, so a name from outside the program can leave `path`; `Path.under`
 /// refuses such a name.
 ///
@@ -48,8 +48,8 @@
 /// ```
 ///
 /// since 0.2.0
-export fn Path.<>(path : Path, under : Path) : Path =
-    if isAbsolute(under) then under else join(split(path) <> split(under))
+export fn Path.<>(path : Path, other : Path) : Path =
+    if isAbsolute(other) then other else join(split(path) <> split(other))
 
 /// The path of those segments, the inverse of `split` for segments that are
 /// neither empty nor hold a separator. A root first stays a root, and one
@@ -164,7 +164,7 @@ export fn extension(path : Path) : Optional(String) = {
 // The name taken apart at its last dot, the dots that begin it beginning
 // none: the stem and the extension, or the name and `None`.
 fn atLastDot(named : String) : #(String, Optional(String)) = {
-    let #(leading, rest) = List.span(parts(named, "."), String.isEmpty);
+    let #(leading, rest) = List.splitWhile(parts(named, "."), String.isEmpty);
     match rest {
         _ :: _ :: _ -> #(String.join(leading <> List.dropLast(rest, 1), "."), List.last(rest))
       | _ -> #(named, None)
@@ -208,7 +208,7 @@ export fn withoutExtension(path : Path) : Path =
 // empty, and the parts are joined again as they were.
 fn extended(path : Path, suffix : String) : Path = {
     let reversed = List.reverse(parts(toString(path), separator()));
-    let #(trailing, before) = List.span(reversed, String.isEmpty);
+    let #(trailing, before) = List.splitWhile(reversed, String.isEmpty);
     match before {
         named :: earlier -> {
             let #(stem, _) = atLastDot(named);

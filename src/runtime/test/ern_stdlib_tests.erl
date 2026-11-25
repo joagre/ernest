@@ -46,7 +46,7 @@ list_test() ->
     ?assertEqual([20], List(filterMap)([1, 2], fun(1) -> 'None'; (X) -> {'Some', X * 10} end)),
     ?assertEqual(6, List(foldLeft)([1, 2, 3], 0, fun(A, X) -> A + X end)),
     ?assertEqual('Unit', List(forEach)([1], fun(_) -> 'Unit' end)),
-    ?assertEqual({[1, 2], [3, 1]}, List(span)([1, 2, 3, 1], fun(X) -> X < 3 end)),
+    ?assertEqual({[1, 2], [3, 1]}, List(splitWhile)([1, 2, 3, 1], fun(X) -> X < 3 end)),
     ?assertEqual({[1, 2, 1], [3]}, List(partition)([1, 2, 3, 1], fun(X) -> X < 3 end)),
     %% the predicate meets the elements in order; a regression test, it met
     %% them from the last
@@ -139,6 +139,25 @@ minimum_and_maximum_by_test() ->
     put(keyed, []),
     ?assertEqual({'Some', 1}, List(minimumBy)([3, 1, 2], Seen, Compare)),
     ?assertEqual([3, 1, 2], lists:reverse(get(keyed))).
+
+%% report Appendix E.2, E.0 rule 2, §4.9: minimum and maximum answer the
+%% element that is least or greatest by its type's compare, which the
+%% compiler supplies after the list, None for the empty list, and the first
+%% of the elements the order calls Equal. A regression test, written with
+%% the code
+minimum_and_maximum_test() ->
+    List = ern_named:functions('ern@list'),
+    Compare = ern_named:function('ern@int', compare),
+    ?assertEqual({'None', 'None'}, {List(minimum)([], Compare), List(maximum)([], Compare)}),
+    ?assertEqual({{'Some', 7}, {'Some', 7}},
+                 {List(minimum)([7], Compare), List(maximum)([7], Compare)}),
+    ?assertEqual({{'Some', 1}, {'Some', 3}},
+                 {List(minimum)([3, 1, 2], Compare), List(maximum)([3, 1, 2], Compare)}),
+    %% an order by the years alone, which calls bo and cy Equal, and ann and di
+    ByYears = fun({_, Years}, {_, Others}) -> Compare(Years, Others) end,
+    Ages = [{bo, 3}, {ann, 1}, {cy, 3}, {di, 1}],
+    ?assertEqual({{'Some', {ann, 1}}, {'Some', {bo, 3}}},
+                 {List(minimum)(Ages, ByYears), List(maximum)(Ages, ByYears)}).
 
 %% report §12.2: foreign code receives a Map as a map from each key's term to
 %% its value's term, and a Set as {set, S}, S a version 2 set, which is a map
@@ -1698,44 +1717,54 @@ float_to_string_test() ->
     [?assertEqual({'Some', Number}, String(toFloat)(Float(toString)(Number)))
      || {Number, _} <- Cases].
 
-%% report Appendix E.13: the same seed gives the same sequence, every draw
-%% is within the bounds on either side of zero, and the seed moves
+%% report Appendix E.13: the same seed gives the same sequence, the seed
+%% answered first and moved, and every draw from 0 to below the bound, each
+%% of them met; a bound of 1 draws 0
 random_test() ->
     Random = ern_named:functions('ern@random'),
     Draw = fun Draw(_, _, 0) -> [];
                Draw(Seed, Bound, Count) ->
-                   {Drawn, Seed1} = Random(nextInt)(Seed, Bound),
-                   [Drawn | Draw(Seed1, Bound, Count - 1)]
+                   {Next, Drawn} = Random(nextInt)(Seed, Bound),
+                   [Drawn | Draw(Next, Bound, Count - 1)]
            end,
-    Draws = Draw(Random(seed)(42), 5, 200),
-    ?assertEqual(Draws, Draw(Random(seed)(42), 5, 200)),
-    ?assert(lists:all(fun(Drawn) -> Drawn >= 0 andalso Drawn =< 5 end, Draws)),
+    Draws = Draw(Random(seed)(42), 6, 200),
+    ?assertEqual(Draws, Draw(Random(seed)(42), 6, 200)),
     ?assertEqual([0, 1, 2, 3, 4, 5], lists:usort(Draws)),
-    NegativeDraws = Draw(Random(seed)(42), -3, 200),
-    ?assertEqual([-3, -2, -1, 0], lists:usort(NegativeDraws)),
-    ?assertEqual([0, 0], Draw(Random(seed)(1), 0, 2)),
-    {_, Seed1} = Random(nextInt)(Random(seed)(7), 1),
-    ?assertNotEqual(Random(seed)(7), Seed1).
+    ?assertEqual([0, 0], Draw(Random(seed)(1), 1, 2)),
+    {Next, _} = Random(nextInt)(Random(seed)(7), 1),
+    ?assertNotEqual(Random(seed)(7), Next),
+    {Moved, Fraction} = Random(nextFloat)(Random(seed)(7)),
+    ?assertNotEqual(Random(seed)(7), Moved),
+    ?assert(Fraction > 0.0 andalso Fraction < 1.0).
+
+%% report Appendix E.13, §7.4: a bound below 1 faults with its cause, 0 and
+%% a negative bound alike, where a negative bound drew from the bound to 0.
+%% A regression test, written with the bound excluded
+random_bound_below_one_test() ->
+    Random = ern_named:functions('ern@random'),
+    [?assertThrow({ern, fault, <<"a bound is 1 or above">>},
+                  Random(nextInt)(Random(seed)(42), Bound))
+     || Bound <- [0, -1, -3]].
 
 %% report Appendix E.13: the generator is SplitMix64, so a seed's draws are
-%% the reference sequence: from 0, a draw over the whole 64-bit range is the
-%% reference output itself, and a seed names its number's low 64 bits. A
-%% regression test, written with the move from the host's `exsss`, whose
-%% sequence no report could promise.
+%% the reference sequence: from 0, a draw below 2^64, the whole 64-bit
+%% range, is the reference output itself, and a seed names its number's
+%% low 64 bits. A regression test, written with the move from the host's
+%% `exsss`, whose sequence no report could promise.
 random_splitmix64_test() ->
     Random = ern_named:functions('ern@random'),
-    Whole = 16#FFFF_FFFF_FFFF_FFFF,
-    {First, Seed1} = Random(nextInt)(Random(seed)(0), Whole),
-    {Second, Seed2} = Random(nextInt)(Seed1, Whole),
-    {Third, _} = Random(nextInt)(Seed2, Whole),
+    Whole = 1 bsl 64,
+    {Seed1, First} = Random(nextInt)(Random(seed)(0), Whole),
+    {Seed2, Second} = Random(nextInt)(Seed1, Whole),
+    {_, Third} = Random(nextInt)(Seed2, Whole),
     ?assertEqual([16#E220A8397B1DCDAF, 16#6E789E6AA1B965F4, 16#06C45D188009454F],
                  [First, Second, Third]),
     ?assertEqual(Random(seed)(5), Random(seed)(5 + (1 bsl 64))),
-    {Fraction, _} = Random(nextFloat)(Random(seed)(0)),
+    {_, Fraction} = Random(nextFloat)(Random(seed)(0)),
     ?assertEqual((float(16#E220A8397B1DCDAF bsr 12) + 0.5) / 4503599627370496.0, Fraction),
     %% a bound beyond 64 bits draws from as many words as it needs
-    {Big, _} = Random(nextInt)(Random(seed)(1), 1 bsl 100),
-    ?assert(Big >= 0 andalso Big =< 1 bsl 100).
+    {_, Big} = Random(nextInt)(Random(seed)(1), 1 bsl 100),
+    ?assert(Big >= 0 andalso Big < 1 bsl 100).
 
 %% report Appendix E.14: Path's edge cases, now that it is Ernest over String
 %% and two primitives: a trailing separator, an absolute second operand, the
@@ -1913,8 +1942,9 @@ ordered_set_test() ->
     ?assertEqual([1], Set(toList)(Set(difference)(Small, Other, Compare))),
     ?assertEqual({true, false}, {Set(isSubset)(Set(fromList)([3], Compare), Small, Compare),
                                  Set(isSubset)(Other, Small, Compare)}),
-    ?assertEqual({{'Some', 1}, {'Some', 3}, 'None'}, {Set(min)(Small), Set(max)(Small),
-                                                      Set(min)(Set(empty)())}),
+    ?assertEqual({{'Some', 1}, {'Some', 3}, 'None', 'None'},
+                 {Set(minimum)(Small), Set(maximum)(Small), Set(minimum)(Set(empty)()),
+                  Set(maximum)(Set(empty)())}),
     %% map and filterMap take the result's order
     ?assertEqual([0, 1], Set(toList)(Set(map)(Small, fun(X) -> X div 2 end, Compare))),
     Tens = fun(1) -> 'None'; (X) -> {'Some', X * 10} end,
@@ -1959,4 +1989,9 @@ ordered_map_test() ->
                  Map(toList)(Map(map)(Ages, fun(Key, _) -> Key end))),
     ?assertEqual([{2, c}], Map(toList)(Map(filter)(Ages, fun(Key, _) -> Key > 1 end))),
     ?assertEqual(3, Map(foldLeft)(Ages, 0, fun(Acc, Key, _) -> Acc + Key end)),
-    ?assertEqual({'Some', {2, c}}, Map(find)(Ages, fun(Key, _) -> Key > 1 end)).
+    ?assertEqual({'Some', {2, c}}, Map(find)(Ages, fun(Key, _) -> Key > 1 end)),
+    %% report Appendix E.26: the entries of the least and the greatest key,
+    %% None for the empty map. A regression test, written with the code
+    ?assertEqual({{'Some', {1, a}}, {'Some', {2, c}}, 'None', 'None'},
+                 {Map(minimum)(Ages), Map(maximum)(Ages), Map(minimum)(Map(empty)()),
+                  Map(maximum)(Map(empty)())}).

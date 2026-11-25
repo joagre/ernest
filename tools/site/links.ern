@@ -175,7 +175,7 @@ fn numberKey(found : String) : String = {
 fn fragmentKey(fragment : String) : String =
     match String.stripPrefix(fragment, "appendix-") {
         Some(rest) -> {
-            let #(run, _) = List.span(String.toList(rest), isAsciiLetterOrDigit);
+            let #(run, _) = List.splitWhile(String.toList(rest), isAsciiLetterOrDigit);
             "appendix-" <> String.fromList(run)
         }
       | None -> {
@@ -221,7 +221,7 @@ fn appendixNumber(chars : List(Char)) : Optional(String) =
     }
 
 fn digitRun(chars : List(Char)) : #(List(Char), List(Char)) =
-    List.span(chars, Char.isAsciiDigit)
+    List.splitWhile(chars, Char.isAsciiDigit)
 
 fn isCapital(char : Char) : Bool =
     char >= 'A' && char <= 'Z'

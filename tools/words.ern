@@ -249,7 +249,7 @@ fn isBullet(chars : List(Char)) : Bool =
 // The characters after the digits the characters begin with, or `None`
 // where they begin with none.
 fn afterNumber(chars : List(Char)) : Optional(List(Char)) = {
-    let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+    let #(digits, rest) = List.splitWhile(chars, Char.isAsciiDigit);
     if List.isEmpty(digits) then None else Some(rest)
 }
 
@@ -300,7 +300,7 @@ fn commentOf(line : String) : Optional(String) = {
     else
         None;
     Optional.map(marker, fn(mark) = {
-        let #(_, rest) = List.span(String.toList(trimmed), fn(char) = char == mark);
+        let #(_, rest) = List.splitWhile(String.toList(trimmed), fn(char) = char == mark);
         match rest {
             ' ' :: text -> String.fromList(text)
           | '\t' :: text -> String.fromList(text)

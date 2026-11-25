@@ -1016,7 +1016,7 @@ took 7
 
 A `Put` answers the first caller waiting, and a `Take` answers at once or keeps its reply in the list. `main` cannot make the call itself, since the answer comes only after the `Put`, which `main` sends. So a helper process makes the call and sends the answer on to `main` as `Took(item)`, and `main` puts the item and waits for `Took`. A process that must keep receiving while an answer is on its way calls from such a helper; one with nothing else to do calls.
 
-A kept reply outlives a caller that ends. `Reply.process(reply)` is the caller's `Process`, the identity of a process, which §5.2 teaches, and which the server may monitor to drop the reply of a caller that has ended (report §6.6).
+A kept reply outlives a caller that ends. `Process.fromReply(reply)` is the caller's `Process`, the identity of a process, which §5.2 teaches, and which the server may monitor to drop the reply of a caller that has ended (report §6.6).
 
 **A library that waits.** A function that receives is tied to the mailbox type of the process it runs in, so a function that must wait on messages of its own, from whatever process calls it, is a process and a call. The library spawns a process whose mailbox is its own, and the caller gets the result by a call, which leaves the caller's mailbox as it was. `gathered` runs `f` on each number in a process of its own and collects the pieces as they come, in any process. It uses `Process.run`, which §5.2 teaches: a function run in a process of its own, answered by its value or by how the process ended:
 
@@ -1410,7 +1410,7 @@ job 2: 4
 
 A test that asks a server what it did with a `Down` has nothing to wait on: the `Down` has no order with the test's own request, so the server may answer before it has seen the death. `Test.until(fn() = Test.equal(Address.call(server, Count, 1000), Some(1)), 1000)` runs the test again until it passes or the milliseconds end, and answers the last outcome (report Appendix E.24): the test waits for the effect it means, and the milliseconds only bound the wait.
 
-`Process.live()` lists the live processes, `Process.status(process)` tells where one was spawned, how many messages wait for it, whether it runs, waits in a `receive` or calls, on whom and since when, and the bytes it holds, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
+`Process.live()` lists the live processes, `Process.status(process)` tells where one was spawned, how many messages wait for it, whether it runs, waits in a `receive` or calls, on whom and since when, and the bytes it holds, and `Process.subscribeFaults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
 A fault in one process does not affect another, apart from the cases §6.3 lists.
 
@@ -1433,7 +1433,7 @@ A delivery that foreign code arranges for after its call has returned, from a ti
 
 The fault's trace is the entry process's. A waiting frame names the line of the last call before the wait, since a wait leaves no frame of its own (report Appendix E.21): in a function that spawns and then waits in a `receive`, the frame names the `spawn`'s line.
 
-Beneath the trace the report lists the other processes left waiting, a line for each group with one spawn site, one frame they wait in and one callee, with their count. A process waiting in a call has the call's callee, which the line names by its spawn site after `on`. One waiting in a `receive` has none. [`examples/lease_broker.ern`](../examples/lease_broker.ern) run with the argument `deadlock` writes so of its three clients, which call the broker: `3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367 on LeaseBroker.broker:160` (report §12.4).
+Beneath the trace the report lists the other processes left waiting, a line for each group with one spawn site, one frame they wait in and one callee, with their count. A process waiting in a call has the call's callee, which the line names by its spawn site after `on`. One waiting in a `receive` has none. [`examples/lease_broker.ern`](../examples/lease_broker.ern) run with the argument `deadlock` writes so of its three clients, which call the broker: `3 processes of LeaseBroker.started:350 wait in LeaseBroker.holding:368 on LeaseBroker.broker:160` (report §12.4).
 
 A node detects no deadlock, so a program started with `--config-dir` goes on waiting where every process waits, and a wait on another node's process, which only a node can make, is never found to be one (report §8.6). Nor does a shell detect one while it holds the terminal (report §11.2).
 
@@ -1471,7 +1471,7 @@ fn startWorker() : Unit receiving GameMsg = {
 
 A library is used the same way, written against a message type of its own, so a program never needs one message type for all its processes.
 
-**Whatever arrives later is delivered so too.** Wherever something arrives later, the function that asks for it takes the function that makes your message from its own (report Appendix E.0 shape rule 8): `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(time)` in your mailbox after `ms` milliseconds, `time` the moment it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`.
+**Whatever arrives later is delivered so too.** Wherever something arrives later, the function that asks for it takes the function that makes your message from its own (report Appendix E.0 shape rule 8): `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(time)` in your mailbox after `ms` milliseconds, `time` the moment it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.subscribeFaults(wrap)`.
 
 A constructor with one positional field is a function value, so `Clock.alarm(100, Ticked)` delivers `Ticked(time)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
 
@@ -1745,11 +1745,11 @@ the worker spawned at Faults.main:10 faulted: division by zero
 
 Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace ends with the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
-A frame of the standard library's own Ernest names its line in the library's source, `Process.run:299` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+A frame of the standard library's own Ernest names its line in the library's source, `Process.run:326` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
-Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults no process, but one waiting in `Address.callForever` on one of its processes (§8.2, report §8.7). A fault in a process that a `callForever` waits on faults the caller with the same cause, and the caller's line names the callee's spawn site after the cause, `, the fault of the callee` and the site; a `Down` of the caller carries the cause alone (report §6.6, report §11.2).
+Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.subscribeFaults`, is the fault of the process the message is for. The loss of a peer faults no process, but one waiting in `Address.callForever` on one of its processes (§8.2, report §8.7). A fault in a process that a `callForever` waits on faults the caller with the same cause, and the caller's line names the callee's spawn site after the cause, `, the fault of the callee` and the site; a `Down` of the caller carries the cause alone (report §6.6, report §11.2).
 
 A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
@@ -1786,7 +1786,7 @@ $ ern run tasks.erc
 Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
     Tasks.supervise:6
-    Process.run:299
+    Process.run:326
 0: failed, division by zero
 5: 20
 all jobs done
@@ -2247,7 +2247,7 @@ export fn main() : Unit = {
     let small = OrderedSet.fromList([3, 1, 3]);
     let both = OrderedSet.union(small, OrderedSet.fromList([2]));
     Io.println(Io.show(OrderedSet.toList(both)));
-    Io.println(Io.show(OrderedSet.min(both)));
+    Io.println(Io.show(OrderedSet.minimum(both)));
     Io.println(Bool.toString(both == OrderedSet.fromList([2, 3, 1])));
     let doubled = OrderedSet.map(both, fn(n) = n * 2);
     Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
@@ -2329,7 +2329,7 @@ $ ern run common.erc
 
 `Operations(..Set)` fills the record from the namespace `Set`: each field not given beside the namespace is the declaration of its name there, at the field's type. `Operations(..OrderedSet)` fills it from `OrderedSet`, where `fromList`'s requirement is met with `Int.compare`, since the record's type fixes `a`. A field the namespace lacks, or one of another type, is refused where the record is built (report §5.6).
 
-`common` is an ordinary function over the record, and `operations.fromList` a field read, which the parameter's annotation makes possible (§3.3). It is written once and called with either record, so the caller chooses the representation at each call. The standard library declares no such record: a program declares the one it needs, three fields here, and reaches what a representation has beyond it, `OrderedSet.min`, through its module.
+`common` is an ordinary function over the record, and `operations.fromList` a field read, which the parameter's annotation makes possible (§3.3). It is written once and called with either record, so the caller chooses the representation at each call. The standard library declares no such record: a program declares the one it needs, three fields here, and reaches what a representation has beyond it, `OrderedSet.minimum`, through its module.
 
 **A record of closures.** An operations record keeps the representations apart: a list of sets is a list of one representation. Where values of different representations are to meet in one list or one message, a record of a second kind hides the representation. Its fields are functions that close over the value:
 
@@ -2652,12 +2652,12 @@ type Msg = Request(Counter.Msg) | Terminating(Reply(Unit)) | HolderEnded(Down)
 type Ended = Ended(Down)
 
 let counter : Address(Msg) = spawn(fn() = {
-    Os.termination(Terminating);
+    Os.subscribeTermination(Terminating);
     serve()
 })
 
 // The counter offered as the service, each request wrapped in `Request`, and told of the
-// program's end through `Os.termination` (*The end*, below),
+// program's end through `Os.subscribeTermination` (*The end*, below),
 // and counting on from the count kept. Where a process holds the service,
 // the counter waits for its end, its requests waiting in its mailbox, and
 // offers again, so that it reads the count the holder kept last.
@@ -2813,7 +2813,7 @@ The address outlives the loss: once the nodes connect again, which the next oper
 
 Nodes of different builds connect, since the floor and not the build is what the handshake proves (report §8.7).
 
-**The end.** `ern stop` is termination, as a service manager's stop is ([*Running Ernest*, section 1.5](deployment.md#15-under-a-service-manager)), and the counter itself is told of it: `Os.termination(Terminating)` subscribes the calling process, and at the end the runtime puts `Terminating(reply)` in its mailbox, waits until the reply is answered, and only then ends the program. Every end tells the subscribers, a return of `main`, an `Os.exit` and a termination alike, but the caller of the `Os.exit` that began it, which is neither told nor waited for (report §8.6).
+**The end.** `ern stop` is termination, as a service manager's stop is ([*Running Ernest*, section 1.5](deployment.md#15-under-a-service-manager)), and the counter itself is told of it: `Os.subscribeTermination(Terminating)` subscribes the calling process, and at the end the runtime puts `Terminating(reply)` in its mailbox, waits until the reply is answered, and only then ends the program. Every end tells the subscribers, a return of `main`, an `Os.exit` and a termination alike, but the caller of the `Os.exit` that began it, which is neither told nor waited for (report §8.6).
 
 Told, the counter writes its total to `count.new` beside the kept file, renames it over `count`, answers, and ends; a rename replaces a file whole, so a reader of `count` sees the old count or the new, whole, and never a part (report Appendix E.17).
 
@@ -3174,7 +3174,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 - `ern run hello.erc` runs `main` and exits with status 0 when it returns. Every fault is printed on standard error as it happens, the spawn site and the cause, and a fault of the entry process makes the status 1 (§6.3); an entry process that is killed prints its site and `killed`, `Hello.main killed`, and the status is 1.
 
-  A termination tells the processes that subscribed with `Os.termination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
+  A termination tells the processes that subscribed with `Os.subscribeTermination` first (§8.2), and the runtime says on standard error that it waits for them and each as it answers; of the signal itself it prints nothing, and `ern run` ends by it, which a shell reports as 128 plus its number, 143 for a termination.
 - `--main Module.name` runs another exported function of no arguments instead of `main`.
 - `--load-path dir` adds compiled modules and Erlang `.beam` files the program needs (§8.5); the toolchain's libraries are on the load path already, after it.
 - `--libs-dir dir` adds the Erlang applications under `dir`, each one's `ebin`: one flag where a program's foreign functions call several of them (report §11.2).

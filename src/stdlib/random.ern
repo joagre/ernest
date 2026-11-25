@@ -5,7 +5,7 @@
 /// cryptographic, and its draws can be predicted from earlier ones.
 ///
 /// **A seed is carried.** `seed` makes a `Seed` from a number, and each draw
-/// answers a number and the seed to draw with next. There is no hidden state
+/// answers the seed to draw with next and a number. There is no hidden state
 /// and no process, so a draw depends on its seed alone (report Appendix E.13), and
 /// the same seed gives the same sequence on every node and every version. A
 /// program that wants a sequence that differs between runs seeds from
@@ -17,8 +17,8 @@
 ///
 /// ```ernest
 /// {
-///     let #(first, seed) = Random.nextInt(Random.seed(2026), 5);
-///     let #(second, _) = Random.nextInt(seed, 5);
+///     let #(seed, first) = Random.nextInt(Random.seed(2026), 6);
+///     let #(_, second) = Random.nextInt(seed, 6);
 ///     #(first + 1, second + 1)
 /// }
 /// // => #(2, 6)
@@ -53,25 +53,32 @@ export abstract type Seed = Seed(Int)
 export fn seed(int : Int) : Seed =
     Seed(Int.bitAnd(int, mask))
 
-/// A number from 0 to `bound`, both included, and the seed to draw with next. A
-/// negative `bound` draws from `bound` to 0, and a `bound` of 0 always draws 0.
-/// Every number in the range is equally likely.
+/// The seed to draw with next, and a number from 0 to below `bound`, each
+/// equally likely: a die is `nextInt(seed, 6)` plus 1.
+///
+/// ### Errors
+///
+/// Faults where `bound` is below 1, with the cause `a bound is 1 or above`
+/// (report §7.4).
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let #(x, _) = Random.nextInt(Random.seed(1), -3);
-///     x <= 0 && x >= -3
+///     let #(_, drawn) = Random.nextInt(Random.seed(1), 3);
+///     drawn >= 0 && drawn < 3
 /// }
 /// // => true
 /// ```
 ///
 /// since 0.4.0
-export fn nextInt(seed : Seed, bound : Int) : #(Int, Seed) = {
-    let #(drawn, seed) = below(seed, Int.abs(bound) + 1);
-    if bound < 0 then #(-drawn, seed) else #(drawn, seed)
-}
+export fn nextInt(seed : Seed, bound : Int) : #(Seed, Int) =
+    if bound < 1 then
+        fault("a bound is 1 or above")
+    else {
+        let #(drawn, seed) = below(seed, bound);
+        #(seed, drawn)
+    }
 
 // A number from 0 to below `bound`, from as many 64-bit draws as span
 // `bound`, those at or above the largest multiple of `bound` the draws can
@@ -107,21 +114,21 @@ fn splitMix(seed : Seed) : #(Int, Seed) =
         }
     }
 
-/// A number above 0.0 and below 1.0, and the seed to draw with next. It never
+/// The seed to draw with next, and a number above 0.0 and below 1.0. It never
 /// draws 0.0 or 1.0, and its draws are evenly spaced, 2^-52 apart.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let #(x, _) = Random.nextFloat(Random.seed(3));
-///     x > 0.0 && x < 1.0
+///     let #(_, drawn) = Random.nextFloat(Random.seed(3));
+///     drawn > 0.0 && drawn < 1.0
 /// }
 /// // => true
 /// ```
-export fn nextFloat(seed : Seed) : #(Float, Seed) = {
+export fn nextFloat(seed : Seed) : #(Seed, Float) = {
     let #(draw, seed) = splitMix(seed);
-    #((Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / fractionSpan, seed)
+    #(seed, (Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / fractionSpan)
 }
 
 let mask = 0xFFFF_FFFF_FFFF_FFFF

@@ -37,7 +37,7 @@ A case the value's shape rules out is not given a value. The site asks in a form
 The names that recur in a program, one for each concept, in every module. The report is the authority: a concept it names takes its name, and a citation such as E.5 names a section of its Appendix E, and E.0's admission and shape rules their number. A name not here is the writer's.
 
 - A function's **subject** is named for what it is, `list`, `text`, `map`, `set`, `bytes`, `path`, `table`, `process`. Not `xs`, `s`, `m`, `b`, `r`, `t`, `p`.
-- A **callback** is named for its role: `keep` for a predicate that keeps, `test` for one asked of each element, as `any`, `all`, `find`, `span` and `partition` ask it, `step` for what a fold or a `try` function, `List.tryMap`, runs over each element (E.0 rule 2), `wrap` for the function a caller gives to make its own message from what arrives later, a `Down`, an alarm (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
+- A **callback** is named for its role: `keep` for a predicate that keeps, `test` for one asked of each element, as `any`, `all`, `find`, `splitWhile` and `partition` ask it, `step` for what a fold or a `try` function, `List.tryMap`, runs over each element (E.0 rule 2), `wrap` for the function a caller gives to make its own message from what arrives later, a `Down`, an alarm (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
 - **acc**: what a fold or a recursion carries. Not `done`.
 - **reply**: a `Reply`. Not `r`.
 - **index**: a place in a sequence, counted from 0 (E.2, E.5); a place in a file is an `offset` (E.17). Not `i`, `from`, `start`.

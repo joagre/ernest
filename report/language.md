@@ -832,7 +832,7 @@ export let log : Address(LogMsg) =
 
 A request carries a `Reply(a)`, a one-shot address for its answer. `Address.call`, `Address.callForever` and `answer` are the prelude's, and §9.5 lists their types.
 
-`Address.call(address, request, ms)` allocates a fresh `r : Reply(a)`, sends `request(r)` to `address`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds, `ms` corrected as §7.4 says. `Reply.process(r)`, §9.5, is the caller's `Process` (§6.9), with which the callee may monitor its caller; it gives no address, so nothing is sent through it. The clock starts at the call. `request(r)` is evaluated in the caller and sent from there as `send` sends it (§6.5). `ms` bounds the wait for the answer and nothing before it: the request is evaluated and sent though the `ms` milliseconds have passed, and a wait that begins after they have passed ends at once. A reply that arrives together with the timeout may be delivered or discarded. `Address.callForever(address, request)` waits without limit and returns `a`. A callee that lives on without answering holds a `callForever` caller for as long as it lives.
+`Address.call(address, request, ms)` allocates a fresh `r : Reply(a)`, sends `request(r)` to `address`, and returns `Some(v)` when the recipient answers or `None` after `ms` milliseconds, `ms` corrected as §7.4 says. `Process.fromReply(r)`, Appendix E.21, is the caller's `Process` (§6.9), with which the callee may monitor its caller; it gives no address, so nothing is sent through it. The clock starts at the call. `request(r)` is evaluated in the caller and sent from there as `send` sends it (§6.5). `ms` bounds the wait for the answer and nothing before it: the request is evaluated and sent though the `ms` milliseconds have passed, and a wait that begins after they have passed ends at once. A reply that arrives together with the timeout may be delivered or discarded. `Address.callForever(address, request)` waits without limit and returns `a`. A callee that lives on without answering holds a `callForever` caller for as long as it lives.
 
 Where more waits to be sent to the callee's node than §8.7 states, either call waits as a `send` waits there, before its wait for the answer begins and after that wait has ended, and returns or faults only once it waits so no longer.
 
@@ -1034,7 +1034,7 @@ An initializer that faults (§7.4) ends the program with that fault before `main
 
 The program ends when the entry process dies, whatever the reason (§6.9), a fault being reported on the runtime's exit indicator, when any of its processes calls `Os.exit`, which gives the status the runtime exits with (Appendix E.23), when its standard output or standard error can no longer be written or its keys can no longer be read (§12.1), or, on a node, when its carrier cannot start (§12.5). A bare node ends as a program does, but never by its entry process's return (§8.1).
 
-Before it ends by any of these, or by termination, the runtime tells the processes that subscribed with `Os.termination` (Appendix E.23): each is sent `wrap(reply)` in its own mailbox type, delivered as a monitor's `Down` is (§6.9), and the end waits until every reply is answered or its subscriber has ended or restarted; nothing of the runtime's own times the wait. The caller of an `Os.exit` that began the end is neither told nor waited for: its subscription ends at the call. A subscriber whose delivery foreign code kills before it arrives is waited for no longer. What the runtime says of the wait is §11.2's.
+Before it ends by any of these, or by termination, the runtime tells the processes that subscribed with `Os.subscribeTermination` (Appendix E.23): each is sent `wrap(reply)` in its own mailbox type, delivered as a monitor's `Down` is (§6.9), and the end waits until every reply is answered or its subscriber has ended or restarted; nothing of the runtime's own times the wait. The caller of an `Os.exit` that began the end is neither told nor waited for: its subscription ends at the call. A subscriber whose delivery foreign code kills before it arrives is waited for no longer. What the runtime says of the wait is §11.2's.
 
 Every process runs while the end waits, and a peer finds, calls and sends to the node as before (§8.7). A subscription made while the end waits is told at once. The end goes on without a subscriber that faults, whether it ends or restarts (§6.9), one the end cannot tell for want of room among them (§7.4). A process that waits with nothing in flight while the end waits is no deadlock. While the end waits, what began it stands: the entry process's end, a stream that can no longer be written and keys that can no longer be read change nothing.
 
@@ -1128,7 +1128,7 @@ A node trusts each peer it lists. A peer runs what it is sent as its own code: a
 
 **A compute.** `Peer.compute(name, f, ms)` asks the peer named `name` to run `f()` in a process it starts as it starts a spawned one, recording the compute's site for it, the declaration and the line where the `Peer.compute` or `Peer.computeAnywhere` is written (§6.9), and to answer `f`'s value to the caller as a call is answered; the process ends as its function returns (§6.9); what the compute answers, and within what time, is Appendix E.27's. `Peer.computeAnywhere(f, ms)` names no peer: the node draws one by the utilizations it holds (**A utilization**) and sends it the same frame.
 
-A fault in `f` is the caller's: the fault crosses to the caller, its cause and its trace (Appendix E.21), and the caller faults with that cause and with that trace followed by the caller's frame where the compute is written, which its node reports as it reports any fault of the caller, the peer named after the cause (§11.2); the process dies of the fault as any process does (§6.9), and the peer writes nothing of it and tells no subscriber of `Process.faults`. Where `f` is `restarting` over a function (§6.9), a restart does not end the compute: a fault it restarts is the process's own, reported on the peer, and the caller waits for the run that answers.
+A fault in `f` is the caller's: the fault crosses to the caller, its cause and its trace (Appendix E.21), and the caller faults with that cause and with that trace followed by the caller's frame where the compute is written, which its node reports as it reports any fault of the caller, the peer named after the cause (§11.2); the process dies of the fault as any process does (§6.9), and the peer writes nothing of it and tells no subscriber of `Process.subscribeFaults`. Where `f` is `restarting` over a function (§6.9), a restart does not end the compute: a fault it restarts is the process's own, reported on the peer, and the caller waits for the run that answers.
 
 The value crosses back at the type the compiler checked at the compute, `f`'s result type as §3.11 reads it, an instance of the one the peer holds in `f`'s form (Appendix H).
 
@@ -1210,7 +1210,6 @@ adapted             : (Address(b), (a) -> b) -> Address(a)
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a)
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a
 answer              : (Reply(a), a) -> Unit
-Reply.process       : (Reply(a)) -> Process
 restarting          : (RestartLimit, () -> Unit receiving n) -> () -> Unit receiving n
 monitor             : (Process, (Down) -> m) -> Unit receiving m
 monitorService      : (Process, (Down) -> m) -> Unit receiving m
@@ -1580,7 +1579,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **statement** — a part of a block, an expression, a `let`, or a `fn`. §5.4.
 - **strategy** — what a `Supervisor`'s group restarts when a child faults. Appendix E.22.
 - **structural equality** — the meaning of `==`: two values are equal when they are built by the same constructor from equal parts, and a foreign type's and a `Process`'s equality is exact. §3.10.
-- **subscriber** — a process that asked to be told: of the program's end, by `Os.termination`, told and waited for at the end; of the terminal's events; of faults. §8.6, §12.1, Appendix E.21, E.23.
+- **subscriber** — a process that asked to be told: of the program's end, by `Os.subscribeTermination`, told and waited for at the end; of the terminal's events; of faults. §8.6, §12.1, Appendix E.21, E.23.
 - **subscription** — a process's standing request to be told of the terminal's events, of faults, or of the program's end, ended when the process dies or restarts, or at its own call of `Os.exit`. §6.9, §8.6, §12.1, Appendix E.21, E.23.
 - **sum type** — a type with one or more constructors. §3.5.
 - **supervisor** — a process that restarts a group of processes, its children, together; the standard library's `Supervisor`. Appendix E.22.

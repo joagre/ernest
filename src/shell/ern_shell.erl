@@ -589,8 +589,8 @@ reader_session() ->
 
 %% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
 %% not entered, and nothing where the shell was started with no file. A
-%% fault in it reaches the session through Process.faults, to which the
-%% session subscribed before (E.21).
+%% fault in it reaches the session through its subscription to faults,
+%% which it made with Process.subscribeFaults before (E.21).
 -spec spawn_program() -> 'Unit'.
 spawn_program() ->
     case persistent_term:get({?MODULE, loaded}, #loaded{}) of

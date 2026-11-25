@@ -480,27 +480,6 @@ values() ->
       spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
       ```
       """/utf8>>},
-     {['Reply', process], "(Reply(a)) -> Process",
-      <<"""
-      The caller waiting on `reply`, as a `Process`: the callee may watch it
-      with `monitor`, or compare it with another (report §6.6).
-
-      It gives no address, so nothing is sent through it; the answer goes
-      through the reply alone.
-
-      ### Examples
-
-      ```ernest
-      {
-          let echo = spawn(fn() = receive {
-              r -> answer(r, Reply.process(r) == Process.current())
-          });
-          Address.callForever(echo, fn(r) = r)
-      }
-      ```
-
-      since 0.5.0
-      """/utf8>>},
      {[restarting], "(RestartLimit, () -> Unit receiving n) -> () -> Unit receiving n",
       <<"""
       A function that runs `f`, and runs it again in the same process each time
@@ -713,7 +692,6 @@ parameters([adapted]) -> [target, wrap];
 parameters(['Address', call]) -> [address, request, ms];
 parameters(['Address', callForever]) -> [address, request];
 parameters([answer]) -> [reply, value];
-parameters(['Reply', process]) -> [reply];
 parameters([restarting]) -> [limit, f];
 parameters([monitor]) -> [process, wrap];
 parameters([monitorService]) -> [process, wrap];
@@ -724,9 +702,9 @@ parameters([compare]) -> [left, right];
 parameters(_) -> none.
 
 %% Report §4.2, §9.5, §9.6: the prelude's types whose namespace the
-%% prelude fills, with their members or, `Address` and `Reply`, functions
-%% of their own, each a namespace of the prelude beside `Prelude`; any
-%% other prelude type takes none.
+%% prelude fills, with their members or, `Address`, functions of its own,
+%% each a namespace of the prelude beside `Prelude`; any other prelude
+%% type takes none, `Reply` and `Down` among them.
 -spec member_types() -> [atom()].
 member_types() ->
     lists:usort([hd(QualifiedName) || {QualifiedName, _, _} <- values(),

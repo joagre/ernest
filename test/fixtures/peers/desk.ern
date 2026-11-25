@@ -1108,7 +1108,7 @@ foreign fn pings(process : Process, count : Int) : Float =
 // watcher says so; and, last, one that ends with the store's program, once
 // the test has stopped the store.
 fn computes() : Unit receiving Msg = {
-    Process.faults(Reported);
+    Process.subscribeFaults(Reported);
     Io.println("value: " <> Io.show(Peer.compute("store", fn() = 6 * 7, Harness.waitMs())));
     Io.println("not listed: " <> Io.show(Peer.compute("nobody", fn() = 6 * 7, Harness.waitMs())));
     Io.println("not loaded: " <> Io.show(Peer.compute("store", Lonely.speak, Harness.waitMs())));

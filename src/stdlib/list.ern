@@ -402,16 +402,19 @@ export fn dropLast(list : List(a), count : Int) : List(a) =
 /// ### Examples
 ///
 /// ```ernest
-/// List.span([1, 2, 3, 1], fn(n) = n < 3)
+/// List.splitWhile([1, 2, 3, 1], fn(n) = n < 3)
 /// // => #([1, 2], [3, 1])
 /// ```
-export fn span(list : List(a), test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e =
+///
+/// since 0.11.0
+export fn splitWhile(list : List(a),
+                     test : (a) -> Bool receiving e) : #(List(a), List(a)) receiving e =
     match list {
         [] ->
             #([], [])
       | head :: rest ->
             if test(head) then {
-                let #(prefix, suffix) = span(rest, test);
+                let #(prefix, suffix) = splitWhile(rest, test);
                 #(head :: prefix, suffix)
             } else
                 #([], list)
@@ -560,6 +563,42 @@ type Keyed(k, a) = Keyed(key : k, element : a)
 
 fn Keyed.compare(left : Keyed(k, a), right : Keyed(k, a)) : Ordering needs k.compare =
     compare(left.key, right.key)
+
+/// The least element by the order of its type, or `None` for the empty list
+/// (report §3.10). Of elements `compare` calls `Equal`, the first is answered.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(List.minimum([3, 1, 2]), List.maximum([3, 1, 2]))
+/// // => #(Some(1), Some(3))
+/// ```
+///
+/// since 0.11.0
+export fn minimum(list : List(a)) : Optional(a) needs a.compare =
+    extreme(list, Less)
+
+/// The greatest element by the order of its type, or `None` for the empty
+/// list (report §3.10). Of elements `compare` calls `Equal`, the first is
+/// answered.
+///
+/// since 0.11.0
+export fn maximum(list : List(a)) : Optional(a) needs a.compare =
+    extreme(list, Greater)
+
+// Report Appendix E.2: the first element, kept until a later one is
+// `beyond` it by the order, so that the first of equals stays.
+fn extreme(list : List(a), beyond : Ordering) : Optional(a) needs a.compare =
+    match list {
+        [] -> None
+      | head :: rest -> Some(kept(rest, head, beyond))
+    }
+
+fn kept(list : List(a), chosen : a, beyond : Ordering) : a needs a.compare =
+    match list {
+        [] -> chosen
+      | head :: rest -> kept(rest, if compare(head, chosen) == beyond then head else chosen, beyond)
+    }
 
 /// The element whose `key` is the least by the key type's `compare`, or `None`
 /// for the empty list. Of elements whose keys `compare` calls `Equal`, the

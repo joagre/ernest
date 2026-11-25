@@ -15,9 +15,9 @@
 /// **Equal is one.** Two elements the order calls `Equal` are one element, and
 /// `put` keeps the one already there.
 ///
-/// **Everything in order.** `toList`, `foldLeft`, `forEach`, `find`, `min` and
-/// `max` go in the set's order, and `map`, `filter`, `filterMap`, `any` and
-/// `all` meet the elements in it. A set in another order is a set of another
+/// **Everything in order.** `toList`, `foldLeft`, `forEach`, `find`, `minimum`
+/// and `maximum` go in the set's order, and `map`, `filter`, `filterMap`, `any`
+/// and `all` meet the elements in it. A set in another order is a set of another
 /// type, `type Descending = Descending(Int)` with its own `compare`, and the
 /// two cannot meet.
 ///
@@ -255,14 +255,19 @@ export fn toList(Set(list) : Set(a)) : List(a) =
 /// ### Examples
 ///
 /// ```ernest
-/// #(OrderedSet.min(OrderedSet.fromList([2, 1])), OrderedSet.max(OrderedSet.fromList([2, 1])))
+/// #(OrderedSet.minimum(OrderedSet.fromList([2, 1])),
+///   OrderedSet.maximum(OrderedSet.fromList([2, 1])))
 /// // => #(Some(1), Some(2))
 /// ```
-export fn min(Set(list) : Set(a)) : Optional(a) =
+///
+/// since 0.11.0
+export fn minimum(Set(list) : Set(a)) : Optional(a) =
     List.get(list, 0)
 
 /// The last element in order, or `None` for the set with no elements.
-export fn max(Set(list) : Set(a)) : Optional(a) =
+///
+/// since 0.11.0
+export fn maximum(Set(list) : Set(a)) : Optional(a) =
     List.last(list)
 
 /// The elements of both.

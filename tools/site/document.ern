@@ -107,13 +107,13 @@ fn sectionOf(source : String,
                                                        #(List(Markdown.Inline),
                                                          Int,
                                                          List(CodeBlock.Placed))) = {
-    let #(_, from) = List.span(placed, fn(each) = match each.block {
+    let #(_, from) = List.splitWhile(placed, fn(each) = match each.block {
         Markdown.Heading(=text, =level) -> !isShownHeading(section, text, level)
       | _ -> true
     });
     match from {
         CodeBlock.Placed(block = Markdown.Heading(=text, =level)) :: rest -> {
-            let #(own, _) = List.span(rest, fn(each) = match each.block {
+            let #(own, _) = List.splitWhile(rest, fn(each) = match each.block {
                 Markdown.Heading(level = inner) -> inner > level
               | _ -> true
             });
@@ -158,7 +158,7 @@ export fn projectsWritten(run : Run.Run) : Either(String, Unit) = {
     let address <- Either.fromOptional(Links.address(source), source <> " has no page of the site");
     let document <- Run.documentOf(run.root, source);
     let #(heading, rest) <- Run.titleOf(source, document);
-    let #(opening, listed) = List.span(rest, fn(block) = match block {
+    let #(opening, listed) = List.splitWhile(rest, fn(block) = match block {
         Markdown.Items() -> false
       | _ -> true
     });

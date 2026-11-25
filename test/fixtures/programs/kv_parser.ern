@@ -25,7 +25,7 @@ fn parse(line : String) : Either(String, #(String, Int)) = {
 }
 
 fn keyOf(chars : List(Char)) : Either(String, #(String, List(Char))) = {
-    let #(letters, rest) = List.span(chars, Char.isAlpha);
+    let #(letters, rest) = List.splitWhile(chars, Char.isAlpha);
     if !List.isEmpty(letters) then
         Right(#(String.fromList(letters), rest))
     else

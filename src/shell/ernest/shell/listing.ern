@@ -111,7 +111,7 @@ fn walked(calls : Map(Process, #(Process, Int)),
           seen : Set(Process),
           path : List(Process)) : #(Set(Process), List(List(Process))) =
     if List.contains(path, process) then {
-        let #(_, cycle) = List.span(List.reverse(path), fn(passed) = passed != process);
+        let #(_, cycle) = List.splitWhile(List.reverse(path), fn(passed) = passed != process);
         #(seen, [cycle])
     } else if Set.contains(seen, process) then
         #(seen, [])

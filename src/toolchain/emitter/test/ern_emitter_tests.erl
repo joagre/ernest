@@ -2306,26 +2306,26 @@ prelude_compare_test() ->
                    "[#(\"fig\", 3), #(\"pear\", 1), #(\"pear\", 2)]\n#(Greater, Equal)\n">>,
                  Output).
 
-%% report §6.6, §9.5: `Reply.process(r)` is the caller's `Process`, which
-%% the callee compares and monitors: the caller is told it is itself, and
-%% the callee, keeping a second caller's reply, is told of that caller's
-%% end by the monitor the reply gave it; taken as a value it is the same
-%% function
-reply_process_test() ->
+%% report §6.6, Appendix E.21: `Process.fromReply(r)` is the caller's
+%% `Process`, which the callee compares and monitors: the caller is told it
+%% is itself, and the callee, keeping a second caller's reply, is told of
+%% that caller's end by the monitor the reply gave it; taken as a value it
+%% is the same function
+from_reply_test() ->
     {ok, Output} = run(
         "type Msg = Ask(Reply(Process)) | Hold(Reply(Unit)) | Ended(Down)\n"
         "type MainMsg = Holding | Told(Bool)\n"
         "fn serve(main : Address(MainMsg), held : Optional(Process)) : Unit receiving Msg =\n"
         "    receive {\n"
         "        Ask(r) -> {\n"
-        "            let process = Reply.process;\n"
+        "            let process = Process.fromReply;\n"
         "            answer(r, process(r));\n"
         "            serve(main, held)\n"
         "        }\n"
         "      | Hold(r) -> {\n"
-        "            monitor(Reply.process(r), Ended);\n"
+        "            monitor(Process.fromReply(r), Ended);\n"
         "            send(main, Holding);\n"
-        "            serve(main, Some(Reply.process(r)))\n"
+        "            serve(main, Some(Process.fromReply(r)))\n"
         "        }\n"
         "      | Ended(Down(process = p)) -> send(main, Told(Some(p) == held))\n"
         "    }\n"
@@ -4372,16 +4372,16 @@ maps_sets_test() ->
     ?assertEqual(<<"2\n3\ntrue\n4\ntrue\n">>, Output).
 
 %% report Appendix E.13, §4.2, §3.8: a standard library foreign type in its
-%% namespace, and every draw within its bounds
+%% namespace, and every draw within its bound, which it is below
 random_test() ->
     {ok, Output} = run(
         "fn draw(s : Random.Seed, n : Int) : List(Int) = if n == 0 then [] else {\n"
-        "    let #(x, s1) = Random.nextInt(s, 5);\n"
+        "    let #(s1, x) = Random.nextInt(s, 5);\n"
         "    x :: draw(s1, n - 1)\n"
         "}\n"
         "export fn main() : Unit = {\n"
         "    let xs = draw(Random.seed(42), 50);\n"
-        "    Io.println(Bool.toString(List.all(xs, fn(x) = x >= 0 && x <= 5)))\n"
+        "    Io.println(Bool.toString(List.all(xs, fn(x) = x >= 0 && x < 5)))\n"
         "}\n"),
     ?assertEqual(<<"true\n">>, Output).
 
@@ -4445,7 +4445,6 @@ prelude_target(QualifiedName, Text) ->
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
-        ['Reply', process] -> {ern_rt, reply_process, 1};
         ['Int', Operator]
           when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
                Operator =:= '%'; Operator =:= negate ->

@@ -12,9 +12,9 @@
 /// `put`, `remove`, `update`, `merge` and `mergeWith` need it; the rest keep
 /// the keys and need none.
 ///
-/// **Everything in order.** `keys`, `values`, `toList`, `foldLeft`, `forEach`
-/// and `find` go in the keys' order, and `map`, `filter`, `filterMap`, `any`,
-/// `all` and `mergeWith` meet the entries in it.
+/// **Everything in order.** `keys`, `values`, `toList`, `foldLeft`, `forEach`,
+/// `find`, `minimum` and `maximum` go in the keys' order, and `map`, `filter`,
+/// `filterMap`, `any`, `all` and `mergeWith` meet the entries in it.
 ///
 /// **What it costs.** The map is a sorted list of pairs, written over `List`
 /// with no primitive. `get`, `put` and `remove` take time linear in the size,
@@ -316,6 +316,28 @@ fn mergedWith(pairs : List(#(k, v)),
 /// The entries, in order.
 export fn toList(Map(pairs) : Map(k, v)) : List(#(k, v)) =
     pairs
+
+/// The entry of the least key, the first in order, or `None` for the map
+/// with no entries.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(OrderedMap.minimum(OrderedMap.fromList([#(2, "b"), #(1, "a")])),
+///   OrderedMap.maximum(OrderedMap.fromList([#(2, "b"), #(1, "a")])))
+/// // => #(Some(#(1, "a")), Some(#(2, "b")))
+/// ```
+///
+/// since 0.11.0
+export fn minimum(Map(pairs) : Map(k, v)) : Optional(#(k, v)) =
+    List.get(pairs, 0)
+
+/// The entry of the greatest key, the last in order, or `None` for the map
+/// with no entries.
+///
+/// since 0.11.0
+export fn maximum(Map(pairs) : Map(k, v)) : Optional(#(k, v)) =
+    List.last(pairs)
 
 /// The keys, in order.
 export fn keys(Map(pairs) : Map(k, v)) : List(k) =

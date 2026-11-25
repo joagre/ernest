@@ -313,8 +313,8 @@ restart_cancels_what_it_asked_for() ->
     %% a subscription to faults, and a fault after the restart
     ?assertEqual({ok, <<"0\n">>},
                  ern_emitter_tests:run(
-                     Program("Process.faults(fn(_) = Heard)",
-                             "Process.faults(Report);"
+                     Program("Process.subscribeFaults(fn(_) = Heard)",
+                             "Process.subscribeFaults(Report);"
                              " let _ = spawn(fn() = fault(\"other\"));"
                              " receive { Report(_) -> Unit }"))).
 

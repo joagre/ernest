@@ -2019,6 +2019,34 @@ prelude_type_without_members_is_no_namespace_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"here\n44\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §4.2, §9.5: §9 fills the namespace `Reply` with nothing, so a
+%% module `reply.ern` at the source root provides it, as `down.ern` provides
+%% `Down`: `Reply.describe` is the module's function, and `Reply(Int)` is
+%% still the prelude's type, whose caller `Process.fromReply` gives. A
+%% regression test, written as `Reply.process` left the prelude for
+%% Appendix E.21's `Process.fromReply`
+reply_is_no_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/reply.ern",
+          "export fn describe(reply : Reply(Int)) : String =\n"
+          "    if Process.fromReply(reply) == Process.current() then\n"
+          "        \"mine\"\n"
+          "    else\n"
+          "        \"the caller's\"\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit = {\n"
+          "    let echo = spawn(fn() = receive {\n"
+          "        reply -> {\n"
+          "            Io.println(Reply.describe(reply));\n"
+          "            answer(reply, 1)\n"
+          "        }\n"
+          "    });\n"
+          "    Io.println(Int.toString(Address.callForever(echo, fn(reply) = reply)))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"the caller's\n1\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §4.2: `Prelude.send` is the prelude's `send` at run time too, past
 %% a function of the module's own by that name
 prelude_value_runs_test() ->
@@ -2909,7 +2937,7 @@ test_told_of_the_end_test() ->
     File = write(Dir, "told.ern",
                  "type Msg = Ready | Terminating(Reply(Unit))\n"
                  "fn keeper(spawner : Address(Msg)) : Unit receiving Msg = {\n"
-                 "    Os.termination(Terminating);\n"
+                 "    Os.subscribeTermination(Terminating);\n"
                  "    send(spawner, Ready);\n"
                  "    receive {\n"
                  "        Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }\n"
@@ -4500,7 +4528,7 @@ no_deadlock_while_the_end_waits() ->
           "  | Go -> held(reply)\n"
           "}\n"
           "fn keeper() : Unit receiving Msg = {\n"
-          "    Os.termination(Terminating);\n"
+          "    Os.subscribeTermination(Terminating);\n"
           "    said(\"subscribed\");\n"
           "    receive {\n"
           "        Terminating(reply) -> { said(\"told\"); held(reply) }\n"

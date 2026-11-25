@@ -15,7 +15,7 @@ This file holds the report's Appendices D, E and G. §0 to §9 and Appendices A,
 
 The toolchain's library `libs/ets` (Appendix G.1), over Erlang's `ets`, tables of type `set`, written out with a shorter documentation than its own; it is outside the standard library. A raw binding the library does not export is module-local, unqualified; the library is ordinary Ernest over its raw bindings. The values `ets` returns match the ABI of §12.2 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. A host answer that is not always of one Ernest type, `ets:info/2`'s count or `undefined`, is bound at `Foreign.Term` and read with E.12's conversions. An API that answers Erlang's `{ok, V} | {error, R}` needs an Erlang helper that rewrites the answer, as E.12 says; the `ets` calls below do not use that convention.
 
-Two bindings name functions of the runtime's own, which keeps the tables each process made: `made` tells it of each table `new` makes, and `owned` counts those a process still owns (Appendix G.1; E.28 for the evaluator a table keeps alive). The report states none of the runtime's functions; they are the toolchain's own, bound here and nowhere else.
+Two bindings name functions of the runtime's own, which keeps the tables each process made: `made` tells it of each table `new` makes, and `ownedCount` counts those a process still owns (Appendix G.1; E.28 for the evaluator a table keeps alive). The report states none of the runtime's functions; they are the toolchain's own, bound here and nowhere else.
 
 ```ernest
 // ets.ern  (namespace Ets)
@@ -41,7 +41,7 @@ foreign fn made(table : Table(k, v)) : Table(k, v) =
 
 /// How many tables the process made that it still owns; 0 once
 /// it has ended, and for a process on another node.
-export foreign fn owned(process : Process) : Int =
+export foreign fn ownedCount(process : Process) : Int =
     "ern_rt:owned_tables/1"
 
 /// Insert or replace the entry for key.
@@ -153,7 +153,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
    A container provides the container operations of the vocabulary below, or says in its section which it lacks and what stands in its place. Text and octets are containers read through `toList`, and provide the container operations their sections list.
 
-   A sequence adds order and position: `reverse`, `sort`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `span`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap`, `tryFold` and `tryForEach` for a step that can fail.
+   A sequence adds order and position: `reverse`, `sort`, `minimum`, `maximum`, `take`, `drop`, `takeLast`, `dropLast`, `last`, `removeAt`, `splitWhile`, `partition`, `unique`, `indexed`, `repeat`, `zip`, `unzip`, `flatMap`, `range`, `mapFold` for a step that carries a value through, and `tryMap`, `tryFold` and `tryForEach` for a step that can fail. Where a sequence's vocabulary has `sort`, it has `minimum` and `maximum`.
 
    Text adds `startsWith`, `endsWith`, `stripPrefix`, `stripSuffix`, `indexOf`, `lastIndexOf`, `replace`, `slice`, `drop`, `padStart`, `padEnd`, `repeat`, `split`, `join`, `lines`, `words`, `trim`, `trimStart`, `trimEnd`, `toLower`, `toUpper`, `toAsciiLower`, `toAsciiUpper`, and a `Char` `isUpper`, `isLower`, `toUpper`, `toLower`, `toAsciiLower`, `toAsciiUpper`.
 
@@ -223,7 +223,7 @@ Eleven *shape rules* give a function its shape. Shape rules 1 to 5, 7 and 9 to 1
 
    One that delivers later takes a function from the message to the caller's mailbox type and delivers to the caller, as `monitor` does (§6.9). A time is as §7.4 says: one below zero is 0, and a wait given 0 has run out as it begins, answering `Left(Timeout)` before any other answer, the host given nothing, or a call `None` (§6.6), but where its section orders its answers otherwise (E.27).
 9. An exported function takes no `Bool` that chooses between two behaviors. It takes a type whose constructors name them: `render(doc, Plain)`, not `render(doc, false)`. A `Bool` that is the value operated on, as in `Bool.toString`, is not such a choice.
-10. A name is the word a reader who knows the operation and not Ernest predicts from the thing named, `toCodePoint`, `removeAt`, `width`, `termination`: not a word the design used on its way to the thing, and not one that a name beside it in the module makes mean something else. Where the languages §0 gives the reader agree on a word or a shape, `map` and `filter`, Ernest takes it, and departs only where its section states the departure.
+10. A name is the word a reader who knows the operation and not Ernest predicts from the thing named, `toCodePoint`, `removeAt`, `width`: not a word the design used on its way to the thing, and not one that a name beside it in the module makes mean something else. Where the languages §0 gives the reader agree on a word or a shape, `map` and `filter`, Ernest takes it, and departs only where its section states the departure.
 11. A library's error that wraps `Io.Error` is the error of every operation of the library's protocol on the system module's resource, reading and writing alike, so that a program over the library meets `Io.Error` from that resource only where it opens it: `Http.writeResponse` stands beside `Http.readRequest` (Appendix G.11), and a program over `Http` writes its response with it and not with `Tcp.write`.
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
@@ -292,7 +292,7 @@ List.take : (List(a), Int) -> List(a) // the first n, or all when there are fewe
 List.drop : (List(a), Int) -> List(a) // all but the first n; n below 0 is 0
 List.takeLast : (List(a), Int) -> List(a) // the last n, or all when there are fewer; n below 0 is 0
 List.dropLast : (List(a), Int) -> List(a) // all but the last n; n below 0 is 0
-List.span : (List(a), (a) -> Bool receiving e) -> #(List(a), List(a)) receiving e // the longest prefix that satisfies, and the rest
+List.splitWhile : (List(a), (a) -> Bool receiving e) -> #(List(a), List(a)) receiving e // the longest prefix that satisfies, and the rest
 List.partition : (List(a), (a) -> Bool receiving e) -> #(List(a), List(a)) receiving e // those that satisfy and those that do not, each in order
 List.unique : (List(a=)) -> List(a=) // the first occurrence of each, in order
 List.indexed : (List(a)) -> List(#(Int, a)) // each element with its index from 0
@@ -300,6 +300,8 @@ List.repeat : (a, Int) -> List(a) // n copies; n below 0 is 0
 List.reverse : (List(a)) -> List(a)
 List.sort : (List(a)) -> List(a) needs a.compare // stable
 List.sortBy : (List(a), (a) -> k receiving e) -> List(a) receiving e needs k.compare // stable, by the key, which it calls once for each element, in order
+List.minimum : (List(a)) -> Optional(a) needs a.compare // the first of those that are least; None for the empty list
+List.maximum : (List(a)) -> Optional(a) needs a.compare // the first of those that are greatest; None for the empty list
 List.minimumBy : (List(a), (a) -> k receiving e) -> Optional(a) receiving e needs k.compare // the first of those whose key is least; None for the empty list
 List.maximumBy : (List(a), (a) -> k receiving e) -> Optional(a) receiving e needs k.compare // the first of those whose key is greatest; None for the empty list
 List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length
@@ -565,8 +567,8 @@ The generator is SplitMix64, written in Ernest over `Int`'s bit operations. `See
 ```
 abstract type Seed
 Random.seed : (Int) -> Seed // numbers equal in their low 64 bits name the same sequence
-Random.nextInt : (Seed, Int) -> #(Int, Seed) // uniform between 0 and the second inclusive, whatever the second's sign, and the seed after it
-Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, and the seed after it
+Random.nextInt : (Seed, Int) -> #(Seed, Int) // the seed after it, and a number uniform from 0 to below the second, the bound; a bound below 1 faults with Fault("a bound is 1 or above") (§7.4)
+Random.nextFloat : (Seed) -> #(Seed, Float) // the seed after it, and a number uniform above 0.0 and below 1.0
 ```
 
 ### Appendix E.14. `path.ern` (namespace `Path`)
@@ -677,7 +679,7 @@ Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) // the permission bits, 
 
 Over TCP's system reference (§8.2). The primitives are `listen`, `listenTls`, `connect` and `connectTls`, which reach TCP's process, `callLimited`, a call private to the module, and `callUntilEnded`, a second (E.0 rule 1). `callLimited` has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21). The second call answers `Unit` once its callee has ended, however it ends, and at once where it has ended already; where its callee is a socket, it answers as `close` says (below). `connect` and `connectTls` make `callLimited` to TCP's process, and `close` and `closeListener` make the second. `accept`, `read` and `write` are Ernest over `callLimited`, and the rest over the prelude's sends and calls, to the process of the listener or the socket they are given.
 
-A socket is a process: its address can be sent like any other, and its process killed and monitored. A socket and a listener are bound to their node (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.faults` include them.
+A socket is a process: its address can be sent like any other, and its process killed and monitored. A socket and a listener are bound to their node (§3.11). Sockets and listeners are foreign processes (§8.4) but not system processes, so `Process.live`, `Process.status` and `Process.subscribeFaults` include them.
 
 `listenTls` and `connectTls` open a listener and a socket over TLS, by the host's `ssl`, and answer the addresses `listen` and `connect` answer: one set of functions accepts, reads, writes, gives and closes, over TLS or not. `listenTls` takes the server's certificate and its key, each a file in PEM, the certificate's file holding its chain after it, and answers for a file it cannot read or refuses `Left(Other(text))`, the file's name and what is wrong on one line: for one it cannot read, the answer `Fs` gives for the path (E.17), `cert.pem: NotFound`, `cert.pem: Denied` or `cert.pem: NotAFile`, and for one it refuses, `cert.pem: no certificate`, `key.pem: not one key`, `key.pem: not a key`; a key that is not the certificate's is not refused there, and fails each handshake.
 
@@ -785,7 +787,7 @@ Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either ca
 
 ### Appendix E.21. `process.ern` (namespace `Process`)
 
-`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, `peer`, which reads the node a process is on and the runtime's record of its peers, a private one beneath `faults`, which reaches the runtime's report of faults, and two private ones beneath `run`: the site the compiler passes `run`, where its call is written, as it passes a spawn its own (§6.9), and a monitored spawn at that site (E.0 rule 1).
+`Process` is the prelude's (§9.1), and this module provides its operations. The primitives are `current`, the host's own identity of the running process, of a wrap's recipient (§6.9), or, in an adapted address's function, of the process that owns what the function opens (§6.5), `fromAddress`, `status`, `live` and `owned`, which read the runtime's record of its processes, `fromReply`, which reads the caller's process a `Reply` carries (§12.2), `peer`, which reads the node a process is on and the runtime's record of its peers, a private one beneath `subscribeFaults`, which reaches the runtime's report of faults, and two private ones beneath `run`: the site the compiler passes `run`, where its call is written, as it passes a spawn its own (§6.9), and a monitored spawn at that site (E.0 rule 1).
 
 A `Process` is the identity of a process (§6.5). It has equality and no ordering, exact as §3.10 says, and nothing can be sent to it; `monitor` and `kill` take one (§6.9). Across nodes a `Process` names its node.
 
@@ -811,7 +813,7 @@ The process's site is where `run` is written, as a spawn's is (§6.9), and its m
 
 While it waits, `run` keeps a process of the library's own beside the one that runs `f`, which `live` lists and whose site is the spawn's line in `run`'s body in the library's source. That process is the caller's `callee`. The trace of a fault in `f` holds the library's frame beneath `f`'s, as `List.forEach`'s stands in a trace through it. `run` is not a compute (§8.7, Appendix E.27): it runs on the caller's node, with no time, and answers a fault where a compute faults the caller.
 
-`faults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own, each session's own (§11.2) and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. The reports come through a process made with the subscription, which applies its wrap to each in turn, as the terminal delivers its keys (§12.1); a wrap that does not finish delays that subscriber's reports and no other's. A subscription the table leaves no room for faults its caller, as a spawn beyond the limit does (§7.4). A process holds one subscription to faults, beside one to the terminal (§12.1): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
+`subscribeFaults(wrap)` delivers `wrap(report)` to the caller for every fault of every process the runtime started, the system processes', the runtime's own, each session's own (§11.2) and those `Test.faults` started excepted (§6.9, E.24), as E.0 shape rule 8 says of a function that delivers later. The reports come through a process made with the subscription, which applies its wrap to each in turn, as the terminal delivers its keys (§12.1); a wrap that does not finish delays that subscriber's reports and no other's. A subscription the table leaves no room for faults its caller, as a spawn beyond the limit does (§7.4). A process holds one subscription to faults, beside one to the terminal (§12.1): a second call replaces the first, its wrap from then on, and a subscription ends when its process dies or restarts (§6.9). A subscription to faults is no source that can deliver under §8.6.
 
 In a `FaultReport`, `restarted` is `true` where the process restarts after the fault (§6.9), and `spawnedBy` names the peer whose spawn started the process (§8.7), by its name as the configuration lists it; it is `None` where no peer did, and where the configuration lists the peer no more. `cause` is the cause `Down` gives (§6.9).
 
@@ -832,12 +834,13 @@ type Status = Status(site : String, queued : Int, activity : Activity, memory : 
 type Activity = Running | Receiving | Calling(callee : Optional(Process), limited : Bool, since : Int) | Suspended // Receiving in a `receive` or in `Clock.sleep`, Calling for a call's answer, a load's evaluator, a peer's answer or a restart's watchers (§6.9, E.27, E.28), Suspended while the host holds it
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String, spawnedBy : Optional(String), callee : Optional(String), peer : Optional(String), time : Int)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every adapted address and every check (§8.4)
+Process.fromReply : (Reply(a)) -> Process // the caller's process, with which the callee may monitor it; no address (§6.6)
 Process.current : () -> Process // the running process, a wrap's recipient, or in an adapted address's function the process §6.5 names
 Process.status : (Process) -> Optional(Status) // its spawn site (§6.9), the messages in its mailbox, whether it runs, waits in a `receive` or in `Clock.sleep`, waits for an answer, on whom and since when, or is held by the host, and the bytes it holds; None once it has ended, and for a process of another node
 Process.live : () -> List(Process) // in unspecified order
 Process.peer : (Process) -> Optional(String) // the name of the peer the process is on; None for a process of this node, and for one of a node the configuration does not list
 Process.owned : (Process) -> List(Process) // the processes that end with it: each listener, socket and running program it owns (E.18, E.23) and each process started to end with it (G.7), told apart by their sites; none once it has ended
-Process.faults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox
+Process.subscribeFaults : ((FaultReport) -> m) -> Unit receiving m // every fault from now on, wrapped, in the caller's mailbox
 Process.run : (() -> a receiving m) -> Either(Reason, a) // the value `f` returned in a process of its own, or the reason it ended with first; waits as a call of `f` would
 ```
 
@@ -868,7 +871,7 @@ Supervisor.child : (Address(GroupMsg), () -> Unit receiving m) -> () -> Unit rec
 
 ### Appendix E.23. `os.ern` (namespace `Os`)
 
-Over Os's system reference (§8.2). The primitives are `start` and `startTerminal`, which reach Os's process, `exit`, which ends the program through the host, `termination`, which subscribes to the program's end, and `arguments`, `user`, `workingDirectory` and `environment`, bound from what the host gives at start, and `callLimited`, a call private to the module (E.0 rule 1). That call has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21). `read` and `write` are Ernest over it, and `readForever`, `resize`, `signal`, `closeInput` and `give` over the prelude's sends and calls, to a running program's process, `run` over `start`, `closeInput`, `read` and `kill`, and `command` a construction (§5.6).
+Over Os's system reference (§8.2). The primitives are `start` and `startTerminal`, which reach Os's process, `exit`, which ends the program through the host, `subscribeTermination`, which subscribes to the program's end, and `arguments`, `user`, `workingDirectory` and `environment`, bound from what the host gives at start, and `callLimited`, a call private to the module (E.0 rule 1). That call has no time of its own: its request carries the time its callee answers within, and `Process.status` reads its wait as limited (E.21). `read` and `write` are Ernest over it, and `readForever`, `resize`, `signal`, `closeInput` and `give` over the prelude's sends and calls, to a running program's process, `run` over `start`, `closeInput`, `read` and `kill`, and `command` a construction (§5.6).
 
 `command(program, arguments)` is the command of a program and its arguments alone: empty input, no variable set and `Os.workingDirectory`. A command with input, with a variable set or in another directory updates it (§5.6): `Os.Command(..Os.command("sh", arguments), environment = [#("LANG", "C")])`.
 
@@ -910,7 +913,7 @@ A name or an argument that holds U+0000 cannot reach a program, and `start` answ
 
 Where the runtime's helper fails, as the program starts or later, the failure is the runtime's own (§7.4): the caller of `start`, `startTerminal`, `read`, `write`, `resize`, `signal` or `closeInput` faults with `Fault("the runtime's helper ern_exec failed")`. A read or a write given 0, and a resize that answers `NotATerminal` or `Invalid`, answer as they do while the helper runs. A failure as the environment and the user are read ends the program before `main` runs (§8.5).
 
-`termination(wrap)` subscribes the calling process to the program's end as `Process.faults` subscribes to faults (E.21): at the end the runtime delivers `wrap(reply)` to the process, and the end waits as §8.6 says. A subscription is one per process, the latest, and ends when its process dies or restarts (§6.9), or at its own call of `exit` (§8.6); a process is told once in each run, a restarted run as a new one. The runtime keeps nothing for a process that is told; what it keeps it keeps itself.
+`subscribeTermination(wrap)` subscribes the calling process to the program's end as `Process.subscribeFaults` subscribes to faults (E.21): at the end the runtime delivers `wrap(reply)` to the process, and the end waits as §8.6 says. A subscription is one per process, the latest, and ends when its process dies or restarts (§6.9), or at its own call of `exit` (§8.6); a process is told once in each run, a restarted run as a new one. The runtime keeps nothing for a process that is told; what it keeps it keeps itself.
 
 `run(command, ms)` starts the program, ends its input after `input`, and reads it to its end within `ms` milliseconds of the start: it answers the exit status and all the program wrote to its standard output and to its standard error, the `Left` that `start` or a read answered, or `Left(Timeout)` when the milliseconds pass, the program killed then; it kills the program's process once it has read `Exited`, so that `run` leaves no process behind.
 
@@ -925,7 +928,7 @@ Os.environment : (String) -> Optional(String) // the variable's value, None wher
 Os.workingDirectory : Path
 Os.user : Int // the host's number for the user the program runs as
 Os.exit : (Int) -> a
-Os.termination : ((Reply(Unit)) -> m) -> Unit receiving m // the program's end, wrapped, in the caller's mailbox
+Os.subscribeTermination : ((Reply(Unit)) -> m) -> Unit receiving m // the program's end, wrapped, in the caller's mailbox
 Os.command : (String, List(String)) -> Command // the program and its arguments, with empty input, no variable set and Os.workingDirectory
 Os.start : (Command) -> Either(Io.Error, Address(ProgramMsg))
 Os.startTerminal : (Command, Terminal.Size) -> Either(Io.Error, Address(ProgramMsg)) // under a pseudo-terminal of the size, in the host's ordinary mode
@@ -943,7 +946,7 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished)
 
 A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types, `Captured` below, and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4). Where the two texts begin alike and then differ, the failure says where, `expected [1, 2, 4], got [1, 2, 3], differing at character 8`, counting the graphemes of the texts as `Io.show` writes them, a string's quotes among them, from 1 to the first that differs or to the one past the shorter text's end.
 
-`faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` as `Process.run` runs one, but marked, in a process of its own whose end it waits for without a limit and which is killed where the caller ends or restarts first (E.21), and reads the answer. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.faults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
+`faults(run, cause)` answers `Passed` where `run()` faults with `cause`: it runs `run` as `Process.run` runs one, but marked, in a process of its own whose end it waits for without a limit and which is killed where the caller ends or restarts first (E.21), and reads the answer. `run` is the call `faults` tests, its subject, and comes first (E.0 shape rule 1). Otherwise it answers `Failed` naming what came instead of the fault: another cause, `expected the fault division by zero, got the fault float arithmetic error`; a return, `got a return`; or the reason, `got Killed`. A process `faults` started is marked as the runtime starts it, and its fault reaches no job's report (§11.2) and no subscriber of `Process.subscribeFaults` (E.21); the mark is the runtime's, set by no text of the process's site (§11.2).
 
 `until(run, ms)` runs `run` again until it answers `Passed` or `ms` milliseconds have passed since the call, and answers the last `Result`, not `Left(Timeout)` (E.0 shape rule 8), since the last `Failed` says what the test saw. It runs `run` once at least, in the caller's process, and again after a `Failed`, yielding the scheduler between runs and waiting for nothing else. It is how a test waits for an effect that has no order with what the test can wait on: a `Down` the runtime delivered and what its recipient did with it (§6.9).
 
@@ -965,7 +968,7 @@ Test.capture : (() -> a receiving m) -> #(a, Captured) receiving m // the value,
 
 A set in the order of its element type's `compare` (§3.10). `Set(a)` is an abstract type, `OrderedSet.Set(a)` outside the module, and within it hides the prelude's `Set` (§4.2); it holds its elements and nothing else, so a set is data: `==` is structural (§3.10), a set keys a `Map`, and a set is sent as any value is.
 
-A function that needs the order declares `needs a.compare` (§4.9), and a call writes nothing for it: `fromList`, `contains`, `put`, `remove`, `union`, `intersection`, `difference` and `isSubset` need it, `map` and `filterMap` need their result's, `b.compare`, and the rest need none. Two elements the order calls `Equal` are one element, and `put` keeps the one already there. An order belongs to an element type: a set in another order is a set of another type, `type Descending = Descending(Int)` with its own `compare`, and two sets of different types cannot meet in `union`. The order of `toList`, `foldLeft`, `forEach`, `find`, `min` and `max`, and the order in which `map`, `filter`, `filterMap`, `any` and `all` meet the elements, is the set's; `min` and `max` are the set's own operations (E.0 rule 3).
+A function that needs the order declares `needs a.compare` (§4.9), and a call writes nothing for it: `fromList`, `contains`, `put`, `remove`, `union`, `intersection`, `difference` and `isSubset` need it, `map` and `filterMap` need their result's, `b.compare`, and the rest need none. Two elements the order calls `Equal` are one element, and `put` keeps the one already there. An order belongs to an element type: a set in another order is a set of another type, `type Descending = Descending(Int)` with its own `compare`, and two sets of different types cannot meet in `union`. The order of `toList`, `foldLeft`, `forEach`, `find`, `minimum` and `maximum`, and the order in which `map`, `filter`, `filterMap`, `any` and `all` meet the elements, is the set's; `minimum` and `maximum` are the set's own operations (E.0 rule 3).
 
 The set is a sorted list, one shape per set: `put`, `contains` and `remove` are linear in the set's size, `fromList` is a stable sort and one pass, `n log n`, `map` and `filterMap` cost that beside the function's, and `union`, `intersection`, `difference` and `isSubset` are linear in the two sizes. Nothing is a primitive: the module is Ernest over `List` (E.0 rule 1).
 
@@ -989,8 +992,8 @@ OrderedSet.all : (Set(a), (a) -> Bool receiving e) -> Bool receiving e
 OrderedSet.find : (Set(a), (a) -> Bool receiving e) -> Optional(a) receiving e // the first in order that satisfies
 OrderedSet.fromList : (List(a)) -> Set(a) needs a.compare
 OrderedSet.toList : (Set(a)) -> List(a) // in order
-OrderedSet.min : (Set(a)) -> Optional(a) // the first in order
-OrderedSet.max : (Set(a)) -> Optional(a) // the last in order
+OrderedSet.minimum : (Set(a)) -> Optional(a) // the first in order
+OrderedSet.maximum : (Set(a)) -> Optional(a) // the last in order
 OrderedSet.union : (Set(a), Set(a)) -> Set(a) needs a.compare
 OrderedSet.intersection : (Set(a), Set(a)) -> Set(a) needs a.compare
 OrderedSet.difference : (Set(a), Set(a)) -> Set(a) needs a.compare // the elements of the first not in the second
@@ -1001,7 +1004,7 @@ OrderedSet.isSubset : (Set(a), Set(a)) -> Bool needs a.compare // every element 
 
 A map from keys to values in the order of the key type's `compare` (§3.10), with E.0 rule 2's vocabulary for a map. `Map(k, v)` is an abstract type, `OrderedMap.Map(k, v)` outside the module, and within it hides the prelude's `Map` (§4.2); it holds its entries and nothing else, so a map is data as E.25's set is.
 
-A function that needs the order declares `needs k.compare` (§4.9): `fromList`, `contains`, `get`, `put`, `remove`, `update`, `merge` and `mergeWith` need it, and the rest keep the keys and need none. Two keys the order calls `Equal` are one key, and the key the map holds stays: `put`, `update`, `merge` and `mergeWith` replace its value alone, and `fromList`, which puts each pair in turn, keeps the first pair's key with the last pair's value. The order of `keys`, `values`, `toList`, `foldLeft`, `forEach` and `find`, and the order in which `map`, `filter`, `filterMap`, `any`, `all` and `mergeWith` meet the entries, is the keys'.
+A function that needs the order declares `needs k.compare` (§4.9): `fromList`, `contains`, `get`, `put`, `remove`, `update`, `merge` and `mergeWith` need it, and the rest keep the keys and need none. Two keys the order calls `Equal` are one key, and the key the map holds stays: `put`, `update`, `merge` and `mergeWith` replace its value alone, and `fromList`, which puts each pair in turn, keeps the first pair's key with the last pair's value. The order of `keys`, `values`, `toList`, `foldLeft`, `forEach`, `find`, `minimum` and `maximum`, and the order in which `map`, `filter`, `filterMap`, `any`, `all` and `mergeWith` meet the entries, is the keys'.
 
 The map is a sorted list of pairs, one shape per map: `get`, `put`, `remove` and `update` are linear in the map's size, `fromList` is a stable sort and one pass, `n log n`, and `merge` and `mergeWith` are linear in the two sizes. Nothing is a primitive: the module is Ernest over `List` (E.0 rule 1). The key type's `compare` is the program's promise, as E.25 says of the element type's.
 
@@ -1027,6 +1030,8 @@ OrderedMap.merge : (Map(k, v), Map(k, v)) -> Map(k, v) needs k.compare // the se
 OrderedMap.mergeWith : (Map(k, v), Map(k, v), (k, v, v) -> v receiving e) -> Map(k, v) receiving e needs k.compare // for a shared key, the function of the key, the first's value and the second's
 OrderedMap.fromList : (List(#(k, v))) -> Map(k, v) needs k.compare // a later pair's value wins
 OrderedMap.toList : (Map(k, v)) -> List(#(k, v)) // in order
+OrderedMap.minimum : (Map(k, v)) -> Optional(#(k, v)) // the entry of the least key
+OrderedMap.maximum : (Map(k, v)) -> Optional(#(k, v)) // the entry of the greatest key
 OrderedMap.keys : (Map(k, v)) -> List(k) // in order
 OrderedMap.values : (Map(k, v)) -> List(v) // in the keys' order
 ```
@@ -1127,12 +1132,12 @@ No library listed here is part of the language or of the standard library. Each 
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 
-Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D writes out with its rules. A table is owned by the process that made it and ends with it. `owned(p)` counts the tables `p` made that have not ended; `Ets.new` is a table's site, as `Tcp.listen` is a listener's (Appendix E.18, §11.2).
+Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D writes out with its rules. A table is owned by the process that made it and ends with it. `ownedCount(p)` counts the tables `p` made that have not ended; `Ets.new` is a table's site, as `Tcp.listen` is a listener's (Appendix E.18, §11.2).
 
 ```
 foreign type Table(k=, v)
 Ets.new : () -> Table(k=, v)
-Ets.owned : (Process) -> Int // the tables the process made that it still owns; 0 once it has ended, and for a process on another node
+Ets.ownedCount : (Process) -> Int // the tables the process made that it still owns; 0 once it has ended, and for a process on another node
 Ets.put : (Table(k=, v), k=, v) -> Unit
 Ets.get : (Table(k=, v), k=) -> Optional(v)
 Ets.contains : (Table(k=, v), k=) -> Bool

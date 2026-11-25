@@ -83,7 +83,7 @@ foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, 
 
 // Report Appendix G.1, E.28: the table the calling process made, told to
 // the runtime, which keeps it among the tables the process made, so that
-// `owned` answers what it owns, and a load's evaluator lives on while it
+// `ownedCount` answers what it owns, and a load's evaluator lives on while it
 // owns a table; it answers the table.
 foreign fn made(table : Table(k, v)) : Table(k, v) =
     "ern_rt:made_table/1"
@@ -99,13 +99,13 @@ foreign fn made(table : Table(k, v)) : Table(k, v) =
 /// ```ernest
 /// {
 ///     let table : Ets.Table(String, Int) = Ets.new();
-///     Ets.owned(Process.current())
+///     Ets.ownedCount(Process.current())
 /// }
 /// // => 1
 /// ```
 ///
-/// since 0.7.0
-export foreign fn owned(process : Process) : Int =
+/// since 0.11.0
+export foreign fn ownedCount(process : Process) : Int =
     "ern_rt:owned_tables/1"
 
 /// Puts the value at that key, replacing any entry the key had. The table

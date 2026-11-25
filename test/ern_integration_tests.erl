@@ -2001,7 +2001,7 @@ end_status() ->
                          "    }\n"
                          "fn subscriber(how : String, main : Address(Msg)) : Unit receiving Msg"
                          " = {\n"
-                         "    Os.termination(Terminating);\n"
+                         "    Os.subscribeTermination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> told(how, reply)\n"
@@ -2076,7 +2076,7 @@ fault_before_its_end() ->
     ok = file:write_file(Dir ++ "/faulty.ern",
                          "type Msg = Terminating(Reply(Unit)) | Ready\n"
                          "fn keeper(main : Address(Msg)) : Unit receiving Msg = {\n"
-                         "    Os.termination(Terminating);\n"
+                         "    Os.subscribeTermination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> {\n"
@@ -2120,7 +2120,7 @@ restarted_subscriber() ->
     ok = file:write_file(Dir ++ "/restarted.ern",
                          "type Msg = Ready | Done | Add(Int) | Terminating(Reply(Unit))\n"
                          "fn hold(main : Address(Msg)) : Unit receiving Msg = {\n"
-                         "    Os.termination(Terminating);\n"
+                         "    Os.subscribeTermination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    receive {\n"
                          "        Terminating(reply) -> receive { Done -> answer(reply, Unit) }\n"
@@ -2129,7 +2129,7 @@ restarted_subscriber() ->
                          "fn keeper(holder : Address(Msg), main : Address(Msg)) : Unit receiving"
                          " Msg"
                          " = {\n"
-                         "    Os.termination(Terminating);\n"
+                         "    Os.subscribeTermination(Terminating);\n"
                          "    send(main, Ready);\n"
                          "    count(holder, 0)\n"
                          "}\n"
@@ -2234,11 +2234,11 @@ fault_while_a_termination_waits() ->
     {BeforeAnswer, _} = lists:splitwith(fun(Line) -> Line =/= KeeperAnswered end, Lines),
     ?assert(lists:member(Faulted, BeforeAnswer)).
 
-%% A program whose end waits for a keeper, a subscriber of Os.termination
-%% that, once it is told and main has ended, has a worker fault, prints the
-%% worker's Down's reason, and answers. Its argument says what begins the
-%% end: main's return, or, with `termination`, a termination, main then a
-%% subscriber that answers and returns.
+%% A program whose end waits for a keeper, a subscriber of
+%% Os.subscribeTermination that, once it is told and main has ended, has a
+%% worker fault, prints the worker's Down's reason, and answers. Its
+%% argument says what begins the end: main's return, or, with `termination`,
+%% a termination, main then a subscriber that answers and returns.
 waiting_program(Dir) ->
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waited.ern",
@@ -2248,7 +2248,7 @@ waiting_program(Dir) ->
                          "export fn main() : Unit receiving Msg =\n"
                          "    match Os.arguments {\n"
                          "        [\"termination\"] -> {\n"
-                         "            Os.termination(Terminating);\n"
+                         "            Os.subscribeTermination(Terminating);\n"
                          "            started();\n"
                          "            Io.println(\"running\");\n"
                          "            receive { Terminating(reply) -> answer(reply, Unit) }\n"
@@ -2271,7 +2271,7 @@ waiting_program(Dir) ->
                          "fn keeper(main : Address(Msg), worker : Address(Order)) : Unit"
                          " receiving Msg"
                          " = {\n"
-                         "    Os.termination(Terminating);\n"
+                         "    Os.subscribeTermination(Terminating);\n"
                          "    monitor(Process.fromAddress(main), MainEnded);\n"
                          "    monitor(Process.fromAddress(worker), WorkerEnded);\n"
                          "    send(main, Ready);\n"

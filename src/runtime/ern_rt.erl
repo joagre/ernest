@@ -15,11 +15,11 @@
 %% A Reply(a) is {Alias, Pid}: the alias of the call's monitor of its
 %% callee, as gen_server's call makes one, which deactivates when the call
 %% is over and so drops a late answer (report §6.6), and the caller's
-%% process, which Reply.process answers (reply_process/1). The answer goes
-%% to the alias: Ernest answers {Alias, answered, Value}, or, on the node
-%% that keeps a remote call's note, {Alias, unnoted, Value}, which says the
-%% note is gone (§12.6); foreign code {Alias, Value}, so that a call checks
-%% the second only, as §8.4 says; a Reply foreign code gave back is
+%% process, which Process.fromReply answers (reply_process/1). The answer
+%% goes to the alias: Ernest answers {Alias, answered, Value}, or, on the
+%% node that keeps a remote call's note, {Alias, unnoted, Value}, which says
+%% the note is gone (§12.6); foreign code {Alias, Value}, so that a call
+%% checks the second only, as §8.4 says; a Reply foreign code gave back is
 %% {foreign_reply, Reply, Descriptor, Bound}, answered in the second form
 %% with the answer exposed. Beside an answer, a call's wait takes {Alias,
 %% restarted, How} from a callee that restarts, and {Alias, fault, Cause}
@@ -136,12 +136,12 @@
 %% it, a process_info at its ask (ask_restart/1), so that no row is written
 %% for a reader that asks seldom (restartable/0).
 -define(START, '$ern_start').
-%% Report Appendix G.1, E.28, §11.2: in every process that made a table,
-%% the tables it made, newest first, which it owns until it ends or a table
-%% is closed, so that what it owns is known without reading every table of
-%% the node: by a load's evaluator at its end (evaluate/2), and by
-%% `Ets.owned` of another (owned_tables/1). Report Appendix E.21, G.7: in
-%% a process that started a process to end with it, a proxy's, that
+%% Report Appendix G.1, E.28, §11.2: in every process that made a table, the
+%% tables it made, newest first, which it owns until it ends or a table is
+%% closed, so that what it owns is known without reading every table of the
+%% node: by a load's evaluator at its end (evaluate/2), and by
+%% `Ets.ownedCount` of another (owned_tables/1). Report Appendix E.21, G.7:
+%% in a process that started a process to end with it, a proxy's, that
 %% process (ends_with_caller/1, owned/1). Each is owned_listed/3's.
 -define(TABLES, '$ern_tables').
 -define(ENDING, '$ern_ending').
@@ -1282,9 +1282,9 @@ refuse({Alias, _}, Cause) ->
     Alias ! {Alias, fault, Cause},
     ?UNIT.
 
-%% Report §6.6, §9.5: the prelude's Reply.process, the caller's process
-%% the reply carries beside its alias, or the one foreign code put in a
-%% reply it made (§12.2).
+%% Report §6.6, Appendix E.21: Process.fromReply, the caller's process the
+%% reply carries beside its alias, or the one foreign code put in a reply it
+%% made (§12.2).
 -spec reply_process(reply()) -> pid().
 reply_process({foreign_reply, {_, Pid}, _, _}) -> Pid;
 reply_process({_, Pid}) -> Pid.
@@ -2829,10 +2829,10 @@ ets_lookup(Table, Key) ->
 matching_rows(Table, Pattern) ->
     try ets:match_object(Table, Pattern) catch _:_ -> [] end.
 
-%% Appendix E.21: Process.faults, the caller subscribed to every fault of
-%% every process the runtime started, Address being the caller seen through
-%% its wrap. A process holds one subscription, the latest, which ends when
-%% it dies or restarts (died/6, new_run/3). The reaper makes the
+%% Appendix E.21: Process.subscribeFaults, the caller subscribed to every
+%% fault of every process the runtime started, Address being the caller seen
+%% through its wrap. A process holds one subscription, the latest, which
+%% ends when it dies or restarts (died/6, new_run/3). The reaper makes the
 %% subscription's courier, so that a kill of the caller as it subscribes
 %% leaves none behind. Report §7.4, §12.5: where the host's table of
 %% processes has no room for the courier, the caller faults with the host's
@@ -2918,13 +2918,13 @@ reports_flushed(From, Ref) ->
             From ! {Ref, none}
     end.
 
-%% Appendix E.23, report §8.6: Os.termination, the caller subscribed to the
-%% program's end, Address being the caller seen through its wrap. A process
-%% holds one subscription, the latest, which ends when it dies or restarts
-%% (died/6, new_run/3); a later one in the same run takes the place of the
-%% first and keeps the end's telling of the run, where the end has told it.
-%% One made while the end waits is told at once: the runner that waits is
-%% told of it, and tells it.
+%% Appendix E.23, report §8.6: Os.subscribeTermination, the caller
+%% subscribed to the program's end, Address being the caller seen through
+%% its wrap. A process holds one subscription, the latest, which ends when
+%% it dies or restarts (died/6, new_run/3); a later one in the same run
+%% takes the place of the first and keeps the end's telling of the run,
+%% where the end has told it. One made while the end waits is told at once:
+%% the runner that waits is told of it, and tells it.
 -spec termination(address()) -> 'Unit'.
 termination(Address) ->
     Subscriber = process_of(Address),
@@ -3355,8 +3355,8 @@ sources() ->
 %% and forgotten with its sources when it ends, which the process it is
 %% linked to learns. Report Appendix E.21: it is a process of the program's
 %% too, listed by Process.live, known to Process.status and reported by
-%% Process.faults, under Site, the function that opened it, and started by
-%% Owner, the process that asked for it (started_by/1).
+%% Process.subscribeFaults, under Site, the function that opened it, and
+%% started by Owner, the process that asked for it (started_by/1).
 -spec opened(pid(), binary(), pid()) -> ok.
 opened(Pid, Site, Owner) ->
     try ets:insert(?HELD, {{opened, Pid}}) catch _:_ -> true end,
@@ -4503,17 +4503,17 @@ run_main(EntryPoint, Site, Options) ->
             end,
     outcome_flushed(Ended, end_program(Launch, Reaper, System, Encodings)).
 
-%% Report §8.6: before the program ends, each subscriber of Os.termination
-%% is told (Appendix E.23), and the end waits until each has answered,
-%% ended or restarted, nothing of the runtime's own timing the wait. While
-%% it waits, what began the end stands, but for an Os.exit, which ends the
-%% program at once with its status, and a termination, which ends it at
-%% once with what began the end, whoever began it, a termination that did
-%% among them; no deadlock is found, a subscriber's subscription standing
-%% (look/0), and a fault is the process's own (is_program_ending/1). A
-%% subscription made while it waits is told at once (termination/1), a
-%% restarted run's among them, since a restart ends the subscription with
-%% the run (§6.9, new_run/3).
+%% Report §8.6: before the program ends, each subscriber of
+%% Os.subscribeTermination is told (Appendix E.23), and the end waits until
+%% each has answered, ended or restarted, nothing of the runtime's own
+%% timing the wait. While it waits, what began the end stands, but for an
+%% Os.exit, which ends the program at once with its status, and a
+%% termination, which ends it at once with what began the end, whoever began
+%% it, a termination that did among them; no deadlock is found, a
+%% subscriber's subscription standing (look/0), and a fault is the process's
+%% own (is_program_ending/1). A subscription made while it waits is told at
+%% once (termination/1), a restarted run's among them, since a restart ends
+%% the subscription with the run (§6.9, new_run/3).
 %%
 %% Report §11.2: the wait is said by Say, the runner's own line on standard
 %% error: once, with how many it waits for and which; each subscriber told
@@ -5070,9 +5070,9 @@ exit_program(Status) ->
 %% Report §12.5, §8.6, §11.8: the run ended before `main` as a job that
 %% cannot start, a node whose carrier did not (ern_carrier:start/1), Text
 %% saying why, which the job says as its refusal once the end has told the
-%% subscribers of Os.termination and waited, as at any end (told/3); the
-%% caller, the entry process, waits for its own end there, as an Os.exit's
-%% caller does.
+%% subscribers of Os.subscribeTermination and waited, as at any end
+%% (told/3); the caller, the entry process, waits for its own end there, as
+%% an Os.exit's caller does.
 -spec refused(binary()) -> no_return().
 refused(Text) ->
     {Runner, Launch} = launch_runner(),
@@ -5449,16 +5449,16 @@ waited_evaluation(Evaluator, Ref) ->
         erlang:erase(?LOAD)
     end.
 
-%% Report Appendix E.28: whether the evaluator owns what a binding opened:
-%% a listener, a socket or a running program, each of which watches its
-%% owner from before its address is given out, and stops when it is given
-%% to another (Appendix E.18, E.23), a process it started to end with it,
-%% a proxy's (G.7), or a table it made that it still owns (G.1): what
-%% `Process.owned` and `Ets.owned` answer of it (owned/1, owned_tables/1),
-%% but a running program whose program has exited and a socket whose
-%% connection has closed, which are spent (spent/1). What watches it and
-%% what it keeps are its own, and what is spent the runtime's table says,
-%% so the question reads no other process's state.
+%% Report Appendix E.28: whether the evaluator owns what a binding opened: a
+%% listener, a socket or a running program, each of which watches its owner
+%% from before its address is given out, and stops when it is given to
+%% another (Appendix E.18, E.23), a process it started to end with it, a
+%% proxy's (G.7), or a table it made that it still owns (G.1): what
+%% `Process.owned` and `Ets.ownedCount` answer of it (owned/1,
+%% owned_tables/1), but a running program whose program has exited and a
+%% socket whose connection has closed, which are spent (spent/1). What
+%% watches it and what it keeps are its own, and what is spent the runtime's
+%% table says, so the question reads no other process's state.
 is_owner() ->
     Self = erlang:self(),
     kept_alive_by(Self) =/= [] orelse owned_tables(Self) > 0.

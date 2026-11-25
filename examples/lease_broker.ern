@@ -12,7 +12,7 @@
 // What to look at:
 //
 // - The broker is a service under `restarting` (report §6.5, §6.9). It
-//   knows a caller by the request's reply: `Reply.process(reply)` is the
+//   knows a caller by the request's reply: `Process.fromReply(reply)` is the
 //   caller's process, which a monitor takes and nothing can be sent to
 //   (report §6.6).
 // - `monitorService` watches a client and is told of each of its restarts,
@@ -38,8 +38,8 @@
 //     ann holds 2
 //     bob holds 3
 //     ledger: ann 1, ann 2, bob 3
-//     LeaseBroker.started:349 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:384
+//     LeaseBroker.started:350 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:385
 //     the broker took back 3 from bob: Restarted
 //     cid holds 3
 //     the broker took back 3 from cid: Killed
@@ -65,7 +65,7 @@
 //         LeaseBroker.heard:227
 //         LeaseBroker.holdAndWait:218
 //         1 process of LeaseBroker.broker:160 waits in LeaseBroker.lending:243
-//         3 processes of LeaseBroker.started:349 wait in LeaseBroker.holding:367 on LeaseBroker.broker:160
+//         3 processes of LeaseBroker.started:350 wait in LeaseBroker.holding:368 on LeaseBroker.broker:160
 //
 // The program's own tests fault a broker with a lease given back by a
 // client that does not hold it, lend a restarted client's lease to the
@@ -74,11 +74,11 @@
 //
 //     $ ern test lease_broker.erc
 //     a broker faults on a lease its caller does not hold: passed
-//     LeaseBroker.started:349 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:384
+//     LeaseBroker.started:350 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:385
 //     the broker took back 2 from bob: Restarted
 //     a restarted client's lease goes to the client that waits: passed
-//     LeaseBroker.brokerRestartVoids:487 faulted, restarted: lease 2 is not lent to the caller
+//     LeaseBroker.brokerRestartVoids:488 faulted, restarted: lease 2 is not lent to the caller
 //         LeaseBroker.lending:262
 //     a restarted broker has every lease free, and its client none: passed
 //
@@ -104,8 +104,8 @@
 //     the peer b connected
 //     ann holds 1
 //     bob holds 2
-//     LeaseBroker.started:349 faulted, restarted: bob's job failed
-//         LeaseBroker.holding:384
+//     LeaseBroker.started:350 faulted, restarted: bob's job failed
+//         LeaseBroker.holding:385
 //     bob: Restarted
 //     bob holds no lease
 //     ledger: ann 1
@@ -243,12 +243,12 @@ fn allFree(count : Int) : Leases =
 fn lending(leases : Leases) : Unit receiving BrokerMsg =
     receive {
         Borrow(=holder, =reply) -> {
-            watch(leases, Reply.process(reply));
+            watch(leases, Process.fromReply(reply));
             let wait = Wait(=holder, =reply);
             lending(lendToWaiting(Leases(..leases, waiting = leases.waiting <> [wait])))
         }
       | GiveBack(=lease, =reply) -> {
-            let caller = Reply.process(reply);
+            let caller = Process.fromReply(reply);
             if List.any(leases.lent,
                         fn(loan) = loan.lease == lease && loan.process == caller) then {
                 answer(reply, Unit);
@@ -277,7 +277,7 @@ fn watch(leases : Leases, process : Process) : Unit receiving BrokerMsg =
 
 fn isWatched(leases : Leases, process : Process) : Bool =
     List.any(leases.lent, fn(loan) = loan.process == process)
-        || List.any(leases.waiting, fn(wait) = Reply.process(wait.reply) == process)
+        || List.any(leases.waiting, fn(wait) = Process.fromReply(wait.reply) == process)
 
 // What a client held taken back, and its waiting request dropped, so that
 // no lease goes to a client the broker knows has ended or restarted. A
@@ -302,7 +302,8 @@ fn takeBack(leases : Leases, process : Process, reason : Reason) : Leases = {
     if reason == Restarted then demonitor(process) else Unit;
     Leases(free = List.sort(leases.free <> taken),
            lent = kept,
-           waiting = List.filter(leases.waiting, fn(wait) = Reply.process(wait.reply) != process))
+           waiting = List.filter(leases.waiting,
+                                 fn(wait) = Process.fromReply(wait.reply) != process))
 }
 
 // Each free lease lent to the request that has waited longest, while both
@@ -312,7 +313,7 @@ fn lendToWaiting(leases : Leases) : Leases =
     match #(leases.free, leases.waiting) {
         #(lease :: free, Wait(=holder, =reply) :: waiting) -> {
             answer(reply, lease);
-            let loan = Loan(=lease, =holder, process = Reply.process(reply));
+            let loan = Loan(=lease, =holder, process = Process.fromReply(reply));
             lendToWaiting(Leases(=free, lent = leases.lent <> [loan], =waiting))
         }
       | _ ->

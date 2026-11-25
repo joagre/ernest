@@ -69,14 +69,16 @@ list_laws_test_() ->
           {"dropLast keeps all but the last n", fun ints_and_int/1, fun list_drop_last/1},
           {"takeLast keeps the last n, and dropLast the rest", fun ints_and_int/1,
            fun list_take_last/1},
-          {"span: the longest prefix that satisfies, and the rest", fun ints_and_int/1,
-           fun list_span/1},
+          {"splitWhile: the longest prefix that satisfies, and the rest",
+           fun ints_and_int/1, fun list_split_while/1},
           {"partition: each in order", fun ints_and_int/1, fun list_partition/1},
           {"unique: the first occurrence of each, in order", fun ints/1, fun list_unique/1},
           {"indexed from 0", fun ints/1, fun list_indexed/1},
           {"repeat: n copies, below 0 none", fun two_small/1, fun list_repeat/1},
           {"reverse", fun ints/1, fun list_reverse/1},
           {"sort is stable", fun keyed_pairs/1, fun list_sort/1},
+          {"minimum and maximum: the first of the least and of the greatest",
+           fun keyed_pairs/1, fun list_extremes/1},
           {"zip to the shorter length, and unzip", fun two_ints/1, fun list_zip/1},
           {"flatMap", fun ints/1, fun list_flat_map/1},
           {"range inclusive, empty when the first is greater", fun two_small/1,
@@ -141,8 +143,8 @@ list_take_last({List, Count}) ->
     ?LIST(dropLast)(List, Count) ++ Taken =:= List
         andalso length(Taken) =:= min(max(Count, 0), length(List)).
 
-list_span({List, Pivot}) ->
-    ?LIST(span)(List, above(Pivot)) =:= lists:splitwith(above(Pivot), List).
+list_split_while({List, Pivot}) ->
+    ?LIST(splitWhile)(List, above(Pivot)) =:= lists:splitwith(above(Pivot), List).
 
 list_partition({List, Pivot}) ->
     ?LIST(partition)(List, above(Pivot)) =:= lists:partition(above(Pivot), List).
@@ -165,6 +167,18 @@ list_sort(Pairs) ->
     ByKey = fun({Key, _}, {Other, _}) -> ?INT(compare)(Key, Other) end,
     Stable = lists:sort(fun({Key, _}, {Other, _}) -> Key =< Other end, Pairs),
     ?LIST(sort)(Pairs, ByKey) =:= Stable.
+
+%% The order reads the key alone, so that two elements it calls Equal
+%% differ, and the first of them is the one answered.
+list_extremes(Pairs) ->
+    ByKey = fun({Key, _}, {Other, _}) -> ?INT(compare)(Key, Other) end,
+    Keys = [Key || {Key, _} <- Pairs],
+    Expected = case Pairs of
+                   [] -> {'None', 'None'};
+                   _ -> {{'Some', lists:keyfind(lists:min(Keys), 1, Pairs)},
+                         {'Some', lists:keyfind(lists:max(Keys), 1, Pairs)}}
+               end,
+    {?LIST(minimum)(Pairs, ByKey), ?LIST(maximum)(Pairs, ByKey)} =:= Expected.
 
 list_zip({First, Second}) ->
     Count = min(length(First), length(Second)),
@@ -1004,7 +1018,7 @@ bytes_hex(Octets) ->
 %% repeats, in its compare's order, two elements it calls Equal one, `put`
 %% and `fromList` keeping the one already there
 ordered_set_laws_test_() ->
-    laws([{"fromList in order, toList, size, isEmpty, min, max", fun elements/1,
+    laws([{"fromList in order, toList, size, isEmpty, minimum, maximum", fun elements/1,
            fun ordered_set_contents/1},
           {"two elements the order calls Equal are one, the first kept", fun keyed_pairs/1,
            fun ordered_set_equal/1},
@@ -1020,8 +1034,8 @@ ordered_set_contents(List) ->
     ?ORDERED_SET(toList)(Set) =:= Ordered
         andalso ?ORDERED_SET(size)(Set) =:= length(Ordered)
         andalso ?ORDERED_SET(isEmpty)(Set) =:= (Ordered =:= [])
-        andalso ?ORDERED_SET(min)(Set) =:= first(Ordered)
-        andalso ?ORDERED_SET(max)(Set) =:= first(lists:reverse(Ordered)).
+        andalso ?ORDERED_SET(minimum)(Set) =:= first(Ordered)
+        andalso ?ORDERED_SET(maximum)(Set) =:= first(lists:reverse(Ordered)).
 
 ordered_set_equal(Pairs) ->
     ByKey = fun({Key, _}, {Other, _}) -> ?INT(compare)(Key, Other) end,
@@ -1079,8 +1093,8 @@ ordered_set_traversals({List, Pivot}) ->
 %% later pair winning in `fromList`, `put` replacing the value, the entries
 %% met in the keys' order
 ordered_map_laws_test_() ->
-    laws([{"fromList: a later pair wins, toList, keys and values in order", fun entries/1,
-           fun ordered_map_contents/1},
+    laws([{"fromList: a later pair wins, toList, keys, values, minimum and maximum in order",
+           fun entries/1, fun ordered_map_contents/1},
           {"get after put, remove, contains, update", fun entries_and_entry/1,
            fun ordered_map_put/1},
           {"merge: the second wins; mergeWith: the key, the first's value, the second's",
@@ -1125,7 +1139,9 @@ ordered_map_contents(Pairs) ->
         andalso ?ORDERED_MAP(keys)(Map) =:= [Key || {Key, _} <- Expected]
         andalso ?ORDERED_MAP(values)(Map) =:= [Value || {_, Value} <- Expected]
         andalso ?ORDERED_MAP(size)(Map) =:= length(Expected)
-        andalso ?ORDERED_MAP(isEmpty)(Map) =:= (Expected =:= []).
+        andalso ?ORDERED_MAP(isEmpty)(Map) =:= (Expected =:= [])
+        andalso ?ORDERED_MAP(minimum)(Map) =:= first(Expected)
+        andalso ?ORDERED_MAP(maximum)(Map) =:= first(lists:reverse(Expected)).
 
 ordered_map_put({Pairs, Key, Value}) ->
     Compare = ?INT(compare),

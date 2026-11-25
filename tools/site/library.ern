@@ -51,7 +51,7 @@ export fn read(root : Path) : Either(String, Library) = {
     let source = "build/man/README.md";
     let document <- Run.documentOf(root, source);
     let #(_, rest) <- Run.titleOf(source, document);
-    let #(opening, listed) = List.span(rest, fn(block) = !isList(block));
+    let #(opening, listed) = List.splitWhile(rest, fn(block) = !isList(block));
     let items <- match listed {
         Markdown.Items(=items) :: _ -> Right(items)
       | _ -> Left(source <> " lists no group of modules")

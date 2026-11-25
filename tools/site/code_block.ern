@@ -184,7 +184,7 @@ fn isOneInput(lines : List(String)) : Bool = {
         List.filter(List.map(paragraphs(lines), paragraphKind), fn(kind) = kind != Continued);
     let declarations = List.size(List.filter(kinds, fn(kind) = kind != Body));
     let lets = List.size(List.filter(kinds, fn(kind) = kind == LetDeclaration));
-    let #(_, afterFirst) = List.span(kinds, fn(kind) = kind == Body);
+    let #(_, afterFirst) = List.splitWhile(kinds, fn(kind) = kind == Body);
     (lets == 0 || declarations == 1) && !List.contains(afterFirst, Body)
 }
 

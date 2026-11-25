@@ -165,7 +165,7 @@ export fn faults(run : () -> a receiving m, cause : String) : Result =
 // Report Appendix E.24, §11.2: the function a process `faults` starts,
 // which marks the process in its row as it begins and then runs `f`, so
 // that the process's fault reaches no job's report and no subscriber of
-// `Process.faults`.
+// `Process.subscribeFaults`.
 foreign fn expected(f : () -> a receiving m) : () -> a receiving m =
     "ern_rt:expected/1"
 

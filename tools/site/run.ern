@@ -153,7 +153,7 @@ fn sidebarEntries(run : Run, entries : List(Entry)) : Either(String, List(List(T
         [] ->
             Right([])
       | entry :: rest -> {
-            let #(under, later) = List.span(rest, fn(next) = next.level > entry.level);
+            let #(under, later) = List.splitWhile(rest, fn(next) = next.level > entry.level);
             let values =
                 [#("anchor", Template.Plain(Html.fragment(entry.anchor))),
                  #("label_html", labeled(entry.text))];
@@ -406,7 +406,7 @@ export fn titleOf(source : String,
                   blocks : List(Markdown.Block)) : Either(String,
                                                           #(List(Markdown.Inline),
                                                             List(Markdown.Block))) = {
-    let #(_, titled) = List.span(blocks, fn(block) = !isHeadingOf(1, block));
+    let #(_, titled) = List.splitWhile(blocks, fn(block) = !isHeadingOf(1, block));
     match titled {
         Markdown.Heading(=text) :: rest -> Right(#(text, rest))
       | _ -> Left(source <> " has no title, a first-level heading")

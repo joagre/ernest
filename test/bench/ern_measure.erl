@@ -481,7 +481,7 @@ hosts() ->
       <<"List.takeLast">> => fun(List, Count) ->
                                      lists:nthtail(max(length(List) - max(Count, 0), 0), List)
                              end,
-      <<"List.span">> => fun(List, Test) -> lists:splitwith(Test, List) end,
+      <<"List.splitWhile">> => fun(List, Test) -> lists:splitwith(Test, List) end,
       <<"List.partition">> => fun(List, Test) -> lists:partition(Test, List) end,
       <<"List.removeAt">> => fun(List, Index) when Index >= 0, Index < length(List) ->
                                      {Before, [_ | After]} = lists:split(Index, List),
@@ -774,7 +774,7 @@ os_scenarios(Bytes) ->
     OsGive = Os(give),
     OsSignal = Os(signal),
     FromAddress = ern_named:function('ern@process', fromAddress),
-    OsTermination = Os(termination),
+    OsSubscribeTermination = Os(subscribeTermination),
     %% report Appendix E.23: commands that inherit the environment and the
     %% working directory
     Here = {'Path', ern_os:working_directory()},
@@ -835,9 +835,10 @@ os_scenarios(Bytes) ->
      {<<"Os.give">>, {fun() -> OsGive(Echo, FromAddress(ern_rt:self())) end,
                       fun() -> erlang:port_connect(HostEcho, erlang:self()) end}},
      {<<"Os.exit">>, {not_measured, <<"ends the program, or faults the caller">>}},
-     %% a row of the runtime's, as Process.faults's is, which the host has
-     %% no counterpart of
-     {<<"Os.termination">>, {fun() -> OsTermination(fun(Reply) -> Reply end) end, none}}].
+     %% a row of the runtime's, as Process.subscribeFaults's is, which the
+     %% host has no counterpart of
+     {<<"Os.subscribeTermination">>,
+      {fun() -> OsSubscribeTermination(fun(Reply) -> Reply end) end, none}}].
 
 %% Reads what a program or a socket gives back until Size bytes are in.
 echoed(Read, Size) ->
@@ -863,14 +864,21 @@ process_scenarios() ->
     ProcessFromAddress = Process(fromAddress),
     ProcessStatus = Process(status),
     ProcessLive = Process(live),
-    ProcessFaults = Process(faults),
+    ProcessFromReply = Process(fromReply),
+    ProcessSubscribeFaults = Process(subscribeFaults),
     ProcessOwned = Process(owned),
     ProcessPeer = Process(peer),
     ProcessRun = Process(run),
     Me = ProcessFromAddress(ern_rt:self()),
+    %% a call's reply as the runtime makes it, a reference and the caller
+    %% (report §12.2)
+    Reply = {erlang:make_ref(), erlang:self()},
     Waiting = fun() -> receive _ -> ok end end,
     [{<<"Process.fromAddress">>,
       {fun() -> ProcessFromAddress(ern_rt:self()) end, fun() -> erlang:self() end}},
+     %% the host's own part of the read, the caller beside the reference
+     {<<"Process.fromReply">>,
+      {fun() -> ProcessFromReply(Reply) end, fun() -> element(2, Reply) end}},
      {<<"Process.status">>, {fun() -> ProcessStatus(Me) end,
                              fun() -> erlang:process_info(erlang:self(),
                                                           [message_queue_len, status, memory,
@@ -887,7 +895,8 @@ process_scenarios() ->
      %% the host's own part of the read, the node the process is on
      {<<"Process.peer">>, {fun() -> ProcessPeer(Me) end,
                            fun() -> node(erlang:self()) =:= node() end}},
-     {<<"Process.faults">>, {fun() -> ProcessFaults(fun(Report) -> Report end) end, none}},
+     {<<"Process.subscribeFaults">>,
+      {fun() -> ProcessSubscribeFaults(fun(Report) -> Report end) end, none}},
      %% the site the compiler passes as the last argument (E.21); the
      %% host's one message for a value or an end, a monitored process whose
      %% exit carries its value
@@ -1231,7 +1240,7 @@ ets_scenarios() ->
     EtsSize = Ets(size),
     EtsClear = Ets(clear),
     EtsToList = Ets(toList),
-    EtsOwned = Ets(owned),
+    EtsOwnedCount = Ets(ownedCount),
     Table = EtsNew(),
     [EtsPut(Table, Key, Key) || Key <- lists:seq(1, ?SIZE)],
     Host = ets:new(ern_measure, [set, public]),
@@ -1249,10 +1258,10 @@ ets_scenarios() ->
        fun() -> ets:delete_all_objects(Host), ets:insert(Host, {7, 7}) end}},
      {<<"Ets.toList">>, {fun() -> EtsToList(Table) end, fun() -> ets:tab2list(Host) end}},
      %% the host knows a process's tables only by every table's owner
-     {<<"Ets.owned">>, {fun() -> EtsOwned(erlang:self()) end,
-                        fun() -> length([Owned || Owned <- ets:all(),
-                                                  ets:info(Owned, owner) =:= erlang:self()])
-                        end}}].
+     {<<"Ets.ownedCount">>, {fun() -> EtsOwnedCount(erlang:self()) end,
+                             fun() -> length([Owned || Owned <- ets:all(),
+                                                       ets:info(Owned, owner) =:= erlang:self()])
+                             end}}].
 
 %%
 %% The report

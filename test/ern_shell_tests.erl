@@ -3945,7 +3945,8 @@ reload_version_sites() ->
                    "    receive { Get(reply = r) -> { answer(r, n); serve(n) }",
                    " | Terminating(reply) -> answer(reply, Unit) }\n",
                    "export let service : Address(Msg) =\n",
-                   "    spawn(fn() : Unit receiving Msg = { Os.termination(Terminating); serve(",
+                   "    spawn(fn() : Unit receiving Msg = {"
+                   " Os.subscribeTermination(Terminating); serve(",
                    integer_to_list(Start), ") })\n"]
               end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
@@ -5212,17 +5213,17 @@ commands_mirror_test() ->
     ?assertEqual(lists:sort(lists:append(Named)), lists:sort(lists:append(Listed))).
 
 %% report §11.2, Appendix E.21, §6.5: the shell is a subscriber of
-%% Process.faults. An input that faults at its wait, an adapted address's
-%% function having faulted on the message it waits for, answers with the
-%% fault rather than waiting for a `Done` that never comes; a restart is
-%% reported as one, and the end after it; `:faults` keeps both, each line
-%% its time first as `ern run` stamps a line (the log's *The Review's
-%% Decisions*, written with the time); a binding `:load` evaluates is
-%% reported by `:load` alone. A regression test for
-%% the move off the front end's watcher; it does not cover a process
-%% `:reload` ends. The input that spawns the restarting process waits for
-%% its end, so that `:faults` comes after both faults: sent at once, it
-%% came first under the host's modified timing
+%% Process.subscribeFaults. An input that faults at its wait, an adapted
+%% address's function having faulted on the message it waits for, answers
+%% with the fault rather than waiting for a `Done` that never comes; a
+%% restart is reported as one, and the end after it; `:faults` keeps both,
+%% each line its time first as `ern run` stamps a line (the log's *The
+%% Review's Decisions*, written with the time); a binding `:load` evaluates
+%% is reported by `:load` alone. A regression test for the move off the
+%% front end's watcher; it does not cover a process `:reload` ends. The
+%% input that spawns the restarting process waits for its end, so that
+%% `:faults` comes after both faults: sent at once, it came first under the
+%% host's modified timing
 fault_subscriber_test_() ->
     ern_nodes_tests:counted_test({waits, 1}, fun fault_subscriber/0).
 
@@ -6574,7 +6575,7 @@ shell_told_of_the_end() ->
     {0, Output} =
         line_session(["type Msg = Ready | Terminating(Reply(Unit))\n",
                       "fn keeper(spawner : Address(Msg)) : Unit receiving Msg = {"
-                      " Os.termination(Terminating); send(spawner, Ready); receive {",
+                      " Os.subscribeTermination(Terminating); send(spawner, Ready); receive {",
                       " Terminating(reply) -> { Io.println(\"told\"); answer(reply, Unit) }",
                       " } }\n",
                       "{ let me = self(); let _ = spawn(fn() = keeper(me));"
@@ -6619,7 +6620,8 @@ stalled_flush_ends_at_once() ->
         ++ ern_nodes_tests:wait_ms_text() ++ ")",
     try
         true = port_command(Shell, ["spawn(fn() : Unit receiving Reply(Unit) = {"
-                                    " Os.termination(fn(reply) = reply); let c = ", Connect,
+                                    " Os.subscribeTermination(fn(reply) = reply);"
+                                    " let c = ", Connect,
                                     "; receive { _ -> match c { Right(socket) -> {"
                                     " let _ = Tcp.write(socket, String.toUtf8(\"told\\n\"), ",
                                     ern_nodes_tests:wait_ms_text(), "); receive { _ -> Unit } }"
@@ -6666,7 +6668,8 @@ stalled_terminal_ends_at_once() ->
     Watcher = ern_pty:watcher(),
     Read = fun(Pipe) -> "let _ = Os.run(Os.command(\"cat\", [\"" ++ Pipe ++ "\"]), "
                             ++ ern_nodes_tests:wait_ms_text() ++ ");" end,
-    Subscriber = "spawn(fn() : Unit receiving Reply(Unit) = { Os.termination(fn(reply) = reply); "
+    Subscriber = "spawn(fn() : Unit receiving Reply(Unit) = {"
+        " Os.subscribeTermination(fn(reply) = reply); "
         ++ Read(Subscribed) ++ " receive { _ -> { " ++ Read(Told)
         ++ " receive { _ -> Unit } } } })\r",
     Write = stalled_write() ++ " " ++ Read(Written) ++ " Unit }\r",

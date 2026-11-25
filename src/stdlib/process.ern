@@ -4,12 +4,13 @@
 /// `Map` and is an element of a `Set`, and it has no order. Nothing can be sent
 /// to it: an address is what a process is reached by, and a `Process` only says
 /// which one. `current` gives the running process, `fromAddress` the process
-/// behind an address, `monitor` watches one, and `kill` ends one.
+/// behind an address, `fromReply` the caller waiting on a reply, `monitor`
+/// watches one, and `kill` ends one.
 ///
-/// `status`, `live`, `owned` and `faults` show what runs, for a program that
-/// watches itself. What they say of a live process is a snapshot, which may have
-/// changed by the time it is read, and the runtime keeps nothing of a process
-/// that has ended (report Appendix E.21).
+/// `status`, `live`, `owned` and `subscribeFaults` show what runs, for a
+/// program that watches itself. What they say of a live process is a snapshot,
+/// which may have changed by the time it is read, and the runtime keeps nothing
+/// of a process that has ended (report Appendix E.21).
 ///
 /// `run` runs a function in a process of its own and answers its value or how
 /// the process ended, for a worker whose end the caller reads as data: a fault
@@ -157,6 +158,30 @@ type JudgeMsg(a) = Run(Reply(Either(Reason, a))) | Finished(a) | Ended(Down) | C
 export foreign fn fromAddress(address : Address(m)) : Process =
     "ern_rt:process_of/1"
 
+/// The caller waiting on `reply`, as a `Process`: the callee may watch it
+/// with `monitor`, or compare it with another (report §6.6). It gives no
+/// address, so nothing is sent through it; the answer goes through the
+/// reply alone.
+///
+/// ### Examples
+///
+/// The callee answers the caller's process, and the caller is told it is
+/// itself:
+///
+/// ```ernest
+/// {
+///     let echo = spawn(fn() = receive {
+///         reply -> answer(reply, Process.fromReply(reply))
+///     });
+///     Address.callForever(echo, fn(reply) = reply) == Process.current()
+/// }
+/// // => true
+/// ```
+///
+/// since 0.11.0
+export foreign fn fromReply(reply : Reply(a)) : Process =
+    "ern_rt:reply_process/1"
+
 /// The running process, for a function that needs its identity and not its
 /// mailbox; `self` gives its address. It is the process `fromAddress(self())`
 /// gives. In a wrap the runtime applies, a monitor's, an alarm's or a
@@ -245,10 +270,12 @@ export foreign fn owned(process : Process) : List(Process) =
 /// ### Examples
 ///
 /// ```ernest
-/// Process.faults(fn(report) = report)
+/// Process.subscribeFaults(fn(report) = report)
 /// // => Unit
 /// ```
-export fn faults(wrap : (FaultReport) -> m) : Unit receiving m =
+///
+/// since 0.11.0
+export fn subscribeFaults(wrap : (FaultReport) -> m) : Unit receiving m =
     subscribe(adapted(self(), wrap))
 
 foreign fn subscribe(address : Address(FaultReport)) : Unit =

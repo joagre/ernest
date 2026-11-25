@@ -4043,15 +4043,15 @@ named_fields_named_test() ->
     ?assertEqual("Point has named fields; write Point(x = p, y = p)",
                  refusal(Point ++ "fn f(q : Point) : Int = match q { Point(a) -> a }")).
 
-%% report §5.6, §11.5: a constructor with named fields where a function
-%% that takes its fields is wanted, as Os.termination's wrap, is told the
-%% lambda that constructs it; where any other value is wanted, the
+%% report §5.6, §11.5: a constructor with named fields where a function that
+%% takes its fields is wanted, as Os.subscribeTermination's wrap, is told
+%% the lambda that constructs it; where any other value is wanted, the
 %% construction. A regression test, written after the fix: the help named a
 %% construction where a function was wanted
 named_constructor_as_function_test() ->
     ?assertEqual("Stop has named fields; write fn(reply) = Stop(=reply)",
                  refusal("type Stop = Stop(reply : Reply(Unit))\n"
-                         "fn f() : Unit receiving Stop = Os.termination(Stop)\n")),
+                         "fn f() : Unit receiving Stop = Os.subscribeTermination(Stop)\n")),
     Point = "type Point = Point(x : Int, y : Int)\n"
             "fn made(make : (Int, Int) -> Point) : Point = make(1, 2)\n",
     ?assertEqual("Point has named fields; write fn(x, y) = Point(=x, =y)",

@@ -126,14 +126,16 @@ primitives_test() ->
      end || {Namespace, Body} <- namespaces(section("## Appendix E.", "## Appendix G")),
             Named <- [primitives(Body)], Named =/= []].
 
-%% The names in backticks of a section's sentence "The primitives are ...".
+%% The functions' names in backticks of a section's sentence "The
+%% primitives are ...", a type's name the sentence gives, E.21's `Reply`,
+%% being no primitive's.
 primitives(Body) ->
     Text = lists:append(Body),
     case string:find(Text, "The primitives are") of
         nomatch -> [];
         Found ->
             [Sentence | _] = string:split(Found, "(E.0 rule 1)"),
-            {match, Names} = re:run(Sentence, "`(\\w+)`", [global, {capture, [1], list}]),
+            {match, Names} = re:run(Sentence, "`([a-z]\\w*)`", [global, {capture, [1], list}]),
             [list_to_atom(Name) || [Name] <- Names]
     end.
 

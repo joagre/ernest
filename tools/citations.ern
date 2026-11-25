@@ -161,7 +161,7 @@ export fn numberAt(chars : List(Char)) : Optional(#(String, List(Char))) =
     }
 
 fn digitRun(chars : List(Char)) : #(List(Char), List(Char)) =
-    List.span(chars, Char.isAsciiDigit)
+    List.splitWhile(chars, Char.isAsciiDigit)
 
 fn isCapital(char : Char) : Bool =
     char >= 'A' && char <= 'Z'

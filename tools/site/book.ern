@@ -70,7 +70,7 @@ fn booked(run : Run.Run,
     let #(title, blocks) <- Run.titleOf(source, Run.withoutContents(document));
     let placed = Links.anchored(source, placing(blocks));
     let bookPage <- Run.linkPage(run, source, home, placed);
-    let #(front, rest) = List.span(placed, fn(each) = !Run.isHeadingOf(2, each.block));
+    let #(front, rest) = List.splitWhile(placed, fn(each) = !Run.isHeadingOf(2, each.block));
     let chapters <- chaptered(source, rest);
     let numbers = List.map(chapters, fn(chapter) = chapter.number);
     let #(listing, kept) =
@@ -147,7 +147,7 @@ fn chaptered(source : String, placed : List(CodeBlock.Placed)) : Either(String, 
         [] ->
             Right([])
       | CodeBlock.Placed(block = Markdown.Heading(=text)) :: rest -> {
-            let #(own, later) = List.span(rest, fn(each) = !Run.isHeadingOf(2, each.block));
+            let #(own, later) = List.splitWhile(rest, fn(each) = !Run.isHeadingOf(2, each.block));
             let found <-
                 Either.fromOptional(Links.number(Html.plain(text)),
                                     source

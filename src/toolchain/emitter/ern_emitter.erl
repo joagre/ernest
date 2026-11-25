@@ -1677,7 +1677,6 @@ is_primitive([Name]) ->
     lists:member(Name, [self, send, answer, adapted, monitor, monitorService, demonitor, kill,
                         spawn, spawnMonitored, restarting, fault]);
 is_primitive(['Address', Name]) -> Name =:= call orelse Name =:= callForever;
-is_primitive(['Reply', Name]) -> Name =:= process;
 is_primitive(['Int', Name]) -> lists:member(Name, ['+', '-', '*', '/', '%', negate]);
 is_primitive([TypeName, '<>']) -> lists:member(TypeName, ['String', 'List', 'Bytes']);
 is_primitive(_) -> false.
@@ -1994,8 +1993,6 @@ prelude_call(_, [monitorService], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, monitor_service, ArgForms), Context};
 prelude_call(_, [demonitor], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, demonitor, ArgForms), Context};
-prelude_call(_, ['Reply', process], _, ArgForms, _, Context) ->
-    {call_remote(ern_rt, reply_process, ArgForms), Context};
 prelude_call(_, [kill], _, ArgForms, _, Context) ->
     {call_remote(ern_rt, kill, ArgForms), Context};
 prelude_call(Source, [spawn], _, ArgForms, _, Context) ->
@@ -2063,8 +2060,6 @@ prelude_value(_, ['Address', Name] = QualifiedName, Answer, Context)
     {lambda(Variables, Body), Context2};
 prelude_value(_, [monitorService], _, Context) ->
     {remote_fun(ern_rt, monitor_service, 2), Context};
-prelude_value(_, ['Reply', process], _, Context) ->
-    {remote_fun(ern_rt, reply_process, 1), Context};
 prelude_value(_, [Name] = QualifiedName, _, Context) ->
     #linked{arity = Arity} = linked({named, QualifiedName}, Context),
     {remote_fun(ern_rt, Name, Arity), Context}.

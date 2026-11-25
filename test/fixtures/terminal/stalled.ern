@@ -1,7 +1,7 @@
 //
 // An end that waits on a terminal that takes nothing, for the terminal
 // tests (report §8.6, §12.1, §12.4): a process of the program's own
-// subscribes to Os.termination, and once it has, the program subscribes to
+// subscribes to Os.subscribeTermination, and once it has, the program subscribes to
 // the keys and says that it is ready. On a key it writes a megabyte to
 // standard output, waits until `cat` has read the named pipe its first
 // argument names to its end, and writes a byte, which waits behind the
@@ -63,7 +63,7 @@ fn waiting() : Unit receiving MainMsg =
     }
 
 fn subscriber(main : Address(MainMsg), told : String, ms : Int) : Unit receiving SubscriberMsg = {
-    Os.termination(Terminating);
+    Os.subscribeTermination(Terminating);
     send(main, Subscribed);
     receive {
         Terminating(_) -> {

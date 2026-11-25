@@ -22,7 +22,7 @@ this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](README.md#starting-point); [Kept from Unison](README.md#kept-from-unison); [Dropped from Unison](README.md#dropped-from-unison); [Tried and Rejected](README.md#tried-and-rejected); [Toolchain and Guide](README.md#toolchain-and-guide); [Reasons Lifted Out of the Report](README.md#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](README.md#erlangs-standard-library-module-by-module); [Paper Programs and Measurements](README.md#paper-programs-and-measurements); [Form of the Report](README.md#form-of-the-report); [Measure](README.md#measure).
 
-**2026-11-25.** [The First Build of Leg 4](2026-11-25.md#the-first-build-of-leg-4-2026-11-25)
+**2026-11-25.** [The Renames of the Library's Names](2026-11-25.md#the-renames-of-the-librarys-names-2026-11-25); [The First Build of Leg 4](2026-11-25.md#the-first-build-of-leg-4-2026-11-25)
 
 **2026-11-24.** [Leg 4's Answers](2026-11-24.md#leg-4s-answers-2026-11-24), [The Changed Sentences Read Cold](2026-11-24.md#the-changed-sentences-read-cold-2026-11-24), [The Cold Reading's Answers](2026-11-24.md#the-cold-readings-answers-2026-11-24), [The Answers Read Cold](2026-11-24.md#the-answers-read-cold-2026-11-24), [The Answers Read Cold's Six](2026-11-24.md#the-answers-read-colds-six-2026-11-24).
 

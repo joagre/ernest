@@ -58,7 +58,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 2. It makes its user's directory its owner's alone, and then reads the startup files and, at a terminal, the history.
 3. It gives the session what it read: as a message to a plain shell's session, or in the spawn on the peer (*The attached shell*).
 4. The session spawns its screen and, at a terminal, its reader, marks its own processes, and starts the front end's session, which writes the screen's row. It then tells the local half its process and the addresses the keys and the shell's own node's output go to, a call, so that the output is routed before the next step.
-5. It says the greeting, subscribes to `Process.faults`, and only then spawns the file's entry point, so that a fault in the entry point is reported; then it says what the local half had to say of the files it read.
+5. It says the greeting, subscribes to faults with `Process.subscribeFaults`, and only then spawns the file's entry point, so that a fault in the entry point is reported; then it says what the local half had to say of the files it read.
 6. It monitors the reader. The reader's end is the session's, and an input running then is killed with it, since no key can interrupt that input any more; so is the local half's.
 7. It runs the startup inputs, and writes the first prompt, which drains the screen first, as before every prompt, and tells the reader the prompt is drawn.
 
@@ -150,7 +150,7 @@ The session collects once an input has answered and at each `:forget`, and reads
 
 The process of an input that binds a name answers and waits, and the session records it, by its holder, as it binds the answer. At each collection the session sets to go each whose holder no name in its scope stands under, and it ends at the session's end too, so that what a `let` opened stays open while its name is in scope (§11.2 *Inputs*).
 
-A process set to go is asked what it owns while it lives, since what it owned ends with it: once the input's answer is said, or at `:forget`, the session reads each one's `Process.owned` and `Ets.owned`, says a line for each by its site, `Ets.new` for a table, with the names its holder held, and only then lets them go (`going/0`, `let_go/0`; the log's *The Input's Process*). So the shell is compiled against `libs/ets` beside `libs/ansi` and `libs/markdown`.
+A process set to go is asked what it owns while it lives, since what it owned ends with it: once the input's answer is said, or at `:forget`, the session reads each one's `Process.owned` and `Ets.ownedCount`, says a line for each by its site, `Ets.new` for a table, with the names its holder held, and only then lets them go (`going/0`, `let_go/0`; the log's *The Input's Process*). So the shell is compiled against `libs/ets` beside `libs/ansi` and `libs/markdown`.
 
 Shadowing is by name in the scope, not by replacing code, so a closure made before a declaration keeps the code it was compiled against (the log's *A Binding That Holds a Function*). How the session's memory is checked is [`memory_checks.md`](../memory_checks.md)'s.
 
@@ -329,7 +329,7 @@ The settings are an Ernest value in the session's state, not the front end's. `:
 
 ## Faults
 
-Beside its subscription to `Process.faults` (§11.2 *Faults*), the session monitors nothing but the reader, the screen and its local half. The screen's end leaves the session nothing to show itself on, so the session faults with the screen's cause, a failure of the shell's own (§11.8). A plain shell's local half is part of it, and its end faults the session too, with its cause where it had one, its standard input's among them; an attached session's ends the session as a detach does. An attached session's own fault ends it, and the root of its chain detaches it (*The attached shell*).
+Beside its subscription to faults, `Process.subscribeFaults`'s (§11.2 *Faults*), the session monitors nothing but the reader, the screen and its local half. The screen's end leaves the session nothing to show itself on, so the session faults with the screen's cause, a failure of the shell's own (§11.8). A plain shell's local half is part of it, and its end faults the session too, with its cause where it had one, its standard input's among them; an attached session's ends the session as a detach does. An attached session's own fault ends it, and the root of its chain detaches it (*The attached shell*).
 
 The session passes over a report of its own processes, which it keeps as a `Set(Process)`, since a `Process` has equality where an address has none. It says every other report and keeps it for `:faults`.
 

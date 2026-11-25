@@ -155,7 +155,7 @@ fn levelOf(line : Line) : Optional(Int) =
     if line.place != Prose then
         None
     else {
-        let #(marks, rest) = List.span(String.toList(line.text), fn(char) = char == '#');
+        let #(marks, rest) = List.splitWhile(String.toList(line.text), fn(char) = char == '#');
         let level = List.size(marks);
         match rest {
             ' ' :: _ when level >= 1 && level <= 3 -> Some(level)
@@ -164,7 +164,7 @@ fn levelOf(line : Line) : Optional(Int) =
     }
 
 fn titleOf(heading : String) : String = {
-    let #(_, rest) = List.span(String.toList(heading), fn(char) = char == '#');
+    let #(_, rest) = List.splitWhile(String.toList(heading), fn(char) = char == '#');
     String.trimStart(String.fromList(rest))
 }
 
@@ -225,7 +225,7 @@ fn lengthRows(path : String, sections : List(#(Section, Int))) : List(String) =
         [] ->
             []
       | #(section, own) :: rest -> {
-            let #(under, _) = List.span(rest, fn(#(next, _)) = next.level > section.level);
+            let #(under, _) = List.splitWhile(rest, fn(#(next, _)) = next.level > section.level);
             let whole = List.foldLeft(under, own, fn(acc, #(_, count)) = acc + count);
             let shownWhole = if section.level < 3 then Int.toString(whole) else "";
             (column(Int.toString(own), 7)
@@ -359,7 +359,7 @@ fn reportKey(section : String) : String =
     }
 
 fn leadingDigits(chars : List(Char)) : #(List(Char), List(Char)) =
-    List.span(chars, Char.isAsciiDigit)
+    List.splitWhile(chars, Char.isAsciiDigit)
 
 fn isWordChar(char : Char) : Bool =
     Char.isAlpha(char) || Char.isAsciiDigit(char) || char == '_'
@@ -703,8 +703,8 @@ fn grammarRules(blocks : List(Block)) : Set(String) =
 
 // The rule a line writes, `Program` of `Program = { Declaration } .`.
 fn ruleName(line : String) : Optional(String) = {
-    let #(name, rest) = List.span(String.toList(line), isWordChar);
-    let #(_, following) = List.span(rest, fn(char) = char == ' ');
+    let #(name, rest) = List.splitWhile(String.toList(line), isWordChar);
+    let #(_, following) = List.splitWhile(rest, fn(char) = char == ' ');
     match following {
         '=' :: _ when name != [] -> Some(String.fromList(name))
       | _ -> None
@@ -955,7 +955,7 @@ fn diffsOf(bytes : Bytes) : List(Diff) = {
     });
     let diffs =
         List.reverse(List.map(found, fn(diff) = Diff(..diff, hunks = List.reverse(diff.hunks))));
-    let #(later, copying) = List.span(diffs, fn(diff) = !diff.copied);
+    let #(later, copying) = List.splitWhile(diffs, fn(diff) = !diff.copied);
     later <> List.take(copying, 1)
 }
 

@@ -1399,8 +1399,8 @@ fn pathEncoded(text : String) : String =
             match String.stripPrefix(rest, "//") {
                 Some(afterSlashes) -> {
                     let #(authority, path) =
-                        List.span(String.toList(afterSlashes),
-                                  fn(char) = char != '/' && char != '?' && char != '#');
+                        List.splitWhile(String.toList(afterSlashes),
+                                        fn(char) = char != '/' && char != '?' && char != '#');
                     scheme <> "://" <> String.fromList(authority <> encoded(path))
                 }
               | None ->

@@ -156,7 +156,7 @@ fn homeWritten(run : Run.Run) : Either(String, Unit) = {
 fn claimsOf(source : String,
             blocks : List(Markdown.Block)) : Either(String,
                                                     List(#(String, List(Markdown.Inline)))) = {
-    let #(_, from) = List.span(blocks, fn(block) = !isClaimsLead(block));
+    let #(_, from) = List.splitWhile(blocks, fn(block) = !isClaimsLead(block));
     match from {
         _ :: Markdown.Items(=items) :: _ ->
             List.tryMap(items, fn(item) = match item {
@@ -354,7 +354,7 @@ fn iconsGathered(directory : Path) : Either(String, String) = {
 // attributes a line each up to the line `>`, then its children, a line
 // each, and the `</svg>` line.
 fn symbolOf(named : String, id : String, text : String) : Either(String, List(String)) = {
-    let #(head, body) = List.span(String.lines(text), fn(line) = line != ">");
+    let #(head, body) = List.splitWhile(String.lines(text), fn(line) = line != ">");
     let attributes <- match head {
         "<svg" :: rest -> List.tryMap(rest, fn(line) = attributeOf(named, line))
       | _ -> Left(named <> " does not begin with the line <svg, as Lucide writes an icon")

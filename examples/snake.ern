@@ -246,7 +246,7 @@ fn freePoint(world : World) : Optional(#(Point, Random.Seed)) = {
         [] ->
             None
       | free -> {
-            let #(index, seed) = Random.nextInt(world.seed, List.size(free) - 1);
+            let #(seed, index) = Random.nextInt(world.seed, List.size(free));
             Optional.map(List.get(free, index), fn(point) = #(point, seed))
         }
     }

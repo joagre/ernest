@@ -387,7 +387,7 @@ export fn withNamespaces(names : List(Name)) : List(Name) = {
 /// and what goes on after it, for `Shift-Tab`.
 export fn wordAt(line : String, cursor : Int) : String = {
     let following = String.toList(String.drop(line, cursor));
-    let #(onward, _) = List.span(following, fn(char) = inName(Char.toString(char)));
+    let #(onward, _) = List.splitWhile(following, fn(char) = inName(Char.toString(char)));
     word(String.slice(line, 0, cursor)) <> String.fromList(onward)
 }
 

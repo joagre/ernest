@@ -35,8 +35,8 @@ fn manual(report : String, version : String, pages : String) : Either(String, Li
     let section <-
         Either.fromOptional(toolchain(Markdown.parse(text)),
                             "no section 11. Toolchain in " <> report);
-    let #(description, rest) = List.span(section, fn(block) = !titled(block, "11.7 Options"));
-    let #(options, rest) = List.span(rest, fn(block) = !titled(block, "11.8 Exit status"));
+    let #(description, rest) = List.splitWhile(section, fn(block) = !titled(block, "11.7 Options"));
+    let #(options, rest) = List.splitWhile(rest, fn(block) = !titled(block, "11.8 Exit status"));
     let #(exitStatus, later) = subsection(rest);
     let _ <- if List.isEmpty(options) || List.isEmpty(exitStatus) then
         Left("no sections 11.7 Options and 11.8 Exit status in " <> report)
@@ -72,9 +72,9 @@ fn page(version : String) : Markdown.Manual =
 // The blocks of §11 after its heading, up to the next chapter's.
 fn toolchain(blocks : List(Markdown.Block)) : Optional(List(Markdown.Block)) = {
     let chapter = Markdown.Heading(level = 2, text = [Markdown.Text("11. Toolchain")]);
-    match List.span(blocks, fn(block) = block != chapter) {
+    match List.splitWhile(blocks, fn(block) = block != chapter) {
         #(_, _ :: rest) -> {
-            let #(section, _) = List.span(rest, fn(block) = !beginsChapter(block));
+            let #(section, _) = List.splitWhile(rest, fn(block) = !beginsChapter(block));
             Some(section)
         }
       | _ ->
@@ -87,7 +87,7 @@ fn toolchain(blocks : List(Markdown.Block)) : Optional(List(Markdown.Block)) = {
 fn subsection(blocks : List(Markdown.Block)) : #(List(Markdown.Block), List(Markdown.Block)) =
     match blocks {
         first :: rest -> {
-            let #(body, later) = List.span(rest, fn(block) = !beginsSubsection(block));
+            let #(body, later) = List.splitWhile(rest, fn(block) = !beginsSubsection(block));
             #(first :: body, later)
         }
       | [] ->

@@ -95,7 +95,7 @@ fn partsOf(words : List(String)) : Either(String, List(Part)) =
         [] ->
             Right([])
       | "--" :: name :: program :: rest -> {
-            let #(arguments, later) = List.span(rest, fn(word) = word != "--");
+            let #(arguments, later) = List.splitWhile(rest, fn(word) = word != "--");
             let parts <- partsOf(later);
             Right(Part(=name, =program, =arguments) :: parts)
         }
@@ -110,7 +110,7 @@ fn partsOf(words : List(String)) : Either(String, List(Part)) =
 // started before a failure ends with the program, which ends at once
 // (Appendix E.23).
 fn hunted(hunt : Hunt) : Either(String, Int) receiving HuntMsg = {
-    Os.termination(Stop);
+    Os.subscribeTermination(Stop);
     let records = Os.workingDirectory <> hunt.records;
     let _ <-
         Either.mapLeft(Fs.makeDir(records, fileMs),

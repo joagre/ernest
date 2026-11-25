@@ -2,12 +2,12 @@
 /// other programs run from it.
 ///
 /// Use `arguments`, `environment` and `workingDirectory` to read what the
-/// program was started with, `exit` to end it with a status, and `termination`
-/// to be told before it ends. Use `run` to run another program to its end and
-/// read all it wrote, `start` with `read` or `readForever` and `write` to talk
-/// to one while it runs, `signal` to send it the termination, the hangup or the
-/// interrupt, and `startTerminal` for one that needs a terminal, a shell or an
-/// editor, whose size `resize` changes.
+/// program was started with, `exit` to end it with a status, and
+/// `subscribeTermination` to be told before it ends. Use `run` to run another
+/// program to its end and read all it wrote, `start` with `read` or
+/// `readForever` and `write` to talk to one while it runs, `signal` to send it
+/// the termination, the hangup or the interrupt, and `startTerminal` for one
+/// that needs a terminal, a shell or an editor, whose size `resize` changes.
 ///
 /// **No shell.** A program is found as the host finds a command: a name without
 /// `/` is looked for in the directories of `PATH`, and a relative name with `/`
@@ -297,15 +297,15 @@ export foreign fn exit(status : Int) : a =
 ///
 /// ```ernest
 /// {
-///     Os.termination(fn(reply) = reply);
+///     Os.subscribeTermination(fn(reply) = reply);
 ///     receive {
 ///         reply -> answer(reply, Unit)
 ///     }
 /// }
 /// ```
 ///
-/// since 0.4.0
-export fn termination(wrap : (Reply(Unit)) -> m) : Unit receiving m =
+/// since 0.11.0
+export fn subscribeTermination(wrap : (Reply(Unit)) -> m) : Unit receiving m =
     subscribe(adapted(self(), wrap))
 
 foreign fn subscribe(address : Address(Reply(Unit))) : Unit =
