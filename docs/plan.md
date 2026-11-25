@@ -23,9 +23,11 @@ use and recorded as `docs/language_feedback.md` records one. Ernest stays at 0.x
 outside the project depends on it, as MVP 4.4's opening says.
 
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
-leg, whose first two builds are done: the report written from the copy, with the code
-made true of the four lines its tests hold, and the renames of *The Library's Names*
-(the log's *The First Build of Leg 4* and *The Renames of the Library's Names*).** The changed
+leg: the report written from the copy, the renames of *The Library's Names*, and the
+builds of the front end, the checker, the emitter and the runtime, in two, are done, and
+the first Fable round that item 4 names is next, before the nodes' build (the log's *The
+First Build of Leg 4*, *The Renames of the Library's Names*, *The Runtime's Second Build*
+and *A Fable Round at a Cut*).** The changed
 sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59 finds under
 their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered the same day
 one at a time, with *Z13* and *Z14* closed (the log's *The Changed Sentences Read Cold* and
