@@ -25,10 +25,10 @@ outside the project depends on it, as MVP 4.4's opening says.
 **MVP 4.6 is done since 2026-11-22. MVP 4.4's item 4, the full review, is in its fourth
 leg: the report written from the copy, the renames of *The Library's Names*, and the
 builds of the front end, the checker, the emitter, the runtime, in two, the nodes and the
-standard library with the libraries are done, the first Fable round that item 4 names is
-held, and the second is next, before the cli's build (the log's *The First Build of Leg
+standard library with the libraries are done, the two Fable rounds that item 4 names are
+held, and the cli's build is next, on Opus 5.5 at xhigh (the log's *The First Build of Leg
 4*, *The Renames of the Library's Names*, *The Runtime's Second Build*, *The First Fable
-Round*, *The Nodes' Build* and *The Libraries' Build*).**
+Round*, *The Nodes' Build*, *The Libraries' Build* and *The Second Fable Round*).**
 
 The changed sentences of §3 to §9 were read cold 2026-11-24 in a copy of the report, 59
 finds under their lines as *Read cold 2026-11-24*, 37 plain and 21 for the user, answered
@@ -187,27 +187,7 @@ says what is left once its readings are in, and no figure stands until then.
       started, the first after the runtime's second build, and the last before `make
       test-full` and the close (the log's *One Fable Round Before the Close* and *A Fable
       Round at a Cut*). The builds go on meanwhile, and each question that waits is named
-      here as it comes, its ways under its line in the findings. Six wait now, for the
-      second round, held before the cli's build, which takes each answer:
-
-      - **Decision: a node's text for a missing dependency** (*T5*, with *T1*'s form):
-        `ern run`'s text alone, as §8.7 says, or with the tail that says why a node
-        reads a module the program does not name, and where *T5*'s clause `which the
-        program does not use` stands, if anywhere.
-      - **Decision: the forms of `ern test`'s count** (*N C29*): the line where one case
-        ran and where none failed, a run of no case, one line at the end or one for each
-        module of a directory, and the faults §11.8 counts that no case's line shows.
-      - **Decision: which refusals name the help** (*T18*): whether a directory an
-        option names that is not there and a word that is not UTF-8 are refusals of a
-        command line, and the help after one whose advice names another job already.
-      - **Decision: the advice of the certificate's refusals** (*P3 3, P3 9, T25*):
-        `ern config makes one that names it`, which now holds only by a new directory,
-        or `remove it, and the node makes one that names it`, on both refusals.
-      - **Decision: a reload's text for another key** (*P3 3, P3 9, T25*): the text the
-        nodes' build wrote where §12.5 quotes none.
-      - **Decision: `Http.filePath` and an `OPTIONS` request** (*S3, S6*): `None` for an
-        `OPTIONS` whose target has a scheme and an empty path, which RFC 9110 §4.2.3
-        excepts from the path `/`, or the root, as built.
+      here as it comes, its ways under its line in the findings. None waits now.
 
       A round's session runs on Fable 5.2 at high, after a `/clear`, with no agent
       running, and reads `docs/agents.md` and each waiting line in the findings. It puts
@@ -223,8 +203,17 @@ says what is left once its readings are in, and no figure stands until then.
       taken refusal's text and the help where a root module hides a library's with the
       cli's; `:load`'s answer with the shell's; and `List.<>` with the standard
       library's. The nodes' build and the standard library's are done (the log's *The
-      Nodes' Build* and *The Libraries' Build*), and the second round is next, on Fable
-      5.2 at high; the cli's build follows it, on Opus 5.5 at xhigh.
+      Nodes' Build* and *The Libraries' Build*).
+
+      The second round was held 2026-11-25 (the log's *The Second Fable Round*), its six
+      decisions answered under *T5*, *N C29*, *T18*, *P3 3, P3 9, T25*, twice, and *S3,
+      S6*. The cli's build is next, on Opus 5.5 at xhigh, and takes the five texts, the
+      two of the nodes' code among them: a node's rule after a missing dependency, the
+      count of `ern test`, the refusals that name the help, the certificate's advice and
+      a reload's text for another key. §8.7's sentence, which gains the first, is read
+      cold before that build starts. `Http.filePath`'s `None` for an `OPTIONS` request
+      with a scheme and an empty path is a step of its own beside it, in
+      `src/libs/http/http.ern`.
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold
