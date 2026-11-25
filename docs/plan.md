@@ -46,8 +46,8 @@ domain was written a third time. Three lines are new: *Z10*, decided, *Z11*, a f
 *Z12*, decided. Where an answer sends its builder to check a thing first, its line says
 what comes back to the user.
 
-The leg goes on so: the applications' message on the renames and on the computes', with
-an archive of the renames' commit; then the `1` and `1r`
+The three applications were told the renames and the first build's answers 2026-11-25,
+with an archive of `0a0a14ea`. The leg goes on so: the `1` and `1r`
 lines of `docs/findings.md` by the session, and the `2a`, `2b` and decided lines by
 agents, one brief to an owner holding all its lines. Each decided line holds its verdict
 beneath it, and a verdict that says a reader reads first, or that a line comes back to the
