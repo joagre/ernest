@@ -173,8 +173,23 @@ says what is left once its readings are in, and no figure stands until then.
       in this order: the readings a verdict asks for first, and what comes back brought
       to the user in one round; the cold readings of the changed sentences of §3 to §9;
       the renames and the other changes the applications meet, with their message, so
-      that the three can start; and then the rest. A verdict that comes back needs Fable
-      for its answer, so the session stops there as it stops at a cut.
+      that the three can start; and then the rest.
+
+      A verdict that comes back during the builds needs Fable for its answer, and every one
+      is answered in one Fable 5.2 session at high before `make test-full` and the close,
+      with any other question the session judges is Fable's, decided with the user
+      2026-11-25 (the log's *One Fable Round Before the Close*). The builds go on
+      meanwhile, and each question that waits is named here as it comes, its ways under
+      its line in the findings:
+
+      - **Decision: what E.21's `FaultReport` carries** (*B8*, *B10*). Whether it gains a
+        field, or what stands in one, for the host's description of a raise, which §12.3's
+        held sentence writes beneath the fault's line, and for a callee's end told from a
+        fault a call carried up a chain, so that the shell's line and `ern run`'s can say
+        `, the callee X` and `, the fault of the callee X` apart.
+      - **Decision: a clash with a toolchain's namespace** (*P1 11, K 19, W17*, the
+        finding's other half): one verdict, said in §4.2, once a reader on Opus has named
+        the three clashes the toolchain has, as the line asks.
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold
