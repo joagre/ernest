@@ -2,10 +2,13 @@
 %% compiled from text, loaded, and unloaded again, a unit out of the code
 %% table among them; the messages of one tag a process's mailbox holds; the
 %% side of an Either; the options of a run whose standard output is let
-%% go; and a process of another node.
+%% go; a process of another node; and a node's certificate forged.
 -module(ern_helpers).
 
--export([loaded/2, unloaded/1, taken/1, side/1, quiet/0, quiet/1, far_process/0]).
+-export([loaded/2, unloaded/1, taken/1, side/1, quiet/0, quiet/1, far_process/0,
+         forged_certificate/2]).
+
+-include_lib("public_key/include/public_key.hrl").
 
 %% Module compiled from Forms, each the text of one form, every function of
 %% no argument exported, and loaded from memory, so that no file is
@@ -60,3 +63,27 @@ quiet(Options) ->
 -spec far_process() -> pid().
 far_process() ->
     binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>).
+
+%% Report §12.5: a certificate signed with the key of the configuration
+%% directory Dir that names the host given, its DER, for the rule to refuse
+%% where the host is another node's or none a key gives.
+-spec forged_certificate(file:filename(), string()) -> binary().
+forged_certificate(Dir, Host) ->
+    {ok, Pem} = file:read_file(filename:join(Dir, "private-key.pem")),
+    [Entry] = public_key:pem_decode(Pem),
+    {'ECPrivateKey', _, Private, _, _, _} = Key = public_key:pem_entry_decode(Entry),
+    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
+    Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
+                                                    value = {utf8String, <<"ernest">>}}]]},
+    Tbs = #'OTPTBSCertificate'{
+             version = v3, serialNumber = 1,
+             signature = #'SignatureAlgorithm'{algorithm = ?'id-Ed25519'},
+             issuer = Name, subject = Name,
+             validity = #'Validity'{notBefore = {utcTime, "700101000000Z"},
+                                    notAfter = {generalTime, "99991231235959Z"}},
+             subjectPublicKeyInfo = #'OTPSubjectPublicKeyInfo'{
+                                       algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
+                                       subjectPublicKey = #'ECPoint'{point = Point}},
+             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
+                                        extnValue = [{dNSName, Host}]}]},
+    public_key:pkix_sign(Tbs, Key).

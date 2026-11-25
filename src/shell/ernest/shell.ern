@@ -485,26 +485,70 @@ fn historyTrouble(file : String, done : String, error : Io.Error) : String =
       | _ -> file <> " could not be " <> done <> ": " <> Refusal.trouble(error)
     }
 
+// Report §11.2: a startup file, its user's own or the configuration
+// directory's, by its path.
+type StartupFile = Own(String) | Configured(String)
+
 // Report §11.2: where the startup files are, its user's first and then
 // the configuration directory's, which runs only where `--config-dir`
-// names that directory; a file both paths name runs once. Whether each is
-// there, and what it holds, readFileInputs reads.
-fn startupFiles() : List(String) =
+// names that directory; a file both paths name runs once, as the
+// configuration directory's. Whether each is there, and what it holds,
+// readStartup reads.
+fn startupFiles() : List(StartupFile) =
     match #(Optional.map(History.startup, Refusal.fromWorkingDirectory), configStartup()) {
         #(Some(own), Some(configured)) ->
-            if isSameFile(own, configured) then [own] else [own, configured]
+            if isSameFile(own, configured) then
+                [Configured(own)]
+            else
+                [Own(own), Configured(configured)]
       | #(Some(own), None) ->
-            [own]
+            [Own(own)]
       | #(None, Some(configured)) ->
-            [configured]
+            [Configured(configured)]
       | #(None, None) ->
             []
     }
 
+// A startup file's path.
+fn startupPath(file : StartupFile) : String =
+    match file {
+        Own(path) -> path
+      | Configured(path) -> path
+    }
+
+// Report §11.2: the inputs of a startup file, as readFileInputs reads
+// them, but the configuration directory's, which is reported and not run
+// where its mode lets any but its owner write it, as a node refuses such
+// an `ernest.conf` (§12.5).
+fn readStartup(file : StartupFile) : #(List(#(String, Int, String)), List(String)) =
+    match file {
+        Own(path) ->
+            readFileInputs(path)
+      | Configured(path) ->
+            if isWrittenByOthers(path) then {
+                let shown = Refusal.controlFree(path);
+                #([],
+                  [shown
+                       <> " may be written by others than its owner, and is not run; chmod go-w "
+                       <> shown])
+            } else
+                readFileInputs(path)
+    }
+
+// Whether the file's mode lets any but its owner write it, a link
+// followed; a file that is not there, or cannot be asked, readFileInputs
+// reads as any other.
+fn isWrittenByOthers(path : String) : Bool =
+    match Fs.stat(Path(path), fileMs) {
+        Right(entry) -> Int.bitAnd(entry.mode, 0o022) != 0
+      | Left(_) -> false
+    }
+
 // Report §11.2: the inputs of a startup file, read where it is found and
-// held to no owner and no mode (§11). A file that is not there is no
-// error; one that cannot be read, is no regular file or is not UTF-8 is
-// said, and the session goes on. Each input carries the line it is on.
+// held to no owner and no mode (§11), but the configuration directory's
+// (readStartup). A file that is not there is no error; one that cannot be
+// read, is no regular file or is not UTF-8 is said, and the session goes
+// on. Each input carries the line it is on.
 fn readFileInputs(file : String) : #(List(#(String, Int, String)), List(String)) =
     match Fs.read(Path(file), fileMs) {
         Left(Io.NotFound) ->
@@ -2005,7 +2049,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
     // the history is not read
     History.keepOwn();
     let startup = startupFiles();
-    let read = List.map(startup, readFileInputs);
+    let read = List.map(startup, readStartup);
     let #(earlier, historyFile, historyNotes) = match size {
         Some(_) -> readHistory()
       | None -> #([], None, [])
@@ -2028,7 +2072,7 @@ fn localHalf(attachment : Attachment) : Unit receiving LocalMsg = {
                 peer = None,
                 ending = "",
                 sourceRoot = Path(desk.sourceRoot),
-                startup = List.map(startup, Path),
+                startup = List.map(startup, fn(file) = Path(startupPath(file))),
                 output = None);
     match attachment {
         Beside(session) -> {

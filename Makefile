@@ -538,9 +538,9 @@ bench: all
 # bench-machines runs the bench's two node parts across the machines of
 # test/machines/machines.txt (the log's *The Machines*), and bench-pick the
 # push's experiment across them (the log's *The Numbers Across Machines*),
-# with MEASURING, PEERS, INTERVALS, RUNS and UTILIZATION as test/Makefile
-# says, each machine checked against this checkout first; both are run by
-# hand, on the user's machines.
+# with MEASURING, PEERS, INTERVALS and RUNS as test/Makefile says, each
+# machine checked against this checkout first; both are run by hand, on the
+# user's machines.
 bench-%: all
 	@$(MAKE) -C test $@
 

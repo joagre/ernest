@@ -100,7 +100,6 @@ $ ern config --config-dir bar --peer-dir a
 
 ```json
 {
-  "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA6UybIOO9Cx/+QIRHGqSce3mvI+1v/B3pmkxPHm+wLCk=\n-----END PUBLIC KEY-----\n",
   "peers": [
     {
       "name": "foo",

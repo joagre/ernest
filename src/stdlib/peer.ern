@@ -268,11 +268,9 @@ export foreign fn computeAnywhere(f : () -> a receiving m, ms : Int) : Either(Io
 
 /// How busy the peer of that name is, answered within `ms` milliseconds: a
 /// `Float` on one scale, 1.0 every scheduler busy, below it room, above it
-/// work waiting. The peer measures it as its `ernest.conf`'s `utilization`
-/// says: by default the processes running or ready to run, over its
-/// schedulers, or the fraction of its schedulers' time spent running
-/// processes since it last read it, which never passes 1.0 (report §12.8);
-/// or, where the peer's program set one with `setUtilization`, that number.
+/// work waiting. The peer answers the run queue's measure, the processes
+/// running or ready to run over its schedulers (report §12.8); or, where
+/// the peer's program set one with `setUtilization`, that number.
 /// A utilization asks the peer now, where `utilizations` answers what the
 /// peers last told; it meets `NotListed`, `Unreachable` and `Timeout`.
 ///
@@ -324,8 +322,8 @@ export foreign fn utilizations() : List(#(String, Float, Int)) =
 
 /// Sets the utilization this node tells its peers, and answers them when
 /// they ask, from now on and until it is set again or the program's run ends,
-/// in place of the measure its `ernest.conf`'s `utilization` names, which the
-/// node tells before the first and between two runs. `utilization` is on the
+/// in place of the run queue's measure (report §12.8), which the node tells
+/// before the first and between two runs. `utilization` is on the
 /// node's scale, at or above 0.0: 0.0 idle, 1.0 every scheduler busy, and above
 /// it work waiting; what it counts, a queue's depth or work promised, is the
 /// program's. The next telling carries it (report Appendix E.27). In a program

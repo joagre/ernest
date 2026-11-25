@@ -124,8 +124,8 @@ runbook(Base) ->
 %% `ern config` makes the directory, its owner's alone, its key readable by
 %% its owner alone, a certificate and an `ernest.conf` that listens on
 %% 0.0.0.0:8654 and lists no peer and no service, and prints the key as the
-%% console shows it; and it fails where the directory exists, empty or
-%% not.
+%% console shows it; and, given the directory again, refuses `--listen`
+%% there, and refuses one that exists and holds no key.
 %%
 %% A node that lists its own key as a peer's is refused; the node starts as
 %% the console starts it, and a second start from its directory is
@@ -140,12 +140,12 @@ runbook(Base) ->
 %% first build. The test does not cover `kill -HUP`, a second `ern stop`
 %% while the first waits, which ern_nodes_tests' stop_waits covers, nor a
 %% directory another user owns or may write. Its limit is the sum of its
-%% twenty-one waits, each bounded by the harness's time for one wait:
-%% thirteen jobs, two ports that answer, two lines, two nodes' ends and
+%% twenty-two waits, each bounded by the harness's time for one wait:
+%% fourteen jobs, two ports that answer, two lines, two nodes' ends and
 %% what each said; written after its limit of 120 s, a number of its own,
 %% ran out under the full run's load.
 one_node_test_() ->
-    ern_nodes_tests:nodes_test({waits, 21}, fun one_node/1).
+    ern_nodes_tests:nodes_test({waits, 22}, fun one_node/1).
 
 one_node(Base) ->
     [[{Config, Key}]] = consoles("### 1.1"),
@@ -170,14 +170,18 @@ one_node(Base) ->
     %% job's working directory, Base
     [begin
          {1, "", Exists} = job(Base, mapped(Config, [{"/etc/counter/b", Existing}])),
-         ern_nodes_tests:has(Exists, "ern config: " ++ filename:basename(Existing) ++ " exists")
-     end || Existing <- [Dir, Empty]],
-    %% its own key as a peer's
+         ern_nodes_tests:has(Exists, "ern config: " ++ Line)
+     end || {Existing, Line} <- [{Dir, "--listen is not given for a directory that exists: ern"
+                                       " config changes nothing in b\n"},
+                                 {Empty, "empty exists and holds no private-key.pem\n"}]],
+    %% its own key as a peer's, the one `ern config` prints
+    {0, Own, ""} = job(Base, "config --config-dir " ++ Dir),
     Port = ern_nodes_tests:free_port(),
-    ern_nodes_tests:edit(Dir, fun(#{<<"public-key">> := Own} = Conf) ->
+    ern_nodes_tests:edit(Dir, fun(Conf) ->
                                   Conf#{<<"listen">> := ern_nodes_tests:address(Port),
                                         <<"peers">> := [#{<<"name">> => <<"self">>,
-                                                          <<"public-key">> => Own}]}
+                                                          <<"public-key">> =>
+                                                              list_to_binary(Own)}]}
                               end),
     {1, "", OwnKey} = job(Base, mapped(Run, Paths)),
     ern_nodes_tests:edit(Dir, fun(Conf) -> Conf#{<<"peers">> := []} end),

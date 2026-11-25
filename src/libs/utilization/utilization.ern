@@ -3,8 +3,8 @@
 /// the host's services watch.
 ///
 /// A program reads its own node's numbers here; how busy a peer is, it asks
-/// with `Peer.utilization`, which each node answers as its own `ernest.conf`
-/// measures it (report §12.8, Appendix E.27).
+/// with `Peer.utilization`, which each node answers with the run queue's
+/// measure, or what its program set (report §12.8, Appendix E.27).
 ///
 /// The library stands on every job's load path, so a program names it with
 /// no option (report Appendix G).
@@ -36,8 +36,8 @@
 
 /// The processes ready to run and waiting for a scheduler, over all of the
 /// node's schedulers, as the host counts them at the call. The running ones
-/// are left out, where the node's own `"run-queue"` measure, which
-/// `Peer.utilization` answers by default, counts them too and leaves out the
+/// are left out, where the node's own measure, which `Peer.utilization`
+/// answers where the program sets none, counts them too and leaves out the
 /// one measuring (report §12.8).
 ///
 /// ### Examples

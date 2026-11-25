@@ -34,14 +34,14 @@
 %% body of mailbox type `Never` (§4.6), in an evaluator, a process of the
 %% runtime's own that heads a spawn chain of its own and ends with them, or
 %% lives on where it owns what a binding opened, while the caller waits
-%% (ern_rt:evaluate_load/2), as the shell's load evaluates. One
-%% that faults ends the evaluation and the evaluator: every process the
-%% evaluation started is killed and the values its evaluation stored go,
-%% as a refused load of the shell's is undone (ern_rt:withdraw_load/2), and
-%% the load answers the fault as §8.5 reports it. The units the load
-%% brought stay loaded, out of reach, since a process running before the
-%% load may hold a function of one (§11.2); loaded again, unchanged, the
-%% module makes no unit.
+%% (ern_rt:evaluate_load/2), as the shell's load evaluates. One that
+%% faults ends the evaluation and the evaluator: every process the
+%% evaluation started is killed and the values its evaluation stored go, as
+%% a refused load of the shell's is undone (ern_rt:withdraw_load/2), and the
+%% load answers the fault as §8.5 reports it. The units the load brought
+%% stay loaded, out of reach, since a process running before the load may
+%% hold a function of one (§11.2); loaded again, unchanged, the module makes
+%% no unit.
 -module(ern_code_load).
 
 -export([load/1]).

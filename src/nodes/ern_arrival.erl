@@ -489,15 +489,9 @@ type_form(Hash, Read) ->
                _ -> throw({unlinked, ["it names a type this node does not hold, ",
                                       binary:encode_hex(Hash, lowercase)]})
            end,
-    {Definitions, Read1} = case Read of
-                               #{Unit := Kept} ->
-                                   {Kept, Read};
-                               _ ->
-                                   Held = case ern_code:forms(Unit) of
-                                              {ok, #recorded{definitions = Recorded}} -> Recorded;
-                                              none -> []
-                                          end,
-                                   {Held, Read#{Unit => Held}}
+    {Definitions, Read1} = case ern_code:recorded(Unit, Read) of
+                               {#recorded{definitions = Held}, Read2} -> {Held, Read2};
+                               {none, Read2} -> {[], Read2}
                            end,
     case [Form || #definition{hash = Defined, form = Form} <- Definitions, Defined =:= Hash] of
         [Form | _] -> {Form, Read1};

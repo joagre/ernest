@@ -58,7 +58,7 @@
 -export([ensure_loaded/1, own_file/1, own_builds/0, load_runtime/0, own_modules/0, load/4,
          documented/1, chunk/1,
          chunks/0, loaded/2, loaded/3, unloaded/1, spawnable/1, holders/1, linkable/1, valued/1,
-         holder/1, ground/1, grounded/1, forms/1,
+         holder/1, ground/1, grounded/1, forms/1, recorded/2,
          called/1, absent_binding/1, absent_binding/2, foreign/2, declared/1, declared/2,
          present/1, function/2,
          function_text/2, value_text/1, is_free/1, is_held/2, fresh_unit/1, unit_beside/2,
@@ -586,6 +586,24 @@ forms(Unit) ->
                 _ ->
                     none
             end
+    end.
+
+%% Report §12.7: what the unit Unit's compiled form records, as forms/1
+%% answers it, read once in one request of the exchange's or one arrival:
+%% from Read, the units read so far, or by forms/1, Read growing by it;
+%% none where forms/1 answers none.
+-spec recorded(module(), #{module() => #recorded{} | none}) ->
+          {#recorded{} | none, #{module() => #recorded{} | none}}.
+recorded(Unit, Read) ->
+    case Read of
+        #{Unit := Recorded} ->
+            {Recorded, Read};
+        #{} ->
+            Recorded = case forms(Unit) of
+                           {ok, Held} -> Held;
+                           none -> none
+                       end,
+            {Recorded, Read#{Unit => Recorded}}
     end.
 
 %% Whether Bytes, a file's, are the code of the loaded Unit, as the host

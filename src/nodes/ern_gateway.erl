@@ -34,7 +34,7 @@
 
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({answered_at_once, [start/0, asked/1]}).
--receives({own_process, [gateway/5, work/1]}).
+-receives({own_process, [gateway/4, work/1]}).
 
 -define(NAME, ern_gateway).
 
@@ -56,9 +56,8 @@
                  taken = 0, lost = false}).
 
 %% The gateway registered and running, watching the node's connections to
-%% every kind of node, before the node listens, measuring the node as its
-%% configuration says at the start and telling its peers so; the exchange
-%% it hands frames to running before it.
+%% every kind of node, before the node listens, and telling its peers how
+%% busy the node is; the exchange it hands frames to running before it.
 -spec start() -> ok.
 start() ->
     ok = ern_exchange:start(),
@@ -67,19 +66,16 @@ start() ->
                         true = register(?NAME, self()),
                         ok = ern_peer:tables(),
                         ok = net_kernel:monitor_nodes(true, [nodedown_reason, {node_type, all}]),
-                        #configuration{utilization = Utilization} = ern_carrier:configuration(),
                         Self ! {self(), started},
-                        gateway(#{}, #{}, measured(Utilization, run_queue), armed(none, false),
-                                false)
+                        gateway(#{}, #{}, armed(none, false), false)
                     end),
     receive {Gateway, started} -> ok end.
 
-%% Report §12.5: a reload's measure of how busy the node is and the interval
-%% of its tellings, which the gateway takes from the configuration the
-%% reload listed: the measure holds from the next ask, and the interval
-%% from the next telling, the first set now where the node lists peers and
-%% none was. Where the gateway has not started, as a reload during the
-%% node's initializers, it reads both from the configuration as it starts.
+%% Report §12.5: a reload's interval of the node's tellings, which the
+%% gateway takes from the configuration the reload listed, from the next
+%% telling, the first set now where the node lists peers and none was.
+%% Where the gateway has not started, as a reload during the node's
+%% initializers, it reads it from the configuration as it starts.
 -spec reloaded() -> ok.
 reloaded() ->
     asked(reloaded).
@@ -112,42 +108,41 @@ asked(Request) ->
 %% (idled/1); Ends how each peer's connection ends where that is known
 %% before the end comes, `ends` for a peer that told this node it ends,
 %% until that end or its next telling, and `refused` for one this node
-%% refused as it connected, until that end; Measured the node's measure of
-%% how busy it is, with what the measure keeps (measured/2); Deadline the
-%% moment of the next telling, none while the node lists no peer or once it
-%% ends (armed/2); and Departed whether it has ended (departing/0).
-gateway(Workers, Ends, Measured, Deadline, Departed) ->
+%% refused as it connected, until that end; Deadline the moment of the next
+%% telling, none while the node lists no peer or once it ends (armed/2); and
+%% Departed whether it has ended (departing/0).
+gateway(Workers, Ends, Deadline, Departed) ->
     receive
         {ern_frame, From, {call_waits, Callee, Reply}} when is_pid(From), node(From) =/= node(),
                                                            is_pid(Callee),
                                                            is_reference(Reply) ->
             noted(fun() -> ern_rt:note_call(Callee, From, Reply) end),
-            gateway(Workers, Ends, Measured, Deadline, Departed);
+            gateway(Workers, Ends, Deadline, Departed);
         {ern_frame, From, {call_over, Reply}} when is_pid(From), node(From) =/= node(),
                                                     is_reference(Reply) ->
             noted(fun() -> ern_rt:drop_note(Reply) end),
-            gateway(Workers, Ends, Measured, Deadline, Departed);
+            gateway(Workers, Ends, Deadline, Departed);
         %% report §12.6: a compute's frame is its call's first note, recorded
         %% here before the worker for its peer starts its process
         {ern_frame, From, {compute, Alias, _, _, _}} = Frame
           when is_pid(From), node(From) =/= node(), is_reference(Alias),
                node(Alias) =:= node(From) ->
             noted(fun() -> ern_rt:note_compute(From, Alias) end),
-            gateway(hand(node(From), Frame, Workers), Ends, Measured, Deadline, Departed);
+            gateway(hand(node(From), Frame, Workers), Ends, Deadline, Departed);
         %% report §12.6, §11.2: how busy the node is, answered through the
         %% asker's alias as a find is answered, `Unreachable` between two
         %% launches of `ern test` over a directory, in one host
         {ern_frame, From, {utilization, Alias}}
           when is_pid(From), node(From) =/= node(), is_reference(Alias),
                node(Alias) =:= node(From) ->
-            {Answer, Measured1} = case ern_rt:is_launched() of
-                                      true -> utilization(Measured);
-                                      false -> {'Unreachable', Measured}
-                                  end,
+            Answer = case ern_rt:is_launched() of
+                         true -> utilization();
+                         false -> 'Unreachable'
+                     end,
             %% report Appendix E.27: an answer that would wait as a send
             %% waits is not sent, so that the gateway waits on no peer
             _ = erlang:send(Alias, {Alias, Answer}, [nosuspend]),
-            gateway(Workers, Ends, Measured1, Deadline, Departed);
+            gateway(Workers, Ends, Deadline, Departed);
         %% report §8.7, Appendix E.27: a peer's telling of how busy it is
         %% and of its interval, held as it comes; a node that ends tells
         %% each peer so and then its connections close, telling none how
@@ -158,22 +153,20 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
           when is_pid(From), node(From) =/= node(), is_float(Utilization), Utilization >= 0.0,
                is_integer(Interval), Interval >= 1 ->
             ok = ern_peer:hold_utilization(node(From), Utilization, Interval),
-            gateway(Workers, going_on(node(From), Ends), Measured, Deadline, Departed);
+            gateway(Workers, going_on(node(From), Ends), Deadline, Departed);
         %% report §12.6: a peer that ends says so before its connection
         %% closes, so that its end is said as an end and not as a loss
         {ern_frame, From, node_ends} when is_pid(From), node(From) =/= node() ->
-            gateway(Workers, Ends#{node(From) => ends}, Measured, Deadline, Departed);
+            gateway(Workers, Ends#{node(From) => ends}, Deadline, Departed);
         {departing, From, MonitorRef} when is_pid(From), node(From) =:= node() ->
             From ! {MonitorRef, departing},
-            gateway(Workers, Ends, Measured, none, true);
+            gateway(Workers, Ends, none, true);
         {new_run, Pid, MonitorRef} when is_pid(Pid) ->
             Pid ! {MonitorRef, fresh},
-            gateway(Workers, Ends, Measured, Deadline, Departed);
+            gateway(Workers, Ends, Deadline, Departed);
         {reloaded, From, MonitorRef} when is_pid(From), node(From) =:= node() ->
-            #configuration{utilization = Utilization} = ern_carrier:configuration(),
-            Measured1 = measured(Utilization, Measured),
             From ! {MonitorRef, reloaded},
-            gateway(Workers, Ends, Measured1, armed(Deadline, Departed), Departed);
+            gateway(Workers, Ends, armed(Deadline, Departed), Departed);
         %% report §8.7, Appendix E.27: every interval, each connected peer
         %% told how busy the node is, until the node ends; the host's timer
         %% takes a slice of a long interval at a time, and is set again
@@ -181,21 +174,23 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
         %% to nothing
         {deadline, Deadline} when not Departed ->
             case ern_rt:remaining(Deadline) of
-                0 -> gateway(Workers, Ends, told(connected_peers(), Measured),
-                             armed(none, Departed), Departed);
-                _ -> gateway(Workers, Ends, Measured, sliced(Deadline), Departed)
+                0 ->
+                    told(connected_peers()),
+                    gateway(Workers, Ends, armed(none, Departed), Departed);
+                _ ->
+                    gateway(Workers, Ends, sliced(Deadline), Departed)
             end;
         {deadline, _} ->
-            gateway(Workers, Ends, Measured, Deadline, Departed);
+            gateway(Workers, Ends, Deadline, Departed);
         %% report §12.7: the exchange's four, handed on as they come
         {ern_frame, From, Body} = Frame
           when is_pid(From), node(From) =/= node(), is_tuple(Body), tuple_size(Body) > 0,
                element(1, Body) =:= reach_request orelse element(1, Body) =:= reach
                orelse element(1, Body) =:= lacks orelse element(1, Body) =:= code_frame ->
             ern_exchange:handed(Frame),
-            gateway(Workers, Ends, Measured, Deadline, Departed);
+            gateway(Workers, Ends, Deadline, Departed);
         {ern_frame, From, _Body} = Frame when is_pid(From), node(From) =/= node() ->
-            gateway(hand(node(From), Frame, Workers), Ends, Measured, Deadline, Departed);
+            gateway(hand(node(From), Frame, Workers), Ends, Deadline, Departed);
         {nodedown, Node, _} = Event ->
             %% report §8.7: the worker reads the frames before the loss, a
             %% spawn's answer it is handing over among them, and then lets
@@ -211,8 +206,7 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
                      #{Node := refused} -> refused;
                      _ -> Event
                  end),
-            gateway(hand(Node, Loss, Workers), maps:remove(Node, Ends), Measured, Deadline,
-                    Departed);
+            gateway(hand(Node, Loss, Workers), maps:remove(Node, Ends), Deadline, Departed);
         %% report §8.7: a worker that has run a loss and holds nothing ends
         %% where it has taken every message it was handed, and is the
         %% node's worker no longer; one handed more since asks again
@@ -220,9 +214,9 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
             case Workers of
                 #{Node := {Worker, Taken}} ->
                     Worker ! stop,
-                    gateway(maps:remove(Node, Workers), Ends, Measured, Deadline, Departed);
+                    gateway(maps:remove(Node, Workers), Ends, Deadline, Departed);
                 #{} ->
-                    gateway(Workers, Ends, Measured, Deadline, Departed)
+                    gateway(Workers, Ends, Deadline, Departed)
             end;
         %% report §12.6: a peer that connects has its worker before any of
         %% its frames, which the host delivers after the connection's
@@ -240,22 +234,21 @@ gateway(Workers, Ends, Measured, Deadline, Departed) ->
             case connected(Node, Workers) of
                 {ok, Workers1} ->
                     said(Event),
-                    Told = told([Node || is_peer(Node), not Departed, ern_carrier:tells()],
-                                Measured),
-                    gateway(Workers1, Ends, Told, Deadline, Departed);
+                    told([Node || is_peer(Node), not Departed, ern_carrier:tells()]),
+                    gateway(Workers1, Ends, Deadline, Departed);
                 limited ->
                     ern_carrier:table_full(ern_carrier:named(Node)),
                     ok = net_kernel:async_disconnect(Node),
-                    gateway(Workers, Ends#{Node => refused}, Measured, Deadline, Departed)
+                    gateway(Workers, Ends#{Node => refused}, Deadline, Departed)
             end;
         %% the node's own start, which the host tells as a connection too,
         %% and which is said by no line
         {nodeup, _, _} ->
-            gateway(Workers, Ends, Measured, Deadline, Departed);
+            gateway(Workers, Ends, Deadline, Departed);
         _ ->
             ern_carrier:say_later("a frame that names no peer's process came to the gateway,"
                                   " and was dropped"),
-            gateway(Workers, Ends, Measured, Deadline, Departed)
+            gateway(Workers, Ends, Deadline, Departed)
     end.
 
 %% Report §12.6: a peer that tells after it said it ends goes on, its word
@@ -299,78 +292,38 @@ is_peer(Node) ->
     ern_peer:name(Node) =/= 'None'.
 
 %% Report Appendix E.27: each of Nodes told how busy the node is, the number
-%% an ask answers (utilization/1), with the interval of its tellings, by
-%% which the peer ages it, over its connection and without opening one; and
-%% what the measure keeps for the next reading; nothing read where there is
-%% no one to tell. A telling that would wait as a send waits is not sent,
-%% so that the gateway waits on no peer.
-told([], Measured) ->
-    Measured;
-told(Nodes, Measured) ->
-    {Utilization, Measured1} = utilization(Measured),
+%% an ask answers (utilization/0), with the interval of its tellings, by
+%% which the peer ages it, over its connection and without opening one;
+%% nothing read where there is no one to tell. A telling that would wait as
+%% a send waits is not sent, so that the gateway waits on no peer.
+told([]) ->
+    ok;
+told(Nodes) ->
     #configuration{utilization_interval = Interval} = ern_carrier:configuration(),
-    Telling = {ern_frame, self(), {telling, Utilization, Interval}},
+    Telling = {ern_frame, self(), {telling, utilization(), Interval}},
     lists:foreach(fun(Node) ->
                       _ = erlang:send({?NAME, Node}, Telling, [noconnect, nosuspend])
-                  end, Nodes),
-    Measured1.
+                  end, Nodes).
 
 %% Report Appendix E.27: how busy the node is, as it tells and answers its
-%% peers: the utilization its program set with `Peer.setUtilization`, which
-%% keeps the measure as it was, and else its measure.
-utilization(Measured) ->
+%% peers: the utilization its program set with `Peer.setUtilization`, and
+%% else its measure.
+utilization() ->
     case ern_rt:program_utilization() of
-        none -> measure(Measured);
-        Set -> {Set, Measured}
+        none -> measure();
+        Set -> Set
     end.
 
-%% Report §12.8: the node's measure of how busy it is, as its configuration
-%% says, from the one it had: `run_queue`, which keeps nothing, or
-%% `{schedulers, Last}`, the schedulers' time when the node last read it,
-%% at an ask or a telling, or took the entry, for which the host keeps the
-%% schedulers' time while
-%% this process, which turned it on, lives, and until it turns it off. A
-%% measure that stays keeps what it kept.
-measured(schedulers, {schedulers, _} = Kept) ->
-    Kept;
-measured(schedulers, run_queue) ->
-    _ = erlang:system_flag(scheduler_wall_time, true),
-    {schedulers, wall_time()};
-measured(run_queue, {schedulers, _}) ->
-    _ = erlang:system_flag(scheduler_wall_time, false),
-    run_queue;
-measured(run_queue, run_queue) ->
-    run_queue.
-
-%% Report §12.8: how busy the node is by its measure, on one scale, 1.0
-%% every scheduler busy, and what the measure keeps for the next reading.
-%% The run queue is the
-%% host's total_active_tasks, the processes running or ready to run, which
-%% reads each queue's count without stopping the schedulers, where
+%% Report §12.8: how busy the node is, on one scale, 1.0 every scheduler
+%% busy: the processes running or ready to run over the schedulers online,
+%% the ones that run processes, this process, running as it reads, left
+%% out. The count is the host's total_active_tasks, which reads each
+%% queue's count without stopping the schedulers, where
 %% `statistics(run_queue)` takes them all at one instant by holding every
-%% queue, a wait the report's measure does not make (§12.8, "no window and
-%% no wait"); this process, running as it reads, is left out, and the count
-%% is over the schedulers online, the ones that run processes. The
-%% schedulers' time is the fraction of it spent running processes since the
-%% last reading, which never passes 1.0; two readings at one instant of the
-%% host's clock, which counts far finer than an ask can come, would divide
-%% by nothing, and are taken as no time busy.
-measure(run_queue) ->
-    {(erlang:statistics(total_active_tasks) - 1) / erlang:system_info(schedulers_online),
-     run_queue};
-measure({schedulers, {Active, Total}}) ->
-    {NowActive, NowTotal} = Now = wall_time(),
-    {(NowActive - Active) / max(NowTotal - Total, 1), {schedulers, Now}}.
-
-%% The time the schedulers online have run processes, and run in all, since
-%% the host began to keep it.
-wall_time() ->
-    Online = erlang:system_info(schedulers_online),
-    lists:foldl(fun({Scheduler, Active, Total}, {AllActive, AllTotal}) when Scheduler =< Online ->
-                        {AllActive + Active, AllTotal + Total};
-                   (_, Acc) ->
-                        Acc
-                end, {0, 0}, erlang:statistics(scheduler_wall_time)).
+%% queue, a wait the report's measure does not make ("no window and no
+%% wait").
+measure() ->
+    (erlang:statistics(total_active_tasks) - 1) / erlang:system_info(schedulers_online).
 
 %% Report §12.5: a change of a connection, said where it is one the node
 %% says.
@@ -548,10 +501,9 @@ forgotten(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
 %% (ern_rt:kept/1).
 handed(Address, Message, Kept, Addresses) ->
     case Kept of
-        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, handed = Handed}} ->
+        #{Address := #kept{pid = Pid, handed = Handed} = Held} ->
             Pid ! {apply, Message},
-            {Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef, handed = Handed + 1}},
-             Addresses};
+            {Kept#{Address := Held#kept{handed = Handed + 1}}, Addresses};
         _ ->
             case ern_rt:kept(Address) of
                 none ->
@@ -576,9 +528,8 @@ applied(Pid, #worker{kept = Kept, addresses = Addresses} = State) ->
             Pid ! stop,
             State#worker{kept = maps:remove(Address, Kept),
                          addresses = maps:remove(Pid, Addresses)};
-        #{Address := #kept{pid = Pid, monitor_ref = MonitorRef, handed = Handed}} ->
-            State#worker{kept = Kept#{Address := #kept{pid = Pid, monitor_ref = MonitorRef,
-                                                       handed = Handed - 1}}}
+        #{Address := #kept{pid = Pid, handed = Handed} = Held} ->
+            State#worker{kept = Kept#{Address := Held#kept{handed = Handed - 1}}}
     end.
 
 %% Report §12.5, §12.6: what a frame's reading tells the node to say and do, here

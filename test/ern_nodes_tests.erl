@@ -15,6 +15,7 @@
 -module(ern_nodes_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("checker/include/ern_canonical.hrl").
 
@@ -225,8 +226,10 @@ configuration(Dir) ->
     {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
     json:decode(Text).
 
+%% The node's public key, as `ern config` prints it for a directory that
+%% exists.
 public(Dir) ->
-    maps:get(<<"public-key">>, configuration(Dir)).
+    ern_node:create(Dir, none).
 
 %% Dir lists each of Peers, {Name, PeerDir, Port}, a port or none.
 -spec lists(file:filename(), [{string(), file:filename(), none | inet:port_number()}]) -> ok.
@@ -443,26 +446,9 @@ key_files(Dir) ->
 %% the host given, written beside the directory: the key is one node's, the
 %% host another's.
 forged(Dir, Host) ->
-    {ok, Pem} = file:read_file(filename:join(Dir, "private-key.pem")),
-    [Entry] = public_key:pem_decode(Pem),
-    {'ECPrivateKey', _, Private, _, _, _} = Key = public_key:pem_entry_decode(Entry),
-    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
-    Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
-                                                    value = {utf8String, <<"ernest">>}}]]},
-    Tbs = #'OTPTBSCertificate'{
-             version = v3, serialNumber = 1,
-             signature = #'SignatureAlgorithm'{algorithm = ?'id-Ed25519'},
-             issuer = Name, subject = Name,
-             validity = #'Validity'{notBefore = {utcTime, "700101000000Z"},
-                                    notAfter = {generalTime, "99991231235959Z"}},
-             subjectPublicKeyInfo = #'OTPSubjectPublicKeyInfo'{
-                                       algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
-                                       subjectPublicKey = #'ECPoint'{point = Point}},
-             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
-                                        extnValue = [{dNSName, Host}]}]},
     File = Dir ++ ".forged.pem",
     ok = file:write_file(File, public_key:pem_encode([{'Certificate',
-                                                        public_key:pkix_sign(Tbs, Key),
+                                                        ern_helpers:forged_certificate(Dir, Host),
                                                         not_encrypted}])),
     {File, filename:join(Dir, "private-key.pem")}.
 
@@ -1118,9 +1104,12 @@ replaced(Base) ->
     ok = file:make_dir(Copy),
     [{ok, _} = file:copy(filename:join(A, File), filename:join(Copy, File))
      || File <- ["ernest.conf", "certificate.pem", "private-key.pem"]],
-    %% report §12.5: the key read and written by none but its owner, which
-    %% a copy made under the mask is not
-    ok = file:change_mode(filename:join(Copy, "private-key.pem"), 8#600),
+    %% report §12.5: the directory and `ernest.conf` written by none but
+    %% their owner, and the key read and written by none but its owner,
+    %% which a copy made under the mask is not
+    [ok = file:change_mode(Path, Mode)
+     || {Path, Mode} <- [{Copy, 8#700}, {filename:join(Copy, "ernest.conf"), 8#644},
+                         {filename:join(Copy, "private-key.pem"), 8#600}]],
     edit(Copy, fun(Conf) -> maps:remove(<<"listen">>, Conf) end),
     Program = program(filename:join(Base, "build")),
     WaitB = start(B, Program, []),
@@ -2825,9 +2814,9 @@ os_exit(Base) ->
 %% report §12.5, §11.2: a node whose `ernest.conf` is refused is refused with
 %% the file and the rule, as the launcher's second start says it, the first
 %% having given the host no flags: peers that are no array, and a
-%% `utilization` that names neither measure. A regression test: the refusal
-%% said the host had not been started as a node; the utilization's was
-%% written after the code
+%% `utilization`, which the file does not know. A regression test: the
+%% refusal said the host had not been started as a node; the
+%% utilization's was written after the code
 refused_configuration_test_() ->
     nodes_test({waits, 3}, fun refused_configuration/1).
 
@@ -2838,10 +2827,10 @@ refused_configuration(Base) ->
     Run = ?ERN ++ " run --config-dir " ++ A ++ " " ++ Program ++ " 2>&1",
     {1, Said} = finished(Run),
     has(Said, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": peers is not a JSON array"),
-    edit(A, fun(Conf) -> Conf#{<<"peers">> => [], <<"utilization">> => <<"cpu">>} end),
+    edit(A, fun(Conf) -> Conf#{<<"peers">> => [], <<"utilization">> => <<"run-queue">>} end),
     {1, Measured} = finished(Run),
-    has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": utilization is \"cpu\","
-                  " which is neither \"run-queue\" nor \"schedulers\"").
+    has(Measured, "ern run: " ++ filename:join(A, "ernest.conf") ++ ": the file has the unknown"
+                  " field utilization").
 
 %% report §12.5, §11.2: a node refused once its start has begun, by a module
 %% on its load path the program never uses whose dependency the path lacks,
@@ -3456,54 +3445,42 @@ compute_on_peer(Base) ->
                          {StoreOut, "the store's subscriber: division by zero"},
                          {StoreOut, "the store's subscriber: foreign function"}]].
 
-%% report §8.7, §12.5, §12.8, Appendix E.27, Appendix C: how busy a peer is, on one
-%% scale. A name that is no peer's answers NotListed. The store's
-%% schedulers' time, as its configuration names it at its start, answers a
-%% fraction from 0.0 to 1.0 at each ask, the host keeping the schedulers'
-%% time there from the start. A reload that leaves the entry out, the run
-%% queue by default, holds from the next ask, which answers 0.0 or more,
-%% the host keeping the time no longer. A file that names neither measure
-%% is refused with the file and the rule, by `ern reload` before it signals
-%% and by the node at a hangup `kill -HUP` sends, the run queue measuring
-%% still.
+%% report §8.7, §12.5, §12.8, Appendix E.27, Appendix C: how busy a peer is, on
+%% one scale. A name that is no peer's answers NotListed. The store answers
+%% the run queue's measure, 0.0 or more, and the host keeps no schedulers'
+%% time there. An `ernest.conf` that names a `utilization` is refused as a
+%% field the file does not know, by `ern reload` before it signals and by
+%% the node at a hangup `kill -HUP` sends, the run queue measuring still.
 %%
-%% A regression test, written after the code; that the run queue's measure
-%% is the run queue over the schedulers, and not the schedulers' time, is
-%% read from the code, since an idle node answers 0.0 or more under both
+%% A regression test, written after the code; that the measure is the run
+%% queue over the schedulers is read from the code, since an idle node
+%% answers 0.0 or more
 utilization_test_() ->
-    nodes_test({waits, 14}, fun utilization_of_peer/1).
+    nodes_test({waits, 11}, fun utilization_of_peer/1).
 
 utilization_of_peer(Base) ->
     {StoreProgram, DeskProgram} = peers(Base),
     {Store, Desk} = store_and_desk(Base),
-    edit(Store, fun(Conf) -> Conf#{<<"utilization">> => <<"schedulers">>} end),
     WaitStore = start(Store, StoreProgram, []),
     prints(Store, "offered"),
     {DeskPort, WaitDesk} = started(Desk, DeskProgram, ["utilization"]),
-    prints(Store, "the store keeps the schedulers' time at the start: true"),
-    prints(Desk, "now measure the run queue"),
-    edit(Store, fun(Conf) -> maps:remove(<<"utilization">>, Conf) end),
-    ?assertMatch({0, _}, signaled("reload", Store)),
-    says(Store, "ernest.conf was read again"),
-    true = port_command(DeskPort, "go\n"),
-    prints(Store, "the store keeps the schedulers' time after the reload: false"),
+    prints(Store, "the store keeps the schedulers' time at the start: false"),
     prints(Desk, "now refuse a reload"),
-    edit(Store, fun(Conf) -> Conf#{<<"utilization">> => <<"cpu">>} end),
-    ?assertEqual({1, refused_reload(Store, "utilization is \"cpu\", which is neither"
-                                           " \"run-queue\" nor \"schedulers\"")},
+    edit(Store, fun(Conf) -> Conf#{<<"utilization">> => <<"run-queue">>} end),
+    ?assertEqual({1, refused_reload(Store, "the file has the unknown field utilization")},
                  signaled("reload", Store)),
     hungup(Store),
     says(Store, "the reload was refused"),
     true = port_command(DeskPort, "go\n"),
+    prints(Store, "the store keeps the schedulers' time after the refusal: false"),
     ?assertEqual(0, WaitDesk()),
     stop(Store, WaitStore),
     {Out, _} = said(Desk),
     {_, StoreErr} = said(Store),
-    [has(Out, Line) || Line <- ["not listed: Left(Io.NotListed)", "schedulers: #(true, true)",
-                                "run queue: true", "after the refusal: true"]],
+    [has(Out, Line) || Line <- ["not listed: Left(Io.NotListed)", "run queue: true",
+                                "after the refusal: true"]],
     has(StoreErr, "the reload was refused, and the configuration stays as it was: "),
-    has(StoreErr, "ernest.conf: utilization is \"cpu\", which is neither \"run-queue\" nor"
-                  " \"schedulers\"").
+    has(StoreErr, "ernest.conf: the file has the unknown field utilization").
 
 %% report §8.7, §6.5, §6.9, §12.2, §3.11: a correct program's messages make
 %% no new atom on the node that receives them, a value of many shapes and
@@ -4883,6 +4860,62 @@ reload(Base) ->
 undecodable(Pem) ->
     [Head, Body] = binary:split(Pem, <<"\n">>),
     <<Head/binary, "\nAAAAAAAAAAAA", (binary:part(Body, 12, byte_size(Body) - 12))/binary>>.
+
+%% report §12.5, §11.2: a node reads its configuration directory at a
+%% reload as its start reads it. Where the directory holds no
+%% `certificate.pem` the node makes it from its key before its host boots,
+%% and at a reload, and `ern reload`'s own reading makes none. An
+%% `ernest.conf` any but its owner may write refuses the reload, by `ern
+%% reload` before it signals and by the node at a hangup, with the cause
+%% and then the fix; a `private-key.pem` that holds another key than the
+%% running node's refuses it, and makes no certificate for that key
+reload_reads_directory_test_() ->
+    nodes_test({waits, 13}, fun reload_reads_directory/1).
+
+reload_reads_directory(Base) ->
+    A = made(Base, "a", none),
+    Certificate = filename:join(A, "certificate.pem"),
+    Conf = filename:join(A, "ernest.conf"),
+    Key = filename:join(A, "private-key.pem"),
+    Program = program(filename:join(Base, "build")),
+    ok = file:delete(Certificate),
+    %% `ern reload` reads before it signals, and makes none
+    {1, NoNode} = signaled("reload", A),
+    has(NoNode, "no node runs from the directory"),
+    ?assertNot(filelib:is_file(Certificate)),
+    Wait = start(A, Program, []),
+    prints(A, "waiting"),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Certificate),
+    ?assertEqual(8#644, Mode band 8#777),
+    ok = file:delete(Certificate),
+    ?assertEqual({0, ""}, signaled("reload", A)),
+    says(A, "ernest.conf was read again"),
+    ?assert(filelib:is_regular(Certificate)),
+    %% a mode that lets others write ernest.conf
+    ok = file:change_mode(Conf, 8#664),
+    Open = ern_build:shown(Conf) ++ " may be written by others than its owner; chmod go-w "
+        ++ ern_build:shown(Conf),
+    ?assertEqual({1, "ern reload: " ++ Open ++ "\n"}, signaled("reload", A)),
+    hungup(A),
+    says(A, "the reload was refused, and the configuration stays as it was: " ++ Open),
+    ok = file:change_mode(Conf, 8#644),
+    %% another node's key, the certificate gone with it
+    {ok, Own} = file:read_file(Key),
+    {ok, Other} = file:read_file(filename:join(made(Base, "b", none), "private-key.pem")),
+    ok = file:write_file(Key, Other),
+    ok = file:delete(Certificate),
+    ?assertEqual({0, ""}, signaled("reload", A)),
+    says(A, "the reload was refused, and the configuration stays as it was: "
+         ++ ern_build:shown(Key) ++ ": holds another key than the running node's, which cannot"
+         " change while the node runs"),
+    ?assertNot(filelib:is_file(Certificate)),
+    ok = file:write_file(Key, Own),
+    ?assertEqual({0, ""}, signaled("reload", A)),
+    seen(A, err, "ernest.conf was read again", 2, ?WAIT_MS),
+    ?assert(filelib:is_regular(Certificate)),
+    stop(A, Wait),
+    {_, Err} = said(A),
+    ?assertEqual(nomatch, string:find(Err, "certifies another key")).
 
 %%
 %% Two builds (report §8.7)
@@ -6973,6 +7006,8 @@ attached_startup_diagnostic(Base) ->
     lists(Ops, [{"node", Node, bound_port(Node)}]),
     Startup = filename:join(Ops, "startup"),
     ok = file:write_file(Startup, "let a = 1\nlet b : Int = \"not an Int\"\n"),
+    %% its owner's alone to write, whatever the umask, so that it runs
+    ok = file:change_mode(Startup, 8#644),
     Home = Ops ++ ".home",
     ok = filelib:ensure_path(Home),
     {Shell, _} = Attached = launched(Ops, ["cd ", Base, " && HOME=", Home, " ", ?ERN,
@@ -9491,10 +9526,10 @@ pair_program(Base) ->
                       exit_status, binary, stderr_to_stdout]),
     %% `ern test`'s steps, each given the harness's time for one wait
     %% (test/fixtures/peers/harness.ern): its node's start, and in each of
-    %% its three tests the second node's start, the three files read and the
-    %% one written before it, its stop and its end; a find and a call in the
-    %% first, a find in the second, and in the third two calls through the
-    %% proxy and the wait for the proxy's end
+    %% its three tests the second node's start, the two files read, the key
+    %% `ern config` prints and the file written before it, its stop and its
+    %% end; a find and a call in the first, a find in the second, and in the
+    %% third two calls through the proxy and the wait for the proxy's end
     {Status, Output} = collected(Port, 28),
     ?assertEqual({0, nomatch}, {Status, binary:match(Output, <<"failed">>)}),
     has(binary_to_list(Output), "a second node made, started with Os, found, called and stopped:"

@@ -302,12 +302,13 @@ tells() ->
 %% The node's reload and end
 %%
 
-%% Report §12.5: hangup is a reload: `ernest.conf` read and checked again as
-%% at the start, the node's own key and `listen` unchanged, or the file
-%% refused and the configuration kept; then the names the host allows gain
-%% the new peers', the peer table the rule and the dial read, the services,
-%% the measures, the utilization and its interval are the new file's, the
-%% utilization holding from the next ask and the interval from the next
+%% Report §12.5: hangup is a reload: the configuration directory read and
+%% checked again as at the start, its modes among it and a missing
+%% certificate made, the node's own key in `private-key.pem` and its
+%% `listen` unchanged, or the reload refused and the configuration kept;
+%% then the names the host allows gain the new peers', the peer table the
+%% rule and the dial read, the services, the measures and the interval of
+%% the tellings are the new file's, the interval holding from the next
 %% telling (ern_gateway:reloaded/0), and a peer removed, or listed under
 %% another key, has its connection ended, both nodes running the loss. A
 %% changed `limits` is read and checked, and the node keeps the limits it
@@ -315,7 +316,7 @@ tells() ->
 %%
 %% The node says that it read the file, each peer added, removed or
 %% renamed, and that a change to `limits` holds from its next start, or why
-%% the file was refused. Whatever fails as the file is read and checked
+%% the reload was refused. Whatever fails as the file is read and checked
 %% refuses the reload, the host's reason named where it is not a refusal,
 %% so that the signal handler, in whose process this runs, never fails and
 %% the node takes every later signal; the measures, the one
@@ -324,7 +325,7 @@ tells() ->
 -spec reload() -> ok.
 reload() ->
     #configuration{config_dir = ConfigDir} = Running = configuration(),
-    try changed(Running, ern_node:read(ConfigDir)) of
+    try changed(Running, ern_node:read(ConfigDir, left)) of
         Lines -> lists:foreach(fun say_later/1, ["ernest.conf was read again" | Lines])
     catch
         throw:{cli_error, Refusal} -> refuse(Refusal);
@@ -339,10 +340,16 @@ changed(#configuration{config_dir = ConfigDir, public_key = Key, listen = Listen
                        measures = Measures, limits = Limits},
         #configuration{public_key = NewKey, listen = NewListen, peers = NewPeers,
                        measures = NewMeasures, limits = NewLimits} = New) ->
-    Conf = ern_build:shown(ern_node:file(ConfigDir, conf)),
-    NewKey =:= Key orelse ern_build:fail(Conf ++ ": public-key cannot change while the node runs"),
+    NewKey =:= Key
+        orelse ern_build:fail(ern_build:shown(ern_node:file(ConfigDir, key))
+                              ++ ": holds another key than the running node's, which cannot"
+                              " change while the node runs"),
     NewListen =:= Listen
-        orelse ern_build:fail(Conf ++ ": listen cannot change while the node runs"),
+        orelse ern_build:fail(ern_build:shown(ern_node:file(ConfigDir, conf))
+                              ++ ": listen cannot change while the node runs"),
+    %% report §12.5: a missing certificate made as the start makes it, once
+    %% the key is known to be the running node's
+    ok = ern_node:certificate_made(ConfigDir),
     ern_node:measures_changed(ConfigDir, Measures, NewMeasures),
     ok = allow([Added || #peer{public_key = Added} <- NewPeers]),
     ok = list(New#configuration{limits = Limits}),

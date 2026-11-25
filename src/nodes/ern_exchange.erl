@@ -573,9 +573,8 @@ reach(Key, Hash) ->
 
 %% The definitions Hashes reach, transitively, through the functions and
 %% the types their forms reference by hash and the constants they read,
-%% each with its group, and Read,
-%% the forms of each unit read; none where this node holds one of them
-%% nowhere.
+%% each with its group, and Read, the forms of each unit read; none where
+%% this node holds one of them nowhere.
 reached_definitions([], Found, Read) ->
     {ok, maps:values(Found), Read};
 reached_definitions([Hash | Hashes], Found, Read) when is_map_key(Hash, Found) ->
@@ -658,7 +657,7 @@ implementation(Called, QualifiedName, Read) ->
 %% what prints a type in its check's cause and where it is declared among
 %% it, or none.
 declared(Holder, Name, Read) ->
-    case recorded(Holder, Read) of
+    case ern_code:recorded(Holder, Read) of
         {#recorded{foreign = Recorded}, Read1} ->
             case [Declaration
                   || #foreign_function{qualified_name = QualifiedName} = Declaration <- Recorded,
@@ -730,9 +729,9 @@ first_needed(Key, Groups, ByHash, {Order, Seen}) ->
 %% of, and each member's name where its form does not hold it
 %% (frame_name/1), its form with the lines of its source, and the foreign
 %% declarations it calls, as the node holds them (§11.2), a form without
-%% its source where it holds none; none where a foreign
-%% declaration a member calls is held by no unit the code of Unit, which
-%% holds the members, calls.
+%% its source where it holds none; none where a foreign declaration a
+%% member calls is held by no unit the code of Unit, which holds the
+%% members, calls.
 code_frame({Members, Unit}, Read) ->
     Forms = forms(Members),
     {Calls, Read1} = lists:mapfoldl(fun(Form, Acc) -> calls(Unit, Form, Acc) end, Read, Forms),
@@ -796,7 +795,7 @@ members(Hash, Read) ->
 member_of([], _Hash, _Read) ->
     none;
 member_of([Unit | Units], Hash, Read) ->
-    {Definitions, Read1} = case recorded(Unit, Read) of
+    {Definitions, Read1} = case ern_code:recorded(Unit, Read) of
                                {#recorded{definitions = Held}, Read2} -> {Held, Read2};
                                {none, Read2} -> {[], Read2}
                            end,
@@ -812,21 +811,6 @@ member_of([Unit | Units], Hash, Read) ->
              Unit, Read1};
         [] ->
             member_of(Units, Hash, Read1)
-    end.
-
-%% What a unit's compiled form records, as the code table holds it, read
-%% once in a request: from Read, the units read so far, or from the table,
-%% Read growing by it; none where the table holds none.
-recorded(Unit, Read) ->
-    case Read of
-        #{Unit := Recorded} ->
-            {Recorded, Read};
-        #{} ->
-            Recorded = case ern_code:forms(Unit) of
-                           {ok, Held} -> Held;
-                           none -> none
-                       end,
-            {Recorded, Read#{Unit => Recorded}}
     end.
 
 %%

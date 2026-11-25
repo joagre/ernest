@@ -452,9 +452,9 @@ resolved_path(Path) ->
 
 %% Report §11.7: an option that names a directory to read names one that is
 %% there, and one that is a directory; `ern config`'s `--config-dir` names
-%% the one it creates, but with `--peer-dir`, which writes into it; and
-%% `--peer-dir` names a configuration directory, which holds `ernest.conf`
-%% and a certificate.
+%% the one it creates or reads the key of, which ern_node:create/2 judges,
+%% but with `--peer-dir`, which writes into it; and `--peer-dir` names a
+%% configuration directory, which holds `ernest.conf` and its certificate.
 named_directories(Job, Spec, Options) ->
     Creates = Job =:= "config" andalso not lists:keymember(peer_dir, 1, Options),
     lists:foreach(fun({Key, Directory}) when Key =:= load_path; Key =:= libs_dir;
@@ -1331,12 +1331,12 @@ report_tree(Statuses) ->
 
 %% Report §12.5, §11.2: hangup sent to the node that holds the directory's
 %% `ernest.pid`, which reads its configuration again; the directory is read
-%% first as the node reads it at a reload, so that one the node would
-%% refuse is refused here, with the node's refusal, and not signaled. The
-%% status 0 says that the signal was delivered.
+%% first as the node reads it at a reload, making no certificate, so that
+%% one the node would refuse is refused here, with the node's refusal, and
+%% not signaled. The status 0 says that the signal was delivered.
 reload(Options, [], _ErrorDevice) ->
     ConfigDir = node_dir(Options),
-    _ = ern_node:read(ConfigDir),
+    _ = ern_node:read(ConfigDir, left),
     ern_node:signaled(ConfigDir, 1),
     0;
 reload(_Options, _Rest, _ErrorDevice) ->
@@ -1385,9 +1385,10 @@ node_dir(Options) ->
     end.
 
 %% Report §11.3: the configuration directory made, its `listen` the one
-%% --listen gives or none, and the node's public key printed, which
-%% another node's configuration lists; or, given --peer-dir, the node of
-%% that directory listed among the directory's peers, and nothing printed.
+%% --listen gives or none, or one that is there read, and the node's public
+%% key printed, which another node's configuration lists; or, given
+%% --peer-dir, the node of that directory listed among the directory's
+%% peers, and nothing printed.
 config(Options, [], _ErrorDevice) ->
     ConfigDir = node_dir(Options),
     case proplists:get_value(peer_dir, Options) of

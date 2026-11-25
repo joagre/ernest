@@ -1569,6 +1569,7 @@ stdlib_namespaces() ->
 %% the compiled module where it is kept in memory and none where it is
 %% written. Against is what the build is compiled against beside the
 %% module's dependencies, built/4's, and Say says the file written.
+%%
 %% report §11.4: a module `ern doc` read from its .erc is not compiled
 %% again, and its interface is the one its .erc holds
 build(#build_module{namespace = Namespace}, Interfaces, _SourceRoot, _DependencyRoots,

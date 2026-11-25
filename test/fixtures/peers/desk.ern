@@ -1249,33 +1249,19 @@ fn timedOut(watcher : Address(Counter.WatcherMsg), ms : Int) : Unit receiving Ms
 foreign fn toInteger(text : String) : Int =
     "erlang:binary_to_integer/1"
 
-// Report §12.5, §12.8: how busy the store is, as its configuration measures it:
-// the schedulers' time at its start, from 0.0 to 1.0, which the host keeps
-// there; then the run queue, from the next ask after the reload that names
-// it, 0.0 or more, the host keeping the schedulers' time no longer; and,
-// after a reload refused, the run queue still.
+// Report §12.5, §12.8: how busy the store is, the run queue's measure, 0.0
+// or more, the host keeping no schedulers' time there; and, after a reload
+// refused, the run queue still.
 fn utilizations() : Unit = {
     Io.println("not listed: " <> Io.show(Peer.utilization("nobody", Harness.waitMs())));
-    Io.println("schedulers: "
-                   <> Io.show(#(fraction(Peer.utilization("store", Harness.waitMs())),
-                                fraction(Peer.utilization("store", Harness.waitMs())))));
-    keeps("at the start");
-    Io.println("now measure the run queue");
-    let _ = Io.readLine();
     Io.println("run queue: " <> Io.show(waiting(Peer.utilization("store", Harness.waitMs()))));
-    keeps("after the reload");
+    keeps("at the start");
     Io.println("now refuse a reload");
     let _ = Io.readLine();
     Io.println("after the refusal: "
-                   <> Io.show(waiting(Peer.utilization("store", Harness.waitMs()))))
+                   <> Io.show(waiting(Peer.utilization("store", Harness.waitMs()))));
+    keeps("after the refusal")
 }
-
-// Whether the answer is a fraction from 0.0 to 1.0.
-fn fraction(answer : Either(Io.Error, Float)) : Bool =
-    match answer {
-        Right(utilization) -> utilization >= 0.0 && utilization <= 1.0
-      | Left(_) -> false
-    }
 
 // Whether the answer is 0.0 or more.
 fn waiting(answer : Either(Io.Error, Float)) : Bool =

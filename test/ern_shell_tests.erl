@@ -399,6 +399,52 @@ startup_any_mode() ->
     Run(fun(Dir, _File) -> [{Dir, 8#777}] end),
     Run(fun(Dir, File) -> [{File, 8#666}, {Dir, 8#777}] end).
 
+%% report §11.2: a configuration directory's `startup` whose mode lets any
+%% but its owner write it, its group among them, is reported and not run,
+%% with the cause and then the fix, a link followed to the file, and so is
+%% the file both paths name, the person's own `startup` and the directory's;
+%% the person's own runs whatever its mode, and so does one others may only
+%% read
+config_startup_mode_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun config_startup_mode/0).
+
+config_startup_mode() ->
+    Home = fresh_home(),
+    Own = filename:join([Home, ".ernest", "startup"]),
+    startup_file(Own, "Io.println(\"own ran\")\n"),
+    ok = file:change_mode(Own, 8#666),
+    ConfigDir = filename:join(Home, "conf"),
+    node_dir(ConfigDir),
+    Startup = filename:join(ConfigDir, "startup"),
+    startup_file(Startup, "Io.println(\"configured ran\")\n"),
+    Refused = list_to_binary(Startup ++ " may be written by others than its owner, and is not"
+                             " run; chmod go-w " ++ Startup ++ "\n"),
+    Session = fun() -> line_session(Home, " --config-dir " ++ ConfigDir, "1\n") end,
+    [begin
+         ok = file:change_mode(Startup, Mode),
+         {0, Output} = Session(),
+         ?assertMatch({_, _}, binary:match(Output, Refused)),
+         ?assertEqual(nomatch, binary:match(Output, <<"configured ran">>)),
+         ?assertMatch({_, _}, binary:match(Output, <<"own ran\n">>)),
+         ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>))
+     end || Mode <- [8#664, 8#646]],
+    ok = file:change_mode(Startup, 8#444),
+    {0, Read} = Session(),
+    ?assertMatch({_, _}, binary:match(Read, <<"configured ran\n">>)),
+    %% a person's own directory given as the configuration directory, its
+    %% one `startup` the directory's
+    Second = fresh_home(),
+    Both = filename:join(Second, ".ernest"),
+    node_dir(Both),
+    BothStartup = filename:join(Both, "startup"),
+    startup_file(BothStartup, "Io.println(\"both ran\")\n"),
+    ok = file:change_mode(BothStartup, 8#664),
+    {0, Once} = line_session(Second, " --config-dir " ++ Both, "1\n"),
+    ?assertMatch([_], binary:matches(Once, list_to_binary(BothStartup ++ " may be written by others"
+                                                         " than its owner, and is not run;"
+                                                         " chmod go-w " ++ BothStartup))),
+    ?assertEqual(nomatch, binary:match(Once, <<"both ran">>)).
+
 %% report §11.2: no link from a startup file or from its directory is
 %% read, and no directory a link reaches through is tested: the startup
 %% file a link to a file in a directory every user may write, through a
@@ -7406,7 +7452,10 @@ source_root_session(Dir, LoadPath, Inputs) ->
 %% it is not there.
 startup_file(File, Text) ->
     ok = filelib:ensure_path(filename:dirname(File)),
-    ok = file:write_file(File, Text).
+    ok = file:write_file(File, Text),
+    %% its owner's alone to write, whatever the umask, as a configuration
+    %% directory's must be to run (report §11.2)
+    ok = file:change_mode(File, 8#644).
 
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).

@@ -46,6 +46,18 @@ ran(File, Options) ->
     Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
     binary:split(Output, <<"\n">>, [global, trim]).
 
+%% What a run of the program at File printed and what it said on its error
+%% device, an I/O server of the test's own (said/2); the run's status is 0.
+ran_said(File) ->
+    Self = self(),
+    Device = spawn(fun() -> said(Self, []) end),
+    Before = byte_size(captured_output()),
+    ?assertEqual(0, ern_cli:ern(["run", File], Device)),
+    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
+    Device ! {done, self()},
+    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
+    {Output, Said}.
+
 %% EUnit's captured output, asked of the test's group leader, as
 %% ern_cli_tests asks it.
 captured_output() ->
@@ -161,13 +173,7 @@ load_deadlock_test() ->
                  "    Io.println(Int.toString(List.size(Process.live())))\n"
                  "}\n"),
     built(Dir, "main.ern"),
-    Self = self(),
-    Device = spawn(fun() -> said(Self, []) end),
-    Before = byte_size(captured_output()),
-    ?assertEqual(0, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
-    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
-    Device ! {done, self()},
-    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
+    {Output, Said} = ran_said(filename:rootname(Main) ++ ".erc"),
     ?assertEqual(<<"Left(Io.Other(\"Plug.Stuck.stuck:8 faulted: deadlock\"))\n1\n">>, Output),
     %% report §8.6, Appendix E.28: the load's answer is the fault's one report
     ?assertEqual(<<>>, Said).
@@ -251,13 +257,7 @@ load_caller_ends_test() ->
                  "    if count == 0 then Unit"
                  " else receive { Ended(_) -> awaited(count - 1) }\n"),
     built(Dir, "main.ern"),
-    Self = self(),
-    Device = spawn(fun() -> said(Self, []) end),
-    Before = byte_size(captured_output()),
-    ?assertEqual(0, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
-    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
-    Device ! {done, self()},
-    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
+    {Output, Said} = ran_said(filename:rootname(Main) ++ ".erc"),
     ?assertEqual([<<"Cut's bindings evaluated">>,
                   <<"Killed">>,
                   <<"1">>,
@@ -357,13 +357,7 @@ load_caller_restarts_test() ->
                  "    if count == 0 then Unit"
                  " else receive { Ended(_) -> awaited(count - 1) }\n"),
     built(Dir, "main.ern"),
-    Self = self(),
-    Device = spawn(fun() -> said(Self, []) end),
-    Before = byte_size(captured_output()),
-    ?assertEqual(0, ern_cli:ern(["run", filename:rootname(Main) ++ ".erc"], Device)),
-    Output = binary:part(captured_output(), Before, byte_size(captured_output()) - Before),
-    Device ! {done, self()},
-    Said = receive {said, Text} -> unicode:characters_to_binary(Text) end,
+    {Output, Said} = ran_said(filename:rootname(Main) ++ ".erc"),
     ?assertEqual([<<"0">>,
                   <<"Hold's bindings evaluated">>,
                   <<"0">>,

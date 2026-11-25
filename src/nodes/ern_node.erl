@@ -1,16 +1,18 @@
 %% Report §8.3, §8.7, §12.5, §11.3, Appendix C: a node's configuration directory,
 %% the one owner of its shape. `ern config` makes it, a key, a certificate
-%% the node signs itself and `ernest.conf`, and lists in it a peer of this
-%% machine read from the peer's own directory; a node started with it checks
-%% it, reads `ernest.conf` whole, writes its process number to `ernest.pid`,
-%% holds the file locked until its process has ended, when the file is
-%% removed, and starts the host's measures the file names; `ern reload` and
-%% `ern stop` signal the node that holds the file. A refusal is the runner's
-%% (ern_build:fail/1), naming the file.
+%% the node signs itself and `ernest.conf`, prints the public key of one
+%% that is there, and lists in it a peer of this machine read from the
+%% peer's own directory; a node started with it checks it, reads
+%% `ernest.conf` whole, makes the certificate where it is missing, writes
+%% its process number to `ernest.pid`, holds the file locked until its
+%% process has ended, when the file is removed, and starts the host's
+%% measures the file names; `ern reload` and `ern stop` signal the node that
+%% holds the file. A refusal is the runner's (ern_build:fail/1), naming the
+%% file.
 -module(ern_node).
 
--export([create/2, public_pem/1, add_peer/2, start/1, start/2, stop/0, file/2,
-         read/1, measures_changed/3, signaled/2, stopped/1, listen_text/1, family/1]).
+-export([create/2, public_pem/1, add_peer/2, start/1, start/2, stop/0, file/2, read/1, read/2,
+         certificate_made/1, measures_changed/3, signaled/2, stopped/1, listen_text/1, family/1]).
 
 -include_lib("public_key/include/public_key.hrl").
 -include_lib("kernel/include/file.hrl").
@@ -29,54 +31,106 @@
 -define(NAME, <<"ernest">>).
 
 %% Report §12.5, Appendix E.27: what `ernest.conf` may say.
--define(FIELDS, [<<"listen">>, <<"public-key">>, <<"peers">>, <<"services">>, <<"measures">>,
-                 <<"utilization">>, <<"utilization-interval">>, <<"limits">>]).
+-define(FIELDS, [<<"listen">>, <<"peers">>, <<"services">>, <<"measures">>,
+                 <<"utilization-interval">>, <<"limits">>]).
 -define(PEER_FIELDS, [<<"name">>, <<"public-key">>, <<"network-address">>]).
 
 %%
 %% ern config
 %%
 
-%% Report §11.3, Appendix C: the configuration directory made, with this
-%% node's key, the certificate it signs itself and `ernest.conf`; the
-%% public key is answered, which `ern config` prints. The directory is made
-%% here or not at all, so that one another made first, as this runs, is
-%% refused, and it is its owner's alone before a file is written in it, the
-%% key's among them (ern_build:make_private_dir/1). A name ending in `/`
-%% names the directory before it. Its
-%% `listen` is the one `--listen` gives, refused before the directory is
-%% made where a node would refuse it, and none where it gives none, a node
-%% that only dials (§12.5); and the directory is the one directory made,
-%% its parent there before it, so that a mistyped path makes no tree.
+%% Report §11.3, Appendix C: `ern config` without `--peer-dir`, answering
+%% the node's public key in PEM, which the job prints. In a directory Given
+%% that is there and holds the node's key the key is read as a node reads
+%% its own, and nothing changes, `--listen` refused there, since it would
+%% change nothing; one that holds no key is refused, and so is anything at
+%% Given that is no directory, as §11.7 refuses one. Else the directory is
+%% made (made/2). A name ending in `/` names the directory before it.
 -spec create(file:filename(), string() | none) -> binary().
 create(Given, Listen) ->
-    Listening = listening(Listen),
     ConfigDir = filename:join([Given]),
-    Parent = filename:dirname(ConfigDir),
-    filelib:is_dir(Parent) orelse ern_build:fail(Parent ++ ": no such directory"),
-    case ern_build:make_private_dir(ConfigDir) of
-        ok -> ok;
-        exists -> ern_build:fail(ConfigDir ++ " exists");
-        {error, Why} -> ern_build:fail(ConfigDir ++ ": " ++ Why)
+    case file:read_link_info(ConfigDir) of
+        {ok, _} -> standing(ConfigDir, Listen);
+        {error, _} -> made(ConfigDir, Listen)
+    end.
+
+%% What stands at the directory's path: a directory, a link to one among
+%% them, or anything else.
+standing(ConfigDir, Listen) ->
+    case filelib:is_dir(ConfigDir) of
+        true -> existing(ConfigDir, Listen);
+        false -> no_directory(ConfigDir)
+    end.
+
+%% Report §11.3: the public key of a configuration directory that is there,
+%% its key read as a node reads its own (own_key/1), and nothing changed.
+existing(ConfigDir, Listen) ->
+    Shown = ern_build:shown(ConfigDir),
+    case file:read_link_info(file(ConfigDir, key)) of
+        {error, enoent} -> ern_build:fail(Shown ++ " exists and holds no " ++ ?KEY);
+        _ -> ok
     end,
+    Listen =:= none
+        orelse ern_build:fail("--listen is not given for a directory that exists: ern config"
+                              " changes nothing in " ++ Shown),
+    public_pem(public_der(own_key(ConfigDir))).
+
+%% Report §11.3, §11.7: what stands at `--config-dir`'s path and is no
+%% directory, refused as §11.7 refuses a file an option names as one.
+no_directory(ConfigDir) ->
+    ern_build:fail(ern_build:shown(ConfigDir) ++ ": not a directory, which --config-dir names").
+
+%% Report §11.3, Appendix C: the configuration directory made, with this
+%% node's key, the certificate it signs itself and `ernest.conf`. The
+%% directory is made here or not at all, so that one another made first,
+%% as this runs, is taken as one that is there (standing/2), and it is its
+%% owner's alone before a file is written in it, the key's among them
+%% (ern_build:make_private_dir/1). Its `listen` is the one `--listen`
+%% gives, refused before the directory is made where a node would refuse
+%% it, and none where it gives none, a node that only dials (§12.5); and
+%% the directory is the one directory made, its parent there before it, so
+%% that a mistyped path makes no tree.
+made(ConfigDir, Listen) ->
+    Listening = listening(Listen),
+    Parent = filename:dirname(ConfigDir),
+    %% report §11: a missing parent in the host's words
+    case file:read_file_info(Parent) of
+        {ok, #file_info{type = directory}} -> ok;
+        {ok, _} -> ern_build:refused(Parent, enotdir);
+        {error, Error} -> ern_build:refused(Parent, Error)
+    end,
+    case ern_build:make_private_dir(ConfigDir) of
+        ok -> written(ConfigDir, Listening);
+        exists -> standing(ConfigDir, Listen);
+        {error, Why} -> ern_build:fail(ConfigDir ++ ": " ++ Why)
+    end.
+
+%% The files of a directory made: its key, the certificate and
+%% `ernest.conf`, the key's public half answered.
+written(ConfigDir, Listening) ->
     %% report §12.5: an ed25519 key, which serves in the handshake under the
     %% rule (the log's *The Node's Directory*)
     Key = public_key:generate_key({namedCurve, ed25519}),
-    Public = public_pem(public_der(Key)),
-    Certificate = pem([{'Certificate', signed_certificate(Key), not_encrypted}]),
-    Private = pem([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
     %% written by the host's JSON formatter, its fields in Appendix C's
-    %% order, two spaces a level, and a line feed at its end; a PEM's line
-    %% breaks are escapes, as in any JSON string
-    Fields = Listening ++ [{<<"public-key">>, Public}, {<<"peers">>, []}, {<<"services">>, #{}}],
+    %% order, two spaces a level, and a line feed at its end
+    Fields = Listening ++ [{<<"peers">>, []}, {<<"services">>, #{}}],
     Json = json:format({object, Fields}, fun ordered/3, #{indent => 2}),
     %% report §11.3: the two readable by all and writable by their owner
     %% alone, whatever the umask
     ok = ern_build:write_output(filename:join(ConfigDir, ?CONF), Json, 8#644),
-    ok = ern_build:write_output(filename:join(ConfigDir, ?CERTIFICATE), Certificate, 8#644),
+    certificate_made(ConfigDir, Key),
     %% the key is its owner's alone before it is written
+    Private = pem([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
     ok = ern_build:write_output(filename:join(ConfigDir, ?KEY), Private, 8#600),
-    Public.
+    public_pem(public_der(Key)).
+
+%% Report §11.3, §12.5, Appendix C: the certificate the node signs itself
+%% with Key, written in the configuration directory, readable by all and
+%% writable by its owner alone, whatever the umask; as `ern config` makes
+%% it and as a node makes it where it is missing (read/2).
+certificate_made(ConfigDir, Key) ->
+    Certificate = pem([{'Certificate', signed_certificate(Key), not_encrypted}]),
+    ok = ern_build:write_output(filename:join(ConfigDir, ?CERTIFICATE), Certificate, 8#644).
 
 %% Report §11.3, §12.5: the `listen` field `--listen` gives, refused where
 %% a node would refuse it, or none.
@@ -160,13 +214,14 @@ signed_certificate({'ECPrivateKey', _, Private, _, _, _} = Key) ->
 %% machine, listed last among the peers of the directory ConfigDir: its
 %% name its directory's, its public key the one its certificate certifies,
 %% and its address its `listen`, the loopback address in place of one for
-%% every interface. Both directories are read as a node reads its own, the
-%% peer's private key excepted, which is not read, and the entry as a node
-%% reads a peer's; `ernest.conf` is written again with every other field as
-%% it was, its links followed (report §11), or not at all.
+%% every interface. Both directories are read as a node reads its own, and
+%% no certificate is made for either, the peer's private key excepted,
+%% which is not read, and the entry as a node reads a peer's; `ernest.conf`
+%% is written again with every other field as it was, its links followed
+%% (report §11), or not at all.
 -spec add_peer(file:filename(), file:filename()) -> ok.
 add_peer(ConfigDir, PeerDir) ->
-    #configuration{listen = Listen, public_key = Own, peers = Peers} = read(ConfigDir),
+    #configuration{listen = Listen, public_key = Own, peers = Peers} = read(ConfigDir, left),
     {Key, PeerListen} = peer_read(PeerDir),
     Shown = ern_build:shown(PeerDir),
     Name = unicode:characters_to_binary(filename:basename(ern_build:absolute(PeerDir))),
@@ -196,11 +251,15 @@ add_peer(ConfigDir, PeerDir) ->
                        fun ordered/3, #{indent => 2}),
     ern_build:write_whole(file(ConfigDir, conf), Json).
 
-%% Report §11.3, §12.5: the key a peer's certificate certifies, and its
-%% `listen`: its directory, `ernest.conf` and certificate read as a node
-%% reads its own, the certificate naming the host its key gives.
+%% Report §11.3, §11.7, §12.5: the key a peer's certificate certifies, and
+%% its `listen`: its directory, `ernest.conf` and certificate read as a node
+%% reads its own, the certificate naming the host its key gives; a
+%% directory without its certificate is no configuration directory, and
+%% none is made for it.
 peer_read(PeerDir) ->
-    all_found(PeerDir, [?CONF, ?CERTIFICATE]),
+    checked(PeerDir, "--peer-dir"),
+    found(file(PeerDir, certificate), regular) =/= missing
+        orelse no_configuration(PeerDir, "--peer-dir"),
     #configuration{listen = Listen} = configuration(PeerDir),
     Certificate = certificate(PeerDir),
     ern_carrier:names_own_host(Certificate)
@@ -263,59 +322,126 @@ file(ConfigDir, key) -> filename:join(ConfigDir, ?KEY);
 file(ConfigDir, certificate) -> filename:join(ConfigDir, ?CERTIFICATE);
 file(ConfigDir, pid) -> filename:join(ConfigDir, ?PID_FILE).
 
-%% Report §12.5: the directory checked and `ernest.conf` read: the
-%% directory, and each file a node reads in it, there and of its kind, held
-%% to no owner and no mode (§11), and the key read and written by none but
-%% its owner, as ssh reads one; the file JSON, every field known; the key
-%% the one `ernest.conf` names and the certificate's, and the certificate
-%% naming the host the key gives.
+%% Report §12.5: the directory checked and read as a node's start and its
+%% reload read it, a missing certificate made (read/2).
 -spec read(file:filename()) -> #configuration{}.
 read(ConfigDir) ->
-    all_found(ConfigDir, [?CONF, ?CERTIFICATE, ?KEY]),
+    read(ConfigDir, made).
+
+%% Report §12.5, §11.2, §11.3: the directory checked and `ernest.conf` read:
+%% the directory, `ernest.conf` and the key there, a link followed, and of
+%% their kind (checked/2, key_found/1); the file JSON, every field known;
+%% the node's key `private-key.pem`'s, and the certificate, where it is
+%% there, certifying that key and naming the host the key gives. A missing
+%% certificate is made from the key once nothing is refused, where Missing
+%% is `made`, as a node's start and its reload make it, and `left` where
+%% the reading makes nothing, `ern reload`'s own, `ern config
+%% --peer-dir`'s and a reload's, which makes it once it has checked the key
+%% (certificate_made/1). The node's public key is its key's.
+-spec read(file:filename(), made | left) -> #configuration{}.
+read(ConfigDir, Missing) ->
+    checked(ConfigDir, "--config-dir"),
+    Certificate = found(file(ConfigDir, certificate), regular),
+    key_found(ConfigDir),
     Configuration = configuration(ConfigDir),
     Key = private_key(ConfigDir),
     Own = public_der(Key),
-    Own =:= Configuration#configuration.public_key
-        orelse fail(ConfigDir, ?CONF, "public-key is not the key of " ++ ?KEY),
+    case Certificate of
+        missing -> ok;
+        _ -> certified(ConfigDir, Own)
+    end,
+    lists:any(fun(#peer{public_key = Peer}) -> Peer =:= Own end,
+              Configuration#configuration.peers)
+        andalso fail(ConfigDir, ?CONF, "a peer has this node's own key, and a node is no peer"
+                                       " of itself"),
+    case {Certificate, Missing} of
+        {missing, made} -> certificate_made(ConfigDir, Key);
+        _ -> ok
+    end,
+    Configuration#configuration{public_key = Own}.
+
+%% Report §12.5: where the directory holds no certificate, the one the node
+%% makes from its key, as a reload makes it once it has found the key the
+%% running node's (ern_carrier:reload/0).
+-spec certificate_made(file:filename()) -> ok.
+certificate_made(ConfigDir) ->
+    case found(file(ConfigDir, certificate), regular) of
+        missing -> certificate_made(ConfigDir, own_key(ConfigDir));
+        _ -> ok
+    end.
+
+%% Report §12.5: the node's certificate certifies its key, Own, and names
+%% the host that key gives.
+certified(ConfigDir, Own) ->
     Certificate = certificate(ConfigDir),
     certified_key(Certificate) =:= Own
         orelse fail(ConfigDir, ?CERTIFICATE, "certifies another key than " ++ ?KEY),
     ern_carrier:names_own_host(Certificate)
         orelse fail(ConfigDir, ?CERTIFICATE, "names another host than its key gives, and a peer"
                                              " refuses it; ern config makes one that names it"),
-    lists:any(fun(#peer{public_key = Peer}) -> Peer =:= Own end,
-              Configuration#configuration.peers)
-        andalso fail(ConfigDir, ?CONF, "a peer has this node's own key, and a node is no peer"
-                                       " of itself"),
-    Configuration.
-
-%% The directory and each of its Files as found/3 has them.
-all_found(ConfigDir, Files) ->
-    found(ConfigDir, ConfigDir, directory),
-    lists:foreach(fun(File) -> found(ConfigDir, filename:join(ConfigDir, File), regular) end,
-                  Files).
-
-%% A file or the directory: there, a link followed, and of its kind, a
-%% file of another kind refused as §11 refuses one, `is no regular file`;
-%% the key neither read nor written by any but its owner (§12.5).
-found(ConfigDir, Path, Kind) ->
-    Shown = ern_build:shown(Path),
-    Info = case file:read_file_info(Path, [{time, posix}]) of
-               {ok, Found} -> Found;
-               {error, enoent} when Kind =:= regular ->
-                   ern_build:fail(Shown ++ " is not there; ern config --config-dir "
-                                  ++ ern_build:shown(ConfigDir) ++ " makes a configuration"
-                                  " directory");
-               {error, Error} -> ern_build:refused(Path, Error)
-           end,
-    case {Info#file_info.type, Kind} of
-        {Kind, _} -> ok;
-        {_, directory} -> ern_build:fail(Shown ++ " is not a directory");
-        {_, regular} -> ern_build:refused(Path, unopened)
-    end,
-    filename:basename(Path) =/= ?KEY orelse Info#file_info.mode band 8#066 =:= 0
-        orelse ern_build:fail(Shown ++ " may be read or written by others than its owner"),
     ok.
+
+%% Report §12.5, §11: a configuration directory and its `ernest.conf`
+%% there, of their kind, and written by none but their owner, by the bits
+%% the key's test reads for writing; every other way the host lets another
+%% write what a node reads, a directory a link reaches through among them,
+%% held to no owner and no mode (§11). A directory without `ernest.conf` is
+%% none, named with the option that names it, Option.
+checked(ConfigDir, Option) ->
+    case found(ConfigDir, directory) of
+        missing -> ern_build:refused(ConfigDir, enoent);
+        DirectoryMode -> owners_alone(ConfigDir, DirectoryMode, 8#022, "written", "go-w")
+    end,
+    Conf = file(ConfigDir, conf),
+    case found(Conf, regular) of
+        missing -> no_configuration(ConfigDir, Option);
+        ConfMode -> owners_alone(Conf, ConfMode, 8#022, "written", "go-w")
+    end.
+
+%% Report §12.5: the node's key there, of its kind, and read and written by
+%% none but its owner, as ssh reads one.
+key_found(ConfigDir) ->
+    Path = file(ConfigDir, key),
+    case found(Path, regular) of
+        missing -> ern_build:refused(Path, enoent);
+        Mode -> owners_alone(Path, Mode, 8#066, "read or written", "go-rw")
+    end.
+
+%% Report §11.3, §12.5: the node's key, found and read as a node reads its
+%% own.
+own_key(ConfigDir) ->
+    key_found(ConfigDir),
+    private_key(ConfigDir).
+
+%% Report §12.5: a file or a directory whose Mode lets none but its owner
+%% do what the Bits of others' and its group's mean, else refused with the
+%% cause and then the fix, the change of mode that mends it.
+owners_alone(Path, Mode, Bits, Done, Fix) ->
+    Shown = ern_build:shown(Path),
+    Mode band Bits =:= 0
+        orelse ern_build:fail(Shown ++ " may be " ++ Done ++ " by others than its owner; chmod "
+                              ++ Fix ++ " " ++ Shown),
+    ok.
+
+%% Report §12.5, §11.7: a directory without `ernest.conf`, or a peer's
+%% without its certificate, named with the option that names it.
+no_configuration(Dir, Option) ->
+    ern_build:fail(ern_build:shown(Dir) ++ ": no configuration directory, which " ++ Option
+                   ++ " names").
+
+%% A file or the directory, a link followed: its mode where it is there and
+%% of Kind, one of another kind refused as §11 refuses one, `is no regular
+%% file`, and a path the host cannot read with its reason; missing where
+%% nothing is there.
+found(Path, Kind) ->
+    case file:read_file_info(Path) of
+        {ok, #file_info{type = Kind, mode = Mode}} -> Mode;
+        {ok, _} when Kind =:= directory -> ern_build:fail(ern_build:shown(Path)
+                                                          ++ " is not a directory");
+        {ok, _} -> ern_build:refused(Path, unopened);
+        {error, enoent} -> missing;
+        {error, Error} -> ern_build:refused(Path, Error)
+    end.
 
 %% Each file is read through ern_build:read/1, which refuses one that cannot
 %% be read with its name and the host's reason; what does not decode is
@@ -502,18 +628,11 @@ configuration(ConfigDir) ->
                  #{<<"listen">> := ListenText} -> listen(ConfigDir, ListenText);
                  _ -> none
              end,
-    PublicKey = case Fields of
-                    #{<<"public-key">> := Pem} -> public_key_der(ConfigDir, "public-key", Pem);
-                    _ -> fail(ConfigDir, ?CONF, "names no public-key")
-                end,
     Peers = peers(ConfigDir, maps:get(<<"peers">>, Fields, []), Listen),
-    #configuration{config_dir = ConfigDir, listen = Listen, public_key = PublicKey,
-                   peers = Peers,
+    #configuration{config_dir = ConfigDir, listen = Listen, peers = Peers,
                    services = services(ConfigDir, maps:get(<<"services">>, Fields, {object, []}),
                                        Peers),
                    measures = measures(ConfigDir, maps:get(<<"measures">>, Fields, none)),
-                   utilization = utilization(ConfigDir,
-                                             maps:get(<<"utilization">>, Fields, <<"run-queue">>)),
                    utilization_interval =
                        utilization_interval(ConfigDir,
                                             maps:get(<<"utilization-interval">>, Fields, 5000)),
@@ -776,19 +895,6 @@ fraction(ConfigDir, Shown, Full) ->
     is_number(Full) andalso Full >= 0 andalso Full =< 1
         orelse fail(ConfigDir, ?CONF, Shown ++ "'s almost-full is not a fraction from 0 to 1"),
     Full.
-
-%% Report §12.8: `utilization`, how the node measures how busy it is for its
-%% peers, `run-queue`, the default where the entry is absent, or
-%% `schedulers`.
-utilization(_ConfigDir, <<"run-queue">>) ->
-    run_queue;
-utilization(_ConfigDir, <<"schedulers">>) ->
-    schedulers;
-utilization(ConfigDir, Text) when is_binary(Text) ->
-    fail(ConfigDir, ?CONF, "utilization is " ++ ern_conf:quoted(Text) ++ ", which is neither"
-                           " \"run-queue\" nor \"schedulers\"");
-utilization(ConfigDir, _) ->
-    fail(ConfigDir, ?CONF, "utilization is neither \"run-queue\" nor \"schedulers\"").
 
 %% Report Appendix C, Appendix E.27: `utilization-interval`, the
 %% milliseconds between the node's tellings of how busy it is to its peers,

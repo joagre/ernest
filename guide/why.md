@@ -183,7 +183,6 @@ A node is Ernest started from a configuration directory, with a program or with 
 ```json
 {
   "listen": "0.0.0.0:8654",
-  "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxPrYwmRdoys5yu9UJVah/ssQO8AeM8Sz8XSW+1BQOVg=\n-----END PUBLIC KEY-----\n",
   "peers": [
     {
       "name": "foo",

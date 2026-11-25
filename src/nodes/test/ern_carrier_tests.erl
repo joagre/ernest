@@ -349,24 +349,7 @@ reload_failure_test() ->
 %% the host given, for the rule to refuse: the key is one node's, the host
 %% another's.
 forged(#configuration{config_dir = Dir}, Host) ->
-    {ok, Pem} = file:read_file(filename:join(Dir, "private-key.pem")),
-    [Entry] = public_key:pem_decode(Pem),
-    {'ECPrivateKey', _, Private, _, _, _} = Key = public_key:pem_entry_decode(Entry),
-    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
-    Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
-                                                    value = {utf8String, <<"ernest">>}}]]},
-    Tbs = #'OTPTBSCertificate'{
-             version = v3, serialNumber = 1,
-             signature = #'SignatureAlgorithm'{algorithm = ?'id-Ed25519'},
-             issuer = Name, subject = Name,
-             validity = #'Validity'{notBefore = {utcTime, "700101000000Z"},
-                                    notAfter = {generalTime, "99991231235959Z"}},
-             subjectPublicKeyInfo = #'OTPSubjectPublicKeyInfo'{
-                                       algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
-                                       subjectPublicKey = #'ECPoint'{point = Point}},
-             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
-                                        extnValue = [{dNSName, Host}]}]},
-    public_key:pkix_decode_cert(public_key:pkix_sign(Tbs, Key), otp).
+    public_key:pkix_decode_cert(ern_helpers:forged_certificate(Dir, Host), otp).
 
 %% report §12.5: a certificate that names another host than its key gives is
 %% refused, though its key is listed, and the node says so; the rule's

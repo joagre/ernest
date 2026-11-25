@@ -4,11 +4,12 @@
 // `ern config`, `a` listing `b` under the service `pair`; the build, and a
 // second build of this module whose `Msg` has another constructor; and
 // `pair.json`, which names the port `b` listens on and each build's file.
-// Each test writes `b`'s `ernest.conf`, listing `a`, starts `b` with `Os`,
-// on the same build or on the second, waits for it to offer its service,
-// finds it through `Peer.find`, or through a proxy, and calls it where the
-// find answers it, and ends it with `ern stop`. Each wait is given the
-// test's time for one step (Harness.waitMs).
+// Each test writes `b`'s `ernest.conf`, listing `a` by the key `ern config`
+// prints for it, starts `b` with `Os`, on the same build or on the second,
+// waits for it to offer its service, finds it through `Peer.find`, or
+// through a proxy, and calls it where the find answers it, and ends it with
+// `ern stop`. Each wait is given the test's time for one step
+// (Harness.waitMs).
 
 export type Msg = Double(n : Int, reply : Reply(Int))
 
@@ -101,17 +102,16 @@ fn started(build : String) : Either(String, Address(Os.ProgramMsg)) = {
     let port <- Either.andThen(member(settings, "port"), integer);
     let file <- Either.andThen(member(settings, build), text);
     let first <- readJson(["a", "ernest.conf"]);
-    let firstKey <- member(first, "public-key");
     let firstAddress <- member(first, "listen");
-    let second <- readJson(["b", "ernest.conf"]);
-    let secondKey <- member(second, "public-key");
+    let printed <-
+        shown(Os.run(Os.command("ern", ["config", "--config-dir", "a"]), Harness.waitMs()));
+    let firstKey <- Either.fromOptional(String.fromUtf8(printed.stdout), "a's key is not UTF-8");
     let peer =
         Json.Object(Map.fromList([#("name", Json.Text("a")),
                                   #("network-address", firstAddress),
-                                  #("public-key", firstKey)]));
+                                  #("public-key", Json.Text(firstKey))]));
     let conf =
         Json.Object(Map.fromList([#("listen", Json.Text("127.0.0.1:" <> Int.toString(port))),
-                                  #("public-key", secondKey),
                                   #("peers", Json.Array([peer]))]));
     let _ <- written(["b", "ernest.conf"], Json.format(conf));
     let program <- shown(Os.start(Os.command("ern", ["run", "--config-dir", "b", file])));

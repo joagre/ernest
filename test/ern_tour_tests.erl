@@ -334,8 +334,7 @@ configured(Base, PortFoo, PortBar) ->
     created(Base, "config --config-dir bar --listen " ++ binary_to_list(AddressBar)),
     [?assertEqual({0, "", ""}, ern_deployment_tests:job(Base, "config --config-dir " ++ Words))
      || Words <- ["a --peer-dir foo", "a --peer-dir bar", "foo --peer-dir a", "bar --peer-dir a"]],
-    ?assertEqual(#{<<"public-key">> => key(A),
-                   <<"peers">> => [ern_nodes_tests:peer("foo", Foo, PortFoo),
+    ?assertEqual(#{<<"peers">> => [ern_nodes_tests:peer("foo", Foo, PortFoo),
                                    ern_nodes_tests:peer("bar", Bar, PortBar)],
                    <<"services">> => #{}},
                  ern_nodes_tests:configuration(A)),
@@ -347,9 +346,6 @@ created(Base, Words) ->
     {Status, Out, Err} = ern_deployment_tests:job(Base, Words),
     ?assertEqual({0, ""}, {Status, Err}),
     ern_deployment_tests:keyed(Out).
-
-key(Dir) ->
-    maps:get(<<"public-key">>, ern_nodes_tests:configuration(Dir)).
 
 %% Chapter 2: the counter loaded at the shell that is `a`, one spawned
 %% here as in chapter 1, and one on foo, a bare node that holds none of

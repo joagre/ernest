@@ -2435,7 +2435,7 @@ export fn map(Set(list) : Set(a), f : (a) -> b receiving e) : Set(b) receiving e
 
 A program reaches outside its node's Ernest code in three ways: to peers over the network, to foreign code on the same node, and by bytes over TCP to any host (§8.6, §8.7).
 
-A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the node's public key and the `listen` address `--listen` gives, none for a node that only dials, no peer and no service yet, and the private key and a certificate beside it.
+A *node* is a program started with `--config-dir`, and its *peers* are the nodes its `ernest.conf` lists (report §8.3). `ern config` makes the directory once: `ernest.conf` with the `listen` address `--listen` gives, none for a node that only dials, no peer and no service yet, and the private key and a certificate beside it.
 
 A peer has a name, which the program uses, a public key and a network address. A peer on the same machine is added by `ern config --peer-dir`, which reads all three from the peer's directory; one on another machine by editing the file, with the key `ern config` printed on the peer's machine (report §11.3). Under `services`, each service's name lists the peers that may offer it, in the order a *find* asks them (report §8.7, Appendix C). A peer offers a service by holding a process under its name for peers to find, and a find is the lookup of a service by its name (§8.2).
 
@@ -2485,7 +2485,6 @@ $ ern config --config-dir foo --peer-dir a
 
 ```json
 {
-  "public-key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxPrYwmRdoys5yu9UJVah/ssQO8AeM8Sz8XSW+1BQOVg=\n-----END PUBLIC KEY-----\n",
   "peers": [
     {
       "name": "foo",

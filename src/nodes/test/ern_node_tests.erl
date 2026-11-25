@@ -1,6 +1,6 @@
 %% A node's configuration directory (report §8.3, §12.5, §11.3, Appendix C):
-%% what `ern config` makes, what a node checks and reads of it as it
-%% starts, its `ernest.pid`, and the host's measures it starts.
+%% what `ern config` makes and reads, what a node checks, reads and makes
+%% of it as it starts, its `ernest.pid`, and the host's measures it starts.
 -module(ern_node_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -15,10 +15,11 @@ tmp() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
-%% A directory `ern config` made, listening.
+%% A directory `ern config` made, listening on a port the host picks, so
+%% that no two runs at once share one.
 made() ->
     Dir = filename:join(tmp(), "node"),
-    _ = ern_node:create(Dir, "0.0.0.0:8654"),
+    _ = ern_node:create(Dir, "127.0.0.1:0"),
     Dir.
 
 %% The refusal `ern_node` throws, as the runner prints it.
@@ -52,22 +53,33 @@ in_host(Dir, Run) ->
     ?assertNot(filelib:is_file(filename:join(Dir, "ernest.pid"))),
     Answer.
 
-%% ernest.conf of the directory written as Text.
+%% ernest.conf of the directory written as Text, its mode kept.
 conf(Dir, Text) ->
     ok = file:write_file(filename:join(Dir, "ernest.conf"), Text).
 
+%% The public key of the directory, as `ern config` prints it.
 public(Dir) ->
-    {ok, Text} = file:read_file(filename:join(Dir, "ernest.conf")),
-    maps:get(<<"public-key">>, json:decode(Text)).
+    ern_node:create(Dir, none).
 
 %% A peer's public key, another directory's.
 other_key() ->
     public(made()).
 
-%% ernest.conf of Dir with its own key and the fields given, laid out as
-%% JSON writes it.
+%% ernest.conf of Dir with the fields given, laid out as JSON writes it.
 with(Dir, Fields) ->
-    conf(Dir, json:encode(maps:merge(#{<<"public-key">> => public(Dir)}, Fields))).
+    conf(Dir, json:encode(Fields)).
+
+%% The file of Dir, its mode and what it holds.
+held(Dir, File) ->
+    Path = filename:join(Dir, File),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Path),
+    {ok, Text} = file:read_file(Path),
+    {Mode band 8#7777, Text}.
+
+%% What each file of Dir holds, by name, its mode with it.
+holdings(Dir) ->
+    {ok, Files} = file:list_dir(Dir),
+    maps:from_list([{File, held(Dir, File)} || File <- Files]).
 
 ends(Message, Suffix) ->
     lists:suffix(Suffix, Message).
@@ -75,9 +87,9 @@ ends(Message, Suffix) ->
 %% report §11.3, Appendix C: `ern config` makes the directory, its owner's
 %% alone, with an ed25519 key readable by its owner alone, the certificate
 %% the node signs itself, its name a constant and its validity the longest,
-%% and `ernest.conf` with the key's public half, no peer and no service, the
-%% two readable by all and writable by their owner alone, 0644 whatever the
-%% umask; it answers the public key
+%% and `ernest.conf` with its `listen`, no peer and no service, and no
+%% public key, the two readable by all and writable by their owner alone,
+%% 0644 whatever the umask; it answers the key's public half
 create_test() ->
     Dir = filename:join(tmp(), "node"),
     Public = ern_node:create(Dir, "0.0.0.0:8654"),
@@ -89,7 +101,10 @@ create_test() ->
          {ok, #file_info{mode = Mode}} = file:read_file_info(filename:join(Dir, File)),
          ?assertEqual({File, 8#644}, {File, Mode band 8#777})
      end || File <- ["ernest.conf", "certificate.pem"]],
-    ?assertEqual(Public, public(Dir)),
+    {ok, Conf} = file:read_file(filename:join(Dir, "ernest.conf")),
+    ?assertEqual(<<"{\n  \"listen\": \"0.0.0.0:8654\",\n  \"peers\": [],\n"
+                   "  \"services\": {}\n}\n">>,
+                 Conf),
     ?assertMatch(<<"-----BEGIN PUBLIC KEY-----\n", _/binary>>, Public),
     ?assertEqual($\n, binary:last(Public)),
     ?assertNotEqual(<<"\n\n">>, binary:part(Public, byte_size(Public), -2)),
@@ -97,6 +112,11 @@ create_test() ->
     [KeyEntry] = public_key:pem_decode(KeyPem),
     ?assertMatch({'ECPrivateKey', _, _, {namedCurve, ?'id-Ed25519'}, _, _},
                  public_key:pem_entry_decode(KeyEntry)),
+    {'ECPrivateKey', _, Private, _, _, _} = public_key:pem_entry_decode(KeyEntry),
+    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
+    [{'SubjectPublicKeyInfo', Answered, not_encrypted}] = public_key:pem_decode(Public),
+    ?assertMatch(#'SubjectPublicKeyInfo'{subjectPublicKey = Point},
+                 public_key:der_decode('SubjectPublicKeyInfo', Answered)),
     {ok, CertificatePem} = file:read_file(filename:join(Dir, "certificate.pem")),
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(CertificatePem),
     #'OTPCertificate'{tbsCertificate = Tbs} = Certificate = public_key:pkix_decode_cert(Der, otp),
@@ -117,19 +137,74 @@ create_test() ->
     [SpkiEntry] = public_key:pem_decode(Public),
     ?assert(public_key:pkix_verify(Der, public_key:pem_entry_decode(SpkiEntry))),
     ?assert(public_key:pkix_is_self_signed(Certificate)),
-    Again = fun() -> ern_node:create(Dir, none) end,
-    ?assertEqual(<<"node exists">>,
-                 iolist_to_binary(lists:last(string:split(refusal(Again), "/", trailing)))),
     %% what it makes, a node reads, its tellings every 5000 ms and the
-    %% host's own limits
-    ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, _, [], #{}, #{}, run_queue, 5000, #{}},
+    %% host's own limits, its key the key's
+    ?assertMatch({configuration, _, {{0, 0, 0, 0}, 8654}, Answered, [], #{}, #{}, 5000, #{}},
                  ern_node:read(Dir)).
+
+%% report §11.3: `ern config` given a directory that exists and holds
+%% `private-key.pem` prints its public key and changes nothing, the key read
+%% as a node reads it; and refuses `--listen` there, one that holds no key,
+%% and anything at the path that is no directory, a link to nothing among
+%% it, each with its text and nothing made
+existing_directory_test() ->
+    Dir = made(),
+    Public = public(Dir),
+    Before = holdings(Dir),
+    ?assertEqual(Public, ern_node:create(Dir, none)),
+    ?assertEqual(Public, ern_node:create(Dir ++ "/", none)),
+    ?assertEqual(Before, holdings(Dir)),
+    ?assertEqual("--listen is not given for a directory that exists: ern config changes nothing"
+                 " in " ++ Dir,
+                 refusal(fun() -> ern_node:create(Dir, "127.0.0.1:0") end)),
+    ?assertEqual(Before, holdings(Dir)),
+    %% the key read as a node reads its own
+    Key = filename:join(Dir, "private-key.pem"),
+    ok = file:change_mode(Key, 8#640),
+    ?assertEqual(Key ++ " may be read or written by others than its owner; chmod go-rw " ++ Key,
+                 refusal(fun() -> ern_node:create(Dir, none) end)),
+    ok = file:change_mode(Key, 8#600),
+    %% a directory without its key, the configuration directory's or any
+    Empty = filename:join(tmp(), "empty"),
+    ok = file:make_dir(Empty),
+    ?assertEqual(Empty ++ " exists and holds no private-key.pem",
+                 refusal(fun() -> ern_node:create(Empty, none) end)),
+    ?assertEqual(Empty ++ " exists and holds no private-key.pem",
+                 refusal(fun() -> ern_node:create(Empty, "127.0.0.1:0") end)),
+    ?assertEqual({ok, []}, file:list_dir(Empty)),
+    ok = file:rename(Key, Key ++ ".kept"),
+    ?assertEqual(Dir ++ " exists and holds no private-key.pem",
+                 refusal(fun() -> ern_node:create(Dir, none) end)),
+    ok = file:rename(Key ++ ".kept", Key),
+    %% a file, and a link that leads nowhere
+    File = filename:join(tmp(), "file"),
+    ok = file:write_file(File, <<>>),
+    Dangling = filename:join(tmp(), "dangling"),
+    ok = file:make_symlink("nowhere", Dangling),
+    [?assertEqual(Path ++ ": not a directory, which --config-dir names",
+                  refusal(fun() -> ern_node:create(Path, none) end))
+     || Path <- [File, Dangling]],
+    ?assertEqual({ok, <<>>}, file:read_file(File)),
+    ?assertEqual({error, enoent}, file:read_file_info(filename:join(tmp(), "nowhere"))).
+
+%% report §11, §11.3: `ern config` makes one directory, its parent there
+%% before it, a parent that is not there named in the host's words, and one
+%% that is a file with the host's reason
+missing_parent_test() ->
+    Base = tmp(),
+    ?assertEqual(filename:join(Base, "no/such") ++ ": no such file or directory",
+                 refusal(fun() -> ern_node:create(filename:join(Base, "no/such/node"), none) end)),
+    ?assertEqual({ok, []}, file:list_dir(Base)),
+    File = filename:join(Base, "file"),
+    ok = file:write_file(File, <<>>),
+    ?assertEqual(File ++ ": not a directory",
+                 refusal(fun() -> ern_node:create(filename:join(File, "node"), none) end)).
 
 %% report §8.7, §12.5, Appendix C: what ernest.conf may say, read whole: a
 %% listener of IPv6, peers with an address, a name, or none, services
-%% naming them in the order a find asks them, the host's measures, the
-%% node's utilization, the run queue where the entry is absent, and the
-%% interval of its tellings, 5000 ms where the entry is absent
+%% naming them in the order a find asks them, the host's measures, and the
+%% interval of the node's tellings of how busy it is, 5000 ms where the
+%% entry is absent
 read_test() ->
     Dir = made(),
     One = other_key(),
@@ -143,11 +218,8 @@ read_test() ->
                                     <<"memory">> => #{<<"check-interval">> => 120000,
                                                       <<"almost-full">> => 0.9},
                                     <<"disk">> => #{<<"check-interval">> => 500}},
-                <<"utilization">> => <<"schedulers">>,
                 <<"utilization-interval">> => 2000}),
-    {configuration, _, Listen, _, Peers, Services, Measures, Utilization, Interval, _} =
-        ern_node:read(Dir),
-    ?assertEqual(schedulers, Utilization),
+    {configuration, _, Listen, _, Peers, Services, Measures, Interval, _} = ern_node:read(Dir),
     ?assertEqual(2000, Interval),
     ?assertEqual({{0, 0, 0, 0, 0, 0, 0, 0}, 0}, Listen),
     ?assertMatch([{peer, <<"store">>, _, {{0, 0, 0, 0, 0, 0, 0, 1}, 8654}},
@@ -160,10 +232,10 @@ read_test() ->
     with(Dir, #{<<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => One,
                                   <<"network-address">> => <<"localhost:8654">>}]}),
     ?assertMatch({configuration, _, none, _, [{peer, <<"store">>, _, {"localhost", 8654}}], _, _,
-                  run_queue, 5000, _},
+                  5000, _},
                  ern_node:read(Dir)),
-    with(Dir, #{<<"utilization">> => <<"run-queue">>, <<"utilization-interval">> => 1}),
-    ?assertMatch({configuration, _, _, _, _, _, _, run_queue, 1, _}, ern_node:read(Dir)).
+    with(Dir, #{<<"utilization-interval">> => 1}),
+    ?assertMatch({configuration, _, _, _, _, _, _, 1, _}, ern_node:read(Dir)).
 
 %% report §12.5, Appendix C: `limits` read, each field the number given,
 %% 1024 and 67108864 among them, a field left out absent, and none where
@@ -193,7 +265,7 @@ read_refusals_test() ->
                                      Fields)
            end,
     Refused = fun(Fields) ->
-                  conf(Dir, json:encode(maps:merge(#{<<"public-key">> => Own}, Fields))),
+                  with(Dir, Fields),
                   refusal(fun() -> ern_node:read(Dir) end)
               end,
     Cases =
@@ -211,8 +283,8 @@ read_refusals_test() ->
          %% an IPv4-mapped address, named as a listen address is written
          {#{<<"listen">> => <<"[::FFFF:7f00:1]:8654">>},
           "listen names an IPv4-mapped address, [::ffff:127.0.0.1]:8654, which no listener takes"},
-         {#{<<"public-key">> => One}, "public-key is not the key of private-key.pem"},
-         {#{<<"public-key">> => <<"key">>}, "public-key is not one public key in PEM"},
+         %% the node's key is private-key.pem's, and the file names none
+         {#{<<"public-key">> => Own}, "the file has the unknown field public-key"},
          {#{<<"peers">> => #{}}, "peers is not a JSON array"},
          {#{<<"peers">> => [#{<<"public-key">> => One}]}, "a peer has no name"},
          {#{<<"peers">> => [Peer(#{<<"coordinator">> => true})]},
@@ -251,9 +323,10 @@ read_refusals_test() ->
           "measures' disk's check-interval is not a count of milliseconds above 0"},
          {#{<<"measures">> => #{<<"disk">> => #{<<"almost-full">> => 2}}},
           "measures' disk's almost-full is not a fraction from 0 to 1"},
-         {#{<<"utilization">> => <<"cpu">>},
-          "utilization is \"cpu\", which is neither \"run-queue\" nor \"schedulers\""},
-         {#{<<"utilization">> => 1}, "utilization is neither \"run-queue\" nor \"schedulers\""},
+         %% the node measures the run queue alone (§12.8), and the file
+         %% names no measure
+         {#{<<"utilization">> => <<"run-queue">>}, "the file has the unknown field utilization"},
+         {#{<<"utilization">> => <<"schedulers">>}, "the file has the unknown field utilization"},
          {#{<<"utilization-interval">> => 0},
           "utilization-interval is not a count of milliseconds above 0"},
          {#{<<"utilization-interval">> => -5000},
@@ -266,10 +339,7 @@ read_refusals_test() ->
          {#{<<"limits">> => []}, "limits is not a JSON object"},
          {#{<<"limits">> => 65536}, "limits is not a JSON object"},
          {#{<<"limits">> => #{<<"atoms">> => 1048576}}, "limits has the unknown field atoms"},
-         {fun() ->
-              conf(Dir, ["{\"public-key\": ", json:encode(Own),
-                         ", \"limits\": {\"ports\": 4096, \"ports\": 8192}}"])
-          end,
+         {fun() -> conf(Dir, <<"{\"limits\": {\"ports\": 4096, \"ports\": 8192}}">>) end,
           "limits gives ports twice"},
          {#{<<"limits">> => #{<<"processes">> => 1023}},
           "limits' processes is not a whole number from 1024 to 67108864"},
@@ -361,7 +431,7 @@ name_not_resolved_test() ->
                                       <<"network-address">> => <<"only6.ernest.invalid:8654">>}]}),
         ?assertMatch({configuration, _, _, _,
                       [{peer, <<"store">>, _, {"no.such.host.invalid", 8654}},
-                       {peer, <<"desk">>, _, {"only6.ernest.invalid", 8654}}], _, _, _, _, _},
+                       {peer, <<"desk">>, _, {"only6.ernest.invalid", 8654}}], _, _, _, _},
                      ern_node:read(Dir))
     after
         ok = inet_db:set_lookup(Lookup),
@@ -387,6 +457,54 @@ certificate_refusals_test() ->
     ok = file:write_file(Certificate, Own),
     ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
 
+%% report §12.5, §11.2, §11.3: where the directory holds no certificate.pem
+%% the node makes it from its key as it starts and at a reload, readable by
+%% all and writable by its owner alone whatever the umask, self-signed,
+%% certifying the key and naming the host it gives; a reading that is
+%% refused makes none, and `ern reload`'s own reading and `ern config
+%% --peer-dir`'s, of either directory, make none
+certificate_made_test() ->
+    Dir = made(),
+    Certificate = filename:join(Dir, "certificate.pem"),
+    Public = public(Dir),
+    ok = file:delete(Certificate),
+    ?assertMatch(#configuration{}, ern_node:read(Dir, left)),
+    ?assertNot(filelib:is_file(Certificate)),
+    with(Dir, #{<<"port">> => 1}),
+    ?assertEqual(filename:join(Dir, "ernest.conf") ++ ": the file has the unknown field port",
+                 refusal(fun() -> ern_node:read(Dir) end)),
+    ?assertNot(filelib:is_file(Certificate)),
+    with(Dir, #{}),
+    ?assertMatch(#configuration{}, ern_node:read(Dir)),
+    {Mode, Pem} = held(Dir, "certificate.pem"),
+    ?assertEqual(8#644, Mode),
+    [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
+    Made = public_key:pkix_decode_cert(Der, otp),
+    ?assert(public_key:pkix_is_self_signed(Made)),
+    [Spki] = public_key:pem_decode(Public),
+    ?assert(public_key:pkix_verify(Der, public_key:pem_entry_decode(Spki))),
+    ?assert(ern_carrier:names_own_host(Made)),
+    %% and a node reads what it made
+    ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)),
+    ?assertEqual({Mode, Pem}, held(Dir, "certificate.pem")),
+    %% `ern config --peer-dir`, the configuration directory without one,
+    %% each peer one that only dials, which `--peer-dir` lists without an
+    %% address
+    Dialing = fun(Name) ->
+                  Path = filename:join(tmp(), Name),
+                  _ = ern_node:create(Path, none),
+                  Path
+              end,
+    ok = file:delete(Certificate),
+    ok = ern_node:add_peer(Dir, Dialing("peer")),
+    ?assertNot(filelib:is_file(Certificate)),
+    %% and the peer's without one, which is no configuration directory
+    Other = Dialing("other"),
+    ok = file:delete(filename:join(Other, "certificate.pem")),
+    ?assertEqual(Other ++ ": no configuration directory, which --peer-dir names",
+                 refusal(fun() -> ern_node:add_peer(Dir, Other) end)),
+    ?assertNot(filelib:is_file(filename:join(Other, "certificate.pem"))).
+
 %% report §11.3, §12.5: `ern config --peer-dir` reads the peer's certificate as
 %% a node reads its own, and one that names another host than its key
 %% gives is refused, naming the peer's certificate; nothing is written
@@ -410,33 +528,16 @@ other_certificate() ->
 
 %% A certificate in PEM of the key in Dir that names the host given.
 named(Dir, Host) ->
-    {ok, Pem} = file:read_file(filename:join(Dir, "private-key.pem")),
-    [Entry] = public_key:pem_decode(Pem),
-    {'ECPrivateKey', _, Private, _, _, _} = Key = public_key:pem_entry_decode(Entry),
-    {Point, _} = crypto:generate_key(eddsa, ed25519, Private),
-    Name = {rdnSequence, [[#'AttributeTypeAndValue'{type = ?'id-at-commonName',
-                                                    value = {utf8String, <<"ernest">>}}]]},
-    Tbs = #'OTPTBSCertificate'{
-             version = v3, serialNumber = 1,
-             signature = #'SignatureAlgorithm'{algorithm = ?'id-Ed25519'},
-             issuer = Name, subject = Name,
-             validity = #'Validity'{notBefore = {utcTime, "700101000000Z"},
-                                    notAfter = {generalTime, "99991231235959Z"}},
-             subjectPublicKeyInfo = #'OTPSubjectPublicKeyInfo'{
-                                       algorithm = #'PublicKeyAlgorithm'{algorithm = ?'id-Ed25519'},
-                                       subjectPublicKey = #'ECPoint'{point = Point}},
-             extensions = [#'Extension'{extnID = ?'id-ce-subjectAltName', critical = false,
-                                        extnValue = [{dNSName, Host}]}]},
-    public_key:pem_encode([{'Certificate', public_key:pkix_sign(Tbs, Key), not_encrypted}]).
+    public_key:pem_encode([{'Certificate', ern_helpers:forged_certificate(Dir, Host),
+                            not_encrypted}]).
 
-%% report §12.5: a public key in PEM whose body is no key the host's decoder
-%% reads, a peer's or the node's own, is refused with the file and the
-%% rule. A regression test: the decoder's failure escaped the check, and
-%% `ern` failed with an internal error at the start, and the signal handler
-%% at a reload
+%% report §12.5: a key in PEM whose body is no key the host's decoder reads,
+%% a peer's public key or the node's own in private-key.pem, is refused with
+%% the file and the rule. A regression test: the decoder's failure escaped
+%% the check, and `ern` failed with an internal error at the start, and the
+%% signal handler at a reload
 undecodable_key_test() ->
     Dir = made(),
-    Own = public(Dir),
     %% the body's first bytes, the key's algorithm, made another DER's
     [Head, Body] = binary:split(other_key(), <<"\n">>),
     Broken = <<Head/binary, "\nAAAAAAAAAAAA",
@@ -446,10 +547,15 @@ undecodable_key_test() ->
     with(Dir, #{<<"peers">> => [#{<<"name">> => <<"store">>, <<"public-key">> => Broken}]}),
     ?assertEqual(Conf ++ ": peer \"store\"'s public-key is not one public key in PEM",
                  refusal(fun() -> ern_node:read(Dir) end)),
-    conf(Dir, json:encode(#{<<"public-key">> => Broken})),
-    ?assertEqual(Conf ++ ": public-key is not one public key in PEM",
-                 refusal(fun() -> ern_node:read(Dir) end)),
-    conf(Dir, json:encode(#{<<"public-key">> => Own})),
+    with(Dir, #{}),
+    Key = filename:join(Dir, "private-key.pem"),
+    {ok, Pem} = file:read_file(Key),
+    [{'PrivateKeyInfo', Der, not_encrypted}] = public_key:pem_decode(Pem),
+    ok = file:write_file(Key, public_key:pem_encode([{'PrivateKeyInfo',
+                                                      binary:copy(<<0>>, byte_size(Der)),
+                                                      not_encrypted}])),
+    ?assertEqual(Key ++ ": is not one key in PEM", refusal(fun() -> ern_node:read(Dir) end)),
+    ok = file:write_file(Key, Pem),
     ?assertMatch({accepted, _}, refusal(fun() -> ern_node:read(Dir) end)).
 
 %% report §12.5: a whole number of ernest.conf too large for the host to
@@ -458,9 +564,7 @@ undecodable_key_test() ->
 %% as a file that is not JSON
 large_number_test() ->
     Dir = made(),
-    Text = iolist_to_binary(json:encode(#{<<"public-key">> => public(Dir)})),
-    Fields = binary:part(Text, 0, byte_size(Text) - 1),
-    conf(Dir, <<Fields/binary, ", \"measures\": {\"disk\": {\"check-interval\": ",
+    conf(Dir, <<"{\"measures\": {\"disk\": {\"check-interval\": ",
                 (binary:copy(<<"9">>, 1300000))/binary, "}}}">>),
     ?assertEqual(filename:join(Dir, "ernest.conf") ++ ": holds a number too large for the host"
                  " to read",
@@ -478,27 +582,66 @@ unreadable_directory_test() ->
     ?assertNotMatch({accepted, _}, Message),
     ?assertNotEqual(nomatch, string:find(Message, "not a directory")).
 
-%% report §12.5, §11: a node's start holds its configuration directory,
-%% `ernest.conf` and `certificate.pem` to no owner and no mode: a node
-%% starts from a directory every user may write, with an `ernest.conf` and
-%% a `certificate.pem` every user may write. A regression test, written
-%% after the code: each was refused as `may be written by every user`. Not
+%% report §12.5, §11: a node refuses to start where its configuration
+%% directory or its `ernest.conf` may be written by any but its owner, its
+%% group among them, by the bits the key's test reads for writing, each
+%% with the cause and then the fix, and takes one others may only read or
+%% run; `certificate.pem`, and the owner of each, it holds to no mode. Not
 %% covered: a directory or a file of another user's, which a test run as
 %% one user cannot make
-modes_untested_test() ->
+modes_test() ->
     Dir = made(),
-    [ok = file:change_mode(Path, Mode)
-     || {Path, Mode} <- [{Dir, 8#777}, {filename:join(Dir, "ernest.conf"), 8#666},
-                         {filename:join(Dir, "certificate.pem"), 8#666}]],
+    Conf = filename:join(Dir, "ernest.conf"),
+    Moded = fun(Path, Mode) ->
+                {ok, #file_info{mode = Was}} = file:read_file_info(Path),
+                ok = file:change_mode(Path, Mode),
+                try refusal(fun() -> ern_node:read(Dir) end)
+                after ok = file:change_mode(Path, Was band 8#7777)
+                end
+            end,
+    [?assertEqual(Dir ++ " may be written by others than its owner; chmod go-w " ++ Dir,
+                  Moded(Dir, Mode))
+     || Mode <- [8#777, 8#770, 8#720, 8#702, 8#1777]],
+    [?assertMatch({accepted, _}, Moded(Dir, Mode)) || Mode <- [8#700, 8#755, 8#711]],
+    [?assertEqual(Conf ++ " may be written by others than its owner; chmod go-w " ++ Conf,
+                  Moded(Conf, Mode))
+     || Mode <- [8#666, 8#664, 8#646, 8#620, 8#602]],
+    [?assertMatch({accepted, _}, Moded(Conf, Mode)) || Mode <- [8#644, 8#600, 8#444, 8#655]],
+    %% the directory first, and the start refused as the reading is
+    ok = file:change_mode(Conf, 8#666),
+    ?assertEqual(Dir ++ " may be written by others than its owner; chmod go-w " ++ Dir,
+                 Moded(Dir, 8#777)),
+    ?assertEqual(Conf ++ " may be written by others than its owner; chmod go-w " ++ Conf,
+                 refusal(fun() -> ern_node:start(Dir) end)),
+    ok = file:change_mode(Conf, 8#644),
+    ok = file:change_mode(filename:join(Dir, "certificate.pem"), 8#666),
     in_host(Dir, fun() -> ok end).
 
+%% report §12.5: a node's directory without `ernest.conf` is no
+%% configuration directory, and one without the key names the key in the
+%% host's words, each refused at the start; a directory that is not there
+%% in the host's words
+missing_files_test() ->
+    Dir = made(),
+    Conf = filename:join(Dir, "ernest.conf"),
+    Key = filename:join(Dir, "private-key.pem"),
+    Missing = fun(Path) ->
+                  ok = file:rename(Path, Path ++ ".kept"),
+                  try refusal(fun() -> ern_node:read(Dir) end)
+                  after ok = file:rename(Path ++ ".kept", Path)
+                  end
+              end,
+    ?assertEqual(Dir ++ ": no configuration directory, which --config-dir names", Missing(Conf)),
+    ?assertEqual(Key ++ ": no such file or directory", Missing(Key)),
+    Gone = filename:join(tmp(), "gone"),
+    ?assertEqual(Gone ++ ": no such file or directory", refusal(fun() -> ern_node:read(Gone) end)).
+
 %% report §12.5: a node refuses a key whose mode lets any but its owner
-%% read or write it, its group among them, and takes one its owner alone
-%% may read, and one others may only run; a file it needs that is not
-%% there is named with the command that makes a directory, and one it
-%% cannot read with the host's reason, a regression: such a file made `ern`
-%% fail with an internal error. A regression test of the key, written after
-%% the code
+%% read or write it, its group among them, with the cause and then the fix,
+%% and takes one its owner alone may read, and one others may only run; a
+%% file it cannot read is refused with the host's reason, a regression:
+%% such a file made `ern` fail with an internal error. A regression test of
+%% the key, written after the code
 key_mode_test() ->
     Dir = made(),
     Read = fun(Path, Mode) ->
@@ -511,23 +654,20 @@ key_mode_test() ->
     Conf = filename:join(Dir, "ernest.conf"),
     Key = filename:join(Dir, "private-key.pem"),
     Certificate = filename:join(Dir, "certificate.pem"),
-    [?assertEqual(Key ++ " may be read or written by others than its owner", Read(Key, Mode))
+    [?assertEqual(Key ++ " may be read or written by others than its owner; chmod go-rw " ++ Key,
+                  Read(Key, Mode))
      || Mode <- [8#640, 8#660, 8#620, 8#604, 8#602]],
     [?assertMatch({accepted, _}, Read(Key, Mode)) || Mode <- [8#600, 8#400, 8#611]],
     [?assertEqual(File ++ ": permission denied", Read(File, 8#000))
-     || File <- [Conf, Key, Certificate]],
-    ok = file:delete(Certificate),
-    ?assertEqual(Certificate ++ " is not there; ern config --config-dir " ++ Dir
-                 ++ " makes a configuration directory",
-                 refusal(fun() -> ern_node:read(Dir) end)).
+     || File <- [Conf, Key, Certificate]].
 
 %% report §12.5, §11: a node's start follows a link in its configuration
 %% directory, and the directory given as a link, and tests no directory a
 %% link reaches through: `ernest.conf` a link to a file in a directory every
 %% user may write, or through a chain of two links whose middle directory
 %% every user may write, and the configuration directory given as a link to
-%% one in a directory every user may write, each start a node. The key's
-%% mode is read where its link leads.
+%% one in a directory every user may write, each start a node. The modes of
+%% `ernest.conf` and of the key are read where their links lead.
 %%
 %% A regression test, written after the code: the directory that held what
 %% each link reached was tested for who may write it. Not covered: a
@@ -547,13 +687,18 @@ links_test() ->
     {ok, Text} = file:read_file(Conf),
     Far = Open("far"),
     Middle = Open("middle"),
-    ok = file:write_file(filename:join(Far, "ernest.conf"), Text),
+    FarConf = filename:join(Far, "ernest.conf"),
+    ok = file:write_file(FarConf, Text),
+    ok = file:change_mode(FarConf, 8#644),
     Linked = fun(Target) ->
                  ok = file:delete(Conf),
                  ok = file:make_symlink(Target, Conf),
                  Read()
              end,
     ?assertMatch({accepted, _}, Linked("../far/ernest.conf")),
+    ok = file:change_mode(FarConf, 8#664),
+    ?assertEqual(Conf ++ " may be written by others than its owner; chmod go-w " ++ Conf, Read()),
+    ok = file:change_mode(FarConf, 8#644),
     ok = file:make_symlink("../far/ernest.conf", filename:join(Middle, "ernest.conf")),
     ?assertMatch({accepted, _}, Linked("../middle/ernest.conf")),
     %% the key a link to its owner's alone to read, in a directory every
@@ -564,7 +709,8 @@ links_test() ->
     ok = file:make_symlink("../far/private-key.pem", Key),
     ?assertMatch({accepted, _}, Read()),
     ok = file:change_mode(FarKey, 8#640),
-    ?assertEqual(Key ++ " may be read or written by others than its owner", Read()),
+    ?assertEqual(Key ++ " may be read or written by others than its owner; chmod go-rw " ++ Key,
+                 Read()),
     %% the configuration directory itself a link, into a directory every
     %% user may write
     Elsewhere = Open("elsewhere"),

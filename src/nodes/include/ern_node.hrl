@@ -1,21 +1,20 @@
-%% A node's configuration, as its directory's `ernest.conf` says it (report
-%% §12.5, Appendix C), which ern_node reads and ern_carrier starts the node's
-%% carrier from.
+%% A node's configuration, as its directory says it, `ernest.conf` and its
+%% key (report §12.5, Appendix C), which ern_node reads and ern_carrier
+%% starts the node's carrier from.
 
 %% listen: none or {Address, Port}, the listener's interface and port;
-%% public_key: the DER of this node's SubjectPublicKeyInfo; peers: [#peer{}]
-%% in the file's order; services: a service's name to its peers' names, in
-%% the order a find asks them; measures: the host's measures to start, each
-%% to its parameters; utilization: run_queue or schedulers, how the node
-%% measures how busy it is for its peers; utilization_interval: the
-%% milliseconds between its tellings of it to its peers; limits: the most
-%% of the host's processes and of its ports the node holds, `processes`
-%% and `ports` each to the number given, where it is given, which the host
-%% takes as it boots; config_dir: the configuration directory, whose key
-%% and certificate the carrier's TLS takes.
+%% public_key: the DER of this node's SubjectPublicKeyInfo, its key's in
+%% `private-key.pem`; peers: [#peer{}] in the file's order; services: a
+%% service's name to its peers' names, in the order a find asks them;
+%% measures: the host's measures to start, each to its parameters;
+%% utilization_interval: the milliseconds between the node's tellings of
+%% how busy it is to its peers; limits: the most of the host's processes
+%% and of its ports the node holds, `processes` and `ports` each to the
+%% number given, where it is given, which the host takes as it boots;
+%% config_dir: the configuration directory, whose key and certificate the
+%% carrier's TLS takes.
 -record(configuration, {config_dir, listen = none, public_key, peers = [], services = #{},
-                        measures = #{}, utilization = run_queue,
-                        utilization_interval = 5000, limits = #{}}).
+                        measures = #{}, utilization_interval = 5000, limits = #{}}).
 
 %% A peer as listed: address none, or {Host, Port}, Host a name or an
 %% address the host resolves at each dial.

@@ -3,9 +3,8 @@
 %% daemon's place, where `-epmd_module ern_epmd` names it (ern_carrier's
 %% boot flags): a peer's address by the host of its name on the carrier, its
 %% key's digest, the name a peer's `network-address` holds resolved at each
-%% dial;
-%% this node's port from `listen`; and the number of this start, which the
-%% host puts in every address. A callback module the host calls, not a
+%% dial; this node's port from `listen`; and the number of this start, which
+%% the host puts in every address. A callback module the host calls, not a
 %% process of the toolchain's own (docs/code_style.md).
 -module(ern_epmd).
 

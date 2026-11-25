@@ -432,17 +432,15 @@ ACROSS_ARGUMENTS = ["build/bench/$(1)-machines", "machines/machines.txt"]
 # processors' time beside them. MEASURING names the machine the measuring node runs
 # on, this one by default; PEERS the peers, machine:count,..., in place of
 # the two arrangements of the default; INTERVALS the utilization-intervals
-# the last arrangement's stream runs at again, 1000,500 by default; RUNS the
-# bursts and the streams, 7,3; UTILIZATION how every node measures its
-# utilization, run-queue or schedulers (Appendix C), the configuration's
-# default where it is left out. Its table is written to
+# the last arrangement's stream runs at again, 1000,500 by default; and RUNS
+# the bursts and the streams, 7,3. Its table is written to
 # build/bench/pick-machines.txt and printed, each run's lines kept in
 # build/bench/pick-machines-raw/. Not part of `make test-full`.
 bench-pick: measured named
 	@$(call PRINTED,$(PICKED),pick-machines.txt)
 
 PICKED = ern_pick_costs:main(["build/bench/pick-machines", "machines/machines.txt", $(PICK)])
-PICK = "$(MEASURING)", "$(PEERS)", "$(INTERVALS)", "$(RUNS)", "$(UTILIZATION)"
+PICK = "$(MEASURING)", "$(PEERS)", "$(INTERVALS)", "$(RUNS)"
 
 # The machines' tools, which test/machines/nodes.sh runs and the bench's
 # node parts call (ern_machines).

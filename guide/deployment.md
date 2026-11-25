@@ -29,21 +29,20 @@ MCowBQYDK2VwAyEA...
 -----END PUBLIC KEY-----
 ```
 
-`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet and listens where `--listen` says, here at port 8654 on every interface; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. It fails where the directory exists, empty or not; only `--peer-dir`, section 2.1, writes into one that exists.
+`ern config` creates the directory, which only its owner can open, and in it three files (report §11.3): `private-key.pem`, the node's ed25519 key, readable only by its owner; `certificate.pem`, which the node signs itself and whose dates mean nothing to a node; and `ernest.conf`, which lists nothing yet and listens where `--listen` says, here at port 8654 on every interface; section 1.2 says what goes in it. It prints the public key, which is what another node's configuration will list. Given a directory that exists and holds `private-key.pem`, it prints that key and changes nothing, and refuses `--listen` there; one that holds no key it refuses, `b exists and holds no private-key.pem`. Only `--peer-dir`, section 2.1, writes into a directory that exists. Where `certificate.pem` is missing, the node makes it from its key at its start and at a reload.
 
 The directory is made for one machine and never copied: a copied key gives two nodes one identity, which a third node cannot tell apart. A node also refuses a configuration that lists its own key under `peers`, `a peer has this node's own key, and a node is no peer of itself`.
 
-A node refuses to start from a directory whose private key any but its owner may read or write, and says so (report §12.5).
+A node refuses to start from a directory, or an `ernest.conf`, that any but its owner may write, and from a private key any but its owner may read or write, and says why and how to mend it, `/etc/counter/b/ernest.conf may be written by others than its owner; chmod go-w /etc/counter/b/ernest.conf` (report §12.5).
 
 ### 1.2 The configuration
 
 `ernest.conf` is JSON, and Appendix C of the report shows it whole. Its entries, in the order an operator meets them:
 
 - `listen`: the address the node's listener binds to, what `ern config --listen` gave, an address of one interface, or `0.0.0.0` or `::` for every interface of its family, and a port, and none where it gave none. Port `0` lets the host pick one. At every start the node says on standard error the address and the port it listens on, `listening on 127.0.0.1:51204`. Two words recur from here: a node *listens* for connections from its peers, and it *dials* a peer when it opens the connection itself, at the address its configuration lists for that peer (report §12.5). A node without `listen` does not listen and only dials; a bare node (section 3.4) must listen.
-- `public-key`: this node's, as `ern config` printed it. It cannot change while the node runs.
-- `peers`: a list, each peer with a `name` the operator chooses, which the program uses, its `public-key`, and a `network-address`, `host:port`, which is left out where this node never dials that peer. A host name is resolved at each dial, not when the file is read.
+- `peers`: a list, each peer with a `name` the operator chooses, which the program uses, its `public-key`, and a `network-address`, `host:port`, which is left out where this node never dials that peer. A host name is resolved at each dial, not when the file is read. `peers` are to a node what `authorized_keys` is to ssh: a peer listed may run any code on the node.
 - `services`: a service is a process a program offers under a name, which a program on another node looks up, a *find*, to get its address; under each service's name, the peers that may offer it, in the order a find asks them. A service not listed here is found nowhere from this node.
-- `measures`, `utilization` and `utilization-interval`: what the node measures of itself, how busy it is on one scale among it, and tells its peers, section 3.
+- `measures` and `utilization-interval`: what the node measures of itself, and how often it tells its peers how busy it is, section 3.
 - `limits`: the most processes and ports the node holds, `processes` and `ports`, each rounded up to a power of two; a node left without them holds the host's own, a table for 1048576 processes and one for 65536 ports or more, reserved as it starts. A small node, one of many on a machine, states smaller ones: `"limits": {"processes": 65536, "ports": 4096}` (report §12.5).
 - The node runs over one family of addresses, IPv4 or IPv6, its listener's, or IPv4 where it has no listener; a peer's address of the other family is refused when the file is read, and a host name's family is checked at each dial, which fails where the name resolves only to the other.
 
@@ -62,10 +61,8 @@ A file is refused before anything runs, with a line that names the fault. Report
 - names a peer with an empty name;
 - holds a `certificate.pem` that certifies another key or names another host;
 - names under a service a peer it does not list;
-- gives `utilization` a value that is neither of its two;
 - gives `utilization-interval` one that is no whole number of at least one;
-- gives `limits` a field other than `processes` and `ports`, or one that is no whole number from 1024 to 67108864;
-- gives a `public-key` that is not the node's private key's.
+- gives `limits` a field other than `processes` and `ports`, or one that is no whole number from 1024 to 67108864.
 
 ### 1.3 Starting, reloading and stopping
 
@@ -81,11 +78,11 @@ It writes its process number to `ernest.pid` in its directory and holds the file
 
 `ern reload --config-dir dir` sends the node the hangup signal, and the node reads `ernest.conf` again (report §12.5, *A reload*). A peer added is listed and nothing more happens until the program reaches for it, by a send, a call, a find, a spawn or a compute, or until it dials in. A send is a message to a process there, and a *call* a send that waits for its answer. A spawn starts a process there, and a compute runs a function there for its value.
 
-A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); the node says the removal at once, and serves the peer until the host has closed the connection, which a peer that stands still puts off for up to the 85 seconds of section 2.3; a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures`, `utilization` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3); and a change to `limits` holds from the node's next start, which the node says.
+A peer removed, or one whose key changed, has its connection ended, and both nodes treat it as lost (section 2.3); the node says the removal at once, and serves the peer until the host has closed the connection, which a peer that stands still puts off for up to the 85 seconds of section 2.3; a peer whose address changed keeps its connection, and the next dial uses the new address; a change to `measures` or `utilization-interval` holds from the node's next measure of itself and its next report to its peers (section 3); and a change to `limits` holds from the node's next start, which the node says.
 
 The node says `ernest.conf was read again` and a line for each peer added, removed or renamed.
 
-`listen` and `public-key` cannot change while the node runs: a file that changes either, or breaks a rule of section 1.2, is refused with `the reload was refused, and the configuration stays as it was: ...`, and the old configuration stays. `ern reload` first reads the directory as the node would, and refuses a configuration the node would refuse with status 1, before it signals, but for a changed `listen` or key, which it signals with status 0 and the node alone refuses, saying so on its standard error. `kill -HUP` by the number in `ernest.pid` signals without reading, and the node then refuses such a file itself; the service manager's reload, section 1.5, runs `ern reload`.
+`listen` and the node's key, `private-key.pem`'s, cannot change while the node runs: a reload that finds either changed, or that finds what the start refuses, a mode among it, is refused with `the reload was refused, and the configuration stays as it was: ...`, and the old configuration stays. `ern reload` first reads the directory as the node would, making no certificate, and refuses a configuration the node would refuse with status 1, before it signals, but for a changed `listen` or key, which it signals with status 0 and the node alone refuses, saying so on its standard error. `kill -HUP` by the number in `ernest.pid` signals without reading, and the node then refuses such a file itself; the service manager's reload, section 1.5, runs `ern reload`.
 
 `ern stop --config-dir dir` sends the node the termination signal and returns once the node has ended, which it waits for on the lock (report §11.2). Termination is orderly: the processes that asked to be told of the end, its *subscribers*, are told and the end waits for each to answer, saying `the end waits for 1 subscriber: Keeper.main` while it waits, so that what a program keeps is written; then the node tells each connected peer that it ends and waits for each peer's answer, so that the peer says `ended` and not `lost`, and exits; a peer that has fallen silent holds the end until it is lost, 45 to 75 seconds, and about ten seconds more where the node had sent the peer more than its connection took (report §8.7, §12.6).
 
@@ -145,7 +142,6 @@ Each node is made on its own machine with `ern config`, and the two then list ea
 ```json
 {
   "listen": "0.0.0.0:8654",
-  "public-key": "<a's key>",
   "peers": [
     { "name": "b", "network-address": "b.example:8654", "public-key": "<b's key>" }
   ],
@@ -205,9 +201,9 @@ A service carries a hash of its message type, the type of the messages its proce
 
 ### 3.2 How busy a node is
 
-A node measures how busy it is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting (report §12.8). A scheduler is one of the host's threads that run processes, one for each core as a rule. `utilization` in `ernest.conf` says how: `"run-queue"`, the default, divides the processes running or ready by the number of schedulers, an instant reading and not an average; `"schedulers"` gives the fraction of the schedulers' time spent running since the number was last read, which never passes 1.0 and smooths a spiky load.
+A node measures how busy it is on one scale: 1.0 is every scheduler busy, below it room and above it work waiting (report §12.8). A scheduler is one of the host's threads that run processes, one for each core as a rule. The measure divides the processes running or ready by the number of schedulers, an instant reading and not an average.
 
-A program may set the number itself, when it knows its load better than the host does; then this entry is the default it starts from.
+A program may set the number itself, when it knows its load better than the host does.
 
 A node that lists peers tells each of them its utilization, a *telling*, every `utilization-interval` milliseconds, 5000 where the entry is absent, and once as a peer connects; an attached shell's own node tells none, so that no compute that names no node runs on it (report §11.2, *The attached shell*). Each node holds the last number heard from each peer, and `Peer.computeAnywhere`, the function a program runs a compute with when it names no peer, picks the less busy of two peers drawn from them; a number older than twice the interval of the peer that sent it is not used, and a peer never heard from is not chosen. Where a program places work by its own rule, the language guide's §8.1 shows it over `Peer.utilizations()`.
 
@@ -385,7 +381,7 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `a connection waits: too many open files` | The node's process holds as many files as the operating system lets it open, and a peer's connection waits unaccepted; the node tries again every 7 seconds, and says so once while it waits. `file table overflow` in its place is the machine's own table full. | Find what holds the files, or raise the limit of the node's process: `ulimit -n` in the shell that starts it, or `LimitNOFILE=` in its unit (section 1.5). |
 | `ernest.conf was read again` | A reload succeeded. | None; the peer lines that follow say what changed. |
 | `the peer b was added` / `was removed` / `is now named c` | What the reload changed. | None. |
-| `the reload was refused, and the configuration stays as it was: ...` | The new file breaks a rule, or changes `listen` or `public-key`. | Fix the file and reload again; for `listen` or the key, restart. |
+| `the reload was refused, and the configuration stays as it was: ...` | The directory breaks a rule, a mode among it, or changes `listen` or the key in `private-key.pem`. | Mend what the line names and reload again; for `listen` or the key, restart. |
 | `the peer a's spawn at Site was not loaded: the binding Q has no value here` | A spawned function needs a binding only the declaring program evaluates. | Run that program here, or compute on a node that does. |
 | `the peer a's spawn at Site was not loaded: the module M, which Q calls, is not here` | A foreign declaration's host module is missing on this node. | Install the module on the load path. |
 | `the peer a's spawn at Site was not loaded: this node could not take the code it received: ...` | The host refused to compile or load the arrival, a count among the reasons. | Restart the node when convenient. |

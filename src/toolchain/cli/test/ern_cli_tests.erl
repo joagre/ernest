@@ -7235,37 +7235,38 @@ config_dir_required_test() ->
     [?assertMatch({_, _}, binary:match(Said, Part))
      || Part <- [<<"ern config: --config-dir is required: it names the configuration"
                    " directory\nUsage: ern config --config-dir dir">>,
-                 <<"ern config: no/such: no such directory\n">>]],
+                 <<"ern config: no/such: no such file or directory\n">>]],
     ?assertEqual(2, length(binary:matches(Said, <<"--config-dir is required">>))).
 
 %% report §11.3, Appendix C: the configuration directory with no peer and no
 %% service, a private key readable only by its owner and a certificate,
 %% created where --config-dir names it, its public key printed, and no
-%% `listen` where `--listen` gives none, a node that only dials; a second
-%% creation fails. The `listen` left out is a regression test, written after
-%% the code (the log's *The Shell's Own Node*): `0.0.0.0:8654` was written
-%% for every directory
+%% `listen` where `--listen` gives none, a node that only dials, nor any
+%% public key, which is the private key's; a second `ern config` prints the
+%% key again and changes nothing. The `listen` left out is a regression
+%% test, written after the code (the log's *The Shell's Own Node*):
+%% `0.0.0.0:8654` was written for every directory
 create_config_dir_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
     {ok, Conf} = file:read_file(Dir ++ "/ernest.conf"),
-    #{<<"peers">> := [], <<"services">> := #{},
-      <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>> = Public} = Decoded
-        = json:decode(Conf),
-    ?assertNot(is_map_key(<<"listen">>, Decoded)),
-    ?assertEqual(Public, unicode:characters_to_binary(?capturedOutput)),
+    ?assertEqual(#{<<"peers">> => [], <<"services">> => #{}}, json:decode(Conf)),
+    Public = unicode:characters_to_binary(?capturedOutput),
+    ?assertMatch(<<"-----BEGIN PUBLIC KEY-----", _/binary>>, Public),
     %% laid out as Appendix C shows it, a key a line in its order; a
     %% regression test, it was one line with its keys sorted
-    ?assertMatch([<<"{">>,
-                  <<"  \"public-key\": \"-----BEGIN PUBLIC KEY-----", _/binary>>,
-                  <<"  \"peers\": [],">>, <<"  \"services\": {}">>, <<"}">>, <<>>],
+    ?assertMatch([<<"{">>, <<"  \"peers\": [],">>, <<"  \"services\": {}">>, <<"}">>, <<>>],
                  binary:split(Conf, <<"\n">>, [global])),
     ?assert(filelib:is_regular(Dir ++ "/certificate.pem")),
     {ok, #file_info{mode = Mode}} = file:read_file_info(Dir ++ "/private-key.pem"),
     ?assertEqual(8#600, Mode band 8#777),
     {ok, Pem} = file:read_file(Dir ++ "/private-key.pem"),
     ?assertMatch([{'PrivateKeyInfo', _, not_encrypted}], public_key:pem_decode(Pem)),
-    ?assertEqual(1, ern_cli:ern(["config", "--config-dir", Dir])).
+    Before = [file:read_file(filename:join(Dir, File))
+              || File <- ["ernest.conf", "private-key.pem", "certificate.pem"]],
+    ?assertEqual({0, Public}, said(["config", "--config-dir", Dir])),
+    ?assertEqual(Before, [file:read_file(filename:join(Dir, File))
+                          || File <- ["ernest.conf", "private-key.pem", "certificate.pem"]]).
 
 %% report §11.2, §8.7, §8.1: `ern run --config-dir dir` with no `.erc` is a
 %% bare node, refused before it starts where its `ernest.conf` has no
@@ -7398,10 +7399,11 @@ signal_jobs_take_any_mode_test() ->
     Released(Holding).
 
 %% report §11.3: the configuration directory is its owner's alone, and one
-%% that exists is refused, whoever made it and however empty. A regression
-%% test: the directory took the host's default mode, so another could open
-%% the key's temporary file before it was its owner's, and one made after
-%% the check for it was used; the race itself is not covered
+%% that exists and holds no key is refused, whoever made it and however
+%% empty. A regression test: the directory took the host's default mode, so
+%% another could open the key's temporary file before it was its owner's,
+%% and one made after the check for it was used; the race itself is not
+%% covered
 config_dir_is_its_owners_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
@@ -7411,7 +7413,7 @@ config_dir_is_its_owners_test() ->
     ok = file:make_dir(Made),
     ?assertEqual(1, ern_err(["config", "--config-dir", Made])),
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
-                                      <<"made exists">>)),
+                                      <<"made exists and holds no private-key.pem\n">>)),
     ?assertEqual({ok, []}, file:list_dir(Made)).
 
 %% report §11.3, Appendix C: two directories of one machine list each other
@@ -7427,24 +7429,27 @@ config_peer_test() ->
     [?assertEqual(0, ern_err(["config", "--config-dir" | Words]))
      || Words <- [[A, "--listen", "0.0.0.0:8654"], [Foo, "--listen", "127.0.0.1:8655"],
                   [A, "--peer-dir", Foo], [Foo, "--peer-dir", A]]],
-    #{<<"listen">> := <<"0.0.0.0:8654">>, <<"public-key">> := KeyA, <<"services">> := #{},
-      <<"peers">> := [ListedFoo]} = conf_of(A),
-    #{<<"listen">> := <<"127.0.0.1:8655">>, <<"public-key">> := KeyFoo, <<"services">> := #{},
-      <<"peers">> := [ListedA]} = conf_of(Foo),
+    Printed = unicode:characters_to_binary(?capturedOutput),
+    [KeyA, KeyFoo] = [<<Key/binary, "-----END PUBLIC KEY-----\n">>
+                      || Key <- binary:split(Printed, <<"-----END PUBLIC KEY-----\n">>,
+                                             [global, trim])],
+    #{<<"listen">> := <<"0.0.0.0:8654">>, <<"services">> := #{}, <<"peers">> := [ListedFoo]} =
+        Listing = conf_of(A),
+    ?assertNot(is_map_key(<<"public-key">>, Listing)),
+    #{<<"listen">> := <<"127.0.0.1:8655">>, <<"services">> := #{}, <<"peers">> := [ListedA]} =
+        conf_of(Foo),
     ?assertEqual(#{<<"name">> => <<"foo">>, <<"network-address">> => <<"127.0.0.1:8655">>,
                    <<"public-key">> => KeyFoo}, ListedFoo),
     ?assertEqual(#{<<"name">> => <<"a">>, <<"network-address">> => <<"127.0.0.1:8654">>,
                    <<"public-key">> => KeyA}, ListedA),
-    ?assertEqual(<<KeyA/binary, KeyFoo/binary>>, unicode:characters_to_binary(?capturedOutput)),
     {ok, Text} = file:read_file(filename:join(A, "ernest.conf")),
-    ?assertMatch([<<"{">>, <<"  \"listen\": \"0.0.0.0:8654\",">>,
-                  <<"  \"public-key\": ", _/binary>>, <<"  \"peers\": [">>, <<"    {">>,
+    ?assertMatch([<<"{">>, <<"  \"listen\": \"0.0.0.0:8654\",">>, <<"  \"peers\": [">>, <<"    {">>,
                   <<"      \"name\": \"foo\",">>,
                   <<"      \"network-address\": \"127.0.0.1:8655\",">>,
                   <<"      \"public-key\": ", _/binary>>, <<"    }">>, <<"  ],">>,
                   <<"  \"services\": {}">>, <<"}">>, <<>>],
                  binary:split(Text, <<"\n">>, [global])),
-    [?assertMatch({configuration, _, _, _, [{peer, _, _, {{127, 0, 0, 1}, _}}], _, _, _, _, _},
+    [?assertMatch({configuration, _, _, _, [{peer, _, _, {{127, 0, 0, 1}, _}}], _, _, _, _},
                   ern_node:read(Node)) || Node <- [A, Foo]],
     [?assertEqual(0, ern_err(["config", "--config-dir" | Words]))
      || Words <- [[Ops], [A, "--peer-dir", Ops]]],
@@ -7453,8 +7458,9 @@ config_peer_test() ->
 
 %% report §11.3, §11.7, §12.5: `--listen` gives the directory's `listen`,
 %% any a node takes, port 0 among them; one a node refuses, an IPv4-mapped
-%% address among them, is refused before the directory is made, and so is
-%% a directory that exists
+%% address among them, is refused before the directory is made, and
+%% `--listen` for a directory that exists, whose `listen` it would not
+%% change
 config_listen_test() ->
     Dir = tmp(),
     Six = filename:join(Dir, "six"),
@@ -7473,7 +7479,10 @@ config_listen_test() ->
      end || {Listen, _} <- Refused],
     Said = unicode:characters_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Said, list_to_binary("ern config: " ++ Line ++ "\n")))
-     || Line <- [Six ++ " exists" | [Line || {_, Line} <- Refused]]].
+     || Line <- ["--listen is not given for a directory that exists: ern config changes"
+                 " nothing in " ++ Six
+                 | [Line || {_, Line} <- Refused]]],
+    ?assertMatch(#{<<"listen">> := <<"[::]:0">>}, conf_of(Six)).
 
 %% report §11.3: a peer's name is its directory's, the last segment of the
 %% directory's absolute path, a path ending in `/` or holding `..` among
@@ -7493,7 +7502,7 @@ config_peer_address_test() ->
                   {<<"silent">>, none}],
                  [{Name, maps:get(<<"network-address">>, Peer, none)}
                   || #{<<"name">> := Name} = Peer <- Listed]),
-    ?assertMatch({configuration, _, _, _, [_, _, {peer, <<"silent">>, _, none}], _, _, _, _, _},
+    ?assertMatch({configuration, _, _, _, [_, _, {peer, <<"silent">>, _, none}], _, _, _, _},
                  ern_node:read(A)).
 
 %% report §11.3: `--peer-dir` writes `ernest.conf` again with every other field
@@ -7507,15 +7516,16 @@ config_peer_keeps_fields_test() ->
     [?assertEqual(0, ern_err(["config", "--config-dir", Made, "--listen", Listen]))
      || {Made, Listen} <- [{A, "127.0.0.1:8654"}, {B, "127.0.0.1:8655"},
                            {C, "127.0.0.1:8656"}]],
-    #{<<"public-key">> := KeyA} = conf_of(A),
-    #{<<"public-key">> := KeyB} = conf_of(B),
+    {0, KeyB} = said(["config", "--config-dir", B]),
     Elsewhere = filename:join(Dir, "a.conf"),
     ok = file:write_file(Elsewhere,
-                         ["{\"utilization-interval\": 2000, \"public-key\": ", json:encode(KeyA),
+                         ["{\"utilization-interval\": 2000",
                           ", \"peers\": [{\"public-key\": ", json:encode(KeyB),
                           ", \"name\": \"b\"}], \"services\": {\"counter\": [\"b\"]},"
                           " \"listen\": \"127.0.0.1:8654\", \"measures\": {\"cpu\": {}},"
                           " \"limits\": {\"ports\": 4096, \"processes\": 65536}}"]),
+    %% its owner's alone to write, as a node reads it (report §12.5)
+    ok = file:change_mode(Elsewhere, 8#644),
     Conf = filename:join(A, "ernest.conf"),
     ok = file:delete(Conf),
     ok = file:make_symlink(Elsewhere, Conf),
@@ -7524,9 +7534,9 @@ config_peer_keeps_fields_test() ->
     {ok, Text} = file:read_file(Elsewhere),
     InOrder = fun(Acc, Outer) -> {lists:reverse(Acc), Outer} end,
     {Value, ok, <<>>} = json:decode(Text, ok, #{object_finish => InOrder}),
-    ?assertEqual([<<"utilization-interval">>, <<"public-key">>, <<"peers">>, <<"services">>,
-                  <<"listen">>, <<"measures">>, <<"limits">>], [Name || {Name, _} <- Value]),
-    ?assertMatch([{<<"utilization-interval">>, 2000}, _,
+    ?assertEqual([<<"utilization-interval">>, <<"peers">>, <<"services">>, <<"listen">>,
+                  <<"measures">>, <<"limits">>], [Name || {Name, _} <- Value]),
+    ?assertMatch([{<<"utilization-interval">>, 2000},
                   {<<"peers">>, [[{<<"name">>, <<"b">>}, {<<"public-key">>, KeyB}],
                                  [{<<"name">>, <<"c">>},
                                   {<<"network-address">>, <<"127.0.0.1:8656">>}, _]]},
@@ -7615,10 +7625,9 @@ config_peer_directories_test() ->
 %% report §11.3, §12.5: the peer's directory, its `ernest.conf` and its
 %% certificate are read as a node reads its own: a file that is not JSON
 %% and a certificate that is none are refused, each naming the peer's
-%% file, and nothing is written; a directory and an `ernest.conf` every
-%% user may write are read, and the peer is listed. The last is a
-%% regression test, written after the code: each was refused as `may be
-%% written by every user`
+%% file, and so are a directory and an `ernest.conf` any but their owner
+%% may write, with the cause and then the fix; nothing is written, and the
+%% peer is listed once its modes are mended
 config_peer_read_as_a_node_test() ->
     Dir = tmp(),
     [A, Open, Broken, Uncertified] = [filename:join(Dir, Name)
@@ -7637,8 +7646,18 @@ config_peer_read_as_a_node_test() ->
     [?assertMatch({_, _}, binary:match(Said, list_to_binary("ern config: " ++ Line ++ "\n")))
      || Line <- [Shown(Broken, "ernest.conf") ++ ": is not JSON",
                  Shown(Uncertified, "certificate.pem") ++ ": is not one certificate in PEM"]],
+    OpenConf = Shown(Open, "ernest.conf"),
     ok = file:change_mode(Open, 8#777),
-    ok = file:change_mode(filename:join(Open, "ernest.conf"), 8#666),
+    ?assertEqual(refusal("config", ern_build:shown(Open) ++ " may be written by others than its"
+                                   " owner; chmod go-w " ++ ern_build:shown(Open)),
+                 said(["config", "--config-dir", A, "--peer-dir", Open])),
+    ok = file:change_mode(Open, 8#700),
+    ok = file:change_mode(OpenConf, 8#666),
+    ?assertEqual(refusal("config", OpenConf ++ " may be written by others than its owner; chmod"
+                                   " go-w " ++ OpenConf),
+                 said(["config", "--config-dir", A, "--peer-dir", Open])),
+    ?assertEqual({ok, Before}, file:read_file(filename:join(A, "ernest.conf"))),
+    ok = file:change_mode(OpenConf, 8#644),
     ?assertEqual(0, ern_err(["config", "--config-dir", A, "--peer-dir", Open])),
     ?assertMatch(#{<<"peers">> := [#{<<"name">> := <<"open">>}]}, conf_of(A)).
 
@@ -7977,7 +7996,7 @@ config_given_paths_test() ->
                    given_tree("real"),
                    given_other(),
                    [ok = filelib:ensure_path(Made) || Made <- ["real/new", "real/made"]],
-                   ?assertEqual(refusal("config", "new: no such directory"),
+                   ?assertEqual(refusal("config", "new: no such file or directory"),
                                 said(["config", "--config-dir", "link/../new/made"])),
                    ?assertEqual({ok, []}, file:list_dir("real/new")),
                    ?assertMatch({0, _}, said(["config", "--config-dir", "link/../made"])),

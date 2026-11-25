@@ -980,7 +980,7 @@ What standard output and standard error, standard input and the terminal do, the
 
 ### 8.3 Peers
 
-A *node* is one running runtime, and a *peer* is another node this one knows by name. A node is a program started with `--config-dir` (§11.2): its configuration directory holds `ernest.conf`, which lists its peers, each by a name, a public key and a network address (§11.3, Appendix C), and its own key, by which nodes authenticate each other (§8.7). A program started without `--config-dir` is no node, has no peers and listens to nothing.
+A *node* is one running runtime, and a *peer* is another node this one knows by name. A node is a program started with `--config-dir` (§11.2): its configuration directory holds its own key, by which nodes authenticate each other (§8.7), and `ernest.conf`, which lists its peers, each by a name, a public key and a network address (§11.3, Appendix C). A program started without `--config-dir` is no node, has no peers and listens to nothing.
 
 The module `Peer` (Appendix E.27) acts on a peer by its listed name: `Peer.spawn(name, f, ms)` and `Peer.spawnMonitored(name, f, wrap, ms)` start a process there as `spawn(f)` and `spawnMonitored(f, wrap)` start one on the running node (§6.2), `Peer.offer` and `Peer.find` offer a service to the node's peers, and find one (§8.7), and `Peer.peers` answers the names of the peers the node lists, in the configuration's order. Nodes of different builds connect on one floor (§8.7).
 
@@ -1074,7 +1074,7 @@ A node that ends is no loss to the peers connected when it begins to stop. Its p
 
 A node that stops tells no peer how busy it is (Appendix E.27). A find, a spawn, a compute or a utilization that reaches the node while it stops answers `Unreachable`. A peer's monitor on a process that died with the node's program gives `ProgramEnd`, or `Unreachable` where its `Down` was dropped (**Messages**), a call waiting on one of them ends as §6.6 says, and a monitor made while the node stops gives `Unknown`, as for any process that has ended; one made once the node has stopped gives `Unreachable`.
 
-**A reload.** `ern reload --config-dir dir` makes the node read `ernest.conf` again (§12.5). A peer added is reached by the next operation towards it or when it dials in; a peer removed, or one whose key changed, is lost, both nodes running the loss, and the addresses a program holds of its processes are those of a node not listed; a peer whose address or name changed keeps its connection. The node's own key and `listen` cannot change while it runs.
+**A reload.** `ern reload --config-dir dir` makes the node read its configuration directory again (§12.5). A peer added is reached by the next operation towards it or when it dials in; a peer removed, or one whose key changed, is lost, both nodes running the loss, and the addresses a program holds of its processes are those of a node not listed; a peer whose address or name changed keeps its connection. The node's own key, in `private-key.pem`, and its `listen` cannot change while it runs.
 
 **Connections.** Two nodes have at most one connection, opened by the first operation that needs it, and only where each lists the other's public key (§12.5); connections are not transitive. Two nodes connect only where they stand on one *floor*, one major and minor release of `ern` on one major release of OTP, which the handshake proves before anything passes (§12.5). A patch release changes nothing a floor rests on or agrees by (§12.5), and a build of `ern` that is no release stands on a floor of its own.
 

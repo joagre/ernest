@@ -23,20 +23,23 @@
 %% Report §11.3: the node Name's directory made with `ern config` in Dir on
 %% the machine, Dir made first where it is not there, since `ern config`
 %% makes no missing parent; its `listen` the machine's interface at Port,
-%% or none where it only dials, and its key read from its `ernest.conf`.
+%% or none where it only dials, and its key the one `ern config` prints.
 -spec configured(ern_machine:machine(), string(), string(), none | non_neg_integer()) ->
           machine_node().
 configured(Machine, Dir, Name, Listen) ->
     ConfigDir = filename:join(Dir, Name),
     Conf = filename:join(ConfigDir, "ernest.conf"),
-    Text = ern_machine:ran(Machine, lists:flatten(["mkdir -p ", ern_machine:quoted(Dir), " && ",
+    Said = ern_machine:ran(Machine, lists:flatten(["mkdir -p ", ern_machine:quoted(Dir), " && ",
                                                    ern_machine:quoted(ern_machine:ern(Machine)),
                                                    " config --config-dir ",
-                                                   ern_machine:quoted(ConfigDir), " > /dev/null",
+                                                   ern_machine:quoted(ConfigDir),
                                                    " && cat ", ern_machine:quoted(Conf)])),
+    %% the key printed, then the file
+    [Key, Text] = string:split(Said, "-----END PUBLIC KEY-----\n"),
     Configuration = decoded(Machine, Conf, Text),
     Node = #machine_node{name = Name, machine = Machine, config_dir = ConfigDir,
-                         public_key = maps:get(<<"public-key">>, Configuration)},
+                         public_key = unicode:characters_to_binary(
+                                        Key ++ "-----END PUBLIC KEY-----\n")},
     written(Node, case Listen of
                       none -> maps:remove(<<"listen">>, Configuration);
                       Port -> Configuration#{<<"listen">> => listening(Machine, Port)}
