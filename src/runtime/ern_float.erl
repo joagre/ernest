@@ -1,6 +1,6 @@
-%% The shims behind Float.toString, div, pow, and exp (report Appendix E.9):
-%% Erlang prints the shortest form only when asked, and raises badarith
-%% where §3.1 names the fault.
+%% The shims behind Float.toString, div, pow, exp and atan2 (report
+%% Appendix E.9): Erlang prints the shortest form only when asked, and
+%% raises badarith where §3.1 names the fault.
 -module(ern_float).
 
 -export([to_string/1, divide/2, pow/2, exp/1, atan2/2]).
@@ -29,7 +29,7 @@ divide(Dividend, Divisor) ->
 pow(Base, Exponent) -> arith(fun() -> math:pow(Base, Exponent) + 0.0 end).
 
 -spec exp(float()) -> float().
-exp(Power) -> arith(fun() -> math:exp(Power) end).
+exp(Exponent) -> arith(fun() -> math:exp(Exponent) end).
 
 %% Report §3.1: no negative zero, which the host's atan2 gives for a
 %% negative `y` beside an `x` large enough. Of the host's functions Float

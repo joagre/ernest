@@ -162,15 +162,15 @@ minimum_and_maximum_test() ->
                  {List(minimum)(Ages, ByYears), List(maximum)(Ages, ByYears)}).
 
 %% report §12.2: foreign code receives a Map as a map from each key's term to
-%% its value's term, and a Set as {set, S}, S a version 2 set, which is a map
-%% from each element to []. A regression test, written after the report
-%% gave the terms
+%% its value's term, and a Set as a version 2 set, which is a map from each
+%% element to []. A regression test, written after the report gave the terms
 map_set_terms_test() ->
     in_run(fun() ->
                Map = ern_named:functions('ern@map'),
                Set = ern_named:functions('ern@set'),
                ?assertEqual(#{a => 1}, Map(put)(Map(empty)(), a, 1)),
-               ?assertEqual({set, #{a => []}}, Set(put)(Set(empty)(), a))
+               ?assertEqual(#{a => []}, Set(put)(Set(empty)(), a)),
+               ?assertEqual(#{a => [], b => []}, Set(fromList)([b, a, b]))
            end).
 
 %% Body run as a program's entry point, so that the standard library's
@@ -185,7 +185,7 @@ in_run(Body) ->
                                        catch Class:Error:Stack -> {raised, Class, Error, Stack}
                                        end,
                              Self ! {in_run, Outcome}
-                         end, <<"in_run">>, #{stdout => fun(_) -> ok end}),
+                         end, <<"in_run">>, ern_helpers:quiet()),
     receive
         {in_run, {returned, Value}} -> Value;
         {in_run, {raised, Class, Error, Stack}} -> erlang:raise(Class, Error, Stack)
@@ -260,8 +260,8 @@ set_operations() ->
 %% whole graphemes, so a letter under a combining mark is not found alone;
 %% an empty part is at the start and the end; the trims strip White_Space
 %% by Char.isSpace, U+00A0 and U+3000 among it and U+200E not; case mapping
-%% is full, without the rules of a language or a context. Written with the
-%% searches' move to Ernest; the earlier shims split and ended by bytes.
+%% is full, without the rules of a language or a context (the log's *A
+%% Search Begins Where a Grapheme Does*).
 string_graphemes_test() ->
     String = ern_named:functions('ern@string'),
     Composed = <<"e\x{301}"/utf8>>,
@@ -285,8 +285,8 @@ string_graphemes_test() ->
     %% and steps back to the one before where that leaves one grapheme: a
     %% line feed after a carriage return, a long cluster, flags and a joined
     %% emoji before a space, and text with no ASCII, split whole. A
-    %% regression test of the primitive that replaced the shim, and before
-    %% it a list of every grapheme, 34 times the host's trim over 100 KB
+    %% regression test (the log's *Three Scans on a Value*, *What Erlang
+    %% Held, Moved*)
     ?assertEqual(<<"a">>, String(trimEnd)(<<"a \x{301}\t"/utf8>>)),
     ?assertEqual(<<"a\x{600} "/utf8>>, String(trimEnd)(<<"a\x{600} \n"/utf8>>)),
     ?assertEqual(<<"é"/utf8>>, String(trimEnd)(<<"é\x{3000}"/utf8>>)),
@@ -338,9 +338,8 @@ string_words_test() ->
     ?assertEqual([<<"e\x{301}"/utf8>>], String(words)(<<"e\x{301}"/utf8>>)).
 
 %% report Appendix E.5: `split`, `lines` and `replace` read the string
-%% once. A regression test: each part measured the rest again, a cost that
-%% grew as the square of the parts, 2.6 s for 16,000 of them; 64,000 now
-%% take a fraction of EUnit's five seconds, and took about forty before
+%% once, so that 64,000 parts take a fraction of EUnit's five seconds. A
+%% regression test (the log's *The Release Review's Wrong Results*)
 string_split_reads_once_test() ->
     String = ern_named:functions('ern@string'),
     Text = iolist_to_binary(lists:duplicate(64000, <<"abcd,">>)),
@@ -1009,8 +1008,8 @@ io_test() ->
                              end, <<"io_test">>,
                              #{stdout => Sink(out), stderr => Sink(err)}),
     ?assertEqual(ok, Result),
-    ?assertEqual([<<"a">>, <<"b\n">>], collect(out, [])),
-    ?assertEqual([<<"c">>, <<"d\n">>, <<"42\n">>], collect(err, [])).
+    ?assertEqual([<<"a">>, <<"b\n">>], ern_helpers:taken(out)),
+    ?assertEqual([<<"c">>, <<"d\n">>, <<"42\n">>], ern_helpers:taken(err)).
 
 %% report Appendix E.1, §12.1: readLine gives the next line without its line
 %% feed, and None at end of input
@@ -1023,12 +1022,7 @@ io_read_line_test() ->
                                  Self ! {read, (ern_named:function('ern@io', readLine))()}
                              end, <<"io_read_line_test">>, #{stdin => Lines}),
     ?assertEqual(ok, Result),
-    ?assertEqual([{'Some', <<"one">>}, {'Some', <<"two">>}, 'None'], collect(read, [])).
-
-collect(Tag, Acc) ->
-    receive {Tag, Bytes} -> collect(Tag, [Bytes | Acc])
-    after 0 -> lists:reverse(Acc)
-    end.
+    ?assertEqual([{'Some', <<"one">>}, {'Some', <<"two">>}, 'None'], ern_helpers:taken(read)).
 
 %% report Appendix E.17, E.23: an entry holds its file's permission bits,
 %% as Fs.setMode takes them and without the host's type bits, and the
@@ -1086,7 +1080,7 @@ fs_test() ->
                end, <<"fs_test">>, #{}),
     ?assertEqual(ok, Result),
     [Write, Read, Append, ReadAppended, Stat, Rename, Copy, MakeDir, List, Remove, Gone] =
-        collect(fs, []),
+        ern_helpers:taken(fs),
     ?assertEqual({'Right', 'Unit'}, Write),
     ?assertEqual({'Right', <<"hello">>}, Read),
     ?assertEqual({'Right', 'Unit'}, Append),
@@ -1169,7 +1163,7 @@ fs_copy_mode_test() ->
                            Self ! {fs, Fs(copy)(InDir("script"), InDir("script_copy"), 5000)},
                            Self ! {fs, Fs(copy)(InDir("script"), InDir("kept"), 5000)}
                        end, <<"fs_copy_mode_test">>, #{})),
-    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], collect(fs, [])),
+    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], ern_helpers:taken(fs)),
     Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
     ModeOf = fun(File) ->
                  {ok, #file_info{mode = Mode}} = file:read_file_info(Name(File)),
@@ -1222,7 +1216,7 @@ fs_copy_onto_itself_test() ->
                            Self ! {fs, Copy(InDir("short"), InDir("unreadable"), 5000)},
                            Self ! {fs, Copy(InDir("short"), InDir("unwritable"), 5000)}
                        end, <<"fs_copy_onto_itself_test">>, #{})),
-    ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}) ++ [Denied], collect(fs, [])),
+    ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}) ++ [Denied], ern_helpers:taken(fs)),
     ?assertEqual({ok, Bytes}, file:read_file(Name("kept"))),
     ?assertEqual({ok, <<"short">>}, file:read_file(Name("longer"))),
     ?assertEqual({ok, Bytes}, file:read_file(Name("other"))),
@@ -1275,7 +1269,7 @@ fs_one_stat_and_raw_copy_test() ->
                            end, <<"fs_one_stat_and_raw_copy_test">>, #{})),
         Delivered = erlang:trace_delivered(all),
         receive {trace_delivered, all, Delivered} -> ok end,
-        ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}), collect(fs, [])),
+        ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}), ern_helpers:taken(fs)),
         %% the paths each request's process read, a request a process
         ?assertEqual(lists:sort([["written"], ["written"], ["written"], ["appended"],
                                  ["copied", "source"], ["kept", "source"]]),
@@ -1324,7 +1318,7 @@ fs_named_pipe_test() ->
                            Self ! {fs, Fs(read)(InDir("plain"), 1000)}
                        end, <<"fs_named_pipe_test">>, #{})),
     Refused = {'Left', 'NotAFile'},
-    ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
+    ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], ern_helpers:taken(fs)),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17, E.1: a path whose segment before its last names a
@@ -1363,7 +1357,7 @@ fs_path_through_file_test() ->
                            Self ! {fs, Fs(list)(InDir("plain"), 1000)}
                        end, <<"fs_path_through_file_test">>, #{})),
     ?assertEqual(lists:duplicate(18, {'Left', 'NotFound'}) ++ [{'Left', 'NotAFile'}],
-                 collect(fs, [])),
+                 ern_helpers:taken(fs)),
     ?assertEqual({ok, <<"hi">>}, file:read_file(filename:join(Dir, "plain"))),
     file:del_dir_r(Dir).
 
@@ -1388,7 +1382,7 @@ fs_loop_and_long_name_test() ->
                        end, <<"fs_loop_and_long_name_test">>, #{})),
     ?assertEqual([{'Left', 'NotFound'}, {'Left', 'NotFound'},
                   {'Left', 'Invalid'}, {'Left', 'Invalid'}],
-                 collect(fs, [])),
+                 ern_helpers:taken(fs)),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: append writes a device, a terminal among them, and
@@ -1412,7 +1406,7 @@ fs_append_device_test() ->
                                                  <<"x">>, 1000)}
                        end, <<"fs_append_device_test">>, #{})),
     Refused = {'Left', 'NotAFile'},
-    ?assertEqual([{'Right', 'Unit'}, Refused, Refused, Refused, Refused], collect(fs, [])),
+    ?assertEqual([{'Right', 'Unit'}, Refused, Refused, Refused, Refused], ern_helpers:taken(fs)),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `setMode` sets a file's and a directory's
@@ -1439,7 +1433,7 @@ fs_set_mode_test() ->
                            Self ! {fs, Fs(setMode)(InDir(Dir), 8#1777, 1000)}
                        end, <<"fs_set_mode_test">>, #{})),
     ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Left', 'NotFound'},
-                  {'Left', 'Invalid'}, {'Left', 'Invalid'}], collect(fs, [])),
+                  {'Left', 'Invalid'}, {'Left', 'Invalid'}], ern_helpers:taken(fs)),
     {ok, FileInfo} = file:read_file_info(File),
     {ok, DirInfo} = file:read_file_info(Dir),
     ?assertEqual({8#600, 8#700}, {FileInfo#file_info.mode band 8#777,
@@ -1461,7 +1455,7 @@ fs_created_mode_test() ->
                            Self ! {fs, Fs(write)(InDir("written"), <<"x">>, 1000)},
                            Self ! {fs, Fs(append)(InDir("appended"), <<"x">>, 1000)}
                        end, <<"fs_created_mode_test">>, #{})),
-    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], collect(fs, [])),
+    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], ern_helpers:taken(fs)),
     Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
     [?assertEqual(8#666 band bnot Mask, Mode band 8#777)
      || Name <- ["made", "written", "appended"],
@@ -1483,7 +1477,7 @@ fs_list_dangling_link_test() ->
                        fun() ->
                            Self ! {fs, Fs(list)({'Path', list_to_binary(Dir)}, 1000)}
                        end, <<"fs_list_dangling_link_test">>, #{})),
-    [{'Right', Entries}] = collect(fs, []),
+    [{'Right', Entries}] = ern_helpers:taken(fs),
     Described = lists:sort([{filename:basename(Name), Kind, Size}
                             || {'Entry', {'Path', Name}, _, Size, Kind, _, _} <- Entries]),
     %% a link is the link itself, whose size is its target's name
@@ -1516,7 +1510,7 @@ fs_links_test() ->
                            Self ! {fs, Fs(remove)(InDir("to_shelf"), 1000)},
                            Self ! {fs, Fs(list)({'Path', list_to_binary(Dir)}, 1000)}
                        end, <<"fs_links_test">>, #{})),
-    [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = collect(fs, []),
+    [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = ern_helpers:taken(fs),
     ?assertEqual({'Right', 'Unit'}, Made),
     ?assertEqual({'Right', {'Some', {'Path', <<"shelf">>}}}, Read),
     ?assertMatch({'Right', {'Entry', _, _, _, 'Directory', _, _}}, Stat),
@@ -1555,7 +1549,7 @@ fs_hard_links_test() ->
                            Self ! {fs, Fs(remove)(InDir("orig"), 1000)},
                            Self ! {fs, Fs(read)(InDir("twin"), 1000)}
                        end, <<"fs_hard_links_test">>, #{})),
-    [Made, Stat, Again, OfDir, OfLink, OfNone, Removed, Read] = collect(fs, []),
+    [Made, Stat, Again, OfDir, OfLink, OfNone, Removed, Read] = ern_helpers:taken(fs),
     ?assertEqual({'Right', 'Unit'}, Made),
     ?assertMatch({'Right', {'Entry', _, _, 1, 'File', _, _}}, Stat),
     ?assertEqual({'Left', 'Exists'}, Again),
@@ -1592,7 +1586,7 @@ fs_read_range_test() ->
                   {'Right', <<>>}, {'Right', <<"ab">>}, {'Right', <<>>},
                   {'Right', <<"cdef">>}, {'Right', <<"def">>}, {'Right', <<>>},
                   {'Left', 'NotAFile'}],
-                 collect(fs, [])),
+                 ern_helpers:taken(fs)),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `makeFile` makes a new file or none; `setModified`
@@ -1613,7 +1607,7 @@ fs_create_modified_test() ->
                            Self ! {fs, Fs(setModified)(InDir("new.txt"), 86400999, 1000)},
                            Self ! {fs, Fs(stat)(InDir("new.txt"), 1000)}
                        end, <<"fs_create_modified_test">>, #{})),
-    [Made, Taken, Kept, Set, Stat] = collect(fs, []),
+    [Made, Taken, Kept, Set, Stat] = ern_helpers:taken(fs),
     ?assertEqual({'Right', 'Unit'}, Made),
     ?assertEqual({'Left', 'Exists'}, Taken),
     ?assertEqual({'Right', <<"a">>}, Kept),
@@ -1637,7 +1631,7 @@ fs_set_modified_past_the_host_test() ->
                            Self ! {fs, Fs(setModified)(Path, 1 bsl 80, 1000)},
                            Self ! {fs, Fs(setModified)(Path, -(1 bsl 80), 1000)}
                        end, <<"fs_set_modified_past_the_host_test">>, #{})),
-    ?assertEqual([{'Left', 'Invalid'}, {'Left', 'Invalid'}], collect(fs, [])),
+    ?assertEqual([{'Left', 'Invalid'}, {'Left', 'Invalid'}], ern_helpers:taken(fs)),
     file:del_dir_r(Dir).
 
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
@@ -1660,7 +1654,7 @@ tcp_test() ->
                end, <<"tcp_test">>, #{}),
     ?assertEqual(ok, Result),
     ?assertEqual([{'Right', <<"ping">>}, {'Right', <<"pong">>}, {'Left', 'Closed'}],
-                 collect(tcp, [])).
+                 ern_helpers:taken(tcp)).
 
 %% report §8.6, Appendix E.18: a listener ends with the program, so the
 %% port is free for the next. A regression test: listeners and sockets
@@ -1675,13 +1669,13 @@ tcp_ends_with_program_test() ->
                 Self ! {listened, Tcp(port)(Listener)}
             end,
     ?assertEqual(ok, ern_rt:run_main(First, <<"first">>, #{})),
-    [{'Right', Port}] = collect(listened, []),
+    [{'Right', Port}] = ern_helpers:taken(listened),
     Second = fun() ->
                  {Side, _} = Tcp(listen)(<<"127.0.0.1">>, Port),
                  Self ! {listened, Side}
              end,
     ?assertEqual(ok, ern_rt:run_main(Second, <<"second">>, #{})),
-    ?assertEqual(['Right'], collect(listened, [])).
+    ?assertEqual(['Right'], ern_helpers:taken(listened)).
 
 %% report Appendix E.12, §3.8, §8.4, §12.2
 foreign_test() ->
@@ -1768,10 +1762,10 @@ random_splitmix64_test() ->
     {_, Big} = Random(nextInt)(Random(seed)(1), 1 bsl 100),
     ?assert(Big >= 0 andalso Big < 1 bsl 100).
 
-%% report Appendix E.14: Path's edge cases, now that it is Ernest over String
-%% and two primitives: a trailing separator, an absolute second operand, the
-%% root alone, a name with an empty extension, and a dot file. Written with
-%% the move, where `filename` had answered them.
+%% report Appendix E.14: the edge cases of Path, Ernest over String and its
+%% primitives: a trailing separator, an absolute second operand, the root
+%% alone, a name with an empty extension, and a dot file (the log's *A Shim
+%% Reaches the Representation*).
 path_edges_test() ->
     Path = ern_named:functions('ern@path'),
     AsPath = fun(Text) -> {'Path', Text} end,
@@ -2101,7 +2095,7 @@ sleep_on_delivery_test() ->
                Kept ! {apply, 21},
                receive {applied, Kept} -> Kept ! stop end,
                receive Delivered -> Self ! {delivered, Delivered} end
-           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+           end, <<"main">>, ern_helpers:quiet()),
     ?assertEqual(42, receive {delivered, Delivered} -> Delivered end).
 
 %% report Appendix E.15, §8.6, §6.9: `Clock.cancel` ends an alarm that has

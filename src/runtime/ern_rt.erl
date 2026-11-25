@@ -31,7 +31,7 @@
 %% after the death reports Unknown (report §6.9), and every monitor is the
 %% reaper's. The reaper also detects deadlock (report §8.6, look/0).
 %%
-%% Thirteen tables hold a launch's state, listed by tables/0, each described
+%% The tables tables/0 lists hold a launch's state, each described
 %% where it is defined: `ern_processes` has a row per process the runtime
 %% started or adopted, #process_row{} (ern_rt.hrl), and `ern_launch` holds
 %% the launch itself, #launch{}.
@@ -56,8 +56,9 @@
          peer_waited/0,
          deadline/1, deadline/2, remaining/1, sleep/1,
          now/0, monotonic/0, monotonic_micros/0, entered_foreign/0, left_foreign/0,
-         undefined_function/3, undefined_lambda/3, met/3, host_cause/2, fault/1, fault/2, trace/1,
-         failure_trace/1, system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0,
+         undefined_function/3, undefined_lambda/3, met/3, host_cause/2, host_term/1, host_term/2,
+         fault/1, fault/2, trace/1, failure_trace/1, system_process/1, hold_terminal/1,
+         terminal_holder/0, shell_holds/0,
          is_kept_from_terminal/1, own_terminal/1, disown_terminal/0,
          input_not_utf8/0, input_unreadable/1, terminal_gone/0, by_input/1, read_input/1,
          input_opened/1, input_taken/1,
@@ -69,7 +70,7 @@
          withdraw_load/2,
          binding/1, binding_value/2, is_initialized/1,
          restarting/2, restart_now/0, ask_restart/1,
-         start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateway/0,
+         start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateways/0,
          stdlib_modules/0, init_modules/1, initialized/1, uninitialized/1, offer/2, offered/2,
          set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
          note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
@@ -85,7 +86,7 @@
                           restart_taken/1, end_with_program/0, waited_deliveries/1,
                           waited_reports/0, tell_service_monitors/0,
                           say/2, waited_settler/2]}).
--receives({ernest_wait, [waited_answer/3, call_forever/4, call_until_ended/2, finished/1,
+-receives({ernest_wait, [waited_answer/3, forever_answer/2, until_ended/1, finished/1,
                          waited_evaluation/2, evaluated_lives/1, sleep_until/1]}).
 -receives({answered_at_once, [spawn_with_monitors/4, faults/1, ask_monitor/2, demonitor/1,
                               spawned/7, kill_all/1, opened/3, asked_of_run/1, unwatched/2,
@@ -141,9 +142,9 @@
 %% tables it made, newest first, which it owns until it ends or a table is
 %% closed, so that what it owns is known without reading every table of the
 %% node: by a load's evaluator at its end (evaluate/2), and by
-%% `Ets.ownedCount` of another (owned_tables/1). Report Appendix E.21, G.7:
-%% in a process that started a process to end with it, a proxy's, that
-%% process (ends_with_caller/1, owned/1). Each is owned_listed/3's.
+%% `Ets.ownedCount` of another (owned_tables/1). Report Appendix E.21: in
+%% a process that started a process to end with it, that process
+%% (ends_with_caller/1, owned/1). Each is owned_listed/3's.
 -define(TABLES, '$ern_tables').
 -define(ENDING, '$ern_ending').
 
@@ -794,20 +795,12 @@ call(Address, Request, Ms, Check) ->
     Since = monotonic(),
     Deadline = deadline(Since, Ms),
     {Callee, Reply} = watched(Address),
-    %% settled however the call ends, a fault of the message's function or
-    %% of the callee among the ways, which a process restarted in place
-    %% outlives (§6.9); report §6.6, §6.5: the request is made, and the
-    %% adapted address's functions applied, before the call is noted, so
-    %% that a call either makes, printing among them, ends first
-    Answer = try
-                 Way = adapted_way(Address, Request({Reply, current()})),
-                 pending(#call{callee = Callee, reply = Reply, since = Since, limited = true}),
-                 sent(Way),
-                 timed(),
-                 try waited_answer(Reply, Deadline, Check) after untimed() end
-             after
-                 settled(Reply)
-             end,
+    Call = #call{callee = Callee, reply = Reply, since = Since, limited = true},
+    Answer = noted_call(Address, Request, Call,
+                        fun() ->
+                            timed(),
+                            try waited_answer(Reply, Deadline, Check) after untimed() end
+                        end),
     case Answer of
         %% report §6.9: a restart asked for is taken at a call's wait
         '$ern_restart' -> restart_now();
@@ -868,30 +861,28 @@ call_limited(Address, Request) ->
 call_until_ended(Address, Request) ->
     Since = monotonic(),
     {Callee, Reply} = watched(Address),
-    Answer = try
-                 Way = adapted_way(Address, Request({Reply, current()})),
-                 pending(#call{callee = Callee, reply = Reply, since = Since, limited = false}),
-                 sent(Way),
-                 receive
-                     {'DOWN', Reply, process, _, CalleeExitReason} ->
-                         closed(),
-                         {ended, reason(CalleeExitReason)};
-                     {Reply, finished_by, Finisher} -> finished(Finisher);
-                     %% report §6.9: a restart asked for is taken at a call's
-                     %% wait
-                     '$ern_restart' -> restart;
-                     %% report §8.4, §6.5: a foreign message's fault, or one
-                     %% met on a message's way, taken there too
-                     {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
-                 end
-             after
-                 settled(Reply)
-             end,
+    Call = #call{callee = Callee, reply = Reply, since = Since, limited = false},
+    Answer = noted_call(Address, Request, Call, fun() -> until_ended(Reply) end),
     case Answer of
         {ended, 'ProgramEnd'} -> end_with_program();
         {ended, _} -> ?UNIT;
         {thrown, Fault} -> throw(Fault);
         restart -> restart_now()
+    end.
+
+%% The wait of call_until_ended/2, on its callee's end or its word that a
+%% process it made finishes the end.
+until_ended(Reply) ->
+    receive
+        {'DOWN', Reply, process, _, CalleeExitReason} ->
+            closed(),
+            {ended, reason(CalleeExitReason)};
+        {Reply, finished_by, Finisher} -> finished(Finisher);
+        %% report §6.9: a restart asked for is taken at a call's wait
+        '$ern_restart' -> restart;
+        %% report §8.4, §6.5: a foreign message's fault, or one met on a
+        %% message's way, taken there too
+        {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
     end.
 
 %% Report Appendix E.18, E.21, §8.6: the wait for Finisher, which finishes
@@ -932,47 +923,57 @@ call_forever(Address, Request, Check, Limited) ->
     Since = monotonic(),
     {Callee, Reply} = watched(Address),
     Site = callee_site(Callee),
-    %% settled however the call ends, and noted once its request is made,
-    %% as call/4's is
-    Answer = try
-                 Way = adapted_way(Address, Request({Reply, current()})),
-                 pending(#call{callee = Callee, reply = Reply, since = Since,
-                               limited = Limited}),
-                 sent(Way),
-                 receive
-                     {Reply, answered, Value} -> {answered, Value};
-                     {Reply, unnoted, Value} -> closed(), {answered, Value};
-                     {Reply, Value} -> {answered, foreign_answer(Check, Value)};
-                     {Reply, restarted, How} ->
-                         closed(),
-                         {restarted, How};
-                     %% report §12.1: a system process faults the caller it
-                     %% answers
-                     {Reply, fault, SystemCause} -> {fault, SystemCause};
-                     {'DOWN', Reply, process, _, CalleeExitReason} ->
-                         closed(),
-                         {ended, CalleeExitReason};
-                     %% report §6.9: a restart asked for is taken at a call's
-                     %% wait
-                     '$ern_restart' -> restart;
-                     %% report §8.4, §6.5: a foreign message's fault, or one
-                     %% met on a message's way, taken there too
-                     {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
-                 end
-             after
-                 settled(Reply)
-             end,
+    Call = #call{callee = Callee, reply = Reply, since = Since, limited = Limited},
+    Answer = noted_call(Address, Request, Call, fun() -> forever_answer(Reply, Check) end),
     case Answer of
         {answered, Answered} -> Answered;
         {fault, Cause} -> fault(Cause);
         {thrown, Fault} -> throw(Fault);
         {restarted, asked} -> fault(<<"callee was restarted">>);
-        {restarted, {fault, Cause}} -> callee_fault(Cause, Site);
+        {restarted, {fault, Cause}} -> callee_fault(Callee, Cause, Site);
         %% report §6.6, Appendix E.18: a socket or a listener the program
         %% closed ended as a function returns, and its caller learns why
         {ended, {ern, closed}} -> fault(<<"callee was closed">>);
         {ended, ExitReason} -> ended(Callee, Site, reason(ExitReason));
         restart -> restart_now()
+    end.
+
+%% The wait of call_forever/4, on the answer or the callee's end.
+forever_answer(Reply, Check) ->
+    receive
+        {Reply, answered, Value} -> {answered, Value};
+        {Reply, unnoted, Value} -> closed(), {answered, Value};
+        {Reply, Value} -> {answered, foreign_answer(Check, Value)};
+        {Reply, restarted, How} ->
+            closed(),
+            {restarted, How};
+        %% report §12.1: a system process faults the caller it answers
+        {Reply, fault, SystemCause} -> {fault, SystemCause};
+        {'DOWN', Reply, process, _, CalleeExitReason} ->
+            closed(),
+            {ended, CalleeExitReason};
+        %% report §6.9: a restart asked for is taken at a call's wait
+        '$ern_restart' -> restart;
+        %% report §8.4, §6.5: a foreign message's fault, or one met on a
+        %% message's way, taken there too
+        {'$ern_fault', ForeignFault} -> {thrown, ForeignFault}
+    end.
+
+%% Report §6.6: a call, Call, to the process behind Address, watched as
+%% the call's reply (watched/1): its request made, and the adapted
+%% address's functions applied, before the call is noted, so that a call
+%% either makes, printing among them, ends first (§6.5); the request sent,
+%% and Wait's answer waited for; and the call settled however it ends, a
+%% fault of the message's function or of the callee among the ways, which
+%% a process restarted in place outlives (§6.9).
+noted_call(Address, Request, #call{reply = Reply} = Call, Wait) ->
+    try
+        Way = adapted_way(Address, Request({Reply, current()})),
+        pending(Call),
+        sent(Way),
+        Wait()
+    after
+        settled(Reply)
     end.
 
 %% Report §6.9: the spawn site of a process the runtime started, as its
@@ -987,10 +988,17 @@ callee_site(Callee) ->
 %% Report §6.6, §7.4, §11.2: a callee's fault carried to its caller, which
 %% faults with the callee's cause unchanged, the callee's site beside it
 %% for its report's line, `, the fault of the callee Ledger.start:6`, and
-%% none where the site is not known; its trace the caller's stack (met/3).
--spec callee_fault(binary(), binary()) -> no_return().
-callee_fault(Cause, <<>>) -> fault(Cause);
-callee_fault(Cause, Site) -> throw({ern, #fault{cause = Cause, callee = Site}}).
+%% none where the site is not known; for a callee of another node, whose
+%% site this node does not know, the name its peer is listed under as the
+%% fault is carried, `, on the peer foo`, and none where the configuration
+%% lists it no more (Appendix E.21); its trace the caller's stack (met/3).
+callee_fault(Callee, Cause, _Site) when node(Callee) =/= node() ->
+    case ern_peer:peer_of(Callee) of
+        {'Some', Name} -> throw({ern, #fault{cause = Cause, peer = Name}});
+        'None' -> fault(Cause)
+    end;
+callee_fault(_Callee, Cause, <<>>) -> fault(Cause);
+callee_fault(_Callee, Cause, Site) -> throw({ern, #fault{cause = Cause, callee = Site}}).
 
 %% Report §8.4: an answer foreign code gave, checked against the reply's
 %% type as a foreign function's return is.
@@ -1001,7 +1009,7 @@ foreign_answer({Descriptor, Cause}, Value) -> ern_boundary:value(Descriptor, Val
 %% the callee's cause, its site beside it, or says how it ended; with the
 %% program the caller ends too.
 -spec ended(pid(), binary(), term()) -> no_return().
-ended(_Callee, Site, {'Fault', Cause}) -> callee_fault(Cause, Site);
+ended(Callee, Site, {'Fault', Cause}) -> callee_fault(Callee, Cause, Site);
 ended(_Callee, _, 'Killed') -> fault(<<"callee was killed">>);
 ended(_Callee, _, 'Returned') -> fault(<<"callee returned without answering">>);
 ended(_Callee, _, 'Unknown') -> fault(<<"callee had ended">>);
@@ -1441,7 +1449,7 @@ killing(Pid, How) ->
             case erlang:process_info(Pid, [{dictionary, ?CALL} | stack_asked(How)]) of
                 [{_, Call} | Stack] ->
                     uncalled(Pid, Call),
-                    exit(Pid, exit_reason(Pid, How, Stack));
+                    exit(Pid, exit_reason(Pid, How, Call, Stack));
                 undefined ->
                     ok
             end,
@@ -1457,10 +1465,23 @@ killing(Pid, How) ->
 stack_asked({found, _}) -> [current_stacktrace];
 stack_asked(_) -> [].
 
-exit_reason(Pid, {found, Cause}, [{current_stacktrace, Stack}]) ->
-    ended_with(Pid, #fault{cause = Cause, trace = trace(Stack), time = now()});
-exit_reason(_Pid, ExitReason, []) ->
+exit_reason(Pid, {found, Cause}, Call, [{current_stacktrace, Stack}]) ->
+    ended_with(Pid, #fault{cause = Cause, trace = called_on(trace(Stack), Call), time = now()});
+exit_reason(_Pid, ExitReason, _Call, []) ->
     ExitReason.
+
+%% Report §12.4: the trace of a fault found in a process that waits in a
+%% call, a deadlock's, its first line naming the callee's spawn site after
+%% it as a waiting process's line does (left_waiting_line/2), `Forgot.main:21
+%% on Forgot.main:19`; as it is where the process waits in no call, or in
+%% one whose callee has no site.
+called_on(Trace, Call) ->
+    case {waited_on(Call), binary:split(Trace, <<"\n">>)} of
+        {none, _} -> Trace;
+        {_, [<<>>]} -> Trace;
+        {Callee, [First, Rest]} ->
+            <<First/binary, " on ", (ern_show:controls(Callee, line))/binary, "\n", Rest/binary>>
+    end.
 
 -spec reason(term()) -> term().
 reason(normal) -> 'Returned';
@@ -1476,7 +1497,7 @@ reason(noproc) -> 'Unknown';
 %% report §6.9, §8.7: the process's node went out of reach, and the process
 %% may live on
 reason(noconnection) -> 'Unreachable';
-reason(Other) -> {'Fault', format("~p", [Other])}.
+reason(Other) -> {'Fault', host_term(Other)}.
 
 %% The reaper: spawns on request with a monitor of its own, keeps each live
 %% process's row, and tells each process that monitors another how it
@@ -1518,32 +1539,21 @@ reaper_loop(Reaper, Wait) ->
         %% its function's reach names has its value, as the code of the
         %% unit that runs it reads it (ern_code:absent_binding/2)
         {asked, From, Ref, {spawn, Function, Unit, Bindings, Site, Peer}} ->
-            case ern_code:absent_binding(Unit, Bindings) of
-                none ->
-                    reaper_loop(spawned(From, Ref, Function, Site, [], {peer, Peer}, Reaper));
-                Absent ->
-                    From ! {Ref, {absent, Absent}},
-                    reaper_loop(Reaper)
-            end;
+            reaper_loop(peer_spawned(From, Ref, Unit, Bindings, Function, Site, {peer, Peer},
+                                     Reaper));
         %% report §8.7: a compute starts as a spawn does, its process
         %% running the function for its caller (computing/2)
         {asked, From, Ref, {compute, Function, Unit, Bindings, Site, Peer, Caller, Alias}} ->
-            case ern_code:absent_binding(Unit, Bindings) of
-                none ->
-                    reaper_loop(spawned(From, Ref, computing(Function, Alias), Site, [],
-                                        {compute, Peer, Caller, Alias}, Reaper));
-                Absent ->
-                    From ! {Ref, {absent, Absent}},
-                    reaper_loop(Reaper)
-            end;
+            reaper_loop(peer_spawned(From, Ref, Unit, Bindings, computing(Function, Alias), Site,
+                                     {compute, Peer, Caller, Alias}, Reaper));
         %% report §6.9, §8.7: a restart of a process of another node,
         %% which its node tells this one, told to the service monitors held
         %% of it here (peer_restarted/1)
         {asked, From, Ref, {restarted, Pid}} ->
             From ! {Ref, delivered_restart(Pid, Reaper)},
             reaper_loop(Reaper);
-        {asked, From, Ref, Question} ->
-            From ! {Ref, answer_of_run(Question)},
+        {asked, From, Ref, {offered, Name, Hash}} ->
+            From ! {Ref, offered(Name, Hash)},
             reaper_loop(Reaper);
         {adopt, Pid, Site, Owner, From, Ref} ->
             adopted(Pid, Site, Owner, From, Ref),
@@ -1648,20 +1658,29 @@ spawned(From, Ref, Function, Site, SpawnMonitors, Chain, Reaper) ->
             Reaper
     end.
 
+%% Report §8.7: a process a peer's spawn or compute asked for, spawned as
+%% Function where every binding its function's reach names has its value,
+%% as the code of the unit that runs it reads it (ern_code:absent_binding/2),
+%% and else the first binding without one answered.
+peer_spawned(From, Ref, Unit, Bindings, Function, Site, Chain, Reaper) ->
+    case ern_code:absent_binding(Unit, Bindings) of
+        none ->
+            spawned(From, Ref, Function, Site, [], Chain, Reaper);
+        Absent ->
+            From ! {Ref, {absent, Absent}},
+            Reaper
+    end.
+
 %% A process spawned on request given its row, let go where its chain
 %% lets it run, and monitored as the spawn asked (spawned/7).
 rowed(Pid, From, Ref, Site, SpawnMonitors, Chain, Reaper) ->
-    {Root, Peer} = case Chain of
-                       {chained, Parent} -> {root(Parent, Pid), none};
-                       root -> {Pid, none};
-                       evaluator -> {Pid, none};
-                       {peer, Node} -> {Pid, Node};
-                       {compute, Node, _, _} -> {Pid, Node}
-                   end,
-    {Expected, Own} = case Chain of
-                          evaluator -> {true, evaluator};
-                          _ -> {false, none}
-                      end,
+    {Root, Peer, Expected, Own} = case Chain of
+                                      {chained, Parent} -> {root(Parent, Pid), none, false, none};
+                                      root -> {Pid, none, false, none};
+                                      evaluator -> {Pid, none, true, evaluator};
+                                      {peer, Node} -> {Pid, Node, false, none};
+                                      {compute, Node, _, _} -> {Pid, Node, false, none}
+                                  end,
     ets:insert(?PROCESSES, #process_row{pid = Pid, site = Site, spawn_order = next_spawn_order(),
                                         root = Root, peer = Peer, expected = Expected,
                                         own = Own}),
@@ -2152,10 +2171,12 @@ next_spawn_order() ->
 %% Report §8.6: the program's end ends every process the runtime started.
 %% The reaper spawns each, so it ends them: every one it has spawned, and
 %% none after, since a spawn it is asked for then was asked by a process
-%% that is itself ending. It answers nothing more until it is stopped, or
-%% its runner ends (reaper/1).
+%% that is itself ending. It answers with how many lived to be ended, which
+%% `--verbose` says (§11.2), and nothing more until it is stopped, or its
+%% runner ends (reaper/1).
 ended_program(From, Ref) ->
     Ended = [Pid || #process_row{pid = Pid} <- live_rows()],
+    Living = length([Pid || Pid <- Ended, erlang:is_process_alive(Pid)]),
     lists:foreach(fun(Pid) -> exit(Pid, {ern, program_end}) end, Ended),
     %% report §8.6, §8.7: the end waits for the deaths of every process
     %% but those that trap exits, the runtime's own resources, so that no
@@ -2166,7 +2187,7 @@ ended_program(From, Ref) ->
     %% not placed when the node tells its peers it ends may be dropped
     %% (ern_carrier:depart/0)
     wait_for_ends(maps:from_keys([Pid || Pid <- Ended, not traps_exits(Pid)], true)),
-    From ! {Ref, ended},
+    From ! {Ref, ended, Living},
     ended_program().
 
 traps_exits(Pid) ->
@@ -2947,16 +2968,17 @@ termination(Address) ->
 %% the process, which its line names (§8.7), or none. The fields are in
 %% declared order: process, site, cause, restarted, trace, the peer's name
 %% as the configuration lists it (§8.7), the site of the callee whose fault
-%% a call carried (§6.6), the name of the peer a compute carried it from
-%% (§8.7), and the moment it was met (Appendix E.15).
+%% a call carried (§6.6), the name of the peer a compute, or a call of a
+%% callee on that peer, carried it from (§6.6, §8.7), and the moment it was
+%% met (Appendix E.15).
 %%
 %% The reaper reports, so that the reports reach each courier in the order
 %% they were met; a process that restarts sends it its fault. A courier
 %% that has ended, which no subscriber's end ended, ends its subscription.
-report(Pid, Site, Peer, #fault{cause = Cause, trace = Trace, callee = Callee, peer = From,
+report(Pid, Site, Peer, #fault{cause = Cause, trace = Trace, callee = Callee, peer = FaultPeer,
                                time = Time}, Restarted) ->
     Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace, ern_peer:name(Peer),
-              optional(Callee), optional(From), Time},
+              optional(Callee), optional(FaultPeer), Time},
     case launch_field(#launch.reporter, none) of
         none -> ok;
         Reporter -> Reporter(Report, Peer)
@@ -3465,7 +3487,7 @@ deadline(Since, Ms) ->
 %% The next wait towards the deadline; 0 once it has passed.
 -spec remaining(integer()) -> 0..?SLICE.
 remaining(Deadline) ->
-    min(?SLICE, max(0, Deadline - erlang:monotonic_time(millisecond))).
+    min(?SLICE, max(0, Deadline - monotonic())).
 
 %% Appendix E.15: Clock.sleep, the one wait for a time alone (§6.3, §6.8):
 %% the receive the compiler emits for an `after` (ern_emitter's waiting/4)
@@ -3662,7 +3684,23 @@ arithmetic_cause([]) ->
 %% processes is full, `error:system_limit` (report §7.4, §12.5).
 -spec host_cause(error | exit | throw, term()) -> binary().
 host_cause(Class, Error) ->
-    format("~p:~p", [Class, Error]).
+    <<(atom_to_binary(Class))/binary, ":", (host_term(Error))/binary>>.
+
+%% Report §11.2, §7.4, §12.3, Appendix E.1: a term of the host's as a cause
+%% or an `Other(text)` holds it, the host's reason among them: as the host
+%% writes it, on one line, which a fault's line then escapes. Every cause
+%% and every `Other` that writes a host's term writes it here.
+-spec host_term(term()) -> binary().
+host_term(Term) ->
+    format("~0p", [Term]).
+
+%% Report §12.3: a term of the host's as host_term/1 writes it, the host
+%% bounding its length by Limit, which ends what it cuts with `...` and may
+%% pass the limit by a few characters, so that a large term is never
+%% written whole.
+-spec host_term(term(), pos_integer()) -> binary().
+host_term(Term, Limit) ->
+    unicode:characters_to_binary(io_lib:format("~0p", [Term], [{chars_limit, Limit}])).
 
 %% Report §7.4, §9.6: a fault with the cause given, every fault the
 %% runtime raises and the prelude's `fault` taken as a value, whose trace
@@ -3710,9 +3748,10 @@ failure_trace(Stack) ->
 
 %% Appendix E.21: a trace, the stack given, the innermost first, a frame a
 %% line, a run of identical lines one line, its innermost twelve lines,
-%% ending with the outermost frame of the program's code: the frames beneath
-%% it are left out, and a stack with no frame of the program's has an empty
-%% trace. A frame of Ernest code is
+%% and a thirteenth that counts the frames the cut leaves out, `... 6 more
+%% frames`, where it cuts any; the frames beneath the outermost frame of
+%% the program's code are left out and not counted, and a stack with no
+%% frame of the program's has an empty trace. A frame of Ernest code is
 %% written as a spawn site is (§6.9), by the name the unit's sites write
 %% its function by (ern_code:function_text/2) and its line,
 %% `Counter.worker:23`; a frame of the host's or the runtime's by the
@@ -3723,12 +3762,28 @@ failure_trace(Stack) ->
 traced(Stack) ->
     Program = lists:reverse(lists:dropwhile(fun(Entry) -> not is_program_frame(Entry) end,
                                             lists:reverse(Stack))),
-    Lines = runs_once([trace_line(Entry) || {_, _, _, _} = Entry <- Program]),
-    unicode:characters_to_binary([[Line, $\n] || Line <- lists:sublist(Lines, 12)]).
+    {Kept, Cut} = kept_lines(runs([trace_line(Entry) || {_, _, _, _} = Entry <- Program])),
+    unicode:characters_to_binary([[[Line, $\n] || {Line, _} <- Kept]
+                                  | more_frames(lists:sum([Count || {_, Count} <- Cut]))]).
 
-runs_once([Line, Line | Lines]) -> runs_once([Line | Lines]);
-runs_once([Line | Lines]) -> [Line | runs_once(Lines)];
-runs_once([]) -> [].
+%% The lines, each a run of identical lines as one, with the count of the
+%% frames it stands for.
+runs([Line | Lines]) -> runs(Lines, Line, 1);
+runs([]) -> [].
+
+runs([Line | Lines], Line, Count) -> runs(Lines, Line, Count + 1);
+runs([Next | Lines], Line, Count) -> [{Line, Count} | runs(Lines, Next, 1)];
+runs([], Line, Count) -> [{Line, Count}].
+
+%% A trace's twelve lines, and the runs the cut leaves out.
+kept_lines(Runs) when length(Runs) > 12 -> lists:split(12, Runs);
+kept_lines(Runs) -> {Runs, []}.
+
+%% Appendix E.21: the line that counts the frames a cut left out, and none
+%% where it left none.
+more_frames(0) -> [];
+more_frames(1) -> "... 1 more frame\n";
+more_frames(Count) -> ["... ", integer_to_list(Count), " more frames\n"].
 
 %% Whether a frame of the host's stack is of a unit of Ernest code.
 is_program_frame({ErlangModule, Function, _, _}) ->
@@ -4098,7 +4153,7 @@ bytes(_, {error, Error}) -> unreadable(Error);
 bytes(Reply, limited) -> refused_limited(Reply).
 
 unreadable(Error) ->
-    end_with_fault(<<(unreadable())/binary, (format("~p", [Error]))/binary>>).
+    end_with_fault(<<(unreadable())/binary, (host_term(Error))/binary>>).
 
 unreadable() ->
     <<"the standard input could not be read: ">>.
@@ -4458,6 +4513,9 @@ wait({time, At}, ReadTime) -> min(?SLICE, max(0, At - ReadTime())).
 %% they passed on to its screen (passed_on/2, §8.6). Report §12.1: the
 %% standard streams carry bytes for the run, whatever the host's locale.
 %%
+%% ended => fun((non_neg_integer()) -> any()), called once the program's end
+%% has ended its processes, with how many it ended (§8.6, §11.2).
+%%
 %% The option of the runtime's own lines: say => fun((iodata()) -> any()),
 %% which writes the runtime's own line on standard error and waits for no
 %% stream to take it, since the runner calls it while the end waits
@@ -4510,7 +4568,11 @@ run_main(EntryPoint, Site, Options) ->
             catch
                 Class:Error:Stack -> {raised, Class, Error, Stack}
             end,
-    outcome_flushed(Ended, end_program(Launch, Reaper, System, Encodings)).
+    {Gone, Living} = end_program(Launch, Reaper, System, Encodings),
+    %% report §11.2: how many processes the end ended, which `ern run
+    %% --verbose` says
+    (maps:get(ended, Options, fun(_) -> ok end))(Living),
+    outcome_flushed(Ended, Gone).
 
 %% Report §8.6: before the program ends, each subscriber of
 %% Os.subscribeTermination is told (Appendix E.23), and the end waits until
@@ -5015,7 +5077,7 @@ entry_end(EntryProcess, Launch) ->
                  {{'Fault', Cause}, {ern, fault, _, Trace}} -> {fault, Cause, Trace};
                  %% report §6.9: the host ended it, and no trace was kept
                  {{'Fault', Cause}, _} -> {fault, Cause, <<>>};
-                 {Other, _} -> {fault, format("~p", [Other]), <<>>}
+                 {Other, _} -> {fault, host_term(Other), <<>>}
              end, Site};
         {deadlock, Launch} ->
             found_fault(EntryProcess, <<"deadlock">>),
@@ -5252,7 +5314,7 @@ site() ->
 %%
 %% Once the bindings have their values the evaluator ends, unless it owns
 %% what a binding opened, a listener, a socket, a running program, a table
-%% or a proxy, which would end with it (Appendix E.18, E.23, G.1, G.7): it
+%% or a process started to end with it (Appendix D, E.18, E.21, E.23): it
 %% then lives on until each process it owns has ended, until the program's
 %% end where it owns a table, or until it is killed, as the entry process
 %% lives through a program (§8.5) (evaluated_lives/1).
@@ -5461,8 +5523,8 @@ waited_evaluation(Evaluator, Ref) ->
 %% Report Appendix E.28: whether the evaluator owns what a binding opened: a
 %% listener, a socket or a running program, each of which watches its owner
 %% from before its address is given out, and stops when it is given to
-%% another (Appendix E.18, E.23), a process it started to end with it, a
-%% proxy's (G.7), or a table it made that it still owns (G.1): what
+%% another (Appendix E.18, E.23), a process it started to end with it
+%% (E.21), or a table it made that it still owns (Appendix D): what
 %% `Process.owned` and `Ets.ownedCount` answer of it (owned/1,
 %% owned_tables/1), but a running program whose program has exited and a
 %% socket whose connection has closed, which are spent (spent/1). What
@@ -5531,9 +5593,11 @@ made_table(Table) ->
     owned_listed(?TABLES, Table, fun(Made) -> ets:info(Made, owner) =:= Self end),
     Table.
 
-%% Report Appendix G.7, E.21: Process, which the calling process started to
-%% end with it, a proxy's process (G.7), kept among such processes, so that
-%% `Process.owned` finds it (owned/1).
+%% Report Appendix E.21: Process, which the calling process started to end
+%% with it, kept among such processes, so that `Process.owned` finds it
+%% (owned/1). It is the function of the runtime's own by which a process is
+%% started to end with another, which the report does not state and the
+%% toolchain's libraries alone bind, a proxy's (G.7).
 -spec ends_with_caller(pid()) -> 'Unit'.
 ends_with_caller(Process) ->
     owned_listed(?ENDING, Process, fun erlang:is_process_alive/1),
@@ -5558,7 +5622,7 @@ owned_listed(Key, Item, Holds) ->
         end,
     ok.
 
-%% Report Appendix E.21, E.18, E.23, G.7: the processes that end with Pid:
+%% Report Appendix E.21, E.18, E.23: the processes that end with Pid:
 %% each listener, socket and running program it owns, which watches its
 %% owner from before its address is given out until it is given to another
 %% (opened/3), and each process it started to end with it
@@ -5828,7 +5892,7 @@ fresh_run(Begun) ->
     entered_foreign(),
     try
         captures_ended(Begun),
-        restart_taken([system_process(clock), system_process(terminal)] ++ gateway()),
+        restart_taken([system_process(clock), system_process(terminal)] ++ gateways()),
         restart_taken([launch_reaper()]),
         emptied()
     after
@@ -5915,11 +5979,12 @@ emptied() ->
     end.
 
 %% Report §8.7: a node's gateway, by the name it registers (ern_gateway),
-%% or none before it starts and in a program that is no node, the one
-%% place its process is found; a restart asks it too, so that every call's
-%% note that came before it is recorded when the restart reads them.
--spec gateway() -> [pid()].
-gateway() ->
+%% the one place its process is found, as a list of it alone, or of none
+%% before it starts and in a program that is no node; a restart asks it
+%% too, so that every call's note that came before it is recorded when the
+%% restart reads them.
+-spec gateways() -> [pid()].
+gateways() ->
     case erlang:whereis(ern_gateway) of
         undefined -> [];
         Gateway -> [Gateway]
@@ -5930,7 +5995,7 @@ gateway() ->
 within_limit(unlimited, _) ->
     {true, []};
 within_limit({Restarts, Within}, Times) ->
-    Now = erlang:monotonic_time(millisecond),
+    Now = monotonic(),
     Recent = [Time || Time <- Times, Now - Time < Within],
     case length(Recent) < Restarts of
         true -> {true, [Now | Recent]};
@@ -5964,13 +6029,16 @@ end_program(Launch, Reaper, System, Encodings) ->
     Ref = make_ref(),
     MonitorRef = erlang:monitor(process, Reaper),
     Reaper ! {end_program, erlang:self(), Ref},
-    receive
-        {Ref, ended} ->
-            ok;
-        {'DOWN', MonitorRef, process, _, _} ->
-            lists:foreach(fun(#process_row{pid = Pid}) -> exit(Pid, {ern, program_end}) end,
-                          live_rows())
-    end,
+    Living = receive
+                 {Ref, ended, Count} ->
+                     Count;
+                 {'DOWN', MonitorRef, process, _, _} ->
+                     Rows = live_rows(),
+                     lists:foreach(fun(#process_row{pid = Pid}) ->
+                                       exit(Pid, {ern, program_end})
+                                   end, Rows),
+                     length(Rows)
+             end,
     erlang:demonitor(MonitorRef, [flush]),
     wait_for_collectors(),
     Gone = [Name || Name <- [stdout, stderr],
@@ -6002,7 +6070,7 @@ end_program(Launch, Reaper, System, Encodings) ->
     %% is dead (adapted_way/2)
     lists:foreach(fun ets:delete/1, tables()),
     flush_launch(Launch),
-    Gone.
+    {Gone, Living}.
 
 %% Report Appendix E.24, §8.6: each collector that has not ended told that
 %% the run ends, and waited for. It writes back what it took, as at its
@@ -6060,8 +6128,7 @@ stdlib_module(File) ->
 %% the order of the list is kept where no dependency decides it. Report
 %% §8.5, §11.2: a fault while a binding is evaluated is reported under the
 %% binding's site, so the caller's own site is put back once the bindings
-%% have their values; the measuring machine's deadlock was once reported
-%% under the last library binding's, a Test.Case that waits on nothing.
+%% have their values (the log's *Three Test Defects Found on the Way*).
 -spec init_modules([module()]) -> ok.
 init_modules(ErlangModules) ->
     {Order, _} = lists:foldl(fun(ErlangModule, Acc) ->
@@ -6227,8 +6294,6 @@ asked_of_run(Question) ->
                     none
             end
     end.
-
-answer_of_run({offered, Name, Hash}) -> offered(Name, Hash).
 
 %% Report Appendix E.27: a process's offers end with it.
 unoffered(Pid) ->

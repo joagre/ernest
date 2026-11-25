@@ -608,7 +608,8 @@ export fn main() : Unit receiving Down =
                  string:split(unicode:characters_to_list(Output), "\n", all)),
     {ok, Said} = file:read_file(Dir ++ "/stderr.txt"),
     ?assertMatch({match, _},
-                 re:run(Said, "\\A[0-9T:.-]+Z Limit\\.knocked:[0-9]+ faulted: division by zero\n"
+                 re:run(Said, "\\A[0-9T:.-]+Z the process of Limit\\.knocked:[0-9]+ faulted:"
+                              " division by zero\n"
                               "    erlang:'div'/2\n    Limit\\.knocked:[0-9]+\n\\z")).
 
 %% report Appendix E.18, §12: at the operating system's limit of open files,
@@ -1779,9 +1780,10 @@ closed_stream() ->
     ?assertEqual({0, <<>>}, sh(Ern ++ " --version >/dev/null")).
 
 %% report §11, §11.2: what the host logs as a warning is written on the
-%% job's standard error as the host formats it, as UTF-8, and nothing of it
-%% on standard output; and what it logged before the job's end is written
-%% before the job ends: a program whose last act has the host log a
+%% job's standard error as the host formats it, as UTF-8, the time first
+%% where the job's lines are stamped, as they are on a file, and nothing of
+%% it on standard output; and what it logged before the job's end is
+%% written before the job ends: a program whose last act has the host log a
 %% warning, its text beyond Latin-1.
 %%
 %% Written before the code, under which the warning stood on standard
@@ -1804,7 +1806,8 @@ host_warning() ->
     {0, Output} = sh("sh -c '../bin/ern run " ++ Dir ++ "/warned.erc 2> " ++ Dir ++ "/err'"),
     ?assertEqual(<<"written\n">>, Output),
     {ok, Said} = file:read_file(Dir ++ "/err"),
-    ?assertMatch(<<"=WARNING REPORT==== ", _/binary>>, Said),
+    ?assertMatch({match, _}, re:run(Said, "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}Z "
+                                    "=WARNING REPORT==== ")),
     ?assertEqual({match, [<<"a warning, café ☃"/utf8>>]},
                  re:run(Said, "^a warning.*$", [multiline, {capture, first, binary}])).
 
@@ -1814,6 +1817,9 @@ host_warning() ->
 %% warnings after it are written; a warning logged under a domain of its
 %% own is written; and a report that names no function to format it is
 %% formatted as the host formats its own, a line for each of its pairs.
+%% Report §11: no blank line follows a report whose message ends a line,
+%% as the emulator's of a process ended by a raise does; each begins with
+%% the time, the job's lines stamped on a file (§11.2).
 %%
 %% A regression test: the first warning raised in the job's handler, which
 %% the host removed for the rest of the job, writing its notice on standard
@@ -1846,7 +1852,8 @@ host_formatting() ->
                          "    warnIn(\"a warning of a domain of its own\", [], domain);\n"
                          "    let label = Foreign.term(#(mylib, Foreign.atom(\"event\")));\n"
                          "    let pairs = Foreign.term([#(Foreign.atom(\"a\"), 1)]);\n"
-                         "    report(mapOf([named(\"label\", label), named(\"report\", pairs)]))\n"
+                         "    report(mapOf([named(\"label\", label), named(\"report\", pairs)]));\n"
+                         "    warnOf(\"a line ended~n\", [])\n"
                          "}\n"
                          "fn named(name : String, value : Foreign.Term) : "
                          "#(Foreign.Term, Foreign.Term) =\n"
@@ -1855,11 +1862,14 @@ host_formatting() ->
     ?assertEqual({0, <<>>},
                  sh("sh -c '../bin/ern run " ++ Dir ++ "/formatted.erc 2> " ++ Dir ++ "/err'")),
     {ok, Said} = file:read_file(Dir ++ "/err"),
-    ?assertEqual(<<"FORMATTER ERROR: bad return value\n"
-                   "=WARNING REPORT====\na warning after it\n"
-                   "=WARNING REPORT====\na warning of a domain of its own\n"
-                   "=WARNING REPORT====\n    a: 1\n">>,
-                 re:replace(Said, "^(=WARNING REPORT====) .* ===$", "\\1",
+    ?assertEqual(<<"Z FORMATTER ERROR: bad return value\n"
+                   "Z =WARNING REPORT====\na warning after it\n"
+                   "Z =WARNING REPORT====\na warning of a domain of its own\n"
+                   "Z =WARNING REPORT====\n    a: 1\n"
+                   "Z =WARNING REPORT====\na line ended\n">>,
+                 re:replace(re:replace(Said, "^\\d{4}-\\d\\d-\\d\\dT[0-9:.]{12}Z", "Z",
+                                       [multiline, global, {return, binary}]),
+                            "^(Z =WARNING REPORT====) .* ===$", "\\1",
                             [multiline, global, {return, binary}])).
 
 %% report §11.2: a fault line writes a control character of the cause as
@@ -2095,7 +2105,7 @@ fault_before_its_end() ->
       fun(_) ->
           {0, Output} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc"),
           ?assertEqual([<<"the end waits for 1 subscriber: Faulty.main:14">>,
-                        <<"Faulty.main:14 faulted: division by zero">>,
+                        <<"the process of Faulty.main:14 faulted: division by zero">>,
                         <<"the subscriber Faulty.main:14 ended without answering">>],
                        untraced(unstamped_lines(Output)))
       end, lists:seq(1, 5)).
@@ -2162,7 +2172,7 @@ restarted_subscriber() ->
     {ok, Said} = file:read_file(ErrorFile),
     [Waits, Faulted, Restarted, Too | Answers] = untraced(unstamped_lines(Said)),
     ?assertEqual({<<"the end waits for 2 subscribers: Restarted.main:27, Restarted.main:29">>,
-                  <<"Restarted.main:29 faulted, restarted: division by zero">>,
+                  <<"the process of Restarted.main:29 faulted, restarted: division by zero">>,
                   <<"the subscriber Restarted.main:29 restarted without answering">>,
                   <<"the end waits for Restarted.main:29 too">>},
                  {Waits, Faulted, Restarted, Too}),
@@ -2189,7 +2199,7 @@ fault_while_the_end_waits() ->
                  sh("../bin/ern run " ++ Dir ++ "/waited.erc return 2> " ++ ErrorFile)),
     {ok, Said} = file:read_file(ErrorFile),
     ?assertEqual([<<"the end waits for 1 subscriber: Waited.started:16">>,
-                  <<"Waited.started:15 faulted: division by zero">>,
+                  <<"the process of Waited.started:15 faulted: division by zero">>,
                   <<"the subscriber Waited.started:16 answered">>],
                  untraced(unstamped_lines(Said))).
 
@@ -2224,7 +2234,7 @@ fault_while_a_termination_waits() ->
     ?assertEqual({0, <<"running\nFault(\"division by zero\")\n-15\n">>},
                  scripted("python3 " ++ Dir ++ "/terminated.py", 2)),
     {ok, Said} = file:read_file(ErrorFile),
-    Faulted = <<"Waited.started:15 faulted: division by zero">>,
+    Faulted = <<"the process of Waited.started:15 faulted: division by zero">>,
     KeeperAnswered = <<"the subscriber Waited.started:16 answered">>,
     [Waits | Lines] = untraced(unstamped_lines(Said)),
     ?assertEqual(<<"the end waits for 2 subscribers: Waited.main, Waited.started:16">>, Waits),
@@ -2457,7 +2467,8 @@ private_mailbox_exposed_test_() ->
 private_mailbox_exposed() ->
     {0, Output} = private_mailbox_printed("exposed"),
     ?assertEqual(lists:sort([<<"added 5">>,
-                             <<"Exposed.main:12 faulted: message does not match Plain.Msg">>,
+                             <<"the process of Exposed.main:12 faulted:"
+                               " message does not match Plain.Msg">>,
                              <<"Fault(\"message does not match Plain.Msg\")">>]),
                  untraced(unstamped(lines(Output)))).
 

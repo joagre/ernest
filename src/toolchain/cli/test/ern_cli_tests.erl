@@ -2831,7 +2831,7 @@ deadlock_line_on_a_test_test() ->
                                "^stuck: faulted: deadlock\n    Asks\\.[^\n]*\n(.*)$",
                                [dotall, {capture, [1], binary}]),
     ?assertEqual(<<"    1 process of Asks.stuck:8 waits in Asks.client:3 on stuck\n">>, Listed),
-    Client = <<"Asks.stuck:8 faulted: deadlock, the fault of the callee stuck\n"
+    Client = <<"the process of Asks.stuck:8 faulted: deadlock, the fault of the callee stuck\n"
                "    Asks.client:3\n">>,
     ?assertMatch(Said when Said =:= <<>>; Said =:= Client,
                  unicode:characters_to_binary(Errors)).
@@ -3145,7 +3145,7 @@ test_fault_fails_the_run_test() ->
     ?assertEqual(1, Status),
     ?assertEqual(<<"asks: passed\nbooms: passed\n">>, iolist_to_binary(?capturedOutput)),
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(Errors),
-                                      <<"Svc.house:8 faulted, restarted: boom">>)),
+                                      <<"the process of Svc.house:8 faulted, restarted: boom">>)),
     Expected = write(Dir, "expected.ern",
                      "type Msg = Ended(Down)\n"
                      "let expected = Test.Case(name = \"expected\", run = fn() =\n"
@@ -4265,8 +4265,11 @@ test_faults_test() ->
                    "killed: failed: expected the fault division by zero, got Killed\n"
                    "worker: passed\n">>,
                  iolist_to_binary(?capturedOutput)),
-    ?assertEqual(<<"Faults.worker:11 faulted: division by zero\n">>, untraced(Errors)),
-    ?assertMatch([<<"Faults.worker:11 faulted: division by zero">>, <<"    ", _/binary>> | _],
+    %% report §11.2: a spawned process's line names it the process of its site
+    ?assertEqual(<<"the process of Faults.worker:11 faulted: division by zero\n">>,
+                 untraced(Errors)),
+    ?assertMatch([<<"the process of Faults.worker:11 faulted: division by zero">>,
+                  <<"    ", _/binary>> | _],
                  binary:split(unicode:characters_to_binary(Errors), <<"\n">>, [global])),
     ?assertEqual(nomatch, binary:match(unicode:characters_to_binary(Errors), <<"Test.faults">>)).
 
@@ -5679,15 +5682,15 @@ callee_fault_line_test() ->
                  "export fn main() : Unit = Io.println(Int.toString(ask()))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     {Run, 1} = standard_error_of(["run", filename:join(Dir, "calls.erc")]),
-    ?assertEqual(<<"Calls.ask:4 faulted: division by zero\n"
+    ?assertEqual(<<"the process of Calls.ask:4 faulted: division by zero\n"
                    "Calls.main faulted: division by zero, the fault of the callee Calls.ask:4\n">>,
                  untraced(Run)),
     {Tests, 1} = standard_error_of(["test", filename:join(Dir, "calls.erc")]),
     ?assertEqual(<<"asks: passed\n"
                    "calls: faulted: division by zero, the fault of the callee Calls.ask:4\n">>,
                  untraced(?capturedOutput)),
-    ?assertEqual(<<"Calls.ask:4 faulted: division by zero\n"
-                   "Calls.ask:4 faulted: division by zero\n">>,
+    ?assertEqual(<<"the process of Calls.ask:4 faulted: division by zero\n"
+                   "the process of Calls.ask:4 faulted: division by zero\n">>,
                  untraced(Tests)).
 
 %% What was written, without the trace beneath each fault's line, its
@@ -5719,8 +5722,10 @@ worker_faults_test() ->
     ?assertEqual(0, ern_err(["run", filename:join(Dir, "workers.erc")])),
     %% standard error's lines and standard output's are two processes'
     %% writes, which nothing orders between them
-    ?assertEqual(lists:sort([<<"Workers.main:4 faulted, restarted: division by zero">>,
-                             <<"Workers.main:4 faulted: division by zero">>, <<"done">>]),
+    ?assertEqual(lists:sort([<<"the process of Workers.main:4 faulted, restarted:"
+                               " division by zero">>,
+                             <<"the process of Workers.main:4 faulted: division by zero">>,
+                             <<"done">>]),
                  lists:sort(binary:split(untraced(?capturedOutput), <<"\n">>,
                                          [global, trim]))).
 
@@ -5778,7 +5783,7 @@ foreign_return_cause_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "abs.erc")])),
     ?assertMatch([<<"Abs.main faulted: the return of foreign function erlang:abs/1 does not match"
-                    " String">>,
+                    " String: is 3">>,
                   <<"    Abs.main:2">>],
                  binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global, trim])).
 
@@ -6980,7 +6985,8 @@ verbose_run_test() ->
                                      "src"])),
         ?assertEqual({lines(["read Main from build/main.erc",
                              "read Net.Http from build/net/http.erc",
-                             "read Store from lib/store.erc"]), 0},
+                             "read Store from lib/store.erc",
+                             "the end ended 0 processes"]), 0},
                      standard_error_of(["run", "--verbose", "--load-path", "lib",
                                         "build/main.erc"])),
         ?assertEqual({lines(["read Checked from build/checked.erc",
@@ -7002,6 +7008,32 @@ verbose_run_test() ->
     ?assertMatch(<<"/33\ncounted: passed\nChecked\ncounted: passed\nBool example 1: passed\n",
                    _/binary>>,
                  iolist_to_binary(?capturedOutput)).
+
+%% report §11.2, §8.6: under --verbose alone, `ern run` says how many
+%% processes the program's end ended once it has ended them, a process
+%% written singular, and nothing of them without it
+end_ended_test() ->
+    Dir = tmp(),
+    Source = write(Dir, "ended.ern",
+                   "export fn main() : Unit = {\n"
+                   "    let _ = spawn(fn() = waits());\n"
+                   "    let _ = spawn(fn() = waits());\n"
+                   "    let _ = spawn(fn() = waits());\n"
+                   "    Io.println(\"three\")\n"
+                   "}\n"
+                   "export fn one() : Unit = {\n"
+                   "    let _ = spawn(fn() = waits());\n"
+                   "    Io.println(\"one\")\n"
+                   "}\n"
+                   "fn waits() : Unit receiving Int = receive { _ -> Unit }\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, Source])),
+    Compiled = filename:join(Dir, "ended.erc"),
+    Read = "read Ended from " ++ Compiled,
+    ?assertEqual({lines([Read, "the end ended 3 processes"]), 0},
+                 standard_error_of(["run", "--verbose", Compiled])),
+    ?assertEqual({lines([Read, "the end ended 1 process"]), 0},
+                 standard_error_of(["run", "--verbose", "--main", "Ended.one", Compiled])),
+    ?assertEqual({"", 0}, standard_error_of(["run", Compiled])).
 
 %% report §11.2: --main picks another exported entry point of the module
 %% given, and one of another module is refused with both; one that takes

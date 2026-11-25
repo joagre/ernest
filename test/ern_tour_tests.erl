@@ -101,9 +101,11 @@ told_boundary(Base) ->
                        [{"foreign fn systemInfo(item : Foreign.Term) : String ="
                          " \"erlang:system_info/1\"",
                          ["systemInfo : (Foreign.Term) -> String"]}]),
+    %% report §12.3: the cause names the host's term, the count of the
+    %% node's schedulers
     quit(faulted(Declared, "systemInfo(Foreign.atom(\"schedulers\"))",
-                 "fault: the return of foreign function erlang:system_info/1 does not match"
-                 " String")).
+                 "^fault: the return of foreign function erlang:system_info/1 does not match"
+                 " String: is [0-9]+$")).
 
 %%
 %% The README's transcript
@@ -395,7 +397,7 @@ fault(#tour{shell = Shell} = Tour) ->
          {"let counter = spawn(fn() = Counter.count(0))",
           ["counter : Address(Counter.CounterMsg)"]},
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["$Session1.input 11:1 faulted: a negative amount", Trace]]},
+          [["the process of $Session1.input 11:1 faulted: a negative amount", Trace]]},
          {"Counter.apply(counter, \"get\")", ["\"no answer\" : String"]},
          {"let counter = spawn(restarting(RestartLimit(restarts = 1, within = 3600000),"
           " fn() = Counter.count(0)))",
@@ -404,10 +406,10 @@ fault(#tour{shell = Shell} = Tour) ->
           ["watcher : Address(Counter.WatchMsg)"]},
          {"Counter.apply(counter, \"inc 2\")", [?SENT]},
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["$Session1.input 14:1 faulted, restarted: a negative amount", Trace]]},
+          [["the process of $Session1.input 14:1 faulted, restarted: a negative amount", Trace]]},
          {"Counter.apply(counter, \"get\")", ["\"0\" : String"]},
          {"Counter.apply(counter, \"inc -1\")", [?SENT],
-          [["$Session1.input 14:1 faulted: a negative amount", Trace],
+          [["the process of $Session1.input 14:1 faulted: a negative amount", Trace],
            ["the counter ended: Fault(\"a negative amount\")"]]}])}.
 
 %% Chapter 5: `ern build .` compiles both modules and says nothing, and
@@ -666,13 +668,14 @@ typed({Input, Shown, Unordered},
 
 %% Report §11.2: an input that faults, typed once the input before it has
 %% printed all it prints, and held, once the prompt after it has come, to
-%% its fault's line, Line, and beneath it frames of its trace, each a line
-%% indented by four spaces, which this does not read.
+%% its fault's line, which the regular expression Line matches, and beneath
+%% it frames of its trace, each a line indented by four spaces, which this
+%% does not read.
 faulted(#shell{dir = Dir, port = Port, read = Read, carried = []} = Shell, Input, Line) ->
     true = port_command(Port, [Input, "\n"]),
     ern_nodes_tests:prints(Dir, "> ", count(Read, "> ") + 1, ern_nodes_tests:wait_ms()),
     {[Fault | Frames], Text} = since(Shell, 1),
-    ?assertEqual(unicode:characters_to_binary(Line), Fault),
+    ?assertMatch({match, _}, re:run(Fault, Line, [unicode])),
     ?assertEqual([], [Frame || Frame <- Frames, string:prefix(Frame, "    ") =:= nomatch]),
     Shell#shell{read = Text}.
 

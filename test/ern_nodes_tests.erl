@@ -1705,7 +1705,7 @@ export fn main() : Unit receiving Down = {
     {Out, Err} = said(Node),
     ?assertEqual(["reader: Fault(\"error:system_limit\")", "read: Some(\"first\")", ""],
                  string:split(Out, "\n", all)),
-    has(Err, "Input.main:22 faulted: error:system_limit").
+    has(Err, "the process of Input.main:22 faulted: error:system_limit").
 
 %% report §7.4, §12.5, §7.3: at a full table of processes, which a node's
 %% `limits` makes small, the process that took a request lives on: the
@@ -1889,7 +1889,7 @@ export fn main() : Unit = {
     ?assertEqual(nomatch, string:find(Err, "Too many processes")),
     ?assertEqual({1, ["Ending.main faulted: error:system_limit",
                       "the end waits for 1 subscriber: Ending.main:19",
-                      "Ending.main:19 faulted: error:system_limit",
+                      "the process of Ending.main:19 faulted: error:system_limit",
                       "the subscriber Ending.main:19 ended without answering"]},
                  lines_said(finished([?ERN, " run --config-dir ", Node, " ",
                                       filename:join([Base, "build", "ending.erc"]), " 2>&1"]))),
@@ -3258,12 +3258,13 @@ peer_fault(Base) ->
     prints(B, "waiting"),
     WaitA = start(A, Program, ["fault", "b"]),
     prints(A, "faulting there: true"),
-    says(B, "Squares.main:20 faulted: division by zero, spawned by the peer a"),
-    says(B, "Squares.spawning:46 faulted: division by zero\n"),
+    says(B, "the process of Squares.main:20 faulted: division by zero, spawned by the peer a"),
+    says(B, "the process of Squares.spawning:46 faulted: division by zero\n"),
     stop(A, WaitA),
     stop(B, WaitB),
     {_, ErrB} = said(B),
-    has(ErrB, "Squares.main:20 faulted, restarted: division by zero, spawned by the peer a\n"),
+    has(ErrB, "the process of Squares.main:20 faulted, restarted: division by zero,"
+              " spawned by the peer a\n"),
     ?assertEqual(nomatch, string:find(ErrB, "Squares.spawning:46 faulted: division by zero,")),
     %% the line as the deployment guide quotes it
     ern_deployment_tests:cataloged(ErrB, "7", "spawned by the peer",
@@ -3439,13 +3440,14 @@ compute_on_peer(Base) ->
                  "killed: Left(Io.Other(\"Killed\"))", "its caller killed from the store: Killed",
                  "timed out: Left(Io.Timeout)",
                  "with the store's end: Left(Io.Other(\"ProgramEnd\"))"]],
-    Divided = Faulted ++ " faulted: division by zero, on the peer store\n",
+    Divided = "the process of " ++ Faulted ++ " faulted: division by zero, on the peer store\n",
     ?assertEqual(1, length(string:split(Err, Divided, all)) - 1),
     %% the function's frame on the store, then the caller's, which stand at
     %% one line here
     Division = desk_site("computes", "fn() = 1 / List.size([])"),
     has(Err, Divided ++ "    erlang:'div'/2\n    " ++ Division ++ "\n    " ++ Division ++ "\n"),
-    has(Err, Faulted ++ " faulted:" ++ Raised ++ "\n    erlang:binary_to_integer/1\n"),
+    has(Err, "the process of " ++ Faulted ++ " faulted:" ++ Raised
+             ++ "\n    erlang:binary_to_integer/1\n"),
     Computed = desk_site("computes", "compute(\"store\", Lonely.speak"),
     has(StoreErr, "the peer desk's compute at " ++ Computed ++ " was not loaded: the binding"
                   " Lonely.greeting has no value here"),
@@ -3881,7 +3883,8 @@ given_back_from_another_node(Base) ->
      || Line <- ["in turn through both, in order: true", "q through the address given back: true",
                  "the address given back through q: true", "answered through it: Some(true)",
                  "given again, the same process: true",
-                 "a term of no type through it: Fault(\"message does not match RecorderMsg\")"]].
+                 "a term of no type through it:"
+                 " Fault(\"message does not match Desk.RecorderMsg\")"]].
 
 %% report §6.5, §8.7: the function of an adapted address made on the store,
 %% sent to from the desk, runs on the store in the process the store keeps
@@ -5241,7 +5244,7 @@ exchanged(Base) ->
 %% A foreign function spawned or computed by its name crosses as its
 %% declaration and runs through the check at its declared type, which a
 %% host function that answers another type fails, its cause naming the type
-%% as the sender's module writes it, `Count` and not `Lacked.Count`, while
+%% whole from the root, `Lacked.Count`, and what the host returned, while
 %% one whose module the receiver lacks, or whose function its module lacks,
 %% is NotLoaded. A function whose reach names a binding the receiver never
 %% ran, or a foreign declaration whose module it lacks, answers NotLoaded
@@ -5280,16 +5283,16 @@ exchange(Base) ->
              "the peer sender's spawn at Sender.main:15 was not loaded: the module"
              " ern_sender_host, which Lacked.only calls, is not here",
              Served,
-             "Sender.received:26 faulted: foreign function erlang:binary_to_integer/1 raised"
-             " error:badarg, spawned by the peer sender",
+             "the process of Sender.received:26 faulted: foreign function"
+             " erlang:binary_to_integer/1 raised error:badarg, spawned by the peer sender",
              "\n    Lacked.raises:19\n",
-             "Lacked.spawner:22 faulted: the child",
-             "Sender.received:29 faulted: the return of foreign function erlang:yield/0 does not"
-             " match Unit, spawned by the peer sender",
+             "the process of Lacked.spawner:22 faulted: the child",
+             "the process of Sender.received:29 faulted: the return of foreign function"
+             " erlang:yield/0 does not match Unit: is true, spawned by the peer sender",
              "the peer sender's spawn at Sender.received:33 was not loaded: the module"
              " ern_sender_host, which Lacked.only calls, is not here",
-             "Sender.received:35 faulted: the return of foreign function erlang:yield/0 does not"
-             " match Count, spawned by the peer sender",
+             "the process of Sender.received:35 faulted: the return of foreign function"
+             " erlang:yield/0 does not match Lacked.Count: is true, spawned by the peer sender",
              "the peer sender's spawn at Sender.received:36 was not loaded: the module lists,"
              " which Lacked.absent calls, has no function ern_absent_function/0 here"],
     [says(Receiver, Line) || Line <- Lines],
@@ -5312,7 +5315,6 @@ exchange(Base) ->
     has(ReceiverOut, "Count(1)"),
     ?assertEqual(1, length(string:split(ReceiverErr, Served, all)) - 1),
     ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.spawner:22 faulted: the child,")),
-    ?assertEqual(nomatch, string:find(ReceiverErr, "Lacked.Count")),
     ?assertEqual(nomatch, string:find(Out, "never run on the receiver")),
     %% the lines as the deployment guide quotes them, in its catalog and
     %% beside a spawn's
@@ -5535,13 +5537,14 @@ bare_node(Base) ->
     {_, WaitA} = launched(A, [Placing, " ", integer_to_list(Interval)]),
     ?assertEqual(0, WaitA()),
     Site = fun(Part) -> "Bare.placed:" ++ integer_to_list(line_of(Source, Part)) end,
+    Process = fun(Part) -> "the process of " ++ Site(Part) end,
     Raised = " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg, spawned"
              " by the peer a\n",
     [says(B, Line)
      || Line <- ["the peer a's spawn at " ++ Site("Shared.greet") ++ " was not loaded: the"
                  " binding Shared.greeting has no value here",
-                 Site("\"divides: \"") ++ " faulted: division by zero, spawned by the peer a\n",
-                 Site("\"raises: \"") ++ Raised, Site("\"raises again: \"") ++ Raised]],
+                 Process("\"divides: \"") ++ " faulted: division by zero, spawned by the peer a\n",
+                 Process("\"raises: \"") ++ Raised, Process("\"raises again: \"") ++ Raised]],
     [prints(B, Line) || Line <- ["counted 1", "counted 7", "bye"]],
     ?assertMatch({0, _}, signaled("stop", B)),
     ?assertEqual(143, WaitB()),
@@ -6654,7 +6657,7 @@ attached_sessions(Base) ->
     %% process its ninth spawned
     true = port_command(First, ["let w : Address(Int) = spawn(fn() = receive { n -> ",
                                 "Io.println(Int.toString(10 / n)) })\n", "send(w, 0)\n"]),
-    Faulted = "$Session1.input 9:1 faulted: division by zero\n",
+    Faulted = "the process of $Session1.input 9:1 faulted: division by zero\n",
     [fault_line(Input, Ops, Faulted) || {Input, Ops} <- [{First, One}, {Second, Two}]],
     says(Node, Faulted),
     %% report Appendix E.21: no session's own process is live at a prompt
@@ -6898,7 +6901,7 @@ attached_functions(Base) ->
     stop(Peer, WaitPeer),
     {NodeOut, NodeErr} = said(Node),
     ?assertEqual("ready\nserving squares\n", NodeOut),
-    has(NodeErr, "$Session1.input 7:1 faulted, restarted: asked to crash"),
+    has(NodeErr, "the process of $Session1.input 7:1 faulted, restarted: asked to crash"),
     ?assertEqual(nomatch, string:find(NodeErr, "undef")),
     %% report §11.2: the first session's units, before its detach and after
     Before = session_units(Out),
@@ -7410,7 +7413,7 @@ attached_terminal(Base) ->
                                       {send, hex("2\r")}, {expect, "3 : Int"},
                                       {send, hex(":quit\r")}],
                               [screen]),
-    Fault = "Faulter.main:5 faulted: division by zero",
+    Fault = "the process of Faulter.main:5 faulted: division by zero",
     says(Node, Fault),
     Rows = [string:trim(Row, trailing)
             || Row <- string:split(binary_to_list(Screen), "\n", all)],
@@ -7613,7 +7616,13 @@ verbose_node_start(Base) ->
                 ["read Main from ", Main, "\nread Store from ", Root, "/store.erc\n"
                  "read Shelf.Box from ", Root, "/shelf/box.erc\n"]),
     Size = byte_size(Program),
-    <<Program:Size/binary, Libraries/binary>> = Said,
+    <<Program:Size/binary, Read/binary>> = Said,
+    %% report §11.2: once the end has ended the program's processes, how
+    %% many, none here
+    Ended = <<"the end ended 0 processes\n">>,
+    EndedSize = byte_size(Ended),
+    LibrariesSize = byte_size(Read) - EndedSize,
+    <<Libraries:LibrariesSize/binary, Ended:EndedSize/binary>> = Read,
     %% Every library's compiled module is read, each once; a library a
     %% module needs, Time under Http, is read as it is needed, so the lines'
     %% order is the need's and not the directories', and the sets are held.
@@ -8102,14 +8111,14 @@ broken_exchange(Base) ->
                                                  = Definition <- Definitions, Named =:= Name])
               end,
     #definition{hash = Waits} = Defined(waits),
-    #definition{qualified_name = OtherName, hash = Other, form = Form, sourced = Sourced,
-                printing = Printing} = Defined(other),
+    #definition{qualified_name = OtherName, hash = Other, form = Form, sourced = Sourced} =
+        Defined(other),
     Frame = filename:join(Base, "frame"),
     ok = file:write_file(Frame, term_to_binary(
                                   {Other, ern_canonical:bytes(ern_canonical:hashed([Form])),
                                    term_to_binary([{[atom_to_binary(Segment)
                                                      || Segment <- OtherName],
-                                                    Sourced, Printing, []}])})),
+                                                    Sourced, []}])})),
     A = made(Base, "a", none),
     Z = made(Base, "z", none),
     B = made(Base, "b", 0),
@@ -8132,8 +8141,8 @@ broken_exchange(Base) ->
     true = port_command(InputA, "dropped\n"),
     ?assertEqual(0, WaitA()),
     Site = "Lost.late:" ++ integer_to_list(line_of(Source, "let again")),
-    says(B, Site ++ " faulted: foreign function erlang:binary_to_integer/1 raised error:badarg,"
-                    " spawned by the peer a"),
+    says(B, "the process of " ++ Site ++ " faulted: foreign function"
+            " erlang:binary_to_integer/1 raised error:badarg, spawned by the peer a"),
     stop(B, WaitB),
     {Out, _} = said(A),
     {_, ErrB} = said(B),
@@ -8286,9 +8295,10 @@ shell_binding_spawned(Base) ->
 %% at their type.
 %%
 %% A type the desk declares crosses with a function spawned on the worker,
-%% whose check's cause names it as the session writes it, bare (§11.5), and
-%% the fault's site carries the desk's session, its key left out. A
-%% regression test, written after the code
+%% whose check's cause names it whole from the root, as its trace names the
+%% desk's function (§12.3), and the fault's site and the type's name carry
+%% the desk's session, its key left out. A regression test, written after
+%% the code
 shell_compute_test_() ->
     nodes_test({waits, 9}, fun shell_compute/1).
 
@@ -8323,15 +8333,15 @@ shell_compute(Base) ->
     prints(Desk, ?SPAWNED),
     prints(Worker, "counting"),
     fault_line(InputWorker, Worker,
-               "$Session1.input 9:1 faulted: the return of foreign function erlang:yield/0"
-               " does not match Count, spawned by the peer desk"),
+               "the process of $Session1.input 9:1 faulted: the return of foreign function"
+               " erlang:yield/0 does not match $Session1.Count: is true, spawned by the peer"
+               " desk\n    $Session1.counts:3\n"),
     true = port_command(InputDesk, ":quit\n"),
     ?assertEqual(0, WaitDesk()),
     true = port_command(InputWorker, ":quit\n"),
     ?assertEqual(0, WaitWorker()),
     {OutWorker, _} = said(Worker),
     ?assertEqual(nomatch, string:find(OutWorker, "was not loaded")),
-    ?assertEqual(nomatch, string:find(OutWorker, "$Session1.Count")),
     ?assertEqual(nomatch, string:find(OutWorker, "$Session1@")).
 
 %% report §11.2, §6.5, §8.7: an input that builds a function value keeps its
@@ -8925,7 +8935,8 @@ capture_gone(Base) ->
     %% frame in the trace
     [Target, Function] = ["Capture.holdingAlone:" ++ integer_to_list(line_of(Source, Part))
                           || Part <- ["spawn(fn() = seeing())", "answer(reply, adapted("]],
-    says(Maker, Target ++ " faulted: foreign function atomics:get/2 raised error:badarg"),
+    says(Maker, "the process of " ++ Target ++ " faulted: foreign function atomics:get/2 raised"
+                " error:badarg"),
     true = port_command(SenderInput, "shared\n"),
     prints(Maker, "the shared target saw 47 beside 42"),
     ?assertEqual(0, WaitSender()),
@@ -9492,8 +9503,8 @@ pair_program(Base) ->
                                 " type: passed"),
     has(binary_to_list(Output), "a proxy for a service offered at another type faults, and is"
                                 " dead: passed"),
-    ?assertMatch({match, _}, re:run(Output, "Proxy\\.start:[0-9]+ faulted: the service pair is"
-                                            " offered at another type")),
+    ?assertMatch({match, _}, re:run(Output, "the process of Proxy\\.start:[0-9]+ faulted: the"
+                                            " service pair is offered at another type")),
     ?assertNot(filelib:is_regular(filename:join(B, "ernest.pid"))).
 
 %% Report §8.7: a second build of test/fixtures/peers/pair.ern, its `Msg` given

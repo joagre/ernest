@@ -80,7 +80,7 @@ ended([{_, Pid} | Held], Next, Last) ->
 %% A regression test, written after the code. It does not cover a generator
 %% that raises.
 limits_end_their_own_tests_test() ->
-    Module = loaded(ern_eunit_limits, [
+    Module = ern_helpers:loaded(ern_eunit_limits, [
         %% each waits for a message no one sends, which its limit ends
         "passes_its_limit_test_() -> {timeout, 0.1, fun() -> receive never -> ok end end}.",
         "generator_test_() -> [fun() -> ok end,"
@@ -90,7 +90,7 @@ limits_end_their_own_tests_test() ->
         ?assertEqual({error, [{pass, 3}, {fail, 0}, {skip, 0}, {cancel, 2}]},
                      answered(ran(ern_eunit:side_by_side(1, ern_eunit:alone([Module])))))
     after
-        unloaded(Module)
+        ern_helpers:unloaded(Module)
     end.
 
 %% docs/architecture.md, *Alone*: a failing test fails the run, which counts
@@ -121,27 +121,6 @@ answered(Ref) ->
                 {Ref, counts, {ok, Counts}} -> {Answer, Counts}
             end
     end.
-
-%% Module compiled from Forms, each a form's text, every function of no
-%% argument exported, and loaded; it is purged once the test ends, since
-%% the hunt runs the test again in the same host.
-loaded(Module, Forms) ->
-    Texts = [lists:flatten(io_lib:format("-module(~w).", [Module])),
-             "-compile([export_all, nowarn_export_all])." | Forms],
-    {ok, Module, Binary} = compile:forms([form(Text) || Text <- Texts]),
-    {module, Module} = code:load_binary(Module, atom_to_list(Module) ++ ".erl", Binary),
-    Module.
-
-form(Text) ->
-    {ok, Tokens, _} = erl_scan:string(Text),
-    {ok, Form} = erl_parse:parse_form(Tokens),
-    Form.
-
-unloaded(Module) ->
-    _ = code:purge(Module),
-    true = code:delete(Module),
-    _ = code:purge(Module),
-    ok.
 
 %% The listener ran/1 gives EUnit: as the run ends it sends the test that
 %% ran it the run's counts, its passes, failures, skips and cancels.

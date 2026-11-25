@@ -248,12 +248,12 @@ program() ->
                      {send, hex(":browse Counter\r")},
                      {expect, "Counter.start() : Address(Counter.Msg)"},
                      {send, hex("spawn(fn() = Counter.boom())\r")},
-                     {expect, "$Session1.input 5:1 faulted: division by zero"},
+                     {expect, "the process of $Session1.input 5:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
                      {expect, "Counter.start:11"},
                      {send, hex(":faults\r")},
                      {expect, "Counter.main faulted: division by zero"},
-                     {expect, "$Session1.input 5:1 faulted: division by zero"},
+                     {expect, "the process of $Session1.input 5:1 faulted: division by zero"},
                      {send, "04"}],
                     {60, 100}),
     %% what the program printed reached the screen
@@ -263,7 +263,8 @@ program() ->
     ?assertEqual(2, ern_pty:count(Screen, <<"Counter.main faulted: division by zero">>)),
     %% (report §11.2: a site in an input's own expression is the input,
     %% named by its count, `$Session1.input 5:1`, the fifth thing entered)
-    ?assertEqual(2, ern_pty:count(Screen, <<"$Session1.input 5:1 faulted: division by zero">>)),
+    ?assertEqual(2, ern_pty:count(Screen, <<"the process of $Session1.input 5:1 faulted:"
+                                            " division by zero">>)),
     %% `:processes` leaves the shell's own out
     ?assertEqual(nomatch, binary:match(Screen, <<"Ernest.Shell.main">>)).
 
@@ -995,7 +996,8 @@ fault_line_escaped() ->
                                " fn(d : Down) = d); receive { _ -> Unit } }\n:faults\n"
                                "fault(\"c\\u{1b}d\")\n"),
     ?assertMatch({_, _},
-                 binary:match(Output, <<"$Session1.input 1:1 faulted: a\\u{1B}b\\nforged">>)),
+                 binary:match(Output, <<"the process of $Session1.input 1:1 faulted:"
+                                        " a\\u{1B}b\\nforged">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"fault: c\\u{1B}d">>)),
     ?assertEqual(nomatch, binary:match(Output, <<27>>)).
 
@@ -1016,7 +1018,8 @@ fault_before_the_end_written() ->
                                "    monitor(Process.fromAddress(p), fn(d : Down) = d);\n"
                                "    receive { _ -> Unit }\n"
                                "}\n"),
-    ?assertMatch({_, _}, binary:match(Output, <<"$Session1.input 1:2 faulted: late">>)).
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"the process of $Session1.input 1:2 faulted: late">>)).
 
 %% report §11.2: in line mode a fault the shell writes as it ends, at the
 %% end of its input, begins a line of its own: the line of the prompt the
@@ -1067,7 +1070,7 @@ end_fault_on_a_line_of_its_own() ->
     %% the end of the input
     port_close(Shell),
     {Out, _} = ern_nodes_tests:said(Dir),
-    ?assert(lists:suffix("> > \n$Session1.input 1:1 faulted: late\n"
+    ?assert(lists:suffix("> > \nthe process of $Session1.input 1:1 faulted: late\n"
                          "    $Session1.input 1:1\n", Out)).
 
 %% report §11.2: in line mode a fault reported while the session waits for
@@ -1130,9 +1133,10 @@ faults_while_reading_listed() ->
     port_close(Shell),
     {Out, _} = ern_nodes_tests:said(Dir),
     ?assertEqual(nomatch, string:find(Out, "no process has faulted")),
-    {match, [Stamp]} = re:run(Out, "> > \\$Session1\\.input 1:1 faulted: late\n"
+    {match, [Stamp]} = re:run(Out, "> > the process of \\$Session1\\.input 1:1 faulted: late\n"
                                    "    \\$Session1\\.input 1:1\n"
-                                   "([-0-9T:.]+Z) \\$Session1\\.input 1:1 faulted: late\n> ",
+                                   "([-0-9T:.]+Z) the process of \\$Session1\\.input 1:1"
+                                   " faulted: late\n> ",
                               [{capture, all_but_first, list}]),
     ?assert(calendar:rfc3339_to_system_time(Stamp, [{unit, millisecond}]) =< Learned).
 
@@ -5298,12 +5302,12 @@ fault_subscriber() ->
     %% with its trace beneath it and listed by `:faults` without it
     [?assertEqual({2, 1}, {ern_pty:count(Output, <<Line/binary, "\n">>),
                            ern_pty:count(Output, <<Line/binary, "\n    ">>)})
-     || Line <- [<<"$Session1.input 4:1 faulted, restarted: division by zero">>,
-                 <<"$Session1.input 4:1 faulted: division by zero">>]],
+     || Line <- [<<"the process of $Session1.input 4:1 faulted, restarted: division by zero">>,
+                 <<"the process of $Session1.input 4:1 faulted: division by zero">>]],
     Stamp = "^(?:> )?[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z ",
     [?assertMatch({match, _}, re:run(Output, Stamp ++ Line ++ "$", [multiline]))
-     || Line <- ["\\$Session1\\.input 4:1 faulted, restarted: division by zero",
-                 "\\$Session1\\.input 4:1 faulted: division by zero"]],
+     || Line <- ["the process of \\$Session1\\.input 4:1 faulted, restarted: division by zero",
+                 "the process of \\$Session1\\.input 4:1 faulted: division by zero"]],
     ?assertMatch({_, _}, binary:match(Output, <<"Bad.boom:2 faulted">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Ernest.Shell.load">>)).
 
@@ -6422,7 +6426,7 @@ compiled_beside_another() ->
     ?assertMatch({_, _}, binary:match(Output, <<"Greet, from ",
                                                 (shown(Dir, "one/greet.erc"))/binary, "\n"
                                                 "> \"two\" : String">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"Greet.crash:4 faulted: crashed">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"the process of Greet.crash:4 faulted: crashed">>)),
     %% the crash's line may come after the next prompt, written as it
     %% arrives while the next input runs (report §11.2)
     ?assertMatch({_, _}, binary:match(Output, <<"true : Bool\n">>)),

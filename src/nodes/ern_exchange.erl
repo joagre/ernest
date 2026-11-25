@@ -44,27 +44,24 @@
 %% name a list of its segments as text, which makes no atom where a peer
 %% sends it; Bindings are {QualifiedName, Hash}, Foreigns each a
 %% #foreign_function{} (ern_unit.hrl), its name, its host's module and its
-%% function as text, its scheme as a form writes it (Appendix H), its
-%% printing and its source, where the declaration is written, {Line,
-%% Column, none}, its export false, which the arrival decides.
+%% function as text, its scheme as a form writes it (Appendix H) and its
+%% source, where the declaration is written, {Line, Column, none}, its
+%% export false, which the arrival decides.
 %%
 %% A code frame's Hashes are the definition alone or the group's members in
 %% order, Bytes what that definition or group is hashed as (Appendix H), and
 %% Sources the bytes of the host's external term format of a list of {Name,
-%% Sourced, Printing, Calls}, one for each of Hashes in order: the
-%% definition's name where its form does not hold it, a binding's and a
-%% function's whose code shows another than its form's, `Counter$2.worker`
-%% for a reload's version (§11.2), or none, its form with the lines of its
-%% source, the locals' names left out (§11.1), which, stripped of its
-%% source, is the form the bytes hold, and holds no atom the form does not,
-%% so that it is read once the form is, making none.
+%% Sourced, Calls}, one for each of Hashes in order: the definition's name
+%% where its form does not hold it, a binding's and a function's whose
+%% code shows another than its form's, `Counter$2.worker` for a reload's
+%% version (§11.2), or none, its form with the lines of its source, the
+%% locals' names left out (§11.1), which, stripped of its source, is the
+%% form the bytes hold, and holds no atom the form does not, so that it is
+%% read once the form is, making none.
 %%
-%% A source's Printing is {Namespace, Shadows}, the namespace its module's
-%% forms write its types under and the prelude names its types shadow, as
-%% text, by which a type prints in a cause as the module writes it (§11.5).
-%% Its Calls are the foreign declarations its form calls, in the order of
-%% their names, each a #foreign_function{} as a reach's is, but for its
-%% scheme, none, the form writing it (§12.7).
+%% A source's Calls are the foreign declarations its form calls, in the
+%% order of their names, each a #foreign_function{} as a reach's is, but
+%% for its scheme, none, the form writing it (§12.7).
 %%
 %% The shape is docs/design/code.md's.
 -module(ern_exchange).
@@ -310,10 +307,9 @@ framed(Hashes, Bytes, Forms, Sources) ->
      || {Position, {Hash, Form, Source}}
             <- lists:enumerate(lists:zip3(Hashes, Forms, binary_to_term(Sources, [safe])))].
 
-member(Hash, Form, {Name, Sourced, Printing, Calls}, Group) ->
+member(Hash, Form, {Name, Sourced, Calls}, Group) ->
     Kind = kind(Form),
-    true = is_frame_name(Kind, Name) andalso is_printing(Printing) andalso is_list(Calls)
-        andalso lists:all(fun is_call/1, Calls),
+    true = is_frame_name(Kind, Name) andalso is_list(Calls) andalso lists:all(fun is_call/1, Calls),
     Form = ern_canonical:stripped(Sourced),
     true = [Called || #foreign_function{qualified_name = Called} <- Calls]
         =:= called_names(Form),
@@ -322,7 +318,7 @@ member(Hash, Form, {Name, Sourced, Printing, Calls}, Group) ->
                         _ -> Name
                     end,
     {#definition{qualified_name = QualifiedName, kind = Kind, hash = Hash, form = Form,
-                 group = Group, sourced = Sourced, printing = Printing},
+                 group = Group, sourced = Sourced},
      Calls}.
 
 %% Report §12.7, Appendix H: a code frame's name for a definition of Kind:
@@ -338,12 +334,11 @@ is_call(_) -> false.
 
 %% A foreign declaration as a peer's frame carries it, but for its scheme:
 %% its name, its host's module and its function as text, its export false,
-%% its source a line and a column, and its printing.
+%% and its source a line and a column.
 is_declaration(#foreign_function{qualified_name = Name, host_module = HostModule,
-                                 host_function = HostFunction, export = false, source = Source,
-                                 printing = Printing}) ->
+                                 host_function = HostFunction, export = false, source = Source}) ->
     is_name(Name) andalso is_text(HostModule) andalso is_text(HostFunction)
-        andalso is_source(Source) andalso is_printing(Printing);
+        andalso is_source(Source);
 is_declaration(_) ->
     false.
 
@@ -606,9 +601,9 @@ is_constant(Hash) ->
 
 %% The foreign declarations of a function's reach, each with the module and
 %% the function of the host its declaration calls, as text, its declared
-%% type, its printing and where it is declared, as the units the code of
-%% the unit that runs it calls hold it, the type, the printing and the
-%% place from what the unit that holds it records; or, for one whose call a
+%% type and where it is declared, as the units the code of the unit that
+%% runs it calls hold it, the type and the place from what the unit that
+%% holds it records; or, for one whose call a
 %% unit an exchange made linked to a fault, as that unit records it
 %% (ern_code:declared/2), so that the node ships it onward as its own; none
 %% where one of them is held nowhere. Read is the forms of the units the
@@ -733,11 +728,9 @@ first_needed(Key, Groups, ByHash, {Order, Seen}) ->
 %% Report Appendix H, §12.7: a definition alone, or a group's members in
 %% order, as a code frame carries it: the hashes, the bytes they are taken
 %% of, and each member's name where its form does not hold it
-%% (frame_name/1), its form with the lines of its source, what
-%% prints a type in a cause as its module writes it, and the foreign
-%% declarations it calls, as the node
-%% holds them (§11.2), a form without its source where it holds none, and
-%% no module's printing where it holds none; none where a foreign
+%% (frame_name/1), its form with the lines of its source, and the foreign
+%% declarations it calls, as the node holds them (§11.2), a form without
+%% its source where it holds none; none where a foreign
 %% declaration a member calls is held by no unit the code of Unit, which
 %% holds the members, calls.
 code_frame({Members, Unit}, Read) ->
@@ -755,13 +748,8 @@ code_frame(Members, Forms, Calls) ->
                             none -> Form;
                             _ -> Sourced
                         end,
-                        case Printing of
-                            none -> {[], []};
-                            _ -> Printing
-                        end,
                         Called}
-                       || {#definition{form = Form, sourced = Sourced,
-                                       printing = Printing} = Definition, Called}
+                       || {#definition{form = Form, sourced = Sourced} = Definition, Called}
                               <- lists:zip(Members, Calls)],
             {[Hash || #definition{hash = Hash} <- Members],
              ern_canonical:bytes(ern_canonical:hashed(Forms)), term_to_binary(Sources)}
@@ -879,14 +867,6 @@ is_name(Name) ->
 is_source({Line, Column, none}) ->
     is_integer(Line) andalso Line >= 1 andalso is_integer(Column) andalso Column >= 1;
 is_source(_) ->
-    false.
-
-%% What prints a type in a cause as a module writes it: its namespace and
-%% the prelude names its types shadow, as text.
-is_printing({Namespace, Shadows}) ->
-    is_list(Namespace) andalso lists:all(fun is_text/1, Namespace)
-        andalso is_list(Shadows) andalso lists:all(fun is_text/1, Shadows);
-is_printing(_) ->
     false.
 
 is_text(Text) ->

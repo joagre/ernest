@@ -52,20 +52,26 @@ foreign fn emptySet() : Set(a) =
 /// // => #(2, true)
 /// ```
 export foreign fn size(set : Set(a)) : Int =
-    "ern_set:size/1"
+    "sets:size/1"
 
 /// `true` for the set with no elements.
 export fn isEmpty(set : Set(a)) : Bool =
     size(set) == 0
 
 /// `true` when `element` is in the set.
-export foreign fn contains(set : Set(a), element : a) : Bool =
-    "ern_set:contains/2"
+export fn contains(set : Set(a), element : a) : Bool =
+    isElement(element, set)
+
+foreign fn isElement(element : a, set : Set(a)) : Bool =
+    "sets:is_element/2"
 
 /// The set with `element` in it. A set that already holds it is answered as it
 /// is.
-export foreign fn put(set : Set(a), element : a) : Set(a) =
-    "ern_set:put/2"
+export fn put(set : Set(a), element : a) : Set(a) =
+    withElement(element, set)
+
+foreign fn withElement(element : a, set : Set(a)) : Set(a) =
+    "sets:add_element/2"
 
 /// The set without `element`. A set that does not hold it is answered as it is.
 ///
@@ -75,8 +81,11 @@ export foreign fn put(set : Set(a), element : a) : Set(a) =
 /// Set.toList(Set.remove(Set.fromList([1, 2]), 2))
 /// // => [1]
 /// ```
-export foreign fn remove(set : Set(a), element : a) : Set(a) =
-    "ern_set:remove/2"
+export fn remove(set : Set(a), element : a) : Set(a) =
+    withoutElement(element, set)
+
+foreign fn withoutElement(element : a, set : Set(a)) : Set(a) =
+    "sets:del_element/2"
 
 /// The set of `f(x)` for each element `x`. Two elements `f` maps to equal
 /// values become one, so the result may be smaller.
@@ -87,8 +96,11 @@ export foreign fn remove(set : Set(a), element : a) : Set(a) =
 /// List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)))
 /// // => [10, 20]
 /// ```
-export foreign fn map(set : Set(a), f : (a) -> b receiving e) : Set(b) receiving e =
-    "ern_set:map/2"
+export fn map(set : Set(a), f : (a) -> b receiving e) : Set(b) receiving e =
+    mapped(f, set)
+
+foreign fn mapped(f : (a) -> b receiving e, set : Set(a)) : Set(b) receiving e =
+    "sets:map/2"
 
 /// The set of the elements `keep` answers `true` for.
 ///
@@ -98,8 +110,11 @@ export foreign fn map(set : Set(a), f : (a) -> b receiving e) : Set(b) receiving
 /// Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 /// // => [3]
 /// ```
-export foreign fn filter(set : Set(a), keep : (a) -> Bool receiving e) : Set(a) receiving e =
-    "ern_set:filter/2"
+export fn filter(set : Set(a), keep : (a) -> Bool receiving e) : Set(a) receiving e =
+    filtered(keep, set)
+
+foreign fn filtered(keep : (a) -> Bool receiving e, set : Set(a)) : Set(a) receiving e =
+    "sets:filter/2"
 
 /// The set of the values `f` answers `Some` for; an element `f` answers `None`
 /// for is left out.
@@ -176,7 +191,7 @@ export foreign fn fromList(list : List(a)) : Set(a) =
 
 /// The elements, in unspecified order.
 export foreign fn toList(set : Set(a)) : List(a) =
-    "ern_set:to_list/1"
+    "sets:to_list/1"
 
 /// The set of the elements in either set.
 ///
@@ -187,7 +202,7 @@ export foreign fn toList(set : Set(a)) : List(a) =
 /// // => [1, 2]
 /// ```
 export foreign fn union(set : Set(a), other : Set(a)) : Set(a) =
-    "ern_set:union/2"
+    "sets:union/2"
 
 /// The set of the elements in both sets.
 ///
@@ -198,11 +213,11 @@ export foreign fn union(set : Set(a), other : Set(a)) : Set(a) =
 /// // => [2]
 /// ```
 export foreign fn intersection(set : Set(a), other : Set(a)) : Set(a) =
-    "ern_set:intersection/2"
+    "sets:intersection/2"
 
 /// The elements of `set` that are not in `other`.
 export foreign fn difference(set : Set(a), other : Set(a)) : Set(a) =
-    "ern_set:difference/2"
+    "sets:subtract/2"
 
 /// `true` when every element of `set` is in `other`. The empty set is a subset
 /// of every set.
@@ -214,4 +229,4 @@ export foreign fn difference(set : Set(a), other : Set(a)) : Set(a) =
 /// // => true
 /// ```
 export foreign fn isSubset(set : Set(a), other : Set(a)) : Bool =
-    "ern_set:is_subset/2"
+    "sets:is_subset/2"

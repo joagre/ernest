@@ -84,9 +84,9 @@ by_type({map, KeyDescriptor, ValueDescriptor}, Value, Bound, Limits) ->
                 by_type(ValueDescriptor, Item, Bound, deeper(Limits)), ")"]
            end,
     ["Map.fromList([", join(parts(lists:sort(maps:to_list(Value)), Limits, Pair)), "])"];
-by_type({set, ElementDescriptor}, {set, Members}, Bound, Limits) ->
+by_type({set, ElementDescriptor}, Value, Bound, Limits) ->
     Show = fun(Item) -> by_type(ElementDescriptor, Item, Bound, deeper(Limits)) end,
-    ["Set.fromList([", join(parts(lists:sort(maps:keys(Members)), Limits, Show)), "])"];
+    ["Set.fromList([", join(parts(lists:sort(sets:to_list(Value)), Limits, Show)), "])"];
 by_type({con, Namespace, Constructors}, Value, Bound, Limits) when is_tuple(Value) ->
     [Tag | Fields] = tuple_to_list(Value),
     Parts = case lists:keyfind(Tag, 1, Constructors) of
@@ -161,27 +161,21 @@ represented(List, Limits) when is_list(List) ->
         false ->
             "<foreign>"
     end;
-represented({set, Members}, Limits) when is_map(Members) ->
-    Show = fun(Item) -> represented(Item, deeper(Limits)) end,
-    ["Set.fromList([", join(parts(lists:sort(maps:keys(Members)), Limits, Show)), "])"];
 %% an adapted address is the runtime's own term (report §6.5),
 %% and is written as every address is, by the process behind it
 represented({adapted, Function, _, _, _} = Address, _) when is_function(Function, 1) ->
     address(Address);
-represented(Tuple, Limits) when is_tuple(Tuple), tuple_size(Tuple) > 0,
-                                is_atom(element(1, Tuple)) ->
-    %% report §12.2: a constructor's atom is its source spelling, capitalized;
-    %% any other first atom, `true` among them, begins a tuple
-    [Tag | Fields] = tuple_to_list(Tuple),
-    case atom_to_list(Tag) of
-        [First | _] when First >= $A, First =< $Z ->
-            [atom_to_list(Tag), "(",
-             join([represented(Field, deeper(Limits)) || Field <- Fields]), ")"];
-        _ ->
-            ["#(", join([represented(Item, deeper(Limits)) || Item <- tuple_to_list(Tuple)]), ")"]
-    end;
 represented(Tuple, Limits) when is_tuple(Tuple) ->
-    ["#(", join([represented(Item, deeper(Limits)) || Item <- tuple_to_list(Tuple)]), ")"];
+    Shown = fun(Items) -> join([represented(Item, deeper(Limits)) || Item <- Items]) end,
+    case tuple_to_list(Tuple) of
+        [Tag | Fields] = Items ->
+            case is_constructor(Tag) of
+                true -> [atom_to_list(Tag), "(", Shown(Fields), ")"];
+                false -> ["#(", Shown(Items), ")"]
+            end;
+        [] ->
+            ["#(", ")"]
+    end;
 represented(Map, Limits) when is_map(Map) ->
     Pair = fun({Key, Item}) ->
                ["#(", represented(Key, deeper(Limits)), ", ",
@@ -189,6 +183,16 @@ represented(Map, Limits) when is_map(Map) ->
            end,
     ["Map.fromList([", join(parts(lists:sort(maps:to_list(Map)), Limits, Pair)), "])"];
 represented(_, _) -> "<foreign>".
+
+%% Report §12.2: a constructor's atom is its source spelling, capitalized;
+%% any other first atom, `true` among them, begins a tuple.
+is_constructor(Tag) when is_atom(Tag) ->
+    case atom_to_list(Tag) of
+        [First | _] -> First >= $A andalso First =< $Z;
+        [] -> false
+    end;
+is_constructor(_) ->
+    false.
 
 proper([]) -> true;
 proper([_ | Tail]) -> proper(Tail);

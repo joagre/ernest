@@ -24,7 +24,7 @@ round_writes_what_did_not_pass_test() ->
     Dir = os:getenv("ERN_TEST_DIR"),
     File = filename:join(Dir, "flakes-round.txt"),
     {ok, Cwd} = file:get_cwd(),
-    Module = loaded(ern_flakes_round, [
+    Module = ern_helpers:loaded(ern_flakes_round, [
         "says_and_fails_test() -> io:format(\"said before failing~n\"), error(broken).",
         "passes_test() -> io:format(\"said by the passing one~n\").",
         %% waits for a message no one sends, which its limit ends
@@ -38,7 +38,7 @@ round_writes_what_did_not_pass_test() ->
                      ern_flakes:round(ern_eunit:alone([Module]), 7, "emitter-1", File, none))
     after
         ok = file:set_cwd(Cwd),
-        unloaded(Module)
+        ern_helpers:unloaded(Module)
     end,
     {ok, Text} = file:read_file(File),
     Records = [Record || Record <- binary:split(Text, <<"\n== ">>, [global]), Record =/= <<>>],
@@ -68,7 +68,7 @@ round_writes_what_did_not_pass_test() ->
 round_marks_what_follows_a_cancel_test() ->
     Dir = os:getenv("ERN_TEST_DIR"),
     File = filename:join(Dir, "flakes-marks.txt"),
-    First = loaded(ern_flakes_first, [
+    First = ern_helpers:loaded(ern_flakes_first, [
         "setup_raises_test_() -> {setup, fun() -> error(no_setup) end, [fun() -> ok end]}.",
         "after_the_abort_test() -> error(after_the_abort).",
         "first_limit_test_() -> {timeout, 0.1, {\"first\", fun waits/0}}.",
@@ -76,7 +76,7 @@ round_marks_what_follows_a_cancel_test() ->
         "after_the_limits_test() -> error(after_the_limits).",
         %% waits for a message no one sends, which a limit ends
         "waits() -> receive never -> ok end."]),
-    Later = loaded(ern_flakes_later, ["in_a_later_round_test() -> error(later)."]),
+    Later = ern_helpers:loaded(ern_flakes_later, ["in_a_later_round_test() -> error(later)."]),
     Terminal = try
                    captured(fun() ->
                        {error, Canceled} =
@@ -87,8 +87,8 @@ round_marks_what_follows_a_cancel_test() ->
                                                      Canceled))
                    end)
                after
-                   unloaded(First),
-                   unloaded(Later)
+                   ern_helpers:unloaded(First),
+                   ern_helpers:unloaded(Later)
                end,
     Headers = headers(File, "cli-0"),
     ?assertEqual([<<"make flakes: ", Header/binary>> || <<"== ", Header/binary>> <- Headers],
@@ -127,7 +127,7 @@ hunt_carries_the_first_cancel() ->
     Dir = filename:join(os:getenv("ERN_TEST_DIR"), "flakes-hunt"),
     ok = file:make_dir(Dir),
     Part = "runtime-9",
-    Module = loaded(ern_flakes_hunted, [
+    Module = ern_helpers:loaded(ern_flakes_hunted, [
         %% waits for a message no one sends, which its limit ends
         io_lib:format("waits_test_() -> {timeout, ~p, {\"waits\","
                       " fun() -> receive never -> ok end end}}.", [limit()]),
@@ -164,7 +164,7 @@ hunt_carries_the_first_cancel() ->
              false -> true = os:unsetenv(Variable);
              _ -> true = os:putenv(Variable, Value)
          end || {Variable, Value} <- Saved],
-        unloaded(Module)
+        ern_helpers:unloaded(Module)
     end.
 
 %% The time limit of the scratch module's test that waits, in seconds.
@@ -229,11 +229,11 @@ hunt_records(Hunt, Part) ->
 %% record after it names it and its round. Each round begins with no
 %% cancel before it.
 round_marks_after_a_signal_and_a_groups_limit_test() ->
-    Signal = loaded(ern_flakes_signal, [
+    Signal = ern_helpers:loaded(ern_flakes_signal, [
         "ended_by_a_signal_test() -> Test = self(), spawn(fun() -> exit(Test, gone) end),"
         " receive never -> ok end.",
         "after_the_signal_test() -> error(after_the_signal)."]),
-    Group = loaded(ern_flakes_group, [
+    Group = ern_helpers:loaded(ern_flakes_group, [
         %% its first test passes, and its second waits until the group's limit
         "group_limit_test_() -> {timeout, 0.1, [fun() -> ok end,"
         " fun() -> receive never -> ok end end]}.",
@@ -253,8 +253,8 @@ round_marks_after_a_signal_and_a_groups_limit_test() ->
         begins("ern_flakes_group:after_the_group_test/0 failed, after " ++ Limited
                ++ " was canceled in round 3\n", AfterTheLimit)
     after
-        unloaded(Signal),
-        unloaded(Group)
+        ern_helpers:unloaded(Signal),
+        ern_helpers:unloaded(Group)
     end.
 
 %% Round 3 of Module's tests, with no cancel before it: the first cancel
@@ -319,7 +319,7 @@ kept(Bytes) ->
 %% them, a function whose name ends in `_test_` a generator, and no other
 %% function. A regression test, written after the code.
 alone_takes_each_test_function_test() ->
-    Module = loaded(ern_flakes_listed, [
+    Module = ern_helpers:loaded(ern_flakes_listed, [
         "second_test() -> ok.", "first_test_() -> [].", "helper() -> ok.",
         "helper_test(_) -> ok."]),
     try
@@ -327,26 +327,8 @@ alone_takes_each_test_function_test() ->
                       {setup, spawn, _, {generator, Module, first_test_}}],
                      ern_eunit:alone([Module]))
     after
-        unloaded(Module)
+        ern_helpers:unloaded(Module)
     end.
-
-%% Module compiled from Lines, each a form, every function of no argument
-%% exported, and loaded; it is purged once the test ends, since the hunt
-%% runs the test again in the same host.
-loaded(Module, Lines) ->
-    Source = [io_lib:format("-module(~w).~n-compile([export_all, nowarn_export_all]).~n",
-                            [Module]) | [[Line, "\n"] || Line <- Lines]],
-    File = filename:join(os:getenv("ERN_TEST_DIR"), atom_to_list(Module) ++ ".erl"),
-    ok = file:write_file(File, Source),
-    {ok, Module, Binary} = compile:file(File, [binary, report]),
-    {module, Module} = code:load_binary(Module, File, Binary),
-    Module.
-
-unloaded(Module) ->
-    _ = code:purge(Module),
-    true = code:delete(Module),
-    _ = code:purge(Module),
-    ok.
 
 %% docs/development.md "Building", `make flakes`, tools/flakes.ern: the
 %% program refuses a MINUTES that is not a positive whole number and a

@@ -10,7 +10,7 @@
          instance/2, unknown_instance/2, value_positions_marked/2, replace_variables/2,
          mismatch_pair/3, format/2, format/3, format_annotation/2, format_pair/4, format_pair/5,
          format_pair/6, instance_names/3, named_as_declared/2, value_variables/2, value_args/3,
-         args_in_value/3, set_scope/5, printing/1, printed_scope/1, set_forms/2, code_namespace/2,
+         args_in_value/3, set_scope/5, printing/1, from_root/2, set_forms/2, code_namespace/2,
          as_code/1, set_effect_params/2, format_scheme/2, format_with_requirement/3, format_call/4,
          format_error/1]).
 
@@ -778,12 +778,22 @@ printing(#type_state{namespace = Namespace, session_types = SessionTypes, shadow
     #type_state{namespace = Namespace, session_types = SessionTypes, shadows = Shadows,
                 input_names = InputNames, effect_params = EffectParams}.
 
-%% Report §11.5, §12.7: the module a type prints from, its namespace, and the
-%% prelude names its types shadow, which print as `Prelude.x`, by which a
-%% code frame carries how a definition's module writes a type (set_scope/5).
--spec printed_scope(type_state()) -> {qualified_name(), [atom()]}.
-printed_scope(#type_state{namespace = Namespace, shadows = Shadows}) ->
-    {Namespace, Shadows}.
+%% Report §12.3: the state a check's cause prints a type under, TypeState
+%% with no module's scope, so that a type name is written whole from the
+%% root, as a trace writes a name (§4.2), whichever module's crossing made
+%% the check, a prelude type's plain. Under a session's input a type the
+%% session declared, the latest of its name or one shadowed, is written in
+%% Session, the session's namespace as a trace writes it, `$Session1.Count`
+%% (§11.2); none outside one.
+-spec from_root([atom()] | none, type_state()) -> type_state().
+from_root(none, TypeState) ->
+    TypeState#type_state{namespace = [], session_types = [], shadows = [], input_names = #{}};
+from_root(Session,
+          #type_state{session_types = SessionTypes, input_names = InputNames} = TypeState) ->
+    Text = ern_namespace:text(Session),
+    Inputs = [lists:droplast(Type) || Type <- SessionTypes] ++ maps:keys(InputNames),
+    TypeState#type_state{namespace = [], session_types = [], shadows = [],
+                         input_names = maps:from_list([{Input, Text} || Input <- Inputs])}.
 
 %% Report §11.5: the shortest resolving form of each namespace from the
 %% module being checked, Forms, or undefined, where every name is printed

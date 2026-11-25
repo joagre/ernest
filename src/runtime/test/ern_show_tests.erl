@@ -40,14 +40,15 @@ by_type_test() ->
     ?assertEqual(<<"<foreign>">>, ern_show:show(foreign, 1)).
 
 %% report Appendix E.1: a `Set` of `Bool` prints its elements ascending,
-%% `false` before `true`, and a `Map` with `Bool` keys its pairs so, by the
-%% descriptor and by the representation alone. A regression test, written
-%% after the code; the order of the other types the sentence names is not
-%% covered here
+%% `false` before `true`, by its descriptor, and a `Map` with `Bool` keys
+%% its pairs so, by the descriptor and by the representation alone; report
+%% §12.2: by the representation alone a set is the host's map from each
+%% element to []. A regression test, written after the code; the order of
+%% the other types the sentence names is not covered here
 bool_ascending_test() ->
     Set = ern_set:from_list([true, false]),
     ?assertEqual(<<"Set.fromList([false, true])">>, ern_show:show({set, bool}, Set)),
-    ?assertEqual(<<"Set.fromList([false, true])">>, ern_show:show(any, Set)),
+    ?assertEqual(<<"Map.fromList([#(false, []), #(true, [])])">>, ern_show:show(any, Set)),
     Map = #{true => 1, false => 0},
     ?assertEqual(<<"Map.fromList([#(false, 0), #(true, 1)])">>,
                  ern_show:show({map, bool, int}, Map)),

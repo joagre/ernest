@@ -59,8 +59,8 @@
 %% the unit's definitions and foreign functions (#own{}); definition: the
 %% definition being compiled, {Position, Hash, QualifiedName}; declaration:
 %% its Ernest name, [Name] or [MemberOf, Name], which a spawn site names;
-%% printing: the type state a check's cause prints its types under, as
-%% the definition's module writes them (§11.5, printing/2); restrictions:
+%% printing: the unit's link's type state, under which a check's cause
+%% prints its types (printed/2); restrictions:
 %% each type variable of the definition its schemes quantify, by its
 %% number, with its restrictions, by which a check's cause prints it
 %% (§11.5).
@@ -333,7 +333,7 @@ context(Placed, ForeignPlaced, Unit) ->
 
 own_context(Placed, ForeignPlaced, Unit) ->
     #emit_context{unit = Unit, own = own(Placed, ForeignPlaced, Unit),
-                  printing = printing(none, Unit)}.
+                  printing = Unit#unit.link#link.printing}.
 
 %% Report §11.1: the value of each binding of the unit's at Positions whose
 %% initializer is a ground term, by its position; what ground/2 reads of a
@@ -498,12 +498,10 @@ local_name({_, _, Name}) -> Name;
 local_name(none) -> none.
 
 %% The definition being compiled set in Context.
-entering(Position, #definition{qualified_name = QualifiedName, hash = Hash,
-                                printing = Printing}, Form,
-         #emit_context{unit = #unit{namespace = Namespace} = Unit} = Context) ->
+entering(Position, #definition{qualified_name = QualifiedName, hash = Hash}, Form,
+         #emit_context{unit = #unit{namespace = Namespace}} = Context) ->
     Context#emit_context{definition = {Position, Hash, QualifiedName},
                          declaration = lists:nthtail(length(Namespace), QualifiedName),
-                         printing = printing(Printing, Unit),
                          restrictions = restrictions(Form), variables = #{}, locals = #{},
                          members = #{}, let_lambdas = #{}, fallthroughs = 0}.
 
@@ -696,11 +694,11 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
                                                       Requirement},
                                             host_module = HostModule,
                                             host_function = HostFunction,
-                                            source = Source, printing = Printing}},
+                                            source = Source}},
                  Context) ->
     Prefixes = ["Argument" || _ <- ParamTypes] ++ ["Member" || _ <- Requirement],
-    {Variables, Context1} = named_variables(Prefixes, declaring(QualifiedName, Quantified,
-                                                                Printing, Context)),
+    {Variables, Context1} = named_variables(Prefixes,
+                                            declaring(QualifiedName, Quantified, Context)),
     {Args, Members} = lists:split(length(ParamTypes),
                                   [erl_syntax:variable(Variable) || Variable <- Variables]),
     {Body, Context2} = foreign_body(Source, {HostModule, HostFunction}, {ParamTypes, ResultType},
@@ -710,12 +708,10 @@ foreign_function({Position, #foreign_function{qualified_name = QualifiedName,
     {with_comment(Function, ern_namespace:text(QualifiedName)), Context2}.
 
 %% The context a foreign declaration is compiled in: its name within its
-%% module, the printing of its module's types (§11.5) and the restrictions
-%% its scheme quantifies.
-declaring(QualifiedName, Quantified, Printing,
-          #emit_context{unit = #unit{namespace = Namespace} = Unit} = Context) ->
+%% module and the restrictions its scheme quantifies.
+declaring(QualifiedName, Quantified,
+          #emit_context{unit = #unit{namespace = Namespace}} = Context) ->
     Context#emit_context{declaration = lists:nthtail(length(Namespace), QualifiedName),
-                         printing = printing(Printing, Unit),
                          restrictions = maps:from_list(Quantified)}.
 
 %% Report §8.4: a foreign function's body, its arguments exposed to the
@@ -2384,35 +2380,21 @@ as_never(Variables, Types) when is_list(Types) ->
     [as_never(Variables, Element) || Element <- Types];
 as_never(_, Type) -> Type.
 
-%% Report §11.5, §12.7: the type state a definition's types print under in
-%% a check's cause, as its module writes them: the unit's link's, or, for
-%% a definition that gives its module's own, one that arrived or was read
-%% from a compiled form, its module's namespace and the prelude names its
-%% types shadow, given as text. A name no atom of this host names names no
-%% type here either, so a namespace with one is none's and such a shadow
-%% none, and no atom is made.
-printing(none, #unit{link = #link{printing = Printing}}) ->
-    Printing;
-printing({Namespace, Shadows}, #unit{link = #link{printing = Printing}}) ->
-    Module = case existing(Namespace) of
-                 Atoms when length(Atoms) =:= length(Namespace) -> Atoms;
-                 _ -> []
-             end,
-    ern_types:set_scope(Module, [], existing(Shadows), #{}, Printing).
-
-existing(Names) ->
-    [Atom || Name <- Names, Atom <- try [binary_to_existing_atom(Name)]
-                                    catch error:badarg -> []
-                                    end].
-
-%% Report §11.5: a type as the module prints it, a check's cause naming it.
-%% Its variables are the definition's, named as §11.5 names a type's
-%% variables, each with the restrictions its definition's scheme gives it.
-printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = Context) ->
+%% Report §12.3: a type as a check's cause names it, from the root, a
+%% session's type in the session's namespace as its spawn sites write it
+%% (ern_types:from_root/2). Its variables are the definition's, named as
+%% Appendix H names a type's variables, each with the restrictions its
+%% definition's scheme gives it.
+printed(Type, #emit_context{unit = Unit, printing = Printing, restrictions = Restrictions}
+              = Context) ->
+    Session = case Unit of
+                  #unit{session_input = true, site_namespace = SiteNamespace} -> SiteNamespace;
+                  #unit{} -> none
+              end,
     Count = lists:max([0 | [Number || {variable, Number} <- type_variables(Type)]]),
     State = lists:foldl(fun(Number, Acc) ->
                             element(2, ern_types:fresh(Acc, maps:get(Number, Restrictions, [])))
-                        end, Printing, lists:seq(1, Count)),
+                        end, ern_types:from_root(Session, Printing), lists:seq(1, Count)),
     ern_types:format(checked_type(Type, Context), State).
 
 %%
@@ -2427,7 +2409,8 @@ printed(Type, #emit_context{printing = Printing, restrictions = Restrictions} = 
 %% answer for nothing, at the return's top alone; a value that holds no
 %% function, address or Reply to arm and no float to make the language's,
 %% a String's among them, is checked alone (ern_boundary:check/3); a type
-%% variable a parameter names matches any value, and is not checked.
+%% variable a parameter names matches any value, and is not checked. The
+%% cause names the host's term that fails (ern_boundary:returned_cause/3).
 check_form(Source, Type, Form, Cause, Context) ->
     Text = string_binary(Cause),
     case descriptor(Type, Context) of
@@ -2435,14 +2418,15 @@ check_form(Source, Type, Form, Cause, Context) ->
             {Form, Context};
         unit ->
             UnitForm = erl_syntax:atom('Unit'),
-            Fault = raised(Source, Text),
+            {[Variable], Context1} = fresh_variables(1, "Returned", Context),
+            Fault = returned_fault(Source, Text, unit, erl_syntax:variable(Variable)),
             {erl_syntax:case_expr(Form, [erl_syntax:clause([UnitForm], none, [UnitForm]),
                                          erl_syntax:clause([erl_syntax:atom(ok)], none,
                                                            [UnitForm]),
-                                         erl_syntax:clause([erl_syntax:underscore()], none,
-                                                           [Fault])]), Context};
+                                         erl_syntax:clause([erl_syntax:variable(Variable)], none,
+                                                           [Fault])]), Context1};
         Word when Word =:= int; Word =:= bool; Word =:= bytes; Word =:= float ->
-            {[Variable], Context1} = fresh_variables(1, "Checked", Context),
+            {[Variable, Returned], Context1} = fresh_variables(2, "Checked", Context),
             VariableForm = erl_syntax:variable(Variable),
             Test = erl_syntax:application(erl_syntax:atom(word_test(Word)), [VariableForm]),
             %% report §3.1: X + 0.0 is 0.0 for either zero, and X otherwise
@@ -2451,18 +2435,24 @@ check_form(Source, Type, Form, Cause, Context) ->
                                                        erl_syntax:float(0.0));
                         _ -> VariableForm
                     end,
-            Fault = raised(Source, Text),
+            Fault = returned_fault(Source, Text, Word, erl_syntax:variable(Returned)),
             {erl_syntax:case_expr(Form, [erl_syntax:clause([VariableForm], Test, [Value]),
-                                         erl_syntax:clause([erl_syntax:underscore()], none,
+                                         erl_syntax:clause([erl_syntax:variable(Returned)], none,
                                                            [Fault])]), Context1};
         Descriptor ->
             {DescriptorForm, Context1} = descriptor_form(Descriptor, Context),
             Check = case is_plain(Descriptor) of
                         true -> check;
-                        false -> value
+                        false -> returned
                     end,
             {call_remote(ern_boundary, Check, [DescriptorForm, Form, Text]), Context1}
     end.
+
+%% Report §12.3: the fault of a word's return that does not match, raised at
+%% Source, its cause naming the term returned.
+returned_fault(Source, Text, Word, Returned) ->
+    raised(Source, call_remote(ern_boundary, returned_cause,
+                               [Text, erl_syntax:atom(Word), Returned])).
 
 word_test(int) -> is_integer;
 word_test(bool) -> is_boolean;

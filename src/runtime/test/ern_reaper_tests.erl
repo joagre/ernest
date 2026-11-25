@@ -107,8 +107,9 @@ call_forever_deadlock_test() ->
         "    Unit\n"
         "}\n"),
     %% Appendix E.21: the runtime's wait above the program's frame is left
-    %% out (ern_emitter_tests' trace_leaves_the_runtime_out_test)
-    ?assertEqual({fault, <<"deadlock">>, <<"M.main:5\n">>}, Result).
+    %% out (ern_emitter_tests' trace_leaves_the_runtime_out_test); report
+    %% §12.4: the line names the callee the process waits on
+    ?assertEqual({fault, <<"deadlock">>, <<"M.main:5 on M.main:4\n">>}, Result).
 
 %% report §6.9: a wait on a process is kept while its waiter lives: a
 %% watcher that ends takes its waits with it, and a process that ends

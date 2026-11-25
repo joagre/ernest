@@ -170,7 +170,7 @@ foreign fn systemTime() : Int =
     "erlang:system_time/0"
 ```
 
-Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match is a fault at the crossing, naming the function and the type (report §8.4).
+Where foreign code meets the program the type is checked, not trusted. The runtime checks each answer against the declared type as it arrives, so `: String` in its place would fault the caller at the first call, `the return of foreign function erlang:system_time/0 does not match String: is 1795614508141772086`. It checks the same way a reply foreign code gives, a message foreign code sends to an address exposed to it, and each argument foreign code calls an Ernest function with; what does not match is a fault at the crossing, naming the function and the type (report §8.4).
 
 So a mailbox type holds for messages the host sends to an address the program gave it, and a wrong value from a library is a fault at the crossing with a trace, not a crash later in code that trusted it. A foreign function that delivers into its caller's own mailbox is trusted to deliver its declared type, and nothing checks it (the guide's §8.3). The standard library is the runtime's own and pays no check; a check walks the value it checks, and costs with its size.
 
@@ -280,7 +280,7 @@ The fault comes once the program is quiet, and its lines name both servers, each
 ```console
 $ ern run mutual.erc
 Mutual.main faulted: deadlock
-    Mutual.main:9
+    Mutual.main:9 on Mutual.main:6
     1 process of Mutual.main:6 waits in Mutual.firstLoop:20 on Mutual.main:7
     1 process of Mutual.main:7 waits in Mutual.secondLoop:28 on Mutual.main:6
 ```

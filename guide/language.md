@@ -1742,18 +1742,18 @@ export fn main() : Unit receiving MainMsg = {
 
 ```console
 $ ern run faults.erc
-Faults.main:10 faulted: division by zero
+the process of Faults.main:10 faulted: division by zero
     erlang:'div'/2
     Faults.average:4
     Faults.worker:7
 the worker spawned at Faults.main:10 faulted: division by zero
 ```
 
-`average` receives nothing and still faults, as §3.4 says any function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first four lines are `ern run`'s own: it writes every fault to standard error as it happens, a line of the spawn site and the cause, whatever the program does about it.
+`average` receives nothing and still faults, as §3.4 says any function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first four lines are `ern run`'s own: it writes every fault to standard error as it happens, a line naming the process by its spawn site, with the cause, whatever the program does about it.
 
-Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace ends with the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
+Beneath the line it writes the fault's trace, where the fault was met, a frame a line, the innermost first: the host's division, in `average` at line 4, which `worker` called at line 7. A frame of the program is named as a spawn site is, a lambda's by the declaration it is written in, and the trace goes no deeper than the program's outermost frame, the runtime's own frames left out but where the cause names a host error, a failure of the runtime or a foreign function's raise (report §7.4, Appendix E.21). A function whose last act is a call leaves no frame, since the call takes its place, as a tail call does in §4.1, so the lambda that called `worker` is not among them: a trace shows where the process stood, not every call that led there.
 
-A frame of the standard library's own Ernest names its line in the library's source, `Process.run:326` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
+A trace keeps twelve lines, and a deeper stack's ends with a thirteenth that counts the frames left out, `... 6 more frames`. A frame of the standard library's own Ernest names its line in the library's source, `Process.run:326` in §6.4's trace. The repository holds that source and an installation does not ship it, so a reader does not follow the frame (report Appendix E.21).
 
 Where standard error goes to a file or a pipe, and not to a service manager's journal (§9.5), each line begins with the time of the fault (report §11.2).
 
@@ -1791,7 +1791,7 @@ export fn main() : Unit =
 ```console
 $ ern run tasks.erc
 4: 25
-Tasks.supervise:6 faulted: division by zero
+the process of Tasks.supervise:6 faulted: division by zero
     erlang:'div'/2
     Tasks.supervise:6
     Process.run:326
@@ -1842,7 +1842,7 @@ export fn main() : Unit = {
 ```console
 $ ern run counter.erc
 Some(2)
-Counter.start:9 faulted, restarted: a negative amount
+the process of Counter.start:9 faulted, restarted: a negative amount
     Counter.count:16
 None
 Some(3)
@@ -1894,7 +1894,7 @@ export fn main() : Unit receiving MainMsg = {
 
 ```console
 $ ern run lease.erc
-Lease.main:21 faulted, restarted: no such lease
+the process of Lease.main:21 faulted, restarted: no such lease
     Lease.hold:10
 Restarted, taken back: [1, 2]
 Killed, taken back: []
@@ -1943,7 +1943,7 @@ export fn main() : Unit = {
 ```console
 $ ern run pair.erc
 Some(2) Some(5)
-Pair.visits:7 faulted, restarted: a negative amount
+the process of Pair.visits:7 faulted, restarted: a negative amount
     Pair.count:15
 None
 Some(1) Some(1)

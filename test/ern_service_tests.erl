@@ -57,7 +57,8 @@ systemd_stops() ->
                                             end),
                       [Fault] = faults(Lines),
                       ?assertMatch({match, _},
-                                   re:run(Fault, "^Service\\.serve:[0-9]+ faulted: on purpose$")),
+                                   re:run(Fault, "^the process of Service\\.serve:[0-9]+ faulted:"
+                                                 " on purpose$")),
                       ?assertEqual(<<"active">>, shown(Unit, "ActiveState")),
                       {0, _} = systemctl("stop " ++ Unit),
                       ?assertEqual(<<"inactive">>, shown(Unit, "ActiveState")),
@@ -151,7 +152,7 @@ launchd_stops() ->
                        Errors = lines(Err, fun(Lines) -> faults(Lines) =/= [] end),
                        [Fault] = faults(Errors),
                        Stamped = "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z"
-                                 " Service\\.serve:[0-9]+ faulted: on purpose$",
+                                 " the process of Service\\.serve:[0-9]+ faulted: on purpose$",
                        ?assertMatch({match, _}, re:run(Fault, Stamped)),
                        Pid = agent_pid(Service),
                        {0, _} = sh("launchctl bootout " ++ Service),

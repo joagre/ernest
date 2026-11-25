@@ -261,8 +261,10 @@ statuses(Base) ->
     ?assertEqual({0, ""}, Run("")),
     ?assertEqual({3, ""}, Run(" exit")),
     {1, Faulted} = Run(" fault"),
-    %% the line as the guide's `Counter.serve:14 faulted: division by zero`,
-    %% its time first as `2026-10-13T14:22:11.836Z the peer a connected`
+    %% the line as the guide's `the process of Counter.serve:14 faulted:
+    %% division by zero`, the entry process's by its site alone (report
+    %% §11.2), its time first as `2026-10-13T14:22:11.836Z the peer a
+    %% connected`
     Stamped = "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z \\QStatuses.main"
               " faulted: division by zero\\E$",
     ?assertMatch({match, _}, re:run(Faulted, Stamped, [multiline])).
@@ -417,14 +419,14 @@ refused_code(Base) ->
     [{ok, _} = compile:file(filename:join(Root, Module), [{outdir, Root}])
      || Module <- ["ern_nodes_client", "ern_deployment_taker"]],
     %% a function whose form references a definition by a hash no node holds
-    Form = {function, {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
+    Form = {function, ['Crafted', bad],
+            {scheme, [], {arrow, [], none, {applied, {named, ['Int']}, []}}, []}, [],
             {var, {hash, <<77:256>>}, []}},
     Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
     Frame = filename:join(Base, "frame"),
     ok = file:write_file(Frame, term_to_binary(
                                   {crypto:hash(sha256, Bytes), Bytes,
-                                   term_to_binary([{[<<"Crafted">>, <<"bad">>], Form, {[], []},
-                                                    []}])})),
+                                   term_to_binary([{[<<"Crafted">>, <<"bad">>], Form, []}])})),
     Z = ern_nodes_tests:made(Base, "z", none),
     B = ern_nodes_tests:made(Base, "b", 0),
     ern_nodes_tests:lists(B, [{"z", Z, none}]),

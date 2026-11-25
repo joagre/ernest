@@ -974,21 +974,27 @@ fn stampedLine(report : Process.FaultReport, color : Markdown.Output) : String =
 // Report §11.2: `:faults` lists the last hundred.
 let keptFaults = 100
 
-// A fault's line: the spawn site and the cause, as `ern run` writes them,
-// the site written through `escaped`, a peer's site among it, the cause as
+// A fault's line: the process of its spawn site, the entry process's by
+// its site alone, and the cause, as `ern run` writes them, the site
+// written through `escaped`, a peer's site among it, the cause as
 // `causeLine` writes it, and after it the peer whose spawn started the
 // process, which a peer the configuration no longer lists leaves out
 // (report §11.2, §8.7).
 fn reportLine(report : Process.FaultReport) : String = {
+    let process = if isEntry(report.process) then "" else "the process of ";
     let phrase = if report.restarted then " faulted, restarted: " else " faulted: ";
     let spawner = clause(", spawned by the peer ", report.spawnedBy);
-    escaped(report.site) <> phrase <> causeLine(report.cause, report.callee, report.peer) <> spawner
+    process
+        <> escaped(report.site)
+        <> phrase
+        <> causeLine(report.cause, report.callee, report.peer)
+        <> spawner
 }
 
 // Report §11.2, §6.6, §8.7: a fault's cause as its line writes it, through
 // `escaped`, and after it the callee's site, escaped too, where a call
-// carried the cause from its callee, and the peer where a compute carried
-// it from the peer.
+// carried the cause from its callee, and the peer where a compute, or a
+// call of a callee on the peer, carried it from the peer.
 fn causeLine(cause : String, callee : Optional(String), peer : Optional(String)) : String =
     escaped(cause)
         <> clause(", the fault of the callee ", Optional.map(callee, escaped))
@@ -2360,6 +2366,11 @@ foreign fn sayEnd(line : String) : Unit =
 
 foreign fn spawnProgram() : Unit =
     "ern_shell:spawn_program/0"
+
+// Report §11.2: whether the process is the entry process of the run in
+// progress, whose fault's line names its site alone, as `ern run`'s does.
+foreign fn isEntry(process : Process) : Bool =
+    "ern_shell:is_entry/1"
 
 foreign fn load(session : Session, name : String) : Either(String, #(Session, String)) =
     "ern_shell:load/2"

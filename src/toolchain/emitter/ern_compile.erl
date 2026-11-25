@@ -357,40 +357,27 @@ session_line({Line, Column, none}, Offset) ->
 %% which a definition is shipped onward and a compiled module loaded beside
 %% another unit of its name is made a unit of its own (§11.2): each
 %% definition with the lines of its source, an input's as its session
-%% counts them (session_lined/3), the locals' names left out, the name its
-%% sites write it by where that is not its qualified name, and what prints
-%% a type in a cause as its module writes it (§11.5); its foreign
+%% counts them (session_lined/3), the locals' names left out, and the name
+%% its sites write it by where that is not its qualified name; its foreign
 %% declarations, each by its qualified name as the forms write it, an
 %% input's under the session's one namespace as its unit lists it
 %% (Appendix H, §11.2), with their schemes, what their implementations
-%% name, that too, and the line and column they are declared at, an
-%% input's as its session counts them; and its bindings' order (§8.5).
+%% name and the line and column they are declared at, an input's as its
+%% session counts them; and its bindings' order (§8.5).
 recorded(#unit{namespace = Namespace, definitions = Definitions, foreign_functions = Foreign,
                binding_order = BindingOrder, form_namespace = FormNamespace} = Unit, Build) ->
-    Printing = printing(Unit),
     #recorded{definitions = [Definition#definition{
                                sourced = ern_canonical:recorded_source(Sourced),
                                name = sites_name(lists:nthtail(length(Namespace), QualifiedName),
-                                                 QualifiedName, Unit, Build),
-                               printing = Printing}
+                                                 QualifiedName, Unit, Build)}
                              || #definition{qualified_name = QualifiedName, sourced = Sourced}
                                     = Definition <- Definitions],
               foreign = [Declaration#foreign_function{
                            qualified_name = FormNamespace
-                                                ++ lists:nthtail(length(Namespace), QualifiedName),
-                           printing = Printing}
+                                                ++ lists:nthtail(length(Namespace), QualifiedName)}
                          || #foreign_function{qualified_name = QualifiedName} = Declaration
                                 <- Foreign],
               binding_order = BindingOrder}.
-
-%% Report §11.5, §12.7: what prints a type of the unit's in a cause as its
-%% module writes it, as text, which a code frame carries: the namespace its
-%% forms write the module's types under, a session's one where an input's
-%% types are its (Appendix H), and the prelude names its types shadow.
-printing(#unit{form_namespace = FormNamespace, link = #link{printing = Printing}}) ->
-    {_, Shadows} = ern_types:printed_scope(Printing),
-    {[atom_to_binary(Segment) || Segment <- FormNamespace],
-     [atom_to_binary(Shadow) || Shadow <- Shadows]}.
 
 %% The name a definition's sites write, as text, where it is not its
 %% qualified name (ern_emitter:site_name/2); an input's expression by the

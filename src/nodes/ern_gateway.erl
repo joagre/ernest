@@ -93,9 +93,9 @@ departing() ->
     asked(departing).
 
 %% The gateway asked Request and answered once it has done it, or at its
-%% end; nothing where it has not started (ern_rt:gateway/0).
+%% end; nothing where it has not started (ern_rt:gateways/0).
 asked(Request) ->
-    case ern_rt:gateway() of
+    case ern_rt:gateways() of
         [] ->
             ok;
         [Gateway] ->

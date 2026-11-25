@@ -20,19 +20,19 @@
 %% it names
 answer_test() ->
     ok = ern_peer:tables(),
+    Started = spawn(fun() -> receive after infinity -> ok end end),
     try
         Ref = make_ref(),
         true = ets:insert(ern_spawns, written(node(), Ref, self())),
-        Started = spawn(fun() -> receive after infinity -> ok end end),
         ok = ern_peer:frame(self(), {answer, Ref, {spawned, Started}}),
         ?assertEqual({Ref, {spawned, Started}}, receive {Ref, _} = Got -> Got end),
         ?assertEqual([], ets:lookup(ern_spawns, {node(), Ref})),
         Late = spawn(fun() -> receive after infinity -> ok end end),
         MonitorRef = erlang:monitor(process, Late),
         ok = ern_peer:frame(self(), {answer, make_ref(), {spawned, Late}}),
-        ?assertEqual({ern, killed}, receive {'DOWN', MonitorRef, process, Late, Why} -> Why end),
-        exit(Started, kill)
+        ?assertEqual({ern, killed}, receive {'DOWN', MonitorRef, process, Late, Why} -> Why end)
     after
+        exit(Started, kill),
         untabled()
     end.
 
@@ -76,6 +76,7 @@ dead_spawner_test() ->
 %% and its process ended as its answer arrived
 spawn_after_a_loss_test() ->
     ok = ern_peer:tables(),
+    Started = spawn(fun() -> receive after infinity -> ok end end),
     try
         [Before, After] = [make_ref(), make_ref()],
         true = ets:insert(ern_spawns, written(node(), Before, self())),
@@ -83,13 +84,12 @@ spawn_after_a_loss_test() ->
         true = ets:insert(ern_spawns, written(node(), After, self())),
         ok = ern_peer:lost(node(), Loss),
         ?assertEqual({Before, {failed, 'Unreachable'}}, receive {Before, _} = Got -> Got end),
-        Started = spawn(fun() -> receive after infinity -> ok end end),
         ok = ern_peer:frame(self(), {answer, After, {spawned, Started}}),
         ?assertEqual({After, {spawned, Started}}, receive {After, _} = Answer -> Answer end),
         ?assertEqual([], ets:tab2list(ern_spawns)),
-        ?assert(erlang:is_process_alive(Started)),
-        exit(Started, kill)
+        ?assert(erlang:is_process_alive(Started))
     after
+        exit(Started, kill),
         untabled()
     end.
 
@@ -245,7 +245,7 @@ set_utilization_test() ->
 faulty_fields_test() ->
     ok = ern_peer:tables(),
     try
-        Elsewhere = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+        Elsewhere = ern_helpers:far_process(),
         ElsewhereRef = binary_to_term(<<131, 90, 1:16, 119, 13, "other@node.er", 1:32, 1:32>>),
         Here = self(),
         Wrap = fun(Message) -> Message end,
@@ -316,7 +316,7 @@ no_run_test() ->
         ?assertEqual(none, ern_rt:asked_of_run({offered, <<"k">>, <<0:256>>}))
     after
         unregister(ern_gateway),
-        unloaded(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 -define(REACHING,
@@ -381,7 +381,7 @@ spawn_by_identity_test() ->
                Self ! {spawned, Before, Wrong, Lacking, After}
            end,
     try
-        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
         {spawned, Before, Wrong, Lacking, After} =
             receive {spawned, _, _, _, _} = Got -> Got end,
         Absent = "the module ern_peer_tests_absent, which Peerreach.missing calls, is not here",
@@ -403,7 +403,7 @@ spawn_by_identity_test() ->
                       {exchange, {foreign, [<<"Peernone">>, <<"never">>]}}], Lacking),
         ?assertMatch({{spawned, _}, ok}, After)
     after
-        unloaded(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 -define(HELD,
@@ -488,12 +488,12 @@ failed_spawn_ends_no_call_test() ->
                ern_rt:kill(Answering)
            end,
     try
-        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
         ?assertEqual({ended, 'None', true, {faulted, <<"callee was killed">>},
                       {'Some', {'Left', 'NotListed'}}, []},
                      receive {ended, _, _, _, _, _} = Got -> Got end)
     after
-        unloaded(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 -define(COMPUTED,
@@ -567,9 +567,9 @@ computed_here_test() ->
     try
         %% report §8.6: a node detects no deadlock, and a compute comes to
         %% none other
-        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end,
-                                                             faults => Reporter,
-                                                             node => fun() -> ok end})),
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>,
+                                         ern_helpers:quiet(#{faults => Reporter,
+                                                             node => fun() -> ok end}))),
         {computed, Answers, NotLoaded, LateEnd, Told} =
             receive {computed, _, _, _, _} = Got -> Got end,
         ?assertMatch([{_, computed, 42},
@@ -586,7 +586,7 @@ computed_here_test() ->
         ?assertEqual(none, Told),
         ?assertEqual(none, receive {reported, Report} -> Report after 0 -> none end)
     after
-        unloaded(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 -define(RESTARTED,
@@ -633,9 +633,9 @@ computed_restarting_test() ->
            end,
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
     try
-        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end,
-                                                             faults => Reporter,
-                                                             node => fun() -> ok end})),
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>,
+                                         ern_helpers:quiet(#{faults => Reporter,
+                                                             node => fun() -> ok end}))),
         ?assertMatch({computed, {_, computed, 42},
                       {_, faulted, #fault{cause = <<"division by zero">>,
                                           trace = <<"erlang:'div'/2\nPeerrestarted.divided:4\n",
@@ -646,7 +646,7 @@ computed_restarting_test() ->
                      receive {reported, _} = Reported -> Reported end),
         ?assertEqual(none, receive {reported, Report} -> Report after 0 -> none end)
     after
-        unloaded(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 %% report §8.7, §12.6, §6.6, §11.2, Appendix E.27: a compute's caller waits
@@ -669,7 +669,6 @@ computed_restarting_test() ->
 %% for the peer beside the cause, and again for the waiting caller's status
 compute_caller_test() ->
     Self = self(),
-    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
     Gateway = fun Gateway(Told, Answers) ->
                   receive
                       {ern_frame, From, {compute, Alias, _, _, _}} ->
@@ -707,7 +706,7 @@ compute_caller_test() ->
                                 end),
                receive registered -> ok end,
                Compute = fun(Ms) ->
-                             ern_rt:compute(node(), Frame, ern_rt:deadline(Ms),
+                             ern_rt:compute(node(), fun compute_frame/1, ern_rt:deadline(Ms),
                                             {<<"p">>, <<"M.f:1">>})
                          end,
                Answered = [Compute(600000) || _ <- lists:seq(1, 5)],
@@ -742,9 +741,9 @@ compute_caller_test() ->
                        WaitingOver =:= Waiting, WaitingStatus, {Lost, get('$ern_call')}}
            end,
     Reporter = fun(Report, _Peer) -> Self ! {reported, Report} end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end,
-                                                         faults => Reporter,
-                                                         node => fun() -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>,
+                                     ern_helpers:quiet(#{faults => Reporter,
+                                                         node => fun() -> ok end}))),
     ?assertEqual({caller, [{'Right', 7},
                            {'Left', {'NotLoaded', <<"the binding M.limit has no value here">>}},
                            {'Left', {'Other', <<"ProgramEnd">>}},
@@ -759,10 +758,10 @@ compute_caller_test() ->
     %% the moment the caller met the fault, not the peer's
     ?assert(Time > 0).
 
-%% report §12.6, §6.9: a peer's kill frame, the fifteenth frame, ends a
-%% process of this node as this node's own kill does: a caller waiting in
-%% a compute on a peer is killed and its call's second note follows, as a
-%% caller killed here sends it (compute_caller_test); a kill of a process
+%% report §12.6, §6.9: a peer's kill frame ends a process of this node as
+%% this node's own kill does: a caller waiting in a compute on a peer is
+%% killed and its call's second note follows, as a caller killed here
+%% sends it (compute_caller_test); a kill of a process
 %% that has ended does nothing; and a frame naming a process of another
 %% node is one this node cannot read. Here a gateway of this host's stands
 %% in for the peer's, and the frame is read as the gateway's worker reads
@@ -770,39 +769,23 @@ compute_caller_test() ->
 %% nodes is test/ern_nodes_tests.erl's, which reads no row of a node
 kill_frame_test() ->
     Self = self(),
-    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
     Main = fun() ->
-               Told = self(),
-               Gateway = spawn(fun Gateway() ->
-                                   receive
-                                       {ern_frame, From, {compute, _, _, _, _}} ->
-                                           Told ! {noted, From}, Gateway();
-                                       {ern_frame, From, {call_over, _}} ->
-                                           Told ! {over, From}, Gateway();
-                                       stop -> ok
-                                   end
-                               end),
-               true = register(ern_gateway, Gateway),
-               Waiting = ern_rt:spawn(fun() ->
-                                          ern_rt:compute(node(), Frame, ern_rt:deadline(600000),
-                                                         {<<"p">>, <<"M.f:1">>})
-                                      end, <<"M.f:2">>),
-               MonitorRef = erlang:monitor(process, Waiting),
-               ern_rt:timed(),
-               receive {noted, Waiting} -> ok end,
-               Killed = ern_peer:frame(self(), {kill, Waiting}),
-               Over = receive {over, From} -> From end,
-               Reason = receive {'DOWN', MonitorRef, process, Waiting, Why} -> Why end,
-               Again = ern_peer:frame(self(), {kill, Waiting}),
-               Far = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
-               Unreadable = ern_peer:frame(self(), {kill, Far}),
-               ern_rt:untimed(),
-               GatewayRef = erlang:monitor(process, Gateway),
-               Gateway ! stop,
-               receive {'DOWN', GatewayRef, process, Gateway, _} -> ok end,
-               Self ! {killed, {Killed, Over =:= Waiting, Reason, Again, Unreadable}}
+               Kill = fun(Waiting) ->
+                          MonitorRef = erlang:monitor(process, Waiting),
+                          ern_rt:timed(),
+                          receive {noted, Waiting} -> ok end,
+                          Killed = ern_peer:frame(self(), {kill, Waiting}),
+                          Over = receive {over, From} -> From end,
+                          Reason = receive {'DOWN', MonitorRef, process, Waiting, Why} -> Why end,
+                          Again = ern_peer:frame(self(), {kill, Waiting}),
+                          Far = ern_helpers:far_process(),
+                          Unreadable = ern_peer:frame(self(), {kill, Far}),
+                          ern_rt:untimed(),
+                          {Killed, Over =:= Waiting, Reason, Again, Unreadable}
+                      end,
+               Self ! {killed, stand_in_gateway(Kill)}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     ?assertEqual({killed, {ok, true, {ern, killed}, ok, unreadable}},
                  receive {killed, _} = Got -> Got end).
 
@@ -832,7 +815,7 @@ kill_frame_reaches_only_the_runtimes_test() ->
                Foreign ! stop,
                Self ! {killed, {Read, Killed, Ended, Alive}}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     ?assertEqual({killed, {[ok, ok, ok], ok, {ern, killed}, [alive, alive, alive]}},
                  receive {killed, _} = Got -> Got end).
 
@@ -844,34 +827,51 @@ kill_frame_reaches_only_the_runtimes_test() ->
 %% note was sent for a caller the runtime killed alone
 host_ended_compute_test() ->
     Self = self(),
-    Frame = fun(Alias) -> {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS} end,
     Main = fun() ->
-               Told = self(),
-               Gateway = spawn(fun Gateway() ->
-                                   receive
-                                       {ern_frame, From, {compute, _, _, _, _}} ->
-                                           Told ! {noted, From}, Gateway();
-                                       {ern_frame, From, {call_over, _}} ->
-                                           Told ! {over, From}, Gateway();
-                                       stop -> ok
-                                   end
-                               end),
-               true = register(ern_gateway, Gateway),
-               Waiting = ern_rt:spawn(fun() ->
-                                          ern_rt:compute(node(), Frame, ern_rt:deadline(600000),
-                                                         {<<"p">>, <<"M.f:1">>})
-                                      end, <<"M.f:2">>),
-               ern_rt:timed(),
-               receive {noted, Waiting} -> exit(Waiting, kill) end,
-               Over = receive {over, From} -> From end,
-               ern_rt:untimed(),
-               GatewayRef = erlang:monitor(process, Gateway),
-               Gateway ! stop,
-               receive {'DOWN', GatewayRef, process, Gateway, _} -> ok end,
-               Self ! {over, Over =:= Waiting}
+               End = fun(Waiting) ->
+                         ern_rt:timed(),
+                         receive {noted, Waiting} -> exit(Waiting, kill) end,
+                         Over = receive {over, From} -> From end,
+                         ern_rt:untimed(),
+                         Over =:= Waiting
+                     end,
+               Self ! {over, stand_in_gateway(End)}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     ?assertEqual({over, true}, receive {over, _} = Got -> Got end).
+
+%% Report §8.7, §12.6: the frame of a compute on a peer of the function of
+%% no hash, its reply to Alias.
+compute_frame(Alias) ->
+    {compute, Alias, {function, <<0:256>>}, <<"M.f:1">>, ?MS}.
+
+%% Report §8.7, §12.6: what Work answers, given a process of the runtime's
+%% that waits in a compute on a peer, a gateway of this host's standing in
+%% for the peer's under the gateway's name and telling the calling process
+%% of each compute it is sent, `{noted, From}`, and of each call's second
+%% note, `{over, From}`; the gateway stopped, and its end waited for, once
+%% Work returns.
+stand_in_gateway(Work) ->
+    Told = self(),
+    Gateway = spawn(fun Gateway() ->
+                        receive
+                            {ern_frame, From, {compute, _, _, _, _}} ->
+                                Told ! {noted, From}, Gateway();
+                            {ern_frame, From, {call_over, _}} ->
+                                Told ! {over, From}, Gateway();
+                            stop -> ok
+                        end
+                    end),
+    true = register(ern_gateway, Gateway),
+    Waiting = ern_rt:spawn(fun() ->
+                               ern_rt:compute(node(), fun compute_frame/1, ern_rt:deadline(600000),
+                                              {<<"p">>, <<"M.f:1">>})
+                           end, <<"M.f:2">>),
+    Answer = Work(Waiting),
+    GatewayRef = erlang:monitor(process, Gateway),
+    Gateway ! stop,
+    receive {'DOWN', GatewayRef, process, Gateway, _} -> ok end,
+    Answer.
 
 %% report §8.7, Appendix E.27: a program that is no node has no peers, so
 %% a compute on a peer named or picked and a utilization answer NotListed,
@@ -907,14 +907,14 @@ group_binding_test() ->
                receive {ern_frame, _, {answer, Ref, Answer}} -> Self ! {spawned, Answer, Read} end
            end,
     try
-        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
         {spawned, Answer, {not_loaded, spawn, Site, Lacked}} =
             receive {spawned, _, _} = Got -> Got end,
         ?assertEqual({{failed, {'NotLoaded', <<"the binding Peergroup.zero has no value here">>}},
                       <<"M.f:1">>, "the binding Peergroup.zero has no value here"},
                      {Answer, Site, lists:flatten(io_lib:format("~ts", [Lacked]))})
     after
-        unloaded(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 %% report §12.6, §11.1: a spawn on a peer names a lambda or a local fn by
@@ -980,16 +980,10 @@ loaded(Namespace, Text) ->
     maps:from_list([{QualifiedName, Hash}
                     || #definition{qualified_name = QualifiedName, hash = Hash} <- Definitions]).
 
-unloaded(Unit) ->
-    ern_code:unloaded(Unit),
-    code:purge(Unit),
-    code:delete(Unit),
-    code:purge(Unit).
-
 %% Appendix E.22: a child whose supervisor runs on another node faults
 %% before it joins
 supervisor_on_another_node_test() ->
-    Elsewhere = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+    Elsewhere = ern_helpers:far_process(),
     ?assertEqual(false, ern_rt:on_this_node(Elsewhere)),
     ?assert(ern_rt:on_this_node(self())),
     Child = (ern_named:function('ern@supervisor', child))(Elsewhere, fun() -> 'Unit' end),
@@ -1011,7 +1005,7 @@ foreign_offer_test() ->
                                        fun() -> Foreign ! stop end),
                Self ! {ended, ern_rt:offered(<<"foreign">>, <<0:256>>)}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     ?assertMatch({offered, {found, _}}, receive {offered, _} = Offered -> Offered end),
     ?assertEqual({ended, 'NotOffered'}, receive {ended, _} = Ended -> Ended end).
 
@@ -1037,7 +1031,7 @@ held_service_test() ->
                Self ! {offers, Holder, Newcomer, [Taken, Held, Again], Down,
                        ern_peer:offer(Service, Newcomer), ern_rt:offered(<<"held">>, <<0:256>>)}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     {offers, Holder, Newcomer, Answers, Down, Taken, Found} =
         receive {offers, _, _, _, _, _, _} = Offers -> Offers end,
     ?assertEqual([{'Right', 'Unit'}, {'Left', Holder}, {'Left', Holder}], Answers),
@@ -1054,7 +1048,7 @@ foreign_callee_test() ->
     Self = self(),
     Main = fun() ->
                Foreign = spawn(fun() -> receive stop -> ok end end),
-               Caller = binary_to_term(<<131, 88, 119, 13, "other@node.er", 0:32, 1:32, 1:32>>),
+               Caller = ern_helpers:far_process(),
                Reply = make_ref(),
                ok = ern_rt:note_call(Foreign, Caller, Reply),
                Self ! {noted, ets:tab2list(ern_notes), ets:tab2list(ern_callees)},
@@ -1063,7 +1057,7 @@ foreign_callee_test() ->
                                        fun() -> Foreign ! stop end),
                Self ! {ended, ets:tab2list(ern_notes), ets:tab2list(ern_callees)}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     ?assertMatch({noted, [_], [_]}, receive {noted, _, _} = Noted -> Noted end),
     ?assertEqual({ended, [], []}, receive {ended, _, _} = Ended -> Ended end).
 
@@ -1122,7 +1116,7 @@ restarted_frame_test() ->
                                    AtOnce =:= {watchers_told, Other}, HandedOn,
                                    Handed =:= {watchers_told, Reply}, Plain, Restarting}}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     {Read, Early, Answered, Told, AtOnce, HandedOn, Handed, Plain, Restarting} =
         receive {restarted, Got} -> Got end,
     ?assertEqual({true, held, true, {'Down', Restarting, 'Restarted', <<>>}, true, ok, true, none},
@@ -1231,13 +1225,7 @@ restarted_ended_at_a_loss_test() ->
                Watcher = erlang:self(),
                true = register(ern_gateway, Watcher),
                Restarting = spawn(fun() -> receive stop -> ok end end),
-               Wrap = fun({'Down', _, 'Restarted', _} = Down) ->
-                              Watcher ! {holding, erlang:self()},
-                              receive go -> {service, Down} end;
-                         (Down) ->
-                              {service, Down}
-                      end,
-               ern_rt:monitor_service(Restarting, Wrap),
+               ern_rt:monitor_service(Restarting, holding_restarted(Watcher)),
                {restart_waits, [Delivery], _} = ern_peer:frame(Restarting,
                                                                  {restarted, make_ref()}),
                receive {holding, Delivery} -> ok end,
@@ -1249,7 +1237,7 @@ restarted_ended_at_a_loss_test() ->
                Restarting ! stop,
                Self ! {lost, {Lost, Left, erlang:is_process_alive(Delivery), Restarting}}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     {Lost, Left, Alive, Restarting} = receive {lost, Got} -> Got end,
     ?assertEqual({{'Down', Restarting, 'Unreachable', <<>>}, [], false}, {Lost, Left, Alive}).
 
@@ -1292,7 +1280,7 @@ monitor_after_a_loss_test() ->
                Lost ! stop,
                Self ! {lost, {Firsts, Second, Lost}}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     {Firsts, Second, Lost} = receive {lost, Got} -> Got end,
     Unreachable = {'Down', Lost, 'Unreachable', <<>>},
     ?assertEqual({[Unreachable], Unreachable}, {Firsts, Second}).
@@ -1322,13 +1310,7 @@ restarted_ended_at_a_kill_test() ->
                Watcher = erlang:self(),
                true = register(ern_gateway, Watcher),
                Restarting = spawn(fun() -> receive stop -> ok end end),
-               Wrap = fun({'Down', _, 'Restarted', _} = Down) ->
-                              Watcher ! {holding, erlang:self()},
-                              receive go -> {service, Down} end;
-                         (Down) ->
-                              {service, Down}
-                      end,
-               ern_rt:monitor_service(Restarting, Wrap),
+               ern_rt:monitor_service(Restarting, holding_restarted(Watcher)),
                {restart_waits, [Delivery], _} = ern_peer:frame(Restarting,
                                                                  {restarted, make_ref()}),
                receive {holding, Delivery} -> ok end,
@@ -1340,9 +1322,20 @@ restarted_ended_at_a_kill_test() ->
                Left = [Later || {service, Later} <- flushed()],
                Self ! {killed, {Killed, Left, Restarting}}
            end,
-    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+    ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet())),
     {Killed, Left, Restarting} = receive {killed, Got} -> Got end,
     ?assertEqual({{'Down', Restarting, 'Killed', <<>>}, []}, {Killed, Left}).
+
+%% Report §6.9, §8.7: the wrap of a service monitor whose `Restarted` is
+%% held in its delivery until the delivery is sent `go`, Watcher told of
+%% the delivery's process first; any other Down is wrapped at once.
+holding_restarted(Watcher) ->
+    fun({'Down', _, 'Restarted', _} = Down) ->
+            Watcher ! {holding, erlang:self()},
+            receive go -> {service, Down} end;
+       (Down) ->
+            {service, Down}
+    end.
 
 %% Whether Pid's mailbox holds the end of a watch, a monitor's DOWN.
 holds_down(Pid) ->
@@ -1387,7 +1380,7 @@ restart_asks_gateway_test() ->
                Callee ! crash,
                Self ! receive {told, _} = Told -> Told end
            end,
-    Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
+    Quiet = ern_helpers:quiet(#{stderr => fun(_) -> ok end}),
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, Quiet)),
     ?assertEqual({told, {fault, <<"crashed">>}}, receive {told, _} = Told -> Told end).
 
@@ -1427,7 +1420,7 @@ proxy_one_find_test() ->
                erlang:trace_pattern({ern_peer, find, 2}, false, [local]),
                Self ! {traced, During, After}
            end,
-    Quiet = #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end},
+    Quiet = ern_helpers:quiet(#{stderr => fun(_) -> ok end}),
     ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, Quiet)),
     {traced, During, After} = receive {traced, _, _} = Traced -> Traced end,
     [_, {sent, 1, Nowhere} | _] = During,

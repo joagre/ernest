@@ -1,4 +1,4 @@
-%% The shims behind Foreign (report Appendix E.12, rule 1): what a value of
+%% The shims behind Foreign (report Appendix E.12, E.0 rule 1): what a value of
 %% the runtime is can only be asked of the runtime. `term/1` stands behind
 %% the declaration and is the identity: a use of `Foreign.term` is compiled
 %% to the crossing itself, by the type it is used at (report §8.4,

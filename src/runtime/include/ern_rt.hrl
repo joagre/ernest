@@ -26,14 +26,15 @@
 %% which the session marks, `input` for an input's process, which marks
 %% itself, `evaluator` for a load's evaluator, the runtime's own,
 %% marked as it is spawned, which Process.status knows not, or none; and
-%% Process.live() leaves out both (ern_rt:own/1, ern_rt:evaluate/2,
+%% Process.live() leaves out each (ern_rt:own/1, ern_rt:evaluate/2,
 %% Appendix E.21, E.28, §11.2).
 
 -record(fault, {cause, trace = none, callee = none, peer = none, time = none}).
 %% cause: the text of §7.4, which a Down carries (§6.9); trace: the fault's
 %% trace (§7.3, Appendix E.21); callee: the site of the callee whose fault
 %% a callForever carried to its caller (§6.6), or none; peer: the name of
-%% the peer whose compute carried it to its caller (§8.7), or none; time:
+%% the peer whose compute, or whose process a callForever called, carried
+%% it to its caller (§6.6, §8.7), or none; time:
 %% the moment it was met, in milliseconds since the epoch as Clock.now
 %% counts them (Appendix E.15). A fault thrown with its trace or its time
 %% none takes the stack and the moment where it is met (ern_rt:met/3).

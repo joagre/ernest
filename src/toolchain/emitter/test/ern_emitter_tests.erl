@@ -51,9 +51,11 @@ outcome(Text) ->
 cause_of({fault, Cause, _}) -> Cause.
 
 %% Report §12.3: the cause of a return of the foreign function Named that
-%% does not match Type.
-return_cause(Named, Type) ->
-    iolist_to_binary(["the return of foreign function ", Named, " does not match ", Type]).
+%% does not match Type, Part naming the first part that fails and the
+%% host's term there.
+return_cause(Named, Type, Part) ->
+    iolist_to_binary(["the return of foreign function ", Named, " does not match ", Type, ": ",
+                      Part]).
 
 example(Base) ->
     {ok, Source} = file:read_file(source_file(Base)),
@@ -817,12 +819,12 @@ raise_has_line_test() ->
     {{fault, UnitCause, UnitTrace}, _} =
         ern_program:run(
             ['Units'], "foreign fn wrong(key : Int) : Unit = \"erlang:get/1\"\n" ++ Called, #{}),
-    ?assertEqual(return_cause("erlang:get/1", "Unit"), UnitCause),
+    ?assertEqual(return_cause("erlang:get/1", "Unit", "is undefined"), UnitCause),
     ?assertEqual([<<"Units.wrong:1">>, <<"Units.main:3">>], frames(UnitTrace)),
     {{fault, WordCause, WordTrace}, _} =
         ern_program:run(
             ['Words'], "foreign fn wrong(key : Int) : Int = \"erlang:get/1\"\n" ++ Called, #{}),
-    ?assertEqual(return_cause("erlang:get/1", "Int"), WordCause),
+    ?assertEqual(return_cause("erlang:get/1", "Int", "is undefined"), WordCause),
     ?assertEqual([<<"Words.wrong:1">>, <<"Words.main:3">>], frames(WordTrace)).
 
 %% report §11.1, Appendix E.21, §7.3: a fault a standard library's shim
@@ -877,8 +879,7 @@ recorded_source_test() ->
          ?assertEqual([], local_names(Sourced))
      end || #definition{form = Form, sourced = Sourced} <- Definitions],
     ?assertMatch([#definition{qualified_name = ['Lined', twice], name = none,
-                              sourced = {'$at', {1, _, none}, _},
-                              printing = {[<<"Lined">>], []}},
+                              sourced = {'$at', {1, _, none}, _}},
                   #definition{qualified_name = ['Lined', base], name = none,
                               sourced = {'$at', {5, _, none}, _}}],
                  Definitions),
@@ -887,8 +888,7 @@ recorded_source_test() ->
                                 site_namespace => ['$Session'],
                                 input_name => <<"$Session.input 7">>}),
     ?assertMatch(#definition{name = [<<"$Session">>, <<"twice">>],
-                             sourced = {'$at', {11, _, none}, _},
-                             printing = {[<<"$Session">>], []}},
+                             sourced = {'$at', {11, _, none}, _}},
                  Twice),
     ?assertMatch(#definition{name = [<<"$Session">>, <<"base">>],
                              sourced = {'$at', {15, _, none}, _}}, Base).
@@ -984,16 +984,23 @@ local_names(_) ->
 %% frames of the host's stack, which the runtime keeps 64 of from its start
 %% (E.28), the host eight unless told, the innermost first: under a
 %% recursion twenty deep, the host's raise above the program's frames, then
-%% the foreign function's and the recursion's. A regression test of a
-%% defect, a trace of eight lines under a deeper stack, written in Ernest
-%% since the trace ends with the program's frames
+%% the foreign function's and the recursion's; and a thirteenth line counts
+%% the frames the cut leaves out, the recursion's other thirty and main's,
+%% `... 1 more frame` for main's alone under a recursion five deep. A
+%% regression test of a defect, a trace of eight lines under a deeper
+%% stack, written in Ernest since the trace ends with the program's frames
 trace_twelve_frames_test() ->
-    Text = "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
-           "fn nested(count : Int, text : String) : Int =\n"
-           "    if count == 0 then parsed(text) else 1 + again(count - 1, text)\n"
-           "fn again(count : Int, text : String) : Int = 1 + nested(count, text)\n"
-           "export fn main() : Unit = Io.println(Int.toString(nested(20, \"x\")))\n",
-    {{fault, _, Trace}, _} = ern_program:run(['Deep'], Text, #{}),
+    Text = fun(Depth) ->
+                   "foreign fn parsed(text : String) : Int = \"erlang:binary_to_integer/1\"\n"
+                   "fn nested(count : Int, text : String) : Int =\n"
+                   "    if count == 0 then parsed(text) else 1 + again(count - 1, text)\n"
+                   "fn again(count : Int, text : String) : Int = 1 + nested(count, text)\n"
+                   "export fn main() : Unit = Io.println(Int.toString(nested(" ++ Depth ++
+                       ", \"x\")))\n"
+           end,
+    {{fault, _, Shallow}, _} = ern_program:run(['Deep'], Text("5"), #{}),
+    ?assertMatch([_, _, _, _, _, _, _, _, _, _, _, _, <<"... 1 more frame">>], frames(Shallow)),
+    {{fault, _, Trace}, _} = ern_program:run(['Deep'], Text("20"), #{}),
     Frames = frames(Trace),
     ?assertMatch([<<"erlang:binary_to_integer/1">>, <<"Deep.parsed:1">> | _], Frames),
     %% each call returns to another function than the last, so that the
@@ -1001,7 +1008,8 @@ trace_twelve_frames_test() ->
     %% recursion; `nested`'s last call is a tail call, which leaves no frame
     Again = <<"Deep.again:4">>,
     Nested = <<"Deep.nested:3">>,
-    ?assertEqual([Again, Nested, Again, Nested, Again, Nested, Again, Nested, Again, Nested],
+    ?assertEqual([Again, Nested, Again, Nested, Again, Nested, Again, Nested, Again, Nested,
+                  <<"... 31 more frames">>],
                  lists:nthtail(2, Frames)).
 
 %% Appendix E.21: a frame of the runtime's is left out of the trace of a
@@ -1009,7 +1017,8 @@ trace_twelve_frames_test() ->
 %% still ends with the program's outermost frame: a callForever found
 %% deadlocked, its process waiting in the runtime's receive, and one whose
 %% callee had ended, its fault raised in the runtime's code, each show the
-%% frame of `main` that called it alone. A regression test, written after
+%% frame of `main` that called it alone, the deadlock's naming the callee
+%% it waits on (report §12.4). A regression test, written after
 %% the code: the runtime's frame, `ern_rt:call_forever/3:639`, stood above
 %% the program's (the log's *What the Skeptics Found*). The host's frame
 %% above the program's, which stays, is
@@ -1023,7 +1032,7 @@ trace_leaves_the_runtime_out_test() ->
             "export fn main() : Unit receiving MainMsg = {\n",
     Called = "    Io.println(Int.toString(Address.callForever(s, fn(r) = Ask(reply = r))))\n"
              "}\n",
-    ?assertMatch({{fault, <<"deadlock">>, <<"M.main:6\n">>}, _},
+    ?assertMatch({{fault, <<"deadlock">>, <<"M.main:6 on M.main:5\n">>}, _},
                  ern_program:run(Types ++ "    let s = spawn(deaf);\n" ++ Called)),
     ?assertMatch({{fault, <<"callee had ended">>, <<"M.main:7\n">>}, _},
                  ern_program:run(
@@ -2801,16 +2810,19 @@ foreign_faults_test() ->
     Main = "export fn main() : Unit = ",
     {Result1, _} = ern_program:run("foreign fn bad() : Int = \"erlang:node/0\"\n"
                                    ++ Main ++ "Io.println(Int.toString(bad()))\n"),
-    ?assertEqual(return_cause("erlang:node/0", "Int"), cause_of(Result1)),
+    ?assertEqual(return_cause("erlang:node/0", "Int", ["is ", atom_to_list(node())]),
+                 cause_of(Result1)),
     {Result2, _} = ern_program:run(
         "foreign fn pair() : #(Int, String) = \"ern_emitter_tests:pair/0\"\n"
         ++ Main ++ "{ let #(_, s) = pair(); Io.println(s) }\n"),
-    ?assertEqual(return_cause("ern_emitter_tests:pair/0", "#(Int, String)"), cause_of(Result2)),
+    ?assertEqual(return_cause("ern_emitter_tests:pair/0", "#(Int, String)", "field 2, is 2"),
+                 cause_of(Result2)),
     {Result3, _} = ern_program:run(
         "foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
         ++ Main ++ "match opt(1) { Some(n) -> Io.println(Int.toString(n))"
         " | None -> Io.println(\"none\") }\n"),
-    ?assertEqual(return_cause("ern_emitter_tests:opt/1", "Optional(Int)"), cause_of(Result3)),
+    ?assertEqual(return_cause("ern_emitter_tests:opt/1", "Optional(Int)", "field 1, is <<\"x\">>"),
+                 cause_of(Result3)),
     {ok, Output} = ern_program:run(
         "foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
         ++ Main ++ "match opt(0) { Some(n) -> Io.println(Int.toString(n))"
@@ -2827,6 +2839,78 @@ foreign_faults_test() ->
         " = \"lists:foreach/2\"\n"
         ++ Main ++ "each(fn(n : Int) = fault(\"later\"), [1])\n"),
     ?assertMatch({fault, <<"later">>, _}, Result5).
+
+%% report §12.3: a return's cause names the first part of the return that
+%% fails and the host's term there, a list's element and a tuple's field
+%% by their places, a map's key or the value of one, a set's member, and
+%% the return itself where it fails whole; the term on one line as the host
+%% writes it with a `chars_limit` of 80, which ends what it cuts with `...`
+foreign_return_part_test() ->
+    Main = "export fn main() : Unit = ",
+    Cause = fun(Declaration, Body) ->
+                {Result, _} = ern_program:run(Declaration ++ Main ++ Body ++ "\n"),
+                cause_of(Result)
+            end,
+    ?assertEqual(return_cause("lists:reverse/1", "List(#(Int, String))",
+                              "element 3, field 2, is three"),
+                 Cause("foreign fn rows(items : List(Foreign.Term)) : List(#(Int, String)) ="
+                       " \"lists:reverse/1\"\n",
+                       "Io.println(Int.toString(List.size(rows([Foreign.term(#(3,"
+                       " Foreign.atom(\"three\"))), Foreign.term(#(2, \"two\")),"
+                       " Foreign.term(#(1, \"one\"))]))))")),
+    Keyed = "foreign fn keyed(pairs : List(Foreign.Term)) : Map(Int, String) ="
+            " \"maps:from_list/1\"\n",
+    ?assertEqual(return_cause("maps:from_list/1", "Map(Int, String)", "the value of key 2, is 3"),
+                 Cause(Keyed, "Io.println(Int.toString(Map.size(keyed([Foreign.term(#(1, \"a\")),"
+                       " Foreign.term(#(2, 3))]))))")),
+    ?assertEqual(return_cause("maps:from_list/1", "Map(Int, String)", "a key, is a"),
+                 Cause(Keyed, "Io.println(Int.toString(Map.size(keyed([Foreign.term(#("
+                       "Foreign.atom(\"a\"), \"a\"))]))))")),
+    ?assertEqual(return_cause("sets:from_list/1", "Set(Int)", "a member, is x"),
+                 Cause("foreign fn members(items : List(Foreign.Term)) : Set(Int) ="
+                       " \"sets:from_list/1\"\n",
+                       "Io.println(Int.toString(Set.size(members([Foreign.term(1),"
+                       " Foreign.atom(\"x\")]))))")),
+    ?assertEqual(return_cause("lists:seq/2", "Int",
+                              "is [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,"
+                              "25,26,27,28|...]"),
+                 Cause("foreign fn seq(from : Int, to : Int) : Int = \"lists:seq/2\"\n",
+                       "Io.println(Int.toString(seq(1, 200)))")).
+
+%% report §12.3, §8.4: a call of a foreign function whose module the host
+%% lacks faults naming the module, and one the module does not export
+%% naming the function, each with a raise's trace, the implementation's
+%% frame first; an undef met deeper, in what the foreign function called,
+%% stays a raise. Report §11.2: a term of the host's in a cause stands on
+%% one line, however long
+foreign_lacked_test() ->
+    Main = "export fn main() : Unit = ",
+    {Lacked, _} = ern_program:run("foreign fn seven() : Int = \"tpkhelp:seven/0\"\n"
+                                  ++ Main ++ "Io.println(Int.toString(seven()))\n"),
+    ?assertMatch({fault, <<"foreign function tpkhelp:seven/0: no module tpkhelp on the load path">>,
+                  <<"tpkhelp:seven/0\n", _/binary>>},
+                 Lacked),
+    {Unexported, _} = ern_program:run("foreign fn none(xs : List(Int)) : Int = \"lists:nosuch/1\"\n"
+                                      ++ Main ++ "Io.println(Int.toString(none([1])))\n"),
+    ?assertMatch({fault, <<"foreign function lists:nosuch/1: lists exports no nosuch/1">>,
+                  <<"lists:nosuch/1\n", _/binary>>},
+                 Unexported),
+    {Deeper, _} = ern_program:run(
+        "foreign fn applied(m : Foreign.Term, f : Foreign.Term, xs : List(Int)) : Int"
+        " = \"erlang:apply/3\"\n"
+        ++ Main ++ "Io.println(Int.toString(applied(Foreign.atom(\"tpkhelp\"),"
+        " Foreign.atom(\"seven\"), [])))\n"),
+    ?assertMatch({fault, <<"foreign function erlang:apply/3 raised error:undef">>,
+                  <<"tpkhelp:seven/0\n", _/binary>>},
+                 Deeper),
+    {Long, _} = ern_program:run(
+        "foreign fn boom(term : Foreign.Term) : Int = \"erlang:error/1\"\n"
+        ++ Main ++ "Io.println(Int.toString(boom(Foreign.term(#(List.range(1, 40),"
+        " \"a string here\", \"another string there\")))))\n"),
+    ?assertEqual(<<"foreign function erlang:error/1 raised error:{[1,2,3,4,5,6,7,8,9,10,11,12,13,"
+                   "14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,"
+                   "40],<<\"a string here\">>,<<\"another string there\">>}">>,
+                 cause_of(Long)).
 
 %% report §6.5, §8.4: an address `adapted` made, given to foreign code and given
 %% back, is the address that went out, its function kept. A regression
@@ -2941,11 +3025,13 @@ foreign_improper_list_test() ->
     {Result1, _} = ern_program:run("foreign fn improper(x : Int) : List(Int) ="
                                    " \"ern_emitter_tests:improper/1\"\n"
                                    ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual(return_cause("ern_emitter_tests:improper/1", "List(Int)"), cause_of(Result1)),
+    ?assertEqual(return_cause("ern_emitter_tests:improper/1", "List(Int)", "is [1|1]"),
+                 cause_of(Result1)),
     {Result2, _} = ern_program:run(
         "foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
         ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual(return_cause("ern_emitter_tests:improper/1", "List(a)"), cause_of(Result2)).
+    ?assertEqual(return_cause("ern_emitter_tests:improper/1", "List(a)", "is [1|1]"),
+                 cause_of(Result2)).
 
 %% report §12.3: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and
@@ -2967,7 +3053,7 @@ foreign_function_value_test() ->
     %% form
     ?assertMatch({match, _}, re:run(Cause, "^the return of foreign function"
                                            " ern_emitter_tests:'-funs/0-fun-[0-9]+-'/1"
-                                           " does not match Int$")).
+                                           " does not match Int: is not_an_int$")).
 
 %% report §12.3: a function value foreign code gives inside a value of a type
 %% whose recursion passes through another type, `B` inside `A`, has its
@@ -3000,7 +3086,9 @@ foreign_function_value_through_another_type_test() ->
         "      | _ -> Unit\n"
         "    }\n"
         "}\n"),
-    ?assertEqual(return_cause("erlang:self/0", "B"), cause_of(Bad)).
+    ?assertMatch(<<"the return of foreign function erlang:self/0 does not match M.B: is <",
+                   _/binary>>,
+                 cause_of(Bad)).
 
 %% report §12.2, §8.4: a foreign function's return declared `Unit` that is
 %% the host's `ok`, as `lists:foreach/2` answers, is `Unit`, the type's one
@@ -3047,17 +3135,19 @@ foreign_ok_elsewhere_faults_test() ->
     Main = "export fn main() : Unit = ",
     {Result1, _} = ern_program:run("foreign fn collect() : Unit = \"erlang:garbage_collect/0\"\n"
                                    ++ Main ++ "collect()\n"),
-    ?assertEqual(return_cause("erlang:garbage_collect/0", "Unit"), cause_of(Result1)),
+    ?assertEqual(return_cause("erlang:garbage_collect/0", "Unit", "is true"), cause_of(Result1)),
     {Result2, _} = ern_program:run(
         "foreign fn copies(count : Int, word : Foreign.Term) : List(Unit) ="
         " \"lists:duplicate/2\"\n"
         ++ Main ++ "Io.println(Io.show(copies(1, Foreign.atom(\"ok\"))))\n"),
-    ?assertEqual(return_cause("lists:duplicate/2", "List(Unit)"), cause_of(Result2)),
+    ?assertEqual(return_cause("lists:duplicate/2", "List(Unit)", "element 1, is ok"),
+                 cause_of(Result2)),
     {Result3, _} = ern_program:run("foreign fn tuple(parts : List(Foreign.Term)) : #(Unit, Int) ="
                                    " \"erlang:list_to_tuple/1\"\n"
                                    ++ Main ++ "Io.println(Io.show(tuple([Foreign.atom(\"ok\"),"
                                    " Foreign.term(1)])))\n"),
-    ?assertEqual(return_cause("erlang:list_to_tuple/1", "#(Unit, Int)"), cause_of(Result3)),
+    ?assertEqual(return_cause("erlang:list_to_tuple/1", "#(Unit, Int)", "field 1, is ok"),
+                 cause_of(Result3)),
     {Result4, _} =
         ern_program:run(
             "foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
@@ -3066,17 +3156,19 @@ foreign_ok_elsewhere_faults_test() ->
             "    let copies = made(Foreign.atom(\"lists\"), Foreign.atom(\"duplicate\"), 2);\n"
             "    Io.println(Io.show(copies(1, Foreign.atom(\"ok\"))))\n"
             "}\n"),
-    ?assertEqual(return_cause("lists:duplicate/2", "List(Unit)"), cause_of(Result4)),
+    ?assertEqual(return_cause("lists:duplicate/2", "List(Unit)", "element 1, is ok"),
+                 cause_of(Result4)),
     Own = "type Unit = Unit\n"
           "foreign fn pause(ms : Int) : Unit = \"timer:sleep/1\"\n"
           "foreign fn made(module : Foreign.Term, function : Foreign.Term, arity : Int)\n"
           "    : (Int) -> Unit = \"erlang:make_fun/3\"\n"
           "export fn main() : Prelude.Unit = ",
     {Result5, _} = ern_program:run(Own ++ "Io.println(Io.show(pause(0)))\n"),
-    ?assertEqual(return_cause("timer:sleep/1", "Unit"), cause_of(Result5)),
+    %% report §12.3: the module's own Unit written whole from the root
+    ?assertEqual(return_cause("timer:sleep/1", "M.Unit", "is ok"), cause_of(Result5)),
     {Result6, _} = ern_program:run(Own ++ "Io.println(Io.show(made(Foreign.atom(\"timer\"),"
                                    " Foreign.atom(\"sleep\"), 1)(0)))\n"),
-    ?assertEqual(return_cause("timer:sleep/1", "Unit"), cause_of(Result6)).
+    ?assertEqual(return_cause("timer:sleep/1", "M.Unit", "is ok"), cause_of(Result6)).
 
 %% report §8.4: the proxy in front of an exposed address is one per address
 %% and mailbox type, so exposing the same address twice gives the same one
@@ -3236,13 +3328,13 @@ foreign_messages_test() ->
                                    "    junk(self());\n"
                                    "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                                    "}\n"),
-    ?assertMatch({fault, <<"message does not match Msg">>, _}, Result1),
+    ?assertMatch({fault, <<"message does not match M.Msg">>, _}, Result1),
     {WithStop, _} = ern_program:run("type Msg = Go(Int) | Stop\n" ++ Junk ++
                                     "export fn main() : Unit receiving Msg = {\n"
                                     "    junk(self());\n"
                                     "    receive { Stop -> Unit }\n"
                                     "}\n"),
-    ?assertMatch({fault, <<"message does not match Msg">>, _}, WithStop),
+    ?assertMatch({fault, <<"message does not match M.Msg">>, _}, WithStop),
     {ok, Output} = ern_program:run("type Msg = Go(Int)\n"
                                    "foreign fn good(a : Address(Msg)) : Unit ="
                                    " \"ern_emitter_tests:good/1\"\n"
@@ -3284,7 +3376,7 @@ foreign_messages_test() ->
 %% (trace_through_a_wait_test/0), and not one the check sends; it does not
 %% cover a wait for a call's answer, nor a receiver on another node
 bad_message_trace_is_the_receivers_test() ->
-    ?assertMatch({{fault, <<"message does not match Msg">>, <<"M.main:6\n">>}, _},
+    ?assertMatch({{fault, <<"message does not match M.Msg">>, <<"M.main:6\n">>}, _},
                  ern_program:run(
                      "type Msg = Go(Int)\n"
                      "foreign fn junk(a : Address(Msg)) : Unit = \"ern_emitter_tests:junk/1\"\n"
@@ -3328,7 +3420,7 @@ foreign_address_message_test() ->
                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                  "}\n"
              end,
-    ?assertMatch({fault, <<"message does not match Msg">>, _}, outcome(Source("hello_junk"))),
+    ?assertMatch({fault, <<"message does not match M.Msg">>, _}, outcome(Source("hello_junk"))),
     ?assertEqual({ok, <<"1\n">>}, ern_program:run(Source("hello_good"))).
 
 %% report §8.4: foreign code answers a Reply an Ernest process hands on to it
@@ -3384,7 +3476,7 @@ answer_to_foreign_reply_test() ->
                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                  "}\n"
              end,
-    ?assertMatch({fault, <<"message does not match Msg">>, _}, outcome(Source("ask_junk"))),
+    ?assertMatch({fault, <<"message does not match M.Msg">>, _}, outcome(Source("ask_junk"))),
     ?assertEqual({ok, <<"1\n">>}, ern_program:run(Source("ask_good"))).
 
 %% report §8.4: the standard library is the runtime's own, so the return of
@@ -3401,7 +3493,8 @@ standard_library_unchecked_test() ->
            "    Io.println(\"unchecked\")\n"
            "}\n",
     ?assertEqual({ok, <<"unchecked\n">>}, ern_program:run(['M'], Text, #{standard => true})),
-    ?assertEqual(return_cause("erlang:node/0", "Int"), cause_of(outcome(Text))).
+    ?assertEqual(return_cause("erlang:node/0", "Int", ["is ", atom_to_list(node())]),
+                 cause_of(outcome(Text))).
 
 %% report §8.4, Appendix E.2: `List.reverse`, a foreign function of the
 %% library's, takes a list of any element type, functions, replies and
@@ -4322,7 +4415,7 @@ foreign_casts_and_callbacks_test() ->
                                                  "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
                    Result
                end,
-    ?assertEqual(return_cause("erlang:abs/1", "a"),
+    ?assertEqual(return_cause("erlang:abs/1", "a", "is 1"),
                  cause_of(ResultOf("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n",
                                    "cast(1) + 1"))),
     ?assertEqual(ok, ResultOf("foreign fn none(xs : List(Int)) : List(a) =\n    \"erlang:tl/1\"\n",
@@ -4393,7 +4486,8 @@ function_named_in_cause_test() ->
                                  "}\n", #{}),
                Faulted
            end,
-    ?assertEqual(return_cause("erlang:abs/1", "String"), Made("(Int) -> String", "abs", "f(-3)")),
+    ?assertEqual(return_cause("erlang:abs/1", "String", "is 3"),
+                 Made("(Int) -> String", "abs", "f(-3)")),
     ?assertEqual(<<"foreign function erlang:binary_to_integer/1 raised error:badarg">>,
                  Made("(String) -> Int", "binary_to_integer", "f(\"x\")")).
 
@@ -4616,10 +4710,10 @@ address_from_two_modules_in_order_test() ->
           "}\n"}])).
 
 %% report §12.3: a message that does not match through a check two modules'
-%% crossings share faults the receiver with the type printed as the module
-%% whose crossing made the check prints it, in either order of crossing.
-%% Written before its code, and red there: each crossing had a check of its
-%% own, which printed the type as its own module does
+%% crossings share faults the receiver with the type written whole from
+%% the root, whichever module's crossing made the check, in either order
+%% of crossing. Written before its code, and red there: each crossing had a
+%% check of its own, which printed the type as its own module does
 shared_check_cause_test() ->
     Faulted = fun(First, Second) ->
                   {Result, _} = ern_program:run_modules(
@@ -4634,7 +4728,8 @@ shared_check_cause_test() ->
                       "}\n"}]),
                   cause_of(Result)
               end,
-    ?assertEqual({<<"message does not match KeptMsg">>, <<"message does not match Kept.KeptMsg">>},
+    ?assertEqual({<<"message does not match Kept.KeptMsg">>,
+                  <<"message does not match Kept.KeptMsg">>},
                  {Faulted("Kept.handedAlone(self())", "listed([self()])"),
                   Faulted("listed([self()])", "Kept.handedAlone(self())")}).
 
@@ -4786,7 +4881,11 @@ never_given_address_test() ->
     Refused = fun(Call, Named) ->
                   {Result, Output} = ern_program:run(Program(Call)),
                   ?assertEqual(<<"5\n">>, Output),
-                  ?assertEqual(return_cause(Named, "Address(String)"), cause_of(Result))
+                  ?assertEqual({match, [<<"is <">>]},
+                               re:run(cause_of(Result),
+                                      ["^the return of foreign function \\Q", Named,
+                                       "\\E does not match Address\\(String\\): (is <)"],
+                                      [{capture, all_but_first, binary}]))
               end,
     Refused("me()", "erlang:self/0"),
     Refused("retyped([Process.fromAddress(self())])", "erlang:hd/1"),

@@ -6,12 +6,14 @@
 %% looked for a deadlock, the deliveries to a process having
 %% delivered, and processes having ended. All but the last two read what
 %% the host reports of a process by tracing it, and stop tracing when they
-%% return.
+%% return. Beside them, a wait for a message, which gives up after a
+%% limit; a wait of a time, which bounds an absence; and the trace
+%% messages of a process taken out.
 -module(ern_waits).
 
 -export([with_room/1, until/2, freed/2, references/2, waiting/1, running/1, calling/1,
          watching/2, unwatched/2, queued/2, called/3, returned/3, looked/1, delivered/1,
-         ended/1, forever/0]).
+         ended/1, forever/0, wait/1, sleep/1, flushed/1]).
 
 %% What Work answers, every process it starts given a heap with room. The
 %% host collects a process when its heap fills, which a new process's small
@@ -271,7 +273,23 @@ ended(Pids) ->
 forever() ->
     ern_rt:call_forever(ern_rt:self(), fun(Reply) -> {forever, Reply} end).
 
+%% The value of the next `{Tag, Value}` the calling process is sent, or
+%% `timeout` where none has come in five seconds, a limit that only a
+%% failing test meets.
+-spec wait(term()) -> term().
+wait(Tag) ->
+    receive {Tag, Value} -> Value after 5000 -> timeout end.
+
+%% A wait the deadlock detector reads as timed, as the compiler's timed
+%% receive is, for an absence, of a time derived from what it waits for.
+-spec sleep(non_neg_integer()) -> ok.
+sleep(Ms) ->
+    ern_rt:timed(),
+    timer:sleep(Ms),
+    ern_rt:untimed().
+
 %% The trace messages of Pid still in the mailbox, taken out.
+-spec flushed(pid()) -> ok.
 flushed(Pid) ->
     receive
         {trace, Pid, _, _} -> flushed(Pid);

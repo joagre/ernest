@@ -41,9 +41,9 @@
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md):
 %% a find's, a spawn's and a utilization's wait on a peer's answer, a
 %% process a peer's monitored spawn started here on the spawner's word
-%% (held/4), and a restart's wait for a peer's answer (watchers_told/1),
-%% none the look sees coming (ern_rt:entered_foreign/0); the other shims
-%% read a table or a persistent term, or write a table.
+%% (released_by_spawner/4), and a restart's wait for a peer's answer
+%% (watchers_told/1), none the look sees coming (ern_rt:entered_foreign/0);
+%% the other shims read a table or a persistent term, or write a table.
 -receives({foreign_wait, [alias_answer/3, spawn_answer/3, given_up/2, spawner_word/2,
                           watchers_told/1]}).
 
@@ -200,16 +200,26 @@ found([Node | Nodes], Name, Hash, Deadline, _Last) ->
             end
     end.
 
-%% A peer's answer to a find or a utilization, through an alias that takes
-%% one answer and drops a late one; `Unreachable` where its gateway cannot
-%% be reached. An answer that came before the alias went at the time's end
-%% is taken, so that none is left in the caller's mailbox.
+%% A peer's answer to a find, through an alias that takes one answer and
+%% drops a late one; `Unreachable` where its gateway cannot be reached. An
+%% answer that came before the alias went at the time's end is taken, so
+%% that none is left in the caller's mailbox.
 asked(Node, Name, Hash, Deadline) ->
+    {Alias, MonitorRef} = ask(Node, fun(To) -> {find, Name, Hash, To} end),
+    gateway_answer(Alias, MonitorRef, Deadline).
+
+%% Report §12.6: a frame that asks Node's gateway for one answer, Body made
+%% of the alias the answer comes through, which takes one answer and drops
+%% a late one, sent from the asking process with the gateway watched, so
+%% that a loss of the connection, or the node's end, which ends its
+%% gateway, ends the wait: the alias and the watch, as a find, a
+%% utilization and a restart's ask take them.
+ask(Node, Body) ->
     Gateway = {ern_gateway, Node},
     MonitorRef = erlang:monitor(process, Gateway),
     Alias = erlang:alias([reply]),
-    erlang:send(Gateway, {ern_frame, erlang:self(), {find, Name, Hash, Alias}}),
-    gateway_answer(Alias, MonitorRef, Deadline).
+    erlang:send(Gateway, {ern_frame, erlang:self(), Body(Alias)}),
+    {Alias, MonitorRef}.
 
 %% Appendix E.21: a wait on a peer's answer that is no call, a find's, a
 %% spawn's or a utilization's, begun at Since, which Process.status reads
@@ -392,10 +402,10 @@ pick() ->
         [] ->
             'NotListed';
         Names ->
-            Now = erlang:monotonic_time(millisecond),
+            Now = ern_rt:monotonic(),
             drawn(list_to_tuple([{Utilization, Node, Name}
                                  || Name <- Names, Node <- [node_of(Name)],
-                                    {Utilization, At, Interval} <- held(Node),
+                                    {Utilization, At, Interval} <- told_utilization(Node),
                                     Now - At =< 2 * Interval]))
     end.
 
@@ -435,10 +445,7 @@ utilization(Name, Ms) ->
         Node ->
             Since = ern_rt:monotonic(),
             Deadline = ern_rt:deadline(Since, Ms),
-            Gateway = {ern_gateway, Node},
-            MonitorRef = erlang:monitor(process, Gateway),
-            Alias = erlang:alias([reply]),
-            erlang:send(Gateway, {ern_frame, erlang:self(), {utilization, Alias}}),
+            {Alias, MonitorRef} = ask(Node, fun(To) -> {utilization, To} end),
             case on_peer(Since, fun() -> gateway_answer(Alias, MonitorRef, Deadline) end) of
                 Utilization when is_float(Utilization) -> {'Right', Utilization};
                 timeout -> {'Left', 'Timeout'};
@@ -457,14 +464,14 @@ peers() ->
 %% utilization too old for a pick to use is answered as it is, with its age.
 -spec utilizations() -> [{binary(), float(), integer()}].
 utilizations() ->
-    Now = erlang:monotonic_time(millisecond),
+    Now = ern_rt:monotonic(),
     [{Name, Utilization, Now - At}
-     || Name <- peers(), {Utilization, At, _} <- held(node_of(Name))].
+     || Name <- peers(), {Utilization, At, _} <- told_utilization(node_of(Name))].
 
 %% The utilization a peer last told, with its moment and the peer's
 %% interval, or none: none heard, or no table, in a program that is no node
 %% and in an initializer, before the gateway starts.
-held(Node) ->
+told_utilization(Node) ->
     try ets:lookup(?UTILIZATIONS, Node) of
         [{_, Utilization, At, Interval}] -> [{Utilization, At, Interval}];
         [] -> []
@@ -488,7 +495,7 @@ set_utilization(_Utilization) ->
 %% the one before.
 -spec hold_utilization(node(), float(), pos_integer()) -> ok.
 hold_utilization(Node, Utilization, Interval) ->
-    Row = {Node, Utilization, erlang:monotonic_time(millisecond), Interval},
+    Row = {Node, Utilization, ern_rt:monotonic(), Interval},
     true = ets:insert(?UTILIZATIONS, Row),
     ok.
 
@@ -551,38 +558,26 @@ frame(From, {find, Name, Hash, Alias})
 %% writes, which this node cannot read
 frame(From, {spawn, Ref, Spawned, Site, Monitored, Ms})
   when is_reference(Ref), is_binary(Site), is_boolean(Monitored), is_integer(Ms) ->
-    case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
-        false ->
-            unreadable;
-        unreadable ->
-            unreadable;
-        {lacks, Identity} ->
-            {exchange, Identity};
-        Found ->
-            {Answer, Read} = spawned_here(Found, Ref, From, Monitored, Site),
-            erlang:send({ern_gateway, node(From)},
-                        {ern_frame, erlang:self(), {answer, Ref, Answer}}),
-            Read
-    end;
+    with_function(Spawned, Site,
+                  fun(Found) ->
+                      {Answer, Read} = spawned_here(Found, Ref, From, Monitored, Site),
+                      erlang:send({ern_gateway, node(From)},
+                                  {ern_frame, erlang:self(), {answer, Ref, Answer}}),
+                      Read
+                  end);
 %% report §12.6: a compute's site, read as a spawn's is
 frame(From, {compute, Alias, Spawned, Site, Ms})
   when is_reference(Alias), node(Alias) =:= node(From), is_binary(Site), is_integer(Ms) ->
-    case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
-        false ->
-            unreadable;
-        unreadable ->
-            unreadable;
-        {lacks, Identity} ->
-            {exchange, Identity};
-        Found ->
-            case computed_here(Found, Alias, From, Site) of
-                {started, Read} ->
-                    Read;
-                {{failed, Error}, Read} ->
-                    ern_rt:computed(Alias, Error),
-                    Read
-            end
-    end;
+    with_function(Spawned, Site,
+                  fun(Found) ->
+                      case computed_here(Found, Alias, From, Site) of
+                          {started, Read} ->
+                              Read;
+                          {{failed, Error}, Read} ->
+                              ern_rt:computed(Alias, Error),
+                              Read
+                      end
+                  end);
 frame(From, {answer, Ref, {spawned, Pid} = Answer})
   when is_reference(Ref), is_pid(Pid), node(Pid) =:= node(From) ->
     answered(From, Ref, Answer);
@@ -635,6 +630,19 @@ frame(_From, {watchers_told, Alias}) when is_reference(Alias), node(Alias) =:= n
 frame(_From, _Body) ->
     unreadable.
 
+%% Report §12.6: what a spawn's or a compute's frame does with the function
+%% it names, read once as the frame arrives, its site the spawner's words,
+%% read as UTF-8: a frame whose site is not is one no compiler writes,
+%% which this node cannot read; the exchange where this node lacks the
+%% function; and Start of the function found.
+with_function(Spawned, Site, Start) ->
+    case ern_fs:is_utf8(Site) andalso process_function(Spawned) of
+        false -> unreadable;
+        unreadable -> unreadable;
+        {lacks, Identity} -> {exchange, Identity};
+        Found -> Start(Found)
+    end.
+
 %% Report §12.6, *A restart's frames*: the restart's ask of Node, which
 %% watchers_told/1 waits on: the frame `restarted` to the node's gateway,
 %% from the restarting process, carrying an alias of the process's that the
@@ -646,11 +654,7 @@ frame(_From, _Body) ->
 %% process went with the loss.
 -spec restart_told(node()) -> {reference(), reference()}.
 restart_told(Node) ->
-    Gateway = {ern_gateway, Node},
-    MonitorRef = erlang:monitor(process, Gateway),
-    Alias = erlang:alias([reply]),
-    erlang:send(Gateway, {ern_frame, erlang:self(), {restarted, Alias}}),
-    {Alias, MonitorRef}.
+    ask(Node, fun(To) -> {restarted, To} end).
 
 %% Report §8.7, *A restart*, §12.6: the restart's wait on one node's answer that
 %% its watchers have been told, which this node's gateway hands to the
@@ -689,17 +693,11 @@ watchers_told({Alias, MonitorRef}) ->
 %% peer's spawn faults for nothing the peer does (§7.4, §12.5, Appendix
 %% E.27); the exchange answers one so too (ern_exchange).
 spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored, Site) ->
-    case absent_module(Unit, Foreigns) of
-        none ->
-            Held = held(Function, Ref, From, Monitored),
-            case ern_rt:asked_of_run({spawn, Held, Unit, Bindings, Site, node(From)}) of
-                {answered, Pid} when is_pid(Pid) -> {{spawned, Pid}, ok};
-                {answered, {absent, Binding}} -> not_loaded(spawn, Site, absent(Binding));
-                {answered, system_limit} -> {{failed, ern_io:limited()}, ok};
-                none -> {{failed, 'Unreachable'}, ok}
-            end;
-        Lacked ->
-            not_loaded(spawn, Site, Lacked)
+    Released = released_by_spawner(Function, Ref, From, Monitored),
+    case started_here(spawn, Unit, Foreigns, Site,
+                      {spawn, Released, Unit, Bindings, Site, node(From)}) of
+        {started, Pid} -> {{spawned, Pid}, ok};
+        Failed -> Failed
     end.
 
 %% Report §8.7, Appendix E.27: a process a peer's compute starts here as a
@@ -711,18 +709,29 @@ spawned_here({found, Function, Unit, {Bindings, Foreigns}}, Ref, From, Monitored
 %% having come between two runs (ern_rt:asked_of_run/1), or `Other` where
 %% its table of processes is full (ern_io:limited/0).
 computed_here({found, Function, Unit, {Bindings, Foreigns}}, Alias, From, Site) ->
+    case started_here(compute, Unit, Foreigns, Site,
+                      {compute, Function, Unit, Bindings, Site, node(From), From, Alias}) of
+        {started, _} -> {started, ok};
+        Failed -> Failed
+    end.
+
+%% Report §8.7, Appendix E.27: the process a peer's spawn or compute, Kind,
+%% asks the run in progress to start, Asked, where this node holds every
+%% module the reach's foreign declarations call: `{started, Pid}`, or what
+%% the peer is answered, with what the node says of it, where none starts,
+%% as spawned_here/5 and computed_here/4 say.
+started_here(Kind, Unit, Foreigns, Site, Asked) ->
     case absent_module(Unit, Foreigns) of
         none ->
-            Asked = {compute, Function, Unit, Bindings, Site, node(From), From, Alias},
             case ern_rt:asked_of_run(Asked) of
-                {answered, Pid} when is_pid(Pid) -> {started, ok};
+                {answered, Pid} when is_pid(Pid) -> {started, Pid};
                 {answered, over} -> {{failed, 'Unreachable'}, ok};
-                {answered, {absent, Binding}} -> not_loaded(compute, Site, absent(Binding));
+                {answered, {absent, Binding}} -> not_loaded(Kind, Site, absent(Binding));
                 {answered, system_limit} -> {{failed, ern_io:limited()}, ok};
                 none -> {{failed, 'Unreachable'}, ok}
             end;
         Lacked ->
-            not_loaded(compute, Site, Lacked)
+            not_loaded(Kind, Site, Lacked)
     end.
 
 %% Report §8.7, §12.5, §11.2: `NotLoaded(text)`, `text` what this node
@@ -785,11 +794,10 @@ reach_lacked(Bindings, Foreigns) ->
         [Lacked | _] ->
             Lacked;
         [] ->
-            case [QualifiedName || {QualifiedName, Hash} <- Bindings,
-                                   not has_value(QualifiedName, Hash)] of
+            case [Binding || {QualifiedName, Hash} = Binding <- Bindings,
+                             not has_value(QualifiedName, Hash)] of
                 [] -> none;
-                [QualifiedName | _] -> ["the binding ", qualified_text(QualifiedName),
-                                        " has no value here"]
+                [Binding | _] -> absent(Binding)
             end
     end.
 
@@ -997,13 +1005,14 @@ lost(Node, Order) ->
 ended({spawned, Pid}) -> ern_rt:kill(Pid);
 ended({failed, _}) -> ok.
 
-%% The function a spawned process runs: a monitored spawn's waits until the
-%% spawner has made its monitor, and ends where the spawner ends first.
-%% Report §8.6: the spawner's word comes from a peer, which the look does
-%% not see coming, so the wait is inside foreign code for it.
-held(Function, _Ref, _Spawner, false) ->
+%% The function a spawned process runs, released by the spawner: a
+%% monitored spawn's waits until the spawner has made its monitor, and ends
+%% where the spawner ends first. Report §8.6: the spawner's word comes from
+%% a peer, which the look does not see coming, so the wait is inside
+%% foreign code for it.
+released_by_spawner(Function, _Ref, _Spawner, false) ->
     Function;
-held(Function, Ref, Spawner, true) ->
+released_by_spawner(Function, Ref, Spawner, true) ->
     fun() ->
         MonitorRef = erlang:monitor(process, Spawner),
         ern_rt:entered_foreign(),

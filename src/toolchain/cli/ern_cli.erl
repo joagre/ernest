@@ -1223,7 +1223,7 @@ run(Options, [], ErrorDevice) ->
     ern_build:package_said(Options, Say),
     LoadPath = ern_build:load_path(Options),
     host_path(LoadPath),
-    as_node(Options, LoadPath, Say, bare, fun(Node) -> run_bare(ErrorDevice, Node) end).
+    as_node(Options, LoadPath, Say, bare, fun(Node) -> run_bare(Options, ErrorDevice, Node) end).
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
 %% UTF-8 text, one that is not UTF-8 refused by its position before
@@ -1241,8 +1241,10 @@ program_arguments([Word | Words], Position) ->
 %% `Os.exit` a process spawned on it calls, or by a stream that can no
 %% longer be written, each ending it as it ends a program. Report §8.1,
 %% §6.9: its entry process's site is `bare node`.
-run_bare(ErrorDevice, Node) ->
-    RunOptions = reporting_options(maps:merge(#{init => fun ern_carrier:say_limits/0}, Node),
+run_bare(Options, ErrorDevice, Node) ->
+    RunOptions = reporting_options(maps:merge(#{init => fun ern_carrier:say_limits/0,
+                                                ended => ended_said(Options, ErrorDevice)},
+                                              Node),
                                    ErrorDevice),
     report_outcome(ErrorDevice, <<"bare node">>,
                    ern_rt:run_main(fun waits/0, <<"bare node">>, RunOptions)).
@@ -1614,11 +1616,13 @@ no_main_file(run) ->
     "--main names the entry point of the file run, and no file is given; a bare node has none".
 
 %% Report §11.2: every fault on standard error as it happens, a line each:
-%% the spawn site and the cause; after the cause, where a call carried the
-%% fault from its callee, the callee's site (§6.6), where a compute carried
-%% it from a peer, the peer's name (§8.7), and for a process a peer
-%% spawned, the peer, named as a node's line names it (§12.5), since the
-%% site is the spawner's; and beneath it the fault's trace (§7.3,
+%% the process of its spawn site and the cause, the entry process's by its
+%% site alone, an initializer's binding's among them (§8.5); after the
+%% cause, where a call carried the fault from its callee, the callee's site
+%% (§6.6), where a compute or a call carried it from a peer, the peer's
+%% name (§6.6, §8.7), and for a process a peer spawned, the peer, named as
+%% a node's line names it (§12.5), since the site is the spawner's; and
+%% beneath it the fault's trace (§7.3,
 %% indented_trace/1). It goes through standard error's process, so that it
 %% keeps its place among what the program wrote there, and is flushed with
 %% it when the program ends.
@@ -1642,15 +1646,21 @@ report_fault({'FaultReport', Process, Site, Cause, Restarted, Trace, _, Callee, 
                     none -> [];
                     _ -> [", spawned by ", ern_carrier:named(Peer)]
                 end,
+    Of = case ern_rt:entry_process() of
+             Process -> [];
+             _ -> "the process of "
+         end,
     ern_rt:send(ern_rt:system_process(stderr),
-                iolist_to_binary([ern_job_line:stamp(Stamped, Time), ern_show:controls(Site, line),
-                                  Faulted, ern_show:controls(Cause, line), carried(Callee, From),
+                iolist_to_binary([ern_job_line:stamp(Stamped, Time), Of,
+                                  ern_show:controls(Site, line), Faulted,
+                                  ern_show:controls(Cause, line), carried(Callee, From),
                                   SpawnedBy, "\n", indented_trace(Trace), left_waiting(Process)])).
 
 %% Report §11.2, §6.6, §8.7: what follows a fault's cause on its line, a
 %% report's and a test's alike: the callee's site where a call carried the
-%% fault from its callee, then the peer's name where a compute carried it
-%% from the peer, each escaped as a site is.
+%% fault from its callee, then the peer's name where a compute, or a call
+%% of a callee on the peer, carried it from the peer, each escaped as a
+%% site is.
 carried(Callee, From) ->
     [case Callee of
          {'Some', Site} -> [", the fault of the callee ", ern_show:controls(Site, line)];
@@ -2244,10 +2254,21 @@ run_entry(Options, Namespace, Loaded, Arguments, ErrorDevice, Node) ->
     %% report §11.1: the unit names its functions by their position
     {Function, 0} = ern_code:function(EntryModule, Namespace ++ [EntryFunction]),
     %% report §8.6: a deadlock is the entry process's fault
-    RunOptions = reporting_options(maps:merge(#{init => Init, arguments => Arguments}, Node),
+    RunOptions = reporting_options(maps:merge(#{init => Init, arguments => Arguments,
+                                                ended => ended_said(Options, ErrorDevice)},
+                                              Node),
                                    ErrorDevice),
     Outcome = ern_rt:run_main(fun() -> EntryModule:Function() end, Site, RunOptions),
     report_outcome(ErrorDevice, Site, Outcome).
+
+%% Report §11.2, §8.6: what `--verbose` says once the program's end has
+%% ended its processes, how many it ended, `the end ended 3 processes`, and
+%% `the end ended 1 process` for one.
+ended_said(Options, ErrorDevice) ->
+    Say = ern_build:verbose(Options, ErrorDevice),
+    fun(1) -> Say("the end ended 1 process");
+       (Count) -> Say(["the end ended ", integer_to_list(Count), " processes"])
+    end.
 
 %% Report §11.2: the entry point the shell spawns beside it, or none for a
 %% file without one, which is loaded to be tried. A `main` that is not an

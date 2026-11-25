@@ -85,7 +85,7 @@ reach_test() ->
                                 scheme = {scheme, [], {arrow, [], none,
                                                        {applied, {named, ['Int']}, []}}, []},
                                 host_module = <<"erlang">>, host_function = <<"monotonic_time">>,
-                                source = {8, 1, none}, printing = {[<<"Exreach">>], []}},
+                                source = {8, 1, none}},
         ?assertMatch([[{reach, _, Work, [{[<<"Exreach">>, <<"corner">>], _}], []}],
                       [{reach, _, [_], [], [Now]}],
                       [{reach, _, Later, [], []}],
@@ -115,31 +115,28 @@ reach_test() ->
              {ok, Forms} = ern_canonical:verified(Hashes, Bytes),
              Sourced = binary_to_term(Sources),
              ?assertEqual(Forms, [ern_canonical:stripped(Source)
-                                  || {_, Source, _, _} <- Sourced]),
-             ?assertEqual([], [Name || {_, Source, _, _} <- Sourced,
+                                  || {_, Source, _} <- Sourced]),
+             ?assertEqual([], [Name || {_, Source, _} <- Sourced,
                                        Name <- local_names(Source)]),
-             %% report §12.7, §11.5: what prints a type as the module writes it
-             ?assertEqual([{[<<"Exreach">>], []}], lists:usort([P || {_, _, P, _} <- Sourced])),
              %% report §12.7: none of them calls a foreign function
-             ?assertEqual([[]], lists:usort([Calls || {_, _, _, Calls} <- Sourced]))
+             ?assertEqual([[]], lists:usort([Calls || {_, _, Calls} <- Sourced]))
          end || {code_frame, _, Hashes, Bytes, Sources} <- [Group | Frames]],
         [{code_frame, _, _, _, WorkSources}] =
             [Frame || {code_frame, _, [Of], _, _} = Frame <- Frames, Of =:= Hash(work)],
         %% report §12.7, Appendix H: a function's source's lines, and no
         %% name beside its form, which holds it
-        [{WorkName, {'$at', {WorkLine, _, none}, _}, _, _}] = binary_to_term(WorkSources),
+        [{WorkName, {'$at', {WorkLine, _, none}, _}, _}] = binary_to_term(WorkSources),
         ?assertEqual({none, 9}, {WorkName, WorkLine}),
-        [_, {none, {'$at', {OddLine, _, none}, _}, _, _}] = binary_to_term(element(5, Group)),
+        [_, {none, {'$at', {OddLine, _, none}, _}, _}] = binary_to_term(element(5, Group)),
         ?assertEqual(7, OddLine),
         %% report §12.7: a definition that calls a foreign function carries
         %% its declaration's host module and function beside its form, and
         %% where it is written
-        ?assertMatch([{none, _, {[<<"Exreach">>], []},
+        ?assertMatch([{none, _,
                        [#foreign_function{qualified_name = [<<"Exreach">>, <<"now">>],
                                           scheme = none, host_module = <<"erlang">>,
                                           host_function = <<"monotonic_time">>, export = false,
-                                          source = {8, 1, none},
-                                          printing = {[<<"Exreach">>], []}}]}],
+                                          source = {8, 1, none}}]}],
                      binary_to_term(element(5, TimedFrame)))
     after
         unloaded(Unit)
@@ -277,8 +274,7 @@ received_linked_test() ->
     {ok, _, LinkedBeam} = ern_compile:compile(['Exlinked'], Typed, Interface, Env,
                                               #{source_hash => <<>>, deps => []}),
     {ok, #recorded{definitions = [Linked],
-                   foreign = [#foreign_function{scheme = Scheme, printing = Printing,
-                                                source = Source}] = Foreign}} =
+                   foreign = [#foreign_function{scheme = Scheme, source = Source}] = Foreign}} =
         ern_canonical:read(LinkedBeam),
     Work = {function, Linked#definition.hash},
     Self = self(),
@@ -302,7 +298,7 @@ received_linked_test() ->
                                                                      <<"now">>],
                                                    scheme = Scheme, host_module = <<"erlang">>,
                                                    host_function = <<"monotonic_time">>,
-                                                   source = Source, printing = Printing}]}},
+                                                   source = Source}]}},
                    Lacks = receive {ern_frame, _, {lacks, Ref, L}} -> L end,
                    Exchange ! {ern_frame, self(), code_frame(Ref, [Linked], Foreign)},
                    Computed = receive {Alias, computed, Value} -> Value end,
@@ -327,8 +323,7 @@ received_linked_test() ->
                       [#foreign_function{qualified_name = [<<"Exlinked">>, <<"now">>],
                                          scheme = Scheme, host_module = <<"erlang">>,
                                          host_function = <<"monotonic_time">>, export = false,
-                                         source = {1, 1, none},
-                                         printing = {[<<"Exlinked">>], []}}]},
+                                         source = {1, 1, none}}]},
                      Onward),
         ?assertEqual(lists:sort([Linked#definition.hash, HeldHash, bound_hash(BoundBeam)]),
                      lists:sort(element(3, Onward))),
@@ -427,8 +422,7 @@ received_beyond_reach_test() ->
                                          scheme = {scheme, _, _, _},
                                          host_module = <<"ern_exchange_tests_elsewhere">>,
                                          host_function = <<"f">>, export = false,
-                                         source = {1, 1, none},
-                                         printing = {[<<"Exbeyond">>], []}}]},
+                                         source = {1, 1, none}}]},
                      Reach),
         ?assertEqual(42, Computed),
         ?assertMatch([#foreign_function{qualified_name = ['Exbeyond', absent],
@@ -437,15 +431,15 @@ received_beyond_reach_test() ->
                       #foreign_function{qualified_name = ['Exbeyond', now], host_module = erlang,
                                         host_function = monotonic_time, source = {2, 1, none}}],
                      lists:sort(Recorded)),
-        ?assertMatch([{_, _, _, [#foreign_function{qualified_name = [<<"Exbeyond">>, <<"absent">>],
-                                                   scheme = none,
-                                                   host_module = <<"ern_exchange_tests_elsewhere">>,
-                                                   host_function = <<"f">>,
-                                                   source = {1, 1, none}},
-                                 #foreign_function{qualified_name = [<<"Exbeyond">>, <<"now">>],
-                                                   scheme = none, host_module = <<"erlang">>,
-                                                   host_function = <<"monotonic_time">>,
-                                                   source = {2, 1, none}}]}],
+        ?assertMatch([{_, _, [#foreign_function{qualified_name = [<<"Exbeyond">>, <<"absent">>],
+                                                scheme = none,
+                                                host_module = <<"ern_exchange_tests_elsewhere">>,
+                                                host_function = <<"f">>,
+                                                source = {1, 1, none}},
+                              #foreign_function{qualified_name = [<<"Exbeyond">>, <<"now">>],
+                                                scheme = none, host_module = <<"erlang">>,
+                                                host_function = <<"monotonic_time">>,
+                                                source = {2, 1, none}}]}],
                      Sources),
         ?assertError(badarg, binary_to_existing_atom(<<"ern_exchange_tests_elsewhere">>)),
         ?assertEqual([{ern, fault, <<"the binding Exbeyond.note has no value here">>},
@@ -512,7 +506,7 @@ in_let_test() ->
         [_, {code_frame, _, _, _, JobSources}] = Frames,
         %% report §12.7, Appendix H: a binding's name beside its form, which
         %% does not hold it
-        ?assertMatch([{[<<"Exinlet">>, <<"job">>], {'$at', {2, _, none}, _}, _, []}],
+        ?assertMatch([{[<<"Exinlet">>, <<"job">>], {'$at', {2, _, none}, _}, []}],
                      binary_to_term(JobSources))
     after
         unloaded(Unit)
@@ -586,7 +580,7 @@ unlinked_reach_test() ->
                    Exchange ! {ern_frame, self(),
                                {code_frame, Ref, [Hash], ern_canonical:bytes(
                                                            ern_canonical:hashed([Form])),
-                                term_to_binary([{none, Form, {[], []}, []}])}},
+                                term_to_binary([{none, Form, []}])}},
                    Answer = receive {ern_frame, _, {answer, SpawnRef, A}} -> A end,
                    %% the node says the line once it has answered
                    ok = catch_up(),
@@ -702,9 +696,9 @@ faulty_frame_test() ->
                          end,
                Bytes = ern_canonical:bytes(ern_canonical:hashed([Form])),
                Name = [<<"Exfaulty">>, <<"held">>],
-               Sources = term_to_binary([{Name, Form, {[<<"Exfaulty">>], []}, []}]),
+               Sources = term_to_binary([{Name, Form, []}]),
                Declared = fun(HostModule, Source) ->
-                              term_to_binary([{Name, Form, {[<<"Exfaulty">>], []},
+                              term_to_binary([{Name, Form,
                                                [declaration([<<"Exfaulty">>, <<"now">>],
                                                             HostModule, <<"monotonic_time">>,
                                                             none, Source)]}])
@@ -716,13 +710,12 @@ faulty_frame_test() ->
                          fun(Ref) -> {code_frame, Ref, [<<6:256>>], Bytes, Sources} end,
                          fun(Ref) ->
                              {code_frame, Ref, [Hash], Bytes,
-                              term_to_binary([{Name, {'$at', {1, 1, none}, Other}, {[], []},
-                                               []}])}
+                              term_to_binary([{Name, {'$at', {1, 1, none}, Other}, []}])}
                          end,
                          fun(Ref) ->
                              {code_frame, Ref, [Hash], Bytes,
-                              <<131, 108, 1:32, 104, 4, 108, 1:32, 109, 3:32, "abc", 106,
-                                119, 12, "ern_unknown1", 104, 2, 106, 106, 106, 106>>}
+                              <<131, 108, 1:32, 104, 3, 108, 1:32, 109, 3:32, "abc", 106,
+                                119, 12, "ern_unknown1", 106, 106>>}
                          end,
                          fun(Ref) -> {code_frame, Ref, [Hash], Bytes, term_to_binary([])} end,
                          fun(Ref) ->
@@ -946,9 +939,8 @@ code_frame(Ref, Members, Foreign) ->
     Forms = [Form || #definition{form = Form} <- Members],
     {code_frame, Ref, [Hash || #definition{hash = Hash} <- Members],
      ern_canonical:bytes(ern_canonical:hashed(Forms)),
-     term_to_binary([{frame_name(Definition), Sourced, Printing, calls(Form, Foreign)}
-                     || #definition{form = Form, sourced = Sourced, printing = Printing}
-                            = Definition <- Members])}.
+     term_to_binary([{frame_name(Definition), Sourced, calls(Form, Foreign)}
+                     || #definition{form = Form, sourced = Sourced} = Definition <- Members])}.
 
 %% Report §12.7, Appendix H: a binding's name, which its form does not
 %% hold, and none for a function's or a type's, which their forms hold.
@@ -976,7 +968,7 @@ calls(Form, Foreign) ->
 %% the form writes.
 declaration(Name, HostModule, HostFunction, Scheme, Source) ->
     #foreign_function{qualified_name = Name, scheme = Scheme, host_module = HostModule,
-                      host_function = HostFunction, source = Source, printing = {[], []}}.
+                      host_function = HostFunction, source = Source}.
 
 %% The names of the locals a form with its source's lines holds.
 local_names({'$at', {_, _, Name}, Node}) ->

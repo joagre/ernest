@@ -372,7 +372,8 @@ load_caller_restarts_test() ->
                  binary:split(Output, <<"\n">>, [global, trim])),
     %% report §6.9: the other child's fault is reported, and the restart
     %% asked for is not
-    ?assertEqual(<<"Main.main:28 faulted, restarted: asked to fault\n    Main.faulting:19\n">>,
+    ?assertEqual(<<"the process of Main.main:28 faulted, restarted: asked to fault\n"
+                   "    Main.faulting:19\n">>,
                  Said).
 
 %% Appendix E.28, report §8.5, §8.6, §6.8: a load evaluates in an evaluator

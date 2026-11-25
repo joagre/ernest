@@ -34,7 +34,7 @@
 -module(ern_boundary).
 
 -export([raised/6, shim_raised/6, raised/4, called_raised/3, expose/2, check/3, value/3,
-         result/4, argument/5, expose/3]).
+         returned/3, returned_cause/3, result/4, argument/5, expose/3]).
 
 -export_type([descriptor/0]).
 
@@ -75,12 +75,37 @@ raised(_, _, _, throw, {ern, #fault{}} = Passing, Stack) ->
 raised(_, _, _, throw, '$ern_restart', _) ->
     throw('$ern_restart');
 raised(HostModule, HostFunction, Arity, Class, Error, Stack) ->
+    Named = ern_namespace:host_function_text(HostModule, HostFunction, Arity),
     ern_rt:fault(unicode:characters_to_binary(
-                   io_lib:format("foreign function ~ts raised ~p:~p",
-                                 [ern_namespace:host_function_text(HostModule, HostFunction,
-                                                                   Arity),
-                                  Class, Error])),
+                   [<<"foreign function ">>, Named,
+                    lacked(HostModule, HostFunction, Arity, Class, Error, Stack)]),
                  ern_rt:failure_trace(Stack)).
+
+%% Report §12.3, §8.4: what follows the function's name in a raise's cause:
+%% where the host lacked the function itself as the call was made, its
+%% undef met in the call's own frame, that the module is not on the load
+%% path, or that it does not export the function; else the raise, so that
+%% an undef met deeper, in a function the foreign function called, stays
+%% one. Read only once the call has failed.
+lacked(HostModule, HostFunction, Arity, error, undef, [{HostModule, HostFunction, Args, _} | _])
+  when length(Args) =:= Arity ->
+    case code:ensure_loaded(HostModule) of
+        {error, nofile} ->
+            io_lib:format(": no module ~tw on the load path", [HostModule]);
+        {module, HostModule} ->
+            case erlang:function_exported(HostModule, HostFunction, Arity) of
+                false ->
+                    io_lib:format(": ~tw exports no ~tw/~B", [HostModule, HostFunction, Arity]);
+                true -> raise_text(error, undef)
+            end;
+        {error, _} ->
+            raise_text(error, undef)
+    end;
+lacked(_, _, _, Class, Error, _) ->
+    raise_text(Class, Error).
+
+raise_text(Class, Error) ->
+    [" raised ", ern_rt:host_cause(Class, Error)].
 
 %% Report §12.3: an exception a shim of the standard library's raised
 %% (ern_emitter:shim_call/4), the foreign function's as raised/6 makes it,
@@ -156,23 +181,116 @@ called_raised(Class, Error, Stack) ->
 expose(Descriptor, Value) ->
     expose(Descriptor, Value, #{}).
 
-%% The value, or the fault Cause (report §12.3), where the descriptor holds
-%% no function, no address, no Reply and no float, so that the checked
-%% value is the value itself.
+%% A foreign function's return, or the fault Cause with the part that fails
+%% (returned_cause/3, report §12.3), where the descriptor holds no
+%% function, no address, no Reply and no float, so that the checked value
+%% is the value itself.
 -spec check(descriptor(), term(), binary()) -> term().
 check(Descriptor, Value, Cause) ->
     case matches(Descriptor, Value, #{}) of
         true -> Value;
-        false -> ern_rt:fault(Cause)
+        false -> ern_rt:fault(returned_cause(Cause, Descriptor, Value))
     end.
 
-%% The value as the program holds it, or the fault Cause (report §12.3).
+%% The value as the program holds it, or the fault Cause (report §12.3): an
+%% answer to a Reply foreign code gave.
 -spec value(descriptor(), term(), binary()) -> term().
 value(Descriptor, Value, Cause) ->
     case conformed(Descriptor, Value, #{}) of
         {ok, Checked} -> Checked;
         error -> ern_rt:fault(Cause)
     end.
+
+%% A foreign function's return as the program holds it, or the fault Cause
+%% with the part that fails (returned_cause/3, report §12.3).
+-spec returned(descriptor(), term(), binary()) -> term().
+returned(Descriptor, Value, Cause) ->
+    case conformed(Descriptor, Value, #{}) of
+        {ok, Checked} -> Checked;
+        error -> ern_rt:fault(returned_cause(Cause, Descriptor, Value))
+    end.
+
+%% Report §12.3: the cause of a return that does not match, Cause, then the
+%% first part of the return that fails, read as the check reads it, and
+%% the host's term there, `: element 3, field 2, is three`, or `: is foo`
+%% where the return itself fails; each term written on one line as the
+%% host writes it, its length bounded (ern_rt:host_term/2). Read only once
+%% the check has failed, on the return with each negative zero made the
+%% language's, as the check made it (conformed/3).
+-spec returned_cause(binary(), descriptor(), term()) -> binary().
+returned_cause(Cause, Descriptor, Value) ->
+    {Steps, Term} = part(Descriptor, zero(Descriptor, Value, #{}), #{}),
+    unicode:characters_to_binary([Cause, ": ", [[Step, ", "] || Step <- Steps], "is ",
+                                  ern_rt:host_term(Term, 80)]).
+
+%% The steps to the first part of Value, which Descriptor does not describe
+%% inside the mu bindings Bound, and the term there: a list's element by
+%% its place from 1, a tuple's or a constructor's field by its place from
+%% 1, a map's key, the value of a map's key, and a set's member; Value
+%% itself where it is not of the descriptor's shape, an improper list
+%% among them.
+part({list, ElementDescriptor}, Value, Bound) when is_list(Value) ->
+    elements_part(ElementDescriptor, Value, 1, Value, Bound);
+part({tuple, ElementDescriptors}, Value, Bound)
+  when is_tuple(Value), tuple_size(Value) =:= length(ElementDescriptors) ->
+    fields_part(ElementDescriptors, tuple_to_list(Value), 1, Value, Bound);
+part({map, KeyDescriptor, ValueDescriptor}, Value, Bound) when is_map(Value) ->
+    entries_part(KeyDescriptor, ValueDescriptor, maps:to_list(Value), Value, Bound);
+part({set, ElementDescriptor}, Value, Bound) when is_map(Value) ->
+    members_part(ElementDescriptor, maps:to_list(Value), Value, Bound);
+part({con, _, Constructors}, Value, Bound)
+  when is_tuple(Value), tuple_size(Value) > 1, is_atom(element(1, Value)) ->
+    [Tag | Fields] = tuple_to_list(Value),
+    case constructor_fields(Tag, Constructors) of
+        Descriptors when is_list(Descriptors), length(Descriptors) =:= length(Fields) ->
+            fields_part(Descriptors, Fields, 1, Value, Bound);
+        _ ->
+            {[], Value}
+    end;
+part({abstract, Descriptor}, Value, Bound) -> part(Descriptor, Value, Bound);
+part({mu, Id, Descriptor}, Value, Bound) -> part(Descriptor, Value, Bound#{Id => Descriptor});
+part({ref, Id}, Value, Bound) -> part(maps:get(Id, Bound), Value, Bound);
+part(_, Value, _) -> {[], Value}.
+
+elements_part(Descriptor, [Item | Items], Place, Whole, Bound) ->
+    case matches(Descriptor, Item, Bound) of
+        true -> elements_part(Descriptor, Items, Place + 1, Whole, Bound);
+        false -> step(["element ", integer_to_list(Place)], part(Descriptor, Item, Bound))
+    end;
+elements_part(_, _, _, Whole, _) ->
+    {[], Whole}.
+
+fields_part([Descriptor | Descriptors], [Field | Fields], Place, Whole, Bound) ->
+    case matches(Descriptor, Field, Bound) of
+        true -> fields_part(Descriptors, Fields, Place + 1, Whole, Bound);
+        false -> step(["field ", integer_to_list(Place)], part(Descriptor, Field, Bound))
+    end;
+fields_part([], [], _, Whole, _) ->
+    {[], Whole}.
+
+entries_part(KeyDescriptor, ValueDescriptor, [{Key, Item} | Entries], Whole, Bound) ->
+    case {matches(KeyDescriptor, Key, Bound), matches(ValueDescriptor, Item, Bound)} of
+        {false, _} ->
+            step("a key", part(KeyDescriptor, Key, Bound));
+        {true, false} ->
+            step(["the value of key ", ern_rt:host_term(Key, 80)],
+                 part(ValueDescriptor, Item, Bound));
+        {true, true} ->
+            entries_part(KeyDescriptor, ValueDescriptor, Entries, Whole, Bound)
+    end;
+entries_part(_, _, [], Whole, _) ->
+    {[], Whole}.
+
+members_part(ElementDescriptor, [{Item, []} | Members], Whole, Bound) ->
+    case matches(ElementDescriptor, Item, Bound) of
+        true -> members_part(ElementDescriptor, Members, Whole, Bound);
+        false -> step("a member", part(ElementDescriptor, Item, Bound))
+    end;
+members_part(_, _, Whole, _) ->
+    {[], Whole}.
+
+step(Step, {Steps, Term}) ->
+    {[Step | Steps], Term}.
 
 %% Report §12.3, §8.4: the result of Function, a function value foreign
 %% code gave, as the program holds it, or the fault Cause, which names the
@@ -185,7 +303,7 @@ result(unit, ok, _, _) ->
 result(Descriptor, Value, Function, Cause) ->
     case conformed(Descriptor, Value, #{}) of
         {ok, Checked} -> Checked;
-        error -> ern_rt:fault(named(Cause, host_name(Function)))
+        error -> ern_rt:fault(returned_cause(named(Cause, host_name(Function)), Descriptor, Value))
     end.
 
 %% Report §8.4: an argument foreign code calls Function, a function of the
@@ -316,9 +434,8 @@ zero({tuple, ElementDescriptors}, Value, Bound)
 zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) when is_map(Value) ->
     maps:from_list([{zero(KeyDescriptor, Key, Bound), zero(ValueDescriptor, Item, Bound)}
                     || {Key, Item} <- maps:to_list(Value)]);
-zero({set, ElementDescriptor}, {set, Members}, Bound) when is_map(Members) ->
-    {set, maps:from_list([{zero(ElementDescriptor, Item, Bound), []}
-                          || Item <- maps:keys(Members)])};
+zero({set, ElementDescriptor}, Value, Bound) when is_map(Value) ->
+    maps:from_list([{zero(ElementDescriptor, Item, Bound), []} || Item <- maps:keys(Value)]);
 zero({con, _, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
     [Tag | Fields] = tuple_to_list(Value),
     case constructor_fields(Tag, Constructors) of
@@ -385,14 +502,12 @@ matches({map, KeyDescriptor, ValueDescriptor}, Value, Bound) ->
                                         Acc andalso matches(KeyDescriptor, Key, Bound)
                                             andalso matches(ValueDescriptor, Item, Bound)
                                     end, true, Value);
-matches({set, ElementDescriptor}, {set, Members}, Bound) ->
-    %% a version 2 set is a map from element to [], tagged (ern@set)
-    is_map(Members) andalso maps:fold(fun(Item, Mark, Acc) ->
-                                          Acc andalso Mark =:= []
-                                              andalso matches(ElementDescriptor, Item, Bound)
-                                      end, true, Members);
-matches({set, _}, _, _) ->
-    false;
+matches({set, ElementDescriptor}, Value, Bound) ->
+    %% report §12.2: a version 2 set is a map from each element to []
+    is_map(Value) andalso maps:fold(fun(Item, Mark, Acc) ->
+                                        Acc andalso Mark =:= []
+                                            andalso matches(ElementDescriptor, Item, Bound)
+                                    end, true, Value);
 matches({con, _, Constructors}, Value, _) when is_atom(Value) ->
     constructor_fields(Value, Constructors) =:= [];
 matches({con, _, Constructors}, Value, Bound)

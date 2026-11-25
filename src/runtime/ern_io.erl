@@ -92,4 +92,4 @@ limited() ->
     {'Other', ern_rt:host_cause(error, system_limit)}.
 
 printed(Error) ->
-    {'Other', unicode:characters_to_binary(io_lib:format("~p", [Error]))}.
+    {'Other', ern_rt:host_term(Error)}.

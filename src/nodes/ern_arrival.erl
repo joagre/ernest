@@ -42,9 +42,7 @@
 %% atom here (Appendix H); so that a fault's trace and a spawn site its
 %% body writes show the sender's names and lines, `Counter.worker:23`, a
 %% foreign function's frame the line of its declaration, which its reach
-%% or its code frame carries, and a check's cause prints a type as the
-%% definition's module writes it, by the module's namespace and shadows the
-%% frame gave (§11.5).
+%% or its code frame carries.
 %%
 %% The unit exports every function it holds (§11.1), since a later
 %% exchange's definitions call into it by hash. A binding that crosses,

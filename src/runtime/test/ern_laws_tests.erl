@@ -19,32 +19,6 @@
 
 -define(CASES, 200).
 
--define(LIST, 'ern@list').
--define(LIST(Name), (ern_named:function(?LIST, Name))).
--define(STRING, 'ern@string').
--define(STRING(Name), (ern_named:function(?STRING, Name))).
--define(MAP, 'ern@map').
--define(MAP(Name), (ern_named:function(?MAP, Name))).
--define(SET, 'ern@set').
--define(SET(Name), (ern_named:function(?SET, Name))).
--define(ORDERED_SET, 'ern@ordered_set').
--define(ORDERED_SET(Name), (ern_named:function(?ORDERED_SET, Name))).
--define(ORDERED_MAP, 'ern@ordered_map').
--define(ORDERED_MAP(Name), (ern_named:function(?ORDERED_MAP, Name))).
--define(BYTES, 'ern@bytes').
--define(BYTES(Name), (ern_named:function(?BYTES, Name))).
--define(INT, 'ern@int').
--define(INT(Name), (ern_named:function(?INT, Name))).
--define(FLOAT, 'ern@float').
--define(FLOAT(Name), (ern_named:function(?FLOAT, Name))).
--define(CHAR, 'ern@char').
--define(CHAR(Name), (ern_named:function(?CHAR, Name))).
--define(OPTIONAL, 'ern@optional').
--define(OPTIONAL(Name), (ern_named:function(?OPTIONAL, Name))).
--define(EITHER, 'ern@either').
--define(EITHER(Name), (ern_named:function(?EITHER, Name))).
--define(PATH, 'ern@path').
--define(PATH(Name), (ern_named:function(?PATH, Name))).
 
 %%
 %% List
@@ -87,113 +61,143 @@ list_laws_test_() ->
            fun list_tries/1},
           {"<> appends", fun two_ints/1, fun list_append/1}]).
 
-list_size(List) ->
-    ?LIST(size)(List) =:= length(List) andalso ?LIST(isEmpty)(List) =:= (List =:= []).
+list_size(Items) ->
+    List = ern_named:functions('ern@list'),
+    List(size)(Items) =:= length(Items) andalso List(isEmpty)(Items) =:= (Items =:= []).
 
-list_contains({List, X}) ->
-    ?LIST(contains)(List, X) =:= lists:member(X, List).
+list_contains({Items, X}) ->
+    List = ern_named:functions('ern@list'),
+    List(contains)(Items, X) =:= lists:member(X, Items).
 
-list_get({List, Index}) ->
-    Expected = case Index >= 0 andalso Index < length(List) of
-                   true -> {'Some', lists:nth(Index + 1, List)};
+list_get({Items, Index}) ->
+    List = ern_named:functions('ern@list'),
+    Expected = case Index >= 0 andalso Index < length(Items) of
+                   true -> {'Some', lists:nth(Index + 1, Items)};
                    false -> 'None'
                end,
-    ?LIST(get)(List, Index) =:= Expected.
+    List(get)(Items, Index) =:= Expected.
 
-list_remove_at({List, Index}) when Index >= 0, Index < length(List) ->
-    {Before, [_ | After]} = lists:split(Index, List),
-    ?LIST(removeAt)(List, Index) =:= Before ++ After;
-list_remove_at({List, Index}) ->
-    ?LIST(removeAt)(List, Index) =:= List.
+list_remove_at({Items, Index}) when Index >= 0, Index < length(Items) ->
+    List = ern_named:functions('ern@list'),
+    {Before, [_ | After]} = lists:split(Index, Items),
+    List(removeAt)(Items, Index) =:= Before ++ After;
+list_remove_at({Items, Index}) ->
+    List = ern_named:functions('ern@list'),
+    List(removeAt)(Items, Index) =:= Items.
 
-list_map_filter({List, Pivot}) ->
+list_map_filter({Items, Pivot}) ->
+    List = ern_named:functions('ern@list'),
     Keep = above(Pivot),
     Tenfold = fun(X) -> kept(Keep(X), X * 10) end,
-    ?LIST(map)(List, fun(X) -> X * 2 end) =:= [X * 2 || X <- List]
-        andalso ?LIST(filter)(List, Keep) =:= lists:filter(Keep, List)
-        andalso ?LIST(filterMap)(List, Tenfold) =:= [X * 10 || X <- List, Keep(X)].
+    List(map)(Items, fun(X) -> X * 2 end) =:= [X * 2 || X <- Items]
+        andalso List(filter)(Items, Keep) =:= lists:filter(Keep, Items)
+        andalso List(filterMap)(Items, Tenfold) =:= [X * 10 || X <- Items, Keep(X)].
 
-list_folds(List) ->
-    ?LIST(foldLeft)(List, [], fun(Acc, X) -> [X | Acc] end) =:= lists:reverse(List)
-        andalso ?LIST(foldRight)(List, [], fun(Acc, X) -> [X | Acc] end) =:= List.
+list_folds(Items) ->
+    List = ern_named:functions('ern@list'),
+    List(foldLeft)(Items, [], fun(Acc, X) -> [X | Acc] end) =:= lists:reverse(Items)
+        andalso List(foldRight)(Items, [], fun(Acc, X) -> [X | Acc] end) =:= Items.
 
-list_for_each(List) ->
-    met(fun(Visit) -> ?LIST(forEach)(List, Visit) end) =:= List.
+list_for_each(Items) ->
+    List = ern_named:functions('ern@list'),
+    met(fun(Visit) -> List(forEach)(Items, Visit) end) =:= Items.
 
-list_search({List, Pivot}) ->
+list_search({Items, Pivot}) ->
+    List = ern_named:functions('ern@list'),
     Keep = above(Pivot),
-    ?LIST(any)(List, Keep) =:= lists:any(Keep, List)
-        andalso ?LIST(all)(List, Keep) =:= lists:all(Keep, List)
-        andalso ?LIST(find)(List, Keep) =:= first(lists:filter(Keep, List)).
+    List(any)(Items, Keep) =:= lists:any(Keep, Items)
+        andalso List(all)(Items, Keep) =:= lists:all(Keep, Items)
+        andalso List(find)(Items, Keep) =:= first(lists:filter(Keep, Items)).
 
-list_last(List) ->
-    ?LIST(last)(List) =:= first(lists:reverse(List)).
+list_last(Items) ->
+    List = ern_named:functions('ern@list'),
+    List(last)(Items) =:= first(lists:reverse(Items)).
 
-list_take_drop({List, Count}) ->
-    Taken = ?LIST(take)(List, Count),
-    Taken ++ ?LIST(drop)(List, Count) =:= List
-        andalso length(Taken) =:= min(max(Count, 0), length(List)).
+list_take_drop({Items, Count}) ->
+    List = ern_named:functions('ern@list'),
+    Taken = List(take)(Items, Count),
+    Taken ++ List(drop)(Items, Count) =:= Items
+        andalso length(Taken) =:= min(max(Count, 0), length(Items)).
 
-list_drop_last({List, Count}) ->
-    Kept = max(length(List) - max(Count, 0), 0),
-    ?LIST(dropLast)(List, Count) =:= lists:sublist(List, Kept).
+list_drop_last({Items, Count}) ->
+    List = ern_named:functions('ern@list'),
+    Kept = max(length(Items) - max(Count, 0), 0),
+    List(dropLast)(Items, Count) =:= lists:sublist(Items, Kept).
 
-list_take_last({List, Count}) ->
-    Taken = ?LIST(takeLast)(List, Count),
-    ?LIST(dropLast)(List, Count) ++ Taken =:= List
-        andalso length(Taken) =:= min(max(Count, 0), length(List)).
+list_take_last({Items, Count}) ->
+    List = ern_named:functions('ern@list'),
+    Taken = List(takeLast)(Items, Count),
+    List(dropLast)(Items, Count) ++ Taken =:= Items
+        andalso length(Taken) =:= min(max(Count, 0), length(Items)).
 
-list_split_while({List, Pivot}) ->
-    ?LIST(splitWhile)(List, above(Pivot)) =:= lists:splitwith(above(Pivot), List).
+list_split_while({Items, Pivot}) ->
+    List = ern_named:functions('ern@list'),
+    List(splitWhile)(Items, above(Pivot)) =:= lists:splitwith(above(Pivot), Items).
 
-list_partition({List, Pivot}) ->
-    ?LIST(partition)(List, above(Pivot)) =:= lists:partition(above(Pivot), List).
+list_partition({Items, Pivot}) ->
+    List = ern_named:functions('ern@list'),
+    List(partition)(Items, above(Pivot)) =:= lists:partition(above(Pivot), Items).
 
-list_unique(List) ->
-    ?LIST(unique)(List) =:= first_occurrences(fun(X) -> X end, List).
+list_unique(Items) ->
+    List = ern_named:functions('ern@list'),
+    List(unique)(Items) =:= first_occurrences(fun(X) -> X end, Items).
 
-list_indexed(List) ->
-    ?LIST(indexed)(List) =:= lists:zip(lists:seq(0, length(List) - 1), List).
+list_indexed(Items) ->
+    List = ern_named:functions('ern@list'),
+    List(indexed)(Items) =:= lists:zip(lists:seq(0, length(Items) - 1), Items).
 
 list_repeat({X, Count}) ->
-    ?LIST(repeat)(X, Count) =:= lists:duplicate(max(Count, 0), X).
+    List = ern_named:functions('ern@list'),
+    List(repeat)(X, Count) =:= lists:duplicate(max(Count, 0), X).
 
-list_reverse(List) ->
-    ?LIST(reverse)(List) =:= lists:reverse(List).
+list_reverse(Items) ->
+    List = ern_named:functions('ern@list'),
+    List(reverse)(Items) =:= lists:reverse(Items).
 
 %% Erlang's merge sort keeps equal elements in order where the ordering
 %% says true of two equal ones.
 list_sort(Pairs) ->
-    ByKey = fun({Key, _}, {Other, _}) -> ?INT(compare)(Key, Other) end,
+    List = ern_named:functions('ern@list'),
+    Int = ern_named:functions('ern@int'),
+    ByKey = fun({Key, _}, {Other, _}) -> Int(compare)(Key, Other) end,
     Stable = lists:sort(fun({Key, _}, {Other, _}) -> Key =< Other end, Pairs),
-    ?LIST(sort)(Pairs, ByKey) =:= Stable.
+    List(sort)(Pairs, ByKey) =:= Stable.
 
 %% The order reads the key alone, so that two elements it calls Equal
 %% differ, and the first of them is the one answered.
 list_extremes(Pairs) ->
-    ByKey = fun({Key, _}, {Other, _}) -> ?INT(compare)(Key, Other) end,
+    List = ern_named:functions('ern@list'),
+    Int = ern_named:functions('ern@int'),
+    ByKey = fun({Key, _}, {Other, _}) -> Int(compare)(Key, Other) end,
     Keys = [Key || {Key, _} <- Pairs],
     Expected = case Pairs of
                    [] -> {'None', 'None'};
                    _ -> {{'Some', lists:keyfind(lists:min(Keys), 1, Pairs)},
                          {'Some', lists:keyfind(lists:max(Keys), 1, Pairs)}}
                end,
-    {?LIST(minimum)(Pairs, ByKey), ?LIST(maximum)(Pairs, ByKey)} =:= Expected.
+    {List(minimum)(Pairs, ByKey), List(maximum)(Pairs, ByKey)} =:= Expected.
 
 list_zip({First, Second}) ->
+    List = ern_named:functions('ern@list'),
     Count = min(length(First), length(Second)),
     {Firsts, Seconds} = {lists:sublist(First, Count), lists:sublist(Second, Count)},
-    Zipped = ?LIST(zip)(First, Second),
-    Zipped =:= lists:zip(Firsts, Seconds) andalso ?LIST(unzip)(Zipped) =:= {Firsts, Seconds}.
+    Zipped = List(zip)(First, Second),
+    Zipped =:= lists:zip(Firsts, Seconds) andalso List(unzip)(Zipped) =:= {Firsts, Seconds}.
 
-list_flat_map(List) ->
+list_flat_map(Items) ->
+    List = ern_named:functions('ern@list'),
     Twice = fun(X) -> [X, X] end,
-    ?LIST(flatMap)(List, Twice) =:= lists:flatmap(Twice, List).
+    List(flatMap)(Items, Twice) =:= lists:flatmap(Twice, Items).
 
-list_range({From, To}) when From > To -> ?LIST(range)(From, To) =:= [];
-list_range({From, To}) -> ?LIST(range)(From, To) =:= lists:seq(From, To).
+list_range({From, To}) when From > To ->
+    List = ern_named:functions('ern@list'),
+    List(range)(From, To) =:= [];
+list_range({From, To}) ->
+    List = ern_named:functions('ern@list'),
+    List(range)(From, To) =:= lists:seq(From, To).
 
-list_tries({List, Pivot}) ->
+list_tries({Items, Pivot}) ->
+    List = ern_named:functions('ern@list'),
     Step = fun(X) ->
                    case X > Pivot of
                        true -> {'Left', X};
@@ -201,21 +205,22 @@ list_tries({List, Pivot}) ->
                    end
            end,
     Fold = fun(Acc, X) -> either_map(Step(X), fun(Doubled) -> Acc + Doubled end) end,
-    Doubled = [X * 2 || X <- List],
+    Doubled = [X * 2 || X <- Items],
     {Mapped, Folded, Walked} =
-        case lists:search(above(Pivot), List) of
+        case lists:search(above(Pivot), Items) of
             {value, Bad} -> {{'Left', Bad}, {'Left', Bad}, {'Left', Bad}};
             false -> {{'Right', Doubled}, {'Right', lists:sum(Doubled)}, {'Right', 'Unit'}}
         end,
     %% the elements tryForEach's step sees are those before the first Left, in order
     put(seen, []),
     Visit = fun(X) -> either_map(Step(X), fun(_) -> put(seen, [X | get(seen)]), 'Unit' end) end,
-    Seen = lists:takewhile(fun(X) -> X =< Pivot end, List),
-    ?LIST(tryMap)(List, Step) =:= Mapped andalso ?LIST(tryFold)(List, 0, Fold) =:= Folded
-        andalso ?LIST(tryForEach)(List, Visit) =:= Walked andalso lists:reverse(get(seen)) =:= Seen.
+    Seen = lists:takewhile(fun(X) -> X =< Pivot end, Items),
+    List(tryMap)(Items, Step) =:= Mapped andalso List(tryFold)(Items, 0, Fold) =:= Folded
+        andalso List(tryForEach)(Items, Visit) =:= Walked andalso lists:reverse(get(seen)) =:= Seen.
 
 list_append({First, Second}) ->
-    ?LIST('<>')(First, Second) =:= First ++ Second.
+    List = ern_named:functions('ern@list'),
+    List('<>')(First, Second) =:= First ++ Second.
 
 %%
 %% Map
@@ -237,66 +242,75 @@ map_laws_test_() ->
 
 %% Report Appendix E.3: forEach meets each entry once, in unspecified order.
 map_for_each(Pairs) ->
-    Map = ?MAP(fromList)(Pairs),
-    Met = met(fun(Visit) -> ?MAP(forEach)(Map, fun(Key, Value) -> Visit({Key, Value}) end) end),
-    lists:sort(Met) =:= lists:sort(maps:to_list(Map)).
+    Map = ern_named:functions('ern@map'),
+    Entries = Map(fromList)(Pairs),
+    Met = met(fun(Visit) -> Map(forEach)(Entries, fun(Key, Value) -> Visit({Key, Value}) end) end),
+    lists:sort(Met) =:= lists:sort(maps:to_list(Entries)).
 
 map_from_list(Pairs) ->
-    ?MAP(fromList)(Pairs) =:= maps:from_list(Pairs).
+    Map = ern_named:functions('ern@map'),
+    Map(fromList)(Pairs) =:= maps:from_list(Pairs).
 
 map_contents(Pairs) ->
-    Map = ?MAP(fromList)(Pairs),
+    Map = ern_named:functions('ern@map'),
+    Entries = Map(fromList)(Pairs),
     Model = maps:from_list(Pairs),
-    ?MAP(size)(Map) =:= maps:size(Model)
-        andalso ?MAP(isEmpty)(Map) =:= (maps:size(Model) =:= 0)
-        andalso lists:sort(?MAP(toList)(Map)) =:= lists:sort(maps:to_list(Model))
-        andalso lists:sort(?MAP(keys)(Map)) =:= lists:sort(maps:keys(Model))
-        andalso lists:sort(?MAP(values)(Map)) =:= lists:sort(maps:values(Model)).
+    Map(size)(Entries) =:= maps:size(Model)
+        andalso Map(isEmpty)(Entries) =:= (maps:size(Model) =:= 0)
+        andalso lists:sort(Map(toList)(Entries)) =:= lists:sort(maps:to_list(Model))
+        andalso lists:sort(Map(keys)(Entries)) =:= lists:sort(maps:keys(Model))
+        andalso lists:sort(Map(values)(Entries)) =:= lists:sort(maps:values(Model)).
 
-map_put({Map, Key, Value}) ->
-    Put = ?MAP(put)(Map, Key, Value),
-    ?MAP(get)(Put, Key) =:= {'Some', Value}
-        andalso maps:remove(Key, Put) =:= maps:remove(Key, Map)
-        andalso ?MAP(contains)(Map, Key) =:= maps:is_key(Key, Map).
+map_put({Entries, Key, Value}) ->
+    Map = ern_named:functions('ern@map'),
+    Put = Map(put)(Entries, Key, Value),
+    Map(get)(Put, Key) =:= {'Some', Value}
+        andalso maps:remove(Key, Put) =:= maps:remove(Key, Entries)
+        andalso Map(contains)(Entries, Key) =:= maps:is_key(Key, Entries).
 
-map_remove({Map, Key, _}) ->
-    Removed = ?MAP(remove)(Map, Key),
-    ?MAP(get)(Removed, Key) =:= 'None' andalso Removed =:= maps:remove(Key, Map).
+map_remove({Entries, Key, _}) ->
+    Map = ern_named:functions('ern@map'),
+    Removed = Map(remove)(Entries, Key),
+    Map(get)(Removed, Key) =:= 'None' andalso Removed =:= maps:remove(Key, Entries).
 
-map_update({Map, Key, _}) ->
-    Old = case Map of
+map_update({Entries, Key, _}) ->
+    Map = ern_named:functions('ern@map'),
+    Old = case Entries of
               #{Key := Value} -> {'Some', Value};
               _ -> 'None'
           end,
-    ?MAP(update)(Map, Key, fun count/1) =:= Map#{Key => count(Old)}.
+    Map(update)(Entries, Key, fun count/1) =:= Entries#{Key => count(Old)}.
 
-map_traversals({Map, Pivot, _}) ->
+map_traversals({Entries, Pivot, _}) ->
+    Map = ern_named:functions('ern@map'),
     Keep = fun(Key, _) -> Key > Pivot end,
     Sum = fun(Key, Value) -> Key + Value end,
     Negated = fun(Key, Value) -> kept(Keep(Key, Value), -Value) end,
     Weighted = fun(Key, Value, Acc) -> Acc + Key * Value end,
-    ?MAP(map)(Map, Sum) =:= maps:map(Sum, Map)
-        andalso ?MAP(filter)(Map, Keep) =:= maps:filter(Keep, Map)
-        andalso ?MAP(filterMap)(Map, Negated)
-                =:= maps:map(fun(_, Value) -> -Value end, maps:filter(Keep, Map))
-        andalso ?MAP(fold)(Map, 0, fun(Acc, Key, Value) -> Weighted(Key, Value, Acc) end)
-                =:= maps:fold(Weighted, 0, Map).
+    Map(map)(Entries, Sum) =:= maps:map(Sum, Entries)
+        andalso Map(filter)(Entries, Keep) =:= maps:filter(Keep, Entries)
+        andalso Map(filterMap)(Entries, Negated)
+                =:= maps:map(fun(_, Value) -> -Value end, maps:filter(Keep, Entries))
+        andalso Map(fold)(Entries, 0, fun(Acc, Key, Value) -> Weighted(Key, Value, Acc) end)
+                =:= maps:fold(Weighted, 0, Entries).
 
-map_search({Map, Pivot, _}) ->
+map_search({Entries, Pivot, _}) ->
+    Map = ern_named:functions('ern@map'),
     Keep = fun(Key, _) -> Key > Pivot end,
-    Satisfying = maps:filter(Keep, Map),
-    Found = case ?MAP(find)(Map, Keep) of
+    Satisfying = maps:filter(Keep, Entries),
+    Found = case Map(find)(Entries, Keep) of
                 'None' -> maps:size(Satisfying) =:= 0;
                 {'Some', {Key, Value}} -> maps:get(Key, Satisfying, none) =:= Value
             end,
-    ?MAP(any)(Map, Keep) =:= (maps:size(Satisfying) > 0)
-        andalso ?MAP(all)(Map, Keep) =:= (maps:size(Satisfying) =:= maps:size(Map))
+    Map(any)(Entries, Keep) =:= (maps:size(Satisfying) > 0)
+        andalso Map(all)(Entries, Keep) =:= (maps:size(Satisfying) =:= maps:size(Entries))
         andalso Found.
 
 map_merge({First, Second}) ->
+    Map = ern_named:functions('ern@map'),
     Shared = maps:intersect_with(fun combined/3, First, Second),
-    ?MAP(merge)(First, Second) =:= maps:merge(First, Second)
-        andalso ?MAP(mergeWith)(First, Second, fun combined/3)
+    Map(merge)(First, Second) =:= maps:merge(First, Second)
+        andalso Map(mergeWith)(First, Second, fun combined/3)
                 =:= maps:merge(maps:merge(First, Second), Shared).
 
 %%
@@ -316,49 +330,55 @@ set_laws_test_() ->
 
 %% Report Appendix E.4: forEach meets each element once, in unspecified order.
 set_for_each(List) ->
-    Set = ?SET(fromList)(List),
-    lists:sort(met(fun(Visit) -> ?SET(forEach)(Set, Visit) end)) =:= lists:usort(List).
+    Set = ern_named:functions('ern@set'),
+    Members = Set(fromList)(List),
+    lists:sort(met(fun(Visit) -> Set(forEach)(Members, Visit) end)) =:= lists:usort(List).
 
 set_contents(List) ->
-    Set = ?SET(fromList)(List),
-    members(Set) =:= lists:usort(List)
-        andalso ?SET(size)(Set) =:= length(lists:usort(List))
-        andalso ?SET(isEmpty)(Set) =:= (List =:= []).
+    Set = ern_named:functions('ern@set'),
+    Members = Set(fromList)(List),
+    members(Members) =:= lists:usort(List)
+        andalso Set(size)(Members) =:= length(lists:usort(List))
+        andalso Set(isEmpty)(Members) =:= (List =:= []).
 
 set_put_remove({List, X}) ->
-    Set = ?SET(fromList)(List),
-    ?SET(contains)(Set, X) =:= lists:member(X, List)
-        andalso members(?SET(put)(Set, X)) =:= lists:usort([X | List])
-        andalso members(?SET(remove)(Set, X)) =:= lists:usort(List) -- [X]
-        andalso ?SET(put)(?SET(put)(Set, X), X) =:= ?SET(put)(Set, X).
+    Set = ern_named:functions('ern@set'),
+    Members = Set(fromList)(List),
+    Set(contains)(Members, X) =:= lists:member(X, List)
+        andalso members(Set(put)(Members, X)) =:= lists:usort([X | List])
+        andalso members(Set(remove)(Members, X)) =:= lists:usort(List) -- [X]
+        andalso Set(put)(Set(put)(Members, X), X) =:= Set(put)(Members, X).
 
 set_operations({Left, Right}) ->
-    {First, Second} = {?SET(fromList)(Left), ?SET(fromList)(Right)},
+    Set = ern_named:functions('ern@set'),
+    {First, Second} = {Set(fromList)(Left), Set(fromList)(Right)},
     {Ordered, Other} = {lists:usort(Left), lists:usort(Right)},
-    members(?SET(union)(First, Second)) =:= ordsets:union(Ordered, Other)
-        andalso members(?SET(intersection)(First, Second)) =:= ordsets:intersection(Ordered, Other)
-        andalso members(?SET(difference)(First, Second)) =:= ordsets:subtract(Ordered, Other)
-        andalso ?SET(isSubset)(First, Second) =:= ordsets:is_subset(Ordered, Other).
+    members(Set(union)(First, Second)) =:= ordsets:union(Ordered, Other)
+        andalso members(Set(intersection)(First, Second)) =:= ordsets:intersection(Ordered, Other)
+        andalso members(Set(difference)(First, Second)) =:= ordsets:subtract(Ordered, Other)
+        andalso Set(isSubset)(First, Second) =:= ordsets:is_subset(Ordered, Other).
 
 set_traversals({List, Pivot}) ->
-    Set = ?SET(fromList)(List),
+    Set = ern_named:functions('ern@set'),
+    Members = Set(fromList)(List),
     Ordered = lists:usort(List),
     Keep = above(Pivot),
     Tripled = fun(X) -> kept(Keep(X), X * 3) end,
-    Found = case ?SET(find)(Set, Keep) of
+    Found = case Set(find)(Members, Keep) of
                 'None' -> not lists:any(Keep, Ordered);
                 {'Some', X} -> Keep(X) andalso lists:member(X, Ordered)
             end,
-    members(?SET(map)(Set, fun(X) -> X div 2 end)) =:= lists:usort([X div 2 || X <- Ordered])
-        andalso members(?SET(filter)(Set, Keep)) =:= lists:filter(Keep, Ordered)
-        andalso members(?SET(filterMap)(Set, Tripled)) =:= [X * 3 || X <- Ordered, Keep(X)]
-        andalso ?SET(fold)(Set, 0, fun(Acc, X) -> Acc + X end) =:= lists:sum(Ordered)
-        andalso ?SET(any)(Set, Keep) =:= lists:any(Keep, Ordered)
-        andalso ?SET(all)(Set, Keep) =:= lists:all(Keep, Ordered)
+    members(Set(map)(Members, fun(X) -> X div 2 end)) =:= lists:usort([X div 2 || X <- Ordered])
+        andalso members(Set(filter)(Members, Keep)) =:= lists:filter(Keep, Ordered)
+        andalso members(Set(filterMap)(Members, Tripled)) =:= [X * 3 || X <- Ordered, Keep(X)]
+        andalso Set(fold)(Members, 0, fun(Acc, X) -> Acc + X end) =:= lists:sum(Ordered)
+        andalso Set(any)(Members, Keep) =:= lists:any(Keep, Ordered)
+        andalso Set(all)(Members, Keep) =:= lists:all(Keep, Ordered)
         andalso Found.
 
-members(Set) ->
-    lists:sort(?SET(toList)(Set)).
+members(Members) ->
+    Set = ern_named:functions('ern@set'),
+    lists:sort(Set(toList)(Members)).
 
 %%
 %% String
@@ -410,65 +430,74 @@ string_laws_test_() ->
           {"compare by code point, <> appends", fun two_texts/1, fun string_compare/1}]).
 
 string_chars(Whole) ->
-    ?STRING(toList)(Whole) =:= unicode:characters_to_list(Whole)
-        andalso ?STRING(fromList)(?STRING(toList)(Whole)) =:= Whole.
+    String = ern_named:functions('ern@string'),
+    String(toList)(Whole) =:= unicode:characters_to_list(Whole)
+        andalso String(fromList)(String(toList)(Whole)) =:= Whole.
 
 string_graphemes(Whole) ->
-    Graphemes = ?STRING(graphemes)(Whole),
+    String = ern_named:functions('ern@string'),
+    Graphemes = String(graphemes)(Whole),
     iolist_to_binary(Graphemes) =:= Whole
-        andalso ?STRING(size)(Whole) =:= length(Graphemes)
-        andalso lists:all(fun(Grapheme) -> ?STRING(size)(Grapheme) =:= 1 end, Graphemes)
-        andalso ?STRING(isEmpty)(Whole) =:= (Whole =:= <<>>).
+        andalso String(size)(Whole) =:= length(Graphemes)
+        andalso lists:all(fun(Grapheme) -> String(size)(Grapheme) =:= 1 end, Graphemes)
+        andalso String(isEmpty)(Whole) =:= (Whole =:= <<>>).
 
 %% An empty second is at 0 and last at the size.
 string_index_of({Whole, Part}) ->
+    String = ern_named:functions('ern@string'),
     Found = [Index || {Index, _} <- occurrences(Whole, Part)],
     {First, Last} = case {Part, Found} of
-                        {<<>>, _} -> {{'Some', 0}, {'Some', ?STRING(size)(Whole)}};
+                        {<<>>, _} -> {{'Some', 0}, {'Some', String(size)(Whole)}};
                         _ -> {first(Found), first(lists:reverse(Found))}
                     end,
-    ?STRING(indexOf)(Whole, Part) =:= First
-        andalso ?STRING(lastIndexOf)(Whole, Part) =:= Last
-        andalso ?STRING(contains)(Whole, Part) =:= (First =/= 'None').
+    String(indexOf)(Whole, Part) =:= First
+        andalso String(lastIndexOf)(Whole, Part) =:= Last
+        andalso String(contains)(Whole, Part) =:= (First =/= 'None').
 
 string_starts_ends({Whole, Part}) ->
+    String = ern_named:functions('ern@string'),
     Bounds = boundaries(Whole),
     Starts = binary:longest_common_prefix([Whole, Part]) =:= byte_size(Part)
         andalso lists:member(byte_size(Part), Bounds),
     Ends = binary:longest_common_suffix([Whole, Part]) =:= byte_size(Part)
         andalso lists:member(byte_size(Whole) - byte_size(Part), Bounds),
-    ?STRING(startsWith)(Whole, Part) =:= Starts andalso ?STRING(endsWith)(Whole, Part) =:= Ends.
+    String(startsWith)(Whole, Part) =:= Starts andalso String(endsWith)(Whole, Part) =:= Ends.
 
 string_split({Whole, Separator}) ->
-    Parts = ?STRING(split)(Whole, Separator),
-    Parts =:= split_model(Whole, Separator) andalso ?STRING(join)(Parts, Separator) =:= Whole.
+    String = ern_named:functions('ern@string'),
+    Parts = String(split)(Whole, Separator),
+    Parts =:= split_model(Whole, Separator) andalso String(join)(Parts, Separator) =:= Whole.
 
 string_join({Parts, Separator}) ->
-    ?STRING(join)(Parts, Separator) =:= iolist_to_binary(lists:join(Separator, Parts)).
+    String = ern_named:functions('ern@string'),
+    String(join)(Parts, Separator) =:= iolist_to_binary(lists:join(Separator, Parts)).
 
 string_replace({Whole, Old, New}) ->
+    String = ern_named:functions('ern@string'),
     Expected = case Old of
                    <<>> -> Whole;
                    _ -> iolist_to_binary(lists:join(New, split_model(Whole, Old)))
                end,
-    ?STRING(replace)(Whole, Old, New) =:= Expected.
+    String(replace)(Whole, Old, New) =:= Expected.
 
 string_slice({Whole, Index, End}) ->
-    Graphemes = ?STRING(graphemes)(Whole),
+    String = ern_named:functions('ern@string'),
+    Graphemes = String(graphemes)(Whole),
     From = min(max(Index, 0), length(Graphemes)),
     To = min(max(End, From), length(Graphemes)),
     Expected = iolist_to_binary(lists:sublist(lists:nthtail(From, Graphemes), To - From)),
-    ?STRING(slice)(Whole, Index, End) =:= Expected.
+    String(slice)(Whole, Index, End) =:= Expected.
 
 %% The pad stands before or after the string as written, a prefix of its
 %% copies; where nothing is missing or the pad is empty, the string alone;
 %% and a pad of letters and digits, which joins no grapheme, makes the size
 %% asked for.
 string_pads({Whole, Count, Pad}) ->
-    Missing = Count - ?STRING(size)(Whole),
+    String = ern_named:functions('ern@string'),
+    Missing = Count - String(size)(Whole),
     Copies = binary:copy(Pad, max(Missing, 0) + 1),
-    Started = ?STRING(padStart)(Whole, Count, Pad),
-    Ended = ?STRING(padEnd)(Whole, Count, Pad),
+    Started = String(padStart)(Whole, Count, Pad),
+    Ended = String(padEnd)(Whole, Count, Pad),
     Front = binary:part(Started, 0, byte_size(Started) - byte_size(Whole)),
     Back = binary:part(Ended, byte_size(Whole), byte_size(Ended) - byte_size(Whole)),
     Padded = Missing > 0 andalso Pad =/= <<>>,
@@ -477,33 +506,37 @@ string_pads({Whole, Count, Pad}) ->
         andalso binary:longest_common_prefix([Copies, Front]) =:= byte_size(Front)
         andalso binary:longest_common_prefix([Copies, Back]) =:= byte_size(Back)
         andalso (Padded orelse Started =:= Whole andalso Ended =:= Whole)
-        andalso (not Padded orelse not plain(Pad) orelse ?STRING(size)(Front) =:= Missing).
+        andalso (not Padded orelse not plain(Pad) orelse String(size)(Front) =:= Missing).
 
 string_repeat({Whole, Count}) ->
-    ?STRING(repeat)(Whole, Count) =:= binary:copy(Whole, max(Count, 0)).
+    String = ern_named:functions('ern@string'),
+    String(repeat)(Whole, Count) =:= binary:copy(Whole, max(Count, 0)).
 
 string_trims(Whole) ->
-    Graphemes = ?STRING(graphemes)(Whole),
+    String = ern_named:functions('ern@string'),
+    Graphemes = String(graphemes)(Whole),
     Spaces = fun is_space_grapheme/1,
     Started = lists:dropwhile(Spaces, Graphemes),
     Ended = lists:reverse(lists:dropwhile(Spaces, lists:reverse(Graphemes))),
     Both = lists:reverse(lists:dropwhile(Spaces, lists:reverse(Started))),
-    ?STRING(trimStart)(Whole) =:= iolist_to_binary(Started)
-        andalso ?STRING(trimEnd)(Whole) =:= iolist_to_binary(Ended)
-        andalso ?STRING(trim)(Whole) =:= iolist_to_binary(Both).
+    String(trimStart)(Whole) =:= iolist_to_binary(Started)
+        andalso String(trimEnd)(Whole) =:= iolist_to_binary(Ended)
+        andalso String(trim)(Whole) =:= iolist_to_binary(Both).
 
 %% Each code point mapped alone, where no context can apply: a final sigma
 %% lowers as any sigma does.
 string_cases(Whole) ->
+    String = ern_named:functions('ern@string'),
     Chars = unicode:characters_to_list(Whole),
     Lower = unicode:characters_to_binary([string:lowercase([Char]) || Char <- Chars]),
     Upper = unicode:characters_to_binary([string:uppercase([Char]) || Char <- Chars]),
-    ?STRING(toLower)(Whole) =:= Lower andalso ?STRING(toUpper)(Whole) =:= Upper.
+    String(toLower)(Whole) =:= Lower andalso String(toUpper)(Whole) =:= Upper.
 
 string_ascii_cases(Whole) ->
+    String = ern_named:functions('ern@string'),
     Chars = unicode:characters_to_list(Whole),
-    ?STRING(toAsciiLower)(Whole) =:= unicode:characters_to_binary([ascii_lower(C) || C <- Chars])
-        andalso ?STRING(toAsciiUpper)(Whole)
+    String(toAsciiLower)(Whole) =:= unicode:characters_to_binary([ascii_lower(C) || C <- Chars])
+        andalso String(toAsciiUpper)(Whole)
                     =:= unicode:characters_to_binary([ascii_upper(C) || C <- Chars]).
 
 ascii_lower(Char) when Char >= $A, Char =< $Z -> Char - $A + $a;
@@ -513,41 +546,57 @@ ascii_upper(Char) when Char >= $a, Char =< $z -> Char - $a + $A;
 ascii_upper(Char) -> Char.
 
 string_lines(Whole) ->
-    ?STRING(lines)(Whole) =:= lines_model(Whole).
+    String = ern_named:functions('ern@string'),
+    String(lines)(Whole) =:= lines_model(Whole).
 
 string_words(Whole) ->
-    ?STRING(words)(Whole) =:= words_model(Whole).
+    String = ern_named:functions('ern@string'),
+    String(words)(Whole) =:= words_model(Whole).
 
 string_to_int(Numeral) ->
-    ?STRING(toInt)(Numeral) =:= int_model(Numeral, 10).
+    String = ern_named:functions('ern@string'),
+    String(toInt)(Numeral) =:= int_model(Numeral, 10).
 
-string_int_back(Int) ->
-    ?STRING(toInt)(?INT(toString)(Int)) =:= {'Some', Int}.
+string_int_back(Integer) ->
+    String = ern_named:functions('ern@string'),
+    Int = ern_named:functions('ern@int'),
+    String(toInt)(Int(toString)(Integer)) =:= {'Some', Integer}.
 
 string_to_int_base({Numeral, Base}) ->
-    ?STRING(toIntBase)(Numeral, Base) =:= int_model(Numeral, Base).
+    String = ern_named:functions('ern@string'),
+    String(toIntBase)(Numeral, Base) =:= int_model(Numeral, Base).
 
-string_to_bool(<<"true">>) -> ?STRING(toBool)(<<"true">>) =:= {'Some', true};
-string_to_bool(<<"false">>) -> ?STRING(toBool)(<<"false">>) =:= {'Some', false};
-string_to_bool(Other) -> ?STRING(toBool)(Other) =:= 'None'.
+string_to_bool(<<"true">>) ->
+    String = ern_named:functions('ern@string'),
+    String(toBool)(<<"true">>) =:= {'Some', true};
+string_to_bool(<<"false">>) ->
+    String = ern_named:functions('ern@string'),
+    String(toBool)(<<"false">>) =:= {'Some', false};
+string_to_bool(Other) ->
+    String = ern_named:functions('ern@string'),
+    String(toBool)(Other) =:= 'None'.
 
 string_to_float(Numeral) ->
-    ?STRING(toFloat)(Numeral) =:= float_model(Numeral).
+    String = ern_named:functions('ern@string'),
+    String(toFloat)(Numeral) =:= float_model(Numeral).
 
 string_utf8(Whole) ->
-    ?STRING(fromUtf8)(?STRING(toUtf8)(Whole)) =:= {'Some', Whole}.
+    String = ern_named:functions('ern@string'),
+    String(fromUtf8)(String(toUtf8)(Whole)) =:= {'Some', Whole}.
 
 string_from_utf8(Octets) ->
+    String = ern_named:functions('ern@string'),
     Expected = case unicode:characters_to_binary(Octets) of
                    Octets -> {'Some', Octets};
                    _ -> 'None'
                end,
-    ?STRING(fromUtf8)(Octets) =:= Expected.
+    String(fromUtf8)(Octets) =:= Expected.
 
 string_compare({First, Second}) ->
+    String = ern_named:functions('ern@string'),
     Order = ordering(unicode:characters_to_list(First), unicode:characters_to_list(Second)),
-    ?STRING(compare)(First, Second) =:= Order
-        andalso ?STRING('<>')(First, Second) =:= <<First/binary, Second/binary>>.
+    String(compare)(First, Second) =:= Order
+        andalso String('<>')(First, Second) =:= <<First/binary, Second/binary>>.
 
 %%
 %% Char
@@ -571,57 +620,65 @@ char_laws_test_() ->
            fun one_char/1, fun char_ascii_cases/1},
           {"compare by code point", fun two_chars/1, fun char_compare/1}]).
 
-char_code(Char) ->
-    ?CHAR(fromCodePoint)(?CHAR(toCodePoint)(Char)) =:= {'Some', Char}
-        andalso ?CHAR(toString)(Char) =:= unicode:characters_to_binary([Char]).
+char_code(CodePoint) ->
+    Char = ern_named:functions('ern@char'),
+    Char(fromCodePoint)(Char(toCodePoint)(CodePoint)) =:= {'Some', CodePoint}
+        andalso Char(toString)(CodePoint) =:= unicode:characters_to_binary([CodePoint]).
 
 char_from_code_point(Code) ->
+    Char = ern_named:functions('ern@char'),
     Surrogate = Code >= 16#D800 andalso Code =< 16#DFFF,
     Valid = Code >= 0 andalso Code =< 16#10FFFF andalso not Surrogate,
-    ?CHAR(fromCodePoint)(Code) =:= kept(Valid, Code).
+    Char(fromCodePoint)(Code) =:= kept(Valid, Code).
 
-char_ascii_digit(Char) ->
-    Ascii = Char >= $0 andalso Char =< $9,
-    ?CHAR(isAsciiDigit)(Char) =:= Ascii andalso (not Ascii orelse ?CHAR(isDigit)(Char)).
+char_ascii_digit(CodePoint) ->
+    Char = ern_named:functions('ern@char'),
+    Ascii = CodePoint >= $0 andalso CodePoint =< $9,
+    Char(isAsciiDigit)(CodePoint) =:= Ascii andalso (not Ascii orelse Char(isDigit)(CodePoint)).
 
-char_digit_value({Char, Base}) ->
+char_digit_value({CodePoint, Base}) ->
+    Char = ern_named:functions('ern@char'),
     Place = if
-                Char >= $0, Char =< $9 -> Char - $0;
-                Char >= $a, Char =< $z -> Char - $a + 10;
-                Char >= $A, Char =< $Z -> Char - $A + 10;
+                CodePoint >= $0, CodePoint =< $9 -> CodePoint - $0;
+                CodePoint >= $a, CodePoint =< $z -> CodePoint - $a + 10;
+                CodePoint >= $A, CodePoint =< $Z -> CodePoint - $A + 10;
                 true -> none
             end,
     InBase = Place =/= none andalso Base >= 2 andalso Base =< 36 andalso Place < Base,
-    ?CHAR(digitValue)(Char, Base) =:= kept(InBase, Place).
+    Char(digitValue)(CodePoint, Base) =:= kept(InBase, Place).
 
-char_classes(Char) ->
-    Alpha = ?CHAR(isAlpha)(Char),
-    Categories = [?CHAR(Predicate)(Char)
+char_classes(CodePoint) ->
+    Char = ern_named:functions('ern@char'),
+    Alpha = Char(isAlpha)(CodePoint),
+    Categories = [Char(Predicate)(CodePoint)
                   || Predicate <- [isAlpha, isMark, isNumber, isPunctuation, isSymbol,
                                    isSeparator, isControl]],
-    (not ?CHAR(isUpper)(Char) orelse Alpha)
-        andalso (not ?CHAR(isLower)(Char) orelse Alpha)
-        andalso (not ?CHAR(isDigit)(Char) orelse ?CHAR(isNumber)(Char))
-        andalso (not ?CHAR(isSeparator)(Char) orelse ?CHAR(isSpace)(Char))
-        andalso not (?CHAR(isSpace)(Char) andalso (Alpha orelse ?CHAR(isDigit)(Char)))
+    (not Char(isUpper)(CodePoint) orelse Alpha)
+        andalso (not Char(isLower)(CodePoint) orelse Alpha)
+        andalso (not Char(isDigit)(CodePoint) orelse Char(isNumber)(CodePoint))
+        andalso (not Char(isSeparator)(CodePoint) orelse Char(isSpace)(CodePoint))
+        andalso not (Char(isSpace)(CodePoint) andalso (Alpha orelse Char(isDigit)(CodePoint)))
         andalso length([true || true <- Categories]) =< 1.
 
-char_cases(Char) ->
+char_cases(CodePoint) ->
+    Char = ern_named:functions('ern@char'),
     Single = fun(Mapped) ->
                      case unicode:characters_to_list(Mapped) of
                          [One] -> One;
-                         _ -> Char
+                         _ -> CodePoint
                      end
              end,
-    ?CHAR(toUpper)(Char) =:= Single(string:uppercase([Char]))
-        andalso ?CHAR(toLower)(Char) =:= Single(string:lowercase([Char])).
+    Char(toUpper)(CodePoint) =:= Single(string:uppercase([CodePoint]))
+        andalso Char(toLower)(CodePoint) =:= Single(string:lowercase([CodePoint])).
 
-char_ascii_cases(Char) ->
-    ?CHAR(toAsciiLower)(Char) =:= ascii_lower(Char)
-        andalso ?CHAR(toAsciiUpper)(Char) =:= ascii_upper(Char).
+char_ascii_cases(CodePoint) ->
+    Char = ern_named:functions('ern@char'),
+    Char(toAsciiLower)(CodePoint) =:= ascii_lower(CodePoint)
+        andalso Char(toAsciiUpper)(CodePoint) =:= ascii_upper(CodePoint).
 
 char_compare({First, Second}) ->
-    ?CHAR(compare)(First, Second) =:= ordering(First, Second).
+    Char = ern_named:functions('ern@char'),
+    Char(compare)(First, Second) =:= ordering(First, Second).
 
 %%
 %% Int
@@ -645,48 +702,61 @@ int_laws_test_() ->
           {"toFloat: the nearest Float", fun int/1, fun int_to_float/1}]).
 
 int_order({First, Second}) ->
-    ?INT(abs)(First) =:= abs(First)
-        andalso ?INT(min)(First, Second) =:= min(First, Second)
-        andalso ?INT(max)(First, Second) =:= max(First, Second)
-        andalso ?INT(negate)(First) =:= -First
-        andalso ?INT(compare)(First, Second) =:= ordering(First, Second).
+    Int = ern_named:functions('ern@int'),
+    Int(abs)(First) =:= abs(First)
+        andalso Int(min)(First, Second) =:= min(First, Second)
+        andalso Int(max)(First, Second) =:= max(First, Second)
+        andalso Int(negate)(First) =:= -First
+        andalso Int(compare)(First, Second) =:= ordering(First, Second).
 
 int_division({_, 0}) ->
-    ?INT('div')(1, 0) =:= 'None' andalso ?INT('rem')(1, 0) =:= 'None';
+    Int = ern_named:functions('ern@int'),
+    Int('div')(1, 0) =:= 'None' andalso Int('rem')(1, 0) =:= 'None';
 int_division({First, Second}) ->
-    {'Some', Quotient} = ?INT('div')(First, Second),
-    {'Some', Remainder} = ?INT('rem')(First, Second),
+    Int = ern_named:functions('ern@int'),
+    {'Some', Quotient} = Int('div')(First, Second),
+    {'Some', Remainder} = Int('rem')(First, Second),
     Quotient * Second + Remainder =:= First andalso abs(Remainder) < abs(Second)
         andalso (Remainder =:= 0 orelse (Remainder > 0) =:= (First > 0))
-        andalso Quotient =:= ?INT('/')(First, Second)
-        andalso Remainder =:= ?INT('%')(First, Second).
+        andalso Quotient =:= Int('/')(First, Second)
+        andalso Remainder =:= Int('%')(First, Second).
 
 int_bits({First, Second}) ->
-    ?INT(bitAnd)(First, Second) =:= First band Second
-        andalso ?INT(bitOr)(First, Second) =:= First bor Second
-        andalso ?INT(bitXor)(First, Second) =:= First bxor Second
-        andalso ?INT(bitNot)(First) =:= bnot First.
+    Int = ern_named:functions('ern@int'),
+    Int(bitAnd)(First, Second) =:= First band Second
+        andalso Int(bitOr)(First, Second) =:= First bor Second
+        andalso Int(bitXor)(First, Second) =:= First bxor Second
+        andalso Int(bitNot)(First) =:= bnot First.
 
-int_shifts({Int, Count}) ->
+int_shifts({Integer, Count}) ->
+    Int = ern_named:functions('ern@int'),
     Power = 1 bsl max(Count, 0),
-    ?INT(shiftLeft)(Int, Count) =:= Int * Power
-        andalso ?INT(shiftRight)(Int, Count) =:= floor_div(Int, Power).
+    Int(shiftLeft)(Integer, Count) =:= Integer * Power
+        andalso Int(shiftRight)(Integer, Count) =:= floor_div(Integer, Power).
 
-int_pow({Base, Exponent}) when Exponent < 0 -> ?INT(pow)(Base, Exponent) =:= 'None';
-int_pow({Base, Exponent}) -> ?INT(pow)(Base, Exponent) =:= {'Some', power(Base, Exponent)}.
+int_pow({Base, Exponent}) when Exponent < 0 ->
+    Int = ern_named:functions('ern@int'),
+    Int(pow)(Base, Exponent) =:= 'None';
+int_pow({Base, Exponent}) ->
+    Int = ern_named:functions('ern@int'),
+    Int(pow)(Base, Exponent) =:= {'Some', power(Base, Exponent)}.
 
-int_written({Int, Base}) when Base < 2; Base > 36 ->
-    ?INT(toString)(Int) =:= integer_to_binary(Int)
-        andalso (try ?INT(toStringBase)(Int, Base) catch throw:Fault -> Fault end)
+int_written({Integer, Base}) when Base < 2; Base > 36 ->
+    Int = ern_named:functions('ern@int'),
+    Int(toString)(Integer) =:= integer_to_binary(Integer)
+        andalso (try Int(toStringBase)(Integer, Base) catch throw:Fault -> Fault end)
                 =:= {ern, fault, <<"a base is from 2 to 36">>};
-int_written({Int, Base}) ->
-    Written = integer_to_binary(Int, Base),
-    ?INT(toString)(Int) =:= integer_to_binary(Int)
-        andalso ?INT(toStringBase)(Int, Base) =:= Written
-        andalso ?STRING(toIntBase)(Written, Base) =:= {'Some', Int}.
+int_written({Integer, Base}) ->
+    String = ern_named:functions('ern@string'),
+    Int = ern_named:functions('ern@int'),
+    Written = integer_to_binary(Integer, Base),
+    Int(toString)(Integer) =:= integer_to_binary(Integer)
+        andalso Int(toStringBase)(Integer, Base) =:= Written
+        andalso String(toIntBase)(Written, Base) =:= {'Some', Integer}.
 
-int_to_float(Int) ->
-    ?INT(toFloat)(Int) =:= erlang:float(Int).
+int_to_float(Integer) ->
+    Int = ern_named:functions('ern@int'),
+    Int(toFloat)(Integer) =:= erlang:float(Integer).
 
 %%
 %% Float
@@ -712,51 +782,58 @@ float_laws_test_() ->
 %% are the host's floating-point library's, `exp` faulting beyond the finite
 %% range, and none answers a negative zero, which Ernest has not.
 float_host_functions({X, Y}) ->
-    Pairs = [{?FLOAT(sin)(X), math:sin(X)}, {?FLOAT(cos)(X), math:cos(X)},
-             {?FLOAT(tan)(X), math:tan(X)}, {?FLOAT(atan)(X), math:atan(X)},
-             {?FLOAT(atan2)(Y, X), math:atan2(Y, X)}],
+    Float = ern_named:functions('ern@float'),
+    Pairs = [{Float(sin)(X), math:sin(X)}, {Float(cos)(X), math:cos(X)},
+             {Float(tan)(X), math:tan(X)}, {Float(atan)(X), math:atan(X)},
+             {Float(atan2)(Y, X), math:atan2(Y, X)}],
     Exp = try math:exp(X) of
-              Host -> ?FLOAT(exp)(X) == Host
+              Host -> Float(exp)(X) == Host
           catch
               error:badarith ->
-                  try ?FLOAT(exp)(X) of _ -> false
+                  try Float(exp)(X) of _ -> false
                   catch throw:{ern, fault, <<"float arithmetic error">>} -> true
                   end
           end,
     Exp andalso lists:all(fun({Ernest, Host}) -> Ernest == Host andalso Ernest =/= -0.0 end, Pairs).
 
 float_order({First, Second}) ->
-    ?FLOAT(abs)(First) =:= abs(First)
-        andalso ?FLOAT(min)(First, Second) == min(First, Second)
-        andalso ?FLOAT(max)(First, Second) == max(First, Second)
-        andalso ?FLOAT(negate)(First) == -First
-        andalso ?FLOAT(compare)(First, Second) =:= ordering(First, Second).
+    Float = ern_named:functions('ern@float'),
+    Float(abs)(First) =:= abs(First)
+        andalso Float(min)(First, Second) == min(First, Second)
+        andalso Float(max)(First, Second) == max(First, Second)
+        andalso Float(negate)(First) == -First
+        andalso Float(compare)(First, Second) =:= ordering(First, Second).
 
-float_roundings(Float) ->
-    ?FLOAT(round)(Float) =:= round_even(Float) andalso ?FLOAT(truncate)(Float) =:= trunc(Float)
-        andalso ?FLOAT(floor)(Float) =:= floor(Float) andalso ?FLOAT(ceil)(Float) =:= ceil(Float).
+float_roundings(Real) ->
+    Float = ern_named:functions('ern@float'),
+    Float(round)(Real) =:= round_even(Real) andalso Float(truncate)(Real) =:= trunc(Real)
+        andalso Float(floor)(Real) =:= floor(Real) andalso Float(ceil)(Real) =:= ceil(Real).
 
-float_domains(Float) ->
-    is_tuple(?FLOAT(sqrt)(Float)) =:= (Float >= 0)
-        andalso is_tuple(?FLOAT(log)(Float)) =:= (Float > 0)
-        andalso is_tuple(?FLOAT(asin)(Float)) =:= (abs(Float) =< 1)
-        andalso is_tuple(?FLOAT(acos)(Float)) =:= (abs(Float) =< 1).
+float_domains(Real) ->
+    Float = ern_named:functions('ern@float'),
+    is_tuple(Float(sqrt)(Real)) =:= (Real >= 0)
+        andalso is_tuple(Float(log)(Real)) =:= (Real > 0)
+        andalso is_tuple(Float(asin)(Real)) =:= (abs(Real) =< 1)
+        andalso is_tuple(Float(acos)(Real)) =:= (abs(Real) =< 1).
 
 float_pow({Base, Exponent}) ->
+    Float = ern_named:functions('ern@float'),
     Fractional = Exponent /= erlang:float(trunc(Exponent)),
     Undefined = Base < 0 andalso Fractional orelse Base == 0 andalso Exponent < 0,
-    is_tuple(?FLOAT(pow)(Base, Exponent)) =:= not Undefined.
+    is_tuple(Float(pow)(Base, Exponent)) =:= not Undefined.
 
-float_written(Float) ->
-    Written = ?FLOAT(toString)(Float),
-    Plain = Float == 0 orelse abs(Float) >= 0.0001 andalso abs(Float) < 1.0e16,
+float_written(Real) ->
+    String = ern_named:functions('ern@string'),
+    Float = ern_named:functions('ern@float'),
+    Written = Float(toString)(Real),
+    Plain = Real == 0 orelse abs(Real) >= 0.0001 andalso abs(Real) < 1.0e16,
     Shape = case Plain of
                 true -> "^-?[0-9]+\\.[0-9]+$";
                 false -> "^-?[0-9]\\.[0-9]+e-?[0-9]+$"
             end,
     re:run(Written, Shape) =/= nomatch
-        andalso ?STRING(toFloat)(Written) =:= {'Some', Float}
-        andalso significant(Written) =:= significant(float_to_binary(Float, [short])).
+        andalso String(toFloat)(Written) =:= {'Some', Real}
+        andalso significant(Written) =:= significant(float_to_binary(Real, [short])).
 
 %%
 %% Optional and Either
@@ -772,15 +849,17 @@ optional_and_either_laws_test_() ->
           {"toOptional of fromOptional", fun optional/1, fun either_from_optional/1}]).
 
 optional_operations({Value, Default}) ->
+    Optional = ern_named:functions('ern@optional'),
     Some = Value =/= 'None',
     Step = fun(X) -> kept(X > 0, X - 1) end,
     Double = fun(X) -> X * 2 end,
-    ?OPTIONAL(isSome)(Value) =:= Some andalso ?OPTIONAL(isNone)(Value) =:= not Some
-        andalso ?OPTIONAL(withDefault)(Value, Default) =:= on_some(Value, fun(X) -> X end, Default)
-        andalso ?OPTIONAL(map)(Value, Double) =:= on_some(Value, fun(X) -> {'Some', Double(X)} end)
-        andalso ?OPTIONAL(andThen)(Value, Step) =:= on_some(Value, Step).
+    Optional(isSome)(Value) =:= Some andalso Optional(isNone)(Value) =:= not Some
+        andalso Optional(withDefault)(Value, Default) =:= on_some(Value, fun(X) -> X end, Default)
+        andalso Optional(map)(Value, Double) =:= on_some(Value, fun(X) -> {'Some', Double(X)} end)
+        andalso Optional(andThen)(Value, Step) =:= on_some(Value, Step).
 
 either_operations({{Tag, Held} = Value, Default}) ->
+    Either = ern_named:functions('ern@either'),
     Right = Tag =:= 'Right',
     Then = fun(X) when X > 0 -> {'Right', X}; (X) -> {'Left', X} end,
     Next = fun(X) -> X + 1 end,
@@ -790,15 +869,16 @@ either_operations({{Tag, Held} = Value, Default}) ->
                                       false -> {fun(_) -> Value end, fun(Result) -> Result end,
                                                 Default}
                                   end,
-    ?EITHER(isLeft)(Value) =:= not Right andalso ?EITHER(isRight)(Value) =:= Right
-        andalso ?EITHER(withDefault)(Value, Default) =:= Withheld
-        andalso ?EITHER(map)(Value, Next) =:= OnRight({Tag, Next(Held)})
-        andalso ?EITHER(mapLeft)(Value, Next) =:= OnLeft({Tag, Next(Held)})
-        andalso ?EITHER(andThen)(Value, Then) =:= OnRight(Then(Held)).
+    Either(isLeft)(Value) =:= not Right andalso Either(isRight)(Value) =:= Right
+        andalso Either(withDefault)(Value, Default) =:= Withheld
+        andalso Either(map)(Value, Next) =:= OnRight({Tag, Next(Held)})
+        andalso Either(mapLeft)(Value, Next) =:= OnLeft({Tag, Next(Held)})
+        andalso Either(andThen)(Value, Then) =:= OnRight(Then(Held)).
 
 either_from_optional({Value, Cause}) ->
-    ?EITHER(toOptional)(?EITHER(fromOptional)(Value, Cause)) =:= Value
-        andalso ?EITHER(fromOptional)('None', Cause) =:= {'Left', Cause}.
+    Either = ern_named:functions('ern@either'),
+    Either(toOptional)(Either(fromOptional)(Value, Cause)) =:= Value
+        andalso Either(fromOptional)('None', Cause) =:= {'Left', Cause}.
 
 %%
 %% Path
@@ -831,90 +911,101 @@ path_laws_test_() ->
 %% naming nothing from a directory with it, and every path from it as
 %% `under` places the path under it.
 path_empty(Segments) ->
+    Path = ern_named:functions('ern@path'),
     Empty = {'Path', <<>>},
-    Path = ?PATH(join)(Segments),
-    ?PATH(split)(Empty) =:= [] andalso ?PATH(join)([]) =:= Empty
-        andalso ?PATH(parent)(Empty) =:= 'None' andalso ?PATH(name)(Empty) =:= 'None'
-        andalso ?PATH(extension)(Empty) =:= 'None'
-        andalso ?PATH(withExtension)(Empty, <<"md">>) =:= Empty
-        andalso ?PATH(withoutExtension)(Empty) =:= Empty
-        andalso ?PATH(under)(Path, Empty) =:= 'None'
-        andalso ?PATH('<>')(Path, Empty) =:= Path
-        andalso ?PATH(from)(Empty, Path) =:= 'None' andalso ?PATH(from)(Empty, Empty) =:= 'None'
-        andalso ?PATH(from)(Path, Empty) =:= ?PATH(under)(Empty, Path).
+    PathText = Path(join)(Segments),
+    Path(split)(Empty) =:= [] andalso Path(join)([]) =:= Empty
+        andalso Path(parent)(Empty) =:= 'None' andalso Path(name)(Empty) =:= 'None'
+        andalso Path(extension)(Empty) =:= 'None'
+        andalso Path(withExtension)(Empty, <<"md">>) =:= Empty
+        andalso Path(withoutExtension)(Empty) =:= Empty
+        andalso Path(under)(PathText, Empty) =:= 'None'
+        andalso Path('<>')(PathText, Empty) =:= PathText
+        andalso Path(from)(Empty, PathText) =:= 'None' andalso Path(from)(Empty, Empty) =:= 'None'
+        andalso Path(from)(PathText, Empty) =:= Path(under)(Empty, PathText).
 
 path_join_split(Text) ->
-    ?PATH(join)(?PATH(split)({'Path', Text})) =:= {'Path', normal_path(Text)}.
+    Path = ern_named:functions('ern@path'),
+    Path(join)(Path(split)({'Path', Text})) =:= {'Path', normal_path(Text)}.
 
 path_split_join(Segments) ->
-    ?PATH(split)(?PATH(join)(Segments)) =:= Segments.
+    Path = ern_named:functions('ern@path'),
+    Path(split)(Path(join)(Segments)) =:= Segments.
 
 path_parent_name([<<"/">>] = Segments) ->
-    Path = ?PATH(join)(Segments),
-    ?PATH(parent)(Path) =:= 'None' andalso ?PATH(name)(Path) =:= 'None';
+    Path = ern_named:functions('ern@path'),
+    PathText = Path(join)(Segments),
+    Path(parent)(PathText) =:= 'None' andalso Path(name)(PathText) =:= 'None';
 path_parent_name([Name]) ->
-    Path = ?PATH(join)([Name]),
-    ?PATH(parent)(Path) =:= 'None' andalso ?PATH(name)(Path) =:= {'Some', Name};
+    Path = ern_named:functions('ern@path'),
+    PathText = Path(join)([Name]),
+    Path(parent)(PathText) =:= 'None' andalso Path(name)(PathText) =:= {'Some', Name};
 path_parent_name(Segments) ->
-    Path = ?PATH(join)(Segments),
-    ?PATH(parent)(Path) =:= {'Some', ?PATH(join)(lists:droplast(Segments))}
-        andalso ?PATH(name)(Path) =:= {'Some', lists:last(Segments)}.
+    Path = ern_named:functions('ern@path'),
+    PathText = Path(join)(Segments),
+    Path(parent)(PathText) =:= {'Some', Path(join)(lists:droplast(Segments))}
+        andalso Path(name)(PathText) =:= {'Some', lists:last(Segments)}.
 
 path_extension(Segments) ->
-    ?PATH(extension)(?PATH(join)(Segments)) =:= extension_model(lists:last(Segments)).
+    Path = ern_named:functions('ern@path'),
+    Path(extension)(Path(join)(Segments)) =:= extension_model(lists:last(Segments)).
 
 %% The root, `.` and `..` have no name to extend and are left as they are.
 path_with_extension({Segments, Extension}) ->
-    Path = ?PATH(join)(Segments),
-    With = ?PATH(withExtension)(Path, Extension),
+    Path = ern_named:functions('ern@path'),
+    PathText = Path(join)(Segments),
+    With = Path(withExtension)(PathText, Extension),
     Name = lists:last(Segments),
     case has_name(Name) of
         true ->
-            ?PATH(extension)(With) =:= {'Some', Extension}
-                andalso ?PATH(withoutExtension)(With) =:= ?PATH(withoutExtension)(Path)
-                andalso ?PATH(extension)(?PATH(withoutExtension)(Path))
+            Path(extension)(With) =:= {'Some', Extension}
+                andalso Path(withoutExtension)(With) =:= Path(withoutExtension)(PathText)
+                andalso Path(extension)(Path(withoutExtension)(PathText))
                         =:= extension_model(stem(Name));
         false ->
-            With =:= Path andalso ?PATH(withoutExtension)(Path) =:= Path
+            With =:= PathText andalso Path(withoutExtension)(PathText) =:= PathText
     end.
 
 path_joined({First, Second}) ->
+    Path = ern_named:functions('ern@path'),
     Expected = case hd(Second) of
-                   <<"/">> -> ?PATH(join)(Second);
-                   _ -> ?PATH(join)(First ++ Second)
+                   <<"/">> -> Path(join)(Second);
+                   _ -> Path(join)(First ++ Second)
                end,
-    ?PATH('<>')(?PATH(join)(First), ?PATH(join)(Second)) =:= Expected.
+    Path('<>')(Path(join)(First), Path(join)(Second)) =:= Expected.
 
 %% The second under the first where it is relative and each of its segments
 %% names an entry, and None where it is absolute or has a `.` or `..`.
 path_under({First, Second}) ->
-    Root = ?PATH(join)(First),
-    Path = ?PATH(join)(Second),
+    Path = ern_named:functions('ern@path'),
+    Root = Path(join)(First),
+    PathText = Path(join)(Second),
     Steps = hd(Second) =:= <<"/">>
         orelse lists:any(fun(Segment) -> lists:member(Segment, [<<".">>, <<"..">>]) end, Second),
     Expected = case Steps of
                    true -> 'None';
-                   false -> {'Some', ?PATH('<>')(Root, Path)}
+                   false -> {'Some', Path('<>')(Root, PathText)}
                end,
-    ?PATH(under)(Root, Path) =:= Expected.
+    Path(under)(Root, PathText) =:= Expected.
 
 %% `from` undoes `under`: a path placed under a root is named from it as it
 %% was, and a path named from a directory is placed under it as the first,
 %% each up to `join` of `split`. The pairs asked of `from` are the draws
 %% either way round and the two joined, so that some begin with the other.
 path_from({First, Second}) ->
-    Root = ?PATH(join)(First),
-    Path = ?PATH(join)(Second),
-    Normal = fun(Of) -> ?PATH(join)(?PATH(split)(Of)) end,
-    Inverse = case ?PATH(under)(Root, Path) of
-                  {'Some', Placed} -> ?PATH(from)(Placed, Root) =:= {'Some', Normal(Path)};
+    Path = ern_named:functions('ern@path'),
+    Root = Path(join)(First),
+    PathText = Path(join)(Second),
+    Normal = fun(Of) -> Path(join)(Path(split)(Of)) end,
+    Inverse = case Path(under)(Root, PathText) of
+                  {'Some', Placed} -> Path(from)(Placed, Root) =:= {'Some', Normal(PathText)};
                   'None' -> true
               end,
-    Pairs = [{Root, Path}, {Path, Root}, {?PATH(join)(First ++ Second), Root}],
+    Pairs = [{Root, PathText}, {PathText, Root}, {Path(join)(First ++ Second), Root}],
     Undone = fun({Whole, Directory}) ->
-                     case ?PATH(from)(Whole, Directory) of
+                     case Path(from)(Whole, Directory) of
                          {'Some', Rest} ->
-                             case ?PATH(under)(Directory, Rest) of
+                             case Path(under)(Directory, Rest) of
                                  {'Some', Back} -> Normal(Back) =:= Normal(Whole);
                                  'None' -> false
                              end;
@@ -924,9 +1015,10 @@ path_from({First, Second}) ->
     Inverse andalso lists:all(Undone, Pairs).
 
 path_text_of(Segments) ->
-    Path = ?PATH(join)(Segments),
-    ?PATH(isAbsolute)(Path) =:= (hd(Segments) =:= <<"/">>)
-        andalso ?PATH(toString)(Path) =:= element(2, Path).
+    Path = ern_named:functions('ern@path'),
+    PathText = Path(join)(Segments),
+    Path(isAbsolute)(PathText) =:= (hd(Segments) =:= <<"/">>)
+        andalso Path(toString)(PathText) =:= element(2, PathText).
 
 %%
 %% Bytes
@@ -949,30 +1041,34 @@ bytes_laws_test_() ->
            fun bytes/1, fun bytes_hex/1}]).
 
 bytes_contents({Octets, Index}) ->
+    Bytes = ern_named:functions('ern@bytes'),
     List = binary_to_list(Octets),
     At = case Index >= 0 andalso Index < byte_size(Octets) of
              true -> {'Some', binary:at(Octets, Index)};
              false -> 'None'
          end,
-    ?BYTES(size)(Octets) =:= byte_size(Octets) andalso ?BYTES(isEmpty)(Octets) =:= (Octets =:= <<>>)
-        andalso ?BYTES(toList)(Octets) =:= List
-        andalso ?BYTES(fromList)(List) =:= {'Some', Octets}
-        andalso ?BYTES(get)(Octets, Index) =:= At.
+    Bytes(size)(Octets) =:= byte_size(Octets) andalso Bytes(isEmpty)(Octets) =:= (Octets =:= <<>>)
+        andalso Bytes(toList)(Octets) =:= List
+        andalso Bytes(fromList)(List) =:= {'Some', Octets}
+        andalso Bytes(get)(Octets, Index) =:= At.
 
 bytes_from_list(List) ->
+    Bytes = ern_named:functions('ern@bytes'),
     Expected = case lists:all(fun(X) -> X >= 0 andalso X =< 255 end, List) of
                    true -> {'Some', list_to_binary(List)};
                    false -> 'None'
                end,
-    ?BYTES(fromList)(List) =:= Expected.
+    Bytes(fromList)(List) =:= Expected.
 
 bytes_slice({Octets, Index, End}) ->
+    Bytes = ern_named:functions('ern@bytes'),
     From = min(max(Index, 0), byte_size(Octets)),
     To = min(max(End, From), byte_size(Octets)),
-    ?BYTES(slice)(Octets, Index, End) =:= binary:part(Octets, From, To - From).
+    Bytes(slice)(Octets, Index, End) =:= binary:part(Octets, From, To - From).
 
 %% An empty second is at 0 and last at the size.
 bytes_searches({Octets, Part}) ->
+    Bytes = ern_named:functions('ern@bytes'),
     Offsets = lists:seq(0, max(byte_size(Octets) - byte_size(Part), -1)),
     Found = [Offset || Offset <- Offsets, binary:part(Octets, Offset, byte_size(Part)) =:= Part],
     {First, Last} = case Part of
@@ -981,12 +1077,13 @@ bytes_searches({Octets, Part}) ->
                     end,
     Starts = binary:longest_common_prefix([Octets, Part]) =:= byte_size(Part),
     Ends = binary:longest_common_suffix([Octets, Part]) =:= byte_size(Part),
-    ?BYTES(indexOf)(Octets, Part) =:= First andalso ?BYTES(lastIndexOf)(Octets, Part) =:= Last
-        andalso ?BYTES(contains)(Octets, Part) =:= (First =/= 'None')
-        andalso ?BYTES(startsWith)(Octets, Part) =:= Starts
-        andalso ?BYTES(endsWith)(Octets, Part) =:= Ends.
+    Bytes(indexOf)(Octets, Part) =:= First andalso Bytes(lastIndexOf)(Octets, Part) =:= Last
+        andalso Bytes(contains)(Octets, Part) =:= (First =/= 'None')
+        andalso Bytes(startsWith)(Octets, Part) =:= Starts
+        andalso Bytes(endsWith)(Octets, Part) =:= Ends.
 
 bytes_split({Octets, Separator, New}) ->
+    Bytes = ern_named:functions('ern@bytes'),
     {Parts, Replaced} = case Separator of
                             <<>> ->
                                 {[Octets], Octets};
@@ -994,21 +1091,23 @@ bytes_split({Octets, Separator, New}) ->
                                 Split = binary:split(Octets, Separator, [global]),
                                 {Split, iolist_to_binary(lists:join(New, Split))}
                         end,
-    ?BYTES(split)(Octets, Separator) =:= Parts
-        andalso ?BYTES(join)(Parts, Separator) =:= Octets
-        andalso ?BYTES(replace)(Octets, Separator, New) =:= Replaced.
+    Bytes(split)(Octets, Separator) =:= Parts
+        andalso Bytes(join)(Parts, Separator) =:= Octets
+        andalso Bytes(replace)(Octets, Separator, New) =:= Replaced.
 
 bytes_repeat({First, Second, Count}) ->
-    ?BYTES(repeat)(First, Count) =:= binary:copy(First, max(Count, 0))
-        andalso ?BYTES('<>')(First, Second) =:= <<First/binary, Second/binary>>.
+    Bytes = ern_named:functions('ern@bytes'),
+    Bytes(repeat)(First, Count) =:= binary:copy(First, max(Count, 0))
+        andalso Bytes('<>')(First, Second) =:= <<First/binary, Second/binary>>.
 
 bytes_hex(Octets) ->
-    Hex = ?BYTES(toHex)(Octets),
+    Bytes = ern_named:functions('ern@bytes'),
+    Hex = Bytes(toHex)(Octets),
     Hex =:= binary:encode_hex(Octets, lowercase)
-        andalso ?BYTES(fromHex)(Hex) =:= {'Some', Octets}
-        andalso ?BYTES(fromHex)(string:uppercase(Hex)) =:= {'Some', Octets}
-        andalso ?BYTES(fromHex)(<<Hex/binary, "A">>) =:= 'None'
-        andalso ?BYTES(fromHex)(<<Hex/binary, "G0">>) =:= 'None'.
+        andalso Bytes(fromHex)(Hex) =:= {'Some', Octets}
+        andalso Bytes(fromHex)(string:uppercase(Hex)) =:= {'Some', Octets}
+        andalso Bytes(fromHex)(<<Hex/binary, "A">>) =:= 'None'
+        andalso Bytes(fromHex)(<<Hex/binary, "G0">>) =:= 'None'.
 
 %%
 %% OrderedSet
@@ -1029,61 +1128,71 @@ ordered_set_laws_test_() ->
            fun elements_and_one/1, fun ordered_set_traversals/1}]).
 
 ordered_set_contents(List) ->
-    Set = ?ORDERED_SET(fromList)(List, ?INT(compare)),
+    OrderedSet = ern_named:functions('ern@ordered_set'),
+    Int = ern_named:functions('ern@int'),
+    Set = OrderedSet(fromList)(List, Int(compare)),
     Ordered = lists:usort(List),
-    ?ORDERED_SET(toList)(Set) =:= Ordered
-        andalso ?ORDERED_SET(size)(Set) =:= length(Ordered)
-        andalso ?ORDERED_SET(isEmpty)(Set) =:= (Ordered =:= [])
-        andalso ?ORDERED_SET(minimum)(Set) =:= first(Ordered)
-        andalso ?ORDERED_SET(maximum)(Set) =:= first(lists:reverse(Ordered)).
+    OrderedSet(toList)(Set) =:= Ordered
+        andalso OrderedSet(size)(Set) =:= length(Ordered)
+        andalso OrderedSet(isEmpty)(Set) =:= (Ordered =:= [])
+        andalso OrderedSet(minimum)(Set) =:= first(Ordered)
+        andalso OrderedSet(maximum)(Set) =:= first(lists:reverse(Ordered)).
 
 ordered_set_equal(Pairs) ->
-    ByKey = fun({Key, _}, {Other, _}) -> ?INT(compare)(Key, Other) end,
-    Set = ?ORDERED_SET(fromList)(Pairs, ByKey),
+    OrderedSet = ern_named:functions('ern@ordered_set'),
+    Int = ern_named:functions('ern@int'),
+    ByKey = fun({Key, _}, {Other, _}) -> Int(compare)(Key, Other) end,
+    Set = OrderedSet(fromList)(Pairs, ByKey),
     Kept = first_occurrences(fun({Key, _}) -> Key end, Pairs),
-    Again = fun({Key, _}) -> ?ORDERED_SET(put)(Set, {Key, again}, ByKey) =:= Set end,
-    ?ORDERED_SET(toList)(Set) =:= lists:keysort(1, Kept) andalso lists:all(Again, Kept).
+    Again = fun({Key, _}) -> OrderedSet(put)(Set, {Key, again}, ByKey) =:= Set end,
+    OrderedSet(toList)(Set) =:= lists:keysort(1, Kept) andalso lists:all(Again, Kept).
 
 ordered_set_put_remove({List, X}) ->
-    Compare = ?INT(compare),
-    Set = ?ORDERED_SET(fromList)(List, Compare),
-    ?ORDERED_SET(contains)(Set, X, Compare) =:= lists:member(X, List)
-        andalso ?ORDERED_SET(toList)(?ORDERED_SET(put)(Set, X, Compare)) =:= lists:usort([X | List])
-        andalso ?ORDERED_SET(toList)(?ORDERED_SET(remove)(Set, X, Compare))
+    OrderedSet = ern_named:functions('ern@ordered_set'),
+    Int = ern_named:functions('ern@int'),
+    Compare = Int(compare),
+    Set = OrderedSet(fromList)(List, Compare),
+    OrderedSet(contains)(Set, X, Compare) =:= lists:member(X, List)
+        andalso OrderedSet(toList)(OrderedSet(put)(Set, X, Compare)) =:= lists:usort([X | List])
+        andalso OrderedSet(toList)(OrderedSet(remove)(Set, X, Compare))
                 =:= lists:usort(List) -- [X].
 
 ordered_set_operations({Left, Right}) ->
-    Compare = ?INT(compare),
-    First = ?ORDERED_SET(fromList)(Left, Compare),
-    Second = ?ORDERED_SET(fromList)(Right, Compare),
+    OrderedSet = ern_named:functions('ern@ordered_set'),
+    Int = ern_named:functions('ern@int'),
+    Compare = Int(compare),
+    First = OrderedSet(fromList)(Left, Compare),
+    Second = OrderedSet(fromList)(Right, Compare),
     {Ordered, Other} = {lists:usort(Left), lists:usort(Right)},
-    Elements = fun(Set) -> ?ORDERED_SET(toList)(Set) end,
-    Elements(?ORDERED_SET(union)(First, Second, Compare)) =:= ordsets:union(Ordered, Other)
-        andalso Elements(?ORDERED_SET(intersection)(First, Second, Compare))
+    Elements = fun(Set) -> OrderedSet(toList)(Set) end,
+    Elements(OrderedSet(union)(First, Second, Compare)) =:= ordsets:union(Ordered, Other)
+        andalso Elements(OrderedSet(intersection)(First, Second, Compare))
                 =:= ordsets:intersection(Ordered, Other)
-        andalso Elements(?ORDERED_SET(difference)(First, Second, Compare))
+        andalso Elements(OrderedSet(difference)(First, Second, Compare))
                 =:= ordsets:subtract(Ordered, Other)
-        andalso ?ORDERED_SET(isSubset)(First, Second, Compare)
+        andalso OrderedSet(isSubset)(First, Second, Compare)
                 =:= ordsets:is_subset(Ordered, Other).
 
 ordered_set_traversals({List, Pivot}) ->
-    Compare = ?INT(compare),
-    Set = ?ORDERED_SET(fromList)(List, Compare),
+    OrderedSet = ern_named:functions('ern@ordered_set'),
+    Int = ern_named:functions('ern@int'),
+    Compare = Int(compare),
+    Set = OrderedSet(fromList)(List, Compare),
     Ordered = lists:usort(List),
     Keep = above(Pivot),
     Halved = fun(X) -> kept(Keep(X), X rem 2) end,
-    ?ORDERED_SET(toList)(?ORDERED_SET(map)(Set, fun(X) -> -X end, Compare))
+    OrderedSet(toList)(OrderedSet(map)(Set, fun(X) -> -X end, Compare))
         =:= lists:usort([-X || X <- Ordered])
-        andalso ?ORDERED_SET(toList)(?ORDERED_SET(filter)(Set, Keep))
+        andalso OrderedSet(toList)(OrderedSet(filter)(Set, Keep))
                 =:= lists:filter(Keep, Ordered)
-        andalso ?ORDERED_SET(toList)(?ORDERED_SET(filterMap)(Set, Halved, Compare))
+        andalso OrderedSet(toList)(OrderedSet(filterMap)(Set, Halved, Compare))
                 =:= lists:usort([X rem 2 || X <- Ordered, Keep(X)])
-        andalso ?ORDERED_SET(foldLeft)(Set, [], fun(Acc, X) -> [X | Acc] end)
+        andalso OrderedSet(foldLeft)(Set, [], fun(Acc, X) -> [X | Acc] end)
                 =:= lists:reverse(Ordered)
-        andalso met(fun(Visit) -> ?ORDERED_SET(forEach)(Set, Visit) end) =:= Ordered
-        andalso ?ORDERED_SET(any)(Set, Keep) =:= lists:any(Keep, Ordered)
-        andalso ?ORDERED_SET(all)(Set, Keep) =:= lists:all(Keep, Ordered)
-        andalso ?ORDERED_SET(find)(Set, Keep) =:= first(lists:filter(Keep, Ordered)).
+        andalso met(fun(Visit) -> OrderedSet(forEach)(Set, Visit) end) =:= Ordered
+        andalso OrderedSet(any)(Set, Keep) =:= lists:any(Keep, Ordered)
+        andalso OrderedSet(all)(Set, Keep) =:= lists:all(Keep, Ordered)
+        andalso OrderedSet(find)(Set, Keep) =:= first(lists:filter(Keep, Ordered)).
 
 %%
 %% OrderedMap
@@ -1109,19 +1218,23 @@ ordered_map_laws_test_() ->
 %% replace its value, and `fromList`, putting each pair in turn, keeps the
 %% first pair's key with the last pair's value. Keys are {Key, Tag}, the
 %% order reading Key alone, so that a held key and a given one differ.
-ordered_map_held_key({Pairs, {Key, _} = Given, Value}) ->
-    ByKey = fun({Left, _}, {Right, _}) -> ?INT(compare)(Left, Right) end,
-    Map = ?ORDERED_MAP(fromList)(Pairs, ByKey),
+ordered_map_held_key({Pairs, Given, Value}) ->
+    OrderedMap = ern_named:functions('ern@ordered_map'),
+    Int = ern_named:functions('ern@int'),
+    ByKey = fun({Left, _}, {Right, _}) -> Int(compare)(Left, Right) end,
+    Map = OrderedMap(fromList)(Pairs, ByKey),
     Model = held_model(Pairs),
-    Put = ?ORDERED_MAP(put)(Map, Given, Value, ByKey),
-    Updated = ?ORDERED_MAP(update)(Map, Given, fun(_) -> Value end, ByKey),
-    Merged = ?ORDERED_MAP(merge)(Map, ?ORDERED_MAP(fromList)([{Given, Value}], ByKey), ByKey),
+    Put = OrderedMap(put)(Map, Given, Value, ByKey),
+    Updated = OrderedMap(update)(Map, Given, fun(_) -> Value end, ByKey),
+    Other = OrderedMap(fromList)([{Given, Value}], ByKey),
+    Merged = OrderedMap(merge)(Map, Other, ByKey),
+    MergedWith = OrderedMap(mergeWith)(Map, Other, fun(_, _, Second) -> Second end, ByKey),
     Expected = held_model(Pairs ++ [{Given, Value}]),
-    ?ORDERED_MAP(toList)(Map) =:= Model
-        andalso ?ORDERED_MAP(toList)(Put) =:= Expected
-        andalso ?ORDERED_MAP(toList)(Updated) =:= Expected
-        andalso ?ORDERED_MAP(toList)(Merged) =:= Expected
-        andalso lists:keymember(Key, 1, [K || {K, _} <- Expected]).
+    OrderedMap(toList)(Map) =:= Model
+        andalso OrderedMap(toList)(Put) =:= Expected
+        andalso OrderedMap(toList)(Updated) =:= Expected
+        andalso OrderedMap(toList)(Merged) =:= Expected
+        andalso OrderedMap(toList)(MergedWith) =:= Expected.
 
 %% The entries in order of Key, each with the first key of its Key and the
 %% last value.
@@ -1133,65 +1246,73 @@ held_model(Pairs) ->
     [{maps:get(Key, Firsts), Value} || {Key, Value} <- lists:sort(maps:to_list(Lasts))].
 
 ordered_map_contents(Pairs) ->
-    Map = ?ORDERED_MAP(fromList)(Pairs, ?INT(compare)),
+    OrderedMap = ern_named:functions('ern@ordered_map'),
+    Int = ern_named:functions('ern@int'),
+    Map = OrderedMap(fromList)(Pairs, Int(compare)),
     Expected = entries_model(Pairs),
-    ?ORDERED_MAP(toList)(Map) =:= Expected
-        andalso ?ORDERED_MAP(keys)(Map) =:= [Key || {Key, _} <- Expected]
-        andalso ?ORDERED_MAP(values)(Map) =:= [Value || {_, Value} <- Expected]
-        andalso ?ORDERED_MAP(size)(Map) =:= length(Expected)
-        andalso ?ORDERED_MAP(isEmpty)(Map) =:= (Expected =:= [])
-        andalso ?ORDERED_MAP(minimum)(Map) =:= first(Expected)
-        andalso ?ORDERED_MAP(maximum)(Map) =:= first(lists:reverse(Expected)).
+    OrderedMap(toList)(Map) =:= Expected
+        andalso OrderedMap(keys)(Map) =:= [Key || {Key, _} <- Expected]
+        andalso OrderedMap(values)(Map) =:= [Value || {_, Value} <- Expected]
+        andalso OrderedMap(size)(Map) =:= length(Expected)
+        andalso OrderedMap(isEmpty)(Map) =:= (Expected =:= [])
+        andalso OrderedMap(minimum)(Map) =:= first(Expected)
+        andalso OrderedMap(maximum)(Map) =:= first(lists:reverse(Expected)).
 
 ordered_map_put({Pairs, Key, Value}) ->
-    Compare = ?INT(compare),
-    Map = ?ORDERED_MAP(fromList)(Pairs, Compare),
+    OrderedMap = ern_named:functions('ern@ordered_map'),
+    Int = ern_named:functions('ern@int'),
+    Compare = Int(compare),
+    Map = OrderedMap(fromList)(Pairs, Compare),
     Old = case lists:keyfind(Key, 1, entries_model(Pairs)) of
               {Key, Held} -> {'Some', Held};
               false -> 'None'
           end,
-    Put = ?ORDERED_MAP(put)(Map, Key, Value, Compare),
-    ?ORDERED_MAP(get)(Put, Key, Compare) =:= {'Some', Value}
-        andalso ?ORDERED_MAP(toList)(Put) =:= entries_model(Pairs ++ [{Key, Value}])
-        andalso ?ORDERED_MAP(toList)(?ORDERED_MAP(remove)(Map, Key, Compare))
+    Put = OrderedMap(put)(Map, Key, Value, Compare),
+    OrderedMap(get)(Put, Key, Compare) =:= {'Some', Value}
+        andalso OrderedMap(toList)(Put) =:= entries_model(Pairs ++ [{Key, Value}])
+        andalso OrderedMap(toList)(OrderedMap(remove)(Map, Key, Compare))
                 =:= lists:keydelete(Key, 1, entries_model(Pairs))
-        andalso ?ORDERED_MAP(contains)(Map, Key, Compare) =:= (Old =/= 'None')
-        andalso ?ORDERED_MAP(toList)(?ORDERED_MAP(update)(Map, Key, fun count/1, Compare))
+        andalso OrderedMap(contains)(Map, Key, Compare) =:= (Old =/= 'None')
+        andalso OrderedMap(toList)(OrderedMap(update)(Map, Key, fun count/1, Compare))
                 =:= entries_model(Pairs ++ [{Key, count(Old)}]).
 
 ordered_map_merge({Left, Right}) ->
-    Compare = ?INT(compare),
-    First = ?ORDERED_MAP(fromList)(Left, Compare),
-    Second = ?ORDERED_MAP(fromList)(Right, Compare),
+    OrderedMap = ern_named:functions('ern@ordered_map'),
+    Int = ern_named:functions('ern@int'),
+    Compare = Int(compare),
+    First = OrderedMap(fromList)(Left, Compare),
+    Second = OrderedMap(fromList)(Right, Compare),
     {Mine, Theirs} = {maps:from_list(Left), maps:from_list(Right)},
     Shared = maps:intersect_with(fun combined/3, Mine, Theirs),
     Merged = lists:sort(maps:to_list(maps:merge(maps:merge(Mine, Theirs), Shared))),
-    ?ORDERED_MAP(toList)(?ORDERED_MAP(merge)(First, Second, Compare))
+    OrderedMap(toList)(OrderedMap(merge)(First, Second, Compare))
         =:= entries_model(Left ++ Right)
-        andalso ?ORDERED_MAP(toList)(?ORDERED_MAP(mergeWith)(First, Second, fun combined/3,
+        andalso OrderedMap(toList)(OrderedMap(mergeWith)(First, Second, fun combined/3,
                                                              Compare))
                 =:= Merged.
 
 ordered_map_traversals({Pairs, Pivot}) ->
-    Map = ?ORDERED_MAP(fromList)(Pairs, ?INT(compare)),
+    OrderedMap = ern_named:functions('ern@ordered_map'),
+    Int = ern_named:functions('ern@int'),
+    Map = OrderedMap(fromList)(Pairs, Int(compare)),
     Expected = entries_model(Pairs),
     Keep = fun(Key, _) -> Key > Pivot end,
     Kept = [{Key, Value} || {Key, Value} <- Expected, Key > Pivot],
     Negated = fun(Key, Value) -> kept(Keep(Key, Value), -Value) end,
     Visits = fun(Visit) ->
-                     ?ORDERED_MAP(forEach)(Map, fun(Key, Value) -> Visit({Key, Value}) end)
+                     OrderedMap(forEach)(Map, fun(Key, Value) -> Visit({Key, Value}) end)
              end,
-    ?ORDERED_MAP(toList)(?ORDERED_MAP(map)(Map, fun(Key, Value) -> Key + Value end))
+    OrderedMap(toList)(OrderedMap(map)(Map, fun(Key, Value) -> Key + Value end))
         =:= [{Key, Key + Value} || {Key, Value} <- Expected]
-        andalso ?ORDERED_MAP(toList)(?ORDERED_MAP(filter)(Map, Keep)) =:= Kept
-        andalso ?ORDERED_MAP(toList)(?ORDERED_MAP(filterMap)(Map, Negated))
+        andalso OrderedMap(toList)(OrderedMap(filter)(Map, Keep)) =:= Kept
+        andalso OrderedMap(toList)(OrderedMap(filterMap)(Map, Negated))
                 =:= [{Key, -Value} || {Key, Value} <- Kept]
-        andalso ?ORDERED_MAP(foldLeft)(Map, [], fun(Acc, Key, _) -> [Key | Acc] end)
+        andalso OrderedMap(foldLeft)(Map, [], fun(Acc, Key, _) -> [Key | Acc] end)
                 =:= lists:reverse([Key || {Key, _} <- Expected])
         andalso met(Visits) =:= Expected
-        andalso ?ORDERED_MAP(any)(Map, Keep) =:= (Kept =/= [])
-        andalso ?ORDERED_MAP(all)(Map, Keep) =:= (length(Kept) =:= length(Expected))
-        andalso ?ORDERED_MAP(find)(Map, Keep) =:= first(Kept).
+        andalso OrderedMap(any)(Map, Keep) =:= (Kept =/= [])
+        andalso OrderedMap(all)(Map, Keep) =:= (length(Kept) =:= length(Expected))
+        andalso OrderedMap(find)(Map, Keep) =:= first(Kept).
 
 %%
 %% The runner
@@ -1211,8 +1332,9 @@ holds(Name, Draw, Law) ->
     rand:seed(exsss, Seed),
     %% report §8.5: the modules' top-level bindings, `Map.empty` among them,
     %% and those of the modules they build on
-    ern_rt:init_modules([?LIST, ?STRING, ?MAP, ?SET, ?ORDERED_SET, ?ORDERED_MAP, ?BYTES, ?INT,
-                         ?FLOAT, ?CHAR, ?OPTIONAL, ?EITHER, ?PATH]),
+    ern_rt:init_modules(['ern@list', 'ern@string', 'ern@map', 'ern@set', 'ern@ordered_set',
+                         'ern@ordered_map', 'ern@bytes', 'ern@int', 'ern@float', 'ern@char',
+                         'ern@optional', 'ern@either', 'ern@path']),
     ?assertEqual(none, broken(Draw, Law, Seed, 1)).
 
 broken(_, _, _, Number) when Number > ?CASES ->
@@ -1276,8 +1398,12 @@ entries(Size) -> list(Size, fun(Inner) -> {small(Inner) rem 7, small(Inner)} end
 entries_and_entry(Size) -> {entries(Size), small(Size) rem 7, small(Size)}.
 entries_and_one(Size) -> {entries(Size), small(Size) rem 7}.
 two_entry_lists(Size) -> {entries(Size), entries(Size)}.
-map_and_key(Size) -> {?MAP(fromList)(entries(Size)), small(Size) rem 7, small(Size)}.
-two_maps(Size) -> {?MAP(fromList)(entries(Size)), ?MAP(fromList)(entries(Size))}.
+map_and_key(Size) ->
+    Map = ern_named:functions('ern@map'),
+    {Map(fromList)(entries(Size)), small(Size) rem 7, small(Size)}.
+two_maps(Size) ->
+    Map = ern_named:functions('ern@map'),
+    {Map(fromList)(entries(Size)), Map(fromList)(entries(Size))}.
 elements(Size) -> list(Size, fun(Inner) -> small(Inner) rem 9 end).
 elements_and_one(Size) -> {elements(Size), small(Size) rem 9}.
 two_element_lists(Size) -> {elements(Size), elements(Size)}.
@@ -1363,12 +1489,13 @@ numeral(Size) ->
 %% A float numeral, mostly well formed by §2.5, the forms it does not read
 %% among it.
 float_numeral(Size) ->
+    Float = ern_named:functions('ern@float'),
     Digits = fun() -> [pick("0123456789") || _ <- lists:seq(1, rand:uniform(3))] end,
     Exponent = fun() -> [pick(["e", "E"]), pick(["", "-", "+"]), Digits()] end,
     Forms = [[Digits(), ".", Digits()], [Digits(), ".", Digits(), Exponent()],
              [Digits(), Exponent()], [Digits()], [".", Digits()], [Digits(), "."],
              [Digits(), "_", Digits(), ".", Digits()], ["1.0e400"], ["1.0e-400"],
-             [?FLOAT(toString)(finite(Size))]],
+             [Float(toString)(finite(Size))]],
     iolist_to_binary([pick(["", "", "-", "+"]), pick(Forms)]).
 
 %% A path in the runtime's syntax, a root or not, separators doubled and
@@ -1453,18 +1580,13 @@ met(Run) ->
     Self = self(),
     Tag = make_ref(),
     'Unit' = Run(fun(Element) -> Self ! {Tag, Element}, 'Unit' end),
-    collect(Tag).
-
-collect(Tag) ->
-    receive
-        {Tag, Element} -> [Element | collect(Tag)]
-    after 0 -> []
-    end.
+    ern_helpers:taken(Tag).
 
 %% The byte offsets at which the string's graphemes begin, and its end.
 boundaries(Whole) ->
+    String = ern_named:functions('ern@string'),
     Step = fun(Grapheme, Offset) -> {Offset, Offset + byte_size(Grapheme)} end,
-    {Offsets, _} = lists:mapfoldl(Step, 0, ?STRING(graphemes)(Whole)),
+    {Offsets, _} = lists:mapfoldl(Step, 0, String(graphemes)(Whole)),
     Offsets ++ [byte_size(Whole)].
 
 %% Where the part stands in the string as whole graphemes, beginning and
@@ -1491,8 +1613,9 @@ split_model(Whole, Separator) ->
     end.
 
 is_space_grapheme(Grapheme) ->
+    Char = ern_named:functions('ern@char'),
     [First | _] = unicode:characters_to_list(Grapheme),
-    ?CHAR(isSpace)(First).
+    Char(isSpace)(First).
 
 %% Whether a pad's graphemes stay its own beside any text: letters, digits
 %% and the like alone.
@@ -1510,13 +1633,14 @@ lines_model(Whole) ->
     end.
 
 words_model(Whole) ->
+    String = ern_named:functions('ern@string'),
     Split = fun(Grapheme, [Word | Rest]) ->
                     case is_space_grapheme(Grapheme) of
                         true -> [[], Word | Rest];
                         false -> [[Grapheme | Word] | Rest]
                     end
             end,
-    Words = lists:foldr(Split, [[]], ?STRING(graphemes)(Whole)),
+    Words = lists:foldr(Split, [[]], String(graphemes)(Whole)),
     [iolist_to_binary(Word) || Word <- Words, Word =/= []].
 
 %% A numeral in a base from 2 to 36: an optional leading -, then at least

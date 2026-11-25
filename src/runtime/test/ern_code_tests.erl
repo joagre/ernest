@@ -74,10 +74,7 @@ file_forms_hold_the_units_code_test() ->
     ok = file:write_file(File, First),
     {ok, Recorded} = ern_canonical:read(First),
     Held = ern_code:forms(Unit),
-    ern_code:unloaded(Unit),
-    code:purge(Unit),
-    code:delete(Unit),
-    code:purge(Unit),
+    ern_helpers:unloaded(Unit),
     ?assertEqual(none, Changed),
     ?assertEqual({ok, Recorded}, Held).
 
@@ -102,10 +99,7 @@ file_forms_unopened_test() ->
     ok = file:delete(File),
     "" = os:cmd("mkfifo " ++ File),
     Forms = ern_code:forms(Unit),
-    ern_code:unloaded(Unit),
-    code:purge(Unit),
-    code:delete(Unit),
-    code:purge(Unit),
+    ern_helpers:unloaded(Unit),
     ok = file:delete(File),
     ?assertEqual(none, Forms).
 
@@ -130,8 +124,6 @@ own_unit_loaded_at_first_call_test() ->
     File = filename:join(Dir, "firstcall.erc"),
     ok = file:write_file(File, Beam),
     Library = ern_prelude:set_stdlib_directory(Dir),
-    Gone = fun() -> ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit),
-                    code:purge(Unit) end,
     try
         ?assertEqual({ok, File}, ern_code:own_file(Unit)),
         ?assertEqual(none, ern_code:own_file('ern@firstcall@absent')),
@@ -146,12 +138,12 @@ own_unit_loaded_at_first_call_test() ->
                   end),
         ?assertEqual(Md5, receive {called, Called} -> Called after 5000 -> none end),
         ?assertEqual({file, File}, code:is_loaded(Unit)),
-        Gone(),
+        ern_helpers:unloaded(Unit),
         ?assertMatch({_, 0}, ern_code:function(Unit, ['Firstcall', one])),
         ?assertEqual({file, File}, code:is_loaded(Unit))
     after
         ern_prelude:set_stdlib_directory(Library),
-        Gone(),
+        ern_helpers:unloaded(Unit),
         file:delete(File)
     end.
 
@@ -168,51 +160,52 @@ own_unit_loaded_at_first_call_test() ->
 %% after them
 unit_load_fills_table_test() ->
     Beam = loaded(['Tablefill'], ?SOURCE),
-    Definitions = definitions(Beam),
     Unit = 'ern@tablefill',
-    ?assertEqual({Unit, '$3', 1, {[], []}},
-                 ern_code:spawnable({hash, hash(['Tablefill', twice], Definitions)})),
-    ?assertEqual({Unit, '$2', 2, {[], []}},
-                 ern_code:spawnable({hash, hash(['Tablefill', 'Box', compare], Definitions)})),
-    ?assertEqual({Unit, '$4', 1, {[], []}},
-                 ern_code:spawnable({hash, hash(['Tablefill', hidden], Definitions)})),
-    ?assertEqual(none, ern_code:spawnable({hash, hash(['Tablefill', 'Box'], Definitions)})),
-    Answer = {['Tablefill', answer], hash(['Tablefill', answer], Definitions)},
-    Missing = {['Tablefill', missing], <<0:256>>},
-    Self = self(),
-    Entry = fun() ->
-                Self ! {absent, [ern_code:absent_binding(Unit, [Identity])
-                                 || Identity <- [Answer, Missing]]}
-            end,
-    ok = ern_rt:run_main(Entry, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({absent, [Answer, Missing]}, receive {absent, _} = Absent -> Absent end),
-    Called = ern_code:called(Unit),
-    ?assertEqual(#{Unit => true}, Called),
-    ?assertEqual([{Unit, lists, reverse}], ern_code:foreign(Called, ['Tablefill', backwards])),
-    ?assertEqual([{Unit, lists, reverse}],
-                 ern_code:foreign(Called, [<<"Tablefill">>, <<"backwards">>])),
-    ?assertEqual({Unit, '$6', 1, {[], [['Tablefill', backwards]]}},
-                 ern_code:spawnable({foreign, ['Tablefill', backwards]})),
-    ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
-    %% every definition the chunk holds, and nothing else, the names first,
-    %% each function's as its sites write it and the type's none, and the
-    %% calls
-    ?assertEqual(lists:sort(maps:keys(Definitions)),
-                 lists:sort([QualifiedName
-                             || {QualifiedName, Held} <- Unit:'$code'(),
-                                not lists:member(element(1, Held),
-                                                 [foreign, names, calls])])),
-    ?assertEqual({['Tablefill'], {names, #{'$2' => <<"Tablefill.Box.compare">>,
-                                           '$3' => <<"Tablefill.twice">>,
-                                           '$4' => <<"Tablefill.hidden">>,
-                                           '$5' => <<"Tablefill.answer">>,
-                                           '$6' => <<"Tablefill.backwards">>}}},
-                 hd(Unit:'$code'())),
-    ?assertEqual([{['Tablefill'], {calls, []}}],
-                 [Calls || {_, {calls, _}} = Calls <- Unit:'$code'()]),
-    ern_code:unloaded(Unit),
-    code:purge(Unit),
-    code:delete(Unit).
+    try
+        Definitions = definitions(Beam),
+        ?assertEqual({Unit, '$3', 1, {[], []}},
+                     ern_code:spawnable({hash, hash(['Tablefill', twice], Definitions)})),
+        ?assertEqual({Unit, '$2', 2, {[], []}},
+                     ern_code:spawnable({hash, hash(['Tablefill', 'Box', compare], Definitions)})),
+        ?assertEqual({Unit, '$4', 1, {[], []}},
+                     ern_code:spawnable({hash, hash(['Tablefill', hidden], Definitions)})),
+        ?assertEqual(none, ern_code:spawnable({hash, hash(['Tablefill', 'Box'], Definitions)})),
+        Answer = {['Tablefill', answer], hash(['Tablefill', answer], Definitions)},
+        Missing = {['Tablefill', missing], <<0:256>>},
+        Self = self(),
+        Entry = fun() ->
+                    Self ! {absent, [ern_code:absent_binding(Unit, [Identity])
+                                     || Identity <- [Answer, Missing]]}
+                end,
+        ok = ern_rt:run_main(Entry, <<"main">>, ern_helpers:quiet()),
+        ?assertEqual({absent, [Answer, Missing]}, receive {absent, _} = Absent -> Absent end),
+        Called = ern_code:called(Unit),
+        ?assertEqual(#{Unit => true}, Called),
+        ?assertEqual([{Unit, lists, reverse}], ern_code:foreign(Called, ['Tablefill', backwards])),
+        ?assertEqual([{Unit, lists, reverse}],
+                     ern_code:foreign(Called, [<<"Tablefill">>, <<"backwards">>])),
+        ?assertEqual({Unit, '$6', 1, {[], [['Tablefill', backwards]]}},
+                     ern_code:spawnable({foreign, ['Tablefill', backwards]})),
+        ?assertEqual([], ern_code:foreign(Called, ['Tablefill', missing])),
+        %% every definition the chunk holds, and nothing else, the names first,
+        %% each function's as its sites write it and the type's none, and the
+        %% calls
+        ?assertEqual(lists:sort(maps:keys(Definitions)),
+                     lists:sort([QualifiedName
+                                 || {QualifiedName, Held} <- Unit:'$code'(),
+                                    not lists:member(element(1, Held),
+                                                     [foreign, names, calls])])),
+        ?assertEqual({['Tablefill'], {names, #{'$2' => <<"Tablefill.Box.compare">>,
+                                               '$3' => <<"Tablefill.twice">>,
+                                               '$4' => <<"Tablefill.hidden">>,
+                                               '$5' => <<"Tablefill.answer">>,
+                                               '$6' => <<"Tablefill.backwards">>}}},
+                     hd(Unit:'$code'())),
+        ?assertEqual([{['Tablefill'], {calls, []}}],
+                     [Calls || {_, {calls, _}} = Calls <- Unit:'$code'()])
+    after
+        ern_helpers:unloaded(Unit)
+    end.
 
 %% report §11, §11.2: a compiled form whose code the host will not load,
 %% its code chunk gone, is no code the host holds, where the host holds a
@@ -220,13 +213,14 @@ unit_load_fills_table_test() ->
 %% for granted, and a load of it beside a held unit faulted
 held_without_code_test() ->
     Beam = loaded(['Tableheld'], ?SOURCE),
-    ?assert(ern_code:is_held('ern@tableheld', Beam)),
-    {ok, _, Chunks} = beam_lib:all_chunks(Beam),
-    {ok, Gone} = beam_lib:build_module([Chunk || {Id, _} = Chunk <- Chunks, Id =/= "Code"]),
-    ?assertNot(ern_code:is_held('ern@tableheld', Gone)),
-    ern_code:unloaded('ern@tableheld'),
-    code:purge('ern@tableheld'),
-    code:delete('ern@tableheld').
+    try
+        ?assert(ern_code:is_held('ern@tableheld', Beam)),
+        {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+        {ok, Gone} = beam_lib:build_module([Chunk || {Id, _} = Chunk <- Chunks, Id =/= "Code"]),
+        ?assertNot(ern_code:is_held('ern@tableheld', Gone))
+    after
+        ern_helpers:unloaded('ern@tableheld')
+    end.
 
 %% report §8.7, §11.1: what another unit's code reaches of this node's by
 %% hash: a function its unit exports, with its unit, its function and its
@@ -237,16 +231,17 @@ held_without_code_test() ->
 %% it does not cover two units holding one hash
 linkable_test() ->
     Beam = loaded(['Tablelink'], ?SOURCE),
-    Definitions = definitions(Beam),
     Unit = 'ern@tablelink',
-    ?assertEqual({function, Unit, '$3', 1, {[], []}},
-                 ern_code:linkable(hash(['Tablelink', twice], Definitions))),
-    ?assertEqual({type, Unit}, ern_code:linkable(hash(['Tablelink', 'Box'], Definitions))),
-    ?assertEqual(none, ern_code:linkable(hash(['Tablelink', hidden], Definitions))),
-    ?assertEqual(none, ern_code:linkable(<<0:256>>)),
-    ern_code:unloaded(Unit),
-    code:purge(Unit),
-    code:delete(Unit).
+    try
+        Definitions = definitions(Beam),
+        ?assertEqual({function, Unit, '$3', 1, {[], []}},
+                     ern_code:linkable(hash(['Tablelink', twice], Definitions))),
+        ?assertEqual({type, Unit}, ern_code:linkable(hash(['Tablelink', 'Box'], Definitions))),
+        ?assertEqual(none, ern_code:linkable(hash(['Tablelink', hidden], Definitions))),
+        ?assertEqual(none, ern_code:linkable(<<0:256>>))
+    after
+        ern_helpers:unloaded(Unit)
+    end.
 
 %% report §8.7, §11.1: what a spawn on a peer names is in the table by its
 %% identity, with the function that runs it, the number of values it
@@ -267,41 +262,45 @@ spawnable_test() ->
                   "    let _ = calls;\n"
                   "    Peer.spawn(\"p\", fn() = { let _ = n; Unit }, 100)\n"
                   "}\n"),
-    Definitions = definitions(Beam),
     Unit = 'ern@tablespawn',
-    Note = {['Tablespawn', note], hash(['Tablespawn', note], Definitions)},
-    Reach = {[Note], [['Tablespawn', now]]},
-    ?assertEqual({Unit, '$3', 0, Reach},
-                 ern_code:spawnable({hash, hash(['Tablespawn', calls], Definitions)})),
-    ?assertEqual({Unit, '$4.1.entry', 1, {[], []}},
-                 ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 1})),
-    ?assertEqual({Unit, '$5', 0, {[], [['Tablespawn', now]]}},
-                 ern_code:spawnable({foreign, ['Tablespawn', now]})),
-    ?assertEqual(none, ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 2})),
-    ern_code:unloaded(Unit),
-    code:purge(Unit),
-    code:delete(Unit).
+    try
+        Definitions = definitions(Beam),
+        Note = {['Tablespawn', note], hash(['Tablespawn', note], Definitions)},
+        Reach = {[Note], [['Tablespawn', now]]},
+        ?assertEqual({Unit, '$3', 0, Reach},
+                     ern_code:spawnable({hash, hash(['Tablespawn', calls], Definitions)})),
+        ?assertEqual({Unit, '$4.1.entry', 1, {[], []}},
+                     ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 1})),
+        ?assertEqual({Unit, '$5', 0, {[], [['Tablespawn', now]]}},
+                     ern_code:spawnable({foreign, ['Tablespawn', now]})),
+        ?assertEqual(none,
+                     ern_code:spawnable({lambda, hash(['Tablespawn', start], Definitions), 2}))
+    after
+        ern_helpers:unloaded(Unit)
+    end.
 
 %% report §8.7: a unit loaded again with other code replaces its rows, so
 %% that a definition it no longer holds is found nowhere; one loaded again
 %% with the same code is passed over; one unloaded takes its rows with it
 unit_loaded_again_replaces_its_rows_test() ->
     Before = definitions(loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 1\n")),
-    F1 = hash(['Tablereload', f], Before),
-    Held = {'ern@tablereload', '$1', 1, {[], []}},
-    ?assertEqual(Held, ern_code:spawnable({hash, F1})),
-    Again = loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 2\n"),
-    After = definitions(Again),
-    F2 = hash(['Tablereload', f], After),
-    ?assertNotEqual(F1, F2),
-    ?assertEqual(none, ern_code:spawnable({hash, F1})),
-    ?assertEqual(Held, ern_code:spawnable({hash, F2})),
-    ok = ern_code:loaded('ern@tablereload', Again),
-    ?assertEqual(Held, ern_code:spawnable({hash, F2})),
-    ern_code:unloaded('ern@tablereload'),
-    ?assertEqual(none, ern_code:spawnable({hash, F2})),
-    code:purge('ern@tablereload'),
-    code:delete('ern@tablereload').
+    try
+        F1 = hash(['Tablereload', f], Before),
+        Held = {'ern@tablereload', '$1', 1, {[], []}},
+        ?assertEqual(Held, ern_code:spawnable({hash, F1})),
+        Again = loaded(['Tablereload'], "export fn f(n : Int) : Int = n + 2\n"),
+        After = definitions(Again),
+        F2 = hash(['Tablereload', f], After),
+        ?assertNotEqual(F1, F2),
+        ?assertEqual(none, ern_code:spawnable({hash, F1})),
+        ?assertEqual(Held, ern_code:spawnable({hash, F2})),
+        ok = ern_code:loaded('ern@tablereload', Again),
+        ?assertEqual(Held, ern_code:spawnable({hash, F2})),
+        ern_code:unloaded('ern@tablereload'),
+        ?assertEqual(none, ern_code:spawnable({hash, F2}))
+    after
+        ern_helpers:unloaded('ern@tablereload')
+    end.
 
 %% report §8.7, Appendix H: one definition held by two units, a module's
 %% and a version of it a reload made of the same code, is one hash; one
@@ -311,11 +310,14 @@ one_hash_in_two_units_test() ->
     Hash = hash(['Tablesame', same], definitions(loaded(['Tablesame'], Text))),
     Version = #{['Tablesame'] => 'ern@tablesame$2'},
     Hash = hash(['Tablesame', same], definitions(loaded(['Tablesame'], Text, Version))),
-    ern_code:unloaded('ern@tablesame'),
-    ?assertEqual({'ern@tablesame$2', '$1', 1, {[], []}}, ern_code:spawnable({hash, Hash})),
-    ern_code:unloaded('ern@tablesame$2'),
-    ?assertEqual(none, ern_code:spawnable({hash, Hash})),
-    [begin code:purge(Unit), code:delete(Unit) end || Unit <- ['ern@tablesame', 'ern@tablesame$2']].
+    try
+        ern_code:unloaded('ern@tablesame'),
+        ?assertEqual({'ern@tablesame$2', '$1', 1, {[], []}}, ern_code:spawnable({hash, Hash})),
+        ern_code:unloaded('ern@tablesame$2'),
+        ?assertEqual(none, ern_code:spawnable({hash, Hash}))
+    after
+        [ern_helpers:unloaded(Unit) || Unit <- ['ern@tablesame', 'ern@tablesame$2']]
+    end.
 
 %% report §8.7, §8.5, §11.1: a binding by its identity has its value in the
 %% run in progress where its unit's initializers have run, and none where
@@ -326,23 +328,26 @@ binding_value_test() ->
     Run = definitions(loaded(['Tableran'], "export let answer : Int = 6 * 7\n")),
     NotRun = definitions(loaded(['Tablenotrun'], "export let other : Int = 1 + 1\n"
                                                  "export let fixed : Int = 1\n")),
-    Ran = {['Tableran', answer], hash(['Tableran', answer], Run)},
-    Unrun = {['Tablenotrun', other], hash(['Tablenotrun', other], NotRun)},
-    Fixed = {['Tablenotrun', fixed], hash(['Tablenotrun', fixed], NotRun)},
-    Unknown = {['Tableran', gone], <<0:256>>},
-    Self = self(),
-    Entry = fun() ->
-                Self ! {absent, [ern_code:absent_binding('ern@tableran', [Ran]),
-                                 ern_code:absent_binding('ern@tablenotrun', [Unrun]),
-                                 ern_code:absent_binding('ern@tablenotrun', [Fixed]),
-                                 ern_code:absent_binding('ern@tableran', [Ran, Unknown])]}
-            end,
-    ok = ern_rt:run_main(Entry, <<"main">>,
-                         #{init => fun() -> ern_rt:init_modules(['ern@tableran']) end,
-                           stdout => fun(_) -> ok end}),
-    ?assertEqual({absent, [none, Unrun, none, Unknown]}, receive {absent, _} = V -> V end),
-    [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
-     || Unit <- ['ern@tableran', 'ern@tablenotrun']].
+    try
+        Ran = {['Tableran', answer], hash(['Tableran', answer], Run)},
+        Unrun = {['Tablenotrun', other], hash(['Tablenotrun', other], NotRun)},
+        Fixed = {['Tablenotrun', fixed], hash(['Tablenotrun', fixed], NotRun)},
+        Unknown = {['Tableran', gone], <<0:256>>},
+        Self = self(),
+        Entry = fun() ->
+                    Self ! {absent, [ern_code:absent_binding('ern@tableran', [Ran]),
+                                     ern_code:absent_binding('ern@tablenotrun', [Unrun]),
+                                     ern_code:absent_binding('ern@tablenotrun', [Fixed]),
+                                     ern_code:absent_binding('ern@tableran', [Ran, Unknown])]}
+                end,
+        ok = ern_rt:run_main(Entry, <<"main">>,
+                             ern_helpers:quiet(#{init => fun() ->
+                                                             ern_rt:init_modules(['ern@tableran'])
+                                                         end})),
+        ?assertEqual({absent, [none, Unrun, none, Unknown]}, receive {absent, _} = V -> V end)
+    after
+        [ern_helpers:unloaded(Unit) || Unit <- ['ern@tableran', 'ern@tablenotrun']]
+    end.
 
 %% report §8.7, §11.2: two versions of a module, each a unit of its own as
 %% the shell's load and reload make them, hold the definitions the second
@@ -370,32 +375,34 @@ versions_answer_the_evaluated_unit_test() ->
              ok = ern_code:loaded(Unit, Beam),
              definitions(Beam)
          end || {_, Units} <- Versions],
-    Same = hash(['Tableversions', same], First),
-    Same = hash(['Tableversions', same], Second),
-    Answer = {['Tableversions', answer], hash(['Tableversions', answer], First)},
-    Self = self(),
-    Entry = fun() ->
-                {Unit, '$2', 1, _} = ern_code:spawnable({hash, Same}),
-                Self ! {answered, Unit, ern_code:absent_binding(Unit, [Answer])}
-            end,
-    Answered = fun(Initialized) ->
-                   Init = fun() -> ern_rt:init_modules(Initialized) end,
-                   ok = ern_rt:run_main(Entry, <<"main">>,
-                                        #{init => Init, stdout => fun(_) -> ok end}),
-                   receive {answered, _, _} = Found -> Found end
-               end,
-    %% none evaluated: the latest loaded runs a function, without the value
-    ?assertEqual({answered, 'ern@tableversions$2', Answer}, Answered([])),
-    %% the build's alone evaluated, a node running a program over it
-    ?assertEqual({answered, 'ern@tableversions', none}, Answered(['ern@tableversions'])),
-    %% the shell's load evaluated and the build's not
-    ?assertEqual({answered, 'ern@tableversions$2', none}, Answered(['ern@tableversions$2'])),
-    %% both evaluated, as after a reload: the latest version's
-    ?assertEqual({answered, 'ern@tableversions$2', none},
-                 Answered(['ern@tableversions', 'ern@tableversions$2'])),
-    [persistent_term:erase({Unit, answer}) || {Unit, _} <- Versions],
-    [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
-     || {Unit, _} <- Versions].
+    try
+        Same = hash(['Tableversions', same], First),
+        Same = hash(['Tableversions', same], Second),
+        Answer = {['Tableversions', answer], hash(['Tableversions', answer], First)},
+        Self = self(),
+        Entry = fun() ->
+                    {Unit, '$2', 1, _} = ern_code:spawnable({hash, Same}),
+                    Self ! {answered, Unit, ern_code:absent_binding(Unit, [Answer])}
+                end,
+        Answered = fun(Initialized) ->
+                       Init = fun() -> ern_rt:init_modules(Initialized) end,
+                       ok = ern_rt:run_main(Entry, <<"main">>,
+                                            ern_helpers:quiet(#{init => Init})),
+                       receive {answered, _, _} = Found -> Found end
+                   end,
+        %% none evaluated: the latest loaded runs a function, without the value
+        ?assertEqual({answered, 'ern@tableversions$2', Answer}, Answered([])),
+        %% the build's alone evaluated, a node running a program over it
+        ?assertEqual({answered, 'ern@tableversions', none}, Answered(['ern@tableversions'])),
+        %% the shell's load evaluated and the build's not
+        ?assertEqual({answered, 'ern@tableversions$2', none}, Answered(['ern@tableversions$2'])),
+        %% both evaluated, as after a reload: the latest version's
+        ?assertEqual({answered, 'ern@tableversions$2', none},
+                     Answered(['ern@tableversions', 'ern@tableversions$2']))
+    after
+        [persistent_term:erase({Unit, answer}) || {Unit, _} <- Versions],
+        [ern_helpers:unloaded(Unit) || {Unit, _} <- Versions]
+    end.
 
 %% A module compiled against Interfaces, each namespace Units names called
 %% as that unit, its own among them, as the shell compiles a version,
@@ -431,27 +438,31 @@ reach_read_where_the_code_reads_test() ->
     {_, LoadedGreet, _} = compiled(Greeter, [Greet, "export fn other() : Int = 1\n"], [], Second),
     {_, _, CallDefinitions} = compiled(Caller, Call, [BuildGreet], #{}),
     {_, _, _} = compiled(Caller, Call, [LoadedGreet], Second#{Caller => 'ern@tablecaller$2'}),
-    Greeting = {['Tablegreet', greeting], hash(['Tablegreet', greeting], BuildGreetDefinitions)},
-    {_, _, _, {[Greeting], []}} = ern_code:spawnable({hash, hash(['Tablecaller', call],
-                                                                 CallDefinitions)}),
-    ?assertEqual(#{'ern@tablecaller' => true, 'ern@tablegreet' => true},
-                 ern_code:called('ern@tablecaller')),
-    Self = self(),
-    Entry = fun() ->
-                Self ! {absent, [ern_code:absent_binding(Unit, [Greeting])
-                                 || Unit <- ['ern@tablecaller', 'ern@tablecaller$2']]}
-            end,
-    Absent = fun(Initialized) ->
-                 Init = fun() -> ern_rt:init_modules(Initialized) end,
-                 ok = ern_rt:run_main(Entry, <<"main">>,
-                                      #{init => Init, stdout => fun(_) -> ok end}),
-                 receive {absent, Found} -> Found end
-             end,
-    ?assertEqual([Greeting, none], Absent(['ern@tablegreet$2'])),
-    ?assertEqual([none, none], Absent(['ern@tablegreet', 'ern@tablegreet$2'])),
     Units = ['ern@tablegreet', 'ern@tablegreet$2', 'ern@tablecaller', 'ern@tablecaller$2'],
-    [persistent_term:erase({Unit, greeting}) || Unit <- Units],
-    [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end || Unit <- Units].
+    try
+        Greeting = {['Tablegreet', greeting],
+                    hash(['Tablegreet', greeting], BuildGreetDefinitions)},
+        {_, _, _, {[Greeting], []}} = ern_code:spawnable({hash, hash(['Tablecaller', call],
+                                                                     CallDefinitions)}),
+        ?assertEqual(#{'ern@tablecaller' => true, 'ern@tablegreet' => true},
+                     ern_code:called('ern@tablecaller')),
+        Self = self(),
+        Entry = fun() ->
+                    Self ! {absent, [ern_code:absent_binding(Unit, [Greeting])
+                                     || Unit <- ['ern@tablecaller', 'ern@tablecaller$2']]}
+                end,
+        Absent = fun(Initialized) ->
+                     Init = fun() -> ern_rt:init_modules(Initialized) end,
+                     ok = ern_rt:run_main(Entry, <<"main">>,
+                                          ern_helpers:quiet(#{init => Init})),
+                     receive {absent, Found} -> Found end
+                 end,
+        ?assertEqual([Greeting, none], Absent(['ern@tablegreet$2'])),
+        ?assertEqual([none, none], Absent(['ern@tablegreet', 'ern@tablegreet$2']))
+    after
+        [persistent_term:erase({Unit, greeting}) || Unit <- Units],
+        [ern_helpers:unloaded(Unit) || Unit <- Units]
+    end.
 
 %% report §8.7: a module a foreign declaration names is on the node where it
 %% is loaded, or where the host would load it from
@@ -496,26 +507,28 @@ four_fifths_test() ->
 %% counts from then on. A regression test, written with the code
 sums_test() ->
     _ = loaded(['Tablesums'], "export fn f(n : Int) : Int = n + 1\n"),
-    Sums = fun() ->
-               maps:from_list([{Table, Sum} || {Table, Sum, _} <- ets:tab2list(ern_code_sums)])
-           end,
-    Before = Sums(),
-    Beam = loaded(['Tablesumstwo'],
-                  "export fn g(n : Int) : Int = List.foldLeft([n], 0, fn(acc, x) = acc + x)\n"),
-    {ok, {_, Chunks}} = beam_lib:chunks(Beam, ["ExpT", "ImpT", "FunT"]),
-    [Exports, Imports, Lambdas] = [Count || {_, <<Count:32, _/binary>>} <- Chunks],
-    ?assert(Lambdas > 0),
-    ?assertEqual(#{module_names => maps:get(module_names, Before) + 1,
-                   exports => maps:get(exports, Before) + Exports + Imports,
-                   lambdas => maps:get(lambdas, Before) + Lambdas},
-                 Sums()),
-    true = ets:insert(ern_code_sums, {module_names, 52429, 65536}),
-    ?assertEqual([], ern_code:nearing()),
-    [{module_names, Host, 65536} | _] = ern_code:counts(),
-    ?assertEqual(Host, maps:get(module_names, Sums())),
-    ?assert(Host < 52429),
-    [begin ern_code:unloaded(Unit), code:purge(Unit), code:delete(Unit) end
-     || Unit <- ['ern@tablesums', 'ern@tablesumstwo']].
+    try
+        Sums = fun() ->
+                   maps:from_list([{Table, Sum} || {Table, Sum, _} <- ets:tab2list(ern_code_sums)])
+               end,
+        Before = Sums(),
+        Beam = loaded(['Tablesumstwo'],
+                      "export fn g(n : Int) : Int = List.foldLeft([n], 0, fn(acc, x) = acc + x)\n"),
+        {ok, {_, Chunks}} = beam_lib:chunks(Beam, ["ExpT", "ImpT", "FunT"]),
+        [Exports, Imports, Lambdas] = [Count || {_, <<Count:32, _/binary>>} <- Chunks],
+        ?assert(Lambdas > 0),
+        ?assertEqual(#{module_names => maps:get(module_names, Before) + 1,
+                       exports => maps:get(exports, Before) + Exports + Imports,
+                       lambdas => maps:get(lambdas, Before) + Lambdas},
+                     Sums()),
+        true = ets:insert(ern_code_sums, {module_names, 52429, 65536}),
+        ?assertEqual([], ern_code:nearing()),
+        [{module_names, Host, 65536} | _] = ern_code:counts(),
+        ?assertEqual(Host, maps:get(module_names, Sums())),
+        ?assert(Host < 52429)
+    after
+        [ern_helpers:unloaded(Unit) || Unit <- ['ern@tablesums', 'ern@tablesumstwo']]
+    end.
 
 %% report §11.2: the line, as the report writes it, said once in the
 %% runtime's life for each bound, given the counts a load would read
@@ -553,10 +566,7 @@ trace_leaves_out_a_units_helper_test() ->
         ?assertEqual(<<"ern@tracehelper:'-$type_1/0-fun-0-'/3\nlists:map/2:1\n"
                        "Tracehelper.main:3\n">>, ern_rt:failure_trace(Stack))
     after
-        ern_code:unloaded(Unit),
-        code:purge(Unit),
-        code:delete(Unit),
-        code:purge(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 %% Appendix E.21, report §10, §11.2: a trace names each function of a unit
@@ -602,9 +612,7 @@ frames_named_by_the_names_test() ->
                                               ern_code:function_text(Unit, Function)
                                                   =:= none]))
     after
-        code:purge(Unit),
-        code:delete(Unit),
-        code:purge(Unit)
+        ern_helpers:unloaded(Unit)
     end.
 
 %% report §10, Appendix E.21: a run's start finds the toolchain's own

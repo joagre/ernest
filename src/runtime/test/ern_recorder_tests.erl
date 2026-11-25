@@ -32,7 +32,7 @@ loaded_under_its_file_test() ->
                      {code:which(ern_recorded_probe),
                       code:get_coverage(line, ern_recorded_probe)})
     after
-        unloaded(ern_recorded_probe)
+        ern_helpers:unloaded(ern_recorded_probe)
     end.
 
 %% docs/development.md "Building": `make cover`; report §11.2, Appendix
@@ -55,13 +55,13 @@ loaded_under_the_code_servers_name_test() ->
     try
         {module, ern_recorded_relative} = code:ensure_loaded(ern_recorded_relative),
         Plain = code:which(ern_recorded_relative),
-        unloaded(ern_recorded_relative),
+        ern_helpers:unloaded(ern_recorded_relative),
         Found = code:which(ern_recorded_relative),
         ern_recorder:loaded(Found, filename:join(Covered, "ern_recorded_relative.beam")),
         ?assertEqual({relative, Plain},
                      {filename:pathtype(Found), code:which(ern_recorded_relative)})
     after
-        unloaded(ern_recorded_relative),
+        ern_helpers:unloaded(ern_recorded_relative),
         code:del_path(Relative)
     end.
 
@@ -69,11 +69,6 @@ loaded_under_the_code_servers_name_test() ->
 relative(Dir) ->
     {ok, Cwd} = file:get_cwd(),
     filename:join([".." || _ <- tl(filename:split(Cwd))] ++ tl(filename:split(Dir))).
-
-unloaded(Module) ->
-    code:purge(Module),
-    code:delete(Module),
-    code:purge(Module).
 
 %% docs/development.md "Building": `make cover`. The lines not run are
 %% printed in stretches, each from its first line to its last with no line

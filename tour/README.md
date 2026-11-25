@@ -224,7 +224,7 @@ Counter, compiled again
 counter : Address(Counter.CounterMsg)
 > Counter.apply(counter, "inc -1")
 "ok" : String
-$Session1.input 11:1 faulted: a negative amount
+the process of $Session1.input 11:1 faulted: a negative amount
     Counter$3.count:8
 > Counter.apply(counter, "get")
 "no answer" : String
@@ -245,7 +245,7 @@ watcher : Address(Counter.WatchMsg)
 "ok" : String
 > Counter.apply(counter, "inc -1")
 "ok" : String
-$Session1.input 14:1 faulted, restarted: a negative amount
+the process of $Session1.input 14:1 faulted, restarted: a negative amount
     Counter$3.count:8
 > Counter.apply(counter, "get")
 "0" : String
@@ -256,7 +256,7 @@ A process started under `restarting` runs its function again from the start afte
 ```console
 > Counter.apply(counter, "inc -1")
 "ok" : String
-$Session1.input 14:1 faulted: a negative amount
+the process of $Session1.input 14:1 faulted: a negative amount
     Counter$3.count:8
 the counter ended: Fault("a negative amount")
 ```
@@ -512,7 +512,7 @@ the peer bar connected
 Right(8) : Either(Io.Error, Int)
 ```
 
-The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.3). The declaration promised an `Int` of the host, and the runtime checked the answer against it as it arrived; declared `: String`, the same call faults its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String`, naming the function and the type.
+The host's own code, Erlang's libraries and whatever else runs on the runtime, is *foreign code* to a program, reached through a `foreign fn` that declares the Ernest type of a host function; `erlang:system_info/1` takes an atom, so the question is passed as one (the guide's §8.3). The declaration promised an `Int` of the host, and the runtime checked the answer against it as it arrived; declared `: String`, the same call faults its caller at the crossing, `the return of foreign function erlang:system_info/1 does not match String: is 8`, naming the function, the type and what the host returned.
 
 That is *Why Ernest*'s claim *The mailbox in the function's type* at its boundary: the type is checked, not trusted, and a wrong value from the host is a fault where it crosses, not a crash later in code that believed it. The shell connected to `bar` as the first compute on it needed to, and `bar`'s terminal says `the peer a connected`. With these two computes both peers are connected, and each has told the shell how busy it is, as a peer does as it connects, so the computes below that name no node have utilizations to draw by; before any peer has told it, such a compute answers `Left(Io.Unreachable)` (report Appendix E.27).
 

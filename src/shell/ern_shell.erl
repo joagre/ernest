@@ -16,7 +16,8 @@
 %% The shape is docs/design/shell.md's.
 -module(ern_shell).
 
--export([loaded/1, start/6, number/1, reloaded_by/3, spawn_program/0, config_startup/0,
+-export([loaded/1, start/6, number/1, reloaded_by/3, is_entry/1, spawn_program/0,
+         config_startup/0,
          given_source_root/0, attach_to/0, say_end/1, is_same_file/2, needs_more/1,
          opening/1, check/3, check_type/3,
          is_unit/1, type_text/1, spawn_input/4, going/0, let_go/0, show/3, bindings/1, slot/1,
@@ -586,6 +587,13 @@ reader_session() ->
     {Session, _} = session_env(Kept),
     _ = erlang:put({?MODULE, env}, Session#session.env),
     Session.
+
+%% Report §11.2: whether Process is the entry process of the run in
+%% progress, the shell's own or a node's program's, whose fault's line names
+%% its site alone, as `ern run`'s does.
+-spec is_entry(pid()) -> boolean().
+is_entry(Process) ->
+    Process =:= ern_rt:entry_process().
 
 %% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
 %% not entered, and nothing where the shell was started with no file. A

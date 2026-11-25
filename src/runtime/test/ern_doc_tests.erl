@@ -182,9 +182,8 @@ libraries(Namespace) ->
 %% shipped it, the first tag that holds it, a declaration without a line of
 %% its own saying its module's; one no tag holds says a release after the
 %% last tag, its next patch, minor or major. A tag holds a declaration of
-%% that kind and name. A regression test: OrderedSet and OrderedMap, new
-%% after 0.2.0, said 0.2.0, and `Os.user` inherited 0.1.0, which the test
-%% before it, that no line is newer than VERSION, let through
+%% that kind and name. A regression test (the log's *The Full Review's
+%% Questions, One by One*)
 doc_since_test_() ->
     [{atom_to_list(hd(Namespace)), fun() -> since(File) end} || {Namespace, File} <- modules()].
 

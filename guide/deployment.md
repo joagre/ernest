@@ -107,7 +107,7 @@ A process *faults* when it meets an error it did not expect, a division by zero 
 - the termination signal itself when termination ends it, which a shell shows as 143 and a service manager counts as a clean stop;
 - 141 when its output, a pipe or a file, can no longer be written; the hangup signal itself, which a shell shows as 129, when its output is a terminal that has gone.
 
-Standard output is the program's own, and the node never changes it. Standard error is the node's: every fault, as `Counter.serve:14 faulted: division by zero`, and every line of section 7. Where standard error is a file or a pipe, and not a terminal or a service manager's journal (section 1.5), each line begins with its time in UTC, `2026-10-13T14:22:11.836Z the peer a connected`, so that a file of them is a log (report §11.2). The two streams together are the node's record; keep both.
+Standard output is the program's own, and the node never changes it. Standard error is the node's: every fault, as `the process of Counter.serve:14 faulted: division by zero`, and every line of section 7. Where standard error is a file or a pipe, and not a terminal or a service manager's journal (section 1.5), each line begins with its time in UTC, `2026-10-13T14:22:11.836Z the peer a connected`, so that a file of them is a log (report §11.2). The two streams together are the node's record; keep both.
 
 ### 1.5 Under a service manager
 
@@ -390,14 +390,14 @@ The first column is the line as it is written, with the peer's name from `ernest
 | `the peer a's spawn at Site was not loaded: the module M, which Q calls, is not here` | A foreign declaration's host module is missing on this node. | Install the module on the load path. |
 | `the peer a's spawn at Site was not loaded: this node could not take the code it received: ...` | The host refused to compile or load the arrival, a count among the reasons. | Restart the node when convenient. |
 | `the host has used N of its M module names, which it never gives back` | Four fifths of a host count, from the code the node was sent or loaded. | Plan a restart at a quiet time; the node runs on meanwhile. |
-| `Counter.serve:14 faulted: division by zero, spawned by the peer a` | A process a peer spawned here faulted; its trace follows. | The program's author's; the site says where. |
+| `the process of Counter.serve:14 faulted: division by zero, spawned by the peer a` | A process a peer spawned here faulted; its trace follows. | The program's author's; the site says where. |
 | `the end waits for 1 subscriber: Keeper.main` | Termination has told a subscriber and waits for its answer. | Wait, or a second `ern stop` ends at once, losing what it was writing. |
 | `ern run: dir is the configuration directory of the running node N, which ernest.pid names` | A second start from a directory whose `ernest.pid` a running node holds; the `ern run` command writes it, not a node. | Stop the first, or start from the directory meant. |
 | `ern run: a node needs pidfd_open, of Linux 5.3 and later, which this host, Linux 4.15.0-213-generic, does not have` | The operating system cannot say when a process has ended, which a node's lock on `ernest.pid` needs; the `ern run` command writes it. | Run the node on Linux 5.3 or later; in a container, allow the call. |
 | `ern stop: dir/ernest.pid: no node holds it: no node runs from the directory` | `ern stop` or `ern reload` with no running node there; `no such file` where the node's end removed the file. The command writes it. | None; the node is already down. |
 | `ern run: the node's carrier did not start: ...` | The part of the node that listens for and dials its peers could not start, its port taken among the reasons; the node ended before its program ran, with status 1, as a job that cannot start, `ern shell:` for a shell's own node. | Free the port or change `listen`, and start again. |
 
-Lines that begin with a site and `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
+Lines that name a process by its site and say it `faulted`, with no peer named, are the program's own faults, as on one node, and so is one with `, on the peer b` after the cause: a compute this node ran on `b` faulted there, and faulted its caller here with its cause, the trace that crossed beneath it and the caller's frame last. The language guide's §6 and §8.1 teach what they mean to the program's author.
 
 No line says how much memory a process holds, and `:processes` shows each process's bytes (section 6, report §10). A process that waits holds what it no longer uses until it runs again or ends, so a server's idle connections can hold their last responses. A waiting process that references a value the host lets go, as a shell lets go an input's, is collected then, so its bytes can fall after an input ran while it waited.
 

@@ -71,7 +71,11 @@ logged() ->
 %% The text is the one the host's own handler writes (logger_h_common): a
 %% report that names no function to format it is formatted as the host's
 %% own reports are, a line for each pair, and where Unicode refuses what
-%% the formatter gives, the text is a line that says so. A raise here would
+%% the formatter gives, the text is a line that says so. Report §11: the
+%% event's time stands first where the job's lines are stamped, as a
+%% fault's line has its own (ern_job_line:stamp/2), and no blank line
+%% follows the text, a host's report whose message ends a line among them,
+%% as the emulator's of a process that ended by a raise does. A raise here would
 %% have the host remove the handler for the rest of the job, so the process
 %% that says the line runs from the handler's start (logged/0), and a full
 %% table of processes, which keeps a process from being made, raises
@@ -80,12 +84,13 @@ logged() ->
 log(#{msg := {report, _}, meta := Meta} = Event, HandlerConfig)
   when not is_map_key(report_cb, Meta) ->
     log(Event#{meta := Meta#{report_cb => fun logger:format_otp_report/1}}, HandlerConfig);
-log(Event, #{formatter := {Formatter, Config}}) ->
+log(#{meta := #{time := Time}} = Event, #{formatter := {Formatter, Config}}) ->
     Text = case unicode:characters_to_binary(Formatter:format(Event, Config)) of
-               Formatted when is_binary(Formatted) -> Formatted;
-               _ -> <<"FORMATTER ERROR: bad return value\n">>
+               Formatted when is_binary(Formatted) -> string:trim(Formatted, trailing, "\n");
+               _ -> <<"FORMATTER ERROR: bad return value">>
            end,
-    ern_rt:say_later(Text, fun ern_job_line:error_line/1).
+    Stamp = ern_job_line:stamp(ern_job_line:is_stamped(), Time div 1000),
+    ern_rt:say_later(iolist_to_binary([Stamp, Text, $\n]), fun ern_job_line:error_line/1).
 
 %% Report §11.8: whether the stream was a terminal as the job started; no
 %% stream was where the job took none, as a test of a job does not.

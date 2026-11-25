@@ -60,14 +60,12 @@
 %% which no process reaches (§12.7).
 
 -record(foreign_function, {qualified_name, scheme, host_module, host_function, export = false,
-                           source = none, printing = none}).
+                           source = none}).
 %% A foreign function the module declares (report §4.7, §8.4): scheme, its
 %% scheme as a form writes it (Appendix H); host_module and host_function,
 %% what its implementation names; export, whether the unit exports its
 %% function (§11.1); source, where it is declared,
-%% {Line, Column, none}, or none; printing, what prints a type in its
-%% check's cause as its module writes it (§11.5), {Namespace, Shadows} as
-%% text, where it is not the unit's, a declaration that arrived (§12.7).
+%% {Line, Column, none}, or none.
 
 -record(link, {functions = #{}, types = #{}, printing}).
 %% The link of a unit (report §8.7, §11.1): where each reference its forms
@@ -78,8 +76,8 @@
 %% types: a reference to a type => {QualifiedName, {Arity, Constructors}}
 %% or {QualifiedName, foreign}, the type's name as it prints and its
 %% constructors as its form writes them (ern_canonical:declared_type/4);
-%% printing: the type state a type prints under from the module (§11.5,
-%% ern_types:printing/1).
+%% printing: the type state a type prints under (ern_types:printing/1),
+%% which a check's cause prints its types whole under (§12.3).
 
 -record(linked, {unit, function, arity, kind = function, identity, term = none, shim = none}).
 %% A function, a binding or a foreign function of another unit: its unit

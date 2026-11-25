@@ -146,8 +146,10 @@ tried(N) ->
 checked(N) ->
     case tried(N) of
         Checked when is_integer(Checked) -> Checked;
-        _ -> ern_rt:fault(<<"the return of foreign function ern_foreign_costs:word/1 does not"
-                            " match Int">>)
+        Returned ->
+            ern_rt:fault(ern_boundary:returned_cause(<<"the return of foreign function"
+                                                       " ern_foreign_costs:word/1 does not match"
+                                                       " Int">>, int, Returned))
     end.
 
 %%
