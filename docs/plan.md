@@ -189,15 +189,18 @@ says what is left once its readings are in, and no figure stands until then.
         fault a call carried up a chain, so that the shell's line and `ern run`'s can say
         `, the callee X` and `, the fault of the callee X` apart.
       - **Decision: a clash with a toolchain's namespace** (*P1 11, K 19, W17*, the
-        finding's other half): one verdict, said in §4.2, once a reader on Opus has named
-        the three clashes the toolchain has, as the line asks.
+        finding's other half): one verdict, said in §4.2, where the reader of 2026-11-25
+        found eight, its table under the line; with it the texts §4.2 does not quote, the
+        taken refusal's among them, and a help where a module at the root hides a
+        library's.
       - **Decision: `List.<>`, a shim or the runtime's own** (*PL1 L32, …*, §9.6's cold
         reading): whether `List.<>` is a shim of the host's `++`, as decided, or the
         runtime's own operation, as `String.<>` is, with the sentences of §9.6, §11.1 and
         Appendix H that follow, and rule 1's "this rule's measure".
 
       The first round's session runs on Fable 5.2 at high, after a `/clear`, with no agent
-      running, and reads `docs/agents.md` and the three lines in the findings. It puts each
+      running, and reads `docs/agents.md`, the three lines in the findings and the table the
+      second points at. It puts each
       decision to the user, one at a time, the argument first and a recommendation naming
       its principle, and writes each answer under its line as *Answered*, the report's
       sentences it settles beside it; it builds nothing. It commits the findings, the log's
