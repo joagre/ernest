@@ -6,14 +6,15 @@
 %% looked for a deadlock, the deliveries to a process having
 %% delivered, and processes having ended. All but the last two read what
 %% the host reports of a process by tracing it, and stop tracing when they
-%% return. Beside them, a wait for a message, which gives up after a
-%% limit; a wait of a time, which bounds an absence; and the trace
+%% return. Beside them, the timers a process arms and cancels, read by
+%% tracing it, so that an absence of a timer left armed needs no wait; a
+%% wait for a message, which gives up after a limit; and the trace
 %% messages of a process taken out.
 -module(ern_waits).
 
 -export([with_room/1, until/2, freed/2, references/2, waiting/1, running/1, calling/1,
          watching/2, unwatched/2, queued/2, called/3, returned/3, looked/1, delivered/1,
-         ended/1, forever/0, wait/1, sleep/1, flushed/1]).
+         ended/1, timers/3, forever/0, wait/1, flushed/1]).
 
 %% What Work answers, every process it starts given a heap with room. The
 %% host collects a process when its heap fills, which a new process's small
@@ -265,6 +266,51 @@ ended(Pids) ->
                       receive {'DOWN', MonitorRef, process, Pid, _} -> ok end
                   end, Pids).
 
+%% Report Appendix E.18, E.23: what Work answers, with the timers Pid arms
+%% while Work runs and those of them it has canceled once Done answers,
+%% each the host's reference, so that a timer left armed shows without a
+%% wait for its time. Pid's calls of the host's start_timer/3, send_after/3
+%% and cancel_timer/2 are traced to a collector of their own, so that a
+%% wait of Done's that traces Pid and takes its trace messages out takes
+%% none of these.
+-spec timers(pid(), fun(() -> Result), fun(() -> ok)) ->
+          {Result, [reference()], [reference()]}.
+timers(Pid, Work, Done) ->
+    Collector = erlang:spawn(fun() -> timers_traced(Pid, [], []) end),
+    Of = fun(Body) -> [{'_', [{'=:=', {self}, Pid}], Body}] end,
+    Cancel = {erlang, cancel_timer, 2},
+    Arms = [{erlang, start_timer, 3}, {erlang, send_after, 3}],
+    1 = erlang:trace_pattern(Cancel, Of([]), [{meta, Collector}]),
+    [1 = erlang:trace_pattern(Arm, Of([{return_trace}]), [{meta, Collector}]) || Arm <- Arms],
+    try
+        Result = Work(),
+        ok = Done(),
+        untraced_timers([Cancel | Arms]),
+        %% each trace message Pid gave before is with the collector then
+        Delivered = erlang:trace_delivered(Pid),
+        receive {trace_delivered, Pid, Delivered} -> ok end,
+        Collector ! {timers, erlang:self()},
+        receive {timers, Collector, Armed, Canceled} -> {Result, Armed, Canceled} end
+    after
+        untraced_timers([Cancel | Arms]),
+        exit(Collector, kill)
+    end.
+
+untraced_timers(MFAs) ->
+    [erlang:trace_pattern(MFA, false, [meta]) || MFA <- MFAs].
+
+timers_traced(Pid, Armed, Canceled) ->
+    receive
+        {trace_ts, Pid, return_from, {erlang, _, 3}, Timer, _} ->
+            timers_traced(Pid, [Timer | Armed], Canceled);
+        {trace_ts, Pid, call, {erlang, cancel_timer, [Timer, _]}, _} ->
+            timers_traced(Pid, Armed, [Timer | Canceled]);
+        {trace_ts, Pid, call, _, _} ->
+            timers_traced(Pid, Armed, Canceled);
+        {timers, From} ->
+            From ! {timers, erlang:self(), lists:reverse(Armed), lists:reverse(Canceled)}
+    end.
+
 %% Report §8.6, §6.6: waits for ever as an Ernest process waits with
 %% nothing in flight, in a callForever nothing answers, its own, which the
 %% look reads as a wait of Ernest's. A test's own receive is a wait in a
@@ -279,14 +325,6 @@ forever() ->
 -spec wait(term()) -> term().
 wait(Tag) ->
     receive {Tag, Value} -> Value after 5000 -> timeout end.
-
-%% A wait the deadlock detector reads as timed, as the compiler's timed
-%% receive is, for an absence, of a time derived from what it waits for.
--spec sleep(non_neg_integer()) -> ok.
-sleep(Ms) ->
-    ern_rt:timed(),
-    timer:sleep(Ms),
-    ern_rt:untimed().
 
 %% The trace messages of Pid still in the mailbox, taken out.
 -spec flushed(pid()) -> ok.

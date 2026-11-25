@@ -1157,7 +1157,7 @@ tcp_write_answers_closed_test() ->
 %% at once twice that time, rounded up to the millisecond, has passed.
 paced(Setup) ->
     ern_program:run(
-        ["type Msg = Done | Ended(Down) | Gone(Down)\n",
+        ["type Msg = Done | Gone(Down)\n",
          Setup,
          "fn chunk() : Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
          "fn writes(write : (Bytes) -> Either(Io.Error, Unit), n : Int) : Unit =\n"
@@ -1203,7 +1203,7 @@ os_write_waits_test() ->
     ?assertEqual(<<"#(false, 4194304)\nLeft(Io.Closed)\n">>, Output).
 
 %% Appendix E.18: a socket whose far end does not read holds its writer,
-%% and a write to a socket that has been closed faults
+%% and a write to a socket that has been closed answers `Left(Closed)`
 tcp_write_waits_test() ->
     {ok, Output} = paced(
         "fn drain(s : Address(Tcp.SocketMsg), n : Int) : Int =\n"
@@ -1247,29 +1247,23 @@ tcp_write_waits_test() ->
         "            Tcp.close(s);\n"
         "            receive { Gone(_) -> Unit };\n"
         "            Io.println(Io.show(#(early, n)));\n"
-        "            let late = fn() = {\n"
-        "                let _ = Tcp.write(s, <<1>>, 5000);\n"
-        "                Unit\n"
-        "            };\n"
-        "            let _ = spawnMonitored(late, Ended);\n"
-        "            receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
+        "            Io.println(Io.show(Tcp.write(s, <<1>>, 5000)))\n"
         "        }\n"
         "      | Left(e) -> Io.println(Io.show(e))\n"
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
-    ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Output).
+    ?assertEqual(<<"#(false, 4194304)\nLeft(Io.Closed)\n">>, Output).
 
 %% Appendix E.18, E.23, E.0 shape rule 8: a request given no time answers
-%% `Left(Timeout)` before any other answer, but on a process that has ended
-%% it faults all the same, as `Address.callForever` does on an ended
-%% process (§6.6): a read and a write on a closed socket, an accept on a
-%% closed listener, and a read and a write on a killed program, each run by
-%% `Process.run`, which answers the fault. A regression test, written after
-%% the code; a socket or a listener over TLS, a program of
-%% `Os.startTerminal`, and a process ended by its owner's death are not
-%% covered
-ended_given_no_time_faults_test() ->
+%% `Left(Timeout)` before any other answer, on a process that has ended as
+%% well: a read and a write on a closed socket, an accept on a closed
+%% listener, and a read and a write on a killed program, each run by
+%% `Process.run`, which would answer a fault. A regression test of the
+%% rule, before which each faulted with `callee had ended`, as
+%% `Address.callForever` does on an ended process (§6.6); a socket or a
+%% listener over TLS and a program of `Os.startTerminal` are not covered
+ended_given_no_time_test() ->
     {ok, Output} = ern_program:run(['M'],
         "type Gone = Gone(Down)\n"
         "fn ended(p : Process) : Unit receiving Gone = {\n"
@@ -1306,5 +1300,4 @@ ended_given_no_time_faults_test() ->
         "    program()\n"
         "}\n",
         #{stderr => fun(_) -> ok end}),
-    Ended = <<"Left(Fault(\"callee had ended\"))\n">>,
-    ?assertEqual(binary:copy(Ended, 5), Output).
+    ?assertEqual(binary:copy(<<"Right(Left(Io.Timeout))\n">>, 5), Output).

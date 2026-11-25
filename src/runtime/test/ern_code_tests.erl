@@ -344,7 +344,8 @@ binding_value_test() ->
                              ern_helpers:quiet(#{init => fun() ->
                                                              ern_rt:init_modules(['ern@tableran'])
                                                          end})),
-        ?assertEqual({absent, [none, Unrun, none, Unknown]}, receive {absent, _} = V -> V end)
+        ?assertEqual({absent, [none, Unrun, none, Unknown]},
+                     receive {absent, _} = Absent -> Absent end)
     after
         [ern_helpers:unloaded(Unit) || Unit <- ['ern@tableran', 'ern@tablenotrun']]
     end.

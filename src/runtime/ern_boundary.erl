@@ -471,7 +471,7 @@ matches(bool, Value, _) -> is_boolean(Value);
 matches(char, Value, _) ->
     is_integer(Value) andalso Value >= 0 andalso Value =< 16#10FFFF
         andalso (Value < 16#D800 orelse Value > 16#DFFF);
-matches(string, Value, _) -> is_binary(Value) andalso unicode:characters_to_binary(Value) =:= Value;
+matches(string, Value, _) -> is_binary(Value) andalso ern_fs:is_utf8(Value);
 matches(bytes, Value, _) -> is_binary(Value);
 %% report §8.4: the host's `ok` is `Unit` at a return's top alone (result/4)
 matches(unit, Value, _) -> Value =:= 'Unit';

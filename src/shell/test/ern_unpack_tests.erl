@@ -410,6 +410,25 @@ lock_test() ->
         ?assertEqual({1, <<"ern unpack: lib/.unpack: is no regular file\n">>}, unpack())
     end).
 
+%% report §11.9: a link at `lib/.unpack` is refused with the host's reason,
+%% as one at `ernest.pid` is, whether it leads to a regular file or to
+%% nothing, and nothing is made where it leads
+lock_link_test() ->
+    in_root(fun() ->
+        Archive = package_archive("leaf", "1.2.0", []),
+        put_archive("leaf", "1.2.0", Archive),
+        manifest([{"leaf", "1.2.0", none, digest(Archive)}]),
+        Refused = {1, <<"ern unpack: lib/.unpack: too many levels of symbolic links\n">>},
+        write("held", <<>>),
+        ok = file:make_symlink("../held", "lib/.unpack"),
+        ?assertEqual(Refused, unpack()),
+        ok = file:delete("lib/.unpack"),
+        ok = file:make_symlink("../nowhere", "lib/.unpack"),
+        ?assertEqual(Refused, unpack()),
+        ?assertEqual({error, enoent}, file:read_link_info("nowhere")),
+        ?assertEqual(["leaf-1.2.0.tar.gz"], [Name || Name <- names("lib"), Name =/= ".unpack"])
+    end).
+
 %%
 %% The archives
 %%

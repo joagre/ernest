@@ -55,11 +55,11 @@ hunt(Tests, Until, #{part := Part, records := Records, rounds := Rounds} = Hunt,
         false ->
             Start = erlang:monotonic_time(second),
             File = filename:join(Records, Part ++ ".txt"),
-            Dir = filename:join(Rounds, Part ++ "." ++ integer_to_list(Round)),
-            ok = file:make_dir(Dir),
-            true = os:putenv("ERN_TEST_DIR", Dir),
+            Directory = filename:join(Rounds, Part ++ "." ++ integer_to_list(Round)),
+            ok = file:make_dir(Directory),
+            true = os:putenv("ERN_TEST_DIR", Directory),
             {_, Answered} = round(Tests, Round, Part, File, Canceled),
-            case file:del_dir_r(Dir) of
+            case file:del_dir_r(Directory) of
                 ok -> ok;
                 Error -> written(#{part => Part, round => Round, file => File},
                                  marked(Answered, "its directory not removed"),
@@ -191,7 +191,7 @@ name(Data) ->
     Id = proplists:get_value(id, Data),
     Described = case proplists:get_value(desc, Data) of
                     undefined -> "";
-                    Desc -> io_lib:format(" \"~ts\"", [Desc])
+                    Description -> io_lib:format(" \"~ts\"", [Description])
                 end,
     case proplists:get_value(source, Data) of
         {Module, Function, Arity} ->

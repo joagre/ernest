@@ -92,7 +92,7 @@ build/%.beam: src/$$(subst /ebin/,/,$$*).erl VERSION
 
 $(EXEC): src/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
-	$(CC) -std=c99 -pedantic -O2 -D_FORTIFY_SOURCE=2 -Wall -Wextra -Werror -o $@ $<
+	$(CC) -std=c99 -pedantic -O2 -D_FORTIFY_SOURCE=2 -Wall -Wextra -Wshadow -Werror -o $@ $<
 
 # The standard library written in Ernest: src/stdlib/ compiled by ern build
 # into build/stdlib, where the checker reads its interfaces and a run loads

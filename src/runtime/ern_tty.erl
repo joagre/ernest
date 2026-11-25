@@ -24,7 +24,7 @@
 %% ern_tty_signal, installed with the first subscription; the size is
 %% then asked for once.
 %%
-%% Decoding is decode/1 over the bytes read, and flush/1 for what is left
+%% Decoding is decode/1 over the characters read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
 %% exercise, with holder/2 and raw_mode/1 over a stty of a test's own. The
 %% reading itself is driven through a pseudo-terminal by
@@ -59,6 +59,8 @@
 -define(PASTE_ON, "\e[?2004h").
 -define(PASTE_OFF, "\e[?2004l").
 -define(PASTE_BEGIN, "\e[200~").
+-define(PASTE_END, "\e[201~").
+
 %% Report §12.1: the holder of the terminal's settings (hold/0), a shell
 %% that ignores the signals a terminal or a service manager sends the
 %% program's process group, so that it outlives the host where the host is
@@ -88,7 +90,6 @@
 %% The key of the terminal's process's dictionary that holds the holder's
 %% port while it holds the terminal.
 -define(HOLDER, '$ern_holder').
--define(PASTE_END, "\e[201~").
 
 %% Open is the input, which ern_rt:read_input/1 reads; the boolean says
 %% whether keys can come, standard input being a terminal.
@@ -194,11 +195,11 @@ subscription(Address, Reply, Subscribers, Reader, Size) ->
                             {subscribe(Address, Courier, Subscribers, Reader, Reader1), Reader1,
                              size_now()};
                         {taken, Cause} ->
-                            unmade(Courier, Address, Subscribers),
+                            unmade(Courier),
                             ern_rt:refuse(Reply, Cause),
                             {Subscribers, Reader, Size};
                         {refused, Answer} ->
-                            unmade(Courier, Address, Subscribers),
+                            unmade(Courier),
                             ern_rt:answer(Reply, Answer),
                             {Subscribers, Reader, Size}
                     end;
@@ -225,14 +226,6 @@ couriered(Address, Subscribers) ->
             catch
                 error:system_limit -> {refused, {'Left', ern_io:limited()}}
             end
-    end.
-
-%% A courier made for a subscription that was refused, ended (unmade/1); one
-%% of a subscription that holds stays.
-unmade(Courier, Address, Subscribers) ->
-    case lists:keymember(ern_rt:process_of(Address), 1, Subscribers) of
-        true -> ok;
-        false -> unmade(Courier)
     end.
 
 %% Report §12.1: a size that has changed is news to every subscriber.
@@ -560,13 +553,15 @@ given_back() ->
     end.
 
 %% Report §12.1: the terminal's own mode, written past the sinks a program's
-%% output is bound to, since it is the terminal that is being spoken to.
+%% output is bound to, since it is the terminal that is being spoken to,
+%% and only where standard output is the terminal too, so that none of it
+%% lands among the program's bytes where its output goes elsewhere.
 %% Report §8.6, §12.4: nothing of it is written once a termination has
 %% ended the end at once, and a write under way waits until the job's
 %% standard output has taken it or the termination comes (at_once/1),
 %% whichever is first (written/1).
 write(Text) ->
-    case terminal() andalso not ern_rt:ended_at_once() of
+    case terminal() andalso is_terminal(stdout) andalso not ern_rt:ended_at_once() of
         true -> written(unicode:characters_to_binary(Text));
         false -> ok
     end.
@@ -747,9 +742,6 @@ flush({paste, Text, Tail}) ->
     %% the start of an end being its text too
     Pasted = lists:reverse(Text, [line_feed(Char) || Char <- Tail]),
     [{'Pasted', unicode:characters_to_binary(Pasted)}];
-flush(?PASTE_BEGIN ++ _ = Chars) ->
-    {Events, Left} = decode(Chars),
-    Events ++ flush(Left);
 flush([$\e | Rest]) ->
     {Events, _} = decode(Rest),
     ['Escape' | Events];

@@ -37,7 +37,7 @@ For the toolchain's Erlang under `src/`.
 
 ## C
 
-The runtime's helper, `src/runtime/c_src/ern_exec.c`, is C99 and compiles with `-pedantic -Wall -Wextra -Werror` and `-D_FORTIFY_SOURCE=2`, under which the C library ends it where a call would pass a buffer's size or a descriptor set's.
+The runtime's helper, `src/runtime/c_src/ern_exec.c`, is C99 and compiles with `-pedantic -Wall -Wextra -Wshadow -Werror` and `-D_FORTIFY_SOURCE=2`, under which the C library ends it where a call would pass a buffer's size or a descriptor set's.
 
 ## Ernest
 

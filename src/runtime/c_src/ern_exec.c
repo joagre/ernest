@@ -85,8 +85,9 @@
  *
  * With the arguments `signal`, a signal's number and a process number, the
  * helper sends that process the signal and exits 0 where it was sent, 1
- * where no such process lives, and 2 where the process lives and is not
- * this user's to signal; the signal 0 sends nothing, and so asks whether
+ * where no such process lives, 2 where the process lives and is not this
+ * user's to signal, and 3 where its arguments are not a signal's number
+ * and a process number; the signal 0 sends nothing, and so asks whether
  * the process lives. `ern` ends so by the signal that ended a running
  * program (report §11.2), which the host has no word for.
  *
@@ -134,13 +135,17 @@
  *
  * With the arguments `hold` and a path, the helper is a job's lock on the
  * file at the path (report §11.9), which the host has no word for. It opens
- * the file for writing, a link followed, made where it is absent with the
- * bits the mask leaves of 0666, and takes a write lock on the whole of it,
- * waiting while another holds one. It then writes an 'l' frame, holds the
- * lock until fd 0 ends, and exits, which lets the lock go and leaves the
- * file. An error is an 'f' frame and its name. A path that reaches what is
- * not a regular file, a link followed, is not opened, and the helper exits
- * 9 (report §11).
+ * the file for writing, never through a link, made where it is absent with
+ * the bits the mask leaves of 0666, and takes a write lock on the whole of
+ * it, waiting while another holds one. It then writes an 'l' frame, holds
+ * the lock until fd 0 ends, and exits, which lets the lock go and leaves
+ * the file. An error is an 'f' frame and its name, a link at the path
+ * among them, which the open refuses. A path that names what is neither a
+ * regular file nor a link is not opened, and the helper exits 9 (report
+ * §11).
+ *
+ * Each of `lock`, `node` and `hold` exits 7 where its arguments are not
+ * the ones it takes.
  *
  * The locks are POSIX's record locks, which a process holds until it
  * closes the file or ends, and which another can ask after without taking
@@ -670,16 +675,17 @@ static int set_variable(char *variable, size_t size)
 /* The runtime's first frames (above): each 'v' set over the helper's
    environment, the directory 'p' names kept, and last the command, 'c' and
    at least the program, each part ended by a NUL byte, as execvp takes
-   it; NULL where they are not that. An empty program is one, which execvp
-   finds nowhere (report Appendix E.23: NotFound). */
-static char **read_command(void)
+   it, held in `command`; 0 where they are not that, and 1 where they are.
+   An empty program is one, which execvp finds nowhere (report Appendix
+   E.23: NotFound). */
+static int read_command(void)
 {
     size_t length, at, parts = 0, part;
 
     for (;;) {
         char *body = read_frame(&length);
         if (body == NULL)
-            return NULL;
+            return 0;
         if (body[0] == 'c') {
             command_text = body;
             break;
@@ -690,23 +696,23 @@ static char **read_command(void)
             directory_text = body;
         } else {
             free(body);
-            return NULL;
+            return 0;
         }
     }
     if (length < 2 || command_text[length - 1] != '\0')
-        return NULL;
+        return 0;
     for (at = 1; at < length; at++)
         if (command_text[at] == '\0')
             parts++;
     command = malloc((parts + 1) * sizeof *command);
     if (command == NULL)
-        return NULL;
+        return 0;
     for (at = 1, part = 0; part < parts; part++) {
         command[part] = command_text + at;
         at += strlen(command_text + at) + 1;
     }
     command[parts] = NULL;
-    return command;
+    return 1;
 }
 
 /* The number a decimal argument writes, or -1 for one that writes none:
@@ -776,8 +782,8 @@ static void user_frame(void)
 #define NODE_BYTE 1
 
 /* A lock of the given type over one byte of a node's file, taken, let go
-   or asked after as Command says, waited for where it is F_SETLKW. */
-static int byte_lock(int fd, int command, short type, off_t byte, struct flock *lock)
+   or asked after as Operation says, waited for where it is F_SETLKW. */
+static int byte_lock(int fd, int operation, short type, off_t byte, struct flock *lock)
 {
     memset(lock, 0, sizeof *lock);
     lock->l_type = type;
@@ -785,7 +791,7 @@ static int byte_lock(int fd, int command, short type, off_t byte, struct flock *
     lock->l_start = byte;
     lock->l_len = 1;
     for (;;) {
-        if (fcntl(fd, command, lock) == 0)
+        if (fcntl(fd, operation, lock) == 0)
             return 0;
         if (errno != EINTR)
             return -1;
@@ -807,8 +813,9 @@ static long number_held(int fd)
 }
 
 /* Report §11: whether Path names what is neither a regular file nor a link,
-   which a node's file is not opened as, since an open of a named pipe may
-   never end; a link is refused as the file is opened, through no link. */
+   which a node's file and a job's lock are not opened as, since an open of
+   a named pipe may never end; a link is refused as the file is opened,
+   through no link. */
 static int is_unopened(const char *path)
 {
     struct stat status;
@@ -949,7 +956,7 @@ static int hold_lock(int argc, char **argv)
     char text[16];
     long number;
     size_t index;
-    int fd, length, watcher, taken;
+    int fd, length, watcher, locked;
 
     if (argc != 4 || (number = number_of(argv[3])) < 1)
         return 7;
@@ -964,9 +971,9 @@ static int hold_lock(int argc, char **argv)
         fd = open(argv[2], O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
         if (fd < 0 || byte_lock(fd, F_SETLKW, F_WRLCK, NUMBER_BYTE, &lock) < 0)
             return fail('f', errno, 1);
-        if ((taken = node_locked(fd)) < 0)
+        if ((locked = node_locked(fd)) < 0)
             return fail('f', errno, 1);
-        if (taken == 0)
+        if (locked == 0)
             return 0;
         /* a file opened before an ending node's helper removed it, and
            locked once that helper let it go, is named by no path, and the
@@ -1049,18 +1056,11 @@ static int signal_node(int argc, char **argv)
     return 0;
 }
 
-/* Report §11: whether Path, a link followed, reaches what is not a regular
-   file, which a job's lock is not opened as, since an open of a named pipe
-   may never end; a name that reaches nothing, a link to nothing among
-   them, is left to the open, which makes the file. */
-static int is_followed_unopened(const char *path)
-{
-    struct stat status;
-    return stat(path, &status) == 0 && !S_ISREG(status.st_mode);
-}
-
 /* `hold PATH`: a job's lock on the file (above). Report §11.9: a second
-   run waits for the lock, in the host, until the first lets it go. */
+   run waits for the lock, in the host, until the first lets it go; a link
+   at the path is refused as the file is opened, through no link, whether
+   or not it leads anywhere, so that no file is made where it leads, and a
+   name that reaches nothing is made. */
 static int hold_job_lock(int argc, char **argv)
 {
     struct flock lock;
@@ -1068,9 +1068,9 @@ static int hold_job_lock(int argc, char **argv)
 
     if (argc != 3)
         return 7;
-    if (is_followed_unopened(argv[2]))
+    if (is_unopened(argv[2]))
         return 9;
-    fd = open(argv[2], O_WRONLY | O_CREAT | O_CLOEXEC, 0666);
+    fd = open(argv[2], O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0666);
     if (fd < 0)
         return fail('f', errno, 1);
     memset(&lock, 0, sizeof lock);
@@ -1091,7 +1091,6 @@ int main(int argc, char **argv)
     int terminal = 0, master = -1, input = -1, slave = -1;
     int program_in, program_out, program_err;
     unsigned rows = 0, columns = 0;
-    char **program_command;
 
     given_environment();
     signal(SIGPIPE, SIG_IGN);
@@ -1126,8 +1125,7 @@ int main(int argc, char **argv)
     } else if (strcmp(argv[1], "run") != 0) {
         return 1;
     }
-    program_command = read_command();
-    if (program_command == NULL || program_command[0] == NULL)
+    if (!read_command())
         return 1;
     /* Report Appendix E.23: the directory entered before the program is
        found, the host's order, so that a relative name resolves there; one
@@ -1180,7 +1178,7 @@ int main(int argc, char **argv)
             close(err[0]); close(err[1]);
         }
         close(start_failure[0]);
-        execvp(program_command[0], program_command);
+        execvp(command[0], command);
         child_failed(start_failure[1], 'f');
     }
     /* a program under a terminal makes its own group as it makes its

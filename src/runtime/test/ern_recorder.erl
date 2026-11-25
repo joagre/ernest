@@ -154,8 +154,9 @@ uncovered(Directory) ->
                           || Beam <- own(), {Module, Forms} <- [forms(Beam)]]),
     Counts = [listed(Source, Forms, maps:get(Module, Joined, #{}))
               || {Source, Module, Forms} <- Modules],
-    {Run, NotRun} = lists:foldl(fun({R, N}, {RAcc, NAcc}) -> {RAcc + R, NAcc + N} end, {0, 0},
-                                Counts),
+    {Run, NotRun} = lists:foldl(fun({LinesRun, LinesNotRun}, {RunAcc, NotRunAcc}) ->
+                                        {RunAcc + LinesRun, NotRunAcc + LinesNotRun}
+                                end, {0, 0}, Counts),
     io:format("~nThe records of ~b hosts: ~b modules, ~b lines run and ~b not run.~n",
               [length(Runs), length(Modules), Run, NotRun]).
 

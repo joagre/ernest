@@ -352,11 +352,12 @@ set_put_remove({List, X}) ->
 set_operations({Left, Right}) ->
     Set = ern_named:functions('ern@set'),
     {First, Second} = {Set(fromList)(Left), Set(fromList)(Right)},
-    {Ordered, Other} = {lists:usort(Left), lists:usort(Right)},
-    members(Set(union)(First, Second)) =:= ordsets:union(Ordered, Other)
-        andalso members(Set(intersection)(First, Second)) =:= ordsets:intersection(Ordered, Other)
-        andalso members(Set(difference)(First, Second)) =:= ordsets:subtract(Ordered, Other)
-        andalso Set(isSubset)(First, Second) =:= ordsets:is_subset(Ordered, Other).
+    {LeftSet, RightSet} = {lists:usort(Left), lists:usort(Right)},
+    members(Set(union)(First, Second)) =:= ordsets:union(LeftSet, RightSet)
+        andalso members(Set(intersection)(First, Second))
+                =:= ordsets:intersection(LeftSet, RightSet)
+        andalso members(Set(difference)(First, Second)) =:= ordsets:subtract(LeftSet, RightSet)
+        andalso Set(isSubset)(First, Second) =:= ordsets:is_subset(LeftSet, RightSet).
 
 set_traversals({List, Pivot}) ->
     Set = ern_named:functions('ern@set'),
@@ -1163,15 +1164,15 @@ ordered_set_operations({Left, Right}) ->
     Compare = Int(compare),
     First = OrderedSet(fromList)(Left, Compare),
     Second = OrderedSet(fromList)(Right, Compare),
-    {Ordered, Other} = {lists:usort(Left), lists:usort(Right)},
+    {LeftSet, RightSet} = {lists:usort(Left), lists:usort(Right)},
     Elements = fun(Set) -> OrderedSet(toList)(Set) end,
-    Elements(OrderedSet(union)(First, Second, Compare)) =:= ordsets:union(Ordered, Other)
+    Elements(OrderedSet(union)(First, Second, Compare)) =:= ordsets:union(LeftSet, RightSet)
         andalso Elements(OrderedSet(intersection)(First, Second, Compare))
-                =:= ordsets:intersection(Ordered, Other)
+                =:= ordsets:intersection(LeftSet, RightSet)
         andalso Elements(OrderedSet(difference)(First, Second, Compare))
-                =:= ordsets:subtract(Ordered, Other)
+                =:= ordsets:subtract(LeftSet, RightSet)
         andalso OrderedSet(isSubset)(First, Second, Compare)
-                =:= ordsets:is_subset(Ordered, Other).
+                =:= ordsets:is_subset(LeftSet, RightSet).
 
 ordered_set_traversals({List, Pivot}) ->
     OrderedSet = ern_named:functions('ern@ordered_set'),

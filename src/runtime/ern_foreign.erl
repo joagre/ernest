@@ -21,9 +21,9 @@ to_float(_) -> 'None'.
 
 -spec to_string(term()) -> {'Some', binary()} | 'None'.
 to_string(Value) when is_binary(Value) ->
-    case unicode:characters_to_binary(Value, utf8, utf8) of
-        Value -> {'Some', Value};
-        _ -> 'None'
+    case ern_fs:is_utf8(Value) of
+        true -> {'Some', Value};
+        false -> 'None'
     end;
 to_string(_) -> 'None'.
 

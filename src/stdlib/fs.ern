@@ -364,8 +364,9 @@ export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit
 /// answers its path. It is made in the directory `Os.environment("TMPDIR")`
 /// names, or in `/tmp` where `TMPDIR` is not set or is empty. Its name is
 /// `ern-` and sixteen hexadecimal digits drawn at random, which no entry
-/// had, and its mode is `0o700`, its owner's alone. It stays until the
-/// program removes it, its files first.
+/// had, and its path is answered once its mode is `0o700`, its owner's
+/// alone, and it holds nothing then. It stays until the program removes
+/// it, its files first.
 ///
 /// ### Examples
 ///
@@ -406,9 +407,10 @@ export fn setModified(path : Path, modified : Int, ms : Int) : Either(Io.Error, 
 
 /// Sets the permission bits of a file or a directory to the mode, as the
 /// host writes them: `0o600` is its owner's alone to read and write, and a
-/// directory made `0o700` before a file is written in it keeps the file
-/// from others as it is written. A mode outside 0 to `0o7777`, or with the
-/// bit `0o1000`, which the host does not write, is `Left(Invalid)`.
+/// directory made `0o700` before a file is written in it, where it held
+/// nothing when its mode was set, keeps the file from others as it is
+/// written. A mode outside 0 to `0o7777`, or with the bit `0o1000`, which
+/// the host does not write, is `Left(Invalid)`.
 ///
 /// ### Examples
 ///

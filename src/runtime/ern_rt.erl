@@ -44,14 +44,15 @@
          is_never_given/1, is_started/1, is_address/1, spawn/2, caller_site/0, spawn_monitored/3,
          spawn_root/2, spawn_monitored_root/3, self/0,
          current/0, adapted/2, call/3, call/4, call_forever/2, call_forever/3, call_limited/2,
-         call_until_ended/2, finished_by/2, compute/4, answer/2, refuse/2, reply_process/1,
-         is_reply/1,
+         call_unlimited/2, call_until_ended/2, finished_by/2, compute/4, answer/2, refuse/2,
+         reply_process/1, is_reply/1,
          monitor/2, monitor_service/2, demonitor/1, kill/1, killed/2,
          peer_restarted/1, left_waiting/1, wait_for_deliveries/0, started_by/1,
          processes/0, own/1, own_input/1,
          screen/2, drop_screens/1, root_of/1, capture_writes/0, captured/1, status/1,
          writes_through/1, faults/1, termination/1,
          expected/1, is_ernest/1, checker_for/3, source_begin/0, source_begin/1, source_end/0,
+         end_source/2,
          opened/3, forget_opened/1, spent/1, timed/0, untimed/0, at_receive/0, peer_wait/1,
          peer_waited/0,
          deadline/1, deadline/2, remaining/1, sleep/1,
@@ -73,7 +74,7 @@
          start_cause/0, is_restarting/0, on_this_node/1, spawn_order/1, gateways/0,
          stdlib_modules/0, init_modules/1, initialized/1, uninitialized/1, offer/2, offered/2,
          set_utilization/1, program_utilization/0, asked_of_run/1, note_call/3, drop_note/1,
-         note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1]).
+         note_compute/2, computed/2, is_launched/0, drop_notes/1, ordered/1, stop/1, let_go/1]).
 
 -export_type([address/0, outcome/0]).
 
@@ -839,12 +840,45 @@ call_forever(Address, Request) ->
 call_forever(Address, Request, Check) ->
     call_forever(Address, Request, Check, false).
 
-%% Report Appendix E.18, E.23, E.21: the call private to Tcp and Os, a call
+%% Report Appendix E.18, E.23, E.21: a call private to Tcp and Os, a call
 %% without a time of its own, whose request carries the time its callee
-%% answers within, and whose wait Process.status reads as limited.
--spec call_limited(address(), fun((reply()) -> term())) -> term().
+%% answers within, and whose wait Process.status reads as limited; its
+%% answer, or None where the callee had ended or ends before it answers
+%% (until_answered/3).
+-spec call_limited(address(), fun((reply()) -> term())) -> 'None' | {'Some', term()}.
 call_limited(Address, Request) ->
-    call_forever(Address, Request, none, true).
+    until_answered(Address, Request, true).
+
+%% Report Appendix E.18, E.23, E.21: the same for a request that takes no
+%% time, whose wait Process.status reads as not limited.
+-spec call_unlimited(address(), fun((reply()) -> term())) -> 'None' | {'Some', term()}.
+call_unlimited(Address, Request) ->
+    until_answered(Address, Request, false).
+
+%% Report Appendix E.18, E.23, §6.6: the call of a socket, a listener or a
+%% running program, which waits as callForever's does and answers None
+%% where its callee had ended, its monitor's Down then `noproc`, or ends
+%% before it answers, however it ends, as Address.call answers for a callee
+%% that ends; a fault its callee gives the caller is the caller's, as a
+%% system process's is (§12.1). Report §3.11: such a callee is of the
+%% caller's node, and one that ended with the program ends its caller with
+%% it, as callForever's callee does.
+until_answered(Address, Request, Limited) ->
+    Since = monotonic(),
+    {Callee, Reply} = watched(Address),
+    Call = #call{callee = Callee, reply = Reply, since = Since, limited = Limited},
+    Answer = noted_call(Address, Request, Call, fun() -> forever_answer(Reply, none) end),
+    case Answer of
+        {answered, Answered} -> {'Some', Answered};
+        {fault, Cause} -> fault(Cause);
+        {thrown, Fault} -> throw(Fault);
+        {ended, ExitReason} -> ended_answer(reason(ExitReason));
+        {restarted, _} -> 'None';
+        restart -> restart_now()
+    end.
+
+ended_answer('ProgramEnd') -> end_with_program();
+ended_answer(_) -> 'None'.
 
 %% Report Appendix E.18, E.21, §8.6: the other call private to Tcp, which
 %% Tcp.close and Tcp.closeListener make. Its callee never answers it: it
@@ -3364,6 +3398,18 @@ source_end(Holder) ->
     end,
     ok.
 
+%% The answer to a request counted as a source, given before its count
+%% ends, so that no deadlock is found between the two (report §8.6), a
+%% socket's, a listener's or a program's; report §7.4, Appendix E.23: where
+%% the runtime's helper failed, its caller faulted with Cause.
+-spec end_source(reply(), {fault, binary()} | term()) -> ok.
+end_source(Reply, {fault, Cause}) ->
+    refuse(Reply, Cause),
+    source_end();
+end_source(Reply, Answer) ->
+    answer(Reply, Answer),
+    source_end().
+
 sources() ->
     try
         lists:sum([Count || [Count] <- ets:match(?HELD, {{source, '_'}, '$1'})])
@@ -3568,14 +3614,14 @@ left_foreign() ->
 %% from its `.erc` at that first call, as the host loads a module of its
 %% own (load/1).
 -spec undefined_function(module(), atom(), [term()]) -> term().
-undefined_function(ErlangModule, Function, Args) ->
+undefined_function(ErlangModule, Function, Arguments) ->
     load(ErlangModule),
-    error_handler:undefined_function(ErlangModule, Function, Args).
+    error_handler:undefined_function(ErlangModule, Function, Arguments).
 
 -spec undefined_lambda(module(), fun(), [term()]) -> term().
-undefined_lambda(ErlangModule, Function, Args) ->
+undefined_lambda(ErlangModule, Function, Arguments) ->
     load(ErlangModule),
-    error_handler:undefined_lambda(ErlangModule, Function, Args).
+    error_handler:undefined_lambda(ErlangModule, Function, Arguments).
 
 %% Report §8.7, §11.2: a module loaded on demand, a unit of the
 %% toolchain's own from its `.erc` and in the code table as it loads, any
@@ -4043,11 +4089,12 @@ end_with_fault(Cause) ->
 %% one before it stopped. Open is the input (open_input/0, or fed/1 in a
 %% test), opened for a request and closed once it is answered, so that no
 %% more is read than a request needs and a program slower than what writes
-%% to it holds the writer back. Report §7.3: a read that fails is a failure
-%% of the runtime, and ends the program with a fault that names it. Report
-%% §7.4, §12.5: a request whose input cannot be opened, the host's table of
-%% ports full, faults its asker with the host's class and reason,
-%% `Fault("error:system_limit")`, this process living on with what it holds.
+%% to it holds the writer back. Report §7.4, §12.1, §12.3: a read that
+%% fails faults the process that asked for the line or the bytes with a
+%% cause that names it, and a request whose input cannot be opened, the
+%% host's table of ports full, faults its asker with the host's class and
+%% reason, `Fault("error:system_limit")` (§12.5), this process living on
+%% with what it holds in both.
 stdin_loop(Open) ->
     erlang:process_flag(trap_exit, true),
     stdin_loop(Open, <<>>).
@@ -4090,7 +4137,7 @@ read_line(Reply, Open, Buffer) ->
                {eof, Left} -> answer(Reply, 'None'), Left;
                {{line, Line}, Left} -> answer_line(Reply, without_return(Line)), Left;
                {{last, Line}, Left} -> answer_line(Reply, Line), Left;
-               {{error, Error}, Left} -> unreadable(Error), Left;
+               {{error, Error}, Left} -> refuse(Reply, unreadable(Error)), Left;
                {limited, Left} -> refused_limited(Reply), Left
            end,
     source_end(),
@@ -4141,19 +4188,21 @@ without_return(Line) ->
 %% Report §12.1, §12.3: the line, or the fault of the process that asked,
 %% when it is not UTF-8.
 answer_line(Reply, Text) ->
-    case unicode:characters_to_binary(Text, utf8, utf8) of
-        Text -> answer(Reply, {'Some', Text});
-        _ -> refuse(Reply, not_utf8())
+    case ern_fs:is_utf8(Text) of
+        true -> answer(Reply, {'Some', Text});
+        false -> refuse(Reply, not_utf8())
     end.
 
 %% Report §12.1: what has arrived, at least one byte, or None at the end.
 bytes(Reply, {data, Bytes}) -> answer(Reply, {'Some', Bytes});
 bytes(Reply, eof) -> answer(Reply, 'None');
-bytes(_, {error, Error}) -> unreadable(Error);
+bytes(Reply, {error, Error}) -> refuse(Reply, unreadable(Error));
 bytes(Reply, limited) -> refused_limited(Reply).
 
+%% Report §12.1, §12.3: the cause of a read of standard input that
+%% failed, Error the host's reason.
 unreadable(Error) ->
-    end_with_fault(<<(unreadable())/binary, (host_term(Error))/binary>>).
+    <<(unreadable())/binary, (host_term(Error))/binary>>.
 
 unreadable() ->
     <<"the standard input could not be read: ">>.
@@ -4173,7 +4222,7 @@ input_not_utf8() ->
 %% asked for them.
 -spec input_unreadable(term()) -> ok | none.
 input_unreadable(Error) ->
-    unreadable(Error).
+    end_with_fault(unreadable(Error)).
 
 %% Report §12.1, §8.6, §11.8: keys the host can no longer read, its read of
 %% the terminal failing, end the program as a stream that can no longer be
@@ -6436,10 +6485,25 @@ dependencies_of(ErlangModule) ->
     load(ErlangModule),
     declared_dependencies(ErlangModule).
 
+%% A process ended: unlinked, so that its kill ends no other, killed, and
+%% waited for until it has ended, so that it does nothing more; the run's
+%% own processes at its end, and a socket's and a program's writer
+%% (ern_tcp, ern_os).
+-spec stop(pid()) -> ok.
 stop(Pid) ->
+    unlink(Pid),
     MonitorRef = erlang:monitor(process, Pid),
     exit(Pid, kill),
     receive {'DOWN', MonitorRef, process, Pid, _} -> ok end.
+
+%% Report Appendix E.18, E.23: a request answered holds no timer, here a
+%% socket's or a program's. One that fired as its request was answered
+%% finds the request gone, and does nothing.
+-spec let_go(reference() | none) -> ok.
+let_go(none) ->
+    ok;
+let_go(Timer) ->
+    erlang:cancel_timer(Timer, [{async, true}, {info, false}]).
 
 %% A stream stopped after what was sent it before the stop, which it has
 %% written or, where its stream has gone, dropped (stream/2): a write it
@@ -6465,5 +6529,5 @@ flush_launch(Launch) ->
         ok
     end.
 
-format(Format, Args) ->
-    unicode:characters_to_binary(io_lib:format(Format, Args)).
+format(Format, Arguments) ->
+    unicode:characters_to_binary(io_lib:format(Format, Arguments)).

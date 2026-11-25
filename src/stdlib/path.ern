@@ -89,16 +89,22 @@ fn written(segments : List(String)) : String =
 
 // Whether the text's last code point is the separator.
 fn endsInSeparator(text : String) : Bool =
-    !String.isEmpty(text) && List.last(parts(text, separator())) == Some("")
+    !String.isEmpty(text) && List.last(parts(text, separator(), global)) == Some("")
 
-foreign fn separator() : String =
-    "ern_path:separator/0"
+// Report Appendix E.14: a path's separator.
+fn separator() : String =
+    "/"
+
+// The host's option that finds every occurrence, from the first.
+let global : List(Foreign.Term) = [Foreign.atom("global")]
 
 // Report Appendix E.14: the text between each occurrence of the mark, a
-// separator or a dot, empty parts kept, read by code points as the
-// runtime reads a path.
-foreign fn parts(text : String, mark : String) : List(String) =
-    "ern_path:parts/2"
+// separator or a dot, empty parts kept, found by its bytes: UTF-8 never
+// holds one code point's bytes inside another's, so each part begins and
+// ends where code points do, and a separator or a dot is one though a
+// combining mark follows it, as the runtime reads a path.
+foreign fn parts(text : String, mark : String, options : List(Foreign.Term)) : List(String) =
+    "binary:split/3"
 
 /// The path's segments, none of them empty. An absolute path's first segment is
 /// its root.
@@ -110,7 +116,7 @@ foreign fn parts(text : String, mark : String) : List(String) =
 /// // => ["/", "etc", "hosts"]
 /// ```
 export fn split(path : Path) : List(String) =
-    match parts(toString(path), separator()) {
+    match parts(toString(path), separator(), global) {
         first :: rest when isAbsolute(path) -> (first <> separator()) :: withoutEmpty(rest)
       | all -> withoutEmpty(all)
     }
@@ -164,7 +170,7 @@ export fn extension(path : Path) : Optional(String) = {
 // The name taken apart at its last dot, the dots that begin it beginning
 // none: the stem and the extension, or the name and `None`.
 fn atLastDot(named : String) : #(String, Optional(String)) = {
-    let #(leading, rest) = List.splitWhile(parts(named, "."), String.isEmpty);
+    let #(leading, rest) = List.splitWhile(parts(named, ".", global), String.isEmpty);
     match rest {
         _ :: _ :: _ -> #(String.join(leading <> List.dropLast(rest, 1), "."), List.last(rest))
       | _ -> #(named, None)
@@ -207,7 +213,7 @@ export fn withoutExtension(path : Path) : Path =
 // was written: the name is the last part between separators that is not
 // empty, and the parts are joined again as they were.
 fn extended(path : Path, suffix : String) : Path = {
-    let reversed = List.reverse(parts(toString(path), separator()));
+    let reversed = List.reverse(parts(toString(path), separator(), global));
     let #(trailing, before) = List.splitWhile(reversed, String.isEmpty);
     match before {
         named :: earlier -> {
@@ -284,8 +290,14 @@ fn isStep(segment : String) : Bool =
 /// #(Path.isAbsolute(Path("/etc")), Path.isAbsolute(Path("etc")))
 /// // => #(true, false)
 /// ```
-export foreign fn isAbsolute(path : Path) : Bool =
-    "ern_path:is_absolute/1"
+export fn isAbsolute(path : Path) : Bool =
+    pathType(toString(path)) == absolute
+
+// The host's word for a path that begins at a root.
+let absolute : Foreign.Term = Foreign.atom("absolute")
+
+foreign fn pathType(text : String) : Foreign.Term =
+    "filename:pathtype/1"
 
 /// The path's text, as it was written.
 export fn toString(path : Path) : String =

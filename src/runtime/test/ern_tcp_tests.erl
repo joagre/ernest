@@ -40,20 +40,20 @@
 %% given no time answers `Left(Timeout)` still. A regression test: before
 %% the rule, a read given no time answered the bytes that had arrived
 read_given_no_time_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
-    Peer = spawn(fun() ->
-                     {ok, Accepted} = gen_tcp:accept(Listen),
-                     ok = gen_tcp:send(Accepted, <<"x">>),
-                     receive close -> gen_tcp:close(Accepted) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Accepted} = gen_tcp:accept(Listen),
+                       ok = gen_tcp:send(Accepted, <<"x">>),
+                       receive close -> gen_tcp:close(Accepted) end
+                   end),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
                Before = [read(Socket, 0), read(Socket, -5)],
                Bytes = read(Socket, 5000),
-               Peer ! close,
+               FarEnd ! close,
                Closed = read(Socket, 5000),
                Self ! {reads, {Before, Bytes, Closed, read(Socket, 0)}}
            end, <<"main">>, ern_helpers:quiet()),
@@ -69,7 +69,7 @@ read_given_no_time_test() ->
 %% write answered whichever came first, its time or the host's taking them.
 %% It does not cover a socket over TLS
 write_given_no_time_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
     _ = spawn(fun() ->
@@ -142,35 +142,35 @@ connect_given_no_time_test() ->
 %% had timed out, so the next read was never answered. The piece's wait in
 %% the socket's process, while no read waits, was added after the code
 read_after_timeout_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive go -> ok end,
-                     ok = gen_tcp:send(Connection, <<"a">>),
-                     %% the second once the first is read, so that each
-                     %% read takes one
-                     receive next -> ok end,
-                     ok = gen_tcp:send(Connection, <<"b">>),
-                     receive done -> gen_tcp:close(Connection) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Connection} = gen_tcp:accept(Listen),
+                       receive go -> ok end,
+                       ok = gen_tcp:send(Connection, <<"a">>),
+                       %% the second once the first is read, so that each
+                       %% read takes one
+                       receive next -> ok end,
+                       ok = gen_tcp:send(Connection, <<"b">>),
+                       receive done -> gen_tcp:close(Connection) end
+                   end),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
                {'Left', 'Timeout'} = read(Socket, 20),
                Pid = ern_rt:process_of(Socket),
                erlang:trace(Pid, true, ['receive']),
-               Peer ! go,
+               FarEnd ! go,
                %% the host has handed the piece to the socket's process, and
                %% the next read is sent after it; a wait in a test's code,
                %% the host's to the deadlock detector
                receive {trace, Pid, 'receive', {tcp, _, <<"a">>}} -> ok end,
                erlang:trace(Pid, false, ['receive']),
                Self ! {read, read(Socket, 2000)},
-               Peer ! next,
+               FarEnd ! next,
                Self ! {read, read(Socket, 2000)},
-               Peer ! done
+               FarEnd ! done
            end, <<"main">>, ern_helpers:quiet()),
     gen_tcp:close(Listen),
     %% each read after the one that timed out is answered with what arrives
@@ -216,16 +216,16 @@ closed_listener_exit_term_test() ->
 
 %% Appendix E.18: a socket lives until it is closed: after the far end
 %% closes, what came before is read, then each read, `remote` and `local`
-%% answer `Left(Closed)`; a read after `Tcp.close` faults the reader, as a
-%% callForever on an ended process does: `callee was closed` where the
-%% close ends the socket while the read waits, and `callee had ended` where
-%% it had ended before (§6.6). The first is a regression test of the rule,
-%% before which it said the callee returned; the socket is held still until
-%% both the close and the read wait in its mailbox
+%% answer `Left(Closed)`; so does a read whose socket the close ends while
+%% it waits in the mailbox, and a read, a write, `remote` and `local` after
+%% the close has ended it. The socket is held still until both the close
+%% and the read wait in its mailbox. A regression test of the rule, before
+%% which a read the close met faulted with `callee was closed` and one
+%% after with `callee had ended`, as a callForever does (§6.6)
 socket_lives_until_closed_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
-    Writer = spawn(fun() ->
+    FarEnd = spawn(fun() ->
                        {ok, Connection} = gen_tcp:accept(Listen),
                        ok = gen_tcp:send(Connection, <<"x">>),
                        gen_tcp:close(Connection)
@@ -237,32 +237,29 @@ socket_lives_until_closed_test() ->
                {'Right', {'Endpoint', <<"127.0.0.1">>, Port}} = remote(Socket),
                {'Right', {'Endpoint', <<"127.0.0.1">>, _}} = local(Socket),
                %% the far end has written and closed
-               WriterRef = erlang:monitor(process, Writer),
+               FarEndRef = erlang:monitor(process, FarEnd),
                ern_rt:timed(),
-               receive {'DOWN', WriterRef, process, _, _} -> ern_rt:untimed() end,
+               receive {'DOWN', FarEndRef, process, _, _} -> ern_rt:untimed() end,
                Self ! {reads, [read(Socket, 1000), read(Socket, 1000), read(Socket, 1000),
                                remote(Socket), local(Socket)]},
                Pid = ern_rt:process_of(Socket),
                erlang:suspend_process(Pid),
                ok = socket_close_sent(Socket),
-               %% monitored from its start: a reader that faulted before a
-               %% monitor was made would be `Unknown`, as the test once saw
-               %% under load
-               Reader = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
-                                               fun(Down) -> {down, Down} end, <<"reader">>),
+               EntryProcess = self(),
+               Reader = ern_rt:spawn(fun() -> EntryProcess ! {met, read(Socket, 1000)} end,
+                                     <<"reader">>),
                %% the reader waits once it has sent its read
                ok = ern_waits:waiting(ern_rt:process_of(Reader)),
                erlang:resume_process(Pid),
-               receive {down, Down} -> Self ! {down, Down} end,
-               _ = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
-                                         fun(L) -> {later, L} end, <<"reader">>),
-               receive {later, L} -> Self ! {later, L} end
+               Self ! {met, receive {met, Met} -> Met end},
+               Self ! {later, [read(Socket, 1000), write(Socket, <<"y">>, 1000), remote(Socket),
+                               local(Socket)]}
            end, <<"main">>, ern_helpers:quiet()),
     gen_tcp:close(Listen),
     ?assertEqual([{'Right', <<"x">>}, {'Left', 'Closed'}, {'Left', 'Closed'},
                   {'Left', 'Closed'}, {'Left', 'Closed'}], ern_waits:wait(reads)),
-    ?assertMatch({'Down', _, {'Fault', <<"callee was closed">>}, _}, ern_waits:wait(down)),
-    ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, ern_waits:wait(later)).
+    ?assertEqual({'Left', 'Closed'}, ern_waits:wait(met)),
+    ?assertEqual(lists:duplicate(4, {'Left', 'Closed'}), ern_waits:wait(later)).
 
 %% Appendix E.18: closing a listener answers an accept waiting on it with
 %% `Left(Closed)`, and the listener's process ends. Under load the close
@@ -293,17 +290,17 @@ close_listener_test() ->
     ?assertEqual({'Left', 'Closed'}, ern_waits:wait(accepted)),
     ?assertEqual(false, ern_waits:wait(alive)).
 
-%% Appendix E.18, report §6.6: `closeListener` answers once the listener
-%% has ended and its host socket has closed, so that a listen on its port
-%% straight after is not refused for the port being held, and a `port`
-%% straight after faults with `callee had ended`, each first in every
-%% other round. Written first: the close that was a send lost 1,001 rounds
-%% of 2,000, the listen refused `address already in use` 3 times and the
-%% port faulting `callee was closed` 1,000 times
+%% Appendix E.18: `closeListener` answers once the listener has ended and
+%% its host socket has closed, so that a listen on its port straight after
+%% is not refused for the port being held, and a `port` straight after
+%% answers `Left(Closed)`, each first in every other round. Written first:
+%% the close that was a send lost 1,001 rounds of 2,000, the listen refused
+%% `address already in use` 3 times and the port faulting `callee was
+%% closed` 1,000 times
 close_listener_frees_the_port_test_() ->
     {timeout, 60,
      fun() ->
-         ?assertEqual(#{{listened, <<"callee had ended">>} => ?CLOSE_ROUNDS},
+         ?assertEqual(#{{listened, {'Left', 'Closed'}} => ?CLOSE_ROUNDS},
                       closed_rounds(none, ?CLOSE_ROUNDS))
      end}.
 
@@ -313,7 +310,7 @@ close_listener_frees_the_port_test_() ->
 close_listener_frees_the_port_over_tls_test_() ->
     {timeout, 60,
      fun() ->
-         ?assertEqual(#{{listened, <<"callee had ended">>} => ?TLS_CLOSE_ROUNDS},
+         ?assertEqual(#{{listened, {'Left', 'Closed'}} => ?TLS_CLOSE_ROUNDS},
                       closed_rounds(pki(), ?TLS_CLOSE_ROUNDS))
      end}.
 
@@ -337,9 +334,9 @@ closed_rounds(Keys, Left, Counts) ->
 %% A listen on Port and a `port` of Listener, the listen first or second.
 straight_after(Keys, Port, Listener, 0) ->
     Again = listened(listening(Keys, Port)),
-    {Again, asked(Listener)};
+    {Again, port(Listener)};
 straight_after(Keys, Port, Listener, 1) ->
-    Asked = asked(Listener),
+    Asked = port(Listener),
     {listened(listening(Keys, Port)), Asked}.
 
 listened({'Right', Listener}) ->
@@ -347,14 +344,6 @@ listened({'Right', Listener}) ->
     listened;
 listened({'Left', Error}) ->
     Error.
-
-%% A `port` asked of Listener: answered, or the cause it faults with.
-asked(Listener) ->
-    try port(Listener) of
-        {'Right', _} -> answered
-    catch
-        throw:{ern, fault, Cause} -> Cause
-    end.
 
 listening(none, Port) -> listen(Port);
 listening(#{server := Keys}, Port) -> listen_tls(Port, Keys).
@@ -371,8 +360,8 @@ close_listener_on_an_ended_listener_test() ->
                'Unit' = close_listener(Closed),
                {'Right', Killed} = listen(0),
                ok = ended_by(Killed, fun() -> ern_rt:kill(ern_rt:process_of(Killed)) end),
-               Main = self(),
-               _ = erlang:spawn(fun() -> Main ! {orphaned, listen(0)} end),
+               EntryProcess = self(),
+               _ = erlang:spawn(fun() -> EntryProcess ! {orphaned, listen(0)} end),
                {'Right', Orphaned} = receive {orphaned, Answer} -> Answer end,
                ok = ended_by(Orphaned, fun() -> ok end),
                Self ! {closes, [close_listener(Ended) || Ended <- [Closed, Killed, Orphaned]]}
@@ -398,12 +387,13 @@ close_listener_waits_for_a_held_accept_test() ->
            fun() ->
                {'Right', Listener} = listen(0),
                Pid = ern_rt:process_of(Listener),
-               Main = self(),
-               {_, Worker} = held_accept(Listener, Main),
+               EntryProcess = self(),
+               {_, Worker} = held_accept(Listener, EntryProcess),
                true = erlang:suspend_process(Worker),
                Closer = ern_rt:spawn(fun() ->
                                          Closed = close_listener(Listener),
-                                         Main ! {closed, {Closed, erlang:is_process_alive(Worker)}}
+                                         Alive = erlang:is_process_alive(Worker),
+                                         EntryProcess ! {closed, {Closed, Alive}}
                                      end, <<"closer">>),
                Calling = ern_waits:calling(ern_rt:process_of(Closer)),
                Status = ern_rt:status(ern_rt:process_of(Closer)),
@@ -449,10 +439,10 @@ close_listener_answers_a_taken_connection_test() ->
                                 {'Right', Socket} = Accepted,
                                 Self ! {read, read(Socket, 2000)}
                             end, fun(Down) -> {acceptor, Down} end, <<"acceptor">>),
-               Main = self(),
+               EntryProcess = self(),
                Closer = ern_rt:spawn(fun() ->
                                          receive go -> ok end,
-                                         Main ! {closed, close_listener(Listener)}
+                                         EntryProcess ! {closed, close_listener(Listener)}
                                      end, <<"closer">>),
                Reaper = ern_rt:launch_reaper(),
                erlang:trace(Pid, true, [procs]),
@@ -475,9 +465,9 @@ close_listener_answers_a_taken_connection_test() ->
     ?assertEqual('Right', ern_waits:wait(accepted)),
     ?assertEqual({'Right', <<"x">>}, ern_waits:wait(read)).
 
-%% Appendix E.18, report §6.6: an accept a killed listener holds waiting
-%% faults with `callee was killed`, as a call does whose callee is killed,
-%% and is never answered `Left(Closed)`. Each listener is killed once the
+%% Appendix E.18, report §6.6: an `acceptForever` a killed listener holds
+%% waiting faults with `callee was killed`, as a call does whose callee is
+%% killed, and is never answered `Left(Closed)` by its worker. Each listener is killed once the
 %% accept's worker waits in the host's accept. Written first: the listener
 %% closed its host socket before it ended, and the worker answered
 %% `Left(Closed)` in 10 rounds of 10
@@ -525,9 +515,9 @@ untrappable_kill_faults_a_held_accept_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(0),
-               Main = self(),
-               _ = held_accept(Listener, Main),
-               _ = held_accept_watched(Listener, Main),
+               EntryProcess = self(),
+               _ = held_accept(Listener, EntryProcess),
+               _ = held_accept_watched(Listener, EntryProcess),
                ok = ended_by(Listener, fun() -> exit(ern_rt:process_of(Listener), kill) end),
                Answered = receive {answered, A} -> A end,
                Self ! {killed, {accepted(), Answered}}
@@ -552,8 +542,9 @@ held_accept_watched(Listener, Tell) ->
     Acceptor ! {worker, Worker},
     receive watching -> ok end.
 
-%% How Rounds accepts held by a listener ended How end, counted, the
-%% listener over TCP, or over TLS with Keys.
+%% How each accept of Rounds ends, counted, a listener holding it as the
+%% listener is ended How, killed or with its owner, the listener over TCP
+%% or over TLS with Keys, a new one each round.
 held_rounds(How, Rounds) ->
     held_rounds(How, none, Rounds).
 
@@ -567,8 +558,8 @@ held_rounds(_, _, 0, Counts) ->
     Counts;
 held_rounds(How, Keys, Left, Counts) ->
     {Listener, End} = owned_listener(How, Keys),
-    Main = self(),
-    _ = held_accept(Listener, Main),
+    EntryProcess = self(),
+    _ = held_accept(Listener, EntryProcess),
     End(),
     Key = accepted(),
     held_rounds(How, Keys, Left - 1,
@@ -584,9 +575,9 @@ owned_listener(kill, Keys) ->
     {'Right', Listener} = listening(Keys, 0),
     {Listener, fun() -> ern_rt:kill(ern_rt:process_of(Listener)) end};
 owned_listener(owner, Keys) ->
-    Main = self(),
+    EntryProcess = self(),
     Owner = erlang:spawn(fun() ->
-                             Main ! {owned, listening(Keys, 0)},
+                             EntryProcess ! {owned, listening(Keys, 0)},
                              receive done -> ok end
                          end),
     {'Right', Listener} = receive {owned, Answer} -> Answer end,
@@ -608,12 +599,13 @@ ended_while_closing(How) ->
            fun() ->
                {Listener, End} = owned_listener(How),
                Pid = ern_rt:process_of(Listener),
-               Main = self(),
-               {_, Worker} = held_accept(Listener, Main),
+               EntryProcess = self(),
+               {_, Worker} = held_accept(Listener, EntryProcess),
                true = erlang:suspend_process(Worker),
                Closer = ern_rt:spawn(fun() ->
                                          Closed = close_listener(Listener),
-                                         Main ! {closed, {Closed, erlang:is_process_alive(Worker)}}
+                                         Alive = erlang:is_process_alive(Worker),
+                                         EntryProcess ! {closed, {Closed, Alive}}
                                      end, <<"closer">>),
                ok = ern_waits:calling(ern_rt:process_of(Closer)),
                ok = ern_waits:waiting(Pid),
@@ -638,10 +630,10 @@ close_listener_is_no_deadlock_test() ->
                     %% the accept's answer is told after the run's end
                     {_, Worker} = held_accept_outside(Listener, Self),
                     %% the process that holds the worker still lets it go
-                    Main = self(),
+                    EntryProcess = self(),
                     _ = erlang:spawn(fun() ->
                                          true = erlang:suspend_process(Worker),
-                                         Main ! held,
+                                         EntryProcess ! held,
                                          ok = ern_waits:looked(2),
                                          erlang:resume_process(Worker)
                                      end),
@@ -664,18 +656,18 @@ close_listener_takes_a_restart_test() ->
            fun() ->
                {'Right', Listener} = listen(0),
                Pid = ern_rt:process_of(Listener),
-               Main = self(),
-               {_, Worker} = held_accept(Listener, Main),
+               EntryProcess = self(),
+               {_, Worker} = held_accept(Listener, EntryProcess),
                true = erlang:suspend_process(Worker),
                Closing = ern_rt:restarting(
                            'Unlimited',
                            fun() ->
                                case ern_rt:start_cause() of
                                    'First' ->
-                                       Main ! {closed, close_listener(Listener)};
+                                       EntryProcess ! {closed, close_listener(Listener)};
                                    Cause ->
                                        Noted = ets:member(ern_callees, {Pid, erlang:self()}),
-                                       Main ! {restarted, {Cause, Noted}}
+                                       EntryProcess ! {restarted, {Cause, Noted}}
                                    end
                            end),
                Closer = ern_rt:spawn(Closing, <<"closer">>),
@@ -703,8 +695,8 @@ close_listener_takes_a_foreign_fault_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(0),
-               Main = self(),
-               {_, Worker} = held_accept(Listener, Main),
+               EntryProcess = self(),
+               {_, Worker} = held_accept(Listener, EntryProcess),
                true = erlang:suspend_process(Worker),
                Closer = ern_rt:spawn_monitored(fun() -> close_listener(Listener) end,
                                                fun(Down) -> {closer, Down} end, <<"closer">>),
@@ -789,21 +781,21 @@ accept_at_the_file_limit() ->
     %% host's own, as a run puts it (report §11.2, ern_cli:host_path/1)
     Build = filename:absname("build") ++ "/",
     Paths = [" -pz " ++ Dir || Dir <- code:get_path(), lists:prefix(Build, filename:absname(Dir))],
-    Host = open_port({spawn, "sh -c 'ulimit -n 64; exec erl -noshell" ++ lists:append(Paths) ++
-                          " -eval \"ern_tcp_tests:at_the_file_limit(), erlang:halt(0)\"'"},
-                     [binary, exit_status, stderr_to_stdout, {line, 200}]),
-    true = port_command(Host, "go\n"),
-    <<"port: ", PortText/binary>> = said(Host, <<"port: ">>),
-    _ = said(Host, <<"filled">>),
+    Erl = open_port({spawn, "sh -c 'ulimit -n 64; exec erl -noshell" ++ lists:append(Paths) ++
+                         " -eval \"ern_tcp_tests:at_the_file_limit(), erlang:halt(0)\"'"},
+                    [binary, exit_status, stderr_to_stdout, {line, 200}]),
+    true = port_command(Erl, "go\n"),
+    <<"port: ", PortText/binary>> = said(Erl, <<"port: ">>),
+    _ = said(Erl, <<"filled">>),
     {ok, Socket} = gen_tcp:connect({127, 0, 0, 1}, binary_to_integer(PortText),
                                    [binary, {active, false}], 5000),
     ok = gen_tcp:send(Socket, <<"x">>),
-    true = port_command(Host, "connected\n"),
-    _ = said(Host, <<"accept: {'Left',{'Other',<<\"too many open files\">>}}">>),
-    _ = said(Host, <<"forever: {'Left',{'Other',<<\"too many open files\">>}}">>),
-    <<"took: ", Took/binary>> = said(Host, <<"took: ">>),
-    _ = said(Host, <<"later: {'Right',<<\"x\">>}">>),
-    Status = receive {Host, {exit_status, Exit}} -> Exit after 20000 -> none end,
+    true = port_command(Erl, "connected\n"),
+    _ = said(Erl, <<"accept: {'Left',{'Other',<<\"too many open files\">>}}">>),
+    _ = said(Erl, <<"forever: {'Left',{'Other',<<\"too many open files\">>}}">>),
+    <<"took: ", Took/binary>> = said(Erl, <<"took: ">>),
+    _ = said(Erl, <<"later: {'Right',<<\"x\">>}">>),
+    Status = receive {Erl, {exit_status, Exit}} -> Exit after 20000 -> none end,
     gen_tcp:close(Socket),
     ?assertEqual(0, Status),
     %% a host that waited the accept's time out would take all of it, and
@@ -813,20 +805,20 @@ accept_at_the_file_limit() ->
 %% The next line the host under the limit writes, which begins as Expected
 %% says; where it does not, or the host falls silent, the test fails with
 %% every line the host wrote from there.
-said(Host, Expected) ->
+said(Erl, Expected) ->
     receive
-        {Host, {data, {eol, Line}}} ->
+        {Erl, {data, {eol, Line}}} ->
             case binary:longest_common_prefix([Line, Expected]) =:= byte_size(Expected) of
                 true -> Line;
-                false -> erlang:error({said, [Line | rest(Host)]})
+                false -> erlang:error({said, [Line | rest(Erl)]})
             end
     after 20000 -> erlang:error({silent, Expected})
     end.
 
-rest(Host) ->
+rest(Erl) ->
     receive
-        {Host, {data, {eol, Line}}} -> [Line | rest(Host)];
-        {Host, {exit_status, _}} -> []
+        {Erl, {data, {eol, Line}}} -> [Line | rest(Erl)];
+        {Erl, {exit_status, _}} -> []
     after 20000 -> []
     end.
 
@@ -874,10 +866,12 @@ filled(Listeners) ->
 closed(Listener) ->
     'Unit' = close_listener(Listener).
 
-%% report §6.6, Appendix E.18: an accept that waits as the listener's close
-%% ends it faults with `callee was closed`. A regression test of the rule;
-%% the listener is held still until both the close and the accept wait in
-%% its mailbox
+%% Appendix E.18: an accept that waits in the mailbox as the listener's
+%% close ends it answers `Left(Closed)`, as an accept after the close does.
+%% The listener is held still until both the close and the accept wait in
+%% its mailbox. A regression test of the rule, before which the first
+%% faulted with `callee was closed`, as a callForever does (§6.6), and the
+%% second with `callee had ended`
 accept_meets_the_close_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -886,14 +880,16 @@ accept_meets_the_close_test() ->
                Pid = ern_rt:process_of(Listener),
                erlang:suspend_process(Pid),
                ok = close_sent(Listener),
-               Acceptor = ern_rt:spawn_monitored(fun() -> accept(Listener, 1000) end,
-                                                 fun(Down) -> {down, Down} end, <<"acceptor">>),
+               EntryProcess = self(),
+               Acceptor = ern_rt:spawn(fun() -> EntryProcess ! {met, accept(Listener, 1000)} end,
+                                       <<"acceptor">>),
                %% the acceptor waits once it has sent its accept
                ok = ern_waits:waiting(ern_rt:process_of(Acceptor)),
                erlang:resume_process(Pid),
-               receive {down, Down} -> Self ! {down, Down} end
+               Met = receive {met, Accepted} -> Accepted end,
+               Self ! {accepts, [Met, accept(Listener, 1000), port(Listener)]}
            end, <<"main">>, ern_helpers:quiet()),
-    ?assertMatch({'Down', _, {'Fault', <<"callee was closed">>}, _}, ern_waits:wait(down)).
+    ?assertEqual(lists:duplicate(3, {'Left', 'Closed'}), ern_waits:wait(accepts)).
 
 %% Appendix E.18: `acceptForever` and `readForever` are `accept` and `read`
 %% without a time. An accept that waits answers the connection made after
@@ -905,12 +901,12 @@ accept_meets_the_close_test() ->
 forever_waits_answer_what_comes_later_test() ->
     Self = self(),
     FarEnd = spawn(fun() ->
-                       receive {accepting, Main, Port} -> ok end,
-                       ok = ern_waits:calling(Main),
+                       receive {accepting, EntryProcess, Port} -> ok end,
+                       ok = ern_waits:calling(EntryProcess),
                        {ok, Connection} = gen_tcp:connect("127.0.0.1", Port,
                                                           [binary, {active, false}]),
                        receive {reading, Socket} -> ok end,
-                       ok = ern_waits:watching(ern_rt:process_of(Socket), Main),
+                       ok = ern_waits:watching(ern_rt:process_of(Socket), EntryProcess),
                        ok = gen_tcp:send(Connection, <<"x">>),
                        receive close -> gen_tcp:close(Connection) end
                    end),
@@ -934,9 +930,9 @@ forever_waits_answer_what_comes_later_test() ->
 %% accept's caller calls, and once the socket watches the read's. Written
 %% with the requests
 close_answers_the_waits_without_a_time_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, FarPort} = inet:port(Listen),
-    Peer = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
+    FarEnd = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -953,7 +949,7 @@ close_answers_the_waits_without_a_time_test() ->
                'Unit' = close(Socket),
                [receive {ended, _} -> ok end || _ <- [Acceptor, Reader]]
            end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     ?assertEqual({'Left', 'Closed'}, ern_waits:wait(accept)),
     ?assertEqual({'Left', 'Closed'}, ern_waits:wait(read)).
@@ -965,9 +961,9 @@ close_answers_the_waits_without_a_time_test() ->
 %% held still until both the close and the call wait in its mailbox.
 %% Written with the requests
 waits_without_a_time_meet_the_close_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, FarPort} = inet:port(Listen),
-    Peer = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
+    FarEnd = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -976,7 +972,7 @@ waits_without_a_time_meet_the_close_test() ->
                {'Right', Socket} = connect(FarPort, 2000),
                Self ! {socket, met_the_close(Socket, fun socket_close_sent/1, fun read_forever/1)}
            end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     [?assertMatch({{'Down', _, {'Fault', <<"callee was closed">>}, _},
                    {'Down', _, {'Fault', <<"callee had ended">>}, _}}, ern_waits:wait(Tag))
@@ -1033,56 +1029,29 @@ accept_forever_of_an_ended_caller_test() ->
 %% program is found deadlocked after. Written with the requests, as
 %% read_of_an_ended_caller_dropped_test is
 read_forever_of_an_ended_caller_dropped_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
-    {ok, Port} = inet:port(Listen),
-    Self = self(),
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive go -> ok end,
-                     ok = gen_tcp:send(Connection, <<"x">>),
-                     receive done -> gen_tcp:close(Connection) end
-                 end),
-    Result = ern_rt:run_main(
-               fun() ->
-                   {'Right', Socket} = connect(Port, 2000),
-                   Reader = ern_rt:spawn_monitored(fun() -> read_forever(Socket) end,
-                                                   fun(Down) -> {reader, Down} end,
-                                                   <<"reader">>),
-                   Pid = ern_rt:process_of(Reader),
-                   ok = ern_waits:watching(Socket, Pid),
-                   ern_rt:kill(Reader),
-                   receive {reader, _} -> ok end,
-                   %% so that its `DOWN` comes before the bytes
-                   ok = ern_waits:unwatched(Socket, Pid),
-                   Peer ! go,
-                   Self ! {read, read_forever(Socket)},
-                   ern_waits:forever()
-               end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
-    gen_tcp:close(Listen),
-    ?assertEqual({'Right', <<"x">>}, ern_waits:wait(read)),
-    ?assertMatch({fault, <<"deadlock">>, _}, Result).
+    dropped_read(fun read_forever/1, fun read_forever/1).
 
 %% report §8.6: a socket killed while a read waits on it holds no source,
 %% so the deadlock of what is left is still found. A regression test for
 %% the count of sources, which a killed holder could leave up for good
 killed_socket_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
-    Peer = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
+    FarEnd = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
     Result = ern_rt:run_main(
                fun() ->
                    {'Right', Socket} = connect(Port, 2000),
                    Reader = ern_rt:spawn(fun() -> read(Socket, 100000) end,
                                          <<"reader">>),
                    ern_rt:monitor(Reader, fun(Down) -> {down, Down} end),
-                   %% the read waits on the socket as it is killed
-                   ok = ern_waits:waiting(ern_rt:process_of(Reader)),
+                   %% the socket has taken the read, and counts it, as it is
+                   %% killed
+                   ok = ern_waits:watching(Socket, ern_rt:process_of(Reader)),
                    ern_rt:kill(Socket),
                    receive {down, _} -> ok end,
                    ern_waits:forever()
                end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     ?assertMatch({fault, <<"deadlock">>, _}, Result).
 
@@ -1094,19 +1063,25 @@ killed_socket_test() ->
 %% handshake, dropped the same way, and a caller that ends while the bytes
 %% are on their way, before the socket has its `DOWN`, are not covered
 read_of_an_ended_caller_dropped_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    dropped_read(fun(Socket) -> read(Socket, 60000) end, fun(Socket) -> read(Socket, 2000) end).
+
+%% A reader killed in its Read of a socket, which the socket watches, and
+%% once the socket no longer does, Next, which reads the bytes the far end
+%% sends after the end; the program is found deadlocked after.
+dropped_read(Read, Next) ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive go -> ok end,
-                     ok = gen_tcp:send(Connection, <<"x">>),
-                     receive done -> gen_tcp:close(Connection) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Connection} = gen_tcp:accept(Listen),
+                       receive go -> ok end,
+                       ok = gen_tcp:send(Connection, <<"x">>),
+                       receive done -> gen_tcp:close(Connection) end
+                   end),
     Result = ern_rt:run_main(
                fun() ->
                    {'Right', Socket} = connect(Port, 2000),
-                   Reader = ern_rt:spawn_monitored(fun() -> read(Socket, 60000) end,
+                   Reader = ern_rt:spawn_monitored(fun() -> Read(Socket) end,
                                                    fun(Down) -> {reader, Down} end,
                                                    <<"reader">>),
                    Pid = ern_rt:process_of(Reader),
@@ -1115,11 +1090,11 @@ read_of_an_ended_caller_dropped_test() ->
                    receive {reader, _} -> ok end,
                    %% so that its `DOWN` comes before the bytes
                    ok = ern_waits:unwatched(Socket, Pid),
-                   Peer ! go,
-                   Self ! {read, read(Socket, 2000)},
+                   FarEnd ! go,
+                   Self ! {read, Next(Socket)},
                    ern_waits:forever()
                end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     ?assertEqual({'Right', <<"x">>}, ern_waits:wait(read)),
     ?assertMatch({fault, <<"deadlock">>, _}, Result).
@@ -1134,13 +1109,13 @@ read_of_an_ended_caller_dropped_test() ->
 %% caller that ends with its answer in its mailbox is every call's, and not
 %% covered
 bytes_ahead_of_the_down_kept_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive done -> gen_tcp:close(Connection) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Connection} = gen_tcp:accept(Listen),
+                       receive done -> gen_tcp:close(Connection) end
+                   end),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
@@ -1156,7 +1131,7 @@ bytes_ahead_of_the_down_kept_test() ->
                erlang:resume_process(Pid),
                Self ! {read, read(Socket, 1000)}
            end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     ?assertEqual({'Right', <<"x">>}, ern_waits:wait(read)).
 
@@ -1334,11 +1309,11 @@ listen_again_while_closing_test() ->
            fun() ->
                {'Right', Listener} = listen(0),
                {'Right', Port} = port(Listener),
-               Me = self(),
+               EntryProcess = self(),
                %% the client holds its side open until the port is listened
                %% on again, so that the server's side closes first
                Client = spawn(fun() ->
-                                  Me ! {client, connect(Port, 2000)},
+                                  EntryProcess ! {client, connect(Port, 2000)},
                                   receive done -> ok end
                               end),
                {'Right', Socket} = accept(Listener, 2000),
@@ -1391,43 +1366,41 @@ reach(Host, Port) ->
     end.
 
 %% report Appendix E.18: a write answered holds no timer: one the socket
-%% took before its milliseconds pass is sent nothing when they pass. A
-%% regression test: the timer stayed armed and answered `Left(Timeout)` to
-%% a reply already answered
+%% took before its milliseconds pass cancels the timer it armed, which the
+%% socket does once its writer has told it, after the answer. A regression
+%% test: the timer stayed armed and answered `Left(Timeout)` to a reply
+%% already answered
 answered_write_holds_no_timer_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive done -> gen_tcp:close(Connection) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Connection} = gen_tcp:accept(Listen),
+                       receive done -> gen_tcp:close(Connection) end
+                   end),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
-               erlang:trace(Socket, true, ['receive', {tracer, Self}]),
-               Ms = 300,
-               Written = ern_rt:call_forever(Socket, fun(Reply) ->
-                                                         {'Write', <<"x">>, Ms, Reply}
-                                                     end),
-               %% an absence: a timer the write left would fire its
-               %% milliseconds after it, and the host's timers may fire
-               %% late, so twice that
-               ern_waits:sleep(2 * Ms),
-               Self ! {written, Written}
+               Pid = ern_rt:process_of(Socket),
+               Write = fun() -> write(Socket, <<"x">>, 600000) end,
+               %% the writer has told the socket once it waits again, and
+               %% the socket has taken that once it waits with nothing left
+               Told = fun() ->
+                          ok = ern_waits:waiting(writer(Socket)),
+                          ern_waits:until(Pid, fun() ->
+                                                   erlang:process_info(
+                                                     Pid, [status, message_queue_len])
+                                                       =:= [{status, waiting},
+                                                            {message_queue_len, 0}]
+                                               end)
+                      end,
+               Self ! {timers, ern_waits:timers(Pid, Write, Told)}
            end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
-    ?assertEqual({'Right', 'Unit'}, receive {written, Answer} -> Answer after 5000 -> none end),
-    Timeouts = fun Collect() ->
-                   receive
-                       {trace, _, 'receive', {deadline, {write, _}} = Timeout} ->
-                           [Timeout | Collect()];
-                       {trace, _, _, _} -> Collect()
-                   after 0 ->
-                       []
-                   end
-               end,
-    ?assertEqual([], Timeouts()).
+    FarEnd ! done,
+    gen_tcp:close(Listen),
+    {Written, Armed, Canceled} = ern_waits:wait(timers),
+    ?assertEqual({'Right', 'Unit'}, Written),
+    ?assertEqual({1, Armed}, {length(Armed), Canceled}).
 
 %% Appendix E.18: a write the far end holds back holds up no read of the
 %% socket, and the read's time limit holds. A regression test: the
@@ -1437,22 +1410,22 @@ write_holds_up_no_read_test_() ->
     {timeout, 60, fun write_holds_up_no_read/0}.
 
 write_holds_up_no_read() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
     %% the far end accepts and never reads
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive done -> gen_tcp:close(Connection) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Connection} = gen_tcp:accept(Listen),
+                       receive done -> gen_tcp:close(Connection) end
+                   end),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
                %% the host queues one write whole and holds the next back
                Chunk = binary:copy(<<0>>, 1024 * 1024),
-               Main = erlang:self(),
+               EntryProcess = erlang:self(),
                Flood = fun() ->
-                           [begin write(Socket, Chunk), Main ! wrote end
+                           [begin write(Socket, Chunk), EntryProcess ! wrote end
                             || _ <- lists:seq(1, 64)]
                        end,
                Flooding = ern_rt:spawn(Flood, <<"flood">>),
@@ -1466,7 +1439,7 @@ write_holds_up_no_read() ->
                Read = read(Socket, 300),
                Self ! {read, Read, erlang:monotonic_time(millisecond) - Before}
            end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     {read, Read, Took} = receive {read, _, _} = Message -> Message after 10000 -> timeout end,
     ?assertEqual({'Left', 'Timeout'}, Read),
@@ -1480,14 +1453,14 @@ write_taken_whole_test_() ->
     {timeout, 60, fun write_taken_whole/0}.
 
 write_taken_whole() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
     %% the far end accepts and never reads
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive done -> gen_tcp:close(Connection) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Connection} = gen_tcp:accept(Listen),
+                       receive done -> gen_tcp:close(Connection) end
+                   end),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
@@ -1496,7 +1469,7 @@ write_taken_whole() ->
                Behind = ern_rt:call_forever(Socket, fun(Reply) -> {'Write', <<1>>, 300, Reply} end),
                Self ! {written, Whole, Behind, erlang:monotonic_time(millisecond) - Before}
            end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     {written, Whole, Behind, Took} =
         receive {written, _, _, _} = Message -> Message after 10000 -> timeout end,
@@ -1511,24 +1484,24 @@ write_taken_whole() ->
 %% sentence, whose probe found the host so; it does not cover a buffer of
 %% another size, which nothing in Ernest sets
 read_answers_a_piece_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Written = rand:bytes(512 * 1024),
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Main = self(),
-               Peer = spawn(fun() ->
-                                {ok, Accepted} = gen_tcp:accept(Listen),
-                                ok = gen_tcp:send(Accepted, Written),
-                                Main ! written,
-                                receive done -> gen_tcp:close(Accepted) end
-                            end),
+               EntryProcess = self(),
+               FarEnd = spawn(fun() ->
+                                  {ok, Accepted} = gen_tcp:accept(Listen),
+                                  ok = gen_tcp:send(Accepted, Written),
+                                  EntryProcess ! written,
+                                  receive done -> gen_tcp:close(Accepted) end
+                              end),
                {'Right', Socket} = connect(Port, 2000),
                %% a wait in a test's code, the host's to the deadlock detector
                receive written -> ok end,
                Self ! {pieces, pieces(Socket, byte_size(Written))},
-               Peer ! done
+               FarEnd ! done
            end, <<"main">>, ern_helpers:quiet()),
     gen_tcp:close(Listen),
     Pieces = ern_waits:wait(pieces),
@@ -1542,7 +1515,7 @@ read_answers_a_piece_test() ->
 %% probe found the host so; socket_lives_until_closed holds a byte that came
 %% before the close, and this the close behind more than one piece
 read_before_the_close_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Written = rand:bytes(20000),
     Self = self(),
@@ -1580,7 +1553,7 @@ read_before_the_close_test() ->
 %% not cover a socket over TLS, whose host takes the handshake and a piece
 %% ahead of the reads
 write_after_the_far_ends_close_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
     ok = ern_rt:run_main(
@@ -1644,14 +1617,14 @@ unread(Kind, Server) ->
                               tls -> listen_tls(0, Server)
                           end,
     {'Right', Port} = port(Listener),
-    Main = self(),
+    EntryProcess = self(),
     FarEnd = spawn(fun() ->
                        {'Right', Socket} =
                            case Kind of
                                plain -> connect(Port, 5000);
                                tls -> connect_tls(<<"127.0.0.1">>, Port, 'Unverified', 5000)
                            end,
-                       Main ! {held, filled(Socket, binary:copy(<<0>>, 65536), 0)},
+                       EntryProcess ! {held, filled(Socket, binary:copy(<<0>>, 65536), 0)},
                        receive done -> ok end
                    end),
     {'Right', Accepted} = accept(Listener, 5000),
@@ -1716,13 +1689,62 @@ listener_ends_with_its_owner_test() ->
            end, <<"main">>, ern_helpers:quiet()),
     ?assertEqual({ern, killed}, ern_waits:wait(ended)).
 
+%% Appendix E.18: on a socket and a listener killed with their owner, a
+%% function that answers an `Either` answers `Left(Closed)`, a read, a
+%% write, `remote` and `local` of the socket and `port` and an accept of
+%% the listener, and a read, a write and an accept given no time answer
+%% `Left(Timeout)`, as they do before the end (E.0 shape rule 8);
+%% `readForever` and `acceptForever` fault with `callee had ended`, as
+%% `Address.callForever` does (§6.6). A regression test of the rule, before
+%% which each faulted so
+ended_with_their_owner_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
+    {ok, FarPort} = inet:port(Listen),
+    FarEnd = spawn(fun() -> {ok, _} = gen_tcp:accept(Listen), receive done -> ok end end),
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               EntryProcess = self(),
+               Owner = erlang:spawn(fun() ->
+                                        EntryProcess ! {opened, listen(0), connect(FarPort, 2000)},
+                                        receive stop -> ok end
+                                    end),
+               {{'Right', Listener}, {'Right', Socket}} = receive {opened, L, S} -> {L, S} end,
+               MonitorRefs = [erlang:monitor(process, ern_rt:process_of(Address))
+                              || Address <- [Listener, Socket]],
+               Owner ! stop,
+               ern_rt:timed(),
+               [receive {'DOWN', MonitorRef, process, _, _} -> ok end
+                || MonitorRef <- MonitorRefs],
+               ern_rt:untimed(),
+               Answers = [read(Socket, 1000), write(Socket, <<"x">>, 1000), remote(Socket),
+                          local(Socket), port(Listener), accept(Listener, 1000)],
+               GivenNoTime = [read(Socket, 0), write(Socket, <<"x">>, 0), accept(Listener, 0)],
+               Downs = [begin
+                            _ = ern_rt:spawn_monitored(Wait, fun(Down) -> {forever, Down} end,
+                                                       <<"forever">>),
+                            receive {forever, Down} -> Down end
+                        end || Wait <- [fun() -> read_forever(Socket) end,
+                                        fun() -> accept_forever(Listener) end]],
+               Self ! {ended, {Answers, GivenNoTime, Downs}}
+           end, <<"main">>, ern_helpers:quiet()),
+    FarEnd ! done,
+    gen_tcp:close(Listen),
+    {Answers, GivenNoTime, Downs} = ern_waits:wait(ended),
+    ?assertEqual(lists:duplicate(6, {'Left', 'Closed'}), Answers),
+    ?assertEqual(lists:duplicate(3, {'Left', 'Timeout'}), GivenNoTime),
+    ?assertMatch([{'Down', _, {'Fault', <<"callee had ended">>}, _},
+                  {'Down', _, {'Fault', <<"callee had ended">>}, _}], Downs).
+
 %% report Appendix E.18: a socket closed or killed while the far end takes
 %% nothing lets go of its host's socket once 5 seconds pass with nothing
-%% taken, and a write it holds at its close answers `Left(Closed)`. A
-%% regression test: the host's socket stayed open, with its descriptor and
-%% its bytes, for as long as the far end took nothing, and a write held at
-%% the close had whatever answer the writer gave before the exit took it.
-%% The 3 minutes' bound is not reached here
+%% taken, and a write it holds at its close or its kill answers
+%% `Left(Closed)`. A regression test: the host's socket stayed open, with
+%% its descriptor and its bytes, for as long as the far end took nothing,
+%% and a write held at the close had whatever answer the writer gave before
+%% the exit took it; the write the kill met faulted its caller, as a
+%% callForever does (§6.6), before the rule that answers it. The 3 minutes'
+%% bound is not reached here
 lingering_socket_closes_test_() ->
     {timeout, 60, fun lingering_socket_closes/0}.
 
@@ -1731,27 +1753,27 @@ lingering_socket_closes() ->
     %% the hosts take far less than a megabyte and a write queued behind
     %% another is held for good: a write the host finished as the socket
     %% closed would hold nothing, and the flood's next write would fault
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {recbuf, 4096}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {recbuf, 4096}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
     %% the far end accepts twice and never reads
-    Peer = spawn(fun() ->
-                     {ok, First} = gen_tcp:accept(Listen),
-                     {ok, Second} = gen_tcp:accept(Listen),
-                     receive done -> gen_tcp:close(First), gen_tcp:close(Second) end
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, First} = gen_tcp:accept(Listen),
+                       {ok, Second} = gen_tcp:accept(Listen),
+                       receive done -> gen_tcp:close(First), gen_tcp:close(Second) end
+                   end),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Closed} = connect(Port, 2000),
                {'Right', Killed} = connect(Port, 2000),
                HostSockets = [host_socket(Closed), host_socket(Killed)],
                [ok = inet:setopts(HostSocket, [{sndbuf, 4096}]) || HostSocket <- HostSockets],
-               Main = self(),
+               EntryProcess = self(),
                Chunk = binary:copy(<<0>>, 1024 * 1024),
-               _ = ern_rt:spawn(fun() -> Main ! {closed_write, flooded(Closed, Chunk)} end,
+               _ = ern_rt:spawn(fun() -> EntryProcess ! {closed_write, flooded(Closed, Chunk)} end,
                                 <<"flood">>),
-               _ = ern_rt:spawn_monitored(fun() -> flooded(Killed, Chunk) end,
-                                          fun(Down) -> {down, Down} end, <<"flood">>),
+               _ = ern_rt:spawn(fun() -> EntryProcess ! {killed_write, flooded(Killed, Chunk)} end,
+                                <<"flood">>),
                %% a write is held once the writer waits on the busy host socket
                held(Closed, byte_size(Chunk)),
                held(Killed, byte_size(Chunk)),
@@ -1765,16 +1787,16 @@ lingering_socket_closes() ->
                after 5000 ->
                    Self ! {closed_write, timeout}
                end,
-               receive {down, Down} -> Self ! {killed_write, Down} end
+               receive {killed_write, Answer} -> Self ! {killed_write, Answer} end
            end, <<"main">>, ern_helpers:quiet()),
     HostSockets = ern_waits:wait(host_sockets),
     ?assertEqual(2, length(HostSockets)),
-    %% the write each socket held as it ended: answered by the close, and
-    %% its caller faulted by the kill, as §6.6 says
+    %% the write each socket held as it ended, answered by the close and
+    %% by the kill
     ?assertEqual({'Left', 'Closed'}, ern_waits:wait(closed_write)),
-    ?assertMatch({'Down', _, {'Fault', _}, _}, ern_waits:wait(killed_write)),
+    ?assertEqual({'Left', 'Closed'}, ern_waits:wait(killed_write)),
     Gone = gone(HostSockets, 9000),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     ?assertEqual(HostSockets, Gone).
 
@@ -1795,18 +1817,18 @@ closed_socket_sends_what_it_took_test_() ->
 closed_socket_sends_what_it_took() ->
     %% small buffers at both ends, as lingering_socket_closes has them, so
     %% that the host holds bytes back at the close and a closer takes it
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {recbuf, 4096}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {recbuf, 4096}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
     %% the far end takes the bytes late: once the closer the socket hands
     %% its host socket to, made as it ends, has looked twice and found
     %% nothing taken
-    Peer = spawn(fun() ->
-                     {ok, Connection} = gen_tcp:accept(Listen),
-                     receive {go, Closer} -> ok end,
-                     ok = ern_waits:called(Closer, {ern_tcp, lingering, 6}, 2),
-                     Self ! {taken, taken(Connection, 0)}
-                 end),
+    FarEnd = spawn(fun() ->
+                       {ok, Connection} = gen_tcp:accept(Listen),
+                       receive {go, Closer} -> ok end,
+                       ok = ern_waits:called(Closer, {ern_tcp, lingering, 6}, 2),
+                       Self ! {taken, taken(Connection, 0)}
+                   end),
     Size = 4 * 1024 * 1024,
     ok = ern_rt:run_main(
            fun() ->
@@ -1820,7 +1842,7 @@ closed_socket_sends_what_it_took() ->
                ern_rt:timed(),
                receive {'DOWN', SocketRef, process, _, _} -> ern_rt:untimed() end,
                {connected, Closer} = erlang:port_info(HostSocket, connected),
-               Peer ! {go, Closer}
+               FarEnd ! {go, Closer}
            end, <<"main">>, ern_helpers:quiet()),
     ?assertEqual({'Right', 'Unit'}, ern_waits:wait(written)),
     HostSockets = ern_waits:wait(host_sockets),
@@ -1875,10 +1897,10 @@ ended_while_held(End, Size) ->
     FarEnd ! go,
     Taken = receive {taken, FarTaken} -> FarTaken end,
     CloserRef = erlang:monitor(process, Closer),
-    HostRef = erlang:monitor(port, HostSocket),
+    HostSocketRef = erlang:monitor(port, HostSocket),
     true = erlang:resume_process(Closer),
-    Reason = receive {'DOWN', CloserRef, process, Closer, Ended} -> Ended end,
-    receive {'DOWN', HostRef, port, HostSocket, _} -> {End, Taken, Reason, gone} end.
+    receive {'DOWN', CloserRef, process, Closer, ExitReason} -> ok end,
+    receive {'DOWN', HostSocketRef, port, HostSocket, _} -> {End, Taken, ExitReason, gone} end.
 
 %% Main's part: the socket Held makes, by its process, and its host's
 %% socket, ended End before main returns, or, for `ending`, left open, so
@@ -1889,8 +1911,8 @@ ended(ending, Held) ->
     {Socket, HostSocket} = Held(),
     {ern_rt:process_of(Socket), HostSocket};
 ended(owner, Held) ->
-    Main = self(),
-    _ = erlang:spawn(fun() -> Main ! {owned, Held()} end),
+    EntryProcess = self(),
+    _ = erlang:spawn(fun() -> EntryProcess ! {owned, Held()} end),
     {Socket, HostSocket} = receive {owned, Owned} -> Owned end,
     ok = ended_by(Socket, fun() -> ok end),
     {ern_rt:process_of(Socket), HostSocket};
@@ -1925,10 +1947,7 @@ written(Socket, HostSocket, Size) ->
 %% queue is what says that this one is held. Both change only as the
 %% writer runs, so they are read each time it is scheduled out.
 held(Socket, Size) ->
-    Pid = ern_rt:process_of(Socket),
-    {links, Links} = erlang:process_info(Pid, links),
-    [Writer] = [Linked || Linked <- Links, is_pid(Linked),
-                          Linked =/= ern_rt:system_process(tcp)],
+    Writer = writer(Socket),
     HostSocket = host_socket(Socket),
     ok = ern_waits:until(Writer,
                          fun() ->
@@ -1940,6 +1959,15 @@ held(Socket, Size) ->
                                      false
                              end
                          end).
+
+%% The process that writes a socket's bytes (ern_tcp:writer/4), linked to
+%% the socket's process, as TCP's process is.
+writer(Socket) ->
+    Pid = ern_rt:process_of(Socket),
+    {links, Links} = erlang:process_info(Pid, links),
+    [Writer] = [Linked || Linked <- Links, is_pid(Linked),
+                          Linked =/= ern_rt:system_process(tcp)],
+    Writer.
 
 %% The host's socket a socket's process owns.
 host_socket(Socket) ->
@@ -1972,20 +2000,20 @@ socket_memory_counts_its_writer_test() ->
     ok = ern_waits:with_room(fun() ->
          quietly(
            fun() ->
-               Main = self(),
+               EntryProcess = self(),
                {'Right', Listener} = listen(0),
                {'Right', Port} = port(Listener),
-               Peer = spawn(fun() ->
-                                {ok, Connected} = gen_tcp:connect("127.0.0.1", Port,
-                                                                  [binary, {active, false}]),
-                                {ok, _} = gen_tcp:recv(Connected, Size),
-                                Main ! taken,
-                                receive close -> gen_tcp:close(Connected) end
-                            end),
+               FarEnd = spawn(fun() ->
+                                  {ok, Connected} = gen_tcp:connect("127.0.0.1", Port,
+                                                                    [binary, {active, false}]),
+                                  {ok, _} = gen_tcp:recv(Connected, Size),
+                                  EntryProcess ! taken,
+                                  receive close -> gen_tcp:close(Connected) end
+                              end),
                {'Right', Socket} = accept(Listener, 5000),
                _ = ern_rt:spawn(fun() ->
                                     write(Socket, binary:copy(<<0>>, Size)),
-                                    Main ! written
+                                    EntryProcess ! written
                                 end, <<"M.write:1">>),
                receive written -> ok end,
                receive taken -> ok after 5000 -> error(not_taken) end,
@@ -1998,7 +2026,7 @@ socket_memory_counts_its_writer_test() ->
                                      =:= {current_function, {ern_tcp, closer, 1}}],
                {'Some', {'Status', _, _, _, Memory}} = ern_rt:status(Process),
                Self ! {counted, {Own, Closers, Memory >= Size}},
-               Peer ! close
+               FarEnd ! close
            end)
          end),
     ?assertEqual({[], [], true}, ern_waits:wait(counted)).
@@ -2017,32 +2045,32 @@ tls_connection_hibernates_test() ->
     ok = ern_waits:with_room(fun() ->
          quietly(
            fun() ->
-               Main = self(),
+               EntryProcess = self(),
                {'Right', Listener} = listen_tls(0, Server),
                {'Right', Port} = port(Listener),
-               Peer = spawn(fun() ->
-                                {ok, Connected} = ssl:connect("127.0.0.1", Port,
-                                                              [binary, {active, false},
-                                                               {verify, verify_none}]),
-                                all_taken(Connected, Size),
-                                erlang:garbage_collect(),
-                                Main ! taken,
-                                receive close -> ssl:close(Connected) end
-                            end),
+               FarEnd = spawn(fun() ->
+                                  {ok, Connected} = ssl:connect("127.0.0.1", Port,
+                                                                [binary, {active, false},
+                                                                 {verify, verify_none}]),
+                                  all_taken(Connected, Size),
+                                  erlang:garbage_collect(),
+                                  EntryProcess ! taken,
+                                  receive close -> ssl:close(Connected) end
+                              end),
                {'Right', Socket} = accept(Listener, 5000),
                _ = ern_rt:spawn(fun() ->
                                     write(Socket, binary:copy(<<0>>, Size)),
-                                    Main ! written
+                                    EntryProcess ! written
                                 end, <<"M.write:1">>),
                receive written -> ok end,
                receive taken -> ok after 5000 -> error(not_taken) end,
                ern_rt:timed(),
                Freed = [ern_waits:freed(Holder, Size)
-                        || Holder <- hosts_holders(Size, [Peer | Before])],
+                        || Holder <- hosts_holders(Size, [FarEnd | Before])],
                Self ! {left, {[Answer || Answer <- Freed, Answer =/= ok, Answer =/= ended],
-                              hosts_holders(Size, [Peer | Before])}},
+                              hosts_holders(Size, [FarEnd | Before])}},
                ern_rt:untimed(),
-               Peer ! close
+               FarEnd ! close
            end)
          end),
     ?assertEqual({[], []}, ern_waits:wait(left)).
@@ -2070,24 +2098,24 @@ tls_read_answers_a_piece_test() ->
     Self = self(),
     ok = quietly(
            fun() ->
-               Main = self(),
+               EntryProcess = self(),
                {'Right', Listener} = listen_tls(0, Server),
                {'Right', Port} = port(Listener),
-               Peer = spawn(fun() ->
-                                {ok, Connected} = ssl:connect("127.0.0.1", Port,
-                                                              [binary, {active, false},
-                                                               {verify, verify_none}]),
-                                %% each send is a record of its own
-                                [ok = ssl:send(Connected, Part)
-                                 || Part <- parts(Written, [?TLS_RECORD, Short])],
-                                Main ! written,
-                                receive done -> ssl:close(Connected) end
-                            end),
+               FarEnd = spawn(fun() ->
+                                  {ok, Connected} = ssl:connect("127.0.0.1", Port,
+                                                                [binary, {active, false},
+                                                                 {verify, verify_none}]),
+                                  %% each send is a record of its own
+                                  [ok = ssl:send(Connected, Part)
+                                   || Part <- parts(Written, [?TLS_RECORD, Short])],
+                                  EntryProcess ! written,
+                                  receive done -> ssl:close(Connected) end
+                              end),
                {'Right', Socket} = accept(Listener, 5000),
                %% a wait in a test's code, the host's to the deadlock detector
                receive written -> ok end,
                Self ! {pieces, pieces(Socket, byte_size(Written))},
-               Peer ! done
+               FarEnd ! done
            end),
     Pieces = ern_waits:wait(pieces),
     Most = lists:max(sizes(Pieces)),
@@ -2115,7 +2143,7 @@ tls_read_before_the_close_test() ->
     Self = self(),
     ok = quietly(
            fun() ->
-               Main = self(),
+               EntryProcess = self(),
                {'Right', Listener} = listen_tls(0, Server),
                {'Right', Port} = port(Listener),
                FarEnd = spawn(fun() ->
@@ -2123,7 +2151,7 @@ tls_read_before_the_close_test() ->
                                                                 [binary, {active, false},
                                                                  {verify, verify_none}]),
                                   ok = ssl:send(Connected, Written),
-                                  Main ! {closed, ssl:shutdown(Connected, read_write)},
+                                  EntryProcess ! {closed, ssl:shutdown(Connected, read_write)},
                                   receive done -> ok end
                               end),
                {'Right', Socket} = accept(Listener, 5000),
@@ -2287,7 +2315,7 @@ tls_both_ways_test() ->
                {'Right', Listener} = listen_tls(0, Server),
                {'Right', Port} = port(Listener),
                Self ! {port, Port},
-               Main = self(),
+               EntryProcess = self(),
                Client = spawn(fun() ->
                                   {'Right', Socket} = connect_tls(<<"localhost">>, Port,
                                                                   verified(Ca), 5000),
@@ -2295,7 +2323,7 @@ tls_both_ways_test() ->
                                   Self ! {client_read, read(Socket, 5000)},
                                   Self ! {client_ends, {remote(Socket), local(Socket)}},
                                   'Unit' = close(Socket),
-                                  Main ! closed,
+                                  EntryProcess ! closed,
                                   receive done -> ok end
                               end),
                {'Right', Accepted} = accept(Listener, 5000),
@@ -2307,9 +2335,9 @@ tls_both_ways_test() ->
                Self ! {ends_after_close, {remote(Accepted), local(Accepted)}},
                %% by its address, which the certificate names too
                ByAddress = spawn(fun() ->
-                                     Main ! {by_address,
-                                             ern_helpers:side(connect_tls(<<"127.0.0.1">>, Port,
-                                                                          verified(Ca), 5000))},
+                                     Connected = connect_tls(<<"127.0.0.1">>, Port, verified(Ca),
+                                                             5000),
+                                     EntryProcess ! {by_address, ern_helpers:side(Connected)},
                                      receive done -> ok end
                                  end),
                {'Right', _} = accept(Listener, 5000),
@@ -2341,15 +2369,15 @@ tls_unverified_test() ->
            fun() ->
                {'Right', Listener} = listen_tls(0, Elsewhere),
                {'Right', Port} = port(Listener),
-               Main = self(),
+               EntryProcess = self(),
                _ = spawn(fun() ->
                              {'Right', Socket} = connect_tls(<<"localhost">>, Port,
                                                              'Unverified', 5000),
-                             Main ! connected,
+                             EntryProcess ! connected,
                              Read = read(Socket, 5000),
                              Self ! {reads, [Read, read(Socket, 5000)]},
                              Self ! {wrote, write(Socket, <<"late">>)},
-                             Main ! done
+                             EntryProcess ! done
                          end),
                {'Right', Accepted} = accept(Listener, 5000),
                receive connected -> ok end,
@@ -2428,11 +2456,11 @@ tls_unknown_authority_test() ->
            fun() ->
                {'Right', Listener} = listen_tls(0, Server),
                {'Right', Port} = port(Listener),
-               Main = self(),
+               EntryProcess = self(),
                _ = spawn(fun() ->
                              Self ! {client, connect_tls(<<"localhost">>, Port,
                                                          verified(OtherCa), 5000)},
-                             Main ! client_answered
+                             EntryProcess ! client_answered
                          end),
                {'Right', Accepted} = accept(Listener, 5000),
                Read = read(Accepted, 5000),
@@ -2459,10 +2487,10 @@ tls_handshake_fails_test() ->
                %% a wait in the host's code, the deadlock detector's foreign code
                {ok, Client} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
                {'Right', Accepted} = accept(Listener, 5000),
-               Main = self(),
-               Reader = ern_rt:spawn(fun() -> Main ! {read, read(Accepted, 5000)} end,
+               EntryProcess = self(),
+               Reader = ern_rt:spawn(fun() -> EntryProcess ! {read, read(Accepted, 5000)} end,
                                      <<"reader">>),
-               Writer = ern_rt:spawn(fun() -> Main ! {wrote, write(Accepted, <<"x">>)} end,
+               Writer = ern_rt:spawn(fun() -> EntryProcess ! {wrote, write(Accepted, <<"x">>)} end,
                                      <<"writer">>),
                [ok = ern_waits:waiting(ern_rt:process_of(Caller)) || Caller <- [Reader, Writer]],
                %% the socket has taken both before the handshake fails
@@ -2520,8 +2548,8 @@ closed_while_shaking_hands(Server, Case) ->
                [HostSocket] = [Q || Q <- erlang:ports(),
                                     erlang:port_info(Q, name) =:= {name, "tcp_inet"},
                                     inet:peername(Q) =:= {ok, ClientName}],
-               Main = self(),
-               Reader = ern_rt:spawn(fun() -> Main ! {read, read(Socket, 20000)} end,
+               EntryProcess = self(),
+               Reader = ern_rt:spawn(fun() -> EntryProcess ! {read, read(Socket, 20000)} end,
                                      <<"reader">>),
                ok = ern_waits:waiting(ern_rt:process_of(Reader)),
                FarEnd = shaking_hands(Case, Client),
@@ -2533,15 +2561,15 @@ closed_while_shaking_hands(Server, Case) ->
                                             =:= {message_queue_len, 0}
                                     end),
                SocketRef = erlang:monitor(process, SocketPid),
-               HostRef = erlang:monitor(port, HostSocket),
+               HostSocketRef = erlang:monitor(port, HostSocket),
                'Unit' = close(Socket),
-               Ended = receive {'DOWN', SocketRef, process, _, Why} -> Why end,
+               Ended = receive {'DOWN', SocketRef, process, _, ExitReason} -> ExitReason end,
                Read = receive {read, Answer} -> Answer end,
                Made = [Pid || Pid <- erlang:processes(),
                               erlang:process_info(Pid, parent) =:= {parent, SocketPid}],
                FarEnded = far_closed(FarEnd),
                ok = ern_waits:ended(Made),
-               Gone = receive {'DOWN', HostRef, port, HostSocket, _} -> gone end,
+               Gone = receive {'DOWN', HostSocketRef, port, HostSocket, _} -> gone end,
                Self ! {closed, {Case, Read, Ended, Gone, FarEnded}}
            end),
     ern_waits:wait(closed).
@@ -2584,12 +2612,12 @@ tls_slow_handshake_test() ->
                %% a wait in the host's code, the deadlock detector's foreign code
                {ok, Slow} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
                {'Right', First} = accept(Listener, 5000),
-               Main = self(),
+               EntryProcess = self(),
                _ = spawn(fun() ->
                              {'Right', Fast} = connect_tls(<<"localhost">>, Port,
                                                            'Unverified', 5000),
                              {'Right', 'Unit'} = write(Fast, <<"fast">>),
-                             Main ! wrote,
+                             EntryProcess ! wrote,
                              receive done -> ok end
                          end),
                {'Right', Second} = accept(Listener, 5000),
@@ -2622,8 +2650,8 @@ tls_read_forever_waits_for_the_handshake_test() ->
                %% waits in the host's code, the deadlock detector's foreign code
                {ok, Slow} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
                {'Right', Socket} = accept_forever(Listener),
-               Main = self(),
-               Reader = ern_rt:spawn(fun() -> Main ! {read, read_forever(Socket)} end,
+               EntryProcess = self(),
+               Reader = ern_rt:spawn(fun() -> EntryProcess ! {read, read_forever(Socket)} end,
                                      <<"reader">>),
                ok = ern_waits:watching(ern_rt:process_of(Socket), ern_rt:process_of(Reader)),
                {ok, Upgraded} = ssl:connect(Slow, [binary, {active, false},
@@ -2821,9 +2849,9 @@ connected(Server, Host, Verification) ->
 %% answer its backlog to `inet:getopts`, so the kernel's table is read,
 %% `ss`'s Send-Q of the listening socket, where `ss` is installed. Written
 %% after the code, a regression test, first for the host's 5 and now for
-%% its largest, since ernest-httpd's line 27; it does not cover how many
-%% connections the kernel holds against the backlog, which Linux makes one
-%% more, nor a reset past it
+%% its largest, the backlog a server such as ernest-httpd asks for; it does
+%% not cover how many connections the kernel holds against the backlog,
+%% which Linux makes one more, nor a reset past it
 listen_backlog_test() ->
     case os:find_executable("ss") of
         false ->
@@ -2951,8 +2979,8 @@ ended_with_record(End, Size) ->
                         receive go -> ok end,
                         Taken = tls_taken(Accepted, 0),
                         receive
-                            {'DOWN', ConnectionRef, process, Connection, Why} ->
-                                Self ! {taken, Taken, Why}
+                            {'DOWN', ConnectionRef, process, Connection, ExitReason} ->
+                                Self ! {taken, Taken, ExitReason}
                         end
                     end),
     ok = quietly(fun() ->
@@ -2962,11 +2990,13 @@ ended_with_record(End, Size) ->
     ok = ern_waits:ended([SocketPid]),
     Closer = closer_of(SocketPid),
     CloserRef = erlang:monitor(process, Closer),
-    HostRef = erlang:monitor(port, HostSocket),
+    HostSocketRef = erlang:monitor(port, HostSocket),
     FarEnd ! go,
-    {Taken, Why} = receive {taken, FarTaken, FarWhy} -> {FarTaken, FarWhy} end,
-    Reason = receive {'DOWN', CloserRef, process, Closer, Ended} -> Ended end,
-    receive {'DOWN', HostRef, port, HostSocket, _} -> {End, Taken, Why, Reason, gone} end.
+    receive {taken, Taken, ConnectionExitReason} -> ok end,
+    receive {'DOWN', CloserRef, process, Closer, CloserExitReason} -> ok end,
+    receive {'DOWN', HostSocketRef, port, HostSocket, _} ->
+        {End, Taken, ConnectionExitReason, CloserExitReason, gone}
+    end.
 
 %% report Appendix E.18: `close` of a socket whose host holds bytes the far
 %% end has not taken answers once they and, over TLS, the record that ends
@@ -3002,15 +3032,15 @@ close_held(Kind, Size) ->
            fun() ->
                {Socket, HostSocket} = held_socket(Keys, FarPort, Size),
                SocketPid = ern_rt:process_of(Socket),
-               Main = self(),
+               EntryProcess = self(),
                _ = ern_rt:spawn(fun() ->
                                     Answer = close(Socket),
-                                    Main ! {answered, Answer, port_gone(HostSocket)}
+                                    EntryProcess ! {answered, Answer, port_gone(HostSocket)}
                                 end, <<"closing">>),
                ok = ern_waits:ended([SocketPid]),
                Closer = closer_of(SocketPid),
                true = erlang:suspend_process(Closer),
-               FarEnd ! {go, Main},
+               FarEnd ! {go, EntryProcess},
                Taken = receive {taken, Count} -> Count end,
                Early = receive {answered, _, _} = Answered -> Answered after 0 -> waiting end,
                true = erlang:resume_process(Closer),
@@ -3059,11 +3089,11 @@ close_of_a_socket_that_holds_nothing() ->
 %% answer `Unit`, the socket held still until both wait in its mailbox.
 %% Written with the code; the close that was a send did the same
 close_of_an_ended_socket_test() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, Port} = inet:port(Listen),
-    Peer = spawn(fun() -> [{ok, _} = gen_tcp:accept(Listen) || _ <- lists:seq(1, 4)],
-                          receive done -> ok end
-                 end),
+    FarEnd = spawn(fun() -> [{ok, _} = gen_tcp:accept(Listen) || _ <- lists:seq(1, 4)],
+                            receive done -> ok end
+                   end),
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -3071,15 +3101,15 @@ close_of_an_ended_socket_test() ->
                'Unit' = close(Closed),
                {'Right', Killed} = connect(Port, 2000),
                ok = ended_by(Killed, fun() -> ern_rt:kill(Killed) end),
-               Main = self(),
-               _ = erlang:spawn(fun() -> Main ! {orphaned, connect(Port, 2000)} end),
+               EntryProcess = self(),
+               _ = erlang:spawn(fun() -> EntryProcess ! {orphaned, connect(Port, 2000)} end),
                {'Right', Orphaned} = receive {orphaned, Answer} -> Answer end,
                ok = ended_by(Orphaned, fun() -> ok end),
                Ended = [close(Socket) || Socket <- [Closed, Killed, Orphaned]],
                {'Right', Twice} = connect(Port, 2000),
                Pid = ern_rt:process_of(Twice),
                true = erlang:suspend_process(Pid),
-               Closings = [ern_rt:spawn_monitored(fun() -> Main ! {twice, close(Twice)} end,
+               Closings = [ern_rt:spawn_monitored(fun() -> EntryProcess ! {twice, close(Twice)} end,
                                                   fun(Down) -> {down, Down} end, <<"closing">>)
                            || _ <- [1, 2]],
                [ok = ern_waits:calling(ern_rt:process_of(Closing)) || Closing <- Closings],
@@ -3088,7 +3118,7 @@ close_of_an_ended_socket_test() ->
                Downs = [receive {down, {'Down', _, Reason, _}} -> Reason end || _ <- Closings],
                Self ! {closes, {Ended, Both, Downs}}
            end, <<"main">>, ern_helpers:quiet()),
-    Peer ! done,
+    FarEnd ! done,
     gen_tcp:close(Listen),
     ?assertEqual({['Unit', 'Unit', 'Unit'], ['Unit', 'Unit'], ['Returned', 'Returned']},
                  ern_waits:wait(closes)).
@@ -3165,8 +3195,8 @@ close_waits_as_a_call() ->
            fun() ->
                {Socket, _} = held_socket(none, FarPort, Size),
                SocketPid = ern_rt:process_of(Socket),
-               Main = self(),
-               Closing = ern_rt:spawn(fun() -> Main ! {answered, close(Socket)} end,
+               EntryProcess = self(),
+               Closing = ern_rt:spawn(fun() -> EntryProcess ! {answered, close(Socket)} end,
                                       <<"closing">>),
                ok = ern_waits:ended([SocketPid]),
                Closer = closer_of(SocketPid),
@@ -3174,7 +3204,7 @@ close_waits_as_a_call() ->
                ok = ern_waits:calling(ern_rt:process_of(Closing)),
                Status = ern_rt:status(ern_rt:process_of(Closing)),
                true = erlang:resume_process(Closer),
-               FarEnd ! {go, Main},
+               FarEnd ! {go, EntryProcess},
                Answer = receive {answered, A} -> A end,
                Self ! {status, {SocketPid, Status, Answer}}
            end),
@@ -3205,7 +3235,7 @@ close_of_a_killed_caller() ->
                true = erlang:suspend_process(Closer),
                ok = ern_waits:calling(ern_rt:process_of(Closing)),
                ern_rt:kill(Closing),
-               Reason = receive {down, {'Down', _, Why, _}} -> Why end,
+               receive {down, {'Down', _, Reason, _}} -> ok end,
                true = erlang:resume_process(Closer),
                FarEnd ! {go, self()},
                Taken = receive {taken, Count} -> Count end,
@@ -3296,9 +3326,9 @@ closed_while_shaking(Server, Case) ->
                SocketPid = ern_rt:process_of(Socket),
                Connection = tls_connection_of(SocketPid),
                true = erlang:suspend_process(Connection),
-               Main = self(),
+               EntryProcess = self(),
                Closing = ern_rt:process_of(
-                           ern_rt:spawn(fun() -> Main ! {answered, close(Socket)} end,
+                           ern_rt:spawn(fun() -> EntryProcess ! {answered, close(Socket)} end,
                                         <<"closing">>)),
                Ended = ern_waits:until(SocketPid, fun() -> waits_on_the_host(SocketPid) end),
                Made = [Pid || Pid <- erlang:processes(),
@@ -3324,12 +3354,15 @@ closed_while_shaking(Server, Case) ->
            end),
     ern_waits:wait(closed).
 
-%% Whether Pid waits in a receive of code not its module's, the host's, as
-%% a call to one of the host's processes waits.
+%% Whether Pid waits in a receive of code not the runtime's, its module's
+%% or ern_rt's, where a socket's end waits for its writer (ern_rt:stop/1),
+%% but the host's, as a call to one of the host's processes waits.
 waits_on_the_host(Pid) ->
     case erlang:process_info(Pid, [status, current_function]) of
-        [{status, waiting}, {current_function, {Module, _, _}}] -> Module =/= ern_tcp;
-        _ -> false
+        [{status, waiting}, {current_function, {Module, _, _}}] ->
+            not lists:member(Module, [ern_tcp, ern_rt]);
+        _ ->
+            false
     end.
 
 %% Whether Pid monitors Watched.
@@ -3372,7 +3405,8 @@ close_without_the_far_ends_answer() ->
         tls_far_end(Server,
                     fun(Accepted) ->
                         Connection = tls_connection_of(self()),
-                        receive {main, Main} -> Main ! {far_connection, Connection} end,
+                        EntryProcess = receive {main, Sent} -> Sent end,
+                        EntryProcess ! {far_connection, Connection},
                         receive go -> ok end,
                         Self ! {taken, tls_taken(Accepted, 0)}
                     end),
@@ -3571,8 +3605,8 @@ pem_entries(Dir, Name, Entries) ->
 %% A run of the program Main whose host reports no notice, the alerts of
 %% its ssl among them, which a handshake that fails makes, as `ern run`
 %% reports none (ern_cli's quiet_signals/0).
-quietly(Main) ->
-    quiet_host(fun() -> ern_rt:run_main(Main, <<"main">>, ern_helpers:quiet()) end).
+quietly(EntryPoint) ->
+    quiet_host(fun() -> ern_rt:run_main(EntryPoint, <<"main">>, ern_helpers:quiet()) end).
 
 quiet_host(Work) ->
     {ok, #{level := Level}} = logger:get_handler_config(default),
@@ -3625,12 +3659,15 @@ connect(Host, Port, Ms) ->
                                                         {'Connect', Host, Port, Ms, Owner, Reply}
                                                     end).
 
+%% Report Appendix E.18: Tcp's functions over a listener or a socket, as a
+%% program calls them, each answering `Left(Closed)` where the listener or
+%% the socket has ended; each is found in the library the run has loaded,
+%% so that a caller seen waiting waits in its call (ern_named:loaded/2).
 port(Listener) ->
-    ern_rt:call_forever(Listener, fun(Reply) -> {'Port', Reply} end).
+    (ern_named:loaded('ern@tcp', port))(Listener).
 
 accept(Listener, Ms) ->
-    Owner = self(),
-    ern_rt:call_forever(Listener, fun(Reply) -> {'Accept', Ms, Owner, Reply} end).
+    (ern_named:loaded('ern@tcp', accept))(Listener, Ms).
 
 %% Report Appendix E.18: `Tcp.closeListener`, the call that answers once the
 %% listener has ended.
@@ -3658,10 +3695,10 @@ write(Socket, Bytes) ->
     write(Socket, Bytes, 60000).
 
 write(Socket, Bytes, Ms) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
+    (ern_named:loaded('ern@tcp', write))(Socket, Bytes, Ms).
 
 read(Socket, Ms) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'Read', Ms, Reply} end).
+    (ern_named:loaded('ern@tcp', read))(Socket, Ms).
 
 %% Report Appendix E.18: an accept and a read without a time, as
 %% `Tcp.acceptForever` and `Tcp.readForever` ask them.
@@ -3673,7 +3710,7 @@ read_forever(Socket) ->
     ern_rt:call_forever(Socket, fun(Reply) -> {'ReadForever', Reply} end).
 
 remote(Socket) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'Remote', Reply} end).
+    (ern_named:loaded('ern@tcp', remote))(Socket).
 
 local(Socket) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'Local', Reply} end).
+    (ern_named:loaded('ern@tcp', local))(Socket).

@@ -214,11 +214,14 @@ export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool = {
 /// // => [<<1>>, <<>>, <<2>>]
 /// ```
 export fn split(bytes : Bytes, separator : Bytes) : List(Bytes) =
-    if isEmpty(separator) then [bytes] else parts(bytes, separator)
+    if isEmpty(separator) then [bytes] else parts(bytes, separator, global)
+
+// The host's option that finds every occurrence, from the first.
+let global : List(Foreign.Term) = [Foreign.atom("global")]
 
 // Raises on an empty separator, which `split` answers itself.
-foreign fn parts(bytes : Bytes, separator : Bytes) : List(Bytes) =
-    "ern_bytes:split/2"
+foreign fn parts(bytes : Bytes, separator : Bytes, options : List(Foreign.Term)) : List(Bytes) =
+    "binary:split/3"
 
 /// The bytes before the first occurrence of `separator` and the bytes after
 /// it, or `None` where `separator` does not occur: `<<1, 0, 2, 0, 3>>` split
@@ -251,11 +254,12 @@ export fn splitOnce(bytes : Bytes, separator : Bytes) : Optional(#(Bytes, Bytes)
 /// // => <<1, 9, 9, 2, 9, 9>>
 /// ```
 export fn replace(bytes : Bytes, old : Bytes, new : Bytes) : Bytes =
-    if isEmpty(old) then bytes else replaced(bytes, old, new)
+    if isEmpty(old) then bytes else replaced(bytes, old, new, global)
 
-// Raises on an empty old part, which `replace` answers itself.
-foreign fn replaced(bytes : Bytes, old : Bytes, new : Bytes) : Bytes =
-    "ern_bytes:replace/3"
+// Raises on an empty old part, which `replace` answers itself; each
+// occurrence is found as `split` finds them.
+foreign fn replaced(bytes : Bytes, old : Bytes, new : Bytes, options : List(Foreign.Term)) : Bytes =
+    "binary:replace/4"
 
 /// The parts joined, with `separator` between each two.
 ///
@@ -298,8 +302,14 @@ foreign fn copied(bytes : Bytes, count : Int) : Bytes =
 /// Bytes.toHex(<<0, 171, 255>>)
 /// // => "00abff"
 /// ```
-export foreign fn toHex(bytes : Bytes) : String =
-    "ern_bytes:to_hex/1"
+export fn toHex(bytes : Bytes) : String =
+    hex(bytes, lowercase)
+
+// The host's option for letters in lower case.
+let lowercase : Foreign.Term = Foreign.atom("lowercase")
+
+foreign fn hex(bytes : Bytes, letters : Foreign.Term) : String =
+    "binary:encode_hex/2"
 
 /// The bytes that `text` writes two hexadecimal digits each, letters in either
 /// case, or `None` for an odd number of digits or a character that is no digit.

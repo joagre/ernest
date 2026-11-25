@@ -175,12 +175,13 @@ says what is left once its readings are in, and no figure stands until then.
       the renames and the other changes the applications meet, with their message, so
       that the three can start; and then the rest.
 
-      A verdict that comes back during the builds needs Fable for its answer, and every one
-      is answered in one Fable 5.2 session at high before `make test-full` and the close,
-      with any other question the session judges is Fable's, decided with the user
-      2026-11-25 (the log's *One Fable Round Before the Close*). The builds go on
-      meanwhile, and each question that waits is named here as it comes, its ways under
-      its line in the findings:
+      A verdict that comes back during the builds needs Fable for its answer, with any
+      other question the session judges is Fable's. The questions are answered in a Fable
+      5.2 session at high at a cut where no agent runs and an answer feeds a build not yet
+      started, the first after the runtime's second build, and the last before `make
+      test-full` and the close (the log's *One Fable Round Before the Close* and *A Fable
+      Round at a Cut*). The builds go on meanwhile, and each question that waits is named
+      here as it comes, its ways under its line in the findings:
 
       - **Decision: what E.21's `FaultReport` carries** (*B8*, *B10*). Whether it gains a
         field, or what stands in one, for the host's description of a raise, which §12.3's
@@ -190,6 +191,18 @@ says what is left once its readings are in, and no figure stands until then.
       - **Decision: a clash with a toolchain's namespace** (*P1 11, K 19, W17*, the
         finding's other half): one verdict, said in §4.2, once a reader on Opus has named
         the three clashes the toolchain has, as the line asks.
+      - **Decision: `List.<>`, a shim or the runtime's own** (*PL1 L32, …*, §9.6's cold
+        reading): whether `List.<>` is a shim of the host's `++`, as decided, or the
+        runtime's own operation, as `String.<>` is, with the sentences of §9.6, §11.1 and
+        Appendix H that follow, and rule 1's "this rule's measure".
+
+      The first round's session runs on Fable 5.2 at high, after a `/clear`, with no agent
+      running, and reads `docs/agents.md` and the three lines in the findings. It puts each
+      decision to the user, one at a time, the argument first and a recommendation naming
+      its principle, and writes each answer under its line as *Answered*, the report's
+      sentences it settles beside it; it builds nothing. It commits the findings, the log's
+      entry and the plan, each decision struck from this list, and stops for the switch
+      back to Opus 5.5 at xhigh, where the nodes' build is next.
 
       The readings were made 2026-11-23 (the log's *Leg 4's Readings*) and answered
       2026-11-24 (the log's *Leg 4's Answers*), and the changed sentences were read cold

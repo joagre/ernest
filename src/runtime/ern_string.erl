@@ -246,9 +246,9 @@ from_list(Chars) -> unicode:characters_to_binary(Chars).
 
 -spec from_utf8(binary()) -> {'Some', binary()} | 'None'.
 from_utf8(Bytes) ->
-    case unicode:characters_to_binary(Bytes, utf8, utf8) of
-        Text when is_binary(Text) -> {'Some', Text};
-        _ -> 'None'
+    case ern_fs:is_utf8(Bytes) of
+        true -> {'Some', Bytes};
+        false -> 'None'
     end.
 
 %% Appendix E.5: the decoder's answer as string.ern's `Decoded`. A lead byte

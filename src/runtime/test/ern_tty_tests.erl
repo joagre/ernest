@@ -475,6 +475,7 @@ paste_test() ->
 %% test: the paste waited for its end for good, and took in every key after
 %% it
 unended_paste_test() ->
-    ?assertEqual([{'Pasted', <<"hi">>}], ern_tty:flush("\e[200~hi")),
+    {[], Pending} = ern_tty:more([], "\e[200~hi"),
+    ?assertEqual([{'Pasted', <<"hi">>}], ern_tty:flush(Pending)),
     ?assertEqual({[{'Key', $x}], []}, ern_tty:decode("\e[201~x")),
     ?assertEqual({[], "\e[201"}, ern_tty:decode("\e[201")).

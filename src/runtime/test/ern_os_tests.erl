@@ -29,9 +29,9 @@ helper_ends_under_a_write_and_a_read_test() ->
            fun() ->
                {'Right', Program} = start_terminal(<<"sleep">>, [<<"3">>], ?SIZE),
                Helper = helper_of(Program),
-               {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+               {os_pid, HelperNumber} = erlang:port_info(Helper, os_pid),
                %% the program, which a helper killed so leaves running
-               Sleep = child_number(OsPid),
+               Sleep = child_number(HelperNumber),
                erlang:suspend_process(Program),
                WriteReply = alias(),
                Program ! {'Write', <<"x">>, 5000, {WriteReply, self()}},
@@ -48,7 +48,7 @@ helper_ends_under_a_write_and_a_read_test() ->
                CloseReply = alias(),
                Program ! {'CloseInput', {CloseReply, self()}},
                PortRef = erlang:monitor(port, Helper),
-               _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
+               _ = os:cmd("kill -9 " ++ integer_to_list(HelperNumber)),
                %% the port closes once the host has seen the helper end
                receive {'DOWN', PortRef, port, Helper, _} -> ok end,
                _ = os:cmd("kill -KILL " ++ Sleep),
@@ -195,9 +195,9 @@ lost_program_holds_no_timer_test() ->
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
                Helper = helper_of(Program),
-               {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+               {os_pid, HelperNumber} = erlang:port_info(Helper, os_pid),
                PortRef = erlang:monitor(port, Helper),
-               _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
+               _ = os:cmd("kill -9 " ++ integer_to_list(HelperNumber)),
                %% the port closes once the host has seen the helper end, and
                %% the program waits once it has taken that: the port's exit,
                %% which ends their link, and the monitor's Down are no signal
@@ -233,12 +233,12 @@ unread_exit_is_no_deadlock_test_() ->
 unread_exit_is_no_deadlock() ->
     Self = self(),
     Observer = spawn(fun() ->
-                         receive {started, Main, Program} ->
+                         receive {started, EntryProcess, Program} ->
                              %% killed however the look went, so that the
                              %% run ends
                              try
                                  ok = unread_exited(Program),
-                                 ok = ern_waits:calling(Main),
+                                 ok = ern_waits:calling(EntryProcess),
                                  Self ! {looked, next_look()}
                              after
                                  ern_rt:kill(Program)
@@ -278,7 +278,7 @@ waits_without_a_time_are_no_deadlock_test_() ->
 waits_without_a_time_are_no_deadlock() ->
     Tcp = ern_named:functions('ern@tcp'),
     Os = ern_named:functions('ern@os'),
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {ip, loopback}]),
     {ok, FarPort} = inet:port(Listen),
     Accepting = fun(Observer) ->
                     {'Right', Listener} = (Tcp(listen))(<<"127.0.0.1">>, 0),
@@ -302,27 +302,27 @@ waits_without_a_time_are_no_deadlock() ->
                  ern_rt:kill(Cat),
                  Answer
              end,
-    Outcomes = [looked_while_waiting(Wait) || Wait <- [Accepting, Reading, Output]],
+    Outcomes = [looked_while_waiting(Pending) || Pending <- [Accepting, Reading, Output]],
     gen_tcp:close(Listen),
     ?assertEqual([{delivering, 'Right', ok}, {delivering, {'Right', <<"x">>}, ok},
                   {delivering, {'Right', {'Stdout', <<"x">>}}, ok}],
                  Outcomes).
 
 %% What the reaper's look answers while the run's one process waits in
-%% Wait, what the wait answers once the observer has given what it waits
-%% for, and how the run ends. Wait tells the observer what to give.
-looked_while_waiting(Wait) ->
+%% Pending, what the wait answers once the observer has given what it waits
+%% for, and how the run ends. Pending tells the observer what to give.
+looked_while_waiting(Pending) ->
     Self = self(),
     Observer = spawn(fun() ->
-                         receive {waiting, Main} -> ok end,
+                         receive {waiting, EntryProcess} -> ok end,
                          receive {given, Give} -> ok end,
-                         ok = ern_waits:calling(Main),
+                         ok = ern_waits:calling(EntryProcess),
                          Self ! {looked, next_look()},
                          Give()
                      end),
     Outcome = ern_rt:run_main(fun() ->
                                   Observer ! {waiting, self()},
-                                  Self ! {answered, Wait(Observer)}
+                                  Self ! {answered, Pending(Observer)}
                               end, <<"main">>, ern_helpers:quiet()),
     {ern_waits:wait(looked), ern_waits:wait(answered), Outcome}.
 
@@ -347,22 +347,32 @@ written(Program, Bytes) ->
 %% failure.
 unread_exited(Program) ->
     Helper = helper_of(Program),
-    {os_pid, HelperPid} = erlang:port_info(Helper, os_pid),
-    Children = lists:concat(["/proc/", HelperPid, "/task/", HelperPid, "/children"]),
+    {os_pid, HelperNumber} = erlang:port_info(Helper, os_pid),
+    Children = lists:concat(["/proc/", HelperNumber, "/task/", HelperNumber, "/children"]),
     {ok, Listed} = file:read_file(Children),
     [Child] = string:lexemes(binary_to_list(Listed), " \n"),
     zombie(Child, erlang:monotonic_time(millisecond) + 5000).
 
 zombie(Child, Deadline) ->
-    {ok, Stat} = file:read_file("/proc/" ++ Child ++ "/stat"),
-    %% the state follows the command's name, which ends at the last `)`
-    [_, After] = string:split(binary_to_list(Stat), ")", trailing),
-    case string:trim(After, leading) of
-        [$Z | _] ->
+    case stat_fields(Child) of
+        ["Z" | _] ->
             ok;
-        _ ->
+        [_ | _] ->
             erlang:monotonic_time(millisecond) < Deadline orelse erlang:error(not_exited),
             zombie(Child, Deadline)
+    end.
+
+%% The fields the host shows of the process of Number, a string, after the
+%% command's name, which ends at the last `)`: its state first, `Z` for a
+%% zombie, then its parent's number; none where the host holds no such
+%% process.
+stat_fields(Number) ->
+    case file:read_file("/proc/" ++ Number ++ "/stat") of
+        {ok, Stat} ->
+            [_, After] = string:split(binary_to_list(Stat), ")", trailing),
+            string:lexemes(After, " ");
+        {error, _} ->
+            none
     end.
 
 %% Report §8.6: what the reaper's next look for a deadlock answers,
@@ -393,17 +403,22 @@ argument_too_long_test() ->
 
 %% Appendix E.23, E.0 shape rule 8: a read answers `Left(Timeout)` when its
 %% milliseconds pass, the program running on; the piece asked for it is the
-%% next read's, whether it comes before that read or while it waits, and
-%% the exit status comes last. A regression test of the rule, before which
-%% the program's one time limit killed it
+%% next read's, and the exit status comes last. The program writes a line
+%% only once it is given one, so the first read times out before anything
+%% comes. A regression test of the rule, before which the program's one
+%% time limit killed it; whether the piece comes before the next read or
+%% while it waits is the host's, and the test does not tell them apart
 read_times_out_and_the_piece_is_kept_test() ->
     Self = self(),
-    Echo = [<<"-c">>, <<"sleep 0.3; echo hi; sleep 0.3; echo there">>],
+    Echo = [<<"-c">>, <<"read l; echo $l; read m; echo $m">>],
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sh">>, Echo),
-               Self ! {reads, [read(Program, 50), read(Program, 5000), read(Program, 5000),
-                               read(Program, 5000)]}
+               TimedOut = read(Program, 50),
+               {'Right', 'Unit'} = write(Program, <<"hi\n">>, 5000),
+               Hi = read(Program, 5000),
+               {'Right', 'Unit'} = write(Program, <<"there\n">>, 5000),
+               Self ! {reads, [TimedOut, Hi, read(Program, 5000), read(Program, 5000)]}
            end, <<"main">>, ern_helpers:quiet()),
     ?assertEqual([{'Left', 'Timeout'}, {'Right', {'Stdout', <<"hi\n">>}},
                   {'Right', {'Stdout', <<"there\n">>}}, {'Right', {'Exited', 0}}],
@@ -555,17 +570,17 @@ inputs_held_and_given_back(Count) ->
     true = port_command(Helper, <<"n">>),
     Number = receive {Helper, {data, <<"o", Line/binary>>}} -> binary_to_integer(string:trim(Line))
              end,
-    {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
-    Before = status_kb(OsPid, "VmRSS"),
+    {os_pid, HelperNumber} = erlang:port_info(Helper, os_pid),
+    Before = status_kb(HelperNumber, "VmRSS"),
     %% more than a pipe holds, so that every input after it waits
     true = port_command(Helper, <<"i", (binary:copy(<<"x">>, 1 bsl 17))/binary>>),
     lists:foreach(fun(_) -> true = port_command(Helper, <<"i">>) end, lists:seq(1, Count)),
     true = port_command(Helper, <<"k", 2>>),
     ?assertEqual(<<"g">>, receive {Helper, {data, Frame}} -> Frame end),
-    Held = status_kb(OsPid, "VmRSS"),
+    Held = status_kb(HelperNumber, "VmRSS"),
     signaled(Number, "USR1"),
     ok = taken(Helper, Count + 1),
-    After = status_kb(OsPid, "VmRSS"),
+    After = status_kb(HelperNumber, "VmRSS"),
     port_close(Helper),
     {Before, Held, After}.
 
@@ -627,15 +642,17 @@ timed_out_reductions(Count) ->
            fun() ->
                {'Right', Sleep} = start(<<"sleep">>, [<<"1000">>]),
                {'Left', 'Timeout'} = write(Sleep, binary:copy(<<"x">>, 1 bsl 17), 1),
-               Main = self(),
+               EntryProcess = self(),
                erlang:suspend_process(Sleep),
-               Writers = [erlang:spawn(fun() -> Main ! {written, write(Sleep, <<"x">>, 1)} end)
+               Callers = [erlang:spawn(fun() ->
+                                           EntryProcess ! {written, write(Sleep, <<"x">>, 1)}
+                                       end)
                           || _ <- lists:seq(1, Count)],
-               lists:foreach(fun(Writer) -> ok = ern_waits:calling(Writer) end, Writers),
+               lists:foreach(fun(Caller) -> ok = ern_waits:calling(Caller) end, Callers),
                {reductions, Before} = erlang:process_info(Sleep, reductions),
                erlang:resume_process(Sleep),
                lists:foreach(fun(_) -> receive {written, {'Left', 'Timeout'}} -> ok end end,
-                             Writers),
+                             Callers),
                {reductions, After} = erlang:process_info(Sleep, reductions),
                Self ! {reductions, After - Before},
                ern_rt:kill(Sleep)
@@ -674,9 +691,9 @@ timed_out_read_reductions(Count) ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Sleep} = start(<<"sleep">>, [<<"1000">>]),
-               Main = self(),
+               EntryProcess = self(),
                erlang:suspend_process(Sleep),
-               Readers = [erlang:spawn(fun() -> Main ! {read, read(Sleep, 1)} end)
+               Readers = [erlang:spawn(fun() -> EntryProcess ! {read, read(Sleep, 1)} end)
                           || _ <- lists:seq(1, Count)],
                lists:foreach(fun(Reader) -> ok = ern_waits:calling(Reader) end, Readers),
                {reductions, Before} = erlang:process_info(Sleep, reductions),
@@ -770,12 +787,9 @@ said(Shell, Command) ->
     receive {Shell, {data, <<"done\n">>}} -> ok end.
 
 %% The number of the process of the operating system's that started the
-%% process of Number, from what the host shows of it: the fourth field of
-%% its stat, after the command's name, which ends at the last `)`.
+%% process of Number, from what the host shows of it (stat_fields/1).
 parent_number(Number) ->
-    {ok, Stat} = file:read_file("/proc/" ++ integer_to_list(Number) ++ "/stat"),
-    [_, After] = string:split(binary_to_list(Stat), ")", trailing),
-    [_State, Parent | _] = string:lexemes(After, " "),
+    [_State, Parent | _] = stat_fields(integer_to_list(Number)),
     Parent.
 
 %% The number of the one process the process of Number started.
@@ -864,34 +878,23 @@ taken_and_written(Helper, Output, Taken) ->
     end.
 
 %% report Appendix E.23: a request answered holds no timer: a write and a
-%% read answered before their milliseconds pass are sent nothing when they
-%% pass. A regression test: each timer stayed armed until its time, and a
-%% write's then answered `Left(Timeout)` to a reply already answered
+%% read answered before their milliseconds pass each cancel the timer they
+%% armed, which the program's process does before it answers. A regression
+%% test: each timer stayed armed until its time, and a write's then
+%% answered `Left(Timeout)` to a reply already answered
 answered_requests_hold_no_timer_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"cat">>, []),
-               erlang:trace(Program, true, ['receive', {tracer, Self}]),
-               Ms = 300,
-               Self ! {answers, {write(Program, <<"x">>, Ms), read(Program, Ms)}},
-               %% an absence: a timer the requests left would fire their
-               %% milliseconds after them, and the host's timers may fire
-               %% late, so twice that
-               ern_waits:sleep(2 * Ms),
+               Ms = 600000,
+               Requests = fun() -> {write(Program, <<"x">>, Ms), read(Program, Ms)} end,
+               Self ! {timers, ern_waits:timers(Program, Requests, fun() -> ok end)},
                ern_rt:kill(Program)
            end, <<"main">>, ern_helpers:quiet()),
-    ?assertEqual({{'Right', 'Unit'}, {'Right', {'Stdout', <<"x">>}}}, ern_waits:wait(answers)),
-    ?assertEqual([], timeouts_traced()).
-
-%% The timeout messages a traced process received.
-timeouts_traced() ->
-    receive
-        {trace, _, 'receive', {timeout, _, _} = Timeout} -> [Timeout | timeouts_traced()];
-        {trace, _, _, _} -> timeouts_traced()
-    after 0 ->
-        []
-    end.
+    {Answers, Armed, Canceled} = ern_waits:wait(timers),
+    ?assertEqual({{'Right', 'Unit'}, {'Right', {'Stdout', <<"x">>}}}, Answers),
+    ?assertEqual({2, Armed}, {length(Armed), Canceled}).
 
 %% report §6.9, Appendix E.23: `give` makes another process a program's
 %% owner, so that it outlives the process that started it and is killed
@@ -918,12 +921,12 @@ given(Start) ->
                %% killed of that end, shows the end has been told
                Forever = [<<"-f">>, <<"/dev/null">>],
                _ = erlang:spawn(fun() ->
-                                    {'Right', Started} = Start(<<"tail">>, Forever),
-                                    {'Right', Kept} = Start(<<"tail">>, Forever),
-                                    Started ! {'Give', Keeper},
-                                    EntryProcess ! {programs, Started, Kept}
+                                    {'Right', Given} = Start(<<"tail">>, Forever),
+                                    {'Right', Unkept} = Start(<<"tail">>, Forever),
+                                    Given ! {'Give', Keeper},
+                                    EntryProcess ! {programs, {Given, Unkept}}
                                 end),
-               {Program, Unkept} = receive {programs, Started, Kept} -> {Started, Kept} end,
+               {Program, Unkept} = ern_waits:wait(programs),
                UnkeptRef = erlang:monitor(process, Unkept),
                receive {'DOWN', UnkeptRef, process, _, _} -> ok end,
                ok = ern_waits:waiting(Program),
@@ -1050,9 +1053,7 @@ resize_answers_in_order_test() ->
                {'Right', Cat} = start(<<"cat">>, []),
                'Unit' = close_input(Cat),
                {<<>>, 0} = read_to_end(Cat, <<>>),
-               {'Right', Held} = start_terminal(<<"sh">>,
-                                                [<<"-c">>, <<"trap '' HUP; echo ready;"
-                                                             " exec sleep 1000">>], ?SIZE),
+               {'Right', Held} = start_terminal(<<"sh">>, [<<"-c">>, ?IGNORING_HANGUP], ?SIZE),
                _ = read_until(Held, <<"ready\r\n">>, <<>>),
                'Unit' = close_input(Held),
                HungUp = [resize(Held, Wrong), resize(Held, ?SIZE)],
@@ -1148,11 +1149,12 @@ close_input_waits_while_the_hangup_is_owed_test() ->
            fun() ->
                {'Right', Sh} = start_terminal(<<"sh">>, [<<"-c">>, ?IGNORING_HANGUP], ?SIZE),
                _ = read_until(Sh, <<"ready\r\n">>, <<>>),
-               Main = self(),
+               EntryProcess = self(),
                Helper = helper_number(Sh),
                Closing = fun(Tag) ->
                                  Close = fun() ->
-                                                 Main ! {Tag, close_input(Sh), masters(Helper)}
+                                                 Closed = close_input(Sh),
+                                                 EntryProcess ! {Tag, Closed, masters(Helper)}
                                          end,
                                  ern_rt:process_of(ern_rt:spawn_monitored(
                                                      Close, fun(Down) -> {Tag, Down} end,
@@ -1173,15 +1175,14 @@ close_input_waits_while_the_hangup_is_owed_test() ->
     ?assertEqual({[{message_queue_len, 0}, {message_queue_len, 0}], [{'Unit', 0}, {'Unit', 0}]},
                  ern_waits:wait(closes)).
 
-%% report Appendix E.23, §6.6: `closeInput` on a program whose process has
-%% ended faults as a read does, as `Address.callForever` does on an ended
-%% process: one that waits for the hangup as the program is killed with
-%% `callee was killed`, and one after with `callee had ended`. The helper is
-%% stopped by the host, so that the first waits, and the kill comes once the
-%% closer waits in its call and the program's process has taken its
-%% request. Written before the code, under which `closeInput` was a send
-%% and did nothing there, and the test failed 50 rounds of 50
-close_input_on_an_ended_program_faults_test() ->
+%% report Appendix E.23: `closeInput` on a program whose process has ended
+%% does nothing, and returns: one that waits for the hangup as the program
+%% is killed, and one after. The helper is stopped by the host, so that the
+%% first waits, and the kill comes once the closer waits in its call and the
+%% program's process has taken its request. A regression test of the rule,
+%% before which each faulted, as `Address.callForever` does on an ended
+%% process
+close_input_on_an_ended_program_does_nothing_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
@@ -1189,7 +1190,7 @@ close_input_on_an_ended_program_faults_test() ->
                _ = read_until(Sh, <<"ready\r\n">>, <<>>),
                Waiting = stopped(Sh, fun() ->
                                          Closer = closer(Sh, waiting),
-                                         _ = ern_waits:calling(ern_rt:process_of(Closer)),
+                                         ok = ern_waits:calling(ern_rt:process_of(Closer)),
                                          ok = ern_waits:waiting(Sh),
                                          ern_rt:kill(Sh),
                                          receive {waiting, Down} -> Down end
@@ -1198,8 +1199,7 @@ close_input_on_an_ended_program_faults_test() ->
                Self ! {downs, {Waiting, receive {later, Later} -> Later end}}
            end, <<"main">>, ern_helpers:quiet()),
     {Waiting, Later} = ern_waits:wait(downs),
-    ?assertMatch({'Down', _, {'Fault', <<"callee was killed">>}, _}, Waiting),
-    ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, Later).
+    ?assertMatch({{'Down', _, 'Returned', _}, {'Down', _, 'Returned', _}}, {Waiting, Later}).
 
 %% report §8.6, Appendix E.23: a run whose one process waits in `closeInput`
 %% for the terminal's hangup is no deadlock: the reaper's look answers that
@@ -1214,9 +1214,9 @@ close_input_waiting_is_no_deadlock_test_() ->
 close_input_waiting_is_no_deadlock() ->
     Self = self(),
     Observer = spawn(fun() ->
-                         receive {closing, Main, Number} ->
+                         receive {closing, EntryProcess, Number} ->
                              try
-                                 ok = ern_waits:calling(Main),
+                                 ok = ern_waits:calling(EntryProcess),
                                  Self ! {looked, next_look()}
                              after
                                  os:cmd("kill -CONT " ++ Number)
@@ -1291,12 +1291,12 @@ helper_waits_to_be_let_go_test() ->
     receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
     true = port_command(Helper, <<"e">>),
     ok = exited(Helper),
-    {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+    {os_pid, HelperNumber} = erlang:port_info(Helper, os_pid),
     true = port_command(Helper, <<"n">>),
-    ?assertEqual(sent, ern_os:signal(0, OsPid)),
+    ?assertEqual(sent, ern_os:signal(0, HelperNumber)),
     port_close(Helper),
     %% the close's own end of the port, and no other before it
-    ?assertEqual(normal, receive {'EXIT', Helper, Reason} -> Reason end).
+    ?assertEqual(normal, receive {'EXIT', Helper, ExitReason} -> ExitReason end).
 
 %% The helper asked for the program's output until it says the program has
 %% exited.
@@ -1442,7 +1442,8 @@ left_at_the_exit(Start, Signal) ->
 %% those ended and not yet taken by the process that inherited them.
 running_in(Group) ->
     [State || Line <- string:split(os:cmd("ps -A -o pgid= -o stat="), "\n", all),
-              [Of, State] <- [string:lexemes(Line, " ")], Of =:= Group, hd(State) =/= $Z].
+              [ProcessGroup, State] <- [string:lexemes(Line, " ")],
+              ProcessGroup =:= Group, hd(State) =/= $Z].
 
 %% report Appendix E.23: `kill` stops a program that has left its process
 %% group, here for its parent's, the helper's, which the group's kill
@@ -1536,14 +1537,18 @@ signal_after_the_exit_and_handled_test() ->
     ?assertEqual({'Left', 'Closed'}, ern_waits:wait(exited)),
     ?assertEqual({{'Right', 'Unit'}, {<<"got\n">>, 7}}, ern_waits:wait(handled)).
 
-%% report Appendix E.23, §6.6: a program's process lives on after the
-%% program has exited: each read after the one that answered `Exited`
-%% answers it again, a write `Left(Closed)`, a resize `Left(Closed)` too,
-%% and `closeInput` `Unit`; a monitor sees its end only at its kill, after
-%% which a resize faults as `Address.callForever` does on an ended process.
-%% A regression test: before the rules, the process ended once a read had
-%% answered `Exited`, and the resize answered `Right(Unit)`; a give after
-%% the exit, and the owner's death then, are not covered
+%% report Appendix E.23: a program's process lives on after the program
+%% has exited: each read after the one that answered `Exited` answers it
+%% again, a write `Left(Closed)`, a resize `Left(Closed)` too, and
+%% `closeInput` `Unit`; a monitor sees its end only at its kill, after
+%% which a read, a write, a resize and a signal answer `Left(Closed)`,
+%% `closeInput` does nothing, and a read and a write given no time answer
+%% `Left(Timeout)`, as they do before the end (E.0 shape rule 8). A
+%% regression test: before the rules, the
+%% process ended once a read had answered `Exited`, and the resize answered
+%% `Right(Unit)`; after the kill each but `closeInput` faulted as
+%% `Address.callForever` does on an ended process (§6.6); a give after the
+%% exit, and the owner's death then, are not covered
 exited_program_lives_on_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -1557,15 +1562,17 @@ exited_program_lives_on_test() ->
                ern_rt:kill(True),
                receive {'DOWN', MonitorRef, process, _, ExitReason} -> Self ! {ended, ExitReason}
                end,
-               _ = ern_rt:spawn_monitored(fun() -> resize(True, ?SIZE) end,
-                                          fun(Down) -> {later, Down} end, <<"resizer">>),
-               receive {later, Down} -> Self ! {later, Down} end
+               Self ! {later, [read(True, 5000), write(True, <<"x">>, 5000), resize(True, ?SIZE),
+                               signal(True, 'Termination'), close_input(True), read(True, 0),
+                               write(True, <<"x">>, 0)]}
            end, <<"main">>, ern_helpers:quiet()),
     ?assertEqual({[{'Right', {'Exited', 0}}, {'Left', 'Closed'}, {'Left', 'Closed'}, 'Unit'],
                   {'Right', {'Exited', 0}}},
                  ern_waits:wait(after_the_exit)),
     ?assertEqual({ern, killed}, ern_waits:wait(ended)),
-    ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, ern_waits:wait(later)).
+    Closed = {'Left', 'Closed'},
+    Timeout = {'Left', 'Timeout'},
+    ?assertEqual([Closed, Closed, Closed, Closed, 'Unit', Timeout, Timeout], ern_waits:wait(later)).
 
 %% report Appendix E.23: a read whose caller has ended before it is answered
 %% is dropped, and what it would have taken is the next read's: the piece
@@ -1600,8 +1607,8 @@ read_forever_answers_what_comes_later_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Cat} = start(<<"cat">>, []),
-               Main = self(),
-               Reader = ern_rt:spawn(fun() -> Main ! {piece, read_forever(Cat)} end,
+               EntryProcess = self(),
+               Reader = ern_rt:spawn(fun() -> EntryProcess ! {piece, read_forever(Cat)} end,
                                      <<"reader">>),
                ok = ern_waits:watching(Cat, ern_rt:process_of(Reader)),
                {'Right', 'Unit'} = write(Cat, <<"x\n">>, 5000),
@@ -1614,11 +1621,11 @@ read_forever_answers_what_comes_later_test() ->
     Exited = {'Right', {'Exited', 0}},
     ?assertEqual([{'Right', {'Stdout', <<"x\n">>}}, Exited, Exited, Exited], ern_waits:wait(reads)).
 
-%% report Appendix E.23, §6.6: a `readForever` faults as `read` does on a
-%% program whose process has ended: one that waits as the program is killed
-%% with `callee was killed`, and one after with `callee had ended`. The kill
-%% comes once the program's process watches the reader. Written with the
-%% request
+%% report Appendix E.23, §6.6: a `readForever` on a program whose process
+%% has ended faults as `Address.callForever` does on an ended process: one
+%% that waits as the program is killed with `callee was killed`, and one
+%% after with `callee had ended`. The kill comes once the program's process
+%% watches the reader. Written with the request
 read_forever_on_an_ended_program_faults_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -1735,10 +1742,10 @@ held_at_its_port_test() ->
 %% the program's process has taken each, its mailbox empty and the process
 %% waiting, or held where the host holds it.
 writes_taken(Program, Bytes, Ms, Count) ->
-    Writers = [ern_rt:spawn_monitored(fun() -> write(Program, Bytes, Ms) end,
+    Callers = [ern_rt:spawn_monitored(fun() -> write(Program, Bytes, Ms) end,
                                       fun(Down) -> {written, Down} end, <<"M.writer:1">>)
                || _ <- lists:seq(1, Count)],
-    lists:foreach(fun(Writer) -> ok = ern_waits:calling(ern_rt:process_of(Writer)) end, Writers),
+    lists:foreach(fun(Caller) -> ok = ern_waits:calling(ern_rt:process_of(Caller)) end, Callers),
     ok = ern_waits:until(Program,
                          fun() ->
                              [{message_queue_len, Queued}, {status, Status}] =
@@ -1768,8 +1775,8 @@ held_and_ended(End) ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Main = self(),
-               {Program, Owner} = owned(End, Main, <<"sh">>,
+               EntryProcess = self(),
+               {Program, Owner} = owned(End, EntryProcess, <<"sh">>,
                                         [<<"-c">>, <<"exec cat >/dev/null">>]),
                Helper = helper_number(Program),
                Cat = child_number(Helper),
@@ -1796,36 +1803,33 @@ held_and_ended(End) ->
     Deadline = erlang:monotonic_time(millisecond) + 5000,
     {ended, ended_number(integer_to_list(Helper), Deadline), ended_number(Cat, Deadline)}.
 
-%% A program of Name and Arguments started, with its owner: the process of
-%% Main, or for End `owner` a process of its own, which ends when sent `go`.
-owned(owner, Main, Name, Arguments) ->
+%% A program of Name and Arguments started, with its owner: EntryProcess,
+%% or for End `owner` a process of its own, which ends when sent `go`.
+owned(owner, EntryProcess, Name, Arguments) ->
     Owner = erlang:spawn(fun() ->
                              {'Right', Program} = start(Name, Arguments),
-                             Main ! {started, Program},
+                             EntryProcess ! {started, Program},
                              receive go -> ok end
                          end),
     receive {started, Program} -> {Program, Owner} end;
-owned(_, Main, Name, Arguments) ->
+owned(_, EntryProcess, Name, Arguments) ->
     {'Right', Program} = start(Name, Arguments),
-    {Program, Main}.
+    {Program, EntryProcess}.
 
 %% Until the process of Number has ended, as the host shows it, `gone`: it
 %% has no entry, or is a zombie its parent has yet to reap. Nothing tells
 %% this process of another process's end, so the host is asked again at
 %% once each time, within a bound for a failure.
 ended_number(Number, Deadline) ->
-    case file:read_file("/proc/" ++ Number ++ "/stat") of
-        {error, _} ->
+    case stat_fields(Number) of
+        none ->
             gone;
-        {ok, Stat} ->
-            [_, After] = string:split(binary_to_list(Stat), ")", trailing),
-            case string:trim(After, leading) of
-                [$Z | _] -> gone;
-                _ ->
-                    case erlang:monotonic_time(millisecond) < Deadline of
-                        true -> ended_number(Number, Deadline);
-                        false -> running
-                    end
+        ["Z" | _] ->
+            gone;
+        [_ | _] ->
+            case erlang:monotonic_time(millisecond) < Deadline of
+                true -> ended_number(Number, Deadline);
+                false -> running
             end
     end.
 
@@ -1854,12 +1858,12 @@ times_held_while_a_write_waits_test() ->
                signaled(Helper, "STOP"),
                %% the first write fills the port, which takes no more
                writes_taken(Program, Bytes, 600000, 1),
-               Main = self(),
+               EntryProcess = self(),
                Asked = [erlang:spawn(fun() ->
                                          Began = erlang:monotonic_time(millisecond),
                                          Answer = Ask(),
-                                         Main ! {timed, Answer,
-                                                 erlang:monotonic_time(millisecond) - Began}
+                                         EntryProcess ! {timed, Answer,
+                                                         erlang:monotonic_time(millisecond) - Began}
                                      end)
                         || Ask <- [fun() -> write(Program, Bytes, Ms) end,
                                    fun() -> read(Program, Ms) end]],
@@ -1926,14 +1930,14 @@ left_after(End) ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Main = self(),
+               EntryProcess = self(),
                Before = erlang:processes(),
                {Program, Owner} = case End of
-                                      exit_read -> owned(End, Main, <<"true">>, []);
+                                      exit_read -> owned(End, EntryProcess, <<"true">>, []);
                                       close_input ->
                                           {'Right', Cat} = start_terminal(<<"cat">>, [], ?SIZE),
-                                          {Cat, Main};
-                                      _ -> owned(End, Main, <<"sleep">>, [<<"1000">>])
+                                          {Cat, EntryProcess};
+                                      _ -> owned(End, EntryProcess, <<"sleep">>, [<<"1000">>])
                                   end,
                Writer = writer_of(Program),
                WriterRef = erlang:monitor(process, Writer),
@@ -2075,21 +2079,25 @@ start_terminal(Program, Arguments, Size) ->
 inheriting(Program, Arguments) ->
     {'Command', Program, Arguments, <<>>, [], {'Path', ern_os:working_directory()}}.
 
+%% Report Appendix E.23: Os's functions over a running program, as a
+%% program calls them, each answering `Left(Closed)` where the program's
+%% process has ended; each is found in the library the run has loaded, so
+%% that a caller seen waiting waits in its call (ern_named:loaded/2).
 read(Program, Ms) ->
-    ern_rt:call_forever(Program, fun(Reply) -> {'Read', Ms, Reply} end).
+    (ern_named:loaded('ern@os', read))(Program, Ms).
 
 %% Report Appendix E.23: a read without a time, as `Os.readForever` asks it.
 read_forever(Program) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'ReadForever', Reply} end).
 
 write(Program, Bytes, Ms) ->
-    ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
+    (ern_named:loaded('ern@os', write))(Program, Bytes, Ms).
 
 signal(Program, Signal) ->
-    ern_rt:call_forever(Program, fun(Reply) -> {'SendSignal', Signal, Reply} end).
+    (ern_named:loaded('ern@os', signal))(Program, Signal).
 
 resize(Program, Size) ->
-    ern_rt:call_forever(Program, fun(Reply) -> {'Resize', Size, Reply} end).
+    (ern_named:loaded('ern@os', resize))(Program, Size).
 
 %% Report Appendix E.23: `Os.closeInput`, as a program calls it.
 close_input(Program) ->
@@ -2357,29 +2365,32 @@ job_lock_makes_its_file_test() ->
     released(Holder),
     ?assertEqual({regular, 8#666 band bnot ern_os:umask()}, {Type, Mode band 8#777}).
 
-%% report §11, §11.9: a job's lock is taken only where its name reaches a
-%% regular file, a link followed: a link to a regular file is locked, and a
-%% directory, a link to one and a named pipe are not opened, and are
-%% `unopened`; a job that opened the pipe would not end, which is how the
-%% test shows that none does. A device and a socket are not covered.
-job_lock_reaches_a_regular_file_test() ->
+%% report §11, §11.9: a job's lock is taken only where its name names a
+%% regular file: a link there, to a regular file or to a directory, is
+%% refused with the host's reason, as one at a node's ernest.pid is, and a
+%% directory and a named pipe are not opened, and are `unopened`; a job
+%% that opened the pipe would not end, which is how the test shows that
+%% none does. A regression test of the link's refusal, before which the
+%% link was followed; a device and a socket are not covered
+job_lock_on_a_regular_file_alone_test() ->
     Dir = node_dir("ern_os_job_unopened_"),
     Path = filename:join(Dir, ".unpack"),
     Target = filename:join(Dir, "target"),
     ok = file:write_file(Target, <<>>),
     ok = file:make_symlink(Target, Path),
-    released(job_held(Path)),
+    ToFile = ern_os:job_locked(Path),
+    ok = file:delete(Path),
+    ok = file:make_dir(Target ++ "_dir"),
+    ok = file:make_symlink(Target ++ "_dir", Path),
+    ToDirectory = ern_os:job_locked(Path),
     ok = file:delete(Path),
     ok = file:make_dir(Path),
     Directory = ern_os:job_locked(Path),
     ok = file:del_dir(Path),
-    ok = file:make_dir(Target ++ "_dir"),
-    ok = file:make_symlink(Target ++ "_dir", Path),
-    Linked = ern_os:job_locked(Path),
-    ok = file:delete(Path),
     "" = os:cmd("mkfifo " ++ Path),
     Pipe = ern_os:job_locked(Path),
-    ?assertEqual({unopened, unopened, unopened}, {Directory, Linked, Pipe}).
+    Refused = {failed, "too many levels of symbolic links"},
+    ?assertEqual({Refused, Refused, unopened, unopened}, {ToFile, ToDirectory, Directory, Pipe}).
 
 %% A process that holds the helper's port of a job's lock on Path, until it
 %% is told to stop, once the lock is taken.
@@ -2402,9 +2413,9 @@ job_held(Path) ->
 signal_test() ->
     ?assertEqual(sent, ern_os:signal(0, list_to_integer(os:getpid()))),
     ?assertEqual(failed, ern_os:signal(1000, list_to_integer(os:getpid()))),
-    Port = open_port({spawn_executable, os:find_executable("true")}, [exit_status]),
-    {os_pid, Gone} = erlang:port_info(Port, os_pid),
-    receive {Port, {exit_status, 0}} -> ok end,
+    True = open_port({spawn_executable, os:find_executable("true")}, [exit_status]),
+    {os_pid, Gone} = erlang:port_info(True, os_pid),
+    receive {True, {exit_status, 0}} -> ok end,
     ?assertEqual(none, ern_os:signal(0, Gone)),
     case os:getenv("USER") of
         "root" -> ok;

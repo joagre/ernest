@@ -139,9 +139,9 @@ represented(Value, _) when is_integer(Value) -> integer_to_binary(Value);
 represented(Value, _) when is_float(Value) -> ern_literal:float_text(Value);
 represented(Value, _) when is_atom(Value) -> atom_to_list(Value);
 represented(Value, Limits) when is_binary(Value) ->
-    case unicode:characters_to_list(Value) of
-        Chars when is_list(Chars) -> ern_literal:string_text(Value);
-        _ -> bytes(Value, Limits)
+    case ern_fs:is_utf8(Value) of
+        true -> ern_literal:string_text(Value);
+        false -> bytes(Value, Limits)
     end;
 represented(Pid, _) when is_pid(Pid) -> address(Pid);
 %% a Reply and an address foreign code gave (ern_rt), the Reply checked

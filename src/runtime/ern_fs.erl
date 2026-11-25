@@ -7,7 +7,7 @@
 %% user, as entry/2 builds them.
 -module(ern_fs).
 
--export([loop/0, is_utf8/1, name_bytes/1]).
+-export([loop/0, is_utf8/1, name_bytes/1, private/1]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -28,19 +28,20 @@ loop() ->
 %% processes keeps from being made answers `Left(Other("error:system_limit"))`,
 %% this process living on.
 answered_limited(Message) ->
+    ern_rt:answer(reply_of(Message), {'Left', ern_io:limited()}).
+
+%% The reply a request carries among its fields.
+reply_of(Message) ->
     [Reply] = [Field || Field <- tuple_to_list(Message), ern_rt:is_reply(Field)],
-    ern_rt:answer(Reply, {'Left', ern_io:limited()}).
+    Reply.
 
 %% Report Appendix E.17: a path that holds U+0000 names no file, and the
 %% request is answered so before any work.
 serve(Message) ->
     Fields = tuple_to_list(Message),
     case [Bytes || {'Path', Bytes} <- Fields, binary:match(Bytes, <<0>>) =/= nomatch] of
-        [] ->
-            handle(Message);
-        _ ->
-            [Reply] = [Field || Field <- Fields, ern_rt:is_reply(Field)],
-            ern_rt:answer(Reply, {'Left', 'Invalid'})
+        [] -> handle(Message);
+        _ -> ern_rt:answer(reply_of(Message), {'Left', 'Invalid'})
     end.
 
 handle({'Read', Path, Reply}) ->
@@ -61,11 +62,11 @@ handle({'Append', Path, Bytes, Reply}) ->
                                        unit(file:write_file(Text, Bytes, [raw, append]))
                                    end));
 handle({'ListEntries', Path, Reply}) ->
-    Dir = text(Path),
-    answer(Reply, case file:list_dir_all(Dir) of
+    Directory = text(Path),
+    answer(Reply, case file:list_dir_all(Directory) of
                       {ok, Names} ->
-                          named_entries(Dir, lists:sort(lists:map(fun name_bytes/1, Names)));
-                      {error, enotdir} -> not_directory(Dir);
+                          named_entries(Directory, lists:sort(lists:map(fun name_bytes/1, Names)));
+                      {error, enotdir} -> not_directory(Directory);
                       Error -> Error
                   end);
 handle({'Stat', Path, Reply}) ->
@@ -129,18 +130,18 @@ handle({'MakeFile', Path, Bytes, Reply}) ->
                           Error
                   end);
 %% Report Appendix E.17: a directory of a new name in the parent, made as
-%% makeDir makes one and so under the program's mask; its mode is set
-%% before its path is answered (temp_dir/1).
+%% makeDir makes one and so under the program's mask; its mode is set, and
+%% it is seen to hold nothing, before its path is answered (temp_dir/1).
 handle({'MakeTempDir', Parent, Reply}) ->
     answer(Reply, temp_dir(text(Parent)));
 %% Report Appendix E.17: the modification time, kept to the second, as the
 %% host sets it; the access time is left as it was.
-handle({'SetModified', Path, Mtime, Reply}) ->
+handle({'SetModified', Path, ModifiedMs, Reply}) ->
     Text = text(Path),
     answer(Reply, case file:read_file_info(Text, [raw, {time, posix}]) of
                       {ok, #file_info{atime = Atime}} ->
                           Info = #file_info{atime = Atime,
-                                            mtime = floor_div(Mtime, 1000)},
+                                            mtime = floor_div(ModifiedMs, 1000)},
                           unit(file:write_file_info(Text, Info, [raw, {time, posix}]));
                       Error ->
                           Error
@@ -281,8 +282,8 @@ of_kind(Text, Kinds, Then) ->
 %% Report Appendix E.17: the host says "not a directory" of a path that
 %% names a regular file and of one that leads through it; the first names
 %% something list does not work on, the second leads to nothing.
-not_directory(Dir) ->
-    case file:read_file_info(Dir, [raw]) of
+not_directory(Directory) ->
+    case file:read_file_info(Directory, [raw]) of
         {ok, _} -> {error, not_regular};
         _ -> {error, enotdir}
     end.
@@ -300,9 +301,9 @@ text({'Path', Bytes}) -> Bytes.
 
 %% Report Appendix E.17, §12.1: a name that is not UTF-8 is no Path, so the
 %% list answers NotUtf8 with the first such, in the order of their bytes.
-named_entries(Dir, Names) ->
+named_entries(Directory, Names) ->
     case [Bytes || Bytes <- Names, not is_utf8(Bytes)] of
-        [] -> entries(Dir, Names);
+        [] -> entries(Directory, Names);
         [First | _] -> {error, {not_utf8, First}}
     end.
 
@@ -324,11 +325,11 @@ name_bytes(Name) ->
 
 %% Report Appendix E.17: each entry described as it is, a link as a link,
 %% and one gone by the time it is described left out.
-entries(Dir, Names) ->
+entries(Directory, Names) ->
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
                    (EntryName, {ok, Acc}) ->
-                        EntryText = filename:join(Dir, EntryName),
+                        EntryText = filename:join(Directory, EntryName),
                         Info = file:read_link_info(EntryText, [raw, {time, posix}]),
                         case entry(EntryText, Info) of
                             {ok, Entry} -> {ok, [Entry | Acc]};
@@ -344,8 +345,8 @@ entries(Dir, Names) ->
 entry(Text) ->
     entry(Text, file:read_file_info(Text, [raw, {time, posix}])).
 
-entry(Text, {ok, #file_info{type = Type, mtime = Mtime, size = Size, mode = Mode, uid = User}}) ->
-    {ok, {'Entry', {'Path', Text}, Mtime * 1000, Size, kind(Type), Mode band 8#7777, User}};
+entry(Text, {ok, #file_info{type = Type, mtime = Seconds, size = Size, mode = Mode, uid = User}}) ->
+    {ok, {'Entry', {'Path', Text}, Seconds * 1000, Size, kind(Type), Mode band 8#7777, User}};
 entry(_, Error) ->
     Error.
 
@@ -363,21 +364,45 @@ utf8_target(Bytes) ->
     end.
 
 %% Report Appendix E.17: `ern-` and sixteen hexadecimal digits drawn at
-%% random, drawn again where an entry has the name; a directory whose mode
-%% cannot be set is removed, so that none is left.
+%% random, drawn again where an entry has the name, and drawn again where
+%% the directory made holds something once its mode is set (private/1); a
+%% directory whose mode cannot be set, or that cannot be read, is removed,
+%% so that none is left.
 temp_dir(Parent) ->
-    Dir = filename:join(Parent, <<"ern-", (binary:encode_hex(rand:bytes(8), lowercase))/binary>>),
-    case file:make_dir(Dir) of
+    Name = <<"ern-", (binary:encode_hex(rand:bytes(8), lowercase))/binary>>,
+    Directory = filename:join(Parent, Name),
+    case file:make_dir(Directory) of
         ok ->
-            case file:change_mode(Dir, 8#700) of
+            case private(Directory) of
                 ok ->
-                    {ok, {'Path', Dir}};
+                    {ok, {'Path', Directory}};
+                held ->
+                    temp_dir(Parent);
                 Error ->
-                    _ = file:del_dir(Dir),
+                    _ = file:del_dir(Directory),
                     Error
             end;
         {error, eexist} ->
             temp_dir(Parent);
+        Error ->
+            Error
+    end.
+
+%% Report Appendix E.17: Directory's mode set to 0o700, its owner's alone,
+%% and `ok` where it holds nothing then, as ern_build:make_private_dir/1
+%% checks; `held` where another put an entry in it while its mode let them,
+%% a link a later write would follow among them, the entry left where it
+%% stands; or the host's reason where its mode could not be set or it could
+%% not be read.
+-spec private(binary()) -> ok | held | {error, file:posix()}.
+private(Directory) ->
+    case file:change_mode(Directory, 8#700) of
+        ok ->
+            case file:list_dir_all(Directory) of
+                {ok, []} -> ok;
+                {ok, _} -> held;
+                Error -> Error
+            end;
         Error ->
             Error
     end.

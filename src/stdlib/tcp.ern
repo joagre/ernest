@@ -25,8 +25,9 @@
 /// answers `Left(Closed)` once what came before is read, and each write answers
 /// `Left(Closed)`. The socket ends only with `close` or its owner's death, and
 /// a listener with `closeListener` or its owner's death. A read waiting when
-/// `close` ends the socket answers `Left(Closed)`, and a call after the end
-/// faults. `close` returns once the bytes written, and over TLS the record
+/// `close` ends the socket answers `Left(Closed)`, and so does every call after
+/// the end that answers an `Either`, but `acceptForever` and `readForever`,
+/// which fault. `close` returns once the bytes written, and over TLS the record
 /// that ends the connection, are with the kernel, or the bytes are dropped,
 /// so a program that writes, closes and ends cuts nothing off.
 ///
@@ -184,9 +185,29 @@ foreign fn system(name : Foreign.Term) : Address(Msg) =
 
 // Report Appendix E.18, E.21: a call without a time of its own, whose
 // request carries the time its callee answers within, and whose wait
-// `Process.status` reads as limited.
-foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : a =
+// `Process.status` reads as limited; `None` where its callee had ended, or
+// ends before it answers, however it ends.
+foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : Optional(a) =
     "ern_rt:call_limited/2"
+
+// Report Appendix E.18, E.21: the same for a request that takes no time,
+// whose wait `Process.status` reads as not limited.
+foreign fn callUnlimited(address : Address(m), request : (Reply(a)) -> m) : Optional(a) =
+    "ern_rt:call_unlimited/2"
+
+// Report Appendix E.18: the answer of a socket or a listener, or
+// `Left(Closed)` where it had ended or ended before it answered.
+fn closed(called : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
+    Optional.withDefault(called, Left(Io.Closed))
+
+// Report Appendix E.18: the same for a wait of `ms` milliseconds, which
+// given 0 answers `Left(Timeout)` before any other answer, whatever the
+// state of its callee (E.0 shape rule 8).
+fn timed(called : Optional(Either(Io.Error, a)), ms : Int) : Either(Io.Error, a) =
+    match called {
+        None when ms <= 0 -> Left(Io.Timeout)
+      | _ -> closed(called)
+    }
 
 // Report Appendix E.18, E.21: a call its callee never answers, which answers
 // `Unit` once the callee has ended, however it ends, and at once where it has
@@ -220,13 +241,8 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 }
 
 /// The port the listener listens on: the one `listen` was given, or the one the
-/// host chose for port 0. While the listener lives it answers a `Right`.
-///
-/// ### Errors
-///
-/// Faults where the listener has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, or `callee was closed` where `closeListener` ended
-/// it as the call was made.
+/// host chose for port 0. While the listener lives it answers a `Right`, and
+/// `Left(Closed)` once it has ended, however it ended.
 ///
 /// ### Examples
 ///
@@ -240,22 +256,16 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 /// // => Right(true)
 /// ```
 export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) =
-    Address.callForever(listener, Port)
+    closed(callUnlimited(listener, Port))
 
 /// Waits at most `ms` milliseconds for the next connection to the listener, and
 /// answers its socket, which belongs to the caller. It answers `Left(Timeout)`
 /// where none comes in time, having taken none, and `Left(Closed)` where the
-/// listener is closed while it waits. An accept whose caller has ended takes
-/// its connection, whose socket is killed at once, as one given to a process
-/// that has ended is. On a listener over TLS the socket is answered before its
-/// handshake, which its first read or write waits for.
-///
-/// ### Errors
-///
-/// Faults where the listener has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, `callee was closed` where `closeListener` ended
-/// it as the call was made, or `callee was killed` where it is killed or its
-/// owner dies while the accept waits.
+/// listener has ended, however it ended, or ends while it waits. An accept
+/// whose caller has ended takes its connection, whose socket is killed at
+/// once, as one given to a process that has ended is. On a listener over TLS
+/// the socket is answered before its handshake, which its first read or write
+/// waits for.
 ///
 /// ### Examples
 ///
@@ -273,7 +283,7 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) =
 export fn accept(listener : Address(ListenerMsg),
                  ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
-    callLimited(listener, fn(reply) = Accept(=ms, =owner, =reply))
+    timed(callLimited(listener, fn(reply) = Accept(=ms, =owner, =reply)), ms)
 }
 
 /// Waits without a limit for the next connection to the listener, and answers
@@ -285,10 +295,10 @@ export fn accept(listener : Address(ListenerMsg),
 ///
 /// ### Errors
 ///
-/// Faults where the listener has ended, as `accept` does: with the cause
-/// `callee had ended`, `callee was closed` where `closeListener` ended it as
-/// the call was made, or `callee was killed` where it is killed or its owner
-/// dies while the accept waits.
+/// Faults where the listener has ended, as `Address.callForever` does: with the
+/// cause `callee had ended`, `callee was closed` where `closeListener` ended
+/// it as the call was made, or `callee was killed` where it is killed or its
+/// owner dies while the accept waits.
 ///
 /// ### Examples
 ///
@@ -325,7 +335,7 @@ export fn acceptForever(listener : Address(ListenerMsg)) : Either(Io.Error, Addr
 export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
     let request = fn(reply) = Connect(=host, =port, =ms, =owner, =reply);
-    callLimited(reference, request)
+    timed(callLimited(reference, request), ms)
 }
 
 /// Listens for connections over TLS on `port` of the interface `host` names,
@@ -412,23 +422,17 @@ export fn connectTls(host : String,
                      ms : Int) : Either(Io.Error, Address(SocketMsg)) = {
     let owner = Process.current();
     let request = fn(reply) = ConnectTls(=host, =port, =verification, =ms, =owner, =reply);
-    callLimited(reference, request)
+    timed(callLimited(reference, request), ms)
 }
 
 /// Waits at most `ms` milliseconds for bytes from the connection, and answers
 /// what has arrived, at least one byte. It answers `Left(Closed)` once the
-/// connection has closed and all that came before is read, and `Left(Timeout)`
-/// where nothing comes in time, having taken nothing. A read whose caller has
-/// ended before it is answered is dropped the same way, and what arrives waits
-/// for the next read.
-///
-/// ### Errors
-///
-/// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, or `callee was closed` where `close` ended it as
-/// the call was made.
+/// connection has closed and all that came before is read, or once the socket
+/// has ended, however it ended, and `Left(Timeout)` where nothing comes in
+/// time, having taken nothing. A read whose caller has ended before it is
+/// answered is dropped the same way, and what arrives waits for the next read.
 export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) =
-    callLimited(socket, fn(reply) = Read(=ms, =reply))
+    timed(callLimited(socket, fn(reply) = Read(=ms, =reply)), ms)
 
 /// Waits without a limit for bytes from the connection, and answers what has
 /// arrived, at least one byte, as `read` does without a time. It answers
@@ -439,9 +443,9 @@ export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) 
 ///
 /// ### Errors
 ///
-/// Faults where the socket has ended, as `read` does: with the cause `callee
-/// had ended`, or `callee was closed` where `close` ended it as the call was
-/// made.
+/// Faults where the socket has ended, as `Address.callForever` does: with the
+/// cause `callee had ended`, or `callee was closed` where `close` ended it as
+/// the call was made.
 ///
 /// ### Examples
 ///
@@ -481,16 +485,11 @@ export fn readForever(socket : Address(SocketMsg)) : Either(Io.Error, Bytes) =
 /// It answers `Left(Timeout)` where the milliseconds pass first, which does not
 /// undo the write: the bytes may still be sent, after those written before. It
 /// answers `Left(Closed)` once the connection has closed, from either end or by
-/// a failure, and `Left(Other(text))` where the host refuses the bytes for
-/// another reason, in its words.
-///
-/// ### Errors
-///
-/// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, or `callee was closed` where `close` ended it as
-/// the call was made.
+/// a failure, or once the socket has ended, however it ended, and
+/// `Left(Other(text))` where the host refuses the bytes for another reason, in
+/// its words.
 export fn write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
-    callLimited(socket, fn(reply) = Write(=bytes, =ms, =reply))
+    timed(callLimited(socket, fn(reply) = Write(=bytes, =ms, =reply)), ms)
 
 /// Closes the connection and ends the socket's process, a read or a write the
 /// socket holds waiting answering `Left(Closed)`, and returns once the bytes
@@ -550,13 +549,7 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit =
     callUntilEnded(listener, CloseListener)
 
 /// The far end of the connection, or `Left(Closed)` once the connection has
-/// closed.
-///
-/// ### Errors
-///
-/// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, or `callee was closed` where `close` ended it as
-/// the call was made.
+/// closed or the socket has ended, however it ended.
 ///
 /// ### Examples
 ///
@@ -575,16 +568,10 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit =
 ///
 /// since 0.2.0
 export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
-    Address.callForever(socket, Remote)
+    closed(callUnlimited(socket, Remote))
 
 /// The near end of the connection, or `Left(Closed)` once the connection has
-/// closed.
-///
-/// ### Errors
-///
-/// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee had ended`, or `callee was closed` where `close` ended it as
-/// the call was made.
+/// closed or the socket has ended, however it ended.
 ///
 /// ### Examples
 ///
@@ -601,4 +588,4 @@ export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
 /// // => Right("127.0.0.1")
 /// ```
 export fn local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) =
-    Address.callForever(socket, Local)
+    closed(callUnlimited(socket, Local))

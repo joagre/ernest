@@ -24,7 +24,7 @@
 
 %% Report Appendix E.18: the host's process of a connection over TLS
 %% hibernates after a millisecond's wait, the host's shortest timer.
--define(TLS_WAITS, [{hibernate_after, 1}]).
+-define(TLS_HIBERNATION, [{hibernate_after, 1}]).
 
 %% Report Appendix E.18: a listener's backlog, the largest the host keeps,
 %% which the kernel lowers to its own limit. The host keeps a backlog's
@@ -39,7 +39,7 @@
 %% Report §8.6: each receive that can wait, by its kind (docs/code_style.md).
 -receives({own_process, [serve/2, counted_request/2, watched_request/3, opened/7, listener_loop/1,
                          listener_closed/1, socket_process/6, writing/3, handshake_failed/2,
-                         socket_loop/1, stop_writer/1, closer/1, lingering/6]}).
+                         socket_loop/1, closer/1, lingering/6]}).
 
 %% A listener's process: the TCP process, its transport, the host's socket,
 %% its owner's monitor, and the worker of each accept it has taken and not
@@ -85,23 +85,23 @@ loop() ->
     process_flag(trap_exit, true),
     serve(erlang:self(), unstarted).
 
-%% Tls is whether the host's ssl is started, which the first request over
+%% Ssl is whether the host's ssl is started, which the first request over
 %% TLS does (with_ssl/3). E.0 shape rule 8: a connect given no time, 0 or
 %% below, has run out as it begins, and the host is asked nothing.
-serve(Tcp, Tls) ->
+serve(Tcp, Ssl) ->
     receive
         {'Connect', _, _, Ms, _, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
-            serve(Tcp, Tls);
+            serve(Tcp, Ssl);
         {'ConnectTls', _, _, _, Ms, _, Reply} when Ms =< 0 ->
             ern_rt:answer(Reply, {'Left', 'Timeout'}),
-            serve(Tcp, Tls);
+            serve(Tcp, Ssl);
         {'Listen', Host, Port, Owner, Reply} ->
             requested(fun() -> listen(Tcp, Host, Port, plain, Owner, Reply) end, Reply),
-            serve(Tcp, Tls);
+            serve(Tcp, Ssl);
         {'ListenTls', Host, Port, Certificate, Key, Owner, Reply} ->
             Kind = {tls, Certificate, Key},
-            serve(Tcp, with_ssl(Tls, Reply,
+            serve(Tcp, with_ssl(Ssl, Reply,
                                 fun() ->
                                     requested(fun() -> listen(Tcp, Host, Port, Kind, Owner, Reply)
                                               end, Reply)
@@ -110,10 +110,10 @@ serve(Tcp, Tls) ->
             counted_request(fun() ->
                                 connect(Tcp, Host, Port, plain, ern_rt:deadline(Ms), Owner, Reply)
                             end, Reply),
-            serve(Tcp, Tls);
+            serve(Tcp, Ssl);
         {'ConnectTls', Host, Port, Verification, Ms, Owner, Reply} ->
             Kind = {tls, Verification},
-            serve(Tcp, with_ssl(Tls, Reply,
+            serve(Tcp, with_ssl(Ssl, Reply,
                                 fun() ->
                                     counted_request(fun() ->
                                                         connect(Tcp, Host, Port, Kind,
@@ -122,7 +122,7 @@ serve(Tcp, Tls) ->
                                 end));
         {'EXIT', Pid, _} ->
             ern_rt:forget_opened(Pid),
-            serve(Tcp, Tls)
+            serve(Tcp, Ssl)
     end.
 
 %% Report Appendix E.18, §12: a request over TLS, made once the host's ssl
@@ -288,7 +288,7 @@ listening({tls, {'Path', Certificate}, {'Path', Key}}) ->
         {_, {error, Error}} -> {error, Error};
         {{ok, CertificateFile}, {ok, KeyFile}} ->
             {ssl, <<"Tcp.listenTls">>,
-             [{certfile, CertificateFile}, {keyfile, KeyFile} | ?TLS_WAITS]}
+             [{certfile, CertificateFile}, {keyfile, KeyFile} | ?TLS_HIBERNATION]}
     end.
 
 %% Report Appendix E.18, E.17: a file of a listener's or a check's, by the
@@ -303,7 +303,7 @@ regular_file(Path) ->
             File = unicode:characters_to_list(Path),
             case file:read_file_info(File, [raw]) of
                 {ok, #file_info{type = regular}} -> {ok, File};
-                {ok, _} -> {error, file_other(File, atom_to_binary('NotAFile'))};
+                {ok, _} -> {error, ern_io:path_error(File, 'NotAFile')};
                 {error, Error} -> {error, file_error(File, Error)}
             end;
         _ ->
@@ -365,7 +365,7 @@ connect(Tcp, Host, Port, Kind, Deadline, Owner, Reply) ->
                  end,
     case Connecting of
         {error, Error} ->
-            end_source(Reply, {'Left', Error});
+            ern_rt:end_source(Reply, {'Left', Error});
         {Transport, Site, KindOptions} ->
             Options = [binary, {active, false}, {packet, raw} | KindOptions],
             Try = fun() ->
@@ -383,7 +383,7 @@ connect(Tcp, Host, Port, Kind, Deadline, Owner, Reply) ->
                       end
                   end,
             Open = fun(Socket) -> socket_process(Tcp, Transport, Socket, open, Owner, Site) end,
-            end_source(Reply, attempt(Transport, Try, Open, Deadline))
+            ern_rt:end_source(Reply, attempt(Transport, Try, Open, Deadline))
     end.
 
 %% Report Appendix E.18: what a connect's kind adds, its transport, its site
@@ -396,7 +396,8 @@ connecting({tls, Verification}, Host) ->
     Reference = reference(Host),
     case verification(Verification, Reference) of
         {error, Error} -> {error, Error};
-        Checked -> {ssl, <<"Tcp.connectTls">>, Checked ++ server_name(Reference) ++ ?TLS_WAITS}
+        Checked ->
+            {ssl, <<"Tcp.connectTls">>, Checked ++ server_name(Reference) ++ ?TLS_HIBERNATION}
     end.
 
 %% Report Appendix E.18: `Verified(caFile)` checks the far end's certificate
@@ -629,12 +630,6 @@ failed(ssl, {badmatch, {error, {shutdown, {failed_to_start_child, _,
 failed(Transport, Error) ->
     {'Left', io_error(Transport, Error)}.
 
-%% The answer to a request counted as a source, given before its count
-%% ends, so that no deadlock is found between the two (report §8.6).
-end_source(Reply, Answer) ->
-    ern_rt:answer(Reply, Answer),
-    ern_rt:source_end().
-
 %% A listener answers each Accept by a worker of its own, so that a slow
 %% accept does not hold up the next request, and watches the worker until
 %% it ends. E.0 shape rule 8: an accept given no time has run out as it
@@ -705,8 +700,9 @@ close_listener(#listener{transport = Transport, socket = Socket} = Listener) ->
 %% and at once where it is killed, its owner dies or the program ends
 %% meanwhile, a worker that finds it ended so answering nothing
 %% (accept_closed/2). A request that comes meanwhile stays in its mailbox,
-%% and its caller faults with `callee was closed` at the end, as one that
-%% comes as a close ends a listener does (§6.6); a second close answers then.
+%% and is answered at the end as one that comes as a close ends a listener
+%% is, `Left(Closed)`, or its caller faulted with `callee was closed` for
+%% an acceptForever (§6.6); a second close answers then.
 listener_closed(#listener{workers = Workers}) when map_size(Workers) =:= 0 ->
     exit({ern, closed});
 listener_closed(#listener{monitor_ref = MonitorRef, workers = Workers} = Listener) ->
@@ -751,13 +747,14 @@ accept(Tcp, Listener, ssl, Socket, Deadline, Site, Owner, Reply) ->
 answer_accept(Listener, Reply, {'Left', 'Closed'}) ->
     accept_closed(Listener, Reply);
 answer_accept(_, Reply, Answer) ->
-    end_source(Reply, Answer).
+    ern_rt:end_source(Reply, Answer).
 
 %% Report Appendix E.18, §6.6, §6.9: an accept the host answers `closed`
 %% has met its listener's host socket closed (accepted/1). It answers
 %% `Left(Closed)` where the listener lives, and nothing where the
-%% listener's end has begun, so that its caller faults as a call does whose
-%% callee ended so. The host answers whether the listener lives once, and
+%% listener's end has begun, so that its caller meets that end as a call
+%% does whose callee ended so: an accept answers `Left(Closed)`, and an
+%% acceptForever faults. The host answers whether the listener lives once, and
 %% for a process whose end has begun answers once that end is done
 %% (erlang:is_process_alive/1). The answer is right however the socket
 %% closed:
@@ -778,7 +775,7 @@ answer_accept(_, Reply, Answer) ->
 %% nothing, and each accept has one outcome.
 accept_closed(Listener, Reply) ->
     case erlang:is_process_alive(Listener) of
-        true -> end_source(Reply, {'Left', 'Closed'});
+        true -> ern_rt:end_source(Reply, {'Left', 'Closed'});
         false -> ern_rt:source_end()
     end.
 
@@ -910,9 +907,13 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
             erlang:demonitor(MonitorRef, [flush]),
             socket_loop(Connection#connection{owner = Owner,
                                               monitor_ref = erlang:monitor(process, Owner)});
-        %% report Appendix E.18: its owner has died, and it is killed
+        %% report Appendix E.18: its owner has died, and it is killed. Here
+        %% and at each end below, the writer is ended before the host's
+        %% socket closes, so that it gives the host no more bytes; a write
+        %% the host was holding back, the connection being behind, has
+        %% given none.
         {'DOWN', MonitorRef, process, _, _} ->
-            stop_writer(Writer),
+            ern_rt:stop(Writer),
             close_socket(Transport, Socket, ending(Transport, State)),
             exit({ern, killed});
         %% report Appendix E.18: a read whose caller has ended before it
@@ -928,7 +929,7 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
         %% and it answers as the socket ends.
         {'Close', Closing} ->
             #connection{writes = Writes} = closed('Closed', Connection),
-            stop_writer(Writer),
+            ern_rt:stop(Writer),
             %% report Appendix E.18: each write it holds answers `Left(Closed)`,
             %% and one the writer answered first keeps its answer
             lists:foreach(fun(#write{reply = Reply}) ->
@@ -946,7 +947,7 @@ socket_loop(#connection{transport = Transport, socket = Socket, writer = Writer,
             socket_loop(Connection);
         %% report Appendix E.18: killed, or ended with the program
         {'EXIT', _, ExitReason} ->
-            stop_writer(Writer),
+            ern_rt:stop(Writer),
             close_socket(Transport, Socket, ending(Transport, State)),
             exit(ExitReason);
         {'Remote', Reply} ->
@@ -998,15 +999,6 @@ ending(ssl, handshaking) ->
 ending(ssl, _) ->
     record.
 
-%% The writer is ended before the host's socket closes, so that it gives
-%% the host no more bytes; a write the host was holding back, the
-%% connection being behind, has given none.
-stop_writer(Writer) ->
-    unlink(Writer),
-    MonitorRef = erlang:monitor(process, Writer),
-    exit(Writer, kill),
-    receive {'DOWN', MonitorRef, process, _, _} -> ok end.
-
 %% Report Appendix E.18: the host's socket closed, the bytes the far end has
 %% not taken sent while it takes them. The host's own close leaves its
 %% socket open, with its descriptor, for as long as the far end takes
@@ -1030,7 +1022,7 @@ stop_writer(Writer) ->
 %% read the connection cut short. Its connection ends with the record once
 %% the closer finds every byte taken (lingering/6).
 %%
-%% The closer is made now, once the writer has ended (stop_writer/1), so
+%% The closer is made now, once the writer has ended (ern_rt:stop/1), so
 %% that it takes the writer's room in the host's table of processes.
 %% Report Appendix E.18, §12.5: where the table has no room for it, the
 %% socket closes with a linger of no time, what the far end has not taken
@@ -1171,7 +1163,7 @@ write_timed_out(Reply, #connection{writes = Writes} = Connection) ->
 %% Report Appendix E.18: the writer has answered its oldest write, which
 %% lets go of its timer.
 written(#connection{writes = [#write{timer = Timer} | Rest]} = Connection) ->
-    Timer =:= expired orelse let_go(Timer),
+    Timer =:= expired orelse ern_rt:let_go(Timer),
     Connection#connection{writes = Rest}.
 
 %% Report Appendix E.18: a read is answered the bytes no read has taken, or
@@ -1263,9 +1255,9 @@ arrived(Bytes, #connection{waiting = Waiting, buffer = Buffer} = Connection) ->
 %% A read answered: its timer let go, its caller no longer watched, and its
 %% count as a source ended once it has its answer.
 answered_read(#read{reply = Reply, monitor_ref = MonitorRef, timer = Timer}, Answer) ->
-    let_go(Timer),
+    ern_rt:let_go(Timer),
     erlang:demonitor(MonitorRef, [flush]),
-    end_source(Reply, Answer).
+    ern_rt:end_source(Reply, Answer).
 
 %% Report Appendix E.18: a read whose caller has ended before it was
 %% answered is dropped as one that times out is: it has taken nothing, and
@@ -1273,7 +1265,7 @@ answered_read(#read{reply = Reply, monitor_ref = MonitorRef, timer = Timer}, Ans
 %% watched, a `DOWN` on its way among it.
 dropped(MonitorRef, #connection{waiting = Waiting} = Connection) ->
     {value, #read{timer = Timer}, Rest} = lists:keytake(MonitorRef, #read.monitor_ref, Waiting),
-    let_go(Timer),
+    ern_rt:let_go(Timer),
     erlang:demonitor(MonitorRef, [flush]),
     ern_rt:source_end(),
     Connection#connection{waiting = Rest}.
@@ -1285,13 +1277,6 @@ arm(_, none) ->
     none;
 arm(Kind, Deadline) ->
     erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {deadline, Kind}).
-
-%% Report Appendix E.18: a request answered holds no timer. One that fired
-%% as its request was answered finds the request gone, and does nothing.
-let_go(none) ->
-    ok;
-let_go(Timer) ->
-    erlang:cancel_timer(Timer, [{async, true}, {info, false}]).
 
 %% Report Appendix E.18: once the connection has closed, each read waiting
 %% answers `Left(Closed)`, or a failed handshake's `Left`, and each read

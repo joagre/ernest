@@ -152,9 +152,29 @@ foreign fn system(name : Foreign.Term) : Address(Msg) =
 
 // Report Appendix E.23, E.21: a call without a time of its own, whose
 // request carries the time its callee answers within, and whose wait
-// `Process.status` reads as limited.
-foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : a =
+// `Process.status` reads as limited; `None` where its callee had ended, or
+// ends before it answers, however it ends.
+foreign fn callLimited(address : Address(m), request : (Reply(a)) -> m) : Optional(a) =
     "ern_rt:call_limited/2"
+
+// Report Appendix E.23, E.21: the same for a request that takes no time,
+// whose wait `Process.status` reads as not limited.
+foreign fn callUnlimited(address : Address(m), request : (Reply(a)) -> m) : Optional(a) =
+    "ern_rt:call_unlimited/2"
+
+// Report Appendix E.23: the answer of a running program's process, or
+// `Left(Closed)` where it had ended or ended before it answered.
+fn closed(called : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
+    Optional.withDefault(called, Left(Io.Closed))
+
+// Report Appendix E.23: the same for a wait of `ms` milliseconds, which
+// given 0 answers `Left(Timeout)` before any other answer, whatever the
+// program's state (E.0 shape rule 8).
+fn timed(called : Optional(Either(Io.Error, a)), ms : Int) : Either(Io.Error, a) =
+    match called {
+        None when ms <= 0 -> Left(Io.Timeout)
+      | _ -> closed(called)
+    }
 
 /// The words after the module on `ern run`'s command line, whatever they look
 /// like, `-v` among them, bound when the program starts. `ern run` refuses a
@@ -451,12 +471,12 @@ export fn startTerminal(command : Command,
 /// It answers the first of these that holds: `Left(NotATerminal)` for a program
 /// `start` started, whatever the size; `Left(Invalid)` for rows or columns below
 /// 0 or above 65535; and `Left(Closed)` once the terminal has been hung up or
-/// its program has exited, as `write` does.
+/// its program has exited, as `write` does. On a program whose process has
+/// ended, killed or with its owner, it answers `Left(Closed)` alone.
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, as `start` does, and where the
-/// program's process has ended, as `read` does.
+/// Faults where the runtime's helper fails, as `start` does.
 ///
 /// ### Examples
 ///
@@ -491,7 +511,7 @@ export fn startTerminal(command : Command,
 ///
 /// since 0.9.0
 export fn resize(program : Address(ProgramMsg), size : Terminal.Size) : Either(Io.Error, Unit) =
-    Address.callForever(program, fn(reply) = Resize(=size, =reply))
+    closed(callUnlimited(program, fn(reply) = Resize(=size, =reply)))
 
 /// The next piece of what the program wrote, to its standard output or its
 /// standard error, in the order the host delivered them, and last its exit
@@ -506,14 +526,12 @@ export fn resize(program : Address(ProgramMsg), size : Terminal.Size) : Either(I
 /// answered is dropped, and what it would have taken is the next read's.
 ///
 /// Each read after the one that answered the exit status answers it again: the
-/// program's process lives on until it is killed or its owner dies.
+/// program's process lives on until it is killed or its owner dies, and a read
+/// after that answers `Left(Closed)`.
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, as `start` does. Faults where the
-/// program's process has ended, killed or with its owner, as
-/// `Address.callForever` does: with the cause `callee had ended`, or `callee
-/// was killed` where it was killed as the call was made.
+/// Faults where the runtime's helper fails, as `start` does.
 ///
 /// ### Examples
 ///
@@ -528,7 +546,7 @@ export fn resize(program : Address(ProgramMsg), size : Terminal.Size) : Either(I
 /// // => Right(#(Os.Stderr(<<110, 111, 10>>), Os.Exited(1)))
 /// ```
 export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) =
-    callLimited(program, fn(reply) = Read(=ms, =reply))
+    timed(callLimited(program, fn(reply) = Read(=ms, =reply)), ms)
 
 /// The next piece of what the program wrote, and last its exit status, as
 /// `read` answers it without a time: it waits without a limit. A read whose
@@ -538,8 +556,10 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, as `start` does, and where the
-/// program's process has ended, as `read` does.
+/// Faults where the runtime's helper fails, as `start` does. Faults where the
+/// program's process has ended, killed or with its owner, as
+/// `Address.callForever` does: with the cause `callee had ended`, or `callee
+/// was killed` where it was killed as the call was made.
 ///
 /// ### Examples
 ///
@@ -571,12 +591,12 @@ export fn readForever(program : Address(ProgramMsg)) : Either(Io.Error, Output) 
 /// no one reads stops reading. So a program that both takes much input and
 /// writes much output is written to by one process and read by another. Bytes
 /// given after `closeInput`, once the program has exited, or once no process
-/// holds its input open, are dropped, and the answer is `Left(Closed)`.
+/// holds its input open, are dropped, and the answer is `Left(Closed)`, as it
+/// is once the program's process has ended.
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, as `start` does, and where the
-/// program's process has ended, as `read` does.
+/// Faults where the runtime's helper fails, as `start` does.
 ///
 /// ### Examples
 ///
@@ -589,12 +609,13 @@ export fn readForever(program : Address(ProgramMsg)) : Either(Io.Error, Output) 
 /// // => Right(Os.Stdout(<<104, 105>>))
 /// ```
 export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) =
-    callLimited(program, fn(reply) = Write(=bytes, =ms, =reply))
+    timed(callLimited(program, fn(reply) = Write(=bytes, =ms, =reply)), ms)
 
 /// Sends the program `signal`, to the program alone and not to the programs it
 /// started, as the host's `kill` given the program's number does. It answers
 /// `Right(Unit)` once the signal is sent, and `Left(Closed)` once the program
-/// has exited, since the signal then reaches nothing.
+/// has exited, since the signal then reaches nothing, as it does once the
+/// program's process has ended.
 ///
 /// What the program does with the signal is its own. One that does not handle
 /// it ends, and `read` answers what it wrote and then `Exited` with 128 plus
@@ -604,8 +625,7 @@ export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, as `start` does, and where the
-/// program's process has ended, as `read` does.
+/// Faults where the runtime's helper fails, as `start` does.
 ///
 /// ### Examples
 ///
@@ -624,12 +644,13 @@ export fn write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either
 ///
 /// since 0.10.0
 export fn signal(program : Address(ProgramMsg), signal : Signal) : Either(Io.Error, Unit) =
-    Address.callForever(program, fn(reply) = SendSignal(=signal, =reply))
+    closed(callUnlimited(program, fn(reply) = SendSignal(=signal, =reply)))
 
 /// Ends the program's input after what it was given before, and returns once
 /// the end stands behind it: a program that reads to the end of its input sees
 /// every byte written before, and then the end. On a program whose input is
-/// closed already, or that has exited, it returns at once.
+/// closed already, or that has exited, it returns at once, and on one whose
+/// process has ended it does nothing.
 ///
 /// On a program `startTerminal` started it hangs the terminal up, as closing a
 /// terminal window does, and returns once the terminal is hung up: the program
@@ -641,8 +662,7 @@ export fn signal(program : Address(ProgramMsg), signal : Signal) : Either(Io.Err
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, as `start` does, and where the
-/// program's process has ended, as `read` does.
+/// Faults where the runtime's helper fails, as `start` does.
 ///
 /// ### Examples
 ///
@@ -658,7 +678,7 @@ export fn signal(program : Address(ProgramMsg), signal : Signal) : Either(Io.Err
 /// // => Right("2")
 /// ```
 export fn closeInput(program : Address(ProgramMsg)) : Unit =
-    Address.callForever(program, CloseInput)
+    Optional.withDefault(callUnlimited(program, CloseInput), Unit)
 
 /// Makes `owner` the program's owner, in place of the process that started it
 /// or was given it before. The program is killed when its owner dies, and at

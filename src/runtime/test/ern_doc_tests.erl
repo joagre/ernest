@@ -11,9 +11,9 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("checker/include/ern_types.hrl").
 
-%% The modules checked: the template, every file under src/stdlib/, and every
-%% library's top module under src/libs/.
-modules() ->
+%% The sources checked: the template, every file under src/stdlib/, and
+%% every library's top module under src/libs/, each with its namespace.
+sources() ->
     [{['Template'], "test/fixtures/programs/template.ern"}
      | [{ern_namespace:namespace([filename:basename(File, ".ern")]), File}
         || File <- filelib:wildcard("src/stdlib/*.ern")
@@ -21,9 +21,19 @@ modules() ->
            %% an editor's lock file beside a source, `.#name.ern`, is no module
            not lists:prefix(".#", filename:basename(File))]].
 
+%% The modules checked, each source with its declarations, read and parsed
+%% once for every rule doc_rules_test_ holds it to.
+modules() ->
+    [{Namespace, File, parsed(File)} || {Namespace, File} <- sources()].
+
+parsed(File) ->
+    {ok, Source} = file:read_file(File),
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    Declarations.
+
 %% Appendix E.0 shape rule 6: the standard library is checked, not only the template
 stdlib_present_test() ->
-    ?assert(length(modules()) >= 2).
+    ?assert(length(sources()) >= 2).
 
 %% report §9, Appendix E.0 shape rule 6: the prelude's page is documented as a
 %% module's is, so it holds examples, and every function it documents is
@@ -35,9 +45,13 @@ prelude_called_test() ->
                  || {QualifiedName, Text, _, ValueDoc} <- ern_prelude:values(), is_binary(ValueDoc),
                     hd(QualifiedName) =/= 'Sys',
                     lists:prefix("(", Text)],
-    Uncalled = [Function || Function <- Functions,
-                            binary:match(Fences, list_to_binary([Function, "("])) =:= nomatch],
-    ?assertEqual([], Uncalled).
+    ?assertEqual([], uncalled(Functions, Fences)).
+
+%% The functions, each by its qualified name's text, that no call in the
+%% examples' text names.
+uncalled(Functions, Examples) ->
+    [Function || Function <- Functions,
+                 binary:match(Examples, iolist_to_binary([Function, "("])) =:= nomatch].
 
 prelude_docs() ->
     {docs_v1, _, _, _, #{<<"en">> := ModuleDoc}, _, Entries} = ern_prelude:docs(),
@@ -60,10 +74,8 @@ template_examples(Dir) ->
     Template = filename:join(Programs, "template.ern"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Programs, "--build-root", Dir,
                                  Template])),
-    {ok, Source} = file:read_file(Template),
-    {ok, Declarations} = ern_parser:parse_string(Source),
     passed(filename:join(Dir, "template.erc"),
-           [Block || Doc <- docs(Declarations), Block <- fences(Doc)]).
+           [Block || Doc <- docs(parsed(Template)), Block <- fences(Doc)]).
 
 %% report §11.2, §9, §11.4, Appendix E.0 shape rule 6: the prelude's page's
 %% examples, which no module's `.erc` holds, run under `ern test` as the
@@ -132,7 +144,7 @@ listings_are_the_interfaces_test() ->
     Printed = maps:from_list(
                 [{ern_namespace:text(QualifiedName),
                   ern_types:format_scheme(Scheme, ern_types:new())}
-                 || #interface{values = Values} <- ern_prelude:stdlib_interfaces() ++ libraries([]),
+                 || #interface{values = Values} <- ern_prelude:stdlib_interfaces() ++ libraries(),
                     {QualifiedName, Scheme} <- maps:to_list(Values)]),
     {ok, Report} = file:read_file("report/library.md"),
     Listed = listed(binary:split(Report, <<"\n">>, [global]), outside, []),
@@ -167,14 +179,28 @@ own_plain(Name, Type) ->
     [Module | _] = string:split(Name, "."),
     re:replace(Type, "\\b" ++ Module ++ "\\.(?=[A-Z])", "", [global, {return, list}, unicode]).
 
-%% Report §11.1, Appendix G: a library's module is checked with the other
-%% libraries' interfaces, as a program has them on its load path; libs/markdown
-%% uses libs/ansi.
-libraries(Namespace) ->
+%% Report §11.1, Appendix G: the interfaces of the libraries' modules, as
+%% their builds under build/libs hold them, whose types Appendix G lists.
+libraries() ->
     [Interface || File <- filelib:wildcard("build/libs/*/*.erc"),
                   {ok, Bytes} <- [file:read_file(File)],
-                  {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)],
-                  Interface#interface.namespace =/= Namespace].
+                  {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)]].
+
+%% Appendix E.0 shape rule 6, docs/reviews/release.md step 5: each module's
+%% documentation, read and parsed once, held to four rules, a test each: its
+%% releases (since/2), a doc block on every exported declaration
+%% (documented/1), every exported function called by an example
+%% (coverage/2) and every name under `See also` known (see_also/2).
+doc_rules_test_() ->
+    Modules = modules(),
+    Libraries = [hd(Namespace) || {Namespace, File, _} <- Modules,
+                                  lists:prefix("src/libs/", File)],
+    [{atom_to_list(hd(Namespace)),
+      [{"since", fun() -> since(File, Declarations) end},
+       {"documented", fun() -> documented(Declarations) end},
+       {"coverage", fun() -> coverage(Namespace, Declarations) end},
+       {"see also", fun() -> see_also(Declarations, Libraries) end}]}
+     || {Namespace, File, Declarations} <- Modules].
 
 %% Appendix E.0 shape rule 6, docs/reviews/release.md step 5: the module's
 %% doc block ends with `since v`, and a declaration may state its own. A
@@ -184,15 +210,10 @@ libraries(Namespace) ->
 %% last tag, its next patch, minor or major. A tag holds a declaration of
 %% that kind and name. A regression test (the log's *The Full Review's
 %% Questions, One by One*)
-doc_since_test_() ->
-    [{atom_to_list(hd(Namespace)), fun() -> since(File) end} || {Namespace, File} <- modules()].
-
-since(File) ->
+since(File, Declarations) ->
     Tags = tags(),
     ?assertNotEqual([], Tags),
     Shipped = [{Version, shipped(Tag, File)} || {Version, Tag} <- Tags],
-    {ok, Source} = file:read_file(File),
-    {ok, Declarations} = ern_parser:parse_string(Source),
     ModuleDocs = [Text || #module_doc{text = Text} <- Declarations],
     ?assertMatch([_], ModuleDocs),
     ModuleSince = since_of(hd(ModuleDocs)),
@@ -200,7 +221,7 @@ since(File) ->
     First = [Version || {Version, Keys} <- Shipped, Keys =/= none],
     ?assertEqual([], [{module, ModuleSince} || not is_release(ModuleSince, First, Tags)]),
     Wrong = [{Key, Since} || Declaration <- Declarations,
-                             exported_declaration(Declaration) =:= true,
+                             export_of(Declaration) =:= true,
                              Key <- [declaration_key(Declaration)],
                              Since <- [own_since(Declaration, ModuleSince)],
                              not is_release(Since, [Version || {Version, Keys} <- Shipped,
@@ -324,35 +345,21 @@ version(Text) ->
     [list_to_integer(Part) || Part <- string:split(Trimmed, ".", all)].
 
 %% Appendix E.0 shape rule 6: every exported declaration has a doc block
-doc_exported_documented_test_() ->
-    [{atom_to_list(hd(Namespace)), fun() ->
-                                       documented(File)
-                                   end} || {Namespace, File} <- modules()].
-
-documented(File) ->
-    {ok, Source} = file:read_file(File),
-    {ok, Declarations} = ern_parser:parse_string(Source),
+documented(Declarations) ->
     ?assertEqual([], [declaration_names(Declaration) || Declaration <- Declarations,
-                                                        exported_declaration(Declaration) =:= true,
+                                                        export_of(Declaration) =:= true,
                                                         doc_of(Declaration) =:= undefined]).
 
 %% Appendix E.0 shape rule 6: a module's page holds examples, and every
 %% exported function is called by one, the module's or its own; a member,
 %% which an operator, prefix `-` or `compare` reaches and no example names
 %% (report §4.5), is not looked for
-doc_coverage_test_() ->
-    [{atom_to_list(hd(Namespace)), fun() ->
-                                       coverage(Namespace, File)
-                                   end} || {Namespace, File} <- modules()].
-
-coverage(Namespace, File) ->
-    {ok, Source} = file:read_file(File),
-    {ok, Declarations} = ern_parser:parse_string(Source),
+coverage(Namespace, Declarations) ->
     Examples = iolist_to_binary([Block || Doc <- docs(Declarations), Block <- fences(Doc)]),
     ?assertNotEqual(<<>>, Examples),
     Prefix = ern_namespace:text(Namespace),
     IsMember = fun(MemberOf, Name) ->
-                       MemberOf =/= undefined orelse not is_alpha(Name)
+                       MemberOf =/= undefined orelse is_operator(Name)
                            orelse (lists:member(Name, [compare, negate])
                                    andalso lists:member(hd(Namespace),
                                                         ern_prelude:member_types()))
@@ -367,25 +374,19 @@ coverage(Namespace, File) ->
     %% a module exports something: `Test`, Appendix E.24, declares types alone
     Types = [Name || #type_declaration{export = true, name = Name} <- Declarations],
     ?assertNotEqual([], Fns ++ Types),
-    Uncalled = [Function || Function <- Fns,
-                            binary:match(Examples, iolist_to_binary([Prefix, ".", Function, "("]))
-                                =:= nomatch],
-    ?assertEqual([], Uncalled).
+    ?assertEqual([], uncalled([[Prefix, ".", Function] || Function <- Fns], Examples)).
 
-is_alpha(Name) ->
+%% Whether a declaration's name is an operator's, which begins with no
+%% lower-case letter, and not a function's.
+is_operator(Name) ->
     [First | _] = atom_to_list(Name),
-    First >= $a andalso First =< $z.
+    not (First >= $a andalso First =< $z).
 
 %% Appendix E.0 shape rule 6: every backticked name under `See also` is a
 %% declaration of the module, a prelude or standard library namespace or
-%% value, a prelude type, or a library's namespace (Appendix G), which
-%% stands on every job's load path
-doc_see_also_test_() ->
-    [{atom_to_list(hd(Namespace)), fun() -> see_also(File) end} || {Namespace, File} <- modules()].
-
-see_also(File) ->
-    {ok, Source} = file:read_file(File),
-    {ok, Declarations} = ern_parser:parse_string(Source),
+%% value, a prelude type, or a library's namespace (Appendix G), one of
+%% Libraries, which stands on every job's load path
+see_also(Declarations, Libraries) ->
     Known = lists:append([declaration_names(Declaration) || Declaration <- Declarations])
         ++ [atom_to_list(hd(QualifiedName)) || {QualifiedName, _, _, _} <- ern_prelude:values(),
                                                length(QualifiedName) > 1]
@@ -397,8 +398,7 @@ see_also(File) ->
                                         QualifiedName <- maps:keys(Interface#interface.values)]
         ++ [ern_namespace:text(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
                                         QualifiedName <- maps:keys(Interface#interface.types)]
-        ++ [atom_to_list(hd(Namespace)) || {Namespace, Library} <- modules(),
-                                           lists:prefix("src/libs/", Library)],
+        ++ [atom_to_list(Library) || Library <- Libraries],
     Named = [Name || Doc <- docs(Declarations),
                      {match, Sections}
                          <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
@@ -424,13 +424,13 @@ local_name(undefined, Name) -> atom_to_list(Name);
 local_name(MemberOf, Name) -> atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name).
 
 %% Whether a top-level declaration is exported; none for anything else.
-exported_declaration(#type_declaration{export = Export}) -> Export;
-exported_declaration(#abstract_declaration{export = Export}) -> Export;
-exported_declaration(#fn_declaration{export = Export}) -> Export;
-exported_declaration(#let_declaration{export = Export}) -> Export;
-exported_declaration(#foreign_type_declaration{export = Export}) -> Export;
-exported_declaration(#foreign_fn_declaration{export = Export}) -> Export;
-exported_declaration(_) -> none.
+export_of(#type_declaration{export = Export}) -> Export;
+export_of(#abstract_declaration{export = Export}) -> Export;
+export_of(#fn_declaration{export = Export}) -> Export;
+export_of(#let_declaration{export = Export}) -> Export;
+export_of(#foreign_type_declaration{export = Export}) -> Export;
+export_of(#foreign_fn_declaration{export = Export}) -> Export;
+export_of(_) -> none.
 
 %% A node's doc block: undefined for a declaration without one, which
 %% documented/1 looks for, and none for a node that carries no doc.

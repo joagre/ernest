@@ -100,6 +100,21 @@ no_size() ->
     {0, Sizeless} = ern_pty:run("../bin/ern run build/terminal/probe.erc", Steps, [{size, 0, 0}]),
     ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Sizeless)).
 
+%% report §12.1: the terminal is asked to bracket a paste only where standard
+%% output is the terminal too, so that where it is a pipe nothing of the
+%% mode lands among the program's bytes, which keys still reach. A
+%% regression test: the mode's start and its end were written into a
+%% standard output sent elsewhere
+paste_mode_at_a_terminal_alone_test_() ->
+    ern_nodes_tests:counted_test({waits, 4}, fun paste_mode_at_a_terminal_alone/0).
+
+paste_mode_at_a_terminal_alone() ->
+    ok = build("fixtures/terminal/probe.ern", "fixtures/terminal"),
+    {0, Piped} = pty("../bin/ern run build/terminal/probe.erc | cat",
+                     [{expect, "ready"}, {send, "78"}, {expect, "char x"}, {send, "1b"}]),
+    ?assertEqual([<<"ready no size">>, <<"char x">>, <<"escape">>], lines(Piped)),
+    ?assertEqual(nomatch, re:run(Piped, "\e\\[\\?2004[hl]", [{capture, none}])).
+
 %% report §11.2: at a terminal a fault line is as the reader watches it
 %% happen, without the time it begins with in a file. Written with the code.
 unstamped_at_a_terminal_test_() ->

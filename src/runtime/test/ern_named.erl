@@ -4,7 +4,7 @@
 %% name (ern_code:function/2).
 -module(ern_named).
 
--export([function/2, main/1, functions/1]).
+-export([function/2, loaded/2, main/1, functions/1]).
 
 %% The function of Unit that holds the declaration Name of its module,
 %% `sort`, or [MemberOf, Name] for a member, as a fun. The standard library
@@ -18,6 +18,16 @@
 function(Unit, Name) ->
     _ = ern_rt:stdlib_modules(),
     {module, Unit} = ern_code:ensure_loaded(Unit),
+    loaded(Unit, Name).
+
+%% The same of a unit the node holds, as a run holds the standard library
+%% from its start (ern_rt:stdlib_modules/0), found without the scan and the
+%% loads, so that a process a test sees wait in a receive (ern_waits:
+%% waiting/1) waits in the call it makes and not in the host's servers. A
+%% unit the node does not hold is the test's error.
+-spec loaded(module(), atom() | [atom()]) -> function().
+loaded(Unit, Name) ->
+    true = erlang:module_loaded(Unit),
     [Namespace] = [Namespace || {Namespace, {calls, _}} <- Unit:'$code'()],
     Parts = case Name of
                 [_ | _] -> Name;

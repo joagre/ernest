@@ -716,33 +716,35 @@ bytes_test() ->
 %% empty second is at 0 for `indexOf` and at the end for `lastIndexOf`, is
 %% in every `Bytes`, begins and ends every one, splits nothing and
 %% replaces nothing; a count below 0 repeats nothing; hexadecimal is
-%% upper-case out and either case in, and an odd count or another
+%% lower-case out and either case in, and an odd count or another
 %% character is None. A regression test: the ten functions were tested only
 %% by their pages' examples, and `lastIndexOf` was missing
 bytes_text_test() ->
-    Bytes = ern_named:functions('ern@bytes'),
-    ?assertEqual(true, Bytes(contains)(<<1, 2>>, <<>>)),
-    ?assertEqual(false, Bytes(contains)(<<1, 2>>, <<2, 1>>)),
-    ?assertEqual({'Some', 0}, Bytes(indexOf)(<<1>>, <<>>)),
-    ?assertEqual({'Some', 1}, Bytes(indexOf)(<<0, 1, 2, 1, 2>>, <<1, 2>>)),
-    ?assertEqual({'Some', 3}, Bytes(lastIndexOf)(<<0, 1, 2, 1, 2>>, <<1, 2>>)),
-    ?assertEqual({'Some', 2}, Bytes(lastIndexOf)(<<1, 2>>, <<>>)),
-    ?assertEqual('None', Bytes(lastIndexOf)(<<1>>, <<1, 1>>)),
-    ?assertEqual(true, Bytes(startsWith)(<<1>>, <<>>)),
-    ?assertEqual(true, Bytes(endsWith)(<<1>>, <<>>)),
-    ?assertEqual(false, Bytes(endsWith)(<<1>>, <<0, 1>>)),
-    ?assertEqual([<<1, 2>>], Bytes(split)(<<1, 2>>, <<>>)),
-    ?assertEqual([<<>>, <<1>>, <<>>], Bytes(split)(<<0, 1, 0>>, <<0>>)),
-    ?assertEqual(<<1, 2>>, Bytes(replace)(<<1, 2>>, <<>>, <<9>>)),
-    ?assertEqual(<<9, 2, 9>>, Bytes(replace)(<<1, 2, 1>>, <<1>>, <<9>>)),
-    ?assertEqual(<<1, 0, 2>>, Bytes(join)([<<1>>, <<2>>], <<0>>)),
-    ?assertEqual(<<>>, Bytes(join)([], <<0>>)),
-    ?assertEqual(<<1, 1, 1>>, Bytes(repeat)(<<1>>, 3)),
-    ?assertEqual(<<>>, Bytes(repeat)(<<1>>, -2)),
-    ?assertEqual(<<"00ff1a">>, Bytes(toHex)(<<0, 255, 26>>)),
-    ?assertEqual({'Some', <<0, 255, 26>>}, Bytes(fromHex)(<<"00ff1A">>)),
-    ?assertEqual('None', Bytes(fromHex)(<<"0">>)),
-    ?assertEqual('None', Bytes(fromHex)(<<"0g">>)).
+    in_run(fun() ->
+        Bytes = ern_named:functions('ern@bytes'),
+        ?assertEqual(true, Bytes(contains)(<<1, 2>>, <<>>)),
+        ?assertEqual(false, Bytes(contains)(<<1, 2>>, <<2, 1>>)),
+        ?assertEqual({'Some', 0}, Bytes(indexOf)(<<1>>, <<>>)),
+        ?assertEqual({'Some', 1}, Bytes(indexOf)(<<0, 1, 2, 1, 2>>, <<1, 2>>)),
+        ?assertEqual({'Some', 3}, Bytes(lastIndexOf)(<<0, 1, 2, 1, 2>>, <<1, 2>>)),
+        ?assertEqual({'Some', 2}, Bytes(lastIndexOf)(<<1, 2>>, <<>>)),
+        ?assertEqual('None', Bytes(lastIndexOf)(<<1>>, <<1, 1>>)),
+        ?assertEqual(true, Bytes(startsWith)(<<1>>, <<>>)),
+        ?assertEqual(true, Bytes(endsWith)(<<1>>, <<>>)),
+        ?assertEqual(false, Bytes(endsWith)(<<1>>, <<0, 1>>)),
+        ?assertEqual([<<1, 2>>], Bytes(split)(<<1, 2>>, <<>>)),
+        ?assertEqual([<<>>, <<1>>, <<>>], Bytes(split)(<<0, 1, 0>>, <<0>>)),
+        ?assertEqual(<<1, 2>>, Bytes(replace)(<<1, 2>>, <<>>, <<9>>)),
+        ?assertEqual(<<9, 2, 9>>, Bytes(replace)(<<1, 2, 1>>, <<1>>, <<9>>)),
+        ?assertEqual(<<1, 0, 2>>, Bytes(join)([<<1>>, <<2>>], <<0>>)),
+        ?assertEqual(<<>>, Bytes(join)([], <<0>>)),
+        ?assertEqual(<<1, 1, 1>>, Bytes(repeat)(<<1>>, 3)),
+        ?assertEqual(<<>>, Bytes(repeat)(<<1>>, -2)),
+        ?assertEqual(<<"00ff1a">>, Bytes(toHex)(<<0, 255, 26>>)),
+        ?assertEqual({'Some', <<0, 255, 26>>}, Bytes(fromHex)(<<"00ff1A">>)),
+        ?assertEqual('None', Bytes(fromHex)(<<"0">>)),
+        ?assertEqual('None', Bytes(fromHex)(<<"0g">>))
+    end).
 
 %% report Appendix E.20: `splitOnce` answers the octets before the
 %% separator's first occurrence and those after it, the later occurrences
@@ -767,20 +769,22 @@ bytes_split_once_test() ->
 %% part at least, at every edge: an empty first, an empty second, both, and
 %% a first that is the separator alone. Written with the report's sentence
 split_one_part_at_least_test() ->
-    String = ern_named:functions('ern@string'),
-    Bytes = ern_named:functions('ern@bytes'),
-    ?assertEqual([<<>>], String(split)(<<>>, <<>>)),
-    ?assertEqual([<<>>, <<>>], String(split)(<<",">>, <<",">>)),
-    ?assertEqual([<<>>, <<>>], String(split)(<<"ab">>, <<"ab">>)),
-    ?assertEqual([<<>>], Bytes(split)(<<>>, <<0>>)),
-    ?assertEqual([<<>>], Bytes(split)(<<>>, <<>>)),
-    ?assertEqual([<<>>, <<>>], Bytes(split)(<<0>>, <<0>>)),
-    ?assertEqual([<<>>, <<>>], Bytes(split)(<<1, 2>>, <<1, 2>>)),
-    Texts = [<<>>, <<",">>, <<"a">>, <<",,">>, <<"ab">>],
-    [?assertNotEqual([], Split(Text, Separator))
-     || Split <- [String(split), Bytes(split)],
-        Text <- Texts,
-        Separator <- [<<>>, <<",">>, <<"ab">>]].
+    in_run(fun() ->
+        String = ern_named:functions('ern@string'),
+        Bytes = ern_named:functions('ern@bytes'),
+        ?assertEqual([<<>>], String(split)(<<>>, <<>>)),
+        ?assertEqual([<<>>, <<>>], String(split)(<<",">>, <<",">>)),
+        ?assertEqual([<<>>, <<>>], String(split)(<<"ab">>, <<"ab">>)),
+        ?assertEqual([<<>>], Bytes(split)(<<>>, <<0>>)),
+        ?assertEqual([<<>>], Bytes(split)(<<>>, <<>>)),
+        ?assertEqual([<<>>, <<>>], Bytes(split)(<<0>>, <<0>>)),
+        ?assertEqual([<<>>, <<>>], Bytes(split)(<<1, 2>>, <<1, 2>>)),
+        Texts = [<<>>, <<",">>, <<"a">>, <<",,">>, <<"ab">>],
+        [?assertNotEqual([], Split(Text, Separator))
+         || Split <- [String(split), Bytes(split)],
+            Text <- Texts,
+            Separator <- [<<>>, <<",">>, <<"ab">>]]
+    end).
 
 %% report Appendix E.12: `Foreign.atom`
 foreign_atom_test() ->
@@ -1032,81 +1036,79 @@ io_read_line_test() ->
 %% file of another user, which a test cannot make
 entry_mode_and_user_test() ->
     Self = self(),
-    Dir = scratch("ern_owned_"),
-    ok = filelib:ensure_path(Dir),
-    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    ok = ern_rt:run_main(
-           fun() ->
-               {'Right', 'Unit'} = Fs(write)(InDir("private.txt"), <<"secret">>, 5000),
-               {'Right', 'Unit'} = Fs(setMode)(InDir("private.txt"), 8#640, 5000),
-               {'Right', 'Unit'} = Fs(makeSymlink)(InDir("link"), InDir("private.txt"), 5000),
-               Self ! {owned, {Fs(stat)(InDir("private.txt"), 5000), Fs(stat)(InDir("link"), 5000),
-                               Fs(list)({'Path', unicode:characters_to_binary(Dir)}, 5000),
-                               (ern_named:function('ern@os', user))()}}
-           end, <<"entry_mode_and_user_test">>, #{}),
-    {Stat, ThroughLink, {'Right', Listed}, User} = receive {owned, Owned} -> Owned end,
-    {ok, #file_info{uid = Uid}} = file:read_file_info(filename:join(Dir, "private.txt")),
-    ?assertEqual(Uid, User),
-    ?assertMatch({'Right', {'Entry', _, _, 6, 'File', 8#640, User}}, Stat),
-    ?assertMatch({'Right', {'Entry', _, _, 6, 'File', 8#640, User}}, ThroughLink),
-    [{'Entry', _, _, _, 'Link', LinkMode, User}] =
-        [Entry || {'Entry', {'Path', Path}, _, _, _, _, _} = Entry <- Listed,
-                  filename:basename(Path) =:= <<"link">>],
-    ?assert(LinkMode =< 8#7777),
-    file:del_dir_r(Dir).
+    scratch("ern_owned_", fun(Dir) ->
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        ok = ern_rt:run_main(
+               fun() ->
+                   {'Right', 'Unit'} = Fs(write)(InDir("private.txt"), <<"secret">>, 5000),
+                   {'Right', 'Unit'} = Fs(setMode)(InDir("private.txt"), 8#640, 5000),
+                   {'Right', 'Unit'} = Fs(makeSymlink)(InDir("link"), InDir("private.txt"), 5000),
+                   Self ! {owned, {Fs(stat)(InDir("private.txt"), 5000),
+                                   Fs(stat)(InDir("link"), 5000),
+                                   Fs(list)({'Path', unicode:characters_to_binary(Dir)}, 5000),
+                                   (ern_named:function('ern@os', user))()}}
+               end, <<"entry_mode_and_user_test">>, #{}),
+        {Stat, ThroughLink, {'Right', Listed}, User} = receive {owned, Owned} -> Owned end,
+        {ok, #file_info{uid = Uid}} = file:read_file_info(filename:join(Dir, "private.txt")),
+        ?assertEqual(Uid, User),
+        ?assertMatch({'Right', {'Entry', _, _, 6, 'File', 8#640, User}}, Stat),
+        ?assertMatch({'Right', {'Entry', _, _, 6, 'File', 8#640, User}}, ThroughLink),
+        [{'Entry', _, _, _, 'Link', LinkMode, User}] =
+            [Entry || {'Entry', {'Path', Path}, _, _, _, _, _} = Entry <- Listed,
+                      filename:basename(Path) =:= <<"link">>],
+        ?assert(LinkMode =< 8#7777)
+    end).
 
 %% report Appendix E.17, §8.2: the file system through Fs's reference, each answer
 %% Right or Left(Io.Error), and Left(Timeout) when the wait runs out
 fs_test() ->
     Self = self(),
-    Dir = scratch("ern_fs_"),
-    ok = filelib:ensure_path(Dir),
-    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    Result = ern_rt:run_main(
-               fun() ->
-                   Self ! {fs, Fs(write)(InDir("a.txt"), <<"hello">>, 5000)},
-                   Self ! {fs, Fs(read)(InDir("a.txt"), 5000)},
-                   Self ! {fs, Fs(append)(InDir("a.txt"), <<"!">>, 5000)},
-                   Self ! {fs, Fs(read)(InDir("a.txt"), 5000)},
-                   Self ! {fs, Fs(stat)(InDir("a.txt"), 5000)},
-                   Self ! {fs, Fs(rename)(InDir("a.txt"), InDir("b.txt"), 5000)},
-                   Self ! {fs, Fs(copy)(InDir("b.txt"), InDir("c.txt"), 5000)},
-                   Self ! {fs, Fs(makeDir)(InDir("d/e"), 5000)},
-                   Self ! {fs, Fs(list)({'Path', unicode:characters_to_binary(Dir)}, 5000)},
-                   Self ! {fs, Fs(remove)(InDir("c.txt"), 5000)},
-                   Self ! {fs, Fs(read)(InDir("c.txt"), 5000)}
-               end, <<"fs_test">>, #{}),
-    ?assertEqual(ok, Result),
-    [Write, Read, Append, ReadAppended, Stat, Rename, Copy, MakeDir, List, Remove, Gone] =
-        ern_helpers:taken(fs),
-    ?assertEqual({'Right', 'Unit'}, Write),
-    ?assertEqual({'Right', <<"hello">>}, Read),
-    ?assertEqual({'Right', 'Unit'}, Append),
-    ?assertEqual({'Right', <<"hello!">>}, ReadAppended),
-    ?assertMatch({'Right', {'Entry', _, _, 6, 'File', _, _}}, Stat),
-    ?assertEqual({'Right', 'Unit'}, Rename),
-    ?assertEqual({'Right', 'Unit'}, Copy),
-    ?assertEqual({'Right', 'Unit'}, MakeDir),
-    {'Right', Entries} = List,
-    ?assertEqual([<<"b.txt">>, <<"c.txt">>, <<"d">>],
-                 lists:sort([filename:basename(Path)
-                             || {'Entry', {'Path', Path}, _, _, _, _, _} <- Entries])),
-    ?assertEqual({'Right', 'Unit'}, Remove),
-    ?assertEqual({'Left', 'NotFound'}, Gone),
-    file:del_dir_r(Dir).
+    scratch("ern_fs_", fun(Dir) ->
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        Result = ern_rt:run_main(
+                   fun() ->
+                       Self ! {fs, Fs(write)(InDir("a.txt"), <<"hello">>, 5000)},
+                       Self ! {fs, Fs(read)(InDir("a.txt"), 5000)},
+                       Self ! {fs, Fs(append)(InDir("a.txt"), <<"!">>, 5000)},
+                       Self ! {fs, Fs(read)(InDir("a.txt"), 5000)},
+                       Self ! {fs, Fs(stat)(InDir("a.txt"), 5000)},
+                       Self ! {fs, Fs(rename)(InDir("a.txt"), InDir("b.txt"), 5000)},
+                       Self ! {fs, Fs(copy)(InDir("b.txt"), InDir("c.txt"), 5000)},
+                       Self ! {fs, Fs(makeDir)(InDir("d/e"), 5000)},
+                       Self ! {fs, Fs(list)({'Path', unicode:characters_to_binary(Dir)}, 5000)},
+                       Self ! {fs, Fs(remove)(InDir("c.txt"), 5000)},
+                       Self ! {fs, Fs(read)(InDir("c.txt"), 5000)}
+                   end, <<"fs_test">>, #{}),
+        ?assertEqual(ok, Result),
+        [Write, Read, Append, ReadAppended, Stat, Rename, Copy, MakeDir, List, Remove, Gone] =
+            ern_helpers:taken(fs),
+        ?assertEqual({'Right', 'Unit'}, Write),
+        ?assertEqual({'Right', <<"hello">>}, Read),
+        ?assertEqual({'Right', 'Unit'}, Append),
+        ?assertEqual({'Right', <<"hello!">>}, ReadAppended),
+        ?assertMatch({'Right', {'Entry', _, _, 6, 'File', _, _}}, Stat),
+        ?assertEqual({'Right', 'Unit'}, Rename),
+        ?assertEqual({'Right', 'Unit'}, Copy),
+        ?assertEqual({'Right', 'Unit'}, MakeDir),
+        {'Right', Entries} = List,
+        ?assertEqual([<<"b.txt">>, <<"c.txt">>, <<"d">>],
+                     lists:sort([filename:basename(Path)
+                                 || {'Entry', {'Path', Path}, _, _, _, _, _} <- Entries])),
+        ?assertEqual({'Right', 'Unit'}, Remove),
+        ?assertEqual({'Left', 'NotFound'}, Gone)
+    end).
 
 %% report Appendix E.17, E.23: a temporary directory is made in the one
 %% TMPDIR names, or in /tmp where TMPDIR is empty or not set, named `ern-`
 %% and sixteen hexadecimal digits, a new name at each call, and of mode
 %% 0o700; a TMPDIR that names nothing answers NotFound. A regression test,
 %% written after the code; it does not cover a name drawn again because an
-%% entry had it, which a test cannot make happen
+%% entry had it, or because the directory held something once its mode was
+%% set, which a test cannot make happen (make_temp_dir_held_test)
 make_temp_dir_test() ->
     Self = self(),
-    Dir = scratch("ern_temp_"),
-    ok = filelib:ensure_path(Dir),
     Before = os:getenv("TMPDIR"),
     Fs = ern_named:functions('ern@fs'),
     Made = fun(Tmpdir) ->
@@ -1118,26 +1120,55 @@ make_temp_dir_test() ->
                                     <<"make_temp_dir_test">>, #{}),
                receive {made, Answer} -> Answer end
            end,
-    {'Right', {'Path', First}} = Made(Dir),
-    {'Right', {'Path', Second}} = Made(Dir),
-    Missing = Made(filename:join(Dir, "missing")),
-    {'Right', {'Path', Plain}} = Made(""),
-    {'Right', {'Path', Unset}} = Made(false),
-    case Before of
-        false -> os:unsetenv("TMPDIR");
-        _ -> os:putenv("TMPDIR", Before)
-    end,
-    [?assertEqual(<<"/tmp">>, filename:dirname(Path)) || Path <- [Plain, Unset]],
-    [ok = file:del_dir(Path) || Path <- [Plain, Unset]],
-    ?assertEqual({'Left', 'NotFound'}, Missing),
-    ?assertNotEqual(First, Second),
-    [?assertEqual(unicode:characters_to_binary(Dir), filename:dirname(Path))
-     || Path <- [First, Second]],
-    [?assertMatch({match, _}, re:run(filename:basename(Path), "^ern-[0-9a-f]{16}$"))
-     || Path <- [First, Second]],
-    [?assertMatch({ok, #file_info{type = directory, mode = Mode}} when Mode band 8#7777 =:= 8#700,
-                  file:read_file_info(Path)) || Path <- [First, Second]],
-    file:del_dir_r(Dir).
+    %% a directory made in /tmp is removed at once, and its parent kept
+    Parent = fun(Tmpdir) ->
+                 case Made(Tmpdir) of
+                     {'Right', {'Path', Path}} -> ok = file:del_dir(Path), filename:dirname(Path);
+                     Answer -> Answer
+                 end
+             end,
+    scratch("ern_temp_", fun(Dir) ->
+        try
+            {'Right', {'Path', First}} = Made(Dir),
+            {'Right', {'Path', Second}} = Made(Dir),
+            ?assertEqual({'Left', 'NotFound'}, Made(filename:join(Dir, "missing"))),
+            ?assertEqual([<<"/tmp">>, <<"/tmp">>], [Parent(""), Parent(false)]),
+            ?assertNotEqual(First, Second),
+            [?assertEqual(unicode:characters_to_binary(Dir), filename:dirname(Path))
+             || Path <- [First, Second]],
+            [?assertMatch({match, _}, re:run(filename:basename(Path), "^ern-[0-9a-f]{16}$"))
+             || Path <- [First, Second]],
+            [?assertMatch({ok, #file_info{type = directory, mode = Mode}}
+                              when Mode band 8#7777 =:= 8#700,
+                          file:read_file_info(Path)) || Path <- [First, Second]]
+        after
+            case Before of
+                false -> os:unsetenv("TMPDIR");
+                _ -> os:putenv("TMPDIR", Before)
+            end
+        end
+    end).
+
+%% report Appendix E.17: a directory makeTempDir makes is answered where it
+%% holds nothing once its mode is `0o700`; one that holds an entry then is
+%% `held`, left as it stands with its entry, and a name is drawn again. A
+%% regression test of the check alone, through the function temp_dir/1
+%% asks: a test cannot put an entry in the directory between its making
+%% and the setting of its mode, so the draw again is not covered
+make_temp_dir_held_test() ->
+    scratch("ern_temp_held_", fun(Dir) ->
+        Empty = filename:join(Dir, "empty"),
+        Held = filename:join(Dir, "held"),
+        ok = file:make_dir(Empty),
+        ok = file:make_dir(Held),
+        ok = file:make_symlink("/nowhere", filename:join(Held, "planted")),
+        ok = file:change_mode(Held, 8#777),
+        ?assertEqual({ok, held}, {ern_fs:private(Empty), ern_fs:private(Held)}),
+        [?assertMatch({ok, #file_info{mode = Mode}} when Mode band 8#7777 =:= 8#700,
+                      file:read_file_info(Path)) || Path <- [Empty, Held]],
+        ?assertEqual({ok, ["planted"]}, file:list_dir(Held)),
+        ?assertEqual({error, enoent}, ern_fs:private(filename:join(Dir, "none")))
+    end).
 
 %% report Appendix E.17: a copy made where nothing was has the source's
 %% permission bits less the program's mask, as cp(1) makes it, and one
@@ -1146,35 +1177,34 @@ make_temp_dir_test() ->
 %% every user could read it
 fs_copy_mode_test() ->
     Self = self(),
-    Dir = scratch("ern_copy_mode_"),
-    ok = filelib:ensure_path(Dir),
-    Name = fun(File) -> filename:join(Dir, File) end,
-    InDir = fun(File) -> {'Path', unicode:characters_to_binary(Name(File))} end,
-    ok = file:write_file(Name("private"), <<"secret">>),
-    ok = file:change_mode(Name("private"), 8#600),
-    ok = file:write_file(Name("script"), <<"run">>),
-    ok = file:change_mode(Name("script"), 8#755),
-    ok = file:write_file(Name("kept"), <<"old">>),
-    ok = file:change_mode(Name("kept"), 8#640),
-    Fs = ern_named:functions('ern@fs'),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(copy)(InDir("private"), InDir("private_copy"), 5000)},
-                           Self ! {fs, Fs(copy)(InDir("script"), InDir("script_copy"), 5000)},
-                           Self ! {fs, Fs(copy)(InDir("script"), InDir("kept"), 5000)}
-                       end, <<"fs_copy_mode_test">>, #{})),
-    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], ern_helpers:taken(fs)),
-    Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
-    ModeOf = fun(File) ->
-                 {ok, #file_info{mode = Mode}} = file:read_file_info(Name(File)),
-                 Mode band 8#7777
-             end,
-    ?assertEqual(8#600 band bnot Mask, ModeOf("private_copy")),
-    ?assertEqual(8#755 band bnot Mask, ModeOf("script_copy")),
-    ?assertEqual(8#640, ModeOf("kept")),
-    ?assertEqual({ok, <<"secret">>}, file:read_file(Name("private_copy"))),
-    ?assertEqual({ok, <<"run">>}, file:read_file(Name("kept"))),
-    file:del_dir_r(Dir).
+    scratch("ern_copy_mode_", fun(Dir) ->
+        Name = fun(File) -> filename:join(Dir, File) end,
+        InDir = fun(File) -> {'Path', unicode:characters_to_binary(Name(File))} end,
+        ok = file:write_file(Name("private"), <<"secret">>),
+        ok = file:change_mode(Name("private"), 8#600),
+        ok = file:write_file(Name("script"), <<"run">>),
+        ok = file:change_mode(Name("script"), 8#755),
+        ok = file:write_file(Name("kept"), <<"old">>),
+        ok = file:change_mode(Name("kept"), 8#640),
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(copy)(InDir("private"), InDir("private_copy"), 5000)},
+                               Self ! {fs, Fs(copy)(InDir("script"), InDir("script_copy"), 5000)},
+                               Self ! {fs, Fs(copy)(InDir("script"), InDir("kept"), 5000)}
+                           end, <<"fs_copy_mode_test">>, #{})),
+        ?assertEqual(lists:duplicate(3, {'Right', 'Unit'}), ern_helpers:taken(fs)),
+        Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
+        ModeOf = fun(File) ->
+                     {ok, #file_info{mode = Mode}} = file:read_file_info(Name(File)),
+                     Mode band 8#7777
+                 end,
+        ?assertEqual(8#600 band bnot Mask, ModeOf("private_copy")),
+        ?assertEqual(8#755 band bnot Mask, ModeOf("script_copy")),
+        ?assertEqual(8#640, ModeOf("kept")),
+        ?assertEqual({ok, <<"secret">>}, file:read_file(Name("private_copy"))),
+        ?assertEqual({ok, <<"run">>}, file:read_file(Name("kept")))
+    end).
 
 %% report Appendix E.17: a file copied onto itself keeps its content, by
 %% its own path, by a hard link to it and by a path through `..`, and each
@@ -1186,46 +1216,46 @@ fs_copy_mode_test() ->
 %% onto itself left the file empty
 fs_copy_onto_itself_test() ->
     Self = self(),
-    Dir = scratch("ern_copy_itself_"),
-    ok = filelib:ensure_path(filename:join(Dir, "sub")),
-    Name = fun(File) -> filename:join(Dir, File) end,
-    InDir = fun(File) -> {'Path', unicode:characters_to_binary(Name(File))} end,
-    Bytes = binary:copy(<<"twelve bytes">>, 10000),
-    ok = file:write_file(Name("kept"), Bytes),
-    ok = file:make_link(Name("kept"), Name("linked")),
-    ok = file:write_file(Name("short"), <<"short">>),
-    ok = file:write_file(Name("longer"), <<"a longer file">>),
-    ok = file:write_file(Name("other"), <<"old">>),
-    ok = file:write_file(Name("unreadable"), <<"cannot be read">>),
-    ok = file:change_mode(Name("unreadable"), 8#200),
-    ok = file:write_file(Name("unwritable"), <<"cannot be written">>),
-    ok = file:change_mode(Name("unwritable"), 8#400),
-    %% root reads and writes every file, and each copy of its copies
-    {Denied, Unwritable} = case string:trim(os:cmd("id -u")) of
-                               "0" -> {{'Right', 'Unit'}, <<"short">>};
-                               _ -> {{'Left', 'Denied'}, <<"cannot be written">>}
-                           end,
-    Copy = (ern_named:functions('ern@fs'))(copy),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Copy(InDir("kept"), InDir("kept"), 5000)},
-                           Self ! {fs, Copy(InDir("kept"), InDir("linked"), 5000)},
-                           Self ! {fs, Copy(InDir("sub/../kept"), InDir("kept"), 5000)},
-                           Self ! {fs, Copy(InDir("short"), InDir("longer"), 5000)},
-                           Self ! {fs, Copy(InDir("kept"), InDir("other"), 5000)},
-                           Self ! {fs, Copy(InDir("short"), InDir("unreadable"), 5000)},
-                           Self ! {fs, Copy(InDir("short"), InDir("unwritable"), 5000)}
-                       end, <<"fs_copy_onto_itself_test">>, #{})),
-    ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}) ++ [Denied], ern_helpers:taken(fs)),
-    ?assertEqual({ok, Bytes}, file:read_file(Name("kept"))),
-    ?assertEqual({ok, <<"short">>}, file:read_file(Name("longer"))),
-    ?assertEqual({ok, Bytes}, file:read_file(Name("other"))),
-    {ok, #file_info{mode = Unreadable}} = file:read_file_info(Name("unreadable")),
-    ?assertEqual(8#200, Unreadable band 8#7777),
-    ok = file:change_mode(Name("unreadable"), 8#600),
-    ?assertEqual({ok, <<"short">>}, file:read_file(Name("unreadable"))),
-    ?assertEqual({ok, Unwritable}, file:read_file(Name("unwritable"))),
-    file:del_dir_r(Dir).
+    scratch("ern_copy_itself_", fun(Dir) ->
+        ok = filelib:ensure_path(filename:join(Dir, "sub")),
+        Name = fun(File) -> filename:join(Dir, File) end,
+        InDir = fun(File) -> {'Path', unicode:characters_to_binary(Name(File))} end,
+        Bytes = binary:copy(<<"twelve bytes">>, 10000),
+        ok = file:write_file(Name("kept"), Bytes),
+        ok = file:make_link(Name("kept"), Name("linked")),
+        ok = file:write_file(Name("short"), <<"short">>),
+        ok = file:write_file(Name("longer"), <<"a longer file">>),
+        ok = file:write_file(Name("other"), <<"old">>),
+        ok = file:write_file(Name("unreadable"), <<"cannot be read">>),
+        ok = file:change_mode(Name("unreadable"), 8#200),
+        ok = file:write_file(Name("unwritable"), <<"cannot be written">>),
+        ok = file:change_mode(Name("unwritable"), 8#400),
+        %% root reads and writes every file, and each copy of its copies
+        {Denied, Unwritable} = case string:trim(os:cmd("id -u")) of
+                                   "0" -> {{'Right', 'Unit'}, <<"short">>};
+                                   _ -> {{'Left', 'Denied'}, <<"cannot be written">>}
+                               end,
+        Copy = (ern_named:functions('ern@fs'))(copy),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Copy(InDir("kept"), InDir("kept"), 5000)},
+                               Self ! {fs, Copy(InDir("kept"), InDir("linked"), 5000)},
+                               Self ! {fs, Copy(InDir("sub/../kept"), InDir("kept"), 5000)},
+                               Self ! {fs, Copy(InDir("short"), InDir("longer"), 5000)},
+                               Self ! {fs, Copy(InDir("kept"), InDir("other"), 5000)},
+                               Self ! {fs, Copy(InDir("short"), InDir("unreadable"), 5000)},
+                               Self ! {fs, Copy(InDir("short"), InDir("unwritable"), 5000)}
+                           end, <<"fs_copy_onto_itself_test">>, #{})),
+        ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}) ++ [Denied], ern_helpers:taken(fs)),
+        ?assertEqual({ok, Bytes}, file:read_file(Name("kept"))),
+        ?assertEqual({ok, <<"short">>}, file:read_file(Name("longer"))),
+        ?assertEqual({ok, Bytes}, file:read_file(Name("other"))),
+        {ok, #file_info{mode = Unreadable}} = file:read_file_info(Name("unreadable")),
+        ?assertEqual(8#200, Unreadable band 8#7777),
+        ok = file:change_mode(Name("unreadable"), 8#600),
+        ?assertEqual({ok, <<"short">>}, file:read_file(Name("unreadable"))),
+        ?assertEqual({ok, Unwritable}, file:read_file(Name("unwritable")))
+    end).
 
 %% report Appendix E.17: `write`, `append` and `copy` read each path's kind
 %% by one stat, whose answer decides, and a copy onto a file that exists
@@ -1235,51 +1265,51 @@ fs_copy_onto_itself_test() ->
 %% through the server
 fs_one_stat_and_raw_copy_test() ->
     Self = self(),
-    Dir = scratch("ern_one_stat_"),
-    ok = filelib:ensure_path(Dir),
-    Name = fun(File) -> unicode:characters_to_binary(filename:join(Dir, File)) end,
-    InDir = fun(File) -> {'Path', Name(File)} end,
-    ok = file:write_file(Name("source"), <<"new">>),
-    ok = file:write_file(Name("kept"), <<"old">>),
-    Fs = ern_named:functions('ern@fs'),
-    [Write, Append, Copy] = [Fs(Function) || Function <- [write, append, copy]],
-    %% the runtime's own modules, which a wait's look reads a stack against,
-    %% found before the server is held, as a run's start finds them; finding
-    %% them asks the server
-    _ = ern_code:own_modules(),
-    Stat = {file, read_file_info, 2},
-    1 = erlang:trace_pattern(Stat, true, [global]),
-    try
-        ?assertEqual(ok, ern_rt:run_main(
-                           fun() ->
-                               FsPid = ern_rt:process_of(ern_rt:system_process(fs)),
-                               1 = erlang:trace(FsPid, true, [call, set_on_spawn, {tracer, Self}]),
-                               Self ! {fs, Write(InDir("written"), <<"a">>, 5000)},
-                               Self ! {fs, Write(InDir("written"), <<"b">>, 5000)},
-                               Self ! {fs, Append(InDir("written"), <<"c">>, 5000)},
-                               Self ! {fs, Append(InDir("appended"), <<"d">>, 5000)},
-                               Self ! {fs, Copy(InDir("source"), InDir("copied"), 5000)},
-                               Server = whereis(file_server_2),
-                               true = erlang:suspend_process(Server),
-                               Copied = try Copy(InDir("source"), InDir("kept"), 2000)
-                                        after erlang:resume_process(Server)
-                                        end,
-                               Self ! {fs, Copied},
-                               erlang:trace(FsPid, false, [call, set_on_spawn])
-                           end, <<"fs_one_stat_and_raw_copy_test">>, #{})),
-        Delivered = erlang:trace_delivered(all),
-        receive {trace_delivered, all, Delivered} -> ok end,
-        ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}), ern_helpers:taken(fs)),
-        %% the paths each request's process read, a request a process
-        ?assertEqual(lists:sort([["written"], ["written"], ["written"], ["appended"],
-                                 ["copied", "source"], ["kept", "source"]]),
-                     lists:sort(maps:values(stats(Dir, #{})))),
-        ?assertEqual({ok, <<"bc">>}, file:read_file(Name("written"))),
-        ?assertEqual({ok, <<"new">>}, file:read_file(Name("kept")))
-    after
-        erlang:trace_pattern(Stat, false, [global]),
-        file:del_dir_r(Dir)
-    end.
+    scratch("ern_one_stat_", fun(Dir) ->
+        Name = fun(File) -> unicode:characters_to_binary(filename:join(Dir, File)) end,
+        InDir = fun(File) -> {'Path', Name(File)} end,
+        ok = file:write_file(Name("source"), <<"new">>),
+        ok = file:write_file(Name("kept"), <<"old">>),
+        Fs = ern_named:functions('ern@fs'),
+        [Write, Append, Copy] = [Fs(Function) || Function <- [write, append, copy]],
+        %% the runtime's own modules, which a wait's look reads a stack against,
+        %% found before the server is held, as a run's start finds them; finding
+        %% them asks the server
+        _ = ern_code:own_modules(),
+        Stat = {file, read_file_info, 2},
+        1 = erlang:trace_pattern(Stat, true, [global]),
+        try
+            ?assertEqual(ok, ern_rt:run_main(
+                               fun() ->
+                                   FsPid = ern_rt:process_of(ern_rt:system_process(fs)),
+                                   1 = erlang:trace(FsPid, true,
+                                                    [call, set_on_spawn, {tracer, Self}]),
+                                   Self ! {fs, Write(InDir("written"), <<"a">>, 5000)},
+                                   Self ! {fs, Write(InDir("written"), <<"b">>, 5000)},
+                                   Self ! {fs, Append(InDir("written"), <<"c">>, 5000)},
+                                   Self ! {fs, Append(InDir("appended"), <<"d">>, 5000)},
+                                   Self ! {fs, Copy(InDir("source"), InDir("copied"), 5000)},
+                                   Server = whereis(file_server_2),
+                                   true = erlang:suspend_process(Server),
+                                   Copied = try Copy(InDir("source"), InDir("kept"), 2000)
+                                            after erlang:resume_process(Server)
+                                            end,
+                                   Self ! {fs, Copied},
+                                   erlang:trace(FsPid, false, [call, set_on_spawn])
+                               end, <<"fs_one_stat_and_raw_copy_test">>, #{})),
+            Delivered = erlang:trace_delivered(all),
+            receive {trace_delivered, all, Delivered} -> ok end,
+            ?assertEqual(lists:duplicate(6, {'Right', 'Unit'}), ern_helpers:taken(fs)),
+            %% the paths each request's process read, a request a process
+            ?assertEqual(lists:sort([["written"], ["written"], ["written"], ["appended"],
+                                     ["copied", "source"], ["kept", "source"]]),
+                         lists:sort(maps:values(stats(Dir, #{})))),
+            ?assertEqual({ok, <<"bc">>}, file:read_file(Name("written"))),
+            ?assertEqual({ok, <<"new">>}, file:read_file(Name("kept")))
+        after
+            erlang:trace_pattern(Stat, false, [global])
+        end
+    end).
 
 %% The stats the host traced, by the process that made them, each a name
 %% under Dir, sorted.
@@ -1301,25 +1331,24 @@ stats(Dir, Acc) ->
 %% after it among them
 fs_named_pipe_test() ->
     Self = self(),
-    Dir = scratch("ern_fifo_"),
-    ok = filelib:ensure_path(Dir),
-    "" = os:cmd("mkfifo " ++ filename:join(Dir, "pipe")),
-    ok = file:write_file(filename:join(Dir, "plain"), <<"hi">>),
-    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(read)(InDir("pipe"), 1000)},
-                           Self ! {fs, Fs(write)(InDir("pipe"), <<"x">>, 1000)},
-                           Self ! {fs, Fs(append)(InDir("pipe"), <<"x">>, 1000)},
-                           Self ! {fs, Fs(copy)(InDir("pipe"), InDir("copy"), 1000)},
-                           Self ! {fs, Fs(copy)(InDir("plain"), InDir("pipe"), 1000)},
-                           Self ! {fs, Fs(read)(InDir("."), 1000)},
-                           Self ! {fs, Fs(read)(InDir("plain"), 1000)}
-                       end, <<"fs_named_pipe_test">>, #{})),
-    Refused = {'Left', 'NotAFile'},
-    ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], ern_helpers:taken(fs)),
-    file:del_dir_r(Dir).
+    scratch("ern_fifo_", fun(Dir) ->
+        "" = os:cmd("mkfifo " ++ filename:join(Dir, "pipe")),
+        ok = file:write_file(filename:join(Dir, "plain"), <<"hi">>),
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(read)(InDir("pipe"), 1000)},
+                               Self ! {fs, Fs(write)(InDir("pipe"), <<"x">>, 1000)},
+                               Self ! {fs, Fs(append)(InDir("pipe"), <<"x">>, 1000)},
+                               Self ! {fs, Fs(copy)(InDir("pipe"), InDir("copy"), 1000)},
+                               Self ! {fs, Fs(copy)(InDir("plain"), InDir("pipe"), 1000)},
+                               Self ! {fs, Fs(read)(InDir("."), 1000)},
+                               Self ! {fs, Fs(read)(InDir("plain"), 1000)}
+                           end, <<"fs_named_pipe_test">>, #{})),
+        Refused = {'Left', 'NotAFile'},
+        ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], ern_helpers:taken(fs))
+    end).
 
 %% report Appendix E.17, E.1: a path whose segment before its last names a
 %% regular file leads to nothing, and every function answers NotFound for
@@ -1328,38 +1357,37 @@ fs_named_pipe_test() ->
 %% build read Other("not a directory") from stat
 fs_path_through_file_test() ->
     Self = self(),
-    Dir = scratch("ern_through_"),
-    ok = filelib:ensure_path(Dir),
-    ok = file:write_file(filename:join(Dir, "plain"), <<"hi">>),
-    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    Through = InDir("plain/x"),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(stat)(Through, 1000)},
-                           Self ! {fs, Fs(read)(Through, 1000)},
-                           Self ! {fs, Fs(readRange)(Through, 0, 1, 1000)},
-                           Self ! {fs, Fs(write)(Through, <<"x">>, 1000)},
-                           Self ! {fs, Fs(append)(Through, <<"x">>, 1000)},
-                           Self ! {fs, Fs(list)(Through, 1000)},
-                           Self ! {fs, Fs(makeDir)(Through, 1000)},
-                           Self ! {fs, Fs(remove)(Through, 1000)},
-                           Self ! {fs, Fs(rename)(Through, InDir("other"), 1000)},
-                           Self ! {fs, Fs(rename)(InDir("plain"), Through, 1000)},
-                           Self ! {fs, Fs(copy)(Through, InDir("other"), 1000)},
-                           Self ! {fs, Fs(copy)(InDir("plain"), Through, 1000)},
-                           Self ! {fs, Fs(makeSymlink)(Through, InDir("plain"), 1000)},
-                           Self ! {fs, Fs(makeHardLink)(Through, InDir("plain"), 1000)},
-                           Self ! {fs, Fs(readLink)(Through, 1000)},
-                           Self ! {fs, Fs(makeFile)(Through, <<"x">>, 1000)},
-                           Self ! {fs, Fs(setModified)(Through, 0, 1000)},
-                           Self ! {fs, Fs(setMode)(Through, 8#644, 1000)},
-                           Self ! {fs, Fs(list)(InDir("plain"), 1000)}
-                       end, <<"fs_path_through_file_test">>, #{})),
-    ?assertEqual(lists:duplicate(18, {'Left', 'NotFound'}) ++ [{'Left', 'NotAFile'}],
-                 ern_helpers:taken(fs)),
-    ?assertEqual({ok, <<"hi">>}, file:read_file(filename:join(Dir, "plain"))),
-    file:del_dir_r(Dir).
+    scratch("ern_through_", fun(Dir) ->
+        ok = file:write_file(filename:join(Dir, "plain"), <<"hi">>),
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        Through = InDir("plain/x"),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(stat)(Through, 1000)},
+                               Self ! {fs, Fs(read)(Through, 1000)},
+                               Self ! {fs, Fs(readRange)(Through, 0, 1, 1000)},
+                               Self ! {fs, Fs(write)(Through, <<"x">>, 1000)},
+                               Self ! {fs, Fs(append)(Through, <<"x">>, 1000)},
+                               Self ! {fs, Fs(list)(Through, 1000)},
+                               Self ! {fs, Fs(makeDir)(Through, 1000)},
+                               Self ! {fs, Fs(remove)(Through, 1000)},
+                               Self ! {fs, Fs(rename)(Through, InDir("other"), 1000)},
+                               Self ! {fs, Fs(rename)(InDir("plain"), Through, 1000)},
+                               Self ! {fs, Fs(copy)(Through, InDir("other"), 1000)},
+                               Self ! {fs, Fs(copy)(InDir("plain"), Through, 1000)},
+                               Self ! {fs, Fs(makeSymlink)(Through, InDir("plain"), 1000)},
+                               Self ! {fs, Fs(makeHardLink)(Through, InDir("plain"), 1000)},
+                               Self ! {fs, Fs(readLink)(Through, 1000)},
+                               Self ! {fs, Fs(makeFile)(Through, <<"x">>, 1000)},
+                               Self ! {fs, Fs(setModified)(Through, 0, 1000)},
+                               Self ! {fs, Fs(setMode)(Through, 8#644, 1000)},
+                               Self ! {fs, Fs(list)(InDir("plain"), 1000)}
+                           end, <<"fs_path_through_file_test">>, #{})),
+        ?assertEqual(lists:duplicate(18, {'Left', 'NotFound'}) ++ [{'Left', 'NotAFile'}],
+                     ern_helpers:taken(fs)),
+        ?assertEqual({ok, <<"hi">>}, file:read_file(filename:join(Dir, "plain")))
+    end).
 
 %% report Appendix E.17, E.1: a path through a loop of links leads to
 %% nothing and is NotFound, as a link that leads nowhere is; a name longer
@@ -1367,23 +1395,22 @@ fs_path_through_file_test() ->
 %% test: the server's build read both as Other with the host's words
 fs_loop_and_long_name_test() ->
     Self = self(),
-    Dir = scratch("ern_loop_"),
-    ok = filelib:ensure_path(Dir),
-    ok = file:make_symlink("loop", filename:join(Dir, "loop")),
-    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    Long = InDir(lists:duplicate(300, $a)),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(stat)(InDir("loop"), 1000)},
-                           Self ! {fs, Fs(read)(InDir("loop/x"), 1000)},
-                           Self ! {fs, Fs(stat)(Long, 1000)},
-                           Self ! {fs, Fs(write)(Long, <<"x">>, 1000)}
-                       end, <<"fs_loop_and_long_name_test">>, #{})),
-    ?assertEqual([{'Left', 'NotFound'}, {'Left', 'NotFound'},
-                  {'Left', 'Invalid'}, {'Left', 'Invalid'}],
-                 ern_helpers:taken(fs)),
-    file:del_dir_r(Dir).
+    scratch("ern_loop_", fun(Dir) ->
+        ok = file:make_symlink("loop", filename:join(Dir, "loop")),
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        Long = InDir(lists:duplicate(300, $a)),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(stat)(InDir("loop"), 1000)},
+                               Self ! {fs, Fs(read)(InDir("loop/x"), 1000)},
+                               Self ! {fs, Fs(stat)(Long, 1000)},
+                               Self ! {fs, Fs(write)(Long, <<"x">>, 1000)}
+                           end, <<"fs_loop_and_long_name_test">>, #{})),
+        ?assertEqual([{'Left', 'NotFound'}, {'Left', 'NotFound'},
+                      {'Left', 'Invalid'}, {'Left', 'Invalid'}],
+                     ern_helpers:taken(fs))
+    end).
 
 %% report Appendix E.17: append writes a device, a terminal among them, and
 %% read, write and copy refuse one, as append refuses a directory; the
@@ -1393,21 +1420,20 @@ fs_loop_and_long_name_test() ->
 fs_append_device_test() ->
     Self = self(),
     Null = {'Path', <<"/dev/null">>},
-    Dir = scratch("ern_device_"),
-    ok = filelib:ensure_path(Dir),
-    Fs = ern_named:functions('ern@fs'),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(append)(Null, <<"x">>, 1000)},
-                           Self ! {fs, Fs(write)(Null, <<"x">>, 1000)},
-                           Self ! {fs, Fs(read)(Null, 1000)},
-                           Self ! {fs, Fs(copy)(Null, {'Path', <<"/dev/null">>}, 1000)},
-                           Self ! {fs, Fs(append)({'Path', unicode:characters_to_binary(Dir)},
-                                                 <<"x">>, 1000)}
-                       end, <<"fs_append_device_test">>, #{})),
-    Refused = {'Left', 'NotAFile'},
-    ?assertEqual([{'Right', 'Unit'}, Refused, Refused, Refused, Refused], ern_helpers:taken(fs)),
-    file:del_dir_r(Dir).
+    scratch("ern_device_", fun(Dir) ->
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(append)(Null, <<"x">>, 1000)},
+                               Self ! {fs, Fs(write)(Null, <<"x">>, 1000)},
+                               Self ! {fs, Fs(read)(Null, 1000)},
+                               Self ! {fs, Fs(copy)(Null, {'Path', <<"/dev/null">>}, 1000)},
+                               Self ! {fs, Fs(append)({'Path', unicode:characters_to_binary(Dir)},
+                                                     <<"x">>, 1000)}
+                           end, <<"fs_append_device_test">>, #{})),
+        Refused = {'Left', 'NotAFile'},
+        ?assertEqual([{'Right', 'Unit'}, Refused, Refused, Refused, Refused], ern_helpers:taken(fs))
+    end).
 
 %% report Appendix E.17: `setMode` sets a file's and a directory's
 %% permission bits to the mode, a path that names nothing is NotFound, and a
@@ -1417,28 +1443,27 @@ fs_append_device_test() ->
 fs_set_mode_test() ->
     Self = self(),
     Fs = ern_named:functions('ern@fs'),
-    Dir = scratch("ern_private_"),
-    ok = filelib:ensure_path(Dir),
-    File = filename:join(Dir, "notes"),
-    ok = file:write_file(File, <<"x">>),
-    ok = file:change_mode(Dir, 8#755),
-    ok = file:change_mode(File, 8#664),
-    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(Name)} end,
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(setMode)(InDir(File), 8#600, 1000)},
-                           Self ! {fs, Fs(setMode)(InDir(Dir), 8#700, 1000)},
-                           Self ! {fs, Fs(setMode)(InDir(Dir ++ "/none"), 8#700, 1000)},
-                           Self ! {fs, Fs(setMode)(InDir(File), 8#10000, 1000)},
-                           Self ! {fs, Fs(setMode)(InDir(Dir), 8#1777, 1000)}
-                       end, <<"fs_set_mode_test">>, #{})),
-    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Left', 'NotFound'},
-                  {'Left', 'Invalid'}, {'Left', 'Invalid'}], ern_helpers:taken(fs)),
-    {ok, FileInfo} = file:read_file_info(File),
-    {ok, DirInfo} = file:read_file_info(Dir),
-    ?assertEqual({8#600, 8#700}, {FileInfo#file_info.mode band 8#777,
-                                  DirInfo#file_info.mode band 8#777}),
-    file:del_dir_r(Dir).
+    scratch("ern_private_", fun(Dir) ->
+        File = filename:join(Dir, "notes"),
+        ok = file:write_file(File, <<"x">>),
+        ok = file:change_mode(Dir, 8#755),
+        ok = file:change_mode(File, 8#664),
+        AsPath = fun(Name) -> {'Path', unicode:characters_to_binary(Name)} end,
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(setMode)(AsPath(File), 8#600, 1000)},
+                               Self ! {fs, Fs(setMode)(AsPath(Dir), 8#700, 1000)},
+                               Self ! {fs, Fs(setMode)(AsPath(Dir ++ "/none"), 8#700, 1000)},
+                               Self ! {fs, Fs(setMode)(AsPath(File), 8#10000, 1000)},
+                               Self ! {fs, Fs(setMode)(AsPath(Dir), 8#1777, 1000)}
+                           end, <<"fs_set_mode_test">>, #{})),
+        ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Left', 'NotFound'},
+                      {'Left', 'Invalid'}, {'Left', 'Invalid'}], ern_helpers:taken(fs)),
+        {ok, FileInfo} = file:read_file_info(File),
+        {ok, DirInfo} = file:read_file_info(Dir),
+        ?assertEqual({8#600, 8#700}, {FileInfo#file_info.mode band 8#777,
+                                      DirInfo#file_info.mode band 8#777})
+    end).
 
 %% report Appendix E.17: a file is created with the permission bits the
 %% host's mask leaves of 0o666, by `makeFile`, `write` and `append` alike.
@@ -1446,21 +1471,20 @@ fs_set_mode_test() ->
 fs_created_mode_test() ->
     Self = self(),
     Fs = ern_named:functions('ern@fs'),
-    Dir = scratch("ern_mask_"),
-    ok = filelib:ensure_path(Dir),
-    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(makeFile)(InDir("made"), <<"x">>, 1000)},
-                           Self ! {fs, Fs(write)(InDir("written"), <<"x">>, 1000)},
-                           Self ! {fs, Fs(append)(InDir("appended"), <<"x">>, 1000)}
-                       end, <<"fs_created_mode_test">>, #{})),
-    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], ern_helpers:taken(fs)),
-    Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
-    [?assertEqual(8#666 band bnot Mask, Mode band 8#777)
-     || Name <- ["made", "written", "appended"],
-        {ok, #file_info{mode = Mode}} <- [file:read_file_info(filename:join(Dir, Name))]],
-    file:del_dir_r(Dir).
+    scratch("ern_mask_", fun(Dir) ->
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(makeFile)(InDir("made"), <<"x">>, 1000)},
+                               Self ! {fs, Fs(write)(InDir("written"), <<"x">>, 1000)},
+                               Self ! {fs, Fs(append)(InDir("appended"), <<"x">>, 1000)}
+                           end, <<"fs_created_mode_test">>, #{})),
+        ?assertEqual(lists:duplicate(3, {'Right', 'Unit'}), ern_helpers:taken(fs)),
+        Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
+        [?assertEqual(8#666 band bnot Mask, Mode band 8#777)
+         || Name <- ["made", "written", "appended"],
+            {ok, #file_info{mode = Mode}} <- [file:read_file_info(filename:join(Dir, Name))]]
+    end).
 
 %% report Appendix E.17: `list` describes each entry as it is, a link as
 %% the link itself, a link to nothing among them. A regression test: a link
@@ -1468,22 +1492,22 @@ fs_created_mode_test() ->
 fs_list_dangling_link_test() ->
     Self = self(),
     Fs = ern_named:functions('ern@fs'),
-    Dir = scratch("ern_links_"),
-    ok = filelib:ensure_path(Dir),
-    ok = file:write_file(filename:join(Dir, "plain"), <<"four">>),
-    ok = file:make_symlink("plain", filename:join(Dir, "to_plain")),
-    ok = file:make_symlink("nowhere", filename:join(Dir, "to_nothing")),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(list)({'Path', list_to_binary(Dir)}, 1000)}
-                       end, <<"fs_list_dangling_link_test">>, #{})),
-    [{'Right', Entries}] = ern_helpers:taken(fs),
-    Described = lists:sort([{filename:basename(Name), Kind, Size}
-                            || {'Entry', {'Path', Name}, _, Size, Kind, _, _} <- Entries]),
-    %% a link is the link itself, whose size is its target's name
-    ?assertEqual([{<<"plain">>, 'File', 4}, {<<"to_nothing">>, 'Link', 7},
-                  {<<"to_plain">>, 'Link', 5}], Described),
-    file:del_dir_r(Dir).
+    scratch("ern_links_", fun(Dir) ->
+        ok = file:write_file(filename:join(Dir, "plain"), <<"four">>),
+        ok = file:make_symlink("plain", filename:join(Dir, "to_plain")),
+        ok = file:make_symlink("nowhere", filename:join(Dir, "to_nothing")),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(list)({'Path', unicode:characters_to_binary(Dir)},
+                                                    1000)}
+                           end, <<"fs_list_dangling_link_test">>, #{})),
+        [{'Right', Entries}] = ern_helpers:taken(fs),
+        Described = lists:sort([{filename:basename(Name), Kind, Size}
+                                || {'Entry', {'Path', Name}, _, Size, Kind, _, _} <- Entries]),
+        %% a link is the link itself, whose size is its target's name
+        ?assertEqual([{<<"plain">>, 'File', 4}, {<<"to_nothing">>, 'Link', 7},
+                      {<<"to_plain">>, 'Link', 5}], Described)
+    end).
 
 %% report Appendix E.17: a link made to a path is read back as it was
 %% written; `stat` follows it and `list` does not; `remove` takes the link
@@ -1493,38 +1517,40 @@ fs_list_dangling_link_test() ->
 %% make one where the host's names are UTF-8
 fs_links_test() ->
     Self = self(),
-    Dir = scratch("ern_links_"),
-    ok = filelib:ensure_path(filename:join(Dir, "shelf")),
-    InDir = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(makeSymlink)(InDir("to_shelf"), {'Path', <<"shelf">>},
-                                                      1000)},
-                           Self ! {fs, Fs(readLink)(InDir("to_shelf"), 1000)},
-                           Self ! {fs, Fs(stat)(InDir("to_shelf"), 1000)},
-                           Self ! {fs, Fs(list)({'Path', list_to_binary(Dir)}, 1000)},
-                           Self ! {fs, Fs(makeSymlink)(InDir("to_shelf"), InDir("elsewhere"),
-                                                       1000)},
-                           Self ! {fs, Fs(readLink)(InDir("shelf"), 1000)},
-                           Self ! {fs, Fs(remove)(InDir("to_shelf"), 1000)},
-                           Self ! {fs, Fs(list)({'Path', list_to_binary(Dir)}, 1000)}
-                       end, <<"fs_links_test">>, #{})),
-    [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = ern_helpers:taken(fs),
-    ?assertEqual({'Right', 'Unit'}, Made),
-    ?assertEqual({'Right', {'Some', {'Path', <<"shelf">>}}}, Read),
-    ?assertMatch({'Right', {'Entry', _, _, _, 'Directory', _, _}}, Stat),
-    {'Right', Entries} = Listed,
-    ?assertEqual([{<<"shelf">>, 'Directory'}, {<<"to_shelf">>, 'Link'}],
-                 lists:sort([{filename:basename(Path), Kind}
-                             || {'Entry', {'Path', Path}, _, _, Kind, _, _} <- Entries])),
-    ?assertEqual({'Left', 'Exists'}, Again),
-    ?assertEqual({'Right', 'None'}, NotLink),
-    ?assertEqual({'Right', 'Unit'}, Removed),
-    {'Right', Kept} = After,
-    ?assertEqual([<<"shelf">>],
-                 [filename:basename(Path) || {'Entry', {'Path', Path}, _, _, _, _, _} <- Kept]),
-    file:del_dir_r(Dir).
+    scratch("ern_links_", fun(Dir) ->
+        ok = filelib:ensure_path(filename:join(Dir, "shelf")),
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(makeSymlink)(InDir("to_shelf"), {'Path', <<"shelf">>},
+                                                          1000)},
+                               Self ! {fs, Fs(readLink)(InDir("to_shelf"), 1000)},
+                               Self ! {fs, Fs(stat)(InDir("to_shelf"), 1000)},
+                               Self ! {fs, Fs(list)({'Path', unicode:characters_to_binary(Dir)},
+                                                    1000)},
+                               Self ! {fs, Fs(makeSymlink)(InDir("to_shelf"), InDir("elsewhere"),
+                                                           1000)},
+                               Self ! {fs, Fs(readLink)(InDir("shelf"), 1000)},
+                               Self ! {fs, Fs(remove)(InDir("to_shelf"), 1000)},
+                               Self ! {fs, Fs(list)({'Path', unicode:characters_to_binary(Dir)},
+                                                    1000)}
+                           end, <<"fs_links_test">>, #{})),
+        [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = ern_helpers:taken(fs),
+        ?assertEqual({'Right', 'Unit'}, Made),
+        ?assertEqual({'Right', {'Some', {'Path', <<"shelf">>}}}, Read),
+        ?assertMatch({'Right', {'Entry', _, _, _, 'Directory', _, _}}, Stat),
+        {'Right', Entries} = Listed,
+        ?assertEqual([{<<"shelf">>, 'Directory'}, {<<"to_shelf">>, 'Link'}],
+                     lists:sort([{filename:basename(Path), Kind}
+                                 || {'Entry', {'Path', Path}, _, _, Kind, _, _} <- Entries])),
+        ?assertEqual({'Left', 'Exists'}, Again),
+        ?assertEqual({'Right', 'None'}, NotLink),
+        ?assertEqual({'Right', 'Unit'}, Removed),
+        {'Right', Kept} = After,
+        ?assertEqual([<<"shelf">>],
+                     [filename:basename(Path) || {'Entry', {'Path', Path}, _, _, _, _, _} <- Kept])
+    end).
 
 %% report Appendix E.17: a hard link is a second name for a regular file,
 %% which outlives the first; a path that names something is `Exists`, and
@@ -1532,33 +1558,33 @@ fs_links_test() ->
 %% `NotFound`. Written with the code
 fs_hard_links_test() ->
     Self = self(),
-    Dir = scratch("ern_hard_"),
-    ok = filelib:ensure_path(filename:join(Dir, "shelf")),
-    ok = file:write_file(filename:join(Dir, "orig"), <<"o">>),
-    ok = file:make_symlink("orig", filename:join(Dir, "to_orig")),
-    InDir = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(makeHardLink)(InDir("twin"), InDir("orig"), 1000)},
-                           Self ! {fs, Fs(stat)(InDir("twin"), 1000)},
-                           Self ! {fs, Fs(makeHardLink)(InDir("twin"), InDir("orig"), 1000)},
-                           Self ! {fs, Fs(makeHardLink)(InDir("dir"), InDir("shelf"), 1000)},
-                           Self ! {fs, Fs(makeHardLink)(InDir("link"), InDir("to_orig"), 1000)},
-                           Self ! {fs, Fs(makeHardLink)(InDir("none"), InDir("missing"), 1000)},
-                           Self ! {fs, Fs(remove)(InDir("orig"), 1000)},
-                           Self ! {fs, Fs(read)(InDir("twin"), 1000)}
-                       end, <<"fs_hard_links_test">>, #{})),
-    [Made, Stat, Again, OfDir, OfLink, OfNone, Removed, Read] = ern_helpers:taken(fs),
-    ?assertEqual({'Right', 'Unit'}, Made),
-    ?assertMatch({'Right', {'Entry', _, _, 1, 'File', _, _}}, Stat),
-    ?assertEqual({'Left', 'Exists'}, Again),
-    ?assertEqual({'Left', 'NotAFile'}, OfDir),
-    ?assertEqual({'Left', 'NotAFile'}, OfLink),
-    ?assertEqual({'Left', 'NotFound'}, OfNone),
-    ?assertEqual({'Right', 'Unit'}, Removed),
-    ?assertEqual({'Right', <<"o">>}, Read),
-    file:del_dir_r(Dir).
+    scratch("ern_hard_", fun(Dir) ->
+        ok = filelib:ensure_path(filename:join(Dir, "shelf")),
+        ok = file:write_file(filename:join(Dir, "orig"), <<"o">>),
+        ok = file:make_symlink("orig", filename:join(Dir, "to_orig")),
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(makeHardLink)(InDir("twin"), InDir("orig"), 1000)},
+                               Self ! {fs, Fs(stat)(InDir("twin"), 1000)},
+                               Self ! {fs, Fs(makeHardLink)(InDir("twin"), InDir("orig"), 1000)},
+                               Self ! {fs, Fs(makeHardLink)(InDir("dir"), InDir("shelf"), 1000)},
+                               Self ! {fs, Fs(makeHardLink)(InDir("link"), InDir("to_orig"), 1000)},
+                               Self ! {fs, Fs(makeHardLink)(InDir("none"), InDir("missing"), 1000)},
+                               Self ! {fs, Fs(remove)(InDir("orig"), 1000)},
+                               Self ! {fs, Fs(read)(InDir("twin"), 1000)}
+                           end, <<"fs_hard_links_test">>, #{})),
+        [Made, Stat, Again, OfDir, OfLink, OfNone, Removed, Read] = ern_helpers:taken(fs),
+        ?assertEqual({'Right', 'Unit'}, Made),
+        ?assertMatch({'Right', {'Entry', _, _, 1, 'File', _, _}}, Stat),
+        ?assertEqual({'Left', 'Exists'}, Again),
+        ?assertEqual({'Left', 'NotAFile'}, OfDir),
+        ?assertEqual({'Left', 'NotAFile'}, OfLink),
+        ?assertEqual({'Left', 'NotFound'}, OfNone),
+        ?assertEqual({'Right', 'Unit'}, Removed),
+        ?assertEqual({'Right', <<"o">>}, Read)
+    end).
 
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
 %% its end and none past it, a regular file only, and an offset or a count
@@ -1569,25 +1595,25 @@ fs_hard_links_test() ->
 %% memory")` or `Other("invalid argument")`
 fs_read_range_test() ->
     Self = self(),
-    Dir = scratch("ern_range_"),
-    ok = filelib:ensure_path(Dir),
-    ok = file:write_file(filename:join(Dir, "abc.txt"), <<"abcdef">>),
-    InDir = {'Path', list_to_binary(filename:join(Dir, "abc.txt"))},
-    Fs = ern_named:functions('ern@fs'),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           [Self ! {fs, Fs(readRange)(InDir, Offset, Count, 1000)}
-                            || {Offset, Count} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0}, {-1, 2},
-                                                   {1, -1}, {2, 1 bsl 62}, {3, 1 bsl 80},
-                                                   {1 bsl 80, 1}]],
-                           Self ! {fs, Fs(readRange)({'Path', list_to_binary(Dir)}, 0, 1, 1000)}
-                       end, <<"fs_read_range_test">>, #{})),
-    ?assertEqual([{'Right', <<"ab">>}, {'Right', <<"ef">>}, {'Right', <<>>}, {'Right', <<>>},
-                  {'Right', <<>>}, {'Right', <<"ab">>}, {'Right', <<>>},
-                  {'Right', <<"cdef">>}, {'Right', <<"def">>}, {'Right', <<>>},
-                  {'Left', 'NotAFile'}],
-                 ern_helpers:taken(fs)),
-    file:del_dir_r(Dir).
+    scratch("ern_range_", fun(Dir) ->
+        ok = file:write_file(filename:join(Dir, "abc.txt"), <<"abcdef">>),
+        File = {'Path', unicode:characters_to_binary(filename:join(Dir, "abc.txt"))},
+        Directory = {'Path', unicode:characters_to_binary(Dir)},
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               [Self ! {fs, Fs(readRange)(File, Offset, Count, 1000)}
+                                || {Offset, Count} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0},
+                                                       {-1, 2}, {1, -1}, {2, 1 bsl 62},
+                                                       {3, 1 bsl 80}, {1 bsl 80, 1}]],
+                               Self ! {fs, Fs(readRange)(Directory, 0, 1, 1000)}
+                           end, <<"fs_read_range_test">>, #{})),
+        ?assertEqual([{'Right', <<"ab">>}, {'Right', <<"ef">>}, {'Right', <<>>}, {'Right', <<>>},
+                      {'Right', <<>>}, {'Right', <<"ab">>}, {'Right', <<>>},
+                      {'Right', <<"cdef">>}, {'Right', <<"def">>}, {'Right', <<>>},
+                      {'Left', 'NotAFile'}],
+                     ern_helpers:taken(fs))
+    end).
 
 %% report Appendix E.17: `makeFile` makes a new file or none; `setModified`
 %% sets the time a `stat` then reads, to the second. Written with the code;
@@ -1595,25 +1621,24 @@ fs_read_range_test() ->
 %% since a test cannot make one fail there
 fs_create_modified_test() ->
     Self = self(),
-    Dir = scratch("ern_fs3_"),
-    ok = filelib:ensure_path(Dir),
-    InDir = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
-    Fs = ern_named:functions('ern@fs'),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Self ! {fs, Fs(makeFile)(InDir("new.txt"), <<"a">>, 1000)},
-                           Self ! {fs, Fs(makeFile)(InDir("new.txt"), <<"b">>, 1000)},
-                           Self ! {fs, Fs(read)(InDir("new.txt"), 1000)},
-                           Self ! {fs, Fs(setModified)(InDir("new.txt"), 86400999, 1000)},
-                           Self ! {fs, Fs(stat)(InDir("new.txt"), 1000)}
-                       end, <<"fs_create_modified_test">>, #{})),
-    [Made, Taken, Kept, Set, Stat] = ern_helpers:taken(fs),
-    ?assertEqual({'Right', 'Unit'}, Made),
-    ?assertEqual({'Left', 'Exists'}, Taken),
-    ?assertEqual({'Right', <<"a">>}, Kept),
-    ?assertEqual({'Right', 'Unit'}, Set),
-    ?assertMatch({'Right', {'Entry', _, 86400000, 1, 'File', _, _}}, Stat),
-    file:del_dir_r(Dir).
+    scratch("ern_fs3_", fun(Dir) ->
+        InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+        Fs = ern_named:functions('ern@fs'),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Self ! {fs, Fs(makeFile)(InDir("new.txt"), <<"a">>, 1000)},
+                               Self ! {fs, Fs(makeFile)(InDir("new.txt"), <<"b">>, 1000)},
+                               Self ! {fs, Fs(read)(InDir("new.txt"), 1000)},
+                               Self ! {fs, Fs(setModified)(InDir("new.txt"), 86400999, 1000)},
+                               Self ! {fs, Fs(stat)(InDir("new.txt"), 1000)}
+                           end, <<"fs_create_modified_test">>, #{})),
+        [Made, Taken, Kept, Set, Stat] = ern_helpers:taken(fs),
+        ?assertEqual({'Right', 'Unit'}, Made),
+        ?assertEqual({'Left', 'Exists'}, Taken),
+        ?assertEqual({'Right', <<"a">>}, Kept),
+        ?assertEqual({'Right', 'Unit'}, Set),
+        ?assertMatch({'Right', {'Entry', _, 86400000, 1, 'File', _, _}}, Stat)
+    end).
 
 %% report Appendix E.17, E.1: `setModified` with a time the host cannot
 %% hold answers Invalid, an argument the host cannot take. A regression
@@ -1621,18 +1646,17 @@ fs_create_modified_test() ->
 fs_set_modified_past_the_host_test() ->
     Self = self(),
     Fs = ern_named:functions('ern@fs'),
-    Dir = scratch("ern_fs6_"),
-    File = filename:join(Dir, "f"),
-    ok = filelib:ensure_path(Dir),
-    ok = file:write_file(File, <<>>),
-    ?assertEqual(ok, ern_rt:run_main(
-                       fun() ->
-                           Path = {'Path', list_to_binary(File)},
-                           Self ! {fs, Fs(setModified)(Path, 1 bsl 80, 1000)},
-                           Self ! {fs, Fs(setModified)(Path, -(1 bsl 80), 1000)}
-                       end, <<"fs_set_modified_past_the_host_test">>, #{})),
-    ?assertEqual([{'Left', 'Invalid'}, {'Left', 'Invalid'}], ern_helpers:taken(fs)),
-    file:del_dir_r(Dir).
+    scratch("ern_fs6_", fun(Dir) ->
+        File = filename:join(Dir, "f"),
+        ok = file:write_file(File, <<>>),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               Path = {'Path', unicode:characters_to_binary(File)},
+                               Self ! {fs, Fs(setModified)(Path, 1 bsl 80, 1000)},
+                               Self ! {fs, Fs(setModified)(Path, -(1 bsl 80), 1000)}
+                           end, <<"fs_set_modified_past_the_host_test">>, #{})),
+        ?assertEqual([{'Left', 'Invalid'}, {'Left', 'Invalid'}], ern_helpers:taken(fs))
+    end).
 
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
 %% write arrives at the peer's read, and a closed socket answers Left(Closed)
@@ -1767,97 +1791,103 @@ random_splitmix64_test() ->
 %% alone, a name with an empty extension, and a dot file (the log's *A Shim
 %% Reaches the Representation*).
 path_edges_test() ->
-    Path = ern_named:functions('ern@path'),
-    AsPath = fun(Text) -> {'Path', Text} end,
-    ?assertEqual({'Some', <<"b">>}, Path(name)(AsPath(<<"a/b/">>))),
-    ?assertEqual([<<"a">>, <<"b">>], Path(split)(AsPath(<<"a//b/">>))),
-    ?assertEqual({'Some', AsPath(<<"a">>)}, Path(parent)(AsPath(<<"a/b/">>))),
-    ?assertEqual(AsPath(<<"/var">>), Path('<>')(AsPath(<<"/etc">>), AsPath(<<"/var">>))),
-    ?assertEqual(AsPath(<<"/etc/hosts">>), Path('<>')(AsPath(<<"/etc/">>), AsPath(<<"hosts">>))),
-    ?assertEqual(AsPath(<<"b">>), Path('<>')(AsPath(<<"">>), AsPath(<<"b">>))),
-    ?assertEqual([<<"/">>], Path(split)(AsPath(<<"/">>))),
-    %% report Appendix E.14: a segment is written as given, one that holds a
-    %% separator read as the segments it holds, and `under` refuses the path
-    %% where it would leave the root. A regression test: the server's build
-    %% showed the escape through `<>`
-    ?assertEqual(AsPath(<<"/x/etc">>), Path(join)([<<"/x">>, <<"etc">>])),
-    ?assertEqual(AsPath(<<"root//x">>), Path(join)([<<"root">>, <<"/x">>])),
-    ?assertEqual(AsPath(<<"a//b">>), Path(join)([<<"a">>, <<"">>, <<"b">>])),
-    ?assertEqual('None', Path(under)(AsPath(<<"root">>), Path(join)([<<"/x">>, <<"etc">>]))),
-    ?assertEqual('None', Path(under)(AsPath(<<"root">>), Path(join)([<<"a/..">>, <<"b">>]))),
-    ?assertEqual({'Some', AsPath(<<"root/a/b">>)},
-                 Path(under)(AsPath(<<"root">>), Path(join)([<<"a/b">>]))),
-    %% report Appendix E.14: the root has no name, a regression test of the
-    %% rule, before which it was ""
-    ?assertEqual('None', Path(name)(AsPath(<<"/">>))),
-    ?assertEqual({'Some', <<>>}, Path(extension)(AsPath(<<"a.">>))),
-    ?assertEqual('None', Path(extension)(AsPath(<<"a.d/b">>))),
-    ?assertEqual(AsPath(<<"a/b/">>), Path(withoutExtension)(AsPath(<<"a/b.txt/">>))),
-    %% report Appendix E.14: an empty extension leaves the dot, and removing
-    %% one is withoutExtension's
-    ?assertEqual(AsPath(<<"a/b.">>), Path(withExtension)(AsPath(<<"a/b.txt">>), <<>>)),
-    ?assertEqual(AsPath(<<"a.d/b.md">>), Path(withExtension)(AsPath(<<"a.d/b">>), <<"md">>)),
-    %% a dot that begins a name begins no extension, and the root has no name
-    %% to extend; a regression test, `.bashrc`'s extension was `bashrc`, so
-    %% removing it left an empty path
-    ?assertEqual('None', Path(extension)(AsPath(<<".profile">>))),
-    %% report Appendix E.14: an empty path, a `.` between separators and a
-    %% trailing separator under a root, which the laws do not draw, the last
-    %% joined as `<>` joins it; written with `under`
-    ?assertEqual('None', Path(under)(AsPath(<<"/srv">>), AsPath(<<"">>))),
-    ?assertEqual('None', Path(under)(AsPath(<<"/srv">>), AsPath(<<"a/./b">>))),
-    ?assertEqual({'Some', AsPath(<<"/srv/a">>)}, Path(under)(AsPath(<<"/srv">>), AsPath(<<"a/">>))),
-    ?assertEqual({'Some', <<"bak">>}, Path(extension)(AsPath(<<".profile.bak">>))),
-    ?assertEqual(AsPath(<<".bashrc">>), Path(withoutExtension)(AsPath(<<".bashrc">>))),
-    ?assertEqual(AsPath(<<"dir/.bashrc.txt">>),
-                 Path(withExtension)(AsPath(<<"dir/.bashrc">>), <<"txt">>)),
-    ?assertEqual(AsPath(<<"/">>), Path(withExtension)(AsPath(<<"/">>), <<"txt">>)),
-    %% the dots that begin a name begin no extension, `..` is left as it is,
-    %% and the rest of a path stays as written; a regression test, `..` had
-    %% the extension "", which removing turned into `.`, and a doubled
-    %% separator was made one
-    ?assertEqual('None', Path(extension)(AsPath(<<"..">>))),
-    ?assertEqual('None', Path(extension)(AsPath(<<"...">>))),
-    ?assertEqual({'Some', <<"b">>}, Path(extension)(AsPath(<<"..a.b">>))),
-    ?assertEqual(AsPath(<<"a/..">>), Path(withoutExtension)(AsPath(<<"a/..">>))),
-    ?assertEqual(AsPath(<<"a/..">>), Path(withExtension)(AsPath(<<"a/..">>), <<"md">>)),
-    ?assertEqual(AsPath(<<"a//b.md">>), Path(withExtension)(AsPath(<<"a//b.txt">>), <<"md">>)),
-    ?assertEqual(AsPath(<<"a/b/c">>), Path('<>')(AsPath(<<"a//b">>), AsPath(<<"c">>))).
+    in_run(fun() ->
+        Path = ern_named:functions('ern@path'),
+        AsPath = fun(Text) -> {'Path', Text} end,
+        ?assertEqual({'Some', <<"b">>}, Path(name)(AsPath(<<"a/b/">>))),
+        ?assertEqual([<<"a">>, <<"b">>], Path(split)(AsPath(<<"a//b/">>))),
+        ?assertEqual({'Some', AsPath(<<"a">>)}, Path(parent)(AsPath(<<"a/b/">>))),
+        ?assertEqual(AsPath(<<"/var">>), Path('<>')(AsPath(<<"/etc">>), AsPath(<<"/var">>))),
+        ?assertEqual(AsPath(<<"/etc/hosts">>),
+                     Path('<>')(AsPath(<<"/etc/">>), AsPath(<<"hosts">>))),
+        ?assertEqual(AsPath(<<"b">>), Path('<>')(AsPath(<<"">>), AsPath(<<"b">>))),
+        ?assertEqual([<<"/">>], Path(split)(AsPath(<<"/">>))),
+        %% report Appendix E.14: a segment is written as given, one that holds a
+        %% separator read as the segments it holds, and `under` refuses the path
+        %% where it would leave the root. A regression test: the server's build
+        %% showed the escape through `<>`
+        ?assertEqual(AsPath(<<"/x/etc">>), Path(join)([<<"/x">>, <<"etc">>])),
+        ?assertEqual(AsPath(<<"root//x">>), Path(join)([<<"root">>, <<"/x">>])),
+        ?assertEqual(AsPath(<<"a//b">>), Path(join)([<<"a">>, <<"">>, <<"b">>])),
+        ?assertEqual('None', Path(under)(AsPath(<<"root">>), Path(join)([<<"/x">>, <<"etc">>]))),
+        ?assertEqual('None', Path(under)(AsPath(<<"root">>), Path(join)([<<"a/..">>, <<"b">>]))),
+        ?assertEqual({'Some', AsPath(<<"root/a/b">>)},
+                     Path(under)(AsPath(<<"root">>), Path(join)([<<"a/b">>]))),
+        %% report Appendix E.14: the root has no name, a regression test of the
+        %% rule, before which it was ""
+        ?assertEqual('None', Path(name)(AsPath(<<"/">>))),
+        ?assertEqual({'Some', <<>>}, Path(extension)(AsPath(<<"a.">>))),
+        ?assertEqual('None', Path(extension)(AsPath(<<"a.d/b">>))),
+        ?assertEqual(AsPath(<<"a/b/">>), Path(withoutExtension)(AsPath(<<"a/b.txt/">>))),
+        %% report Appendix E.14: an empty extension leaves the dot, and removing
+        %% one is withoutExtension's
+        ?assertEqual(AsPath(<<"a/b.">>), Path(withExtension)(AsPath(<<"a/b.txt">>), <<>>)),
+        ?assertEqual(AsPath(<<"a.d/b.md">>), Path(withExtension)(AsPath(<<"a.d/b">>), <<"md">>)),
+        %% a dot that begins a name begins no extension, and the root has no name
+        %% to extend; a regression test, `.bashrc`'s extension was `bashrc`, so
+        %% removing it left an empty path
+        ?assertEqual('None', Path(extension)(AsPath(<<".profile">>))),
+        %% report Appendix E.14: an empty path, a `.` between separators and a
+        %% trailing separator under a root, which the laws do not draw, the last
+        %% joined as `<>` joins it; written with `under`
+        ?assertEqual('None', Path(under)(AsPath(<<"/srv">>), AsPath(<<"">>))),
+        ?assertEqual('None', Path(under)(AsPath(<<"/srv">>), AsPath(<<"a/./b">>))),
+        ?assertEqual({'Some', AsPath(<<"/srv/a">>)},
+                     Path(under)(AsPath(<<"/srv">>), AsPath(<<"a/">>))),
+        ?assertEqual({'Some', <<"bak">>}, Path(extension)(AsPath(<<".profile.bak">>))),
+        ?assertEqual(AsPath(<<".bashrc">>), Path(withoutExtension)(AsPath(<<".bashrc">>))),
+        ?assertEqual(AsPath(<<"dir/.bashrc.txt">>),
+                     Path(withExtension)(AsPath(<<"dir/.bashrc">>), <<"txt">>)),
+        ?assertEqual(AsPath(<<"/">>), Path(withExtension)(AsPath(<<"/">>), <<"txt">>)),
+        %% the dots that begin a name begin no extension, `..` is left as it is,
+        %% and the rest of a path stays as written; a regression test, `..` had
+        %% the extension "", which removing turned into `.`, and a doubled
+        %% separator was made one
+        ?assertEqual('None', Path(extension)(AsPath(<<"..">>))),
+        ?assertEqual('None', Path(extension)(AsPath(<<"...">>))),
+        ?assertEqual({'Some', <<"b">>}, Path(extension)(AsPath(<<"..a.b">>))),
+        ?assertEqual(AsPath(<<"a/..">>), Path(withoutExtension)(AsPath(<<"a/..">>))),
+        ?assertEqual(AsPath(<<"a/..">>), Path(withExtension)(AsPath(<<"a/..">>), <<"md">>)),
+        ?assertEqual(AsPath(<<"a//b.md">>), Path(withExtension)(AsPath(<<"a//b.txt">>), <<"md">>)),
+        ?assertEqual(AsPath(<<"a/b/c">>), Path('<>')(AsPath(<<"a//b">>), AsPath(<<"c">>)))
+    end).
 
 %% report Appendix E.14: `from`'s edge cases, which the laws draw seldom or
 %% never: the directory itself, a path that does not begin with the
 %% directory's segments, a step after them, a step inside them, the
 %% separators as `split` reads them, and the empty directory
 path_from_test() ->
-    Path = ern_named:functions('ern@path'),
-    From = fun(Text, Directory) -> Path(from)({'Path', Text}, {'Path', Directory}) end,
-    Some = fun(Text) -> {'Some', {'Path', Text}} end,
-    %% the directory itself, which `under` would place no path to give
-    ?assertEqual('None', From(<<"a/b">>, <<"a/b">>)),
-    ?assertEqual('None', From(<<"/srv">>, <<"/srv/">>)),
-    ?assertEqual('None', From(<<"/">>, <<"/">>)),
-    %% a path that does not begin with the directory's segments, by
-    %% segment and not by text, and either absolute alone
-    ?assertEqual('None', From(<<"a/c">>, <<"a/b">>)),
-    ?assertEqual('None', From(<<"ab/c">>, <<"a">>)),
-    ?assertEqual('None', From(<<"a">>, <<"a/b">>)),
-    ?assertEqual('None', From(<<"srv/a">>, <<"/srv">>)),
-    ?assertEqual('None', From(<<"/srv/a">>, <<"srv">>)),
-    %% a `.` or `..` after the directory's segments, which leaves it
-    ?assertEqual('None', From(<<"/srv/../etc">>, <<"/srv">>)),
-    ?assertEqual('None', From(<<"/srv/./a">>, <<"/srv">>)),
-    ?assertEqual('None', From(<<"/srv/a/..">>, <<"/srv">>)),
-    %% a `.` or `..` among the directory's own segments refuses nothing
-    ?assertEqual(Some(<<"b">>), From(<<"./a/b">>, <<"./a">>)),
-    ?assertEqual(Some(<<"y/z">>), From(<<"../x/y/z">>, <<"../x">>)),
-    %% doubled and trailing separators read as `split` reads them
-    ?assertEqual(Some(<<"a/b">>), From(<<"/srv//a/b/">>, <<"/srv/">>)),
-    ?assertEqual(Some(<<"etc/hosts">>), From(<<"/etc/hosts">>, <<"/">>)),
-    %% the empty directory: an absolute path is none of its, a relative
-    %% one is itself
-    ?assertEqual('None', From(<<"/a">>, <<"">>)),
-    ?assertEqual(Some(<<"a/b">>), From(<<"a/b">>, <<"">>)),
-    ?assertEqual('None', From(<<"">>, <<"">>)).
+    in_run(fun() ->
+        Path = ern_named:functions('ern@path'),
+        From = fun(Text, Directory) -> Path(from)({'Path', Text}, {'Path', Directory}) end,
+        Some = fun(Text) -> {'Some', {'Path', Text}} end,
+        %% the directory itself, which `under` would place no path to give
+        ?assertEqual('None', From(<<"a/b">>, <<"a/b">>)),
+        ?assertEqual('None', From(<<"/srv">>, <<"/srv/">>)),
+        ?assertEqual('None', From(<<"/">>, <<"/">>)),
+        %% a path that does not begin with the directory's segments, by
+        %% segment and not by text, and either absolute alone
+        ?assertEqual('None', From(<<"a/c">>, <<"a/b">>)),
+        ?assertEqual('None', From(<<"ab/c">>, <<"a">>)),
+        ?assertEqual('None', From(<<"a">>, <<"a/b">>)),
+        ?assertEqual('None', From(<<"srv/a">>, <<"/srv">>)),
+        ?assertEqual('None', From(<<"/srv/a">>, <<"srv">>)),
+        %% a `.` or `..` after the directory's segments, which leaves it
+        ?assertEqual('None', From(<<"/srv/../etc">>, <<"/srv">>)),
+        ?assertEqual('None', From(<<"/srv/./a">>, <<"/srv">>)),
+        ?assertEqual('None', From(<<"/srv/a/..">>, <<"/srv">>)),
+        %% a `.` or `..` among the directory's own segments refuses nothing
+        ?assertEqual(Some(<<"b">>), From(<<"./a/b">>, <<"./a">>)),
+        ?assertEqual(Some(<<"y/z">>), From(<<"../x/y/z">>, <<"../x">>)),
+        %% doubled and trailing separators read as `split` reads them
+        ?assertEqual(Some(<<"a/b">>), From(<<"/srv//a/b/">>, <<"/srv/">>)),
+        ?assertEqual(Some(<<"etc/hosts">>), From(<<"/etc/hosts">>, <<"/">>)),
+        %% the empty directory: an absolute path is none of its, a relative
+        %% one is itself
+        ?assertEqual('None', From(<<"/a">>, <<"">>)),
+        ?assertEqual(Some(<<"a/b">>), From(<<"a/b">>, <<"">>)),
+        ?assertEqual('None', From(<<"">>, <<"">>))
+    end).
 
 %% report Appendix E.16, E.5: columns counts by grapheme, by its first code
 %% point that counts: a combining mark adds none, alone it takes none; an
@@ -1881,40 +1911,50 @@ columns_test() ->
 
 %% report Appendix E.14, §9.3
 path_test() ->
-    Path = ern_named:functions('ern@path'),
-    ?assertEqual({'Path', <<"a/b">>}, Path('<>')({'Path', <<"a">>}, {'Path', <<"b">>})),
-    ?assertEqual({'Path', <<"a/b">>}, Path('<>')({'Path', <<"a/">>}, {'Path', <<"b">>})),
-    ?assertEqual({'Path', <<"/b">>}, Path('<>')({'Path', <<"a">>}, {'Path', <<"/b">>})),
-    %% report Appendix E.14: join is split's inverse, a root first staying
-    %% one; a regression test of the rule, before which join took two paths,
-    %% which `<>` now does
-    ?assertEqual({'Path', <<"/etc/hosts">>}, Path(join)([<<"/">>, <<"etc">>, <<"hosts">>])),
-    ?assertEqual({'Path', <<"a/b">>}, Path(join)(Path(split)({'Path', <<"a//b/">>}))),
-    ?assertEqual({'Path', <<>>}, Path(join)([])),
-    ?assertEqual([<<"/">>, <<"a">>, <<"b">>], Path(split)({'Path', <<"/a/b">>})),
-    ?assertEqual([<<"a">>, <<"b">>], Path(split)({'Path', <<"a/b">>})),
-    ?assertEqual({'Some', {'Path', <<"a">>}}, Path(parent)({'Path', <<"a/b">>})),
-    ?assertEqual({'Some', {'Path', <<"/">>}}, Path(parent)({'Path', <<"/a">>})),
-    ?assertEqual('None', Path(parent)({'Path', <<"a">>})),
-    ?assertEqual('None', Path(parent)({'Path', <<"/">>})),
-    ?assertEqual({'Some', <<"b.txt">>}, Path(name)({'Path', <<"a/b.txt">>})),
-    ?assertEqual({'Some', <<"txt">>}, Path(extension)({'Path', <<"a/b.txt">>})),
-    ?assertEqual('None', Path(extension)({'Path', <<"a/b">>})),
-    ?assertEqual({'Path', <<"a/b.md">>}, Path(withExtension)({'Path', <<"a/b.txt">>}, <<"md">>)),
-    ?assertEqual({'Path', <<"a/b.md">>}, Path(withExtension)({'Path', <<"a/b">>}, <<"md">>)),
-    ?assertEqual({'Path', <<"a/b">>}, Path(withoutExtension)({'Path', <<"a/b.txt">>})),
-    ?assertEqual(true, Path(isAbsolute)({'Path', <<"/a">>})),
-    ?assertEqual(false, Path(isAbsolute)({'Path', <<"a">>})),
-    ?assertEqual(<<"a">>, Path(toString)({'Path', <<"a">>})).
+    in_run(fun() ->
+        Path = ern_named:functions('ern@path'),
+        ?assertEqual({'Path', <<"a/b">>}, Path('<>')({'Path', <<"a">>}, {'Path', <<"b">>})),
+        ?assertEqual({'Path', <<"a/b">>}, Path('<>')({'Path', <<"a/">>}, {'Path', <<"b">>})),
+        ?assertEqual({'Path', <<"/b">>}, Path('<>')({'Path', <<"a">>}, {'Path', <<"/b">>})),
+        %% report Appendix E.14: join is split's inverse, a root first staying
+        %% one; a regression test of the rule, before which join took two paths,
+        %% which `<>` now does
+        ?assertEqual({'Path', <<"/etc/hosts">>}, Path(join)([<<"/">>, <<"etc">>, <<"hosts">>])),
+        ?assertEqual({'Path', <<"a/b">>}, Path(join)(Path(split)({'Path', <<"a//b/">>}))),
+        ?assertEqual({'Path', <<>>}, Path(join)([])),
+        ?assertEqual([<<"/">>, <<"a">>, <<"b">>], Path(split)({'Path', <<"/a/b">>})),
+        ?assertEqual([<<"a">>, <<"b">>], Path(split)({'Path', <<"a/b">>})),
+        ?assertEqual({'Some', {'Path', <<"a">>}}, Path(parent)({'Path', <<"a/b">>})),
+        ?assertEqual({'Some', {'Path', <<"/">>}}, Path(parent)({'Path', <<"/a">>})),
+        ?assertEqual('None', Path(parent)({'Path', <<"a">>})),
+        ?assertEqual('None', Path(parent)({'Path', <<"/">>})),
+        ?assertEqual({'Some', <<"b.txt">>}, Path(name)({'Path', <<"a/b.txt">>})),
+        ?assertEqual({'Some', <<"txt">>}, Path(extension)({'Path', <<"a/b.txt">>})),
+        ?assertEqual('None', Path(extension)({'Path', <<"a/b">>})),
+        ?assertEqual({'Path', <<"a/b.md">>},
+                     Path(withExtension)({'Path', <<"a/b.txt">>}, <<"md">>)),
+        ?assertEqual({'Path', <<"a/b.md">>}, Path(withExtension)({'Path', <<"a/b">>}, <<"md">>)),
+        ?assertEqual({'Path', <<"a/b">>}, Path(withoutExtension)({'Path', <<"a/b.txt">>})),
+        ?assertEqual(true, Path(isAbsolute)({'Path', <<"/a">>})),
+        ?assertEqual(false, Path(isAbsolute)({'Path', <<"a">>})),
+        ?assertEqual(<<"a">>, Path(toString)({'Path', <<"a">>}))
+    end).
 
 %% report §7.4: `fault(c)` faults with the cause
 fault_test() ->
     ?assertThrow({ern, fault, <<"x">>}, ern_rt:fault(<<"x">>)).
 
-%% A directory of the test's own under /tmp, named for it and not yet made.
-scratch(Prefix) ->
-    filename:join("/tmp", Prefix ++ os:getpid() ++ "_"
-                          ++ integer_to_list(erlang:unique_integer([positive]))).
+%% Test run in a directory of its own, named for it by Prefix and made
+%% under the run's, which `make` removes when the run ends, or under the
+%% host's temporary directory where no run's is given; the directory goes
+%% when Test ends, whatever its outcome, since the flake hunt runs a test
+%% again in the same host.
+scratch(Prefix, Test) ->
+    Dir = filename:join(os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+                        Prefix ++ os:getpid() ++ "_"
+                            ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    try Test(Dir) after file:del_dir_r(Dir) end.
 
 %% report Appendix E.25, §4.9: the ordered set, a sorted list, each function
 %% that needs the order taking it after the arguments the program writes, as
@@ -1951,7 +1991,9 @@ ordered_set_test() ->
                  {Set(any)(Small, fun(X) -> X > 2 end), Set(all)(Small, fun(X) -> X > 2 end),
                   Set(find)(Small, fun(X) -> X > 1 end)}),
     %% two elements the order calls Equal are one, the first kept
-    ByKey = fun({Key, _}, {Other1, _}) -> (ern_named:function('ern@int', compare))(Key, Other1) end,
+    ByKey = fun({Key, _}, {OtherKey, _}) ->
+                    (ern_named:function('ern@int', compare))(Key, OtherKey)
+            end,
     Kept = Set(fromList)([{1, first}, {1, second}], ByKey),
     ?assertEqual([{1, first}], Set(toList)(Kept)),
     ?assertEqual([{1, first}], Set(toList)(Set(put)(Kept, {1, third}, ByKey))).

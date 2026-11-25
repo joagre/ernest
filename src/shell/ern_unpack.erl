@@ -85,7 +85,8 @@ reason(Reason) ->
 %% Report §11.9, §11: the job's lock on the file at Path, held by the
 %% calling process, which the job's own is, until it ends
 %% (ern_os:job_locked/1); a name that reaches no regular file, which is not
-%% opened, in §11's words, and any other failure in the host's.
+%% opened, in §11's words, and any other failure in the host's, a link at
+%% Path among them, which is refused and not followed.
 -spec hold(binary()) -> {'Right', 'Unit'} | {'Left', binary()}.
 hold(Path) ->
     case ern_os:job_locked(Path) of
