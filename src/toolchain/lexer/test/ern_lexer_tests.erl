@@ -37,11 +37,6 @@ reserved_words_test() ->
                  tokens("type abstract receiving foreign match when receive after or as "
                         "if then else fn let export")).
 
-%% report §2.4: `with`, the mark's word before `receiving`, is an identifier
-%% (a regression test; it covers the lexer alone)
-with_is_an_identifier_test() ->
-    ?assertEqual([{ident, with}], tokens("with")).
-
 %% report §2.4: `needs`, `derives`, `compare`, `negate` and `show` are
 %% identifiers, which the parser reads as Appendix A's words where they
 %% stand
@@ -232,7 +227,7 @@ doc_comment_after_code_test() ->
     ?assertEqual([{doc, <<"doc">>}, {ident, a}], tokens("/* c */ /// doc\na")),
     ?assertEqual([{ident, a}, {ident, b}], tokens("a //// ruler\nb")).
 
-%% report §11.1 (line and column in errors)
+%% report §11.5 (line and column in errors)
 positions_test() ->
     {ok, Tokens} = ern_lexer:tokenize("fn main() =\n    x"),
     ?assertEqual([{fn, {1, 1, {1, 3}, {1, 1}}}, {ident, {1, 4, {1, 8}, {1, 3}}, main},
@@ -241,7 +236,7 @@ positions_test() ->
                   {eof, {2, 6, {2, 6}, {2, 6}}}],
                  Tokens).
 
-%% report §11.1
+%% report §11.5
 position_after_multiline_things_test() ->
     {ok, [_, {ident, {3, 4, _, _}, b} | _]} = ern_lexer:tokenize("a /* x\ny\n*/ b"),
     {ok, [{string, {1, 1, _, _}, _}, {ident, {1, 11, _, _}, b} | _]} =

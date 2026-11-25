@@ -37,7 +37,8 @@
 ;;     (add-hook 'ernest-mode-hook #'ernest-format-on-save-mode)
 ;;
 ;; `ern' is looked for on `exec-path', where an Emacs started from a
-;; desktop menu may not have the repository's `bin/'.  This line names it:
+;; desktop menu may not have a checkout's `bin/', nor an installation's
+;; where the prefix's `bin' is not on it.  This line names it:
 ;;
 ;;     (setq ernest-format-command (expand-file-name "~/src/ernest/bin/ern"))
 ;;
@@ -78,7 +79,7 @@
   :type 'string
   :group 'ernest)
 
-;;; Words and operators.  These restate report sections 2.4 and 2.6, so
+;;; Words and operators.  These restate report §2.4 and §2.6, so
 ;;; `emacs_mode_mirrors_the_lexer_test' in test/ern_style_tests.erl
 ;;; checks them against the lexer's.
 
@@ -89,22 +90,22 @@
 
 (defconst ernest-operators
   '("->" "<-" "::" "<>" "|>" "==" "!=" "<=" ">=" "&&" "||" "..")
-  "The operators font lock paints, a subset of report section 2.6's.")
+  "The operators font lock paints, a subset of report §2.6's.")
 
 (defconst ernest--precedence
   '(("*" . 7) ("/" . 7) ("%" . 7) ("+" . 6) ("-" . 6) ("<>" . 6) ("::" . 5)
     ("==" . 4) ("!=" . 4) ("<" . 4) ("<=" . 4) (">" . 4) (">=" . 4)
     ("&&" . 3) ("||" . 2) ("|>" . 1))
-  "How tightly each binary operator binds, higher tighter (report section 2.6).
+  "How tightly each binary operator binds, higher tighter (report §2.6).
 It restates the parser's table, which `emacs_mode_mirrors_the_parser_test'
 in test/ern_style_tests.erl checks.")
 
 (defconst ernest-constants
   '("true" "false")
-  "The literals that read as words (report section 2.5).")
+  "The literals that read as words (report §2.5).")
 
 (defconst ernest--userop-re "\\(?:<>\\|[-+*/%]\\)"
-  "An operator a type may declare, `userop' in report section 2.6.")
+  "An operator a type may declare, `userop' in report §2.6.")
 
 (defconst ernest--decl-name-re
   (concat "\\(?:[a-z_][A-Za-z0-9_]*"
@@ -117,7 +118,7 @@ operator: `merge', `Int.+', `Distance.<>'.")
 
 (defvar ernest-mode-syntax-table
   (let ((table (make-syntax-table)))
-    ;; `//' to end of line, `/* */' nesting (report section 2.2)
+    ;; `//' to end of line, `/* */' nesting (report §2.2)
     (modify-syntax-entry ?/ ". 124" table)
     (modify-syntax-entry ?* ". 23bn" table)
     (modify-syntax-entry ?\n ">" table)
@@ -140,11 +141,11 @@ An apostrophe is punctuation until it is found to quote a char literal,
 so prose in a comment cannot unbalance a buffer.  A quote marked inside
 a comment or a string is harmless: a scanner already in one ignores it.
 A backslash in a raw string is punctuation, since a raw string has no
-escapes (report section 2.5).  A bitstring's `<<' and `>>' are a
-bracket pair (report section 5.11)."
+escapes (report §2.5).  A bitstring's `<<' and `>>' are a
+bracket pair (report §5.11)."
   (funcall
    (syntax-propertize-rules
-    ;; a char literal, report section 2.5: 'a', '\n', '\u{1b}'
+    ;; a char literal, report §2.5: 'a', '\n', '\u{1b}'
     ("\\('\\)\\(?:\\\\u{[[:xdigit:]]+}\\|\\\\.\\|[^'\\\\\n]\\)\\('\\)"
      (1 "\"") (2 "\""))
     ("\\\\"
@@ -153,9 +154,9 @@ bracket pair (report section 5.11)."
                   ?`)
           (string-to-syntax "."))))
     ;; `->', `|>' and `<-' are taken whole first, so that the `>' of `->>'
-    ;; is no bitstring's end, as the lexer reads them (report section 2.6)
+    ;; is no bitstring's end, as the lexer reads them (report §2.6)
     ("->\\||>\\|<-" (0 (ignore)))
-    ;; a bitstring's `<<' and `>>' are a bracket pair, report section 5.11
+    ;; a bitstring's `<<' and `>>' are a bracket pair, report §5.11
     ("\\(<\\)<" (1 "(>"))
     ("\\(>\\)>" (1 ")<")))
    start end))
@@ -172,7 +173,7 @@ bracket pair (report section 5.11)."
 A comment opening with `///', and no fourth slash, is a doc comment
 where no code stands before it on its line, block comments aside;
 `////' opens an ordinary one, and a `///' after code is an error, as
-report section 2.2 says."
+report §2.2 says."
   (cond ((nth 3 state) 'font-lock-string-face)
         ((nth 4 state)
          (save-excursion
@@ -215,7 +216,7 @@ began on a line above among them, as the lexer passes them over."
       ;; reserved words and the two word literals
       (,(regexp-opt ernest-reserved-words 'symbols) . 'font-lock-keyword-face)
       ;; `needs' and `derives' are words only where they stand, before a
-      ;; member and before `compare' (report section 2.4)
+      ;; member and before `compare' (report §2.4)
       (,(concat "\\_<\\(needs\\)[ \t]+" lower "\\.") 1 'font-lock-keyword-face)
       ("\\_<\\(derives\\)[ \t]+compare\\_>" 1 'font-lock-keyword-face)
       (,(regexp-opt ernest-constants 'symbols) . 'font-lock-constant-face)
@@ -252,7 +253,7 @@ A broken buffer, whose brackets never close, ends the walk there.")
   (concat "\\(?:[-+*%=]\\|/[^/*]\\|<[^<]\\|>[^>]\\|!=\\|&&\\|||\\||>\\|::"
           "\\|\\_<receiving\\_>\\)")
   "What a line opens with when it carries the line above on.
-That is a binary operator of report section 2.6, or the `->', `=' or
+That is a binary operator of report §2.6, or the `->', `=' or
 `receiving' of a signature broken over lines.  `//' and `/*' open comments,
 and `<<' and `>>' are brackets.")
 
@@ -344,7 +345,7 @@ the line starts an element rather than carrying the line above on."
   "\\(?:[-+*%]\\|[^/*]/\\|<>\\|[=!<>]=\\|[^<]<\\|[^>-]>\\|&&\\|||\\|::\\)"
   "What a line's code ends with when a binary operator ends it.
 A trailing comment after the operator puts its right operand on the
-next line.  The operators are report section 2.6's, but `=' and `->',
+next line.  The operators are report §2.6's, but `=' and `->',
 which open a body, and `<<' and `>>', which are brackets.")
 
 (defun ernest--ends-in-operator-p ()
@@ -357,7 +358,7 @@ which open a body, and `<<' and `>>', which are brackets.")
 
 (defconst ernest--declaration-re
   "\\(?:export[ \t]+\\)?\\(?:foreign[ \t]+\\|abstract[ \t]+\\)*\\(?:fn\\|type\\|let\\)\\_>"
-  "How a declaration opens, in column zero (report section 4).")
+  "How a declaration opens, in column zero (report §4).")
 
 (defun ernest--head-ended-p (start end)
   "Whether the `=' that ends a declaration's head lies between START and END."
@@ -462,12 +463,12 @@ line OPEN opened on."
   "How tightly the operator this line opens with binds, or 0 for none."
   (save-excursion
     (back-to-indentation)
-    (let ((best 0) (length 0))
+    (let ((best 0) (longest 0))
       (dolist (entry ernest--precedence best)
-        (when (and (> (length (car entry)) length)
+        (when (and (> (length (car entry)) longest)
                    (looking-at-p (regexp-quote (car entry))))
           (setq best (cdr entry)
-                length (length (car entry))))))))
+                longest (length (car entry))))))))
 
 (defun ernest--opened-here-p (open)
   "Whether the bracket at OPEN opened on the line point is on."
@@ -499,9 +500,9 @@ past a bracket closed before the brace, as a match's scrutinee broken
 over lines, and past a clause's guard broken over lines.  Of the
 brackets opened on that line around the brace, the innermost whose
 first item holds the brace and which aligns its items gives the column
-of that item, which counts as beginning a line there (report section
-11.6), and the brace steps from it (`ernest--aligns-p'); where none does,
-the brace steps from the line."
+of that item, which counts as beginning a line there (report §11.6),
+and the brace steps from it (`ernest--aligns-p'); where none does, the
+brace steps from the line."
   (save-excursion
     (goto-char brace)
     (let ((open (nth 1 (syntax-ppss brace)))
@@ -520,12 +521,12 @@ the brace steps from the line."
   "Whether the bracket at OPEN aligns its items, its first holding INNER.
 INNER is the brace being placed, or a bracket around it opened on OPEN's
 line.  A parenthesized expression's `(' aligns what it holds always, and
-a brace aligns nothing.  Any other bracket that
-holds a further item hugs where its second item stands on the line of
-the comma before it, and otherwise aligns; one that holds no further item
-hugs where its item ends its first line at the brace
-\(`ernest--hugs-p'), and otherwise aligns (report section 11.6).  Where
-nothing follows INNER yet the item is taken as the only one."
+a brace aligns nothing.  Any other bracket that holds a further item
+hugs where its second item stands on the line of the comma before it,
+and otherwise aligns; one that holds no further item hugs where its item
+ends its first line at the brace (`ernest--hugs-p'), and otherwise
+aligns (report §11.6).  Where nothing follows INNER yet the item is
+taken as the only one."
   (let ((kind (ernest--bracket-kind open)))
     (cond ((eq kind 'brace) nil)
           ((eq kind 'alone) t)
@@ -575,7 +576,7 @@ operator.")
 
 (defun ernest--operation-before-p (open inner)
   "Whether the item of the bracket at OPEN is an operation, read before INNER.
-An operator of report section 2.6, a prefix `-' or `!', or an `if',
+An operator of report §2.6, a prefix `-' or `!', or an `if',
 outside every bracket of the item, makes it one; a lambda's or a
 field's `=', an annotation's `:' and a function type's `->' do not.  The
 reading stops at a `match' or a `receive', whose own the rest is."
@@ -613,7 +614,7 @@ call there carries on the item the bracket stands in, as `f(x).y' does."
 A clause of a match or a receive, its `after' among them, began on its
 pattern's line, and a block its body opens on the arrow's line steps in
 from there however many lines its guard takes, as `ern format' lays it
-out (report section 11.6).  A brace an operator opens, `&& {', steps in
+out (report §11.6).  A brace an operator opens, `&& {', steps in
 from its own line."
   (save-excursion
     (let ((found nil)
@@ -718,8 +719,7 @@ regexps here match it whatever `case-fold-search' the user has."
     (let* ((case-fold-search nil)
            (state (syntax-ppss (point)))
            (open (nth 1 state))
-           (first (char-after))
-           (content (ernest--content-column open)))
+           (first (char-after)))
       (cond
        ;; inside a string, including a raw one, or a block comment: the
        ;; line's indentation is the author's business
@@ -740,13 +740,13 @@ regexps here match it whatever `case-fold-search' the user has."
         (save-excursion (goto-char open) (ernest--anchor-base)))
        ;; a clause's bar sits two spaces to the left of the clauses
        ((ernest--clause-bar-p)
-        (max 0 (- content ernest-clause-offset)))
+        (max 0 (- (ernest--content-column open) ernest-clause-offset)))
        ;; a `then' or an `else' returns to its `if'
        ((looking-at "\\_<\\(then\\|else\\)\\_>")
         (let ((word (match-string 1)))
           (or (ernest--matching-if-base (or open (ernest--declaration-start))
                                         (car state) word)
-              content)))
+              (ernest--content-column open))))
        ;; an operator or a broken head carries the line above on, a step
        ;; in from where that line's expression begins
        ((ernest--continues-p)
@@ -760,7 +760,7 @@ regexps here match it whatever `case-fold-search' the user has."
            ernest-indent-offset))
        ;; inside a bracket, its content; outside every bracket, with no
        ;; body or continuation pending, the next declaration
-       (open content)
+       (open (ernest--content-column open))
        (t 0)))))
 
 (defun ernest-indent-line ()
@@ -845,9 +845,9 @@ not to this one."
   "What `imenu' offers: the declarations, by kind.")
 
 ;;; Formatting.  `ern format -' lays out the buffer from standard input,
-;;; since a buffer being saved is not yet its file (report section 11.6).
+;;; since a buffer being saved is not yet its file (report §11.6).
 
-(defconst ernest--format-errors "*ern format*"
+(defconst ernest--format-errors-buffer "*ern format*"
   "The buffer that shows why the buffer last laid out was not.")
 
 (defconst ernest--format-space " \t\r\n"
@@ -946,7 +946,7 @@ on the token after it."
 It is the formatter's diagnostic, or why the formatter did not run.
 The formatter names standard input `-', so NAME takes its place, and
 the diagnostic's position can be followed as a compilation's can."
-  (let ((errors (get-buffer-create ernest--format-errors)))
+  (let ((errors (get-buffer-create ernest--format-errors-buffer)))
     (with-current-buffer errors
       (let ((inhibit-read-only t))
         (erase-buffer)
@@ -961,7 +961,7 @@ the diagnostic's position can be followed as a compilation's can."
 
 (defun ernest--format-clear ()
   "Take away the diagnostic of a buffer not laid out, now that one was."
-  (let ((errors (get-buffer ernest--format-errors)))
+  (let ((errors (get-buffer ernest--format-errors-buffer)))
     (when errors
       (let ((window (get-buffer-window errors)))
         (if window
@@ -1016,7 +1016,7 @@ A buffer that does not parse is saved as it was typed."
 
 ;; Emacs's own `gnu' entry refuses a file name with a space in it.  A `|'
 ;; before the first colon is the source gutter under a diagnostic, not a
-;; file name (report section 11.5).
+;; file name (report §11.5).
 (add-to-list 'compilation-error-regexp-alist-alist
              '(ernest "^\\([^:|\n]+\\):\\([0-9]+\\):\\([0-9]+\\): " 1 2 3))
 (add-to-list 'compilation-error-regexp-alist 'ernest)

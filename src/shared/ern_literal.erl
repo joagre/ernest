@@ -10,9 +10,8 @@
 %% Report Appendix E.9: the shortest digits that read back as the same
 %% value, which float_to_list/2's `short` gives, written plain from 0.0001
 %% to below 1.0e16 and as one digit, the point, the rest and the exponent
-%% beyond, the exponent's sign only when negative. The same layout in
-%% Ernest over the host's shortest form measured 0.93 times this one, both
-%% near eight times the host's alone
+%% beyond, the exponent's sign only when negative. It is Erlang, since the
+%% runtime's printer needs the same layout
 %% (the log's *The Principles Review of 2026-10-09, the Judgments*).
 -spec float_text(float()) -> string().
 float_text(Float) when Float < 0 -> [$- | float_text(-Float)];

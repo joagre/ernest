@@ -16,7 +16,7 @@
 (add-to-list 'load-path (expand-file-name "."))
 (require 'ernest-mode)
 
-(defvar ernest-reindent-show (getenv "SHOW")
+(defvar ernest-test-show (getenv "SHOW")
   "Print every line that moved, not only the count.")
 
 (let ((total 0) (moved 0) (files 0) (dirty 0))
@@ -34,7 +34,7 @@
                    do (setq line (1+ line))
                    unless (string= a b)
                    do (setq moved (1+ moved))
-                   and when ernest-reindent-show
+                   and when ernest-test-show
                    do (message "%s:%d: %d -> %d |%s"
                                (file-name-nondirectory file) line
                                (- (length b) (length (string-trim-left b)))

@@ -2036,15 +2036,16 @@ show_under_a_requirement_test() ->
     ?assertEqual("Io.show needs b.show, which wrap does not declare",
                  refusal("fn wrap(pair : #(a, b)) : String needs a.show = Io.show(pair)")).
 
-%% report Appendix E.1, §4.9, §9, §3.9: `Io.debug` is a function of io.ern
-%% under `needs a.show`, no primitive, its `show` supplied as any
+%% report Appendix E.1, §4.9, §9, §3.9, §11.5: `Io.debug` is a function of
+%% io.ern under `needs a.show`, no primitive, its `show` supplied as any
 %% requirement's: at a type known whole, at a type variable the requirement
 %% in force names, and at a type built from such variables. A type variable
 %% of the signature that no requirement names is a call that needs its
 %% `show`; any other type not known whole is refused as a call too, with
-%% the help to annotate it, as every `show` a requirement is supplied with
-%% is, `log`'s as `Io.debug`'s. A regression test of the help: the line had
-%% none, where `Io.show`'s asked for the annotation
+%% the help to annotate it and pass the value bound, as every `show` a
+%% requirement is supplied with is, `log`'s as `Io.debug`'s. A regression
+%% test of the help: the line had none, where `Io.show`'s asked for the
+%% annotation
 debug_through_a_requirement_test() ->
     ?assertEqual(ok, ok("fn f() : Int = Io.debug(1) + 1")),
     ?assertEqual(ok, ok("fn f(x : a) : a needs a.show = Io.debug(x)")),
@@ -2057,7 +2058,7 @@ debug_through_a_requirement_test() ->
                  refusal("fn f(pair : #(a, b)) : #(a, b) needs a.show = Io.debug(pair)")),
     Help = fun(Type) ->
                    "bind the value with an annotation, `let value : " ++ Type ++ " = ...`, and"
-                   " show that; at a type variable of the signature, a requirement `needs"
+                   " pass that; at a type variable of the signature, a requirement `needs"
                    " a.show` lets it write the value"
            end,
     ?assertEqual({"Io.debug needs Optional(a).show, and Io.show writes a type known whole, or a"
@@ -3152,12 +3153,14 @@ type_parameters_distinct_test() ->
     ?assertMatch(#diagnostic{span = {1, 14, _}, labels = [{{1, 11, _}, "first written here"}]},
                  diagnostic("type Pair(a, a) = Pair(a)")).
 
-%% report §3.5, §3.9, §4.2, §4.3
+%% report §3.5, §3.9, §4.2, §4.3; §11.5 for a type variable no parameter
+%% names, whose help writes the declaration's head with it
 type_declarations_test() ->
     ?assertEqual("type T is declared twice", refusal("type T = A\ntype T = B")),
     ?assertEqual("constructor A is declared twice", refusal("type T = A\ntype U = A")),
     ?assertEqual("value f is declared twice", refusal("fn f() = 1\nlet f = 2")),
-    ?assertEqual("type variable b is not a parameter of the type", refusal("type T(a) = T(b)")),
+    ?assertEqual({"type variable b is not a parameter of T", "`type T(a, b)` declares it"},
+                 refusal_and_help("type T(a) = T(b)")),
     ?assertEqual("unknown type Nope", refusal("fn f(x : Nope) = x")),
     ?assertEqual("List takes 1 type argument, not 2", refusal("fn f(x : List(Int, Int)) = x")),
     %% prelude names may be shadowed (report §4.2)

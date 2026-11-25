@@ -22,7 +22,7 @@ A definition's reach is the definition with everything it references, transitive
 
 A form is kept beside the code it compiled to, sourced, with the lines of its source and its names, and with what prints a type in a cause as its module writes it, in the unit's recorded chunk (`#recorded{}`); the exchange sends it, `Code.hashes` reads it, and a shell session's declarations have one under the session's namespace, which carries its number on its node, `$Session3`, so that a function typed at the prompt crosses as a build's does and two sessions' declarations of one name are two (§11.1, §11.2, Appendix E.28; `ern_canonical:read/1`).
 
-Where the program is a node, the namespace's atom carries the node's public key after the number, `$Session3@` and the base64 of its PEM, so that two nodes' sessions' declarations of one name are two as well; a printed name leaves the key out, wherever it is written (Appendix H; `ern_namespace:segment_text/1`; the log's *Sites, Sessions and Their Names*).
+Where the program is a node, the namespace's atom carries the node's public key after the number, `$Session3@` and the base64 of its PEM, so that two nodes' sessions' declarations of one name are two as well; a printed name leaves the key out, wherever it is written (Appendix H; `ern_namespace:printed_segment_text/1`; the log's *Sites, Sessions and Their Names*).
 
 ## The code table
 

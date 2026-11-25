@@ -932,7 +932,7 @@ is_test_case(_) -> false.
 %% Report §2.3: a definition whose own name holds `$`, the entry of an input
 %% at the shell's prompt, is named by no program.
 nameable(QualifiedName) ->
-    not lists:member($$, ern_namespace:segment_text(lists:last(QualifiedName))).
+    not lists:member($$, ern_namespace:printed_segment_text(lists:last(QualifiedName))).
 
 %% Report §11.1: what the unit exports: the functions its module exports,
 %% every function an exchange's unit holds, and every binding's getter, so

@@ -10,7 +10,7 @@
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
          erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2,
-         host_function_text/3, text/1, segment_text/1, printed_segments/1, site_text/2,
+         host_function_text/3, text/1, printed_segment_text/1, printed_segments/1, site_text/2,
          text_segments/1, text_segment/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
@@ -100,7 +100,7 @@ erlang_module(Namespace) ->
 %% shell seeks a module's file by it. A segment may be given as its text.
 -spec erlang_module_text([atom() | string()]) -> string().
 erlang_module_text(Namespace) ->
-    lists:flatten(["ern" | ["@" ++ component_or_lowered(segment_text(Segment))
+    lists:flatten(["ern" | ["@" ++ component_or_lowered(printed_segment_text(Segment))
                             || Segment <- Namespace]]).
 
 %% Report §11.1: the most characters the host holds in a name.
@@ -138,30 +138,26 @@ component_or_lowered(Segment) ->
 %% no atom on the node, and is written the same way.
 -spec text([atom() | binary() | string()]) -> string().
 text(QualifiedName) ->
-    lists:flatten(lists:join(".", [segment_text(Part) || Part <- QualifiedName])).
+    lists:flatten(lists:join(".", [printed_segment_text(Part) || Part <- QualifiedName])).
 
-%% A segment of a qualified name as the source writes it: an atom's, a
-%% peer's text, or the text a caller gives. Report Appendix H: a shell
-%% session's namespace prints without the node's key its form carries,
-%% `$Session3` for `$Session3@` and the key's base64.
--spec segment_text(atom() | binary() | string()) -> string().
-segment_text(Segment) when is_atom(Segment) ->
-    case atom_to_list(Segment) of
-        "$Session" ++ _ = Text -> hd(string:split(Text, "@"));
-        Text -> Text
-    end;
-segment_text(Segment) when is_binary(Segment) ->
-    unicode:characters_to_list(printed_segment(Segment));
-segment_text(Segment) ->
+%% A segment of a qualified name as the source writes it, as text: an
+%% atom's or a peer's printed (printed_segment/1), or the text a caller
+%% gives, as it is.
+-spec printed_segment_text(atom() | binary() | string()) -> string().
+printed_segment_text(Segment) when is_atom(Segment); is_binary(Segment) ->
+    unicode:characters_to_list(printed_segment(text_segment(Segment)));
+printed_segment_text(Segment) ->
     Segment.
 
 %% Report §12.6, Appendix H: a qualified name's segments as text, which
-%% makes no atom where a peer sent them, a session's namespace without the
-%% node's key, as a name prints (segment_text/1).
+%% makes no atom where a peer sent them, each printed (printed_segment/1).
 -spec printed_segments([atom() | binary()]) -> [binary()].
 printed_segments(QualifiedName) ->
     [printed_segment(text_segment(Segment)) || Segment <- QualifiedName].
 
+%% Report Appendix H: a segment as a name prints it, a shell session's
+%% namespace without the node's key its form carries, `$Session3` for
+%% `$Session3@` and the key's base64.
 printed_segment(<<"$Session", _/binary>> = Segment) -> hd(binary:split(Segment, <<"@">>));
 printed_segment(Segment) -> Segment.
 

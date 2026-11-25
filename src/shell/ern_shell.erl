@@ -357,7 +357,7 @@ session_namespace(#session{namespace = Namespace}) ->
 %% carries the node's public key after the number, `$Session3@` and the
 %% base64 of the key's PEM, as `ern config` prints it (§12.5), so that two
 %% nodes' sessions of one number declare two names; a printed name leaves
-%% the key out (ern_namespace:segment_text/1).
+%% the key out (ern_namespace:printed_segment_text/1).
 form_namespace(Number) ->
     Name = "$Session" ++ integer_to_list(Number),
     case ern_carrier:is_node() of
@@ -2953,7 +2953,8 @@ file_beam(Namespace, true) ->
         _ -> read_beam(try code:which(Unit) catch error:badarg -> non_existing end)
     end;
 file_beam(Namespace, false) ->
-    Path = ern_namespace:path([ern_namespace:segment_text(Segment) || Segment <- Namespace]),
+    Path = ern_namespace:path([ern_namespace:printed_segment_text(Segment)
+                               || Segment <- Namespace]),
     read_beam(filename:join(ern_prelude:stdlib_directory(), Path ++ ".erc")).
 
 read_beam(File) ->

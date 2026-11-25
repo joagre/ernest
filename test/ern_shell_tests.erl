@@ -836,9 +836,9 @@ line_mode_continues() ->
                                "fn f(x : Int) : Int =\n    x + 1\nf(2)\n1 +\n\ny\n1 +\n"),
     [?assertMatch({_, _}, binary:match(Output, Said))
      || Said <- [<<"... f : (Int) -> Int">>, <<"3 : Int">>, <<"8 : Int">>,
-                 <<"input 3:1:4: expected an expression instead of end of input">>,
-                 <<"input 5:1:4: expected an expression instead of end of input">>,
-                 <<"startup:6:4: expected an expression instead of end of input">>]].
+                 <<"input 3:1:4: expected an expression instead of the end of input">>,
+                 <<"input 5:1:4: expected an expression instead of the end of input">>,
+                 <<"startup:6:4: expected an expression instead of the end of input">>]].
 
 %% report §11.2, Appendix E.16: with standard output a pipe the shell is in
 %% line mode, though standard input is a terminal: it paints no region. A
@@ -1549,7 +1549,7 @@ startup_control_written() ->
                                         "    erlang:'div'/2\n"
                                         "    $Session1.", File/binary, ":2\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<File/binary, ":4:4: expected an expression"
-                                                " instead of end of input\n">>)),
+                                                " instead of the end of input\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"$Session1.", File/binary, ":3 faulted: bang\n"
                                                 "    $Session1.", File/binary, ":3\n">>)),
     ?assertEqual(nomatch, binary:match(Output, [<<27>>, <<16#C2, 16#9B>>])),

@@ -23,10 +23,10 @@
 (add-to-list 'load-path (expand-file-name "."))
 (require 'ernest-mode)
 
-(defvar ernest-typing-step (string-to-number (or (getenv "STEP") "25"))
+(defvar ernest-test-step (string-to-number (or (getenv "STEP") "25"))
   "How many lines lie between one cut and the next.")
 
-(defun ernest-typing-part (files)
+(defun ernest-test-part (files)
   "The FILES of this part, as PART and PARTS name it, every file without them."
   (let ((part (string-to-number (or (getenv "PART") "0")))
         (parts (string-to-number (or (getenv "PARTS") "1")))
@@ -37,7 +37,7 @@
              for i from 0
              when (= (mod i parts) part) collect file)))
 
-(defun ernest-typing-read-below-p (whole line cut)
+(defun ernest-test-read-below-p (whole line cut)
   "Whether LINE of WHOLE is placed from text below the cut at CUT.
 A brace in the first item of a list or a call opened on its construct's
 line steps from that item where the bracket aligns its items, and from
@@ -63,14 +63,14 @@ below the cut, the buffer at the cut does not have it."
                 (while (and open (not found) (ernest--opened-here-p open))
                   (when (and (memq (ernest--bracket-kind open) '(list call))
                              (ernest--first-item-p open inner)
-                             (ernest-typing-followed-below-p inner limit))
+                             (ernest-test-followed-below-p inner limit))
                     (setq found t))
                   (setq inner open
                         open (nth 1 (syntax-ppss open)))))))
           (setq brace (nth 1 (syntax-ppss brace))))
         found))))
 
-(defun ernest-typing-followed-below-p (inner limit)
+(defun ernest-test-followed-below-p (inner limit)
   "Whether the code after INNER's closing bracket begins at LIMIT or below.
 A closing bracket there is not counted: the bracket around INNER closing
 is what the buffer at the cut takes for granted."
@@ -84,14 +84,14 @@ is what the buffer at the cut takes for granted."
                 (/= (syntax-class (syntax-after (point))) 5))))))
 
 (let ((cuts 0) (moved 0) (last-moved nil))
-  (dolist (file (ernest-typing-part command-line-args-left))
+  (dolist (file (ernest-test-part command-line-args-left))
     (let* ((source (generate-new-buffer " *typing*"))
            (whole (with-current-buffer source
                     (insert-file-contents file)
                     (ernest-mode)
                     (split-string (buffer-string) "\n")))
            (count (length whole)))
-      (cl-loop for cut from ernest-typing-step below count by ernest-typing-step do
+      (cl-loop for cut from ernest-test-step below count by ernest-test-step do
                (let ((before (cl-subseq whole 0 cut)))
                  ;; a comment takes the place of the code below it, and at a
                  ;; cut there is none; that is the rule, not a defect
@@ -108,7 +108,7 @@ is what the buffer at the cut takes for granted."
                               for a in (split-string (buffer-string) "\n")
                               for line from 1
                               unless (or (string= a b)
-                                         (ernest-typing-read-below-p source line cut))
+                                         (ernest-test-read-below-p source line cut))
                               do (setq moved (1+ moved))
                               and do (setq last-moved
                                            (format "%s:%d cut at %d: %d -> %d |%s"

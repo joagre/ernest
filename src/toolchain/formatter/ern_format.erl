@@ -163,19 +163,9 @@ indent(Pad, Line) -> <<Pad/binary, Line/binary>>.
 %% The source: its lines, its code tokens, its comments
 %%
 
+%% The source's lines as the lexer counts them, by number.
 source_lines(Text) ->
-    Chars = case unicode:characters_to_list(Text) of
-                [16#FEFF | Decoded] -> Decoded;
-                Decoded when is_list(Decoded) -> Decoded;
-                _ -> []
-            end,
-    list_to_tuple([without_return(Line) || Line <- string:split(Chars, "\n", all)]).
-
-without_return(Line) ->
-    case lists:reverse(Line) of
-        [$\r | Reversed] -> lists:reverse(Reversed);
-        _ -> Line
-    end.
+    list_to_tuple(ern_diagnostic:source_lines(Text)).
 
 %% The code tokens, each told that the code token before it ended where it
 %% did, so that the parser's spans end at code; and the comments and doc
@@ -189,7 +179,7 @@ is_trivium({doc, _, _}) -> true;
 is_trivium(_) -> false.
 
 relink([Token | Tokens], PreviousEnd) ->
-    {Line, Column, End, _} = position(Token),
+    {Line, Column, End, _} = ern_lexer:position(Token),
     [setelement(2, Token, {Line, Column, End, PreviousEnd}) | relink(Tokens, End)];
 relink([], _) ->
     [].
@@ -223,17 +213,17 @@ code(CodeTokens, SourceLines) ->
           texts = list_to_tuple([text(Token, SourceLines) || Token <- CodeTokens]),
           starts = maps:from_list([{{Line, Column}, Index}
                                    || {Index, Token} <- Indexed,
-                                      {Line, Column, _, _} <- [position(Token)]]),
+                                      {Line, Column, _, _} <- [ern_lexer:position(Token)]]),
           ends = maps:from_list([{End, Index} || {Index, Token} <- Indexed,
-                                                 symbol(Token) =/= eof,
-                                                 {_, _, End, _} <- [position(Token)]]),
+                                                 ern_lexer:symbol(Token) =/= eof,
+                                                 {_, _, End, _} <- [ern_lexer:position(Token)]]),
           pairs = pairs(Indexed, [], #{})}.
 
 %% A token's text as written.
 text({eof, _}, _SourceLines) ->
     <<>>;
 text(Token, SourceLines) ->
-    {Line, Column, {EndLine, EndColumn}, _} = position(Token),
+    {Line, Column, {EndLine, EndColumn}, _} = ern_lexer:position(Token),
     Chars = case Line =:= EndLine of
                 true -> lists:sublist(element(Line, SourceLines), Column, EndColumn - Column);
                 false ->
@@ -248,24 +238,25 @@ text(Token, SourceLines) ->
 pairs([], _Open, Acc) ->
     Acc;
 pairs([{Index, Token} | Rest], Open, Acc) ->
-    case symbol(Token) of
-        Symbol when Symbol =:= '('; Symbol =:= '#('; Symbol =:= '['; Symbol =:= '{';
-                    Symbol =:= '<<' ->
+    Symbol = ern_lexer:symbol(Token),
+    case {is_opening(Symbol), is_closing(Symbol)} of
+        {true, _} ->
             pairs(Rest, [Index | Open], Acc);
-        Symbol when Symbol =:= ')'; Symbol =:= ']'; Symbol =:= '}'; Symbol =:= '>>' ->
+        {_, true} ->
             [Opening | Outer] = Open,
             pairs(Rest, Outer, Acc#{Opening => Index});
         _ -> pairs(Rest, Open, Acc)
     end.
 
+%% Report §2.6: the brackets of the language, each opening one closed by
+%% one of these.
+is_opening(Symbol) -> lists:member(Symbol, ['(', '#(', '[', '{', '<<']).
+
+is_closing(Symbol) -> lists:member(Symbol, [')', ']', '}', '>>']).
+
 %%
 %% Nodes and their tokens
 %%
-
-%% A token is {Symbol, Position} or {Symbol, Position, Value}, as the
-%% lexer gives it.
-symbol(Token) -> element(1, Token).
-position(Token) -> element(2, Token).
 
 %% The code token the cursor stands at.
 next_token(#cursor{index = Index}, Code) -> element(Index, Code#code.tokens).
@@ -293,7 +284,7 @@ last_index(Node, Code) ->
 %% one to the closing one (report §11.5).
 is_parenthesized(Node, Code) ->
     First = first_index(Node, Code),
-    symbol(element(First, Code#code.tokens)) =:= '('
+    ern_lexer:symbol(element(First, Code#code.tokens)) =:= '('
         andalso maps:get(First, Code#code.pairs) =:= last_index(Node, Code).
 
 %% How a node's first line may end: a block's brace; a brace, for what
@@ -554,7 +545,7 @@ field_set(#field_set{path = Segments, expr = Expr} = FieldSet, Code) ->
 %% Whether a field is a pun, `=seen`, which begins at its `=` (report §5.6,
 %% §5.10).
 is_pun(Field, Code) ->
-    symbol(element(first_index(Field, Code), Code#code.tokens)) =:= '='.
+    ern_lexer:symbol(element(first_index(Field, Code), Code#code.tokens)) =:= '='.
 
 %% A block's, a match's and a receive's brace runs over lines.
 braces(Inside) ->
@@ -610,7 +601,7 @@ stage_parens(Call, Piped, Code) ->
     stage_parens(last_index(Piped, Code) + 2, last_index(Call, Code), Code, 0).
 
 stage_parens(Index, Close, Code, Count) ->
-    IsOwn = symbol(element(Index, Code#code.tokens)) =:= '('
+    IsOwn = ern_lexer:symbol(element(Index, Code#code.tokens)) =:= '('
         andalso maps:get(Index, Code#code.pairs) =:= Close,
     case IsOwn of
         true -> stage_parens(Index + 1, Close - 1, Code, Count + 1);
@@ -619,7 +610,8 @@ stage_parens(Index, Close, Code, Count) ->
 
 bracketed(Call, Callee, Code) ->
     Next = last_index(Callee, Code) + 1,
-    Next =< last_index(Call, Code) andalso symbol(element(Next, Code#code.tokens)) =:= '('.
+    Next =< last_index(Call, Code)
+        andalso ern_lexer:symbol(element(Next, Code#code.tokens)) =:= '('.
 
 %% A chain of one operator, written as one: `a <> b <> c` breaks before
 %% every `<>` or none. `::` groups to the right, every other to the left.
@@ -689,7 +681,7 @@ pattern(#p_wildcard{}, _) ->
 pattern(#p_var{}, _) ->
     token();
 pattern(#p_literal{} = Literal, Code) ->
-    case symbol(element(first_index(Literal, Code), Code#code.tokens)) of
+    case ern_lexer:symbol(element(first_index(Literal, Code), Code#code.tokens)) of
         '-' -> [token('-'), token()];
         _ -> token()
     end;
@@ -743,9 +735,6 @@ resolve(lead_trivia, Code, Cursor) ->
 resolve({nest, More, Template}, Code, Cursor) ->
     {Layout, Cursor1} = resolve(Template, Code, Cursor),
     {{nest, More, Layout}, Cursor1};
-resolve({align, Template}, Code, Cursor) ->
-    {Layout, Cursor1} = resolve(Template, Code, Cursor),
-    {{align, Layout}, Cursor1};
 resolve({group, Template}, Code, Cursor) ->
     %% the comments on lines before a group's first token stand before the
     %% group, which they would otherwise break
@@ -758,7 +747,7 @@ resolve({group, Template}, Code, Cursor) ->
 resolve({token, Expected}, Code, Cursor) ->
     consume(Expected, Code, Cursor);
 resolve({if_lead, WithLead, Without}, Code, Cursor) ->
-    {NextLine, NextColumn, _, _} = position(next_token(Cursor, Code)),
+    {NextLine, NextColumn, _, _} = ern_lexer:position(next_token(Cursor, Code)),
     case Cursor#cursor.trivia of
         [#trivium{line = Line, column = Column} | _] when {Line, Column} < {NextLine, NextColumn} ->
             resolve(WithLead, Code, Cursor);
@@ -823,12 +812,8 @@ clause_placed({Head, Body, false}, down) -> [Head, {nest, 4, [hardline, Body]}].
 %% Whether a template begins with a line break.
 leading_break(Template) when Template =:= line; Template =:= hardline ->
     true;
-leading_break([]) -> false;
-leading_break([[] | Rest]) -> leading_break(Rest);
 leading_break([Head | _]) -> leading_break(Head);
 leading_break({nest, _, Template}) -> leading_break(Template);
-leading_break({align, Template}) -> leading_break(Template);
-leading_break({group, Template}) -> leading_break(Template);
 leading_break(_) -> false.
 
 %% A node's own parentheses, the outermost closing where its span ends.
@@ -843,7 +828,7 @@ parens(Node, Template, Code, Cursor) ->
     end.
 
 opens(Last, Code, #cursor{index = Index} = Cursor, Acc) ->
-    IsOwn = symbol(next_token(Cursor, Code)) =:= '('
+    IsOwn = ern_lexer:symbol(next_token(Cursor, Code)) =:= '('
         andalso maps:get(Index, Code#code.pairs) =:= Last,
     case IsOwn of
         true ->
@@ -864,6 +849,9 @@ items(Open, [], Close, _Hug, Code, Cursor) ->
 items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
     {Before, Cursor1} = lead_trivia(Cursor, Code),
     {OpenLayout, Cursor2} = resolve(Open, Code, Cursor1),
+    %% a line comment the bracket's line ends in, after the bracket, is the
+    %% bracket's trailing comment and ends its line
+    EndsInComment = Cursor2#cursor.previous =:= line,
     {Above, Cursor3} = lead_trivia(Cursor2, Code),
     {FirstItem, Cursor4} = resolve(First, Code, Cursor3),
     FirstLayout = [Above, FirstItem],
@@ -874,9 +862,10 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
     Items = [FirstLayout, [[Comma, line, Layout] || {Comma, Layout} <- Pairs], Lead],
     Broken = {bracket, [OpenLayout, {align, Items}, CloseLayout]},
     Laid = case {Pairs, Hug} of
-               %% a comment or a doc block on the first item's lines puts it
-               %% on a line of its own, and the items a step in
-               _ when Above =/= [] -> {bracket, [OpenLayout, {nest, 4, Items}, CloseLayout]};
+               %% a comment or a doc block before the first item puts it on a
+               %% line of its own, and the items a step in
+               _ when Above =/= []; EndsInComment ->
+                   {bracket, [OpenLayout, {nest, 4, Items}, CloseLayout]};
                {[], true} -> [OpenLayout, FirstLayout, Lead, CloseLayout];
                {[], false} -> [OpenLayout, {align, [FirstLayout, Lead]}, CloseLayout];
                {_, false} -> Broken;
@@ -899,23 +888,23 @@ comma_and_item(Item, Code, Cursor) ->
 %% a closing one, and one comes before a declaration after the first.
 consume(Expected, Code, Cursor) ->
     Token = next_token(Cursor, Code),
-    case {Expected, symbol(Token)} of
+    case {Expected, ern_lexer:symbol(Token)} of
         {any, _} -> ok;
         {Symbol, Symbol} -> ok;
         _ -> error({formatter_expected, Expected, Token})
     end,
     {Lead, Cursor1} = lead_trivia(Cursor, Code),
-    {Line, _, {EndLine, _}, _} = position(Token),
-    Blank = blank_before(Cursor1, Line, symbol(Token)),
+    {Line, _, {EndLine, _}, _} = ern_lexer:position(Token),
+    Blank = blank_before(Cursor1, Line, ern_lexer:symbol(Token)),
     Cursor2 = Cursor1#cursor{index = Cursor1#cursor.index + 1, last_line = EndLine,
-                             previous = symbol(Token), force_blank = false},
+                             previous = ern_lexer:symbol(Token), force_blank = false},
     {Trailing, Cursor3} = trailing(Cursor2, Code, EndLine),
     {[Lead, Blank, element(Cursor#cursor.index, Code#code.texts), Trailing], Cursor3}.
 
 lead_trivia(#cursor{trivia = [#trivium{kind = Kind, line = Line, column = Column,
                                        end_line = EndLine, text = Text} | Rest]} = Cursor,
             Code) ->
-    {NextLine, NextColumn, _, _} = position(next_token(Cursor, Code)),
+    {NextLine, NextColumn, _, _} = ern_lexer:position(next_token(Cursor, Code)),
     case {Line, Column} < {NextLine, NextColumn} of
         true ->
             %% comments directly under a declaration, with a blank line after
@@ -959,12 +948,13 @@ trailing(#cursor{trivia = [#trivium{kind = Kind, line = Line, column = Column,
          Code, TokenLine)
   when Line =:= TokenLine, Kind =/= doc ->
     Next = next_token(Cursor, Code),
-    {NextLine, NextColumn, _, _} = position(Next),
+    {NextLine, NextColumn, _, _} = ern_lexer:position(Next),
     case {Line, Column} < {NextLine, NextColumn} of
         true ->
-            Apart = NextLine =:= EndLine
-                andalso not lists:member(symbol(Next), [')', ']', '}', '>>', ',', ';']),
-            Opened = lists:member(Cursor#cursor.previous, ['(', '[', '{', '#(', '<<']),
+            NextSymbol = ern_lexer:symbol(Next),
+            Apart = NextLine =:= EndLine andalso not is_closing(NextSymbol)
+                andalso NextSymbol =/= ',' andalso NextSymbol =/= ';',
+            Opened = is_opening(Cursor#cursor.previous),
             %% the space after a block comment is one with a space the
             %% layout puts there (ern_pretty)
             Before = case Opened of
@@ -990,9 +980,8 @@ trivium_layout(_, Text) -> Text.
 blank_before(#cursor{force_blank = true}, _Line, _Symbol) ->
     blank;
 blank_before(#cursor{last_line = Last, previous = Previous}, Line, Symbol) ->
-    Opener = lists:member(Previous, ['(', '#(', '[', '{', '<<']),
-    Closer = lists:member(Symbol, [')', ']', '}', '>>']),
-    case Last > 0 andalso Line - Last >= 2 andalso not Opener andalso not Closer of
+    case Last > 0 andalso Line - Last >= 2 andalso not is_opening(Previous)
+        andalso not is_closing(Symbol) of
         true -> blank;
         false -> []
     end.

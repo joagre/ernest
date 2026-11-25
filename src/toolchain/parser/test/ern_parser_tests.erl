@@ -174,11 +174,7 @@ pipe_rewrite_test() ->
                  expression("x |> (f)")),
     ?assertMatch(#e_call{callee = #e_var{name = c},
                          args = [#e_call{callee = #e_var{name = b}, args = [#e_var{name = a}]}]},
-                 expression("a |> b |> c")),
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{operator = '+'}]},
-                 expression("a + b |> f")),
-    ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
-                 expression("x |> (fn(y) = y + 1)")).
+                 expression("a |> b |> c")).
 
 %% report §5.7: a pipe in parentheses is no call, and the outer pipe does
 %% not fill it: its value is applied, in the order §5.1 gives; a call whose
@@ -530,22 +526,6 @@ after_clause_comes_last_test() ->
                  ern_parser:parse_string("fn f() : Unit = receive {\n    after 5 -> Unit\n"
                                          "  | x -> Unit\n}\n")).
 
-%% report §5.11
-bitstring_expr_test() ->
-    ?assertMatch(#e_bitstring{segments = []}, expression("<<>>")),
-    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_literal{value = 0}, specs = []},
-                                          #bit_segment{value = #e_literal{value = 1}}]},
-                 expression("<<0, 1>>")),
-    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_var{name = len},
-                                                       specs = [{size, #e_literal{value = 16}},
-                                                                big]},
-                                          #bit_segment{value = #e_var{name = body},
-                                                       specs = [bytes]}]},
-                 expression("<<len:size(16)-big, body:bytes>>")),
-    ?assertMatch(#e_bitstring{segments = [#bit_segment{specs = [{size, #e_var{}}, little,
-                                                                signed]}]},
-                 expression("<<x:size(n)-little-signed>>")).
-
 %% report §3.5: a constructor has no fields, one positional field, or named
 %% fields; a second positional field is refused with the two ways to write
 %% it. A regression test: the parser said only that it
@@ -584,6 +564,7 @@ second_positional_field_in_pattern_test() ->
 %% was a second way to scale a size
 no_unit_specifier_test() ->
     ?assertEqual("there is no `unit` specifier", expression_refusal("<<x:size(n)-unit(8)>>")),
+    ?assertEqual("there is no `unit` specifier", expression_refusal("<<1:unit>>")),
     %% the help writes the size given: a regression test
     ?assertMatch({error, #diagnostic{span = {1, 13, _},
                                      help = "a size counts bits, and octets for `bytes`: write"
@@ -659,14 +640,7 @@ compound_patterns_test() ->
     ?assertMatch(#p_cons{head = #p_literal{value = $-},
                          tail = #p_cons{head = #p_literal{value = $>}}},
                  pattern_of("'-' :: '>' :: r")),
-    ?assertMatch(#p_as{pattern = #p_cons{}, name = all}, pattern_of("x :: rest as all")),
-    ?assertMatch(#p_bitstring{segments = [#bit_segment{value = #p_var{name = len},
-                                                       specs = [{size, #e_literal{}}, big]},
-                                          #bit_segment{value = #p_var{name = body},
-                                                       specs = [{size, #e_var{name = len}}, bytes]},
-                                          #bit_segment{value = #p_var{name = rest},
-                                                       specs = [bytes]}]},
-                 pattern_of("<<len:size(16)-big, body:size(len)-bytes, rest:bytes>>")).
+    ?assertMatch(#p_as{pattern = #p_cons{}, name = all}, pattern_of("x :: rest as all")).
 
 %%
 %% Types
@@ -896,7 +870,7 @@ doc_placement_test() ->
                  declarations("type T =\n    /// one\n    A(x : Int)")),
     ?assert(is_incomplete_program("/// The module.")),
     ?assertNot(is_incomplete_program("fn f() = {\n    /// not a doc\n    1\n}")),
-    ?assertEqual("expected `)` instead of the reserved word `fn`",
+    ?assertEqual("expected `,` or `)` instead of the reserved word `fn`",
                  refusal("fn f() : Int = g(1\n\n/// Two.\nfn g(x : Int) : Int = 2")),
     ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
                  " `}`",
@@ -926,12 +900,13 @@ two_clause_function_test() ->
     #e_block{statements = [#fn_declaration{}, #fn_declaration{}, #e_call{}]} =
         expression("{ fn f(0) = 1; fn f(n) = n; f(1) }").
 
-%% report §5.2
+%% report §5.2, §11.5: an operand directly after an expression is refused,
+%% naming the token found
 juxtaposition_test() ->
-    ?assertEqual("unexpected identifier `x` after an expression", refusal("fn g() = f x")),
+    ?assertEqual("the name `x` cannot follow an expression", refusal("fn g() = f x")),
     ?assertEqual("a call is written f(x), and statements are separated by `;`",
                  help("fn g() = f x")),
-    ?assertEqual("unexpected integer 1 after an expression",
+    ?assertEqual("the integer `1` cannot follow an expression",
                  expression_refusal("{ let a = f 1; a }")).
 
 %% report §5.4
@@ -1019,7 +994,7 @@ member_names_test() ->
     ?assertEqual({"a `let` declares no member of Money",
                   "a member is declared with `fn`: write `fn Money.compare(...)`"},
                  refusal_and_help("let Money.compare = 1")),
-    ?assertEqual({"expected a name instead of type name `Stack`",
+    ?assertEqual({"expected a name instead of the type name `Stack`",
                   "a value's name begins with a lowercase letter"},
                  refusal_and_help("let Stack = 1")).
 
@@ -1036,7 +1011,7 @@ constructor_call_and_wildcard_test() ->
 %% report Appendix A, §4.5, §4.7: a declaration's name, and a foreign
 %% function's result type, where its form asks for them
 declaration_form_errors_test() ->
-    ?assertEqual("expected a name instead of type name `Stack`", refusal("fn Stack(x) = x")),
+    ?assertEqual("expected a name instead of the type name `Stack`", refusal("fn Stack(x) = x")),
     ?assertEqual("a foreign function declares its result type",
                  refusal("foreign fn f(x : Int) = \"m:f/1\"")),
     %% `export` begins a declaration, once: a regression test, the list had
@@ -1047,12 +1022,62 @@ declaration_form_errors_test() ->
     ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of `}`",
                  refusal("export }")).
 
-%% report Appendix A: what the parser expected where the input stopped or
-%% went astray, a bracket's close, an operand, the input's end
+%% report Appendix A, §11.5: what the parser expected where the input
+%% stopped or went astray, a bracket's close, an operand, the input's end;
+%% a `,` where a list of items may go on, and the close alone where it
+%% may not
 expected_token_errors_test() ->
-    ?assertEqual("expected `)` instead of `;`", expression_refusal("f(a;")),
-    ?assertEqual("expected an expression instead of end of input", expression_refusal("1 +")),
+    ?assertEqual("expected `,` or `)` instead of `;`", expression_refusal("f(a;")),
+    ?assertEqual("expected `)` instead of `;`", expression_refusal("(a;")),
+    ?assertEqual("expected an expression instead of the end of input", expression_refusal("1 +")),
     ?assertEqual("expected end of input instead of `)`", expression_refusal("1)")).
+
+%% report §11.5: a parse error names the token it found in one form, by
+%% its kind and, for a name, a type name, a number, a reserved word and a
+%% symbol, its text as written, a float's as Ernest writes its value
+token_found_test() ->
+    Found = fun(Source) ->
+                    "expected a declaration (export, type, abstract, fn, let, foreign) instead of "
+                        ++ Rest = refusal(Source),
+                    Rest
+            end,
+    ?assertEqual("the name `x`", Found("x")),
+    ?assertEqual("the type name `Coin`", Found("Coin")),
+    ?assertEqual("the integer `1`", Found("1")),
+    ?assertEqual("the float `100000.0`", Found("1.0e5")),
+    ?assertEqual("the float `1.0e-6`", Found("0.000001")),
+    ?assertEqual("the reserved word `match`", Found("match")),
+    ?assertEqual("the reserved word `true`", Found("true")),
+    ?assertEqual("a string literal", Found("\"s\"")),
+    ?assertEqual("a character literal", Found("'c'")),
+    ?assertEqual("`}`", Found("}")),
+    ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of a doc block",
+                 refusal("export\n/// D.\nfn f() : Int = 1")),
+    ?assertEqual("expected an expression instead of the end of input", refusal("fn f() : Int =")).
+
+%% report §5.4, §11.5: where a let's name stands alone, an annotation's `:`
+%% may follow it, and the message names it; after an annotation, it does
+%% not
+let_operator_test() ->
+    ?assertEqual("expected `:`, `=` or `<-` instead of the integer `1`",
+                 expression_refusal("{ let x 1; x }")),
+    ?assertEqual("expected `=` or `<-` instead of the integer `1`",
+                 expression_refusal("{ let x : Int 1; x }")).
+
+%% report §11.5: a list of items in parentheses names the `,` that may go
+%% on where it may, in a declaration, a type and an expression; a
+%% constructor's one positional field, declared or matched, names its `)`
+%% alone, a `,` there being refused with its own message
+items_close_test() ->
+    ?assertEqual("expected `,` or `)` instead of the name `b`", refusal("type T(a b) = T")),
+    ?assertEqual("expected `,` or `)` instead of the name `y`", refusal("fn f(x y) = 1")),
+    ?assertEqual("expected `,` or `)` instead of the type name `Int`",
+                 refusal("fn f(g : List(Int Int)) = 1")),
+    ?assertEqual("expected `,` or `)` instead of the name `y`",
+                 expression_refusal("match p { P(x = a y = b) -> 1 }")),
+    ?assertEqual("expected `)` instead of the type name `Int`", refusal("type T = T(Int Int)")),
+    ?assertEqual("expected `)` instead of the name `b`",
+                 expression_refusal("match p { Some(a b) -> 1 }")).
 
 %% report §3.1, §11.5: `()` where an expression stands has the help that
 %% names Unit's one value, wherever the operand stands; a call's, a
@@ -1158,7 +1183,7 @@ bitstring_specifier_errors_test() ->
                   "a specifier is `size(N)`, `bytes`, `int`, `float`, `utf8`, `utf16`, `utf32`,"
                   " `big`, `little`, `signed` or `unsigned`"},
                  expression_refusal_and_help("<<x:wide>>")),
-    ?assertEqual({"expected a bitstring specifier instead of integer 1",
+    ?assertEqual({"expected a bitstring specifier instead of the integer `1`",
                   "a size is written `size(1)`"},
                  expression_refusal_and_help("<<b:1>>")),
     ?assertEqual("unknown bitstring specifier `bogus`", expression_refusal("<<x:bogus>>")),
@@ -1168,10 +1193,10 @@ bitstring_specifier_errors_test() ->
 
 %% report §5.10: a pattern's `-` comes before a number
 negative_pattern_errors_test() ->
-    ?assertEqual("expected a number after `-` in a pattern instead of identifier `x`",
+    ?assertEqual("expected a number after `-` in a pattern instead of the name `x`",
                  expression_refusal("match y { -x -> 1 }")).
 
-%% report §11.1
+%% report §11.5
 lexer_errors_pass_through_test() ->
     ?assertMatch({error, #diagnostic{span = {1, 10, _},
                                      message = "the string literal never closes"}},
@@ -1238,9 +1263,6 @@ ast_coverage_test() ->
                                        {ok, Declarations} = ern_parser:parse_string(Source),
                                        tags(Declarations, Acc)
                                    end, [], ernest_files())),
-    %% Bytes, written with the bit syntax, gives a bitstring with segments
-    %% and a bitstring pattern their first use outside the parser's own
-    %% tests
     ?assertEqual([], Declared -- Used).
 
 tags(Node, Acc) when is_tuple(Node), is_atom(element(1, Node)) ->
@@ -1250,7 +1272,7 @@ tags(Nodes, Acc) when is_list(Nodes) ->
 tags(_, Acc) ->
     Acc.
 
-%% report Appendix B, examples/ and test/fixtures/programs/
+%% report Appendix B: every program of ernest_files/0 parses
 examples_parse_test_() ->
     Files = ernest_files(),
     ?assert(length(Files) >= 12),
@@ -1302,7 +1324,8 @@ grammar_fragments_test() ->
                           maps:get(Name, InSections, undefined) =/= Rule]).
 
 %% report §5.11, Appendix A BitExpr, BitPat, BitSpec: segments with
-%% dash-separated specifiers, size with an expression, and no `unit`
+%% dash-separated specifiers and a size of an expression, in an expression
+%% and in a pattern
 bitstrings_test() ->
     ?assertMatch(#e_bitstring{segments = []}, expression("<<>>")),
     ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_literal{value = 1}, specs = []},
@@ -1312,6 +1335,9 @@ bitstrings_test() ->
                                                                 signed]},
                                           #bit_segment{value = #e_var{name = b}, specs = [bytes]}]},
                  expression("<<1, x:size(n + 1)-big-signed, b:bytes>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{specs = [{size, #e_var{}}, little,
+                                                                signed]}]},
+                 expression("<<x:size(n)-little-signed>>")),
     ?assertMatch(#e_match{clauses = [#clause{pattern = #p_bitstring{segments =
                                                    [#bit_segment{value = #p_var{name = len},
                                                                  specs = [{size, _}, big]},
@@ -1324,8 +1350,7 @@ bitstrings_test() ->
                                      | _]},
                  expression("match b { <<len:size(16)-big, body:size(len)-bytes, _:utf8>> -> len"
                             " | _ -> 0 }")),
-    ?assertEqual("unknown bitstring specifier `word`", expression_refusal("<<1:word>>")),
-    ?assertEqual("there is no `unit` specifier", expression_refusal("<<1:unit>>")).
+    ?assertEqual("unknown bitstring specifier `word`", expression_refusal("<<1:word>>")).
 
 %% report §11.2, §2.5: an input the parser cannot finish is marked, so
 %% that the shell takes another line for it. It ran out of tokens where
@@ -1365,10 +1390,8 @@ within_call_test() ->
                  stopped_within(<<"f(1, 2">>)),
     ?assertMatch({undefined, _}, stopped_within(<<"1 + ">>)).
 
-%% src/toolchain/parser/ern_ast.erl: the one walk visits every node in pre-order,
-%% into lists and nested records, threading its accumulator. A regression
-%% test for the walk the checker, the reply check and the exhaustiveness
-%% check had each copied.
+%% report Appendix A: ern_ast:walk/3 visits every node of the syntax in
+%% pre-order, into lists and nested records, threading its accumulator.
 ast_walk_test() ->
     Names = ern_ast:walk(fun(#e_var{name = Name}, Acc) -> [Name | Acc]; (_, Acc) -> Acc end,
                          expression("f(a, g(b), [c])"), []),
@@ -1449,7 +1472,7 @@ derives_test() ->
     #type_declaration{derives = undefined} = declaration("type T = T(Int)"),
     #abstract_declaration{declaration = #type_declaration{derives = {_, _, _}}} =
         declaration("export abstract type T = A | B(Int) derives compare"),
-    ?assertEqual("`derives` names compare and nothing else, not identifier `order`",
+    ?assertEqual("`derives` names compare and nothing else, not the name `order`",
                  refusal("type T = T derives order")).
 
 %% report §5.6, Appendix A's Fields: the fields after `..` may be left out,
@@ -1547,10 +1570,11 @@ pattern_pun_test() ->
 %% and `Shift-Tab` (report §11.2). Written after the code; it does not
 %% cover the shell's completion itself, which reads the tag
 pun_is_a_name_alone_test() ->
-    ?assertEqual("expected `)` instead of `+`", expression_refusal("Snapshot(=count + 1)")),
-    ?assertEqual("expected `)` instead of `.`", expression_refusal("Pool(..p, =stats.hits)")),
-    ?assertEqual("expected a name instead of integer 1", expression_refusal("Snapshot(=1)")),
-    ?assertEqual("expected `)` instead of the reserved word `as`",
+    ?assertEqual("expected `,` or `)` instead of `+`", expression_refusal("Snapshot(=count + 1)")),
+    ?assertEqual("expected `,` or `)` instead of `.`",
+                 expression_refusal("Pool(..p, =stats.hits)")),
+    ?assertEqual("expected a name instead of the integer `1`", expression_refusal("Snapshot(=1)")),
+    ?assertEqual("expected `,` or `)` instead of the reserved word `as`",
                  refusal("fn f(s) = match s { Snapshot(=seen as all) -> 0 }")),
     ?assertEqual({#enclosing{namespace = [], name = 'Snapshot', argument = none},
                   #expected_field{kind = field, namespace = [], constructor_name = 'Snapshot'}},

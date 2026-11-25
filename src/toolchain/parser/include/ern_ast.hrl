@@ -5,8 +5,9 @@
 %% type it infers; declarations carry doc and the export flag. The parser
 %% builds these untyped.
 %%
-%% Two rewrites happen in the parser: parentheses produce no node, and
-%% `x |> f(a)` becomes the call `f(x, a)` (report §5.7), marked as a pipe's.
+%% Three rewrites happen in the parser: parentheses produce no node,
+%% `x |> f(a)` becomes the call `f(x, a)` (report §5.7), marked as a pipe's,
+%% and a pun, `=seen`, becomes `seen = seen` (report §5.6, §5.10).
 
 -ifndef(ERN_AST_HRL).
 -define(ERN_AST_HRL, true).
@@ -74,8 +75,8 @@
 %% the namespace as the source writes it, which a diagnostic's span and
 %% help read. The same on e_var, e_constructor and p_constructor, before
 %% the type the checker gives a node, which is its last field.
-%% equality: true where the source writes the mark, `a=` (report §3, §4.7).
 -record(t_var, {span, name, equality = false}).
+%% equality: true where the source writes the mark, `a=` (report §3, §4.7).
 -record(t_tuple, {span, elements}).
 -record(t_fn, {span, params, result_type, effect}).
 %% effect = undefined: the function type receives nothing (report §3.4).

@@ -319,6 +319,8 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 
 #### front
 
+**Built 2026-11-25** (the log's *The Front End's Lines*), each line as its fix says, but *C1 9*, whose one function is three of `ern_diagnostic`, `source_lines/1`, `without_bom/1` and `without_return/1`, since the lexer reads a line at a time.
+
 - **C1 17** `2a` — `editors/emacs/test/*.el`: the check-and-count helper written in five files. Fix: one `test/check.el` with `want`, `fail`, `finish`. Owner: front.
 - **C1 15** `2a` — `ern_ast.hrl:71-78`: `t_var`'s `equality` comment in `t_named`'s block. Fix: move it. Owner: front.
 - **C1 11** `2a` — `ern_format.erl:252-255, 966-967, 993-994`, `ern_parser.erl:275-276`: bracket symbols listed four times. Fix: one `is_opening/1` and `is_closing/1`, the parser's subset saying why. Owner: front.
@@ -604,6 +606,7 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
 #### front
 
 - **C1 1** `2b` `false` — `ern_format.erl:864-882` `items/6`: a line comment after an opening bracket aligns the items at the bracket, where §11.6 puts them a step in; the Emacs mode follows the report. Fix: take the `{nest, 4, Items}` branch when the bracket's layout ends in a line comment; a `comments_test` case for `[ // c`. Owner: front.
+  - **Built 2026-11-25** (the log's *The Front End's Lines*).
 
 #### checker
 
@@ -880,10 +883,13 @@ Four lines moved to `3`, each saying so: *K 1, K 6 (sends and calls)* from `4`, 
   - **Read cold again 2026-11-24** (the log's *The Answers Read Cold*): plain (*CC 26*, *CC 32*): §11.4 says that a type declaration writes its own name plain, as `ern doc` does (run by the session). §5.6's line names the enclosing declaration's variable, `OrderedSet.fromList needs b.compare, which g does not declare` in `fn g(list : List(b))`, the qualified callee *to build* (`fromList needs b.compare` today, `cold3/CC/a274`).
 - **X 28** `3` — `docs/diagnostics.md:827`, `970`, `1305`, and `Io.debug`'s help: "expected `=` or `<-`" where `:` may stand; "expected `)`" where `,` may; a type variable error naming no type; a help ending "and show that". Fix: each message names what may stand and what it is about. Owner: front+checker. Decide: the texts.
   - **Decided 2026-11-23** (the log's *What a Diagnostic Says*): four texts. ``expected `:`, `=` or `<-` ``; ``expected `,` or `)` ``; `type variable a is not a parameter of Box`, with ``help: `type Box(a)` declares it``; and `Io.debug`'s help ends "and pass that".
+  - **Built 2026-11-25** (the log's *The Front End's Lines*): the four texts. ``expected `,` or `)` `` stands where a list of items may go on, and `` `)` `` alone where a `,` cannot stand or is refused first; ``expected `:`, `=` or `<-` `` while a `let` has no annotation.
 - **X 21** `3` user — `docs/diagnostics.md` 306, 514, 863, 1011, 365, 527, 609, 3189: the parser names tokens four ways ("integer 1", "identifier `erlang`", "type name", "the reserved word"). Fix: one form, "the name `erlang`", "the integer `1`". Owner: front. Decide: the form.
   - **Decided 2026-11-23** (the log's *What a Diagnostic Says*): one form for a token found, an article, the kind and the text in backticks: ``the name `erlang` ``, ``the type name `Coin` ``, ``the integer `1` ``, ``the float `100000.0` ``, ``the reserved word `let` ``, `a string literal`, `a character literal`, `a doc block`, `the end of input`, and a symbol as now. "Identifier" becomes "name", the word a message uses for what it expects.
+  - **Built 2026-11-25** (the log's *The Front End's Lines*): §11.5 states the form, and every message of the parser that names a token takes it; an operand after an expression reads ``the integer `2` cannot follow an expression``.
 - **C1 2** `3` — `ern_parser.erl:1834` `describe/1`: a diagnostic writes a float by `float_to_list(_, [short])`, `unexpected float 1.0e5`, where `Float.toString` (E.9) writes `100000.0`; `1.0e-6` is E.9's form too. Fix: `ern_literal:float_text(Value)`. Decide: whether a diagnostic writes a literal in Ernest's spelling, an error's text the report does not quote. Owner: front.
   - **Decided 2026-11-23** (the log's *What a Diagnostic Says*): a diagnostic writes a float in Ernest's spelling, by `ern_literal:float_text/1`, as it writes every other literal (principle 2).
+  - **Built 2026-11-25** (the log's *The Front End's Lines*).
 - **N C23** `3` user — `` `+` is not defined on String ``, `unknown name List.length`, `both operands of <> must have the same type` carry no help (`<>`, `List.size`, `Int.toString`). Fix: a help line each. Owner: checker. Decide: the three help lines' text.
   - **Decided 2026-11-23** (the log's *What a Diagnostic Says*): two helps. `` `+` is not defined on String `` gains ``help: `<>` joins two strings``, and `<>` on a String and an Int or a Float gains ``help: `Int.toString` makes the Int a String``, `Float.toString` for a Float. `unknown name List.length` gains none and joins *B20*'s feedback entry, since a table of other languages' names has no end (principle 5).
 - **X 17** `3` — `docs/diagnostics.md:1710`: "nothing here hides it; write `Io.println`", where `Prelude.Io.println` is refused whatever hides. Fix: "write `Io.println`". Owner: checker. Decide: the help's text.

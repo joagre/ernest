@@ -172,9 +172,7 @@ clauses_table_test() ->
 
 %% report §11.6: where one clause's body does not fit whole on its arrow's
 %% line, every body of the construct begins the line after its arrow, a
-%% step in from the clause's line, a short one and an `if` among them.
-%% Written in place of a test of the rule before, which held each body on
-%% its arrow's line where it fit alone, or up to a brace or `then`
+%% step in from the clause's line, a short one and an `if` among them
 clauses_down_test() ->
     ?assertEqual([<<"fn f(x) =">>,
                   <<"    match x {">>,
@@ -453,7 +451,9 @@ types_test() ->
 
 %% report §11.6: a comment stays beside the token it was beside: a line
 %% comment ends its line, one on a line of its own stands at the code's
-%% indentation, and one before a closing brace with the content before it
+%% indentation, and one before a closing brace with the content before it;
+%% a line comment after an opening bracket ends the bracket's line, and
+%% the items stand a step in
 comments_test() ->
     ?assertEqual([<<"// A file's comment.">>,
                   <<"fn f(x) = {">>,
@@ -471,7 +471,16 @@ comments_test() ->
                        " 2];",
                        "  y /* inline */ + x",
                        "        // the last",
-                       "}"])).
+                       "}"])),
+    fixed(["fn b() : List(Int) =",
+           "    [ // the first",
+           "        1,",
+           "        2]"]),
+    ?assertEqual([<<"fn e() : Int =">>,
+                  <<"    f( // a">>,
+                  <<"        x,">>,
+                  <<"        y)">>],
+                 laid(["fn e() : Int =", "    f(// a", "      x,", "      y)"])).
 
 %% report §11.6: a comment that ends the text, with no line feed after it,
 %% is kept; it had been lost (regression test)

@@ -30,7 +30,7 @@ An Emacs started from a desktop menu has the login session's `PATH`, not the one
 
 ## How it is judged
 
-Eight tests under `editors/emacs/test/`, which `make test-emacs` runs, or `make test-emacs EMACS=path` under another Emacs. Each prints what it measured.
+Eight tests under `editors/emacs/test/`, which `make test-emacs` runs, or `make test-emacs EMACS=path` under another Emacs. Each prints what it measured, and those that count checks count them by `check.el`.
 
 | Test | What must hold |
 | --- | --- |

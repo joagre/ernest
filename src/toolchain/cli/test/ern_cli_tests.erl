@@ -1230,8 +1230,69 @@ parse_error_test() ->
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir])),
     Output = iolist_to_binary(?capturedOutput),
     ?assertEqual(<<(list_to_binary(File))/binary, ":2:1: expected an expression instead of"
-                   " end of input\n1 | export fn f() : Int =\n2 |\n  | ^\n\n">>,
+                   " the end of input\n1 | export fn f() : Int =\n2 |\n  | ^\n\n">>,
                  Output).
+
+%% A build of a directory holding one module of Source, written in UTF-8:
+%% its status and what it wrote.
+built(Source) ->
+    Dir = tmp(),
+    write(Dir, "a.ern", unicode:characters_to_binary(Source)),
+    Status = build_err(["--build-root", Dir ++ "/build", Dir]),
+    {Status, unicode:characters_to_binary(?capturedOutput)}.
+
+%% report §2.5, §11.5: a character literal the input ends inside never
+%% closes, and one that a quote closes later on its line, past an escaped
+%% quote, holds more than one code point
+character_literal_errors_test() ->
+    {1, Ended} = built("export fn f() : Char = '"),
+    ?assertMatch({_, _},
+                 binary:match(Ended, <<":1:24: the character literal never closes\n">>)),
+    {1, Long} = built("export fn f() : Char = 'a\\'b'\n"),
+    ?assertMatch({_, _},
+                 binary:match(Long, <<":1:24: a character literal holds one code point;">>)).
+
+%% report §11.5: an excerpt draws DEL as its picture and a C1 control as
+%% U+FFFD, one column each, and the caret stands under it
+excerpt_draws_controls_test() ->
+    {1, Delete} = built("export fn f() : String = \"a\x{7F}b\"\n"),
+    ?assertMatch({_, _}, binary:match(Delete, <<"1 | export fn f() : String = \"a\x{2421}b\"\n"
+                                                "  |                            ^\n"/utf8>>)),
+    {1, Control} = built("export fn f() : String = \"a\x{9B}b\"\n"),
+    ?assertMatch({_, _}, binary:match(Control, <<":1:28: control character U+009B;">>)),
+    ?assertMatch({_, _}, binary:match(Control, <<"1 | export fn f() : String = \"a\x{FFFD}b\"\n"
+                                                 "  |                            ^\n"/utf8>>)).
+
+%% report §2.5, §5.10: a help that writes a pattern back writes a carriage
+%% return as its escape
+pattern_help_escapes_a_return_test() ->
+    {1, Output} = built("export fn f(p : #(String, Int)) : Int = match p {\n"
+                        "    #(\"\\r\" or \"x\", 1) -> 1\n  | _ -> 0\n}\n"),
+    ?assertMatch({_, _}, binary:match(Output, <<"= help: write the clause's alternatives out:"
+                                                " `#(\"\\r\", 1) or #(\"x\", 1)`\n">>)).
+
+%% report §2.2, §11.5: a bare `#` is a heading of level 1, which a module's
+%% doc block may not hold; a misplaced doc block is the error reported
+%% where a parse error stands later in the module
+doc_block_errors_test() ->
+    {1, Heading} = built("/// #\n/// Text.\n\nexport fn f() : Int = 1\n"),
+    ?assertMatch({_, _}, binary:match(Heading, <<":1:1: a heading of level 1 in the module's doc"
+                                                 " block, which the page's title is\n">>)),
+    {1, Misplaced} = built("export fn f() : Int = {\n    /// misplaced\n    1\n}\n\n"
+                           "fn g() : Int = )\n"),
+    ?assertMatch({_, _},
+                 binary:match(Misplaced, <<":2:5: a doc block documents nothing here\n">>)).
+
+%% report §11.6: ern format keeps a doc block that leads a type's one
+%% alternative on its own line, and the alternative under it
+format_keeps_a_led_alternative_test() ->
+    Dir = tmp(),
+    Source = "type T =\n    /// The one.\n    A(x : Int)\n",
+    Module = write(Dir, "t.ern", Source),
+    ?assertEqual(0, ern_err(["format", "--check", Module])),
+    Loose = write(Dir, "u.ern", "type T =\n/// The one.\nA(x : Int)\n"),
+    ?assertEqual(0, ern_err(["format", Loose])),
+    ?assertEqual({ok, list_to_binary(Source)}, file:read_file(Loose)).
 
 %% report Appendix D, §11.1, §11.2, §4.7: the foreign library Appendix D
 %% writes out is compiled as a root of its own, a program is compiled

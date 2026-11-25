@@ -1,9 +1,11 @@
 %% Diagnostics, report §11.5: one record for every stage, rendered as the
 %% first line `file:line:column: message`, then the source with a gutter,
-%% the spans underlined and labeled, and at most one help line.
+%% the spans underlined and labeled, and at most one help line. A source's
+%% lines are counted here once, for the lexer, the excerpt and the
+%% formatter alike.
 -module(ern_diagnostic).
 
--export([span/1, short/2, format/3]).
+-export([span/1, short/2, format/3, source_lines/1, without_bom/1, without_return/1]).
 
 -export_type([position/0, span/0, diagnostic/0]).
 
@@ -91,25 +93,35 @@ width(Line, Column, _, Lines) when Line =< length(Lines) ->
 width(_, _, _, _) ->
     1.
 
-%% Report §11.5: a line ends at a line feed, and a carriage return before
-%% it ends the line with it; a carriage return anywhere else is a column
-%% of the line, as the lexer counts it, shown as its picture.
+%% Report §11.5: a line of an excerpt, each character shown as one
+%% column (shown/1).
 lines(Source) ->
-    [[shown(Char) || Char <- without_return(Line)]
-     || Line <- string:split(chars(Source), "\n", all)].
+    [[shown(Char) || Char <- Line] || Line <- source_lines(Source)].
 
+%% Report §2.1, §11.5: a source's lines as the lexer counts them, which
+%% the excerpt and the formatter read: a leading byte-order mark is
+%% stripped, a line ends at a line feed, and a carriage return before it
+%% ends the line with it; a carriage return anywhere else is a column of
+%% the line. A byte that begins no UTF-8 character is U+FFFD, so that the
+%% lexer's refusal of one shows its line.
+-spec source_lines(unicode:chardata()) -> [string()].
+source_lines(Source) ->
+    [without_return(Line) || Line <- string:split(chars(Source), "\n", all)].
+
+%% Report §2.1: characters without the byte-order mark that leads them.
+-spec without_bom(string()) -> string().
+without_bom([16#FEFF | Rest]) -> Rest;
+without_bom(Chars) -> Chars.
+
+%% A line without the carriage return that ends it.
+-spec without_return(string()) -> string().
 without_return(Line) ->
     case lists:reverse(Line) of
         [$\r | Rest] -> lists:reverse(Rest);
         _ -> Line
     end.
 
-%% Report §11.5: a source's characters, each byte that begins no UTF-8
-%% character as U+FFFD, so that the lexer's refusal of one shows its line;
-%% a leading byte-order mark is stripped, as the lexer strips it (§2.1), so
-%% that a column of the first line is the lexer's.
-chars(<<16#FEFF/utf8, Rest/binary>>) -> decoded(Rest);
-chars(<<_/binary>> = Source) -> decoded(Source);
+chars(<<_/binary>> = Source) -> without_bom(decoded(Source));
 chars(Source) -> chars(unicode:characters_to_binary(Source)).
 
 decoded(<<Char/utf8, Rest/binary>>) -> [Char | decoded(Rest)];

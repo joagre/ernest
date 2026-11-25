@@ -83,9 +83,9 @@ Every node is a record of `src/toolchain/parser/include/ern_ast.hrl`, one per pr
 
 - A name, `#e_var{}`, carries its `referent`, what §4.2's lookup resolved, which the canonical form reads (Appendix H).
 - A `fn` declaration's requirement is a list of `#member{}` (§4.9). A member's name stands in no expression, so `a.compare` in a body parses as a selection, which the checker refuses, and an operator after `.` is the parser's refusal (§4.5).
-- The parser rewrites twice: parentheses make no node, and `x |> f(a)` is a call with its `pipe` flag set (§5.1).
+- The parser rewrites three times: parentheses make no node, `x |> f(a)` is a call with its `pipe` flag set (§5.7), and a pun, `=seen`, is `seen = seen` (§5.6, §5.10).
 - A clause's `or` alternatives are one `#p_or{}` (§5.9).
-- `prune_docs` keeps a doc block only where §2.2 attaches it; the module's is `#module_doc{}`, first in the list.
+- `check_docs_attached` refuses a doc block where §2.2 attaches none; the module's is `#module_doc{}`, first in the list.
 
 ## The type checker
 
@@ -169,7 +169,7 @@ A unit is the module's Erlang name, `ern@` and its path (§11.1), unless `compil
 | `ErnC` | `ern_canonical`: `module/4`, `closed/1`, `recorded_source/1`, `read/1` | `{FormVersion, #recorded{}}`, the records of `ern_canonical.hrl` (§8.7, Appendix H) |
 | `Docs` | `ern_docs`: `ern_docs:build/4`, `read/1`, `doc_key/1` | EEP 48's documentation, an entry per declaration §11.4 renders, an abstract type's constructors marked private, which a page leaves out, a member's signature its form (`member_form/4`) and its metadata its type and name, by which a page orders it, its `BeamLanguage` `ernest` |
 
-Each chunk is read through `ern_chunk`. A name a shell session declares is written under its session's namespace, `$Session3`, in a form and in `'$code'/0` (`form_name/2` in `ern_canonical` and in `ern_emitter`; Appendix H, §11.2), the node's public key after the number where the program is a node, which the session makes as it starts (`ern_shell:form_namespace/1`) and every printed name leaves out (`ern_namespace:segment_text/1`, `printed_segments/1`).
+Each chunk is read through `ern_chunk`. A name a shell session declares is written under its session's namespace, `$Session3`, in a form and in `'$code'/0` (`form_name/2` in `ern_canonical` and in `ern_emitter`; Appendix H, §11.2), the node's public key after the number where the program is a node, which the session makes as it starts (`ern_shell:form_namespace/1`) and every printed name leaves out (`ern_namespace:printed_segment_text/1`, `printed_segments/1`).
 
 ## The runtime
 

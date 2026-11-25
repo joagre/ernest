@@ -303,7 +303,7 @@ type Coin = Coin(Int)
 
 ```console
 $ ern build example.ern
-example.ern:3:1: expected a declaration (export, type, abstract, fn, let, foreign) instead of integer 1
+example.ern:3:1: expected a declaration (export, type, abstract, fn, let, foreign) instead of the integer `1`
 2 |
 3 | 1
   | ^
@@ -346,7 +346,7 @@ fn Coin.1() : Int = 1
 
 ```console
 $ ern build example.ern
-example.ern:3:9: expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.` instead of integer 1
+example.ern:3:9: expected `+`, `-`, `*`, `/`, `%`, `<>`, `compare` or `negate` after `.` instead of the integer `1`
 2 |
 3 | fn Coin.1() : Int = 1
   |         ^
@@ -362,7 +362,7 @@ fn Coin() : Int = 1
 
 ```console
 $ ern build example.ern
-example.ern:3:4: expected a name instead of type name `Coin`
+example.ern:3:4: expected a name instead of the type name `Coin`
 2 |
 3 | fn Coin() : Int = 1
   |    ^^^^
@@ -458,7 +458,7 @@ fn 1() : Int = 1
 
 ```console
 $ ern build example.ern
-example.ern:1:4: expected a name instead of integer 1
+example.ern:1:4: expected a name instead of the integer `1`
 1 | fn 1() : Int = 1
   |    ^
 ```
@@ -511,7 +511,7 @@ foreign fn now() : Int = erlang
 
 ```console
 $ ern build example.ern
-example.ern:1:26: expected the implementation name as a string instead of identifier `erlang`
+example.ern:1:26: expected the implementation name as a string instead of the name `erlang`
 1 | foreign fn now() : Int = erlang
   |                          ^^^^^^
 ```
@@ -593,7 +593,7 @@ fn f(x : 1) : Int = 1
 
 ```console
 $ ern build example.ern
-example.ern:1:10: expected a type instead of integer 1
+example.ern:1:10: expected a type instead of the integer `1`
 1 | fn f(x : 1) : Int = 1
   |          ^
 ```
@@ -620,7 +620,7 @@ fn f() : Int = List.1
 
 ```console
 $ ern build example.ern
-example.ern:1:21: expected a name after `.` instead of integer 1
+example.ern:1:21: expected a name after `.` instead of the integer `1`
 1 | fn f() : Int = List.1
   |                     ^
 ```
@@ -633,7 +633,7 @@ fn f() : Int = 1 2
 
 ```console
 $ ern build example.ern
-example.ern:1:18: unexpected integer 2 after an expression
+example.ern:1:18: the integer `2` cannot follow an expression
 1 | fn f() : Int = 1 2
   |                  ^
   | = help: a call is written f(x), and statements are separated by `;`
@@ -824,7 +824,7 @@ fn f() : Int = {
 
 ```console
 $ ern build example.ern
-example.ern:2:11: expected `=` or `<-` instead of integer 1
+example.ern:2:11: expected `:`, `=` or `<-` instead of the integer `1`
 1 | fn f() : Int = {
 2 |     let x 1;
   |           ^
@@ -842,7 +842,7 @@ fn f(x : Int) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:14: expected a name after `as` instead of integer 2
+example.ern:3:14: expected a name after `as` instead of the integer `2`
 2 |     match x {
 3 |         1 as 2 -> 1
   |              ^
@@ -860,7 +860,7 @@ fn f(x : Int) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:10: expected a number after `-` in a pattern instead of identifier `a`
+example.ern:3:10: expected a number after `-` in a pattern instead of the name `a`
 2 |     match x {
 3 |         -a -> 1
   |          ^
@@ -911,7 +911,7 @@ fn f(x : Optional(Int)) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:4:1: expected a pattern instead of end of input
+example.ern:4:1: expected a pattern instead of the end of input
 3 |         Some(
 4 |
   | ^
@@ -953,7 +953,7 @@ fn f(b : Bytes) : Bytes = <<b:1>>
 
 ```console
 $ ern build example.ern
-example.ern:1:31: expected a bitstring specifier instead of integer 1
+example.ern:1:31: expected a bitstring specifier instead of the integer `1`
 1 | fn f(b : Bytes) : Bytes = <<b:1>>
   |                               ^
   | = help: a size is written `size(1)`
@@ -967,7 +967,7 @@ fn f(x : Int -> Int = x
 
 ```console
 $ ern build example.ern
-example.ern:1:14: expected `)` instead of `->`
+example.ern:1:14: expected `,` or `)` instead of `->`
 1 | fn f(x : Int -> Int = x
   |              ^^
 ```
@@ -1008,7 +1008,7 @@ type point = Point(Int)
 
 ```console
 $ ern build example.ern
-example.ern:1:6: expected a type name instead of identifier `point`
+example.ern:1:6: expected a type name instead of the name `point`
 1 | type point = Point(Int)
   |      ^^^^^
   | = help: a type name begins with an uppercase letter: Point
@@ -1315,9 +1315,10 @@ type Box = Box(a)
 
 ```console
 $ ern build example.ern
-example.ern:1:16: type variable a is not a parameter of the type
+example.ern:1:16: type variable a is not a parameter of Box
 1 | type Box = Box(a)
   |                ^
+  | = help: `type Box(a)` declares it
 ```
 
 ### A value of a type's previous version at the prompt (§11.2, §8.7)
@@ -3235,7 +3236,7 @@ type Coin = Coin(Int) derives show
 
 ```console
 $ ern build example.ern
-example.ern:1:31: `derives` names compare and nothing else, not identifier `show`
+example.ern:1:31: `derives` names compare and nothing else, not the name `show`
 1 | type Coin = Coin(Int) derives show
   |                               ^^^^
 ```

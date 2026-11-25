@@ -9,8 +9,7 @@
 ;;; Code:
 
 (require 'checkdoc)
-
-(defvar ernest-lint--failures 0)
+(load (expand-file-name "test/check.el") nil t)
 
 (let* ((dir (make-temp-file "ernest-lint-" t))
        (byte-compile-error-on-warn t)
@@ -18,20 +17,15 @@
         (lambda (_) (expand-file-name "ernest-mode.elc" dir))))
   (unwind-protect
       (unless (byte-compile-file "ernest-mode.el")
-        (setq ernest-lint--failures (1+ ernest-lint--failures))
-        (message "FAIL ernest-mode.el does not byte-compile without a warning"))
+        (ernest-test-fail "ernest-mode.el does not byte-compile without a warning"))
     (delete-directory dir t)))
 
 (let ((checkdoc-create-error-function
        (lambda (text &rest _)
-         (setq ernest-lint--failures (1+ ernest-lint--failures))
-         (message "FAIL checkdoc: %s" text)
+         (ernest-test-fail "checkdoc: %s" text)
          nil)))
   (checkdoc-file "ernest-mode.el"))
 
-(message "%s" (if (zerop ernest-lint--failures)
-                  "lint: all checks passed"
-                (format "lint: %d checks failed" ernest-lint--failures)))
-(kill-emacs (if (zerop ernest-lint--failures) 0 1))
+(ernest-test-finish "lint")
 
 ;;; lint.el ends here

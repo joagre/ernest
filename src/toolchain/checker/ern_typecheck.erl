@@ -1342,7 +1342,8 @@ declare_constructors(#type_declaration{name = Name, params = Params, constructor
     TypeState1 = ern_types:enter(Env#env.type_state),
     Result = {tcon, QualifiedName, ParamVariables},
     Declare = fun(Constructor, Acc) ->
-                  declare_constructor(Constructor, QualifiedName, AnnotationVariables, Result, Acc)
+                  declare_constructor(Constructor, {Name, Params}, QualifiedName,
+                                      AnnotationVariables, Result, Acc)
               end,
     Env1 = Env#env{type_state = TypeState1},
     {ConstructorInfos, Env2} = lists:mapfoldl(Declare, Env1, Constructors),
@@ -1351,11 +1352,13 @@ declare_constructors(#type_declaration{name = Name, params = Params, constructor
     Env3#env{types = maps:put(QualifiedName, TypeInfo, Env3#env.types)}.
 
 %% Report §3.5: a constructor of the type TypeQualifiedName, whose value is
-%% Result, its fields' annotation variables the type's parameters.
-declare_constructor(#constructor{name = Name, fields = Fields}, TypeQualifiedName,
+%% Result, its fields' annotation variables the type's parameters, which
+%% Declared names as the declaration writes them, the type's name and its
+%% parameters.
+declare_constructor(#constructor{name = Name, fields = Fields}, Declared, TypeQualifiedName,
                     AnnotationVariables, {tcon, _, ParamVariables} = Result, Env) ->
     QualifiedName = Env#env.namespace ++ [Name],
-    {FieldSpec, FieldTypes, Env1} = constructor_fields(Fields, AnnotationVariables, Env),
+    {FieldSpec, FieldTypes, Env1} = constructor_fields(Fields, Declared, AnnotationVariables, Env),
     Type = case FieldSpec of
                none -> Result;
                _ -> {tfn, FieldTypes, none, Result}
@@ -1374,12 +1377,12 @@ declare_constructor(#constructor{name = Name, fields = Fields}, TypeQualifiedNam
               constructors = maps:put(QualifiedName, ConstructorInfo, Env1#env.constructors)}}.
 
 %% Field types; annotation variables must be parameters (report §3.9).
-constructor_fields(none, _AnnotationVariables, Env) ->
+constructor_fields(none, _Declared, _AnnotationVariables, Env) ->
     {none, [], Env};
-constructor_fields({positional, Syntax}, AnnotationVariables, Env) ->
-    {Type, Env1} = declared_field_type(Syntax, AnnotationVariables, Env),
+constructor_fields({positional, Syntax}, Declared, AnnotationVariables, Env) ->
+    {Type, Env1} = declared_field_type(Syntax, Declared, AnnotationVariables, Env),
     {positional, [Type], Env1};
-constructor_fields({named, Fields}, AnnotationVariables, Env) ->
+constructor_fields({named, Fields}, Declared, AnnotationVariables, Env) ->
     %% report §3.5: the fields in the order the declaration writes them
     Names = [Name || #field{name = Name} <- Fields],
     %% report §11.5: at the second, named, the first labeled
@@ -1391,16 +1394,27 @@ constructor_fields({named, Fields}, AnnotationVariables, Env) ->
                  [{ern_diagnostic:span(First), "first declared here"}], undefined)
     end,
     {Types, Env1} = lists:mapfoldl(fun(#field{annotation = Syntax}, Acc) ->
-                                       declared_field_type(Syntax, AnnotationVariables, Acc)
+                                       declared_field_type(Syntax, Declared, AnnotationVariables,
+                                                           Acc)
                                    end, Env, Fields),
     {{named, Names}, Types, Env1}.
 
-declared_field_type(Syntax, AnnotationVariables, Env) ->
+%% Report §3.9, §11.5: a field's type variable that is no parameter is
+%% refused naming the type, and the help writes the declaration's head with
+%% the variable after the parameters it has.
+declared_field_type(Syntax, {TypeName, Params}, AnnotationVariables, Env) ->
     {Type, AnnotationVariables1, TypeState} = annotation_type(Syntax, AnnotationVariables, Env),
     case maps:keys(AnnotationVariables1) -- maps:keys(AnnotationVariables) of
-        [] -> {Type, Env#env{type_state = TypeState}};
-        [Extra | _] -> fail(ern_ast:span(Syntax), "type variable " ++ atom_to_list(Extra)
-                                                  ++ " is not a parameter of the type")
+        [] ->
+            {Type, Env#env{type_state = TypeState}};
+        [Extra | _] ->
+            Name = atom_to_list(TypeName),
+            Head = Name ++ "(" ++ lists:flatten(lists:join(", ", [atom_to_list(Param)
+                                                                   || Param <- Params ++ [Extra]]))
+                ++ ")",
+            fail(ern_ast:span(Syntax), "type variable " ++ atom_to_list(Extra)
+                                       ++ " is not a parameter of " ++ Name, [],
+                 "`type " ++ Head ++ "` declares it")
     end.
 
 %%
@@ -4364,19 +4378,23 @@ requirement_help(Wanted, Declaration) ->
 %% writer chooses.
 -spec not_shown(ern_diagnostic:span(), term(), term(), env()) -> no_return().
 not_shown(Span, Type, Need, #env{type_state = TypeState}) ->
-    Message = case Need of
-                  {shown, Name} ->
-                      "the type " ++ ern_types:format(Type, TypeState) ++ " is not known whole"
-                          " here, and Io." ++ atom_to_list(Name) ++ " writes a value by its type";
-                  _ ->
-                      needer_text(Need) ++ " needs " ++ ern_types:format(Type, TypeState)
-                          ++ ".show, and Io.show writes a type known whole, or a requirement's"
-                          " type variable"
-              end,
+    %% report §11.5: the help says what the fix does with the value, which
+    %% Io.show writes and a call that needs its show is passed
+    {Message, Passed} =
+        case Need of
+            {shown, Name} ->
+                {"the type " ++ ern_types:format(Type, TypeState) ++ " is not known whole here,"
+                 " and Io." ++ atom_to_list(Name) ++ " writes a value by its type", "show"};
+            _ ->
+                {needer_text(Need) ++ " needs " ++ ern_types:format(Type, TypeState)
+                 ++ ".show, and Io.show writes a type known whole, or a requirement's type"
+                 " variable", "pass"}
+        end,
     fail(Span, Message, [],
          "bind the value with an annotation, `let value : "
-         ++ ern_types:format_annotation(Type, TypeState) ++ " = ...`, and show that; at a type"
-         " variable of the signature, a requirement `needs a.show` lets it write the value").
+         ++ ern_types:format_annotation(Type, TypeState) ++ " = ...`, and " ++ Passed
+         ++ " that; at a type variable of the signature, a requirement `needs a.show` lets it"
+         " write the value").
 
 %% Report §11.5, E.12: a type that holds a signature's variable is no
 %% annotation's to fix, and a `foreign fn` gives such a value.

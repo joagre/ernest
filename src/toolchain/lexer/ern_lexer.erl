@@ -12,7 +12,7 @@
 %% (tokenize/2).
 -module(ern_lexer).
 
--export([tokenize/1, tokenize/2]).
+-export([tokenize/1, tokenize/2, symbol/1, position/1]).
 
 -include_lib("shared/include/ern_diagnostic.hrl").
 
@@ -36,12 +36,17 @@
 -define(RESERVED, [type, abstract, receiving, foreign, match, 'when', 'receive', 'after',
                    'or', as, 'if', then, 'else', fn, 'let', export]).
 
-%% Longest first, so that the first symbol symbol/2 finds in the list is
-%% the longest, max-munch.
+%% Longest first, so that the first symbol symbol_at/2 finds in the list
+%% is the longest, max-munch.
 -define(SYMBOLS, ["#(", "<<", ">>", "<-", "->", "==", "!=", "<=", ">=", "&&",
                   "||", "|>", "<>", "::", "..",
                   "(", ")", "{", "}", "[", "]", ",", ";", ":", "=", "|", ".",
                   "+", "-", "*", "/", "%", "<", ">", "!"]).
+
+%% What a call reads under its options, read once: whether a comment is a
+%% token, whether a name the host has not met is the stand-in, and each
+%% symbol's text with its atom and its length.
+-record(lexing, {comments, no_new_names, symbols}).
 
 -spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
 tokenize(Source) ->
@@ -56,16 +61,19 @@ tokenize(Source) ->
 -spec tokenize(unicode:chardata(), [comments | no_new_names]) ->
           {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
 tokenize(Source, Options) ->
+    Lexing = #lexing{comments = lists:member(comments, Options),
+                     no_new_names = lists:member(no_new_names, Options),
+                     symbols = [{Text, list_to_atom(Text), length(Text)} || Text <- ?SYMBOLS]},
     case unicode:characters_to_list(Source) of
         Chars when is_list(Chars) ->
-            Text = without_bom(Chars),
-            try refuse_controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], Options) of
+            Text = ern_diagnostic:without_bom(Chars),
+            try refuse_controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], Lexing) of
                 Tokens -> {ok, Tokens}
             catch
                 throw:{lex_error, Diagnostic} -> {error, Diagnostic}
             end;
         {_, Decoded, _} ->
-            {Line, Column} = place(without_bom(Decoded), 1, 1),
+            {Line, Column} = place(ern_diagnostic:without_bom(Decoded), 1, 1),
             {error, diagnostic(Line, Column, "input is not valid UTF-8", false)}
     end.
 
@@ -74,9 +82,6 @@ tokenize(Source, Options) ->
 place([], Line, Column) -> {Line, Column};
 place([$\n | Rest], Line, _) -> place(Rest, Line + 1, 1);
 place([_ | Rest], Line, Column) -> place(Rest, Line, Column + 1).
-
-without_bom([16#FEFF | Rest]) -> Rest;
-without_bom(Chars) -> Chars.
 
 %% Report §2.1: a control character but tab, line feed and carriage return
 %% is an error wherever it stands, a comment and a doc block among them,
@@ -97,72 +102,72 @@ refuse_controls([_ | Rest], Line, Column) ->
 %% emitted.
 %%
 
-lex([], Line, Column, PreviousEnd, Acc, _Options) ->
+lex([], Line, Column, PreviousEnd, Acc, _Lexing) ->
     lists:reverse([{eof, {Line, Column, {Line, Column}, PreviousEnd}} | Acc]);
-lex([$\n | Rest], Line, _Column, PreviousEnd, Acc, Options) ->
-    lex(Rest, Line + 1, 1, PreviousEnd, Acc, Options);
-lex([Char | Rest], Line, Column, PreviousEnd, Acc, Options)
+lex([$\n | Rest], Line, _Column, PreviousEnd, Acc, Lexing) ->
+    lex(Rest, Line + 1, 1, PreviousEnd, Acc, Lexing);
+lex([Char | Rest], Line, Column, PreviousEnd, Acc, Lexing)
   when Char =:= $\s; Char =:= $\t; Char =:= $\r ->
-    lex(Rest, Line, Column + 1, PreviousEnd, Acc, Options);
+    lex(Rest, Line, Column + 1, PreviousEnd, Acc, Lexing);
 %% report §2.2: `///` begins a doc comment and `////` an ordinary one
-lex("////" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
-    lex_line_comment("////", Rest, Line, Column, PreviousEnd, Acc, Options);
-lex("///" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
+lex("////" ++ Rest, Line, Column, PreviousEnd, Acc, Lexing) ->
+    lex_line_comment("////", Rest, Line, Column, PreviousEnd, Acc, Lexing);
+lex("///" ++ Rest, Line, Column, PreviousEnd, Acc, Lexing) ->
     AfterCode = "a doc comment `///` stands on a line of its own; a note after code is written"
                 " `//`",
     not is_after_token(Acc, Line) orelse error_at(Line, Column, AfterCode),
     {Text, Rest1, EndLine} = doc_block(Rest, Line, []),
     lex(Rest1, EndLine, 1, {EndLine, 1},
-        [{doc, {Line, Column, {EndLine, 1}, PreviousEnd}, Text} | Acc], Options);
-lex("//" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
-    lex_line_comment("//", Rest, Line, Column, PreviousEnd, Acc, Options);
-lex("/*" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
+        [{doc, {Line, Column, {EndLine, 1}, PreviousEnd}, Text} | Acc], Lexing);
+lex("//" ++ Rest, Line, Column, PreviousEnd, Acc, Lexing) ->
+    lex_line_comment("//", Rest, Line, Column, PreviousEnd, Acc, Lexing);
+lex("/*" ++ Rest, Line, Column, PreviousEnd, Acc, Lexing) ->
     {Text, Rest1, EndLine, EndColumn} =
         block_comment(Rest, 1, Line, Column + 2, Line, Column, "*/"),
     Position = {Line, Column, {EndLine, EndColumn}, PreviousEnd},
     lex(Rest1, EndLine, EndColumn, PreviousEnd,
-        with_comment(lists:member(comments, Options), Text, Position, Acc), Options);
-lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Options)
+        with_comment(Lexing#lexing.comments, Text, Position, Acc), Lexing);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Lexing)
   when Char >= $0, Char =< $9 ->
     {Kind, Value, Rest, EndColumn} = number(Input, Line, Column),
     refuse_word_after_number(Rest, Line, EndColumn),
     lex(Rest, Line, EndColumn, {Line, EndColumn},
-        [{Kind, {Line, Column, {Line, EndColumn}, PreviousEnd}, Value} | Acc], Options);
-lex([$" | Rest], Line, Column, PreviousEnd, Acc, Options) ->
+        [{Kind, {Line, Column, {Line, EndColumn}, PreviousEnd}, Value} | Acc], Lexing);
+lex([$" | Rest], Line, Column, PreviousEnd, Acc, Lexing) ->
     {Chars, Rest1, EndLine, EndColumn} = string_body(Rest, Line, Column + 1, Line, Column, []),
     lex(Rest1, EndLine, EndColumn, {EndLine, EndColumn},
         [{string, {Line, Column, {EndLine, EndColumn}, PreviousEnd},
-          unicode:characters_to_binary(Chars)} | Acc], Options);
-lex([$` | Rest], Line, Column, PreviousEnd, Acc, Options) ->
+          unicode:characters_to_binary(Chars)} | Acc], Lexing);
+lex([$` | Rest], Line, Column, PreviousEnd, Acc, Lexing) ->
     %% report §2.5: a raw string, no escapes, may span lines
     {Chars, Rest1, EndLine, EndColumn} = raw_body(Rest, Line, Column + 1, Line, Column, []),
     lex(Rest1, EndLine, EndColumn, {EndLine, EndColumn},
         [{string, {Line, Column, {EndLine, EndColumn}, PreviousEnd},
-          unicode:characters_to_binary(Chars)} | Acc], Options);
-lex([$' | Rest], Line, Column, PreviousEnd, Acc, Options) ->
+          unicode:characters_to_binary(Chars)} | Acc], Lexing);
+lex([$' | Rest], Line, Column, PreviousEnd, Acc, Lexing) ->
     {Char, Rest1, EndColumn} = char_body(Rest, Line, Column),
     lex(Rest1, Line, EndColumn, {Line, EndColumn},
-        [{char, {Line, Column, {Line, EndColumn}, PreviousEnd}, Char} | Acc], Options);
-lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Options)
+        [{char, {Line, Column, {Line, EndColumn}, PreviousEnd}, Char} | Acc], Lexing);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Lexing)
   when Char >= $a, Char =< $z; Char =:= $_ ->
     {Name, Rest} = word(Input, Line, Column),
     EndColumn = Column + length(Name),
     lex(Rest, Line, EndColumn, {Line, EndColumn},
-        [word_token(Name, {Line, Column, {Line, EndColumn}, PreviousEnd}, Options) | Acc],
-        Options);
-lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Options)
+        [word_token(Name, {Line, Column, {Line, EndColumn}, PreviousEnd}, Lexing) | Acc],
+        Lexing);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Lexing)
   when Char >= $A, Char =< $Z ->
     {Name, Rest} = word(Input, Line, Column),
     EndColumn = Column + length(Name),
     lex(Rest, Line, EndColumn, {Line, EndColumn},
-        [{typename, {Line, Column, {Line, EndColumn}, PreviousEnd}, name(Name, Options)} | Acc],
-        Options);
-lex(Input, Line, Column, PreviousEnd, Acc, Options) ->
-    case symbol(Input, ?SYMBOLS) of
+        [{typename, {Line, Column, {Line, EndColumn}, PreviousEnd}, name(Name, Lexing)} | Acc],
+        Lexing);
+lex(Input, Line, Column, PreviousEnd, Acc, Lexing) ->
+    case symbol_at(Input, Lexing#lexing.symbols) of
         {Symbol, Rest, Length} ->
             EndColumn = Column + Length,
             lex(Rest, Line, EndColumn, {Line, EndColumn},
-                [{Symbol, {Line, Column, {Line, EndColumn}, PreviousEnd}} | Acc], Options);
+                [{Symbol, {Line, Column, {Line, EndColumn}, PreviousEnd}} | Acc], Lexing);
         none ->
             error_at(Line, Column, io_lib:format("illegal character `~ts`", [[hd(Input)]]))
     end.
@@ -172,14 +177,14 @@ lex(Input, Line, Column, PreviousEnd, Acc, Options) ->
 %%
 
 %% A `//` or `////` comment runs to the end of its line.
-lex_line_comment(Opener, Input, Line, Column, PreviousEnd, Acc, Options) ->
+lex_line_comment(Opener, Input, Line, Column, PreviousEnd, Acc, Lexing) ->
     {Body, Rest} = line(Input),
     Text = Opener ++ Body,
     EndColumn = Column + length(Text),
     lex(Rest, Line, EndColumn, PreviousEnd,
-        with_comment(lists:member(comments, Options), Text,
+        with_comment(Lexing#lexing.comments, Text,
                      {Line, Column, {Line, EndColumn}, PreviousEnd}, Acc),
-        Options).
+        Lexing).
 
 %% Report §2.2: whether a token stands before this point on the line.
 is_after_token([{Kind, _, _} | Before], Line) when Kind =:= comment; Kind =:= doc ->
@@ -209,15 +214,9 @@ doc_block(Input, Line, DocLines) ->
 
 line(Input) -> line(Input, []).
 
-line([$\n | _] = Rest, Acc) -> {without_return(lists:reverse(Acc)), Rest};
-line([], Acc) -> {without_return(lists:reverse(Acc)), []};
+line([$\n | _] = Rest, Acc) -> {ern_diagnostic:without_return(lists:reverse(Acc)), Rest};
+line([], Acc) -> {ern_diagnostic:without_return(lists:reverse(Acc)), []};
 line([Char | Rest], Acc) -> line(Rest, [Char | Acc]).
-
-without_return(Line) ->
-    case lists:reverse(Line) of
-        [$\r | Rest] -> lists:reverse(Rest);
-        _ -> Line
-    end.
 
 after_newline([$\n | Rest]) -> Rest;
 after_newline(Rest) -> Rest.
@@ -473,8 +472,8 @@ is_word_char(Char) -> (Char >= $a andalso Char =< $z) orelse (Char >= $A andalso
 word_token("_", Position, _) -> {'_', Position};
 word_token("true", Position, _) -> {bool, Position, true};
 word_token("false", Position, _) -> {bool, Position, false};
-word_token(Name, Position, Options) ->
-    Atom = name(Name, Options),
+word_token(Name, Position, Lexing) ->
+    Atom = name(Name, Lexing),
     case lists:member(Atom, ?RESERVED) of
         true -> {Atom, Position};
         false -> {ident, Position, Atom}
@@ -482,23 +481,30 @@ word_token(Name, Position, Options) ->
 
 %% A name as the atom a token carries; under `no_new_names`, one the host
 %% has not met is the stand-in, and no atom is made.
-name(Name, Options) ->
-    case lists:member(no_new_names, Options) of
-        true -> try list_to_existing_atom(Name) catch error:badarg -> '$unmet' end;
-        false -> list_to_atom(Name)
-    end.
+name(Name, #lexing{no_new_names = true}) ->
+    try list_to_existing_atom(Name) catch error:badarg -> '$unmet' end;
+name(Name, #lexing{no_new_names = false}) ->
+    list_to_atom(Name).
 
 %%
 %% Symbols
 %%
 
-symbol(_Input, []) ->
+symbol_at(_Input, []) ->
     none;
-symbol(Input, [Symbol | Symbols]) ->
-    case lists:prefix(Symbol, Input) of
-        true -> {list_to_atom(Symbol), lists:nthtail(length(Symbol), Input), length(Symbol)};
-        false -> symbol(Input, Symbols)
+symbol_at(Input, [{Text, Symbol, Length} | Symbols]) ->
+    case lists:prefix(Text, Input) of
+        true -> {Symbol, lists:nthtail(Length, Input), Length};
+        false -> symbol_at(Input, Symbols)
     end.
+
+%% Report §2: a token is {Symbol, Position} or {Symbol, Position, Value},
+%% its symbol its kind or the reserved word or the symbol it is.
+-spec symbol(token()) -> atom().
+symbol(Token) -> element(1, Token).
+
+-spec position(token()) -> position().
+position(Token) -> element(2, Token).
 
 %%
 %% Errors

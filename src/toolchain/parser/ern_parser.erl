@@ -22,9 +22,9 @@
 parse(Tokens) ->
     try
         {ModuleDoc, Tokens1} = module_doc(Tokens),
-        Placed = placed_docs(Tokens1),
-        Declarations = program(Placed, []),
-        doc_headings(ModuleDoc, Placed),
+        ok = check_placed_docs(Tokens1),
+        Declarations = program(Tokens1, []),
+        doc_headings(ModuleDoc, Tokens1),
         {ok, case ModuleDoc of undefined -> Declarations; _ -> [ModuleDoc | Declarations] end}
     catch
         throw:{parse_error, #diagnostic{} = Diagnostic} ->
@@ -35,12 +35,9 @@ parse(Tokens) ->
 %% could finish it and the shell takes another line. The parser is the one
 %% that knows; no other reader of a diagnostic looks at the flag.
 incomplete_at_end(Tokens, #diagnostic{span = Span} = Diagnostic) ->
-    case lists:last(Tokens) of
-        {eof, Position} ->
-            case ern_diagnostic:span(Position) of
-                Span -> Diagnostic#diagnostic{incomplete = true};
-                _ -> Diagnostic
-            end;
+    {eof, Position} = lists:last(Tokens),
+    case ern_diagnostic:span(Position) of
+        Span -> Diagnostic#diagnostic{incomplete = true};
         _ -> Diagnostic
     end.
 
@@ -66,7 +63,7 @@ parse_expr(Text) ->
 -spec parse_expr(unicode:chardata(), [no_new_names]) ->
           {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_expr(Text, Options) ->
-    parse_one(Text, Options, fun(Tokens) -> expr(prune_docs(Tokens)) end).
+    parse_one(Text, Options, fun(Tokens) -> ok = check_docs_attached(Tokens), expr(Tokens) end).
 
 %% One statement of a block, for the shell: report §11.2, a `let` at the
 %% prompt is a block `let`.
@@ -77,7 +74,8 @@ parse_statement(Text) ->
 -spec parse_statement(unicode:chardata(), [no_new_names]) ->
           {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_statement(Text, Options) ->
-    parse_one(Text, Options, fun(Tokens) -> statement(prune_docs(Tokens)) end).
+    parse_one(Text, Options,
+              fun(Tokens) -> ok = check_docs_attached(Tokens), statement(Tokens) end).
 
 %% One type, for the prelude tables and tests.
 -spec parse_type(unicode:chardata()) -> {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
@@ -250,17 +248,23 @@ doc_end({Line, _, _, _}, Text) ->
 %% error. InType is true inside a type or abstract type declaration, where
 %% no expression can occur. Depth counts the open brackets, so that only a
 %% declaration keyword outside every bracket is top-level, or ends a type.
-prune_docs(Tokens) ->
-    prune_docs(Tokens, false, 0).
+%% The brackets counted are those inside which a declaration's word or a
+%% documented part stands in a module that parses: a block's braces, whose
+%% `let` and `fn` declare nothing at the top level, and the parentheses of
+%% a type's parameters, its fields and a tuple type, whose type names are
+%% no constructors; no such word stands directly inside a list's brackets
+%% or a bitstring's.
+check_docs_attached(Tokens) ->
+    check_docs_attached(Tokens, false, 0).
 
-prune_docs([{doc, Position, Text} = DocToken, Next | Rest], InType, Depth) ->
+check_docs_attached([{doc, Position, Text}, Next | Rest], InType, Depth) ->
     Adjacent = line(Next) =:= doc_end(Position, Text) + 1,
     Attached = Adjacent andalso
                ((Depth =:= 0 andalso is_declaration_start(Next, Rest))
                 orelse (InType andalso is_documented_part(Next, Rest, Depth))),
     case {Attached, Next} of
         {true, _} ->
-            [DocToken | prune_docs([Next | Rest], InType, Depth)];
+            check_docs_attached([Next | Rest], InType, Depth);
         {false, {eof, _}} ->
             %% report §11.2: the declaration it documents may come on the
             %% next line, so the shell takes one
@@ -268,9 +272,9 @@ prune_docs([{doc, Position, Text} = DocToken, Next | Rest], InType, Depth) ->
         {false, _} ->
             throw({parse_error, doc_documents_nothing(Position)})
     end;
-prune_docs([Token | Rest], InType, Depth) ->
+check_docs_attached([Token | Rest], InType, Depth) ->
     {InType1, Depth1} =
-        case symbol(Token) of
+        case ern_lexer:symbol(Token) of
             type -> {true, Depth};
             Symbol when Symbol =:= '('; Symbol =:= '#('; Symbol =:= '{' -> {InType, Depth + 1};
             Symbol when Symbol =:= ')'; Symbol =:= '}' -> {InType, Depth - 1};
@@ -278,9 +282,9 @@ prune_docs([Token | Rest], InType, Depth) ->
                 {InType andalso not lists:member(Symbol, ?DECLARATION_START), Depth};
             _ -> {InType, Depth}
         end,
-    [Token | prune_docs(Rest, InType1, Depth1)];
-prune_docs([], _, _) ->
-    [].
+    check_docs_attached(Rest, InType1, Depth1);
+check_docs_attached([], _, _) ->
+    ok.
 
 doc_documents_nothing(Position) ->
     diagnostic(Position, "a doc block documents nothing here",
@@ -299,12 +303,12 @@ is_documented_part(_, _, _) -> false.
 %% unless the module holds an error no later than the token the doc block
 %% stands above: a misplaced bracket makes such an error, and makes a
 %% well-placed doc block look misplaced, so that error is reported.
-placed_docs(Tokens) ->
+check_placed_docs(Tokens) ->
     try
-        prune_docs(Tokens)
+        check_docs_attached(Tokens)
     catch
         throw:{parse_error, #diagnostic{span = DocSpan} = DocDiagnostic} ->
-            [Above | _] = [ern_diagnostic:span(position(Next))
+            [Above | _] = [ern_diagnostic:span(ern_lexer:position(Next))
                            || {{doc, Position, _}, Next} <- lists:zip(lists:droplast(Tokens),
                                                                       tl(Tokens)),
                               ern_diagnostic:span(Position) =:= DocSpan],
@@ -312,7 +316,7 @@ placed_docs(Tokens) ->
     end.
 
 earlier_error(Tokens, {AboveLine, AboveColumn, _}, DocDiagnostic) ->
-    try program([Token || Token <- Tokens, symbol(Token) =/= doc], []) of
+    try program([Token || Token <- Tokens, ern_lexer:symbol(Token) =/= doc], []) of
         _ -> DocDiagnostic
     catch
         throw:{parse_error, #diagnostic{span = {Line, Column, _}} = Diagnostic}
@@ -322,7 +326,7 @@ earlier_error(Tokens, {AboveLine, AboveColumn, _}, DocDiagnostic) ->
 
 %% `fn` before a bracket opens a lambda, not a declaration.
 is_declaration_start({fn, _}, [{'(', _} | _]) -> false;
-is_declaration_start(Token, _) -> lists:member(symbol(Token), ?DECLARATION_START).
+is_declaration_start(Token, _) -> lists:member(ern_lexer:symbol(Token), ?DECLARATION_START).
 
 %%
 %% Program and declarations
@@ -354,7 +358,7 @@ declaration(Tokens) ->
                          true -> "type, abstract, fn, let, foreign";
                          false -> "export, type, abstract, fn, let, foreign"
                      end,
-            wanted(declaration, position(Token),
+            wanted(declaration, ern_lexer:position(Token),
                    "expected a declaration (" ++ Starts ++ ") instead of " ++ describe(Token))
     end.
 
@@ -363,7 +367,7 @@ doc(Tokens) -> {undefined, Tokens}.
 
 type_declaration([{type, Position} | Rest], Doc, Export) ->
     {Name, Rest1} = expect_typename(Rest),
-    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
+    NameSpan = ern_diagnostic:span(span_through(ern_lexer:position(hd(Rest)), Rest, Rest1)),
     {Parameters, Rest2} = optional_typevars(Rest1),
     Rest3 = expect(Rest2, '='),
     {Constructors, Rest4} = constructors(Rest3),
@@ -382,7 +386,8 @@ optional_derives([{ident, {Line, Column, _, PreviousEnd}, derives},
                   {ident, {_, _, End, _}, compare} | Rest]) ->
     {ern_diagnostic:span({Line, Column, End, PreviousEnd}), Rest};
 optional_derives([{ident, _, derives}, Token | _]) ->
-    fail(position(Token), "`derives` names compare and nothing else, not " ++ describe(Token));
+    fail(ern_lexer:position(Token),
+         "`derives` names compare and nothing else, not " ++ describe(Token));
 optional_derives(Tokens) ->
     {undefined, Tokens}.
 
@@ -390,7 +395,7 @@ optional_derives(Tokens) ->
 %% §4.3's rule, which the checker holds.
 optional_typevars([{'(', _} | Rest]) ->
     {Parameters, Rest1} = separated(Rest, ',', fun typevar/1),
-    {Parameters, expect(Rest1, ')')};
+    {Parameters, expect_after_items(Rest1)};
 optional_typevars(Tokens) ->
     {[], Tokens}.
 
@@ -429,7 +434,7 @@ constructor(Tokens, Doc) ->
             {Fields, Rest2} = separated(Rest1, ',', fun field/1),
             spanned({#constructor{span = Position, doc = Doc, name = Name,
                                   fields = {named, Fields}},
-                     expect(Rest2, ')')});
+                     expect_after_items(Rest2)});
         [{'(', _} | Rest1] ->
             {Type, Rest2} = type(Rest1),
             case Rest2 of
@@ -458,7 +463,7 @@ field(Tokens) ->
 abstract_declaration([{abstract, Position} | Rest], Doc, Export) ->
     {TypeDeclaration, Rest1} = case Rest of
                                    [{type, _} | _] -> type_declaration(Rest, undefined, false);
-                                   [Token | _] -> fail(position(Token),
+                                   [Token | _] -> fail(ern_lexer:position(Token),
                                                        "expected `type` after `abstract`")
                                end,
     spanned({#abstract_declaration{span = Position, doc = Doc, export = Export,
@@ -466,7 +471,7 @@ abstract_declaration([{abstract, Position} | Rest], Doc, Export) ->
 
 fn_declaration([{fn, Position} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
-    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
+    NameSpan = ern_diagnostic:span(span_through(ern_lexer:position(hd(Rest)), Rest, Rest1)),
     {Params, Rest2} = params(Rest1),
     {ResultType, Effect, Rest3} = optional_result_type(Rest2),
     {Requirement, Rest4} = optional_requirement(Rest3),
@@ -499,15 +504,15 @@ member([{ident, Position, Variable}, {'.', _}, Token | Rest]) ->
     %% report §2.6: the message names the six operators that may be
     %% members, since `<` is an operator too
     is_userop(Token)
-        orelse fail(position(Token), "expected " ++ members_text(requirement)
-                                     ++ " after `.` instead of " ++ describe(Token)),
+        orelse fail(ern_lexer:position(Token), "expected " ++ members_text(requirement)
+                                               ++ " after `.` instead of " ++ describe(Token)),
     spanned({#member{span = Position, member_of = Variable, name = element(1, Token)}, Rest});
 member([{ident, _, Variable}, Token | _]) ->
-    fail(position(Token), "expected `.` after " ++ atom_to_list(Variable) ++ " instead of "
-                          ++ describe(Token),
+    fail(ern_lexer:position(Token),
+         "expected `.` after " ++ atom_to_list(Variable) ++ " instead of " ++ describe(Token),
          "a requirement names a member of a type variable, as needs a.compare");
 member([Token | _]) ->
-    fail(position(Token), instead("expected a type variable", Token),
+    fail(ern_lexer:position(Token), instead("expected a type variable", Token),
          "a requirement names a member of a type variable, as needs a.compare").
 
 %% Report §4.5, Appendix A's DeclName: a member, declared with `fn`, is an
@@ -526,14 +531,14 @@ declaration_name([{typename, _, MemberOf}, {'.', _}, Token | Rest]) ->
     %% report §2.6: the message names the six operators that may be
     %% members, since `<` is an operator too
     is_userop(Token)
-        orelse fail(position(Token), "expected " ++ members_text(declaration)
-                                     ++ " after `.` instead of " ++ describe(Token)),
+        orelse fail(ern_lexer:position(Token), "expected " ++ members_text(declaration)
+                                               ++ " after `.` instead of " ++ describe(Token)),
     {MemberOf, element(1, Token), Rest};
 declaration_name([{typename, _, _} = Token | _]) ->
-    fail(position(Token), "expected a name instead of " ++ describe(Token),
+    fail(ern_lexer:position(Token), "expected a name instead of " ++ describe(Token),
          "a function's name begins with a lowercase letter");
 declaration_name([Token | _]) ->
-    fail(position(Token), instead("expected a name", Token)).
+    fail(ern_lexer:position(Token), instead("expected a name", Token)).
 
 %% Report §4.5, §4.6, Appendix A's LetDecl: a `let` declares no member.
 let_name([{ident, _, Name} | Rest]) ->
@@ -549,10 +554,10 @@ let_name([{typename, Position, MemberOf}, {'.', _} | _] = Tokens) ->
          "a member is declared with `fn`: write `fn " ++ atom_to_list(MemberOf) ++ "."
          ++ atom_to_list(Member) ++ "(...)`");
 let_name([{typename, _, _} = Token | _]) ->
-    fail(position(Token), "expected a name instead of " ++ describe(Token),
+    fail(ern_lexer:position(Token), "expected a name instead of " ++ describe(Token),
          "a value's name begins with a lowercase letter");
 let_name([Token | _]) ->
-    fail(position(Token), instead("expected a name", Token)).
+    fail(ern_lexer:position(Token), instead("expected a name", Token)).
 
 params(Tokens) ->
     Rest = expect(Tokens, '('),
@@ -560,7 +565,7 @@ params(Tokens) ->
         [{')', _} | Rest1] -> {[], Rest1};
         _ ->
             {Params, Rest1} = separated(Rest, ',', fun param/1),
-            {Params, expect(Rest1, ')')}
+            {Params, expect_after_items(Rest1)}
     end.
 
 param(Tokens) ->
@@ -592,8 +597,9 @@ unmarked(_, _) ->
     ok.
 
 %% Report §4.5, Appendix A's Return: a result annotation is written `: T`,
-%% as a parameter's is; `->` after the parameters is an earlier version's
-%% spelling, refused with the one that replaces it (§11).
+%% as a parameter's is. `->` after the parameters is refused with the form
+%% to write, since a function type writes its result after `->`, and other
+%% languages write a function's so.
 optional_result_type([{'->', Position} | _]) ->
     fail(Position, "a function's result is annotated with `:`, not `->`",
          "write `: T` after the parameters, as a parameter's type is written");
@@ -643,12 +649,12 @@ let_declaration([{'let', Position} | Rest], Doc, Export) ->
 
 foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
     {Name, Rest1} = expect_typename(Rest),
-    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
+    NameSpan = ern_diagnostic:span(span_through(ern_lexer:position(hd(Rest)), Rest, Rest1)),
     {Parameters, Rest2} = case Rest1 of
                               [{'(', _} | AfterParen] ->
                                   {Written, AfterParameters} =
                                       separated(AfterParen, ',', fun foreign_type_parameter/1),
-                                  {Written, expect(AfterParameters, ')')};
+                                  {Written, expect_after_items(AfterParameters)};
                               _ -> {[], Rest1}
                           end,
     spanned({#foreign_type_declaration{span = Position, doc = Doc, export = Export, name = Name,
@@ -659,16 +665,16 @@ foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
              Rest2});
 foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
-    NameSpan = ern_diagnostic:span(span_through(position(hd(Rest)), Rest, Rest1)),
+    NameSpan = ern_diagnostic:span(span_through(ern_lexer:position(hd(Rest)), Rest, Rest1)),
     Rest2 = expect(Rest1, '('),
     {Params, Rest3} = case Rest2 of
                           [{')', _} | _] -> {[], Rest2};
                           _ -> separated(Rest2, ',', fun foreign_param/1)
                       end,
-    Rest4 = expect(Rest3, ')'),
+    Rest4 = expect_after_items(Rest3),
     {ResultType, Effect, Rest5} = case optional_result_type(Rest4) of
                                       {undefined, _, _} ->
-                                          fail(position(hd(Rest4)),
+                                          fail(ern_lexer:position(hd(Rest4)),
                                                "a foreign function declares its result type");
                                       Annotated -> Annotated
                                   end,
@@ -684,11 +690,12 @@ foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
                                              name_span = NameSpan},
                      Rest7});
         [Token | _] ->
-            fail(position(Token), "expected the implementation name as a string instead of "
-                                  ++ describe(Token))
+            fail(ern_lexer:position(Token),
+                 "expected the implementation name as a string instead of " ++ describe(Token))
     end;
 foreign_declaration([{foreign, _}, Token | _], _Doc, _Export) ->
-    fail(position(Token), "expected `type` or `fn` after `foreign` instead of " ++ describe(Token)).
+    fail(ern_lexer:position(Token),
+         "expected `type` or `fn` after `foreign` instead of " ++ describe(Token)).
 
 %% Report §4.7, Appendix A: ForeignVar = typevar [ "=" ].
 foreign_type_parameter(Tokens) ->
@@ -722,16 +729,16 @@ type([{'(', Position} | Rest], Marks) ->
                          [{')', _} | _] -> {[], Rest};
                          _ -> separated(Rest, ',', listed(Marks))
                      end,
-    parenthesized(Position, Types, expect(Rest1, ')'), Marks);
+    parenthesized(Position, Types, expect_after_items(Rest1), Marks);
 type([{'#(', Position} | Rest], Marks) ->
     {Elements, Rest1} = components(Position, separated(Rest, ',', listed(Marks))),
-    spanned({#t_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
+    spanned({#t_tuple{span = Position, elements = Elements}, expect_after_items(Rest1)});
 type([{typename, Position, _} | _] = Tokens, Marks) ->
     case qualified(Tokens) of
         {{con, Namespace, Name}, [{'(', _} | Rest]} ->
             {Args, Rest1} = separated(Rest, ',', listed(Marks)),
             spanned({namespaced(#t_named{span = Position, name = Name, args = Args}, Namespace),
-                     expect(Rest1, ')')});
+                     expect_after_items(Rest1)});
         {{con, Namespace, Name}, Rest} ->
             spanned({namespaced(#t_named{span = Position, name = Name}, Namespace), Rest});
         {{value, _, _}, Rest} ->
@@ -755,7 +762,7 @@ type([{fn, Position} | _], _Marks) ->
     wanted(typename, Position, "expected a type instead of the reserved word `fn`",
            "a function type is written without `fn`, as `(Int) -> Int`");
 type([Token | _], _Marks) ->
-    wanted(typename, position(Token), instead("expected a type", Token)).
+    wanted(typename, ern_lexer:position(Token), instead("expected a type", Token)).
 
 %% What reads one type of a list of types under Marks.
 listed(Marks) ->
@@ -808,7 +815,8 @@ parenthesized(Position, [], Rest, _Marks) ->
                             "the type with one value is Unit, and its value is written Unit"),
     throw({parse_error, Diagnostic#diagnostic{incomplete = is_at_end(Rest)}});
 parenthesized(_, _, [Token | _], _Marks) ->
-    fail(position(Token), "expected `->` after a parameter list instead of " ++ describe(Token),
+    fail(ern_lexer:position(Token),
+         "expected `->` after a parameter list instead of " ++ describe(Token),
          "a tuple type is written with `#(`, as `#(Int, Int)`").
 
 %% {typename "."} followed by a final segment. Returns {con, Namespace, Name}
@@ -823,7 +831,8 @@ qualified([{'.', _}, {typename, _, Next} | Rest], Namespace, Current) ->
 qualified([{'.', _}, {ident, _, Name} | Rest], Namespace, Current) ->
     {{value, Namespace ++ [Current], Name}, Rest};
 qualified([{'.', _}, Token | Rest], Namespace, Current) ->
-    is_userop(Token) orelse fail(position(Token), instead("expected a name after `.`", Token)),
+    is_userop(Token)
+        orelse fail(ern_lexer:position(Token), instead("expected a name after `.`", Token)),
     {{member, Namespace ++ [Current], element(1, Token)}, Rest};
 qualified(Rest, Namespace, Current) ->
     {{con, Namespace, Current}, Rest}.
@@ -880,9 +889,9 @@ expr(Tokens) ->
 
 %% `f x` where `f(x)` was meant: an operand directly after an expression.
 refuse_juxtaposition([Token | _]) ->
-    case lists:member(symbol(Token), [ident, typename, int, float, char, string, bool]) of
+    case lists:member(ern_lexer:symbol(Token), [ident, typename, int, float, char, string, bool]) of
         true ->
-            fail(position(Token), "unexpected " ++ describe(Token) ++ " after an expression",
+            fail(ern_lexer:position(Token), describe(Token) ++ " cannot follow an expression",
                  "a call is written f(x), and statements are separated by `;`");
         false ->
             ok
@@ -1054,7 +1063,7 @@ calls(Callee, [{'(', _} | Rest]) ->
                         [{')', _} | _] -> {[], Rest};
                         _ -> arguments(Callee, Rest, 0)
                     end,
-    Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect(Rest1, ')') end),
+    Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect_after_items(Rest1) end),
     {Call, Rest2} = spanned({#e_call{span = ern_ast:span(Callee), callee = Callee, args = Args},
                              Closed}),
     calls(Call, Rest2);
@@ -1070,7 +1079,8 @@ calls(Expr, [{'.', _}, Token | _] = Tokens) ->
     %% field's name stands names nothing
     case {is_userop(Token), reserved_word(Token)} of
         {true, _} -> member_after(Expr, Token);
-        {false, {ok, _}} -> fail(position(Token), instead("expected a field's name", Token));
+        {false, {ok, _}} ->
+            fail(ern_lexer:position(Token), instead("expected a field's name", Token));
         {false, none} -> {Expr, Tokens}
     end;
 calls(Expr, Tokens) ->
@@ -1140,18 +1150,8 @@ primary([{typename, Position, _} | _] = Tokens) ->
                            "`" ++ ern_namespace:text(Namespace) ++ "." ++ atom_to_list(Operator)
                            ++ "`", Operator)
     end;
-primary([{'#(', Position} | Rest]) ->
-    {Elements, Rest1} = components(Position, separated(Rest, ',', fun expr/1)),
-    spanned({#e_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
-primary([{'[', Position} | Rest]) ->
-    {Elements, Rest1} = case Rest of
-                            [{']', _} | _] -> {[], Rest};
-                            _ -> separated(Rest, ',', fun expr/1)
-                        end,
-    spanned({#e_list{span = Position, elements = Elements}, expect(Rest1, ']')});
-primary([{'<<', Position} | Rest]) ->
-    {Segments, Rest1} = bit_segments(Rest, fun expr/1),
-    spanned({#e_bitstring{span = Position, segments = Segments}, Rest1});
+primary([{Open, _} | _] = Tokens) when Open =:= '#('; Open =:= '['; Open =:= '<<' ->
+    bracketed(Tokens, fun expr/1, fun expression_node/3);
 primary([{'{', Position} | Rest]) ->
     block(Rest, Position);
 primary([{match, Position} | Rest]) ->
@@ -1169,14 +1169,37 @@ primary([{'(', {Line, Column, _, _}} | Rest]) ->
     %% diagnostic underlines it whole; parentheses make no node
     {Expr, Rest1} = expr(Rest),
     Rest2 = expect(Rest1, ')'),
-    {_, _, _, End} = position(hd(Rest2)),
+    {_, _, _, End} = ern_lexer:position(hd(Rest2)),
     {setelement(2, Expr, {Line, Column, End}), Rest2};
 primary([{'_', Position} | _]) ->
     fail(Position, "`_` is a pattern, not an expression");
 primary([{Keyword, Position} | _]) when Keyword =:= 'if'; Keyword =:= fn ->
     fail(Position, "`" ++ atom_to_list(Keyword) ++ "` is not an operand", "parenthesize it");
 primary([Token | _]) ->
-    wanted(expression, position(Token), "expected an expression instead of " ++ describe(Token)).
+    wanted(expression, ern_lexer:position(Token),
+           "expected an expression instead of " ++ describe(Token)).
+
+%% Report §3.2, §5.11, Appendix A: a tuple, a list or a bitstring, of
+%% expressions or of patterns alike, each element read by Element and the
+%% node made by Make of the kind, the opening bracket's position and the
+%% elements or the segments.
+bracketed([{'#(', Position} | Rest], Element, Make) ->
+    {Elements, Rest1} = components(Position, separated(Rest, ',', Element)),
+    spanned({Make(tuple, Position, Elements), expect_after_items(Rest1)});
+bracketed([{'[', Position} | Rest], Element, Make) ->
+    {Elements, Rest1} = case Rest of
+                            [{']', _} | _] -> {[], Rest};
+                            _ -> separated(Rest, ',', Element)
+                        end,
+    spanned({Make(list, Position, Elements), expect(Rest1, ']')});
+bracketed([{'<<', Position} | Rest], Element, Make) ->
+    {Segments, Rest1} = bit_segments(Rest, Element),
+    spanned({Make(bitstring, Position, Segments), Rest1}).
+
+expression_node(tuple, Position, Elements) -> #e_tuple{span = Position, elements = Elements};
+expression_node(list, Position, Elements) -> #e_list{span = Position, elements = Elements};
+expression_node(bitstring, Position, Segments) ->
+    #e_bitstring{span = Position, segments = Segments}.
 
 constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
     case Rest of
@@ -1191,7 +1214,7 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
                                  end,
             spanned({namespaced(#e_constructor{span = Position, name = Name, base = Base,
                                                args = {named, FieldSets}}, Namespace),
-                     expect(Rest3, ')')});
+                     expect_after_items(Rest3)});
         [{ident, _, _}, {'=', _} | _] ->
             named_construction(Position, Namespace, Name, Rest);
         [{'=', _} | _] ->
@@ -1204,12 +1227,12 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
             %% checker refuses (report §5.6)
             spanned({namespaced(#e_constructor{span = Position, name = Name}, Namespace),
                      [Paren | Rest]});
-        [{eof, EndPosition} | _] ->
+        [{eof, EndPosition} = EndToken | _] ->
             %% report §11.2: the input ends where the constructor's first
             %% argument would stand, and positional or named is not
             %% decided yet: what may stand here is a value or a field's
             %% name, and only the constructor's type tells which
-            Diagnostic = diagnostic(EndPosition, "expected an expression instead of end of input",
+            Diagnostic = diagnostic(EndPosition, instead("expected an expression", EndToken),
                                     undefined),
             Expected = #expected_field{kind = field_or_value, namespace = Namespace,
                                        constructor_name = Name},
@@ -1229,12 +1252,12 @@ constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
                     {More, Rest3} = arguments(Callee, Rest2, 1),
                     spanned({#e_call{span = ern_ast:span(Callee), callee = Callee,
                                      args = [Expr | More]},
-                             expect(Rest3, ')')});
+                             expect_after_items(Rest3)});
                 _ ->
                     no_path(Expr, Rest1),
                     spanned({namespaced(#e_constructor{span = Position, name = Name,
                                                        args = {positional, Expr}}, Namespace),
-                             expect(Rest1, ')')})
+                             expect_after_items(Rest1)})
             end
     end;
 constructor_expr(Position, Namespace, Name, Tokens) ->
@@ -1244,7 +1267,7 @@ named_construction(Position, Namespace, Name, Tokens) ->
     {FieldSets, Rest} = separated(Tokens, ',', field_of(Namespace, Name, construction)),
     spanned({namespaced(#e_constructor{span = Position, name = Name, args = {named, FieldSets}},
                         Namespace),
-             expect(Rest, ')')}).
+             expect_after_items(Rest)}).
 
 %% Report §11.2: a field of this constructor, which the tag names, so
 %% that completion knows which fields may stand at the cursor; and where
@@ -1345,12 +1368,16 @@ statement([{'let', Position} | Rest]) ->
                               [{':', _} | AfterColon] -> type(AfterColon);
                               _ -> {undefined, Rest1}
                           end,
+    %% report §5.4, §11.5: the message names what may stand, an annotation's
+    %% `:` where none is written yet
+    Expected = case Annotation of
+                   undefined -> "`:`, `=` or `<-`";
+                   _ -> "`=` or `<-`"
+               end,
     {Operator, Rest3} = case Rest2 of
                             [{'=', _} | AfterOperator] -> {'=', AfterOperator};
                             [{'<-', _} | AfterOperator] -> {'<-', AfterOperator};
-                            [Token | _] ->
-                                fail(position(Token),
-                                     "expected `=` or `<-` instead of " ++ describe(Token))
+                            [Token | _] -> expected_instead(Expected, Token)
                         end,
     {Expr, Rest4} = expr(Rest3),
     spanned({#binding{span = Position, pattern = Pattern, annotation = Annotation,
@@ -1373,7 +1400,7 @@ pattern(Tokens) ->
             spanned({#p_as{span = ern_ast:span(Pattern), pattern = Pattern, name = Name,
                            name_span = ern_diagnostic:span(NamePosition)}, Rest1});
         [{as, _}, Token | _] ->
-            fail(position(Token), instead("expected a name after `as`", Token));
+            fail(ern_lexer:position(Token), instead("expected a name after `as`", Token));
         _ ->
             {Pattern, Rest}
     end.
@@ -1495,16 +1522,16 @@ pattern_text(#p_cons{head = Head, tail = Tail}) ->
 pattern_text(#p_as{pattern = Pattern, name = Name}) ->
     pattern_text(Pattern) ++ " as " ++ atom_to_list(Name);
 pattern_text(#p_bitstring{segments = Segments}) ->
-    "<<" ++ texts(fun segment_text/1, Segments) ++ ">>".
+    "<<" ++ texts(fun bit_segment_text/1, Segments) ++ ">>".
 
 field_text(#field_pattern{name = Name, pattern = #p_var{name = Name}}) ->
     "=" ++ atom_to_list(Name);
 field_text(#field_pattern{name = Name, pattern = Pattern}) ->
     atom_to_list(Name) ++ " = " ++ pattern_text(Pattern).
 
-segment_text(#bit_segment{value = Value, specs = []}) ->
+bit_segment_text(#bit_segment{value = Value, specs = []}) ->
     pattern_text(Value);
-segment_text(#bit_segment{value = Value, specs = Specs}) ->
+bit_segment_text(#bit_segment{value = Value, specs = Specs}) ->
     pattern_text(Value) ++ ":" ++ lists:append(lists:join("-", [spec_text(Spec) || Spec <- Specs])).
 
 spec_text({size, Expr}) -> "size(" ++ ern_ast:help_text(Expr) ++ ")";
@@ -1533,7 +1560,7 @@ atompat([{Kind, Position, Value} | Rest]) when Kind =:= int; Kind =:= float; Kin
 atompat([{'-', Position}, {Kind, _, Value} | Rest]) when Kind =:= int; Kind =:= float ->
     spanned({#p_literal{span = Position, kind = Kind, value = negated(Value)}, Rest});
 atompat([{'-', _}, Token | _]) ->
-    fail(position(Token),
+    fail(ern_lexer:position(Token),
          "expected a number after `-` in a pattern instead of " ++ describe(Token));
 atompat([{typename, Position, _} | _] = Tokens) ->
     case qualified(Tokens) of
@@ -1543,20 +1570,14 @@ atompat([{typename, Position, _} | _] = Tokens) ->
             fail(span_through(Position, Tokens, Rest),
                  "expected a constructor; a pattern cannot name a function or value")
     end;
-atompat([{'#(', Position} | Rest]) ->
-    {Elements, Rest1} = components(Position, separated(Rest, ',', fun nested_pattern/1)),
-    spanned({#p_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
-atompat([{'[', Position} | Rest]) ->
-    {Elements, Rest1} = case Rest of
-                            [{']', _} | _] -> {[], Rest};
-                            _ -> separated(Rest, ',', fun nested_pattern/1)
-                        end,
-    spanned({#p_list{span = Position, elements = Elements}, expect(Rest1, ']')});
-atompat([{'<<', Position} | Rest]) ->
-    {Segments, Rest1} = bit_segments(Rest, fun nested_pattern/1),
-    spanned({#p_bitstring{span = Position, segments = Segments}, Rest1});
+atompat([{Open, _} | _] = Tokens) when Open =:= '#('; Open =:= '['; Open =:= '<<' ->
+    bracketed(Tokens, fun nested_pattern/1, fun pattern_node/3);
 atompat([Token | _]) ->
-    wanted(pattern, position(Token), instead("expected a pattern", Token)).
+    wanted(pattern, ern_lexer:position(Token), instead("expected a pattern", Token)).
+
+pattern_node(tuple, Position, Elements) -> #p_tuple{span = Position, elements = Elements};
+pattern_node(list, Position, Elements) -> #p_list{span = Position, elements = Elements};
+pattern_node(bitstring, Position, Segments) -> #p_bitstring{span = Position, segments = Segments}.
 
 constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
     case Rest of
@@ -1570,12 +1591,12 @@ constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
             %% Appendix A: `=` before the first identifier, a pun's, names
             %% the fields as `=` after it does (report §5.10)
             named_pattern(Position, Namespace, Name, Rest);
-        [{eof, EndPosition} | _] ->
+        [{eof, EndPosition} = EndToken | _] ->
             %% report §11.2: as in an expression, a field's name or a
             %% pattern may stand here, and the constructor's type tells
             wanted(#expected_field{kind = field_or_pattern, namespace = Namespace,
                                    constructor_name = Name},
-                   EndPosition, "expected a pattern instead of end of input");
+                   EndPosition, instead("expected a pattern", EndToken));
         _ ->
             {Pattern, Rest1} = nested_pattern(Rest),
             no_path_pattern(Pattern, Rest1),
@@ -1591,7 +1612,7 @@ named_pattern(Position, Namespace, Name, Tokens) ->
     {Fields, Rest} = separated(Tokens, ',', field_pattern_of(Namespace, Name)),
     spanned({namespaced(#p_constructor{span = Position, name = Name, args = {named, Fields}},
                         Namespace),
-             expect(Rest, ')')}).
+             expect_after_items(Rest)}).
 
 %% Report §3.5, §11.5: a `,` after a constructor pattern's positional field
 %% is refused as a second positional field in a declaration is, with a help
@@ -1684,10 +1705,11 @@ bit_spec([{ident, Position, Name} | Rest]) ->
 bit_spec([{int, _, Size} = Token | _]) ->
     %% report §5.11: a size is written as a specifier of its own, where
     %% Erlang writes the number after the colon
-    fail(position(Token), "expected a bitstring specifier instead of " ++ describe(Token),
+    fail(ern_lexer:position(Token), "expected a bitstring specifier instead of " ++ describe(Token),
          "a size is written `size(" ++ integer_to_list(Size) ++ ")`");
 bit_spec([Token | _]) ->
-    fail(position(Token), "expected a bitstring specifier instead of " ++ describe(Token)).
+    fail(ern_lexer:position(Token),
+         "expected a bitstring specifier instead of " ++ describe(Token)).
 
 %% Report §5.11: the specifiers, as the help of one the language lacks
 %% lists them.
@@ -1734,22 +1756,29 @@ expect([{Symbol, _} | Rest], Symbol) ->
 expect([Token | _], Symbol) ->
     expected_instead("`" ++ atom_to_list(Symbol) ++ "`", Token).
 
+%% Report §11.5: the `)` that closes a list of items, where a `,` and a
+%% further item may stand instead, and the message names both.
+expect_after_items([{')', _} | Rest]) ->
+    Rest;
+expect_after_items([Token | _]) ->
+    expected_instead("`,` or `)`", Token).
+
 %% What the parser expected instead of Token. Report §2.6, §11.5:
 %% max-munch makes `a<-1` a binding arrow, which a comparison with a
 %% negative number was meant as, so a `<-` there has the help that says so.
 -spec expected_instead(string(), tuple()) -> no_return().
 expected_instead(Expected, Token) ->
     Message = "expected " ++ Expected ++ " instead of " ++ describe(Token),
-    case symbol(Token) of
-        '<-' -> fail(position(Token), Message,
+    case ern_lexer:symbol(Token) of
+        '<-' -> fail(ern_lexer:position(Token), Message,
                      "`<-` is one token; write `a < -1` to compare with a negative number");
-        _ -> fail(position(Token), Message)
+        _ -> fail(ern_lexer:position(Token), Message)
     end.
 
 expect_ident_position([{ident, Position, Name} | Rest]) ->
     {Name, Position, Rest};
 expect_ident_position([Token | _]) ->
-    fail(position(Token), instead("expected a name", Token)).
+    fail(ern_lexer:position(Token), instead("expected a name", Token)).
 
 expect_typename(Tokens) ->
     {Name, _, Rest} = expect_typename_position(Tokens),
@@ -1765,7 +1794,7 @@ expect_typename_position([{ident, IdentPosition, Name} = Token | _]) ->
                             Help),
     throw({parse_error, Diagnostic#diagnostic{expected = typename}});
 expect_typename_position([Token | _]) ->
-    wanted(typename, position(Token), instead("expected a type name", Token)).
+    wanted(typename, ern_lexer:position(Token), instead("expected a type name", Token)).
 
 %% The type name an identifier was meant as, its leading `_` gone and its
 %% first letter uppercase, or none where no letter begins what is left.
@@ -1775,13 +1804,8 @@ meant_typename(Identifier) ->
         _ -> none
     end.
 
-%% A token is {Symbol, Position} or {Symbol, Position, Value}, as the
-%% lexer gives it.
-symbol(Token) -> element(1, Token).
-position(Token) -> element(2, Token).
-
 line(Token) ->
-    {Line, _, _, _} = position(Token),
+    {Line, _, _, _} = ern_lexer:position(Token),
     Line.
 
 %% Report §11.5: the span from Position to the end of the last token
@@ -1789,7 +1813,7 @@ line(Token) ->
 %% is a tail of Tokens, which the walk reaches after the tokens taken, so
 %% that a span costs what its name holds and not the module's rest.
 span_through({Line, Column, _, PreviousEnd}, Tokens, Rest) ->
-    {_, _, End, _} = position(last_before(Tokens, Rest)),
+    {_, _, End, _} = ern_lexer:position(last_before(Tokens, Rest)),
     {Line, Column, End, PreviousEnd}.
 
 last_before([Token | Rest], Rest) -> Token;
@@ -1799,10 +1823,8 @@ last_before([_ | Tokens], Rest) -> last_before(Tokens, Rest).
 %% the token before the rest, which every token carries.
 spanned({Node, [Next | _] = Rest}) ->
     {Line, Column, _} = ern_diagnostic:span(ern_ast:span(Node)),
-    {_, _, _, End} = position(Next),
-    {setelement(2, Node, {Line, Column, End}), Rest};
-spanned({Node, []}) ->
-    {setelement(2, Node, ern_diagnostic:span(ern_ast:span(Node))), []}.
+    {_, _, _, End} = ern_lexer:position(Next),
+    {setelement(2, Node, {Line, Column, End}), Rest}.
 
 %% Report §2.4, §11.5: what was expected where a token stood instead; a
 %% reserved word where a name, a type or a pattern stands names nothing,
@@ -1828,15 +1850,19 @@ reserved_word({Symbol, _}) ->
 reserved_word(_) ->
     none.
 
-describe({ident, _, Name}) -> "identifier `" ++ atom_to_list(Name) ++ "`";
-describe({typename, _, Name}) -> "type name `" ++ atom_to_list(Name) ++ "`";
-describe({int, _, Value}) -> "integer " ++ integer_to_list(Value);
-describe({float, _, Value}) -> "float " ++ float_to_list(Value, [short]);
-describe({char, _, _}) -> "character literal";
-describe({string, _, _}) -> "string literal";
+%% Report §11.5: the token a parse error found, by its kind and its text,
+%% a number's text as Ernest writes its value (§2.5, E.8, E.9); a string,
+%% a character, a doc block and the end of input by their kind alone; and
+%% a symbol as written.
+describe({ident, _, Name}) -> "the name `" ++ atom_to_list(Name) ++ "`";
+describe({typename, _, Name}) -> "the type name `" ++ atom_to_list(Name) ++ "`";
+describe({int, _, Value}) -> "the integer `" ++ integer_to_list(Value) ++ "`";
+describe({float, _, Value}) -> "the float `" ++ ern_literal:float_text(Value) ++ "`";
+describe({char, _, _}) -> "a character literal";
+describe({string, _, _}) -> "a string literal";
 describe({bool, _, Value}) -> "the reserved word `" ++ atom_to_list(Value) ++ "`";
-describe({doc, _, _}) -> "doc block";
-describe({eof, _}) -> "end of input";
+describe({doc, _, _}) -> "a doc block";
+describe({eof, _}) -> "the end of input";
 describe({Symbol, _} = Token) ->
     case reserved_word(Token) of
         {ok, Word} -> "the reserved word `" ++ Word ++ "`";
